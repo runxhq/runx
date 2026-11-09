@@ -198,6 +198,10 @@ pub enum KernelStoreError {
     #[error("kernel store at {path} is not a runx kernel store")]
     Foreign { path: PathBuf },
     #[error(
+        "kernel store at {path} is from before runx 0.12, which 0.12 doesn't read; move it aside to start a new store"
+    )]
+    BeforeThisRunx { path: PathBuf },
+    #[error(
         "runx 0.10 left provider effects in flight in {path} ({}). runx 0.11 starts a new kernel log and cannot finish them: finish or reconcile these runs with runx 0.10, or move {path} aside to discard them",
         .acts.join(", ")
     )]

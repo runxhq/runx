@@ -10,6 +10,7 @@ use super::{BUSY_TIMEOUT, KernelStoreError};
 const APPLICATION_ID: i64 = 0x5255_4e4b;
 /// 0.12 raised it from 2 when `kernel_streams` and its `kind` became
 /// `kernel_keys` and `stream`, so a released runx refuses the store it opens.
+/// A store from before 0.12 is never read.
 const SCHEMA_VERSION: i64 = 3;
 
 /// The acts whose provider effects runx 0.10 left in flight in its store.
@@ -105,7 +106,11 @@ pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
         .map_err(database("reading the schema version"))?;
     match (application_id, version) {
         (APPLICATION_ID, SCHEMA_VERSION) => {}
-        (APPLICATION_ID, 2) => migrate_from_2(&mut connection, path)?,
+        (APPLICATION_ID, 1 | 2) => {
+            return Err(KernelStoreError::BeforeThisRunx {
+                path: path.to_path_buf(),
+            });
+        }
         (0, 0) => initialize(&mut connection, path)?,
         _ => {
             return Err(KernelStoreError::Foreign {
@@ -121,47 +126,6 @@ pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
         .pragma_update(None, "synchronous", "FULL")
         .map_err(database("requiring durable commits"))?;
     Ok(connection)
-}
-
-/// Version 2 named a stream's table `kernel_streams` and its stream `kind`.
-/// The names change and nothing else, so every chain verifies as it did.
-const MIGRATE_FROM_2: &str = "
-ALTER TABLE kernel_streams RENAME TO kernel_keys;
-ALTER TABLE kernel_keys RENAME COLUMN kind TO stream;
-ALTER TABLE kernel_events RENAME COLUMN kind TO stream;
-DROP INDEX kernel_streams_recent;
-CREATE INDEX kernel_keys_recent ON kernel_keys (stream, updated_at, key);
-";
-
-fn migrate_from_2(connection: &mut Connection, path: &Path) -> Result<(), KernelStoreError> {
-    let database = |operation: &'static str| {
-        move |source| KernelStoreError::Database {
-            path: path.to_path_buf(),
-            operation,
-            source,
-        }
-    };
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(database("locking the migration"))?;
-    let version: i64 = transaction
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(database("rechecking the schema version"))?;
-    if version == SCHEMA_VERSION {
-        // Another process migrated it while this one waited for the lock.
-        return transaction
-            .commit()
-            .map_err(database("closing the migration"));
-    }
-    transaction
-        .execute_batch(MIGRATE_FROM_2)
-        .map_err(database("migrating the schema"))?;
-    transaction
-        .pragma_update(None, "user_version", SCHEMA_VERSION)
-        .map_err(database("sealing the schema version"))?;
-    transaction
-        .commit()
-        .map_err(database("committing the migration"))
 }
 
 fn initialize(connection: &mut Connection, path: &Path) -> Result<(), KernelStoreError> {

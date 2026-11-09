@@ -122,16 +122,11 @@ in score order, ties broken by key, a page at a time.
 
 ## Stores from before streams had owners
 
-A store an earlier runx wrote moves to this shape when it's first opened, and
-its schema version rises, so an older runx refuses it rather than misread it.
-A resource a runx-maintained manifest named moves to the stream that manifest
-names now, such as `reddit_accounts` to `runx/reddit/accounts`; anything else
-moves to `unowned/<resource>`, which no package can write and a read reaches
-only by naming `package: unowned` under a term. Every event keeps its data,
-digest and idempotency key and records no writer, and every key keeps its
-chain, so it all verifies as it was written. Two data sources holding the same
-resource and aggregate would become one key, so that refuses the migration
-rather than mix their histories.
+runx 0.12 opens only its own store version. A store an earlier runx wrote
+refuses to open, on every backend, and says so: 0.12 doesn't read it, and
+moving the file or database aside starts a new store. Its rows are never read
+or moved. An older runx refuses a 0.12 store the same way, rather than misread
+it.
 
 ## Domain example
 

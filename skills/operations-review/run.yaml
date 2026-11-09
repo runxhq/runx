@@ -99,7 +99,7 @@ methods:
       package:
         type: string
         description: The package whose stream holds the operating state, such as runx/github or project:ops. Another package's stream is read only under a term naming it.
-        pattern: ^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$
+        pattern: ^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$
       stream:
         type: string
         description: The stream, as its package names it.

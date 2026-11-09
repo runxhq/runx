@@ -1130,203 +1130,40 @@ fn workspace_store(root: &Path) -> PathBuf {
     root.join(".runx/store.sqlite")
 }
 
-// The data migration: a store 0.11 wrote reads as 0.12's, its first-party
-// resources under their owners, anything else under `unowned/`, which
-// nothing can write.
+// A store from before 0.12 is never read: it refuses to open, says 0.12
+// doesn't read it, and says to move it aside.
 
 #[test]
-fn a_store_from_before_owners_migrates_and_its_unowned_streams_cannot_be_written() -> TestResult {
-    let project = Project::new("runx-store-migration")?;
-    std::fs::create_dir_all(project.root.join(".runx"))?;
-    migration::write_version_2_store(&workspace_store(&project.root))?;
-    // A package naming the unowned stream reads it under a term, and can't
-    // write it.
-    project.skill(
-        "inspector",
-        r#"minimum_runx: 0.12.0
-methods:
-  read:
-    steps:
-      - id: read
-        operation: store/events.read
-        inputs: {package: unowned, stream: ops_projection, key: workspace-example}
-"#,
-    )?;
-    let instance = project.instance("skills/inspector#read", "store")?;
-    let term = delegated(
-        &instance,
-        &["read"],
-        &["store/events.read"],
-        &["store.read"],
-        &["unowned/*"],
-    );
-    let read = project.result("skills/inspector#read", &[], Some(&term))?;
-    assert_eq!(read["stream"], "unowned/ops_projection", "{read}");
-    let events = read["events"].as_array().ok_or("events is a list")?;
-    assert_eq!(events.len(), 2);
-    // An event 0.11 wrote records no writer, and keeps its digest.
-    assert!(
-        events.iter().all(|event| event.get("writer").is_none()),
-        "{read}"
-    );
-    assert_eq!(events[0]["digest"], migration::first_event_digest());
-    assert_eq!(read["chain_digest"], migration::unowned_chain_digest());
-
-    let connection = rusqlite::Connection::open(workspace_store(&project.root))?;
-    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(version, 3);
-    let mut streams =
-        connection.prepare("SELECT DISTINCT stream FROM store_keys ORDER BY stream")?;
-    let streams = streams
-        .query_map([], |row| row.get::<_, String>(0))?
-        .collect::<Result<Vec<_>, _>>()?;
-    assert_eq!(
-        streams,
-        vec![
-            "runx/contact-consent-review/consent".to_owned(),
-            "runx/reddit/accounts".to_owned(),
-            "unowned/ops_projection".to_owned(),
-        ]
-    );
-    Ok(())
-}
-
-/// A store as runx 0.11 wrote it: schema version 2, its streams addressed by
-/// data source, resource and aggregate, its events with no writer.
-mod migration {
-    use std::path::Path;
-
-    use serde_json::{Value, json};
-
-    type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
-
-    const SCHEMA: &str = r#"
-CREATE TABLE runx_events (
-  data_source_uri TEXT NOT NULL, resource TEXT NOT NULL, aggregate_id TEXT NOT NULL,
-  version INTEGER NOT NULL, idempotency_key TEXT NOT NULL, event_id TEXT NOT NULL,
-  event_type TEXT NOT NULL, event_digest TEXT NOT NULL, event_json TEXT NOT NULL,
-  committed_at TEXT NOT NULL,
-  PRIMARY KEY (data_source_uri, resource, aggregate_id, version),
-  UNIQUE (data_source_uri, resource, aggregate_id, idempotency_key)
-);
-CREATE TABLE runx_stream_heads (
-  data_source_uri TEXT NOT NULL, resource TEXT NOT NULL, aggregate_id TEXT NOT NULL,
-  version INTEGER NOT NULL, event_id TEXT NOT NULL, event_type TEXT NOT NULL,
-  event_digest TEXT NOT NULL, idempotency_key TEXT NOT NULL, event_json TEXT NOT NULL,
-  committed_at TEXT NOT NULL, projection_digest TEXT NOT NULL,
-  PRIMARY KEY (data_source_uri, resource, aggregate_id)
-);
-CREATE INDEX runx_stream_heads_recent
-  ON runx_stream_heads (data_source_uri, resource, committed_at DESC, aggregate_id ASC);
-CREATE INDEX runx_stream_heads_type_recent
-  ON runx_stream_heads (data_source_uri, resource, event_type, committed_at DESC, aggregate_id ASC);
-"#;
-
-    fn digest(value: &Value) -> String {
-        runx_contracts::sha256_prefixed(&serde_json::to_vec(value).unwrap_or_default())
-    }
-
-    /// The streams 0.11 held: reddit's account, a consent decision, and a
-    /// stream no first-party manifest names.
-    fn streams() -> Vec<(&'static str, &'static str, &'static str, Vec<Value>)> {
-        vec![
-            (
-                "local://reddit",
-                "reddit_accounts",
-                "alice",
-                vec![json!({"type": "reddit.account", "account_id": "alice"})],
-            ),
-            (
-                "local://contact-consent-review/current",
-                "contact_consent_events",
-                "contact:probe",
-                vec![json!({"type": "contact_consent.granted", "contact": "probe"})],
-            ),
-            (
-                "tenant://operations-review/sqlite-state",
-                "ops_projection",
-                "workspace-example",
-                vec![
-                    json!({"event_type": "ops.snapshot", "health": "ok"}),
-                    json!({"event_type": "ops.snapshot", "health": "degraded"}),
-                ],
-            ),
-        ]
-    }
-
-    /// The chain 0.11 computed over `events`.
-    fn chain(events: &[Value]) -> String {
-        let mut chained = digest(&json!({"version": 0, "event_digest": null}));
-        for (index, event) in events.iter().enumerate() {
-            chained = digest(&json!({
-                "version": index + 1,
-                "previous_projection_digest": chained,
-                "event_digest": digest(event),
-            }));
-        }
-        chained
-    }
-
-    pub fn first_event_digest() -> String {
-        digest(&streams()[2].3[0])
-    }
-
-    pub fn unowned_chain_digest() -> String {
-        chain(&streams()[2].3)
-    }
-
-    pub fn write_version_2_store(path: &Path) -> TestResult {
-        let connection = rusqlite::Connection::open(path)?;
-        connection.execute_batch(SCHEMA)?;
+fn a_store_from_before_0_12_refuses_to_open_and_says_to_move_it_aside() -> TestResult {
+    let project = Project::new("runx-store-before")?;
+    project.skill("counter", COUNTER)?;
+    let path = workspace_store(&project.root);
+    std::fs::create_dir_all(path.parent().ok_or("a store has a directory")?)?;
+    {
+        let connection = rusqlite::Connection::open(&path)?;
+        connection.execute_batch(
+            "CREATE TABLE runx_events (resource TEXT NOT NULL, aggregate_id TEXT NOT NULL);
+             INSERT INTO runx_events VALUES ('ops_projection', 'workspace');",
+        )?;
+        // runx 0.11's store: its application id, at version 2.
         connection.pragma_update(None, "application_id", 0x5255_4e53_i64)?;
         connection.pragma_update(None, "user_version", 2_i64)?;
-        for (source, resource, aggregate, events) in streams() {
-            let mut chained = digest(&json!({"version": 0, "event_digest": null}));
-            for (index, event) in events.iter().enumerate() {
-                let version = index + 1;
-                let event_type = event
-                    .get("type")
-                    .or_else(|| event.get("event_type"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("data.event");
-                let event_digest = digest(event);
-                chained = digest(&json!({
-                    "version": version,
-                    "previous_projection_digest": chained,
-                    "event_digest": event_digest,
-                }));
-                let committed_at = format!("2026-10-0{version}T00:00:00.000Z");
-                let event_id = format!("{resource}:{aggregate}:{version}");
-                let key = format!("runx:sha256:{}", "0".repeat(63) + &version.to_string());
-                connection.execute(
-                    "INSERT INTO runx_events VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                    rusqlite::params![
-                        source,
-                        resource,
-                        aggregate,
-                        version as i64,
-                        key,
-                        event_id,
-                        event_type,
-                        event_digest,
-                        event.to_string(),
-                        committed_at
-                    ],
-                )?;
-                connection.execute(
-                    "INSERT INTO runx_stream_heads VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-                     ON CONFLICT (data_source_uri, resource, aggregate_id) DO UPDATE SET
-                       version = excluded.version, event_id = excluded.event_id,
-                       event_type = excluded.event_type, event_digest = excluded.event_digest,
-                       idempotency_key = excluded.idempotency_key, event_json = excluded.event_json,
-                       committed_at = excluded.committed_at, projection_digest = excluded.projection_digest",
-                    rusqlite::params![
-                        source, resource, aggregate, version as i64, event_id, event_type,
-                        event_digest, key, event.to_string(), committed_at, chained
-                    ],
-                )?;
-            }
-        }
-        Ok(())
     }
+    let before = std::fs::read(&path)?;
+    let refused = project.run("skills/counter#inspect", &[("key", "k")], None)?;
+    assert!(!refused.status.success(), "{}", printed(&refused));
+    for said in ["before runx 0.12", "doesn't read", "move the file aside"] {
+        assert!(printed(&refused).contains(said), "{}", printed(&refused));
+    }
+    assert_eq!(
+        std::fs::read(&path)?,
+        before,
+        "its rows are never read or moved"
+    );
+
+    // Moved aside, a new store starts.
+    std::fs::rename(&path, path.with_extension("sqlite.0-11"))?;
+    let inspected = project.result("skills/counter#inspect", &[("key", "k")], None)?;
+    assert_eq!(inspected["version"], 0, "{inspected}");
+    Ok(())
 }

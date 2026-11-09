@@ -8,7 +8,6 @@
 //! keeps a full-text index of each key's newest event, which `keys.search`
 //! ranks with BM25 (SQLite FTS5); an append replaces its key's entry.
 
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -16,7 +15,6 @@ use runx_contracts::JsonObject;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
-use super::migration::{self, OldAddress, OldEvent};
 use super::model::{self, Appended, EventRecord, KeyState, Listed, Matched, Writer};
 use super::request::{Append, Key, ListKeys, ReadEvents, SearchKeys};
 use super::{Backend, Kind, StoreError, Streams, append_in};
@@ -25,8 +23,9 @@ use super::{Backend, Kind, StoreError, Streams, append_in};
 const STORE_APPLICATION_ID: i64 = 0x5255_4e53;
 /// "RUNP": a `private` file.
 const PRIVATE_APPLICATION_ID: i64 = 0x5255_4e50;
-/// 0.12 raised it from 2: a released runx refuses a store whose version
-/// isn't its own when it opens it, rather than misreading a changed event.
+/// 0.12 raised it from 2. A store from before 0.12 is never read: it refuses
+/// to open, and a released runx refuses a store whose version isn't its own
+/// rather than misreading a changed event.
 const SCHEMA_VERSION: i64 = 3;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -69,21 +68,6 @@ CREATE INDEX store_keys_type_recent ON store_keys (stream, type, committed_at DE
 /// key's rowid, shared by every stream so scores compare across streams.
 const SEARCH_SCHEMA: &str = "CREATE VIRTUAL TABLE store_search USING fts5(text);";
 
-/// Version 1 named a record's `data_source_uri` and `event_id` columns
-/// `data_source_ref` and `event_ref`.
-const MIGRATE_FROM_1: &str = r#"
-ALTER TABLE runx_events RENAME COLUMN data_source_ref TO data_source_uri;
-ALTER TABLE runx_events RENAME COLUMN event_ref TO event_id;
-ALTER TABLE runx_stream_heads RENAME COLUMN data_source_ref TO data_source_uri;
-ALTER TABLE runx_stream_heads RENAME COLUMN event_ref TO event_id;
-"#;
-
-/// What version 2 kept, which version 3 replaces once its rows have moved.
-const DROP_VERSION_2: &str = r#"
-DROP TABLE runx_stream_heads;
-DROP TABLE runx_events;
-"#;
-
 const EVENT_COLUMNS: &str =
     "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest";
 
@@ -107,7 +91,7 @@ impl Sqlite {
             .busy_timeout(BUSY_TIMEOUT)
             .map_err(|error| database("setting the busy timeout", &error))?;
         let mut store = Self { connection, kind };
-        store.ensure_schema()?;
+        store.ensure_schema(path)?;
         Ok(store)
     }
 
@@ -118,7 +102,7 @@ impl Sqlite {
         }
     }
 
-    fn ensure_schema(&mut self) -> Result<(), StoreError> {
+    fn ensure_schema(&mut self, path: &Path) -> Result<(), StoreError> {
         let pragma = |connection: &Connection, name: &str| -> Result<i64, StoreError> {
             connection
                 .query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
@@ -135,12 +119,13 @@ impl Sqlite {
         };
         match (application_id, user_version) {
             (id, SCHEMA_VERSION) if id == own => return Ok(()),
-            // Only `store` was ever written before 0.12.
-            (STORE_APPLICATION_ID, 2) if own == STORE_APPLICATION_ID => {
-                return self.migrate(None);
-            }
-            (STORE_APPLICATION_ID, 1) if own == STORE_APPLICATION_ID => {
-                return self.migrate(Some(MIGRATE_FROM_1));
+            // Only `store` was ever written before 0.12, and 0.12 reads none
+            // of it.
+            (STORE_APPLICATION_ID, 1 | 2) if own == STORE_APPLICATION_ID => {
+                return Err(StoreError::invalid(format!(
+                    "{} is a store from before runx 0.12, which 0.12 doesn't read; move the file aside to start a new store",
+                    path.display()
+                )));
             }
             (0, 0) => {}
             (id, version) if id == own => {
@@ -171,92 +156,6 @@ impl Sqlite {
             .map_err(|error| database("marking the store", &error))?;
         version(transaction)
     }
-
-    /// Bring a store an earlier runx wrote to this version in one
-    /// transaction: its version 1 names first, then every event to the
-    /// stream and key it now belongs to (§6.9).
-    fn migrate(&mut self, from_1: Option<&str>) -> Result<(), StoreError> {
-        let transaction = self
-            .connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(|error| database("starting the migration", &error))?;
-        if let Some(steps) = from_1 {
-            transaction
-                .execute_batch(steps)
-                .map_err(|error| database("migrating version 1", &error))?;
-        }
-        let (events, chains) = version_2(&transaction)?;
-        let migrated = migration::migrate(events, &chains)?;
-        create(&transaction, Kind::Store)?;
-        for key in migrated {
-            let at = Key {
-                stream: &key.stream,
-                key: &key.key,
-            };
-            for event in &key.events {
-                insert_event(&transaction, at, event)?;
-            }
-            if let Some(last) = &key.state.last {
-                upsert_key(&transaction, at, last, &key.state)?;
-            }
-        }
-        transaction
-            .execute_batch(DROP_VERSION_2)
-            .map_err(|error| database("dropping version 2's tables", &error))?;
-        version(transaction)
-    }
-}
-
-/// Every event and stream chain a version 2 store holds.
-fn version_2(
-    transaction: &Transaction<'_>,
-) -> Result<(Vec<OldEvent>, BTreeMap<OldAddress, String>), StoreError> {
-    let read = |error: rusqlite::Error| database("reading version 2's events", &error);
-    let mut statement = transaction
-        .prepare(
-            "SELECT data_source_uri, resource, aggregate_id, version, event_type, event_json, event_digest, idempotency_key, committed_at FROM runx_events",
-        )
-        .map_err(read)?;
-    let events = statement
-        .query_map([], |row| {
-            let data = row.get::<_, String>(5)?;
-            Ok((
-                OldEvent {
-                    data_source_uri: row.get(0)?,
-                    resource: row.get(1)?,
-                    aggregate_id: row.get(2)?,
-                    version: u64::try_from(row.get::<_, i64>(3)?).unwrap_or(0),
-                    event_type: row.get(4)?,
-                    data: JsonObject::new(),
-                    digest: row.get(6)?,
-                    idempotency_key: row.get(7)?,
-                    committed_at: row.get(8)?,
-                },
-                data,
-            ))
-        })
-        .and_then(Iterator::collect::<Result<Vec<_>, _>>)
-        .map_err(read)?
-        .into_iter()
-        .map(|(mut event, data)| {
-            event.data = serde_json::from_str(&data).map_err(|error| {
-                StoreError::corrupt(format!("a version 2 event is not a JSON object: {error}"))
-            })?;
-            Ok(event)
-        })
-        .collect::<Result<Vec<_>, StoreError>>()?;
-    let mut statement = transaction
-        .prepare(
-            "SELECT data_source_uri, resource, aggregate_id, projection_digest FROM runx_stream_heads",
-        )
-        .map_err(read)?;
-    let chains = statement
-        .query_map([], |row| {
-            Ok(((row.get(0)?, row.get(1)?, row.get(2)?), row.get(3)?))
-        })
-        .and_then(Iterator::collect::<Result<BTreeMap<_, _>, _>>)
-        .map_err(read)?;
-    Ok((events, chains))
 }
 
 fn create(transaction: &Transaction<'_>, kind: Kind) -> Result<(), StoreError> {

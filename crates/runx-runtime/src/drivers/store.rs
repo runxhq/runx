@@ -35,7 +35,6 @@ use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 use crate::kernel::operation::AdmittedCall;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
 
-mod migration;
 mod model;
 #[cfg(feature = "store")]
 mod postgres;

@@ -7,12 +7,9 @@
 //! state from the one it read, and the script applies the append only while
 //! the key is still there; otherwise the client reads again.
 
-use std::collections::BTreeMap;
-
 use redis::{Commands, IntoConnectionInfo};
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 
-use super::migration::{self, OldAddress, OldEvent};
 use super::model::{self, Appended, EventRecord, KeyState, Listed};
 use super::request::{Append, Key, ListKeys, ReadEvents};
 use super::{Backend, StoreError};
@@ -22,14 +19,12 @@ const APPEND_ATTEMPTS: usize = 8;
 const KEY_PAGE: isize = 100;
 /// Where the store keeps its schema version.
 const SCHEMA_KEY: &str = "runx:store:schema";
-/// 0.12 raised it from 2, so an older runx refuses the store when it opens it.
+/// 0.12 raised it from 2, so an older runx refuses the store when it opens it,
+/// and 0.12 never reads a store from before it.
 const SCHEMA_VERSION: &str = "3";
-/// Held while one process migrates the store, so two never do at once.
-const MIGRATION_LOCK: &str = "runx:store:schema:migrating";
-const MIGRATION_LOCK_SECONDS: u64 = 600;
-/// Where version 2 and earlier kept their streams, by data source and
-/// resource.
-const VERSION_2_PREFIX: &str = "runx:store:{";
+/// Where a store from before 0.12 kept its streams. Version 1 set no schema
+/// version, so a store with none that holds a key here is one.
+const BEFORE_0_12: &str = "runx:store:{*";
 
 /// KEYS: events, idempotency, state, keys, order, members.
 /// ARGV: base version, expected version, idempotency key, record, state,
@@ -126,213 +121,36 @@ impl Redis {
         Ok(store)
     }
 
-    /// The store at this schema version. A store with no version is new or
-    /// version 1, which named a record's `event_id` `event_ref` and a
-    /// projection's `last_event_id` `last_event_ref`; a store at version 1
-    /// or 2 moves to this version's streams once, under a lock, before the
-    /// version is set.
+    /// The store at this schema version: a new one is marked with it, and a
+    /// store from before 0.12, at version 2 or at none with its keys, is
+    /// never read.
     fn ensure_schema(&mut self) -> Result<(), StoreError> {
         let version: Option<String> = self.connection.get(SCHEMA_KEY).map_err(read_error)?;
-        let from_1 = match version.as_deref() {
-            Some(SCHEMA_VERSION) => return Ok(()),
-            Some("2") => false,
-            None => true,
-            Some(other) => {
-                return Err(StoreError::corrupt(format!(
-                    "the store has schema version {other}, not {SCHEMA_VERSION}"
-                )));
-            }
+        let before = || {
+            StoreError::invalid(
+                "the redis database holds a store from before runx 0.12, which 0.12 doesn't read; move it aside, or name another database, to start a new store",
+            )
         };
-        let locked: Option<String> = redis::cmd("SET")
-            .arg(MIGRATION_LOCK)
-            .arg("1")
-            .arg("NX")
-            .arg("EX")
-            .arg(MIGRATION_LOCK_SECONDS)
-            .query(&mut self.connection)
-            .map_err(write_error)?;
-        if locked.is_none() {
-            return Err(StoreError::unavailable(
-                "another runx is migrating this store; try again once it finishes",
-            ));
-        }
-        let migrated = self.migrate(from_1).and_then(|()| {
-            self.connection
-                .set::<_, _, ()>(SCHEMA_KEY, SCHEMA_VERSION)
-                .map_err(write_error)
-        });
-        let released: Result<(), redis::RedisError> = self.connection.del(MIGRATION_LOCK);
-        migrated?;
-        released.map_err(write_error)
-    }
-
-    /// Move every stream an earlier version kept to the stream and key it
-    /// now belongs to (§6.9). Version 2 hashed each resource's data source
-    /// into its keys, so a resource is recovered from the heads it kept and
-    /// its data source stands as the group of keys that held it.
-    fn migrate(&mut self, from_1: bool) -> Result<(), StoreError> {
-        let mut groups = BTreeMap::<String, Vec<(String, String)>>::new();
-        let keys = self
-            .connection
-            .scan_match::<_, String>(format!("{VERSION_2_PREFIX}*"))
-            .map_err(read_error)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(read_error)?;
-        for key in keys {
-            let Some((tag, rest)) = key
-                .strip_prefix(VERSION_2_PREFIX)
-                .and_then(|rest| rest.split_once("}:"))
-            else {
-                continue;
-            };
-            groups
-                .entry(tag.to_owned())
-                .or_default()
-                .push((rest.to_owned(), key.clone()));
-        }
-        let mut events = Vec::new();
-        let mut chains = BTreeMap::<OldAddress, String>::new();
-        for (tag, parts) in &groups {
-            self.read_group(tag, parts, from_1, &mut events, &mut chains)?;
-        }
-        for key in migration::migrate(events, &chains)? {
-            self.write_key(&key.stream, &key.key, &key.events, &key.state)?;
-        }
-        for parts in groups.values() {
-            let keys = parts
-                .iter()
-                .map(|(_, key)| key.as_str())
-                .collect::<Vec<_>>();
-            self.connection.del::<_, ()>(keys).map_err(write_error)?;
-        }
-        Ok(())
-    }
-
-    /// One version 2 resource's events and chains, under the stand-in data
-    /// source `tag`.
-    fn read_group(
-        &mut self,
-        tag: &str,
-        parts: &[(String, String)],
-        from_1: bool,
-        events: &mut Vec<OldEvent>,
-        chains: &mut BTreeMap<OldAddress, String>,
-    ) -> Result<(), StoreError> {
-        let id_field = if from_1 { "event_ref" } else { "event_id" };
-        let find = |part: &str| {
-            parts
-                .iter()
-                .find(|(rest, _)| rest == part)
-                .map(|(_, key)| key.clone())
-        };
-        let Some(heads) = find("heads") else {
-            return Ok(());
-        };
-        let heads: Vec<(String, String)> = self.connection.hgetall(&heads).map_err(read_error)?;
-        let Some((aggregate, head)) = heads.first() else {
-            return Ok(());
-        };
-        let head = old_object(head)?;
-        let suffix = format!(":{aggregate}:{}", old_number(&head, "version")?);
-        let resource = old_text(&head, id_field)?
-            .strip_suffix(&suffix)
-            .ok_or_else(|| StoreError::corrupt("a version 2 head's id names another aggregate"))?
-            .to_owned();
-        let source = format!("redis group {tag}");
-        for (rest, key) in parts {
-            let Some(stream) = rest.strip_prefix("events:") else {
-                continue;
-            };
-            let records: Vec<String> = self.connection.lrange(key, 0, -1).map_err(read_error)?;
-            let mut aggregate = None;
-            for record in &records {
-                let record = old_object(record)?;
-                let version = old_number(&record, "version")?;
-                let named = old_text(&record, id_field)?
-                    .strip_prefix(&format!("{resource}:"))
-                    .and_then(|rest| rest.strip_suffix(&format!(":{version}")))
-                    .ok_or_else(|| StoreError::corrupt("a version 2 event names another resource"))?
-                    .to_owned();
-                if aggregate.get_or_insert_with(|| named.clone()) != &named {
-                    return Err(StoreError::corrupt(
-                        "a version 2 stream holds two aggregates",
-                    ));
+        match version.as_deref() {
+            Some(SCHEMA_VERSION) => Ok(()),
+            Some("2") => Err(before()),
+            Some(other) => Err(StoreError::corrupt(format!(
+                "the store has schema version {other}, not {SCHEMA_VERSION}"
+            ))),
+            None => {
+                let mut earlier = self
+                    .connection
+                    .scan_match::<_, String>(BEFORE_0_12)
+                    .map_err(read_error)?;
+                if earlier.next().is_some() {
+                    return Err(before());
                 }
-                events.push(OldEvent {
-                    data_source_uri: source.clone(),
-                    resource: resource.clone(),
-                    aggregate_id: named,
-                    version,
-                    event_type: old_text(&record, "event_type")?,
-                    data: record
-                        .get("event")
-                        .and_then(JsonValue::as_object)
-                        .cloned()
-                        .ok_or_else(|| StoreError::corrupt("a version 2 event has no body"))?,
-                    digest: old_text(&record, "event_digest")?,
-                    idempotency_key: old_text(&record, "idempotency_key")?,
-                    committed_at: old_text(&record, "committed_at")?,
-                });
-            }
-            let (Some(aggregate), Some(projection)) =
-                (aggregate, find(&format!("projection:{stream}")))
-            else {
-                continue;
-            };
-            let projection: Option<String> =
-                self.connection.get(&projection).map_err(read_error)?;
-            if let Some(projection) = projection {
-                chains.insert(
-                    (source.clone(), resource.clone(), aggregate),
-                    old_text(&old_object(&projection)?, "projection_digest")?,
-                );
+                drop(earlier);
+                self.connection
+                    .set::<_, _, ()>(SCHEMA_KEY, SCHEMA_VERSION)
+                    .map_err(write_error)
             }
         }
-        Ok(())
-    }
-
-    /// Write one migrated key whole, replacing whatever a migration that
-    /// stopped partway left of it.
-    fn write_key(
-        &mut self,
-        stream: &str,
-        key: &str,
-        events: &[EventRecord],
-        state: &KeyState,
-    ) -> Result<(), StoreError> {
-        let keys = Keys::of(stream, key)?;
-        let Some(last) = &state.last else {
-            return Ok(());
-        };
-        let records = events
-            .iter()
-            .map(|event| encoded(&JsonValue::Object(model::record_object(event))))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut pipe = redis::pipe();
-        pipe.atomic()
-            .del(&keys.events)
-            .del(&keys.idempotency)
-            .rpush(&keys.events, &records);
-        for (event, record) in events.iter().zip(&records) {
-            pipe.hset(&keys.idempotency, &event.idempotency_key, record);
-        }
-        let member = order_member(&last.committed_at, key);
-        let previous: Option<String> = self
-            .connection
-            .hget(&keys.members, key)
-            .map_err(read_error)?;
-        if let Some(previous) = previous {
-            pipe.zrem(&keys.order, previous);
-        }
-        pipe.set(&keys.state, state_json(state)?)
-            .zadd(&keys.order, &member, 0)
-            .hset(&keys.members, key, &member)
-            .hset(
-                &keys.keys,
-                key,
-                encoded(&JsonValue::Object(model::record_object(last)))?,
-            );
-        pipe.query::<()>(&mut self.connection).map_err(write_error)
     }
 
     fn get_json(&mut self, key: &str) -> Result<Option<JsonValue>, StoreError> {
@@ -345,28 +163,6 @@ impl Redis {
             })
             .transpose()
     }
-}
-
-fn old_object(text: &str) -> Result<JsonObject, StoreError> {
-    serde_json::from_str::<JsonValue>(text)
-        .ok()
-        .and_then(|value| value.as_object().cloned())
-        .ok_or_else(|| StoreError::corrupt("a version 2 value is not a JSON object"))
-}
-
-fn old_text(object: &JsonObject, field: &str) -> Result<String, StoreError> {
-    object
-        .get(field)
-        .and_then(JsonValue::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| StoreError::corrupt(format!("a version 2 value has no {field}")))
-}
-
-fn old_number(object: &JsonObject, field: &str) -> Result<u64, StoreError> {
-    object
-        .get(field)
-        .and_then(model::unsigned)
-        .ok_or_else(|| StoreError::corrupt(format!("a version 2 value has no {field}")))
 }
 
 fn read_error(error: redis::RedisError) -> StoreError {

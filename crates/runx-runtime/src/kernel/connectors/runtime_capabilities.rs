@@ -231,7 +231,7 @@ operations:
         key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
         after_version: {type: integer, minimum: 0, maximum: 9007199254740991}
         limit: {type: integer, minimum: 1, maximum: 500, default: 100}
-        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$", description: "Another package's stream to read, under a term that names it, or unowned for a stream a migration found no owner for. Never on a write."}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
     result_fields: [schema, operation, stream, key, backend, result_digest, version, events, last_version, has_more, chain_digest]
     implementation:
       store: {}
@@ -247,7 +247,7 @@ operations:
       properties:
         stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as accounts, stored under the calling package. No / and no #."}
         key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
-        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$", description: "Another package's stream to read, under a term that names it, or unowned for a stream a migration found no owner for. Never on a write."}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
     result_fields: [schema, operation, stream, key, backend, result_digest, version, last_event, chain_digest]
     implementation:
       store: {}
@@ -270,7 +270,7 @@ operations:
           items: {type: string, minLength: 1, maxLength: 128}
         cursor: {type: string, minLength: 1, maxLength: 1024}
         limit: {type: integer, minimum: 1, maximum: 100, default: 50}
-        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$", description: "Another package's stream to read, under a term that names it, or unowned for a stream a migration found no owner for. Never on a write."}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
     result_fields: [schema, operation, stream, backend, result_digest, keys, next_cursor]
     implementation:
       store: {}

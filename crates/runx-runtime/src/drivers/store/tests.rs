@@ -485,84 +485,32 @@ fn an_event_id_never_collides_across_a_colon() {
     );
 }
 
-/// A store an earlier runx wrote moves to the streams and keys 0.12 names
-/// when it's first opened, keeping every event's digest and each key's
-/// chain; version 1's names are carried over first.
+/// A store an earlier runx wrote is from before 0.12: it refuses to open,
+/// saying 0.12 doesn't read it and to move the file aside, and is left as it
+/// was, its rows unread.
 #[test]
-fn a_version_1_or_2_sqlite_store_migrates_to_owned_streams() {
+fn a_sqlite_store_from_before_0_12_refuses_to_open() {
     for version in [1, 2] {
         let root = tempfile::tempdir().unwrap();
         let path =
             crate::paths::RunxPaths::resolve(&BTreeMap::new(), root.path()).workspace_store();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let (digests, chain) = old::write_sqlite(&path, version);
-        let store = Test {
-            writer: link(
-                "runx/reddit",
-                "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-            ),
-            ..Test::workspace(root.path())
-        };
-        let read = store
+        old::write_sqlite(&path, version);
+        let before = std::fs::read(&path).unwrap();
+        let refused = Test::workspace(root.path())
             .call(
-                "events.read",
-                serde_json::json!({"stream": "accounts", "key": "alice", "after_version": 0}),
+                "key.inspect",
+                serde_json::json!({"stream": "accounts", "key": "alice"}),
             )
+            .err()
             .unwrap();
-        assert_eq!(read.text("stream"), "runx/reddit/accounts");
-        assert_eq!(read.text("chain_digest"), chain, "version {version}");
-        let events = read.field("events").as_array().unwrap();
+        old::says_to_move_it_aside(&refused);
+        assert!(refused.contains(&path.display().to_string()), "{refused}");
         assert_eq!(
-            events
-                .iter()
-                .map(|event| event.as_object().unwrap()["digest"]
-                    .as_str()
-                    .unwrap()
-                    .to_owned())
-                .collect::<Vec<_>>(),
-            digests
+            std::fs::read(&path).unwrap(),
+            before,
+            "version {version} is left as it was"
         );
-        assert!(
-            events
-                .iter()
-                .all(|event| !event.as_object().unwrap().contains_key("writer"))
-        );
-        // The migrated key takes its next event from its owner.
-        let next = store
-            .call(
-                "events.append",
-                serde_json::json!({"stream": "accounts", "key": "alice", "expected_version": 2,
-                    "idempotency_key": "k-next", "type": "reddit.account", "data": {}}),
-            )
-            .unwrap();
-        assert_eq!(next.text("status"), "committed");
-        let unowned = Test {
-            writer: link(
-                OWNER,
-                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-            ),
-            ..Test::workspace(root.path())
-        };
-        let other = unowned
-            .call(
-                "events.read",
-                serde_json::json!({"package": "unowned", "stream": "ops_projection", "key": "workspace"}),
-            )
-            .unwrap();
-        assert_eq!(other.versions(), vec![number(1)]);
-        let connection = rusqlite::Connection::open(&path).unwrap();
-        let stored: i64 = connection
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(stored, 3);
-        let old_tables: i64 = connection
-            .query_row(
-                "SELECT count(*) FROM sqlite_schema WHERE name LIKE 'runx_%'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(old_tables, 0);
     }
 }
 
@@ -734,13 +682,15 @@ fn a_private_instance_is_configured_only_where_it_can_search() {
     assert!(super::configurable(super::PRIVATE, &JsonObject::new()).is_ok());
 }
 
-/// Postgres and Redis keep the same keys to the same digests as SQLite, and
-/// a version 1 or 2 store of each migrates as SQLite's does. They run
-/// against `RUNX_TEST_POSTGRES_URL` and `RUNX_TEST_REDIS_URL`, each a
+/// Postgres and Redis keep the same keys to the same digests as SQLite. They
+/// run against `RUNX_TEST_POSTGRES_URL` and `RUNX_TEST_REDIS_URL`, each a
 /// database the test may write to, when set.
 #[cfg(feature = "store")]
 #[test]
 fn every_backend_keeps_the_same_streams() {
+    let _databases = old::DATABASES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let root = tempfile::tempdir().unwrap();
     let reference = scenario(&Test::workspace(root.path()));
     for variable in ["RUNX_TEST_POSTGRES_URL", "RUNX_TEST_REDIS_URL"] {
@@ -751,145 +701,88 @@ fn every_backend_keeps_the_same_streams() {
         let store = Test::at(isolated.path(), &url);
         old::clear(&url);
         assert_eq!(scenario(&store), reference, "{variable}");
-        for version in [1, 2] {
-            old::clear(&url);
-            let (digests, chain) = old::write(&url, version);
-            let reddit = Test {
-                writer: link(
-                    "runx/reddit",
-                    "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-                ),
-                ..Test::at(isolated.path(), &url)
-            };
-            let read = reddit
-                .call(
-                    "events.read",
-                    serde_json::json!({"stream": "accounts", "key": "alice", "after_version": 0}),
-                )
-                .unwrap();
-            assert_eq!(
-                read.text("chain_digest"),
-                chain,
-                "{variable} version {version}"
-            );
-            assert_eq!(
-                read.field("events")
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|event| event.as_object().unwrap()["digest"]
-                        .as_str()
-                        .unwrap()
-                        .to_owned())
-                    .collect::<Vec<_>>(),
-                digests,
-                "{variable} version {version}"
-            );
-            let other = Test::at(isolated.path(), &url)
-                .call(
-                    "events.read",
-                    serde_json::json!({"package": "unowned", "stream": "ops_projection", "key": "workspace"}),
-                )
-                .unwrap();
-            assert_eq!(
-                other.versions(),
-                vec![number(1)],
-                "{variable} version {version}"
-            );
-        }
         old::clear(&url);
     }
 }
 
-/// Stores as runx 0.11 and earlier wrote them: streams addressed by data
-/// source, resource and aggregate, events with no writer. Version 1 named
-/// `data_source_uri` and `event_id` `data_source_ref` and `event_ref`.
+/// A Postgres or Redis store from before 0.12 refuses to open and is left as
+/// it was, as SQLite's is. Each runs against `RUNX_TEST_POSTGRES_URL` or
+/// `RUNX_TEST_REDIS_URL` when set.
+#[cfg(feature = "store")]
+#[test]
+fn a_postgres_store_from_before_0_12_refuses_to_open() {
+    let Ok(url) = std::env::var("RUNX_TEST_POSTGRES_URL") else {
+        return;
+    };
+    let _databases = old::DATABASES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for version in [1, 2] {
+        old::clear(&url);
+        old::write(&url, version);
+        let isolated = tempfile::tempdir().unwrap();
+        let refused = Test::at(isolated.path(), &url)
+            .call(
+                "key.inspect",
+                serde_json::json!({"stream": "accounts", "key": "alice"}),
+            )
+            .err()
+            .unwrap();
+        old::says_to_move_it_aside(&refused);
+        assert_eq!(
+            old::rows_left(&url),
+            1,
+            "version {version} is left as it was"
+        );
+    }
+    old::clear(&url);
+}
+
+#[cfg(feature = "store")]
+#[test]
+fn a_redis_store_from_before_0_12_refuses_to_open() {
+    let Ok(url) = std::env::var("RUNX_TEST_REDIS_URL") else {
+        return;
+    };
+    let _databases = old::DATABASES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for version in [1, 2] {
+        old::clear(&url);
+        old::write(&url, version);
+        let isolated = tempfile::tempdir().unwrap();
+        let refused = Test::at(isolated.path(), &url)
+            .call(
+                "key.inspect",
+                serde_json::json!({"stream": "accounts", "key": "alice"}),
+            )
+            .err()
+            .unwrap();
+        old::says_to_move_it_aside(&refused);
+        assert_eq!(
+            old::rows_left(&url),
+            1,
+            "version {version} is left as it was"
+        );
+    }
+    old::clear(&url);
+}
+
+/// Stores as runx 0.11 and earlier wrote them, one event in each: streams
+/// addressed by data source, resource and aggregate. Version 1 named
+/// `data_source_uri` and `event_id` `data_source_ref` and `event_ref`, and
+/// its Redis store set no schema version.
 mod old {
-    use runx_contracts::{JsonObject, JsonValue};
+    /// Held by each test that writes the Postgres and Redis databases, which
+    /// they share.
+    #[cfg(feature = "store")]
+    pub(super) static DATABASES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    use super::super::model;
-
-    /// reddit's account for alice, two events, and a stream no first-party
-    /// manifest names.
-    pub(super) fn streams() -> Vec<(&'static str, &'static str, &'static str, Vec<JsonObject>)> {
-        let event = |value: serde_json::Value| serde_json::from_value::<JsonObject>(value).unwrap();
-        vec![
-            (
-                "local://reddit",
-                "reddit_accounts",
-                "alice",
-                vec![
-                    event(serde_json::json!({"type": "reddit.account", "voice": "plain"})),
-                    event(serde_json::json!({"type": "reddit.account", "voice": "warm"})),
-                ],
-            ),
-            (
-                "tenant://ops",
-                "ops_projection",
-                "workspace",
-                vec![event(serde_json::json!({"event_type": "ops.snapshot"}))],
-            ),
-        ]
-    }
-
-    /// Each old event as a row: its address, version, type, body, digest,
-    /// key, commit time and id, and its stream's chain after it.
-    pub(super) struct Row {
-        pub source: &'static str,
-        pub resource: &'static str,
-        pub aggregate: &'static str,
-        pub version: u64,
-        pub event_type: String,
-        pub body: String,
-        pub digest: String,
-        pub key: String,
-        pub committed_at: String,
-        pub id: String,
-        pub chain: String,
-    }
-
-    pub(super) fn rows() -> Vec<Row> {
-        let mut rows = Vec::new();
-        for (source, resource, aggregate, events) in streams() {
-            let mut chain = model::empty_chain().unwrap();
-            for (index, event) in events.into_iter().enumerate() {
-                let version = index as u64 + 1;
-                let digest = model::digest(&JsonValue::Object(event.clone())).unwrap();
-                chain = model::chain(&chain, version, &digest).unwrap();
-                rows.push(Row {
-                    source,
-                    resource,
-                    aggregate,
-                    version,
-                    event_type: event
-                        .get("type")
-                        .or_else(|| event.get("event_type"))
-                        .and_then(JsonValue::as_str)
-                        .unwrap()
-                        .to_owned(),
-                    body: serde_json::to_string(&event).unwrap(),
-                    digest,
-                    key: format!("runx:sha256:{resource}-{version}"),
-                    committed_at: format!("2026-10-0{version}T00:00:00.000Z"),
-                    id: format!("{resource}:{aggregate}:{version}"),
-                    chain: chain.clone(),
-                });
-            }
-        }
-        rows
-    }
-
-    /// alice's event digests and chain, which the migrated stream keeps.
-    fn alice() -> (Vec<String>, String) {
-        let rows = rows();
-        let alice = rows
-            .iter()
-            .filter(|row| row.aggregate == "alice")
-            .collect::<Vec<_>>();
-        (
-            alice.iter().map(|row| row.digest.clone()).collect(),
-            alice.last().unwrap().chain.clone(),
-        )
+    pub(super) fn says_to_move_it_aside(refused: &str) {
+        assert!(refused.contains("before runx 0.12"), "{refused}");
+        assert!(refused.contains("doesn't read"), "{refused}");
+        assert!(refused.contains("move"), "{refused}");
+        assert!(refused.contains("new store"), "{refused}");
     }
 
     fn sql(prefix: &str, version: u8, integer: &str) -> String {
@@ -899,17 +792,16 @@ mod old {
             ("data_source_uri", "event_id")
         };
         format!(
-            "CREATE TABLE {prefix}events ({source} TEXT NOT NULL, resource TEXT NOT NULL, aggregate_id TEXT NOT NULL, version {integer} NOT NULL, idempotency_key TEXT NOT NULL, {id} TEXT NOT NULL, event_type TEXT NOT NULL, event_digest TEXT NOT NULL, event_json TEXT NOT NULL, committed_at TEXT NOT NULL, PRIMARY KEY ({source}, resource, aggregate_id, version));
-             CREATE TABLE {prefix}heads ({source} TEXT NOT NULL, resource TEXT NOT NULL, aggregate_id TEXT NOT NULL, version {integer} NOT NULL, {id} TEXT NOT NULL, event_type TEXT NOT NULL, event_digest TEXT NOT NULL, idempotency_key TEXT NOT NULL, event_json TEXT NOT NULL, committed_at TEXT NOT NULL, projection_digest TEXT NOT NULL, PRIMARY KEY ({source}, resource, aggregate_id));"
+            "CREATE TABLE {prefix}events ({source} TEXT NOT NULL, resource TEXT NOT NULL, aggregate_id TEXT NOT NULL, version {integer} NOT NULL, event_json TEXT NOT NULL, {id} TEXT NOT NULL);
+             CREATE TABLE {prefix}heads ({source} TEXT NOT NULL, resource TEXT NOT NULL, aggregate_id TEXT NOT NULL, projection_digest TEXT NOT NULL);
+             INSERT INTO {prefix}events VALUES ('local://reddit', 'reddit_accounts', 'alice', 1, '{{}}', 'reddit_accounts:alice:1');"
         )
     }
 
-    pub(super) fn write_sqlite(path: &std::path::Path, version: u8) -> (Vec<String>, String) {
+    pub(super) fn write_sqlite(path: &std::path::Path, version: u8) {
         let connection = rusqlite::Connection::open(path).unwrap();
         connection
-            .execute_batch(
-                &sql("runx_", version, "INTEGER").replace("runx_heads", "runx_stream_heads"),
-            )
+            .execute_batch(&sql("runx_", version, "INTEGER"))
             .unwrap();
         connection
             .pragma_update(None, "application_id", 0x5255_4e53_i64)
@@ -917,42 +809,20 @@ mod old {
         connection
             .pragma_update(None, "user_version", i64::from(version))
             .unwrap();
-        for row in rows() {
-            connection
-                .execute(
-                    "INSERT INTO runx_events VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                    rusqlite::params![
-                        row.source,
-                        row.resource,
-                        row.aggregate,
-                        row.version as i64,
-                        row.key,
-                        row.id,
-                        row.event_type,
-                        row.digest,
-                        row.body,
-                        row.committed_at
-                    ],
-                )
-                .unwrap();
-            connection
-                .execute(
-                    "INSERT OR REPLACE INTO runx_stream_heads VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                    rusqlite::params![
-                        row.source, row.resource, row.aggregate, row.version as i64, row.id,
-                        row.event_type, row.digest, row.key, row.body, row.committed_at, row.chain
-                    ],
-                )
-                .unwrap();
-        }
-        alice()
     }
 
-    /// Write the old streams to the Postgres or Redis store at `url`.
+    /// Write an old store to the Postgres or Redis database at `url`.
     #[cfg(feature = "store")]
-    pub(super) fn write(url: &str, version: u8) -> (Vec<String>, String) {
+    pub(super) fn write(url: &str, version: u8) {
         if url.starts_with("redis") {
-            write_redis(url, version);
+            use redis::Commands;
+            let mut connection = redis::Client::open(url).unwrap().get_connection().unwrap();
+            let _: () = connection
+                .rpush("runx:store:{reddit}:events:alice", "{}")
+                .unwrap();
+            if version == 2 {
+                let _: () = connection.set("runx:store:schema", "2").unwrap();
+            }
         } else {
             let mut client = postgres::Client::connect(url, postgres::NoTls).unwrap();
             client
@@ -961,84 +831,22 @@ mod old {
                     sql("runx_store_", version, "BIGINT")
                 ))
                 .unwrap();
-            for row in rows() {
-                let version = row.version as i64;
-                client
-                    .execute(
-                        "INSERT INTO runx_store_events VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-                        &[&row.source, &row.resource, &row.aggregate, &version, &row.key, &row.id,
-                          &row.event_type, &row.digest, &row.body, &row.committed_at],
-                    )
-                    .unwrap();
-                client
-                    .execute(
-                        "DELETE FROM runx_store_heads WHERE resource = $1 AND aggregate_id = $2",
-                        &[&row.resource, &row.aggregate],
-                    )
-                    .unwrap();
-                client
-                    .execute(
-                        "INSERT INTO runx_store_heads VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-                        &[&row.source, &row.resource, &row.aggregate, &version, &row.id,
-                          &row.event_type, &row.digest, &row.key, &row.body, &row.committed_at, &row.chain],
-                    )
-                    .unwrap();
-            }
         }
-        alice()
     }
 
-    /// Version 2's Redis layout: each resource's keys under one hash tag of
-    /// its data source and resource, each stream's under a hash of all
-    /// three, and no version key before version 2.
+    /// How many events the old store at `url` still holds.
     #[cfg(feature = "store")]
-    fn write_redis(url: &str, version: u8) {
-        use redis::Commands;
-        let mut connection = redis::Client::open(url).unwrap().get_connection().unwrap();
-        fn hex(value: &impl serde::Serialize) -> String {
-            runx_contracts::sha256_prefixed(&serde_json::to_vec(value).unwrap())
-                .trim_start_matches("sha256:")
-                .to_owned()
-        }
-        let id = if version == 1 {
-            "event_ref"
+    pub(super) fn rows_left(url: &str) -> i64 {
+        if url.starts_with("redis") {
+            use redis::Commands;
+            let mut connection = redis::Client::open(url).unwrap().get_connection().unwrap();
+            connection.llen("runx:store:{reddit}:events:alice").unwrap()
         } else {
-            "event_id"
-        };
-        for row in rows() {
-            let prefix = format!("runx:store:{{{}}}", hex(&(row.source, row.resource)));
-            let stream = hex(&(row.source, row.resource, row.aggregate));
-            let record = serde_json::json!({
-                id: row.id, "version": row.version, "event_type": row.event_type,
-                "event": serde_json::from_str::<serde_json::Value>(&row.body).unwrap(),
-                "event_digest": row.digest, "idempotency_key": row.key, "committed_at": row.committed_at,
-            });
-            let mut head = record.clone();
-            head["aggregate_id"] = row.aggregate.into();
-            let projection =
-                serde_json::json!({"version": row.version, "projection_digest": row.chain});
-            let _: () = connection
-                .rpush(format!("{prefix}:events:{stream}"), record.to_string())
-                .unwrap();
-            let _: () = connection
-                .hset(
-                    format!("{prefix}:keys:{stream}"),
-                    &row.key,
-                    record.to_string(),
-                )
-                .unwrap();
-            let _: () = connection
-                .set(
-                    format!("{prefix}:projection:{stream}"),
-                    projection.to_string(),
-                )
-                .unwrap();
-            let _: () = connection
-                .hset(format!("{prefix}:heads"), row.aggregate, head.to_string())
-                .unwrap();
-        }
-        if version == 2 {
-            let _: () = connection.set("runx:store:schema", "2").unwrap();
+            let mut client = postgres::Client::connect(url, postgres::NoTls).unwrap();
+            client
+                .query_one("SELECT count(*) FROM runx_store_events", &[])
+                .unwrap()
+                .get(0)
         }
     }
 

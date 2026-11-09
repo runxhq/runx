@@ -4,18 +4,17 @@
 //! It keeps `store`'s streams; a `private` instance is refused here when it's
 //! configured, because this backend can't search.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use postgres::{Client, Config, GenericClient, NoTls, Row, Transaction};
 use runx_contracts::JsonObject;
 
-use super::migration::{self, OldAddress, OldEvent};
 use super::model::{self, Appended, EventRecord, KeyState, Listed, Writer};
 use super::request::{Append, Key, ListKeys, ReadEvents};
 use super::{Backend, StoreError, Streams, append_in};
 
-/// 0.12 raised it from 2, so an older runx refuses the store when it opens it.
+/// 0.12 raised it from 2, so an older runx refuses the store when it opens it,
+/// and 0.12 never reads a store from before it.
 const SCHEMA_VERSION: i32 = 3;
 
 const VERSION_TABLE: &str = r#"
@@ -57,20 +56,6 @@ CREATE TABLE store_keys (
 );
 CREATE INDEX store_keys_recent ON store_keys (stream, committed_at DESC, key ASC);
 CREATE INDEX store_keys_type_recent ON store_keys (stream, type, committed_at DESC, key ASC);
-"#;
-
-/// Version 1 named a record's `data_source_uri` and `event_id` columns
-/// `data_source_ref` and `event_ref`.
-const MIGRATE_FROM_1: &str = r#"
-ALTER TABLE runx_store_events RENAME COLUMN data_source_ref TO data_source_uri;
-ALTER TABLE runx_store_events RENAME COLUMN event_ref TO event_id;
-ALTER TABLE runx_store_heads RENAME COLUMN data_source_ref TO data_source_uri;
-ALTER TABLE runx_store_heads RENAME COLUMN event_ref TO event_id;
-"#;
-
-const DROP_VERSION_2: &str = r#"
-DROP TABLE runx_store_heads;
-DROP TABLE runx_store_events;
 "#;
 
 const EVENT_COLUMNS: &str =
@@ -133,19 +118,10 @@ impl Postgres {
                     .map_err(|error| database("versioning the schema", &error))?;
             }
             [SCHEMA_VERSION] => {}
-            [from @ (1 | 2)] => {
-                if *from == 1 {
-                    transaction
-                        .batch_execute(MIGRATE_FROM_1)
-                        .map_err(|error| database("migrating version 1", &error))?;
-                }
-                migrate(&mut transaction)?;
-                transaction
-                    .execute(
-                        "UPDATE runx_store_schema SET version = $1",
-                        &[&SCHEMA_VERSION],
-                    )
-                    .map_err(|error| database("versioning the schema", &error))?;
+            [1 | 2] => {
+                return Err(StoreError::invalid(
+                    "the database holds a store from before runx 0.12, which 0.12 doesn't read; move it aside, or name another database, to start a new store",
+                ));
             }
             _ => {
                 return Err(StoreError::corrupt(format!(
@@ -157,65 +133,6 @@ impl Postgres {
             .commit()
             .map_err(|error| database("committing the schema", &error))
     }
-}
-
-/// Move every event a version 2 store holds to the stream and key it now
-/// belongs to (§6.9), in the schema transaction.
-fn migrate(transaction: &mut Transaction<'_>) -> Result<(), StoreError> {
-    let rows = transaction
-        .query(
-            "SELECT data_source_uri, resource, aggregate_id, version, event_type, event_json, event_digest, idempotency_key, committed_at FROM runx_store_events",
-            &[],
-        )
-        .map_err(|error| database("reading version 2's events", &error))?;
-    let events = rows
-        .iter()
-        .map(|row| {
-            let data: String = row.get(5);
-            Ok(OldEvent {
-                data_source_uri: row.get(0),
-                resource: row.get(1),
-                aggregate_id: row.get(2),
-                version: u64::try_from(row.get::<_, i64>(3))
-                    .map_err(|_| StoreError::corrupt("an event has a negative version"))?,
-                event_type: row.get(4),
-                data: serde_json::from_str(&data).map_err(|error| {
-                    StoreError::corrupt(format!("a version 2 event is not a JSON object: {error}"))
-                })?,
-                digest: row.get(6),
-                idempotency_key: row.get(7),
-                committed_at: row.get(8),
-            })
-        })
-        .collect::<Result<Vec<_>, StoreError>>()?;
-    let chains = transaction
-        .query(
-            "SELECT data_source_uri, resource, aggregate_id, projection_digest FROM runx_store_heads",
-            &[],
-        )
-        .map_err(|error| database("reading version 2's heads", &error))?
-        .iter()
-        .map(|row| ((row.get(0), row.get(1), row.get(2)), row.get(3)))
-        .collect::<BTreeMap<OldAddress, String>>();
-    let migrated = migration::migrate(events, &chains)?;
-    transaction
-        .batch_execute(SCHEMA)
-        .map_err(|error| database("creating the schema", &error))?;
-    for key in migrated {
-        let at = Key {
-            stream: &key.stream,
-            key: &key.key,
-        };
-        for event in &key.events {
-            insert_event(transaction, at, event)?;
-        }
-        if let Some(last) = &key.state.last {
-            upsert_key(transaction, at, last, &key.state)?;
-        }
-    }
-    transaction
-        .batch_execute(DROP_VERSION_2)
-        .map_err(|error| database("dropping version 2's tables", &error))
 }
 
 fn tls() -> Result<tokio_postgres_rustls::MakeRustlsConnect, StoreError> {

@@ -518,11 +518,10 @@ fn a_tree_holds_its_root_and_descendants_only() {
     assert!(store.tree_heads::<Ledger>("missing").unwrap().is_empty());
 }
 
-/// A store runx 0.11 wrote, version 2, named its table of streams
-/// `kernel_streams` and a stream `kind`. It opens as version 3 under the
-/// store's names, and every stream reads and verifies as it did.
+/// A store runx 0.11 wrote, version 2, is from before 0.12: it refuses to
+/// open, says to move it aside, and is left as it was, its rows unread.
 #[test]
-fn a_version_2_store_opens_under_its_new_names_and_verifies() {
+fn a_store_from_before_0_12_refuses_to_open_and_is_left_as_it_was() {
     let root = tempfile::tempdir().unwrap();
     {
         let store = KernelStore::open(root.path()).unwrap();
@@ -540,20 +539,14 @@ fn a_version_2_store_opens_under_its_new_names_and_verifies() {
              PRAGMA user_version = 2;",
         )
         .unwrap();
-    let store = KernelStore::open(root.path()).unwrap();
-    assert_eq!(store.read::<Ledger>("a").unwrap().len(), 3);
-    drop(store);
-    let connection = rusqlite::Connection::open(&path).unwrap();
-    let version: i64 = connection
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .unwrap();
-    assert_eq!(version, 3);
-    let streams: i64 = connection
-        .query_row(
-            "SELECT count(*) FROM kernel_keys WHERE stream = ?1",
-            [Ledger::KIND],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(streams, 1);
+    let before = std::fs::read(&path).unwrap();
+    let refused = KernelStore::open(root.path()).err().unwrap();
+    assert!(
+        matches!(refused, KernelStoreError::BeforeThisRunx { .. }),
+        "{refused}"
+    );
+    let message = refused.to_string();
+    assert!(message.contains("before runx 0.12"), "{message}");
+    assert!(message.contains("move it aside"), "{message}");
+    assert_eq!(std::fs::read(&path).unwrap(), before, "nothing is migrated");
 }
