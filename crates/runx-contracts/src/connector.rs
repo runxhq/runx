@@ -802,16 +802,6 @@ impl OperationLease {
         }
     }
 
-    /// The leased resource: a take's own, rendered from the call's result,
-    /// and otherwise the operation's target, rendered from its arguments.
-    #[must_use]
-    pub fn target<'a>(&'a self, operation: &'a OperationTarget) -> &'a Template {
-        match self {
-            Self::Take(take) => &take.target,
-            Self::Renew(_) | Self::Release(_) => &operation.template,
-        }
-    }
-
     /// When the resource ends: a take and a renew say, a release doesn't.
     #[must_use]
     pub fn expires_at(&self) -> Option<&Template> {
