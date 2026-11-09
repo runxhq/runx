@@ -69,6 +69,7 @@ test("the guard fails on a key the format removes where it's written as one, and
     "connectors/demo/connector.yaml": "name: demo\noperations:\n  send:\n    result_fields: [sent]\n",
     "tools/demo/read/manifest.json": '{"schema": "runx.tool.manifest.v1", "name": "demo.read", "source": {"command": "node"}, "scopes": []}\n',
     "skills/demo/tests/reads.yaml": "name: reads\nmethod: run\ninputs:\n  criteria:\n    - {id: fit, required: true}\nexpect:\n  status: sealed\n",
+    "docs/reference.md": "Each package's metadata records `manifest_digest`, `connector_digest` and `runtime_capability`.\n",
     "docs/demo.md": "Declare `context_skills` on a step.\n\n```yaml\nmethods:\n  run:\n    steps:\n      - id: a\n        tool: demo.read\n        artifacts: {wrap_as: result}\n```\n\nA connector's `result_fields` name what it returns.\n",
     "crates/runx-parser/tests/refusals.rs": 'const OLD: &str = "minimum_runx: 0.12.0\\nmethods:\\n  run:\\n    steps:\\n      - id: a\\n        tool: demo.read\\n        scopes: [fs.read]\\n";\nfn operation_name() {}\n',
   });

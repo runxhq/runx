@@ -104,11 +104,15 @@ export const MENTIONED = new Set([
 
 /**
  * What keeps a removed key where it's written: a parser test that writes one
- * to prove it's refused.
+ * to prove it's refused, and the package metadata's own runtime_capability.
  */
 export const KEPT = [
   { file: /^crates\/runx-parser\/src\/graph\/validate\.rs$/, key: "effects", line: /effects: free\\n/, why: "the parser's test that effects: free is refused" },
   { file: /^crates\/runx-parser\/tests\/parser_skill_package\.rs$/, key: "skill", line: /\\nskill: other\\n/, why: "the parser's test that a root skill is refused" },
+  // connector.yaml's runtime_capability went; the package metadata's boolean
+  // (registry/package_metadata.rs), derived from the connector's origin and
+  // what bundling decides with, keeps its name.
+  { file: /^docs\/reference\.md$/, key: "runtime_capability", line: /`connector_digest` and `runtime_capability`/, why: "the package metadata's runtime_capability, which bundling decides with" },
   { file: /^crates\/runx-parser\/tests\/parser_turn_limits\.rs$/, key: "operations", line: /\\noperations: \[\]\\n/, why: "the parser's test that root operations are refused" },
 ];
 
