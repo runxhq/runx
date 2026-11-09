@@ -86,7 +86,7 @@ export function evaluateRustKernelInputSync(
   options: RustKernelEvalOptions = {},
 ): unknown {
   const env = { ...process.env, ...(options.env ?? {}) };
-  const command = rustExampleBinary("runx-core", "kernel_eval_batch", env);
+  const command = rustExampleBinary("kernel_eval_batch", env);
   const result = spawnSync(command, [], {
     cwd: options.cwd ?? workspaceRoot,
     encoding: "utf8",

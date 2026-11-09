@@ -61,7 +61,7 @@ function invokeNativeParser(document, expectedLength, env) {
   const cached = cache.get(request);
   if (cached) return cached;
 
-  const envelope = invokeJson(rustExampleBinary("runx-parser", "parser_eval", env), [], request, env);
+  const envelope = invokeJson(rustExampleBinary("parser_eval", env), [], request, env);
   const values = envelope?.result?.value;
   if (envelope?.status !== "success" || !Array.isArray(values) || values.length !== expectedLength) {
     throw new Error("native Runx parser returned an invalid batch response");

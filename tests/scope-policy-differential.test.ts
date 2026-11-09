@@ -28,7 +28,7 @@ const cases = policies.flatMap((policy) => grants.flatMap((grantedScope) => requ
 let nativeResults: readonly { status: "success"; result: { kind: "output"; value: boolean } }[];
 
 beforeAll(() => {
-  const result = spawnSync(rustExampleBinary("runx-core", "kernel_eval_batch"), [], {
+  const result = spawnSync(rustExampleBinary("kernel_eval_batch"), [], {
     cwd: workspaceRoot,
     encoding: "utf8",
     input: JSON.stringify(cases),

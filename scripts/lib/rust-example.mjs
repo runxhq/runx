@@ -1,18 +1,21 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const workspaceRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
-const built = new Set();
+import { cargo, rustBuildArgs, workspaceRoot } from "../rust-build.mjs";
+
+let built = false;
 
 /**
  * A development-only example binary of a workspace crate, the way the
  * repository's scripts reach build tools that never ship: in the Cargo target
- * directory, built the first time a process asks for it. Cargo does nothing
- * when the binary is fresh, so a target directory shared with another tree
- * never runs a stale one.
+ * directory, from the one Rust build the checks and test wrappers share
+ * (rust-build.mjs), run the first time a process asks. A narrower build would
+ * unify runx-runtime's features differently and replace the binary while
+ * another process starts it, so this never runs one. Cargo does nothing when
+ * that build is fresh, so a target directory shared with another tree never
+ * runs a stale binary.
  */
-export function rustExampleBinary(crate, example, env = process.env) {
+export function rustExampleBinary(example, env = process.env) {
   const targetDir = path.resolve(workspaceRoot, env.CARGO_TARGET_DIR ?? path.join("crates", "target"));
   const binary = path.join(
     targetDir,
@@ -20,16 +23,12 @@ export function rustExampleBinary(crate, example, env = process.env) {
     "examples",
     process.platform === "win32" ? `${example}.exe` : example,
   );
-  if (!built.has(binary)) {
-    const result = spawnSync(
-      process.platform === "win32" ? "cargo.exe" : "cargo",
-      ["build", "--quiet", "--manifest-path", path.join(workspaceRoot, "crates", "Cargo.toml"), "-p", crate, "--example", example],
-      { cwd: workspaceRoot, env, stdio: "inherit" },
-    );
+  if (!built) {
+    const result = spawnSync(cargo, rustBuildArgs, { cwd: workspaceRoot, env, stdio: "inherit" });
     if (result.status !== 0) {
-      throw new Error(`failed to build the ${example} example of ${crate}`);
+      throw new Error("the shared Rust build failed (scripts/rust-build.mjs)");
     }
-    built.add(binary);
+    built = true;
   }
   return binary;
 }

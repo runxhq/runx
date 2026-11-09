@@ -81,7 +81,7 @@ export function checkCanonicalParserOwnership(findings) {
   const parserBridgePath = path.join(workspaceRoot, "scripts/lib/native-parser.mjs");
   const parserBridge = existsSync(parserBridgePath) ? readFileSync(parserBridgePath, "utf8") : "";
   for (const token of [
-    "rustExampleBinary(\"runx-parser\", \"parser_eval\"",
+    "rustExampleBinary(\"parser_eval\"",
     "validateMethodManifestYamlBatch",
     "validateTestFixtureYamlBatch",
     "parsePacketSchemaDocumentsBatch",
