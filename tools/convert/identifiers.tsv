@@ -506,6 +506,9 @@ nitrosend	graph	1	graph	?	a bare word: code or prose, read in place	connectors/n
 nitrosend	harness-authored	1	harness	harness-authored	mcp-authoring-quality's evaluation harness, which drives candidate models: the agent-host sense the plan keeps, so it stays	skills/nitrosend/mcp-authoring-quality/SKILL.md
 nitrosend	held	1	hold	?	a bare word: code or prose, read in place	skills/nitrosend/load-drill/tools/nitrosend/lib/sends.mjs
 nitrosend	nskey_test_harness	1	harness	nskey_test_key	the test sense, but nskey_test_test reads as a typo; it is load-drill's fake API key	skills/nitrosend/load-drill/tests/check-reads-readiness.yaml
+oss	max_cost_micro	23		max_spend_micro_usd	the authority's spend ceiling, in micro-USD (authority.md)	crates/runx-cli/src/skill/parser.rs crates/runx-contracts/src/authority.rs
+oss	develop	38		write	the agent's write method (D2, §4.2)	skills/agent/run.yaml crates/runx-cli/tests/writes.rs
+oss	write	0		write	stays: the agent's write method takes the word, and every other write keeps it	skills/agent/run.yaml
 oss	runner	2114	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	harness	1143	harness	?	a bare word: code or prose, read in place	.github/workflows/ci.yml .github/workflows/runtime-quality.yml
 oss	graph	1056	graph	?	a bare word: code or prose, read in place	.github/workflows/ci.yml connectors/link/tools/link/payment/link.mjs

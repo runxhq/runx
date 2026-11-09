@@ -55,3 +55,12 @@ cloud	apps/web/src/components/skills/SkillOverview.astro	Runner	Method			Method 
 cloud	apps/web/src/components/skills/SkillSetup.astro	runner	method			method here is only an attribute's text: renamed as written (read)
 cloud	apps/web/src/pages/x/[publisher]/[name].astro	harness	test			test here is only a comment: renamed as written (read)
 oss	docs/developer-issue-inbox.md	harness	run	\ban open $	^$	the run sense: an open harness context, which the inbox's source events attach to
+oss	connectors/link/tests/payment.test.mjs	harness	fakeLink			the fake Link CLI the test builds, which records its calls; test is node:test's own, imported at line 2 (coordinator, 9 November)
+oss	packages/contracts/src/catalog-presentation.ts	runner	method	\bconst $	^ = optionalText	each item's method; the presentation's rail it would shadow becomes approach by hand on top (rename-table.tsv, 9 November)
+oss	crates/runx-contracts/src/purchase.rs	holds	leases	\bpub $	^:	PurchaseRead's leases: what a buyer's purchase holds is a lease (connector-yaml.md)
+oss	crates/runx-contracts/examples/runx-purchase-fixtures.rs	holds	leases	"$	^":	PurchaseRead's leases, in the fixture it writes
+oss	crates/runx-runtime/src/kernel/purchase/tests.rs	holds	leases	remove\("$	^"\)	PurchaseRead's leases, removed from a read to test its absence
+oss	*	max-cost	max-spend	--$		the CLI's --max-spend (cli.md); the max-cost of prose stays
+oss	*	managed-agent	drive	--$		the CLI's --drive (cli.md); a managed agent, the thing, keeps its name
+oss	*	managed-agent-rounds	drive-rounds	--$		the CLI's --drive-rounds (cli.md)
+oss	crates/runx-runtime/src/kernel/purchase/tests.rs	holds	leases	\bpurchase\.$		PurchaseRead's leases, read from a purchase
