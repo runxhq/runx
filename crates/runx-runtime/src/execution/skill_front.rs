@@ -465,6 +465,19 @@ fn bind_resolved(
     };
     let driver = crate::execution::run_record::DriverLock::acquire(workspace.paths(), &run_id)?;
     request.run_id = Some(run_id);
+    // A delegation names its connector, and the run holds the instance it
+    // resolves to here, at the root's admission.
+    if let Some(authority) = request.run_authority.take() {
+        request.run_authority = Some(
+            crate::kernel::admission::resolved_authority(
+                authority,
+                skill_dir,
+                workspace.env(),
+                workspace.cwd(),
+            )
+            .map_err(invalid)?,
+        );
+    }
     let skill_env = workspace.skill_env_for_skill(skill_dir);
     if !trusted_prepared {
         super::operator_context::load_skill_operator_context_chain_from_package(

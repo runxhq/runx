@@ -1115,7 +1115,11 @@ fn a_delegation_with_two_terms_admits_each_and_refuses_what_neither_covers() -> 
     let observe = |key: &str, attempt: &str, authority: &Value| {
         project.run(
             "skills/notes#observe",
-            &[("key", key), ("text", "takes tea black"), ("attempt", attempt)],
+            &[
+                ("key", key),
+                ("text", "takes tea black"),
+                ("attempt", attempt),
+            ],
             Some(authority),
         )
     };
@@ -1127,11 +1131,18 @@ fn a_delegation_with_two_terms_admits_each_and_refuses_what_neither_covers() -> 
     assert_eq!(appended["stream"], "project:notes/observed:habits");
     // Reading the person's words: the first.
     let recalled = project.result("skills/notes#recall", &[("key", "tea")], Some(&memory))?;
-    assert_eq!(recalled["stream"], "project:notes/said:personal", "{recalled}");
+    assert_eq!(
+        recalled["stream"], "project:notes/said:personal",
+        "{recalled}"
+    );
     // Writing them: neither, so it's refused and nothing is kept.
     let kept = project.run(
         "skills/notes#keep",
-        &[("key", "tea"), ("text", "I take my tea black"), ("attempt", "said")],
+        &[
+            ("key", "tea"),
+            ("text", "I take my tea black"),
+            ("attempt", "said"),
+        ],
         Some(&memory),
     )?;
     assert!(!kept.status.success(), "{}", printed(&kept));
@@ -1148,7 +1159,11 @@ fn a_delegation_with_two_terms_admits_each_and_refuses_what_neither_covers() -> 
     widening["delegations"][0]["terms"][1]["bounds"]["packages"] = json!(["*/*", "project:*"]);
     let refused = observe("juice", "widened", &widening)?;
     assert!(!refused.status.success(), "{}", printed(&refused));
-    assert!(printed(&refused).contains("widens"), "{}", printed(&refused));
+    assert!(
+        printed(&refused).contains("widens"),
+        "{}",
+        printed(&refused)
+    );
     Ok(())
 }
 
@@ -1172,10 +1187,12 @@ fn one_delegation_per_instance_per_run() -> TestResult {
     Ok(())
 }
 
-/// A host delegating to a different actor names it, as the run's actor and
-/// as the delegation's principal, under the operator's mandate (§4.8).
+/// A host delegating to an actor names it as the delegation's principal and
+/// as the run's actor (§4.8). `private`'s instance is public, so whoever acts
+/// is its principal: the mandate a delegation to another account's actor
+/// takes is proven on a hosted instance, in the kernel's own tests.
 #[test]
-fn delegating_to_another_actor_takes_the_actor_and_its_mandate() -> TestResult {
+fn delegating_to_an_actor_names_it_as_the_runs_actor() -> TestResult {
     let project = Project::new("runx-authority-actor")?;
     project.skill("notes", NOTES)?;
     let actor = json!({"type": "principal", "uri": "runx:principal:assistant:test"});
@@ -1192,17 +1209,24 @@ fn delegating_to_another_actor_takes_the_actor_and_its_mandate() -> TestResult {
     let observe = |attempt: &str, authority: &Value| {
         project.run(
             "skills/notes#observe",
-            &[("key", "tea"), ("text", "takes tea black"), ("attempt", attempt)],
+            &[
+                ("key", "tea"),
+                ("text", "takes tea black"),
+                ("attempt", attempt),
+            ],
             Some(authority),
         )
     };
     for (attempt, missing) in [
         ("neither", json!({})),
-        ("no-mandate", json!({"actor_ref": actor})),
         ("no-actor", json!({"mandate_ref": mandate})),
     ] {
         let refused = observe(attempt, &with(missing))?;
-        assert!(!refused.status.success(), "{attempt}: {}", printed(&refused));
+        assert!(
+            !refused.status.success(),
+            "{attempt}: {}",
+            printed(&refused)
+        );
     }
     let admitted = json(
         &observe(
@@ -1276,7 +1300,10 @@ fn the_same_act_through_two_wrappers_gets_one_provider_key() -> TestResult {
     assert_eq!(second["status"], "replayed", "{second}");
     assert_eq!(second["event"], first["event"], "{second}");
 
-    let ran = json(&project.run("skills/wrap-a#read", &[("key", "k")], None)?, 0)?;
+    let ran = json(
+        &project.run("skills/wrap-a#read", &[("key", "k")], None)?,
+        0,
+    )?;
     let read = find_store_result(&ran, "events.read").ok_or("nothing read")?;
     let events = read["events"].as_array().ok_or("events is a list")?;
     assert_eq!(events.len(), 1, "{read}");

@@ -55,7 +55,13 @@ export interface RunAuthority {
   /** Who acts; absent, the authority only bounds the run. */
   readonly actor_ref?: ReferenceContract;
   readonly mandate_ref?: ReferenceContract;
-  /** Narrowing requests the kernel mints against live capability evidence. */
+  /**
+   * One delegation per connector instance at most, each naming its
+   * `connector` and holding one or more `terms` of `verbs` over `bounds`,
+   * which the kernel mints against live capability evidence. A plain
+   * narrowing names nobody; one to a different actor names it as its
+   * `principal_ref`, beside `actor_ref` and `mandate_ref`.
+   */
   readonly delegations?: readonly Readonly<Record<string, unknown>>[];
   readonly max_fanout?: number;
   readonly max_child_depth?: number;

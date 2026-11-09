@@ -294,6 +294,21 @@ cover is refused before anything is sent, its receipt's execution term names
 the chain, and an empty list covers nothing. A delegation's terms carry the same
 `packages` bound, and a delegation states its own.
 
+A run's authority may set `delegations`, one per connector instance at most,
+each naming its connector and holding one or more terms, each its own `verbs`
+and `bounds`, so one delegation can read the person's words and write
+observations:
+`{"connector": "private", "terms": [{"verbs": ["read"], "bounds": {...}}, {"verbs": ["read", "write"], "bounds": {...}}]}`.
+The root's admission resolves each connector to the instance that stands for
+it, and the run keeps that instance, so nobody writes a hashed instance id.
+Each term narrows a term of the link before it, the run's `packages` or the
+instance's capability, the first it fits; a term that would widen it refuses
+every call on the instance. A call on the instance is admitted under the first
+term that covers it, and refused when none does. A plain narrowing names
+nobody. A host delegating to a different actor names it as the delegation's
+`principal_ref` and as the run's `actor_ref`, under the operator's
+`mandate_ref`, which the call's receipt cites.
+
 A run's authority may also set `max_spend_micro_usd`, the most the run may spend in
 integer micro-USD (1 = $0.000001); `runx skill --max-spend <usd>` sets it for a
 local run. Every priced call's quote, and every amount a call moves in USD or

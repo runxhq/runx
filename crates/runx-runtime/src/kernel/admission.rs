@@ -395,11 +395,40 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     if let Some(detail) = needs_term.filter(|_| !delegated.stated) {
         return Err(reasons.refuse(AdmissionCheck::Delegation, detail));
     }
-    let Delegated {
-        terms: delegations,
-        sources: delegation_sources,
-        ..
-    } = delegated;
+    // A call is admitted under the first term of the host's delegation that
+    // covers it, as a single use would be; with none, under the first, whose
+    // refusal says why.
+    let operation_label = format!("{}/{operation_name}", connector.name);
+    let probe = term_request(
+        &instance,
+        actor_ref.clone(),
+        &operation_label,
+        operation_spec,
+        &target,
+        Some(AuthorityUseLimit {
+            total: Some(1),
+            per_day: Some(1),
+        }),
+        evaluation.chain,
+    );
+    let paths = delegated.paths();
+    let (delegations, delegation_sources) = paths
+        .iter()
+        .find(|(terms, sources)| {
+            derive(
+                &capability,
+                terms,
+                sources,
+                &probe,
+                PROBED_CALL,
+                Vec::new(),
+                Vec::new(),
+            )
+            .is_ok()
+        })
+        .or_else(|| paths.first())
+        .cloned()
+        .unwrap_or_default();
     if let Some(detail) = uncovered_package(evaluation.chain, &delegations) {
         return Err(reasons.refuse(AdmissionCheck::Delegation, detail));
     }
@@ -478,7 +507,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let term_request = term_request(
         &instance,
         actor_ref.clone(),
-        &format!("{}/{operation_name}", connector.name),
+        &operation_label,
         operation_spec,
         &target,
         intent_uses,
@@ -792,6 +821,12 @@ fn project(
         env,
         cwd,
     };
+    // Projected as the root's admission would resolve it.
+    let resolved = authority
+        .cloned()
+        .map(|mut authority| resolve(&mut authority, context).map(|()| authority))
+        .transpose()?;
+    let authority = resolved.as_ref();
     // A connector chosen at run time may be any its requirement allows, so
     // each is projected.
     Ok(requirements
@@ -971,12 +1006,12 @@ fn readiness(
             match delegated_terms(&capability.term, &instance, authority, "inspection") {
                 Ok(delegated) => {
                     let limits = std::iter::once(&capability.term)
-                        .chain(delegated.terms.iter())
+                        .chain(delegated.terms())
                         .filter_map(|term| term.bounds.uses.as_ref())
                         .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
                         .collect::<Vec<_>>();
                     usage_approval = usage_approval_required(spec, money_limit, &limits);
-                    if let Some(detail) = uncovered_package(chain, &delegated.terms) {
+                    if let Some(detail) = delegated.uncovered(chain) {
                         reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail);
                     } else if is_private(&connector) && !delegated.stated {
                         reasons.push(
@@ -1113,6 +1148,10 @@ fn readiness(
     finish(readiness, reasons)
 }
 
+/// What a probe derivation, which only picks the term a call is admitted
+/// under, binds in place of the call's intent digest.
+const PROBED_CALL: &str = "probe";
+
 /// The gate type of a write the floor holds under `effects: ask`.
 pub(crate) const WRITE_GATE: &str = "write";
 
@@ -1124,23 +1163,83 @@ fn usage_approval_required(
     operation.is_unpriced_metered() && money_limit.is_none() && limits.is_empty()
 }
 
+/// One narrowing between an instance's capability and a call: its terms, each
+/// minted from a term of the link before it, and what stated it.
+struct Link {
+    terms: Vec<AuthorityTerm>,
+    /// For each term, the term of the link before it that it narrows.
+    parents: Vec<usize>,
+    /// The run for its `packages` or a plain narrowing, the operator's
+    /// mandate for a delegation to another actor.
+    source: Reference,
+}
+
 /// The links between an instance's capability and a call: the run's
 /// `packages`, then the host's delegation on the instance.
 #[derive(Default)]
 struct Delegated {
-    terms: Vec<AuthorityTerm>,
-    /// What stated each link: the run for its `packages`, the operator's
-    /// mandate for a host's delegation.
-    sources: Vec<Reference>,
-    /// A host stated a delegation on the instance: the call is made under a
-    /// term.
+    links: Vec<Link>,
+    /// A host stated a delegation on the instance: the call is made under one
+    /// of its terms.
     stated: bool,
+}
+
+impl Delegated {
+    /// Each term of the last link with the term of each link before it that
+    /// it narrows: the chains a call may be admitted under, in the host's
+    /// order. With no links, the one empty chain.
+    fn paths(&self) -> Vec<(Vec<AuthorityTerm>, Vec<Reference>)> {
+        let Some(last) = self.links.last() else {
+            return vec![(Vec::new(), Vec::new())];
+        };
+        (0..last.terms.len())
+            .map(|term| {
+                let mut index = term;
+                let mut terms = Vec::with_capacity(self.links.len());
+                let mut sources = Vec::with_capacity(self.links.len());
+                for link in self.links.iter().rev() {
+                    terms.push(link.terms[index].clone());
+                    sources.push(link.source.clone());
+                    index = link.parents[index];
+                }
+                terms.reverse();
+                sources.reverse();
+                (terms, sources)
+            })
+            .collect()
+    }
+
+    /// Every term of every link.
+    fn terms(&self) -> impl Iterator<Item = &AuthorityTerm> {
+        self.links.iter().flat_map(|link| link.terms.iter())
+    }
+
+    /// Why no chain covers every package of `chain`, when none does.
+    fn uncovered(&self, chain: &[crate::identity::ChainLink]) -> Option<String> {
+        let reasons = self
+            .paths()
+            .into_iter()
+            .map(|(terms, _)| uncovered_package(chain, &terms))
+            .collect::<Vec<_>>();
+        if reasons.iter().any(Option::is_none) {
+            return None;
+        }
+        reasons.into_iter().flatten().next()
+    }
+}
+
+/// Whether two references name one thing.
+fn same_address(left: &Reference, right: &Reference) -> bool {
+    left.reference_type == right.reference_type && left.uri == right.uri
 }
 
 /// The same applicable delegation chain serves admission and inspection.
 /// The run's `packages` is a plain narrowing of whichever instance a call
-/// resolves, needing no actor or mandate (D31), and the host's delegations
-/// on the instance narrow it in turn.
+/// resolves, needing no actor or mandate (D31). The host's one delegation on
+/// the instance narrows it in turn: each term the first term before it that
+/// it fits, through `mint_attenuated`. A plain narrowing names the run as
+/// its statement; one to a different actor takes the run's actor and the
+/// operator's mandate.
 fn delegated_terms(
     base: &AuthorityTerm,
     instance: &ConnectorInstance,
@@ -1150,70 +1249,191 @@ fn delegated_terms(
     let Some(authority) = authority else {
         return Ok(Delegated::default());
     };
-    if authority.actor_ref.is_none() && !authority.delegations.is_empty() {
-        return Err("the run's delegations name no actor to delegate to".to_owned());
-    }
+    let now = || IsoDateTime::from(crate::time::now_iso8601());
+    let run = Reference::runx(ReferenceType::Run, run_id);
     let mut delegated = Delegated::default();
-    let mut preceding = base.clone();
+    let mut preceding = vec![base.clone()];
     if let Some(packages) = &authority.packages {
         let narrowing = AttenuationRequest {
-            principal_ref: preceding.principal_ref.clone(),
-            resource_ref: preceding.resource_ref.clone(),
-            verbs: preceding.verbs.clone(),
+            principal_ref: base.principal_ref.clone(),
+            resource_ref: base.resource_ref.clone(),
+            verbs: base.verbs.clone(),
             bounds: AuthorityBounds {
                 packages: packages.clone(),
-                ..preceding.bounds.clone()
+                ..base.bounds.clone()
             },
-            expires_at: preceding.expires_at.clone(),
+            expires_at: base.expires_at.clone(),
         };
-        let (term, _) = mint_attenuated(
-            &preceding,
-            &narrowing,
-            &ConnectorBoundsComparator,
-            IsoDateTime::from(crate::time::now_iso8601()),
-        )
-        .map_err(|error| {
-            format!("the run's packages do not narrow this instance's capability: {error}")
-        })?;
-        preceding = term.clone();
-        delegated.terms.push(term);
-        delegated
-            .sources
-            .push(Reference::runx(ReferenceType::Run, run_id));
+        let (term, _) = mint_attenuated(base, &narrowing, &ConnectorBoundsComparator, now())
+            .map_err(|error| {
+                format!("the run's packages do not narrow this instance's capability: {error}")
+            })?;
+        preceding = vec![term.clone()];
+        delegated.links.push(Link {
+            terms: vec![term],
+            parents: vec![0],
+            source: run.clone(),
+        });
     }
     let instance_ref = capability::instance_reference(instance);
+    if let Some(unresolved) = authority.delegations.iter().find(|delegation| {
+        delegation.resource_ref.is_none() && delegation.connector == instance.connector
+    }) {
+        return Err(format!(
+            "the run's delegation on {} names no instance; the root's admission resolves it",
+            unresolved.connector
+        ));
+    }
     let stated = authority
         .delegations
         .iter()
-        .filter(|request| {
-            request.resource_ref.reference_type == instance_ref.reference_type
-                && request.resource_ref.uri == instance_ref.uri
+        .filter(|delegation| {
+            delegation
+                .resource_ref
+                .as_ref()
+                .is_some_and(|reference| same_address(reference, &instance_ref))
         })
         .collect::<Vec<_>>();
-    if stated.is_empty() {
-        return Ok(delegated);
-    }
-    let mandate = authority
-        .mandate_ref
+    let delegation = match stated.as_slice() {
+        [] => return Ok(delegated),
+        [delegation] => *delegation,
+        [delegation, ..] => {
+            return Err(format!(
+                "the run's authority states more than one delegation on {}'s instance; one delegation per instance per run, with as many terms as it needs",
+                delegation.connector
+            ));
+        }
+    };
+    let principal = delegation
+        .principal_ref
         .clone()
-        .filter(|reference| reference.reference_type == ReferenceType::Mandate)
-        .ok_or("the actor's delegation has no bound operator mandate")?;
-    for request in stated {
-        let (term, _) = mint_attenuated(
-            &preceding,
-            request,
-            &ConnectorBoundsComparator,
-            IsoDateTime::from(crate::time::now_iso8601()),
-        )
-        .map_err(|error| {
-            format!("the run's delegation does not narrow this instance's capability: {error}")
-        })?;
-        preceding = term.clone();
-        delegated.terms.push(term);
-        delegated.sources.push(mandate.clone());
+        .unwrap_or_else(|| base.principal_ref.clone());
+    let source = if same_address(&principal, &base.principal_ref) {
+        run
+    } else {
+        if !authority
+            .actor_ref
+            .as_ref()
+            .is_some_and(|actor| same_address(actor, &principal))
+        {
+            return Err(format!(
+                "the delegation on {} is to {}, so the run's actor_ref names it as who acts",
+                delegation.connector, principal.uri
+            ));
+        }
+        authority
+            .mandate_ref
+            .clone()
+            .filter(|reference| reference.reference_type == ReferenceType::Mandate)
+            .ok_or_else(|| {
+                format!(
+                    "the delegation on {} to another actor has no bound operator mandate",
+                    delegation.connector
+                )
+            })?
+    };
+    let mut link = Link {
+        terms: Vec::new(),
+        parents: Vec::new(),
+        source,
+    };
+    for (index, term) in delegation.terms.iter().enumerate() {
+        let request = AttenuationRequest {
+            principal_ref: principal.clone(),
+            resource_ref: instance_ref.clone(),
+            verbs: term.verbs.clone(),
+            bounds: term.bounds.clone(),
+            expires_at: delegation.expires_at.clone(),
+        };
+        let checked_at = now();
+        let fit = preceding.iter().enumerate().find_map(|(parent, narrowed)| {
+            mint_attenuated(
+                narrowed,
+                &request,
+                &ConnectorBoundsComparator,
+                checked_at.clone(),
+            )
+            .ok()
+            .map(|(minted, _)| (parent, minted))
+        });
+        let Some((parent, minted)) = fit else {
+            let why = preceding
+                .first()
+                .and_then(|narrowed| {
+                    mint_attenuated(narrowed, &request, &ConnectorBoundsComparator, checked_at)
+                        .err()
+                })
+                .map_or_else(String::new, |error| format!(": {error}"));
+            return Err(format!(
+                "term {index} of the run's delegation on {} widens what it narrows{why}",
+                delegation.connector
+            ));
+        };
+        link.terms.push(minted);
+        link.parents.push(parent);
     }
+    delegated.links.push(link);
     delegated.stated = true;
     Ok(delegated)
+}
+
+/// `authority` with each delegation's connector resolved to the instance
+/// that stands for it where the root run starts, at the skill in
+/// `skill_dir`: the run records the instance, so a resumed run keeps it
+/// (authority.md). A delegation that already names an instance is refused,
+/// because a host names the connector.
+pub(crate) fn resolved_authority(
+    mut authority: RunAuthority,
+    skill_dir: &Path,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<RunAuthority, String> {
+    if authority.delegations.is_empty() {
+        return Ok(authority);
+    }
+    let paths = crate::paths::RunxPaths::resolve(env, cwd);
+    let scope = ConnectorScope::in_project(skill_dir, &paths).map_err(|error| error.to_string())?;
+    let store = KernelStore::for_project(&paths).map_err(|error| error.to_string())?;
+    let instances = Instances::new(store);
+    let hosted = HostedClient::default();
+    let context = Context {
+        scope: &scope,
+        instances: &instances,
+        hosted: &hosted,
+        env,
+        cwd,
+    };
+    resolve(&mut authority, context)?;
+    Ok(authority)
+}
+
+fn resolve(authority: &mut RunAuthority, context: Context<'_>) -> Result<(), String> {
+    let stated = authority.clone();
+    for delegation in &mut authority.delegations {
+        if delegation.resource_ref.is_some() {
+            return Err(format!(
+                "the run's delegation on {} states its instance; a host names the connector, and the root's admission resolves it",
+                delegation.connector
+            ));
+        }
+        let connector = context
+            .scope
+            .connector(delegation.connector.as_str())
+            .map_err(|error| {
+                format!(
+                    "the run's delegation on {} names no connector here: {error}",
+                    delegation.connector
+                )
+            })?;
+        let instance = standing_instance(context, &connector, Some(&stated)).map_err(|error| {
+            format!(
+                "the run's delegation on {} resolves to no instance: {error}",
+                delegation.connector
+            )
+        })?;
+        delegation.resource_ref = Some(capability::instance_reference(&instance));
+    }
+    Ok(())
 }
 
 /// The connector `step`'s requirement resolves to in `scope` for `call`,

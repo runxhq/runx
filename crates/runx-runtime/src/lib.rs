@@ -115,7 +115,7 @@ pub use http::{
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
 pub use install::{InstallStateError, installation_id};
-pub use kernel::authority::RunAuthority;
+pub use kernel::authority::{Delegation, DelegationTerm, RunAuthority};
 pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector, OperationDigests,
 };

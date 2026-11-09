@@ -1,17 +1,17 @@
 //! Authority supplied by a trusted run host, separate from skill inputs and
 //! context. A direct run has none, unless its operator limits what it spends;
-//! an acting host names its actor, the hosted grants its calls run under, the
-//! attenuation requests to mint against live capability evidence, what the
-//! run may change and where its tools may go, how far the run's child runs
-//! may spread and what the run may spend. The run record binds it: a resumed
-//! run keeps the authority it started with.
+//! a host names the hosted grants its calls run under, the delegations to
+//! mint against live capability evidence, the packages its calls may be made
+//! from, its actor when it delegates to one, what the run may change and
+//! where its tools may go, how far the run's child runs may spread and what
+//! the run may spend. The run record binds it: a resumed run keeps the
+//! authority it started with.
 
 use std::collections::BTreeMap;
 
 use runx_contracts::connector::ConnectorName;
-use runx_contracts::schema::NonEmptyString;
-use runx_contracts::{Effects, Reach, Reference};
-use runx_core::policy::AttenuationRequest;
+use runx_contracts::schema::{IsoDateTime, NonEmptyString, NonEmptyVec};
+use runx_contracts::{AuthorityBounds, AuthorityVerb, Effects, Reach, Reference};
 use runx_parser::{Workflow, WorkflowStep};
 use serde::{Deserialize, Serialize};
 
@@ -25,20 +25,21 @@ pub struct RunAuthority {
     /// host names a grant and never asserts what it covers.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub grants: BTreeMap<ConnectorName, NonEmptyString>,
-    /// Who acts. Absent, each call is made by its instance's principal, and
-    /// the authority only bounds the run.
+    /// Who acts, when it isn't the instance's principal. Absent, each call is
+    /// made by its instance's principal, and the authority only bounds the
+    /// run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor_ref: Option<Reference>,
-    /// The trusted host's operator-authored mandate binding. Delegated calls
-    /// require it, and their receipts cite it rather than the connector
-    /// instance as if the instance had delegated authority.
+    /// The operator's mandate binding a delegation to another actor. A call
+    /// made under such a delegation requires it, and its receipt cites it
+    /// rather than the connector instance as if the instance had delegated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mandate_ref: Option<Reference>,
-    /// Host-supplied narrowing requests in parent-to-child order. The kernel
+    /// The host's narrowings, at most one per connector instance. The kernel
     /// mints each term from fresh capability evidence at admission; model-
     /// or skill-supplied terms are never accepted as authority.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub delegations: Vec<AttenuationRequest>,
+    pub delegations: Vec<Delegation>,
     /// The most child runs one agent turn may start.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_fanout: Option<u32>,
@@ -77,6 +78,43 @@ pub struct RunAuthority {
         deserialize_with = "runx_contracts::schema::deserialize_some_unique_items"
     )]
     pub packages: Option<Vec<runx_contracts::PackagePattern>>,
+}
+
+/// A host's narrowing of one connector instance for a run (authority.md): one
+/// or more terms, each its own verbs and bounds, so it can say "read the
+/// person's words, write observations". Each term narrows a term of the link
+/// before it, the first it fits in the host's order, and a call on the
+/// instance is admitted only when one of its terms covers it.
+///
+/// A plain narrowing names nobody. A host delegating to a different actor
+/// names it as `principal_ref`, and the run names it as `actor_ref` under the
+/// operator's `mandate_ref`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Delegation {
+    /// The connector whose instance it narrows, by name: nobody writes a
+    /// hashed instance id.
+    pub connector: ConnectorName,
+    /// The instance `connector` resolved to at the root's admission, which
+    /// the run records and keeps. A host never states it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_ref: Option<Reference>,
+    /// The different actor the host delegates to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal_ref: Option<Reference>,
+    /// When its terms expire, no later than what each narrows. Without one,
+    /// each expires with the term it narrows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<IsoDateTime>,
+    pub terms: NonEmptyVec<DelegationTerm>,
+}
+
+/// One term of a delegation: its verbs over its bounds.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DelegationTerm {
+    pub verbs: Vec<AuthorityVerb>,
+    pub bounds: AuthorityBounds,
 }
 
 impl RunAuthority {

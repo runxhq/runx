@@ -10,7 +10,6 @@ use runx_contracts::{
     AuthorityBounds, AuthorityVerb, ExecutionEvent, JsonObject, JsonValue, Reference,
     ReferenceType, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
-use runx_core::policy::AttenuationRequest;
 use runx_parser::WorkflowStep;
 
 use super::*;
@@ -1125,24 +1124,24 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
-    authority.delegations.push(AttenuationRequest {
-        principal_ref: actor_ref,
-        resource_ref: Reference::runx(
+    authority.delegations.push(delegation(
+        "fixture/chat",
+        Reference::runx(
             ReferenceType::ConnectorInstance,
             crate::kernel::instances::instance_id(&["hosted", "fixture/chat", "grant_chat"])
                 .unwrap()
                 .as_str(),
         ),
-        verbs: vec![AuthorityVerb::Read],
-        bounds: AuthorityBounds {
+        actor_ref,
+        vec![AuthorityVerb::Read],
+        AuthorityBounds {
             operations: vec!["fixture/chat/channel.post.read".into()],
             scopes: vec!["channel.post.read".into()],
             targets: vec!["chat://T123/C456".into()],
             uses: None,
             packages: Vec::new(),
         },
-        expires_at: None,
-    });
+    ));
     let mandate_ref = authority.mandate_ref.take();
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
     authority.mandate_ref = mandate_ref;
@@ -1177,10 +1176,13 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
             .admit_as("post", &post("hi"), Some(&authority))
             .is_err()
     );
-    authority.delegations[0].bounds.uses = Some(runx_contracts::AuthorityUseLimit {
-        total: Some(1),
-        per_day: None,
-    });
+    with_uses(
+        &mut authority.delegations[0],
+        Some(runx_contracts::AuthorityUseLimit {
+            total: Some(1),
+            per_day: None,
+        }),
+    );
     let admission = fixture
         .admit_as("read", &read, Some(&authority))
         .expect("the bounded use has capacity");
@@ -1214,6 +1216,94 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         .expect_err("another run exceeds the delegation's use cap");
     assert!(error.to_string().contains("limit is exhausted"), "{error}");
     assert_eq!(fixture.provider.calls(), 1);
+}
+
+/// A plain narrowing names no actor, mandate or principal (authority.md): the
+/// instance's own principal makes the call under its term, and the run is
+/// what stated it. Naming another actor takes the run's actor as well.
+#[test]
+fn a_plain_narrowing_names_nobody_and_another_actor_takes_the_runs_actor() {
+    let fixture = Fixture::new(&["channel.post", "channel.post.read"]);
+    let read: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"conversation_locator": "chat://T123/C456"}
+    }))
+    .unwrap();
+    let instance = Reference::runx(
+        ReferenceType::ConnectorInstance,
+        crate::kernel::instances::instance_id(&["hosted", "fixture/chat", "grant_chat"])
+            .unwrap()
+            .as_str(),
+    );
+    let assistant = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
+    let mut plain = delegation(
+        "fixture/chat",
+        instance,
+        assistant.clone(),
+        vec![AuthorityVerb::Read],
+        AuthorityBounds {
+            operations: vec!["fixture/chat/channel.post.read".into()],
+            scopes: vec!["channel.post.read".into()],
+            targets: vec!["chat://T123/*".into()],
+            uses: None,
+            packages: Vec::new(),
+        },
+    );
+    plain.principal_ref = None;
+    let authority = crate::RunAuthority {
+        delegations: vec![plain.clone()],
+        ..crate::RunAuthority::default()
+    };
+    let admitted = fixture
+        .admit_as("read", &read, Some(&authority))
+        .expect("a plain narrowing needs no actor or mandate");
+    let context = admitted.context::<OperationAdmission>().unwrap();
+    let derivation = context.admitted.admission.derivation.as_ref().unwrap();
+    assert_eq!(
+        derivation.evidence[1].reference,
+        Reference::runx(ReferenceType::Run, fixture.run_id),
+        "the run stated it"
+    );
+    assert_eq!(
+        context
+            .admitted
+            .admission
+            .execution_term
+            .as_ref()
+            .unwrap()
+            .principal_ref,
+        context.admitted.capability.term.principal_ref,
+        "the instance's principal makes the call"
+    );
+    // Its term still bounds the call.
+    let elsewhere: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"conversation_locator": "chat://T999/C1"}
+    }))
+    .unwrap();
+    assert!(
+        fixture
+            .admit_as("read", &elsewhere, Some(&authority))
+            .is_err()
+    );
+
+    // A delegation to another actor the run doesn't name as who acts is
+    // refused, and so is another actor acting under a plain narrowing.
+    let mut to_assistant = plain.clone();
+    to_assistant.principal_ref = Some(assistant.clone());
+    for authority in [
+        crate::RunAuthority {
+            delegations: vec![to_assistant],
+            mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
+            ..crate::RunAuthority::default()
+        },
+        crate::RunAuthority {
+            actor_ref: Some(assistant.clone()),
+            mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
+            delegations: vec![plain.clone()],
+            ..crate::RunAuthority::default()
+        },
+    ] {
+        assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
+    }
 }
 
 /// A grant is confirmed only for the exact connector Connect executes it
@@ -1604,11 +1694,12 @@ fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval(
         ReferenceType::Mandate,
         "one-provider-lookup",
     ));
-    authority.delegations.push(AttenuationRequest {
-        principal_ref: context.admitted.actor_ref.clone(),
-        resource_ref: context.admitted.capability.term.resource_ref.clone(),
-        verbs: vec![AuthorityVerb::Read],
-        bounds: AuthorityBounds {
+    authority.delegations.push(delegation(
+        "fixture/advisories",
+        context.admitted.capability.term.resource_ref.clone(),
+        context.admitted.actor_ref.clone(),
+        vec![AuthorityVerb::Read],
+        AuthorityBounds {
             operations: vec!["fixture/advisories/vulnerabilities.read".into()],
             scopes: vec!["vulnerabilities.read".into()],
             targets: vec![context.admitted.target.clone().into()],
@@ -1618,9 +1709,11 @@ fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval(
             }),
             packages: Vec::new(),
         },
-        expires_at: None,
-    });
-    authority.delegations[0].bounds.uses = Some(runx_contracts::AuthorityUseLimit::default());
+    ));
+    with_uses(
+        &mut authority.delegations[0],
+        Some(runx_contracts::AuthorityUseLimit::default()),
+    );
     assert_eq!(
         fixture
             .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
@@ -1628,10 +1721,13 @@ fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval(
         "pending"
     );
     assert_eq!(fixture.provider.calls(), 0);
-    authority.delegations[0].bounds.uses = Some(runx_contracts::AuthorityUseLimit {
-        total: Some(1),
-        per_day: None,
-    });
+    with_uses(
+        &mut authority.delegations[0],
+        Some(runx_contracts::AuthorityUseLimit {
+            total: Some(1),
+            per_day: None,
+        }),
+    );
     fixture
         .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
         .unwrap();
@@ -2067,19 +2163,19 @@ fn a_request_whose_path_changes_when_parsed_is_never_sent() {
             grants: std::collections::BTreeMap::new(),
             actor_ref: Some(actor_ref.clone()),
             mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
-            delegations: vec![AttenuationRequest {
-                principal_ref: actor_ref,
-                resource_ref: Reference::runx(ReferenceType::ConnectorInstance, instance.as_str()),
-                verbs: vec![AuthorityVerb::Read],
-                bounds: AuthorityBounds {
+            delegations: vec![delegation(
+                "fixture/forge",
+                Reference::runx(ReferenceType::ConnectorInstance, instance.as_str()),
+                actor_ref,
+                vec![AuthorityVerb::Read],
+                AuthorityBounds {
                     operations: vec!["fixture/forge/issues.read".into()],
                     scopes: vec!["repo.read".into()],
                     targets: vec!["acme/*".into()],
                     uses: None,
                     packages: Vec::new(),
                 },
-                expires_at: None,
-            }],
+            )],
             max_fanout: None,
             max_child_depth: None,
             standing_approvals: Vec::new(),
@@ -3267,26 +3363,28 @@ fn a_write_with_only_the_floors_reason_or_only_admissions_still_waits() {
 fn a_use_bound_on_another_instance_leaves_one_gate_naming_both_reasons() {
     let fixture = Fixture::credits();
     let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
-    let delegation = |grant: &str, uses: Option<u64>| AttenuationRequest {
-        principal_ref: actor_ref.clone(),
-        resource_ref: Reference::runx(
-            ReferenceType::ConnectorInstance,
-            crate::kernel::instances::instance_id(&["hosted", "fixture/credits", grant])
-                .unwrap()
-                .as_str(),
-        ),
-        verbs: vec![AuthorityVerb::Write],
-        bounds: AuthorityBounds {
-            operations: vec!["fixture/credits/credits.spend".into()],
-            scopes: vec!["credits.spend".into()],
-            targets: vec!["*".into()],
-            uses: uses.map(|total| runx_contracts::AuthorityUseLimit {
-                total: Some(total),
-                per_day: None,
-            }),
-            packages: Vec::new(),
-        },
-        expires_at: None,
+    let delegation = |grant: &str, uses: Option<u64>| {
+        delegation(
+            "fixture/credits",
+            Reference::runx(
+                ReferenceType::ConnectorInstance,
+                crate::kernel::instances::instance_id(&["hosted", "fixture/credits", grant])
+                    .unwrap()
+                    .as_str(),
+            ),
+            actor_ref.clone(),
+            vec![AuthorityVerb::Write],
+            AuthorityBounds {
+                operations: vec!["fixture/credits/credits.spend".into()],
+                scopes: vec!["credits.spend".into()],
+                targets: vec!["*".into()],
+                uses: uses.map(|total| runx_contracts::AuthorityUseLimit {
+                    total: Some(total),
+                    per_day: None,
+                }),
+                packages: Vec::new(),
+            },
+        )
     };
     // The call runs on grant_a's instance, delegated without a use bound;
     // another instance's delegation bounds its uses.
@@ -3311,4 +3409,32 @@ fn a_use_bound_on_another_instance_leaves_one_gate_naming_both_reasons() {
     );
     assert!(ready);
     assert_eq!(gates.len(), 1, "{gates:?}");
+}
+
+/// A host's delegation on `connector`'s instance at `resource_ref`, as the
+/// root's admission records it, to `principal_ref`, holding one term of
+/// `verbs` over `bounds`.
+fn delegation(
+    connector: &str,
+    resource_ref: Reference,
+    principal_ref: Reference,
+    verbs: Vec<AuthorityVerb>,
+    bounds: AuthorityBounds,
+) -> crate::Delegation {
+    crate::Delegation {
+        connector: runx_contracts::connector::ConnectorName::new(connector).unwrap(),
+        resource_ref: Some(resource_ref),
+        principal_ref: Some(principal_ref),
+        expires_at: None,
+        terms: vec![crate::DelegationTerm { verbs, bounds }].into(),
+    }
+}
+
+/// `delegation` with each of its terms' uses bounded by `uses`.
+fn with_uses(delegation: &mut crate::Delegation, uses: Option<runx_contracts::AuthorityUseLimit>) {
+    let mut terms = delegation.terms.clone().into_vec();
+    for term in &mut terms {
+        term.bounds.uses.clone_from(&uses);
+    }
+    delegation.terms = terms.into();
 }
