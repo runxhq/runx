@@ -242,3 +242,129 @@ pub struct StoreSearched {
     pub matches: Vec<StoreMatch>,
     pub next_cursor: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::StoreResult;
+    use crate::schema::RunxSchema;
+
+    const DIGEST: &str = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+    /// 2^53 − 1, the largest integer every JSON reader keeps exactly.
+    const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+
+    fn event() -> Value {
+        json!({
+            "id": "6:runx/x,1:k,1", "version": 1, "type": "notes.kept", "data": {},
+            "digest": DIGEST, "idempotency_key": "runx:sha256:abc",
+            "committed_at": "2026-11-09T00:00:00.000Z",
+        })
+    }
+
+    fn appended(status: &str) -> Value {
+        json!({
+            "schema": "runx.store.result.v1", "operation": "events.append",
+            "stream": "runx/notes/said", "key": "k", "backend": "sqlite",
+            "result_digest": DIGEST, "status": status, "before_version": 0, "version": 1,
+            "event": {"id": "6:runx/x,1:k,1", "digest": DIGEST}, "chain_digest": DIGEST,
+        })
+    }
+
+    fn read(events: Vec<Value>) -> Value {
+        json!({
+            "schema": "runx.store.result.v1", "operation": "events.read",
+            "stream": "runx/notes/said", "key": "k", "backend": "sqlite",
+            "result_digest": DIGEST, "version": 1, "events": events, "last_version": 1,
+            "has_more": false, "chain_digest": DIGEST,
+        })
+    }
+
+    fn with(mut value: Value, path: &[&str], field: Value) -> Value {
+        let mut at = &mut value;
+        for key in &path[..path.len() - 1] {
+            at = &mut at[*key];
+        }
+        at[path[path.len() - 1]] = field;
+        value
+    }
+
+    fn admits(validator: &jsonschema::Validator, value: &Value) -> bool {
+        let valid = validator.is_valid(value);
+        assert_eq!(
+            valid,
+            serde_json::from_value::<StoreResult>(value.clone()).is_ok(),
+            "the schema and decoding agree on {value}"
+        );
+        valid
+    }
+
+    /// store.md's rules the code means, carried by the generated schema:
+    /// versions within 2^53 − 1, an event only with a status that has one,
+    /// a non-empty stream, a key and a type within their input bounds, a
+    /// non-empty event id and idempotency key, a date-time commit and a page
+    /// within its operation's limit.
+    #[test]
+    fn a_store_result_keeps_store_mds_rules() -> Result<(), String> {
+        let schema = StoreResult::json_schema();
+        let validator = jsonschema::draft202012::options()
+            .build(&schema)
+            .map_err(|error| error.to_string())?;
+        let admits = |value: &Value| admits(&validator, value);
+        assert!(admits(&appended("committed")));
+        assert!(admits(&read(vec![event()])));
+        for status in ["version_conflict", "idempotency_conflict"] {
+            assert!(!admits(&appended(status)), "a conflict carries no event");
+        }
+        let conflicted = appended("version_conflict")
+            .as_object()
+            .map(|object| {
+                let mut object = object.clone();
+                object.remove("event");
+                Value::Object(object)
+            })
+            .unwrap_or_default();
+        assert!(admits(&conflicted));
+        let refused = [
+            with(
+                appended("committed"),
+                &["version"],
+                json!(MAX_SAFE_INTEGER + 1),
+            ),
+            with(
+                appended("committed"),
+                &["before_version"],
+                json!(MAX_SAFE_INTEGER + 1),
+            ),
+            with(
+                read(vec![event()]),
+                &["last_version"],
+                json!(MAX_SAFE_INTEGER + 1),
+            ),
+            read(vec![with(
+                event(),
+                &["version"],
+                json!(MAX_SAFE_INTEGER + 1),
+            )]),
+            with(appended("committed"), &["stream"], json!("")),
+            with(appended("committed"), &["key"], json!("")),
+            with(appended("committed"), &["key"], json!("k".repeat(193))),
+            read(vec![with(event(), &["type"], json!("t".repeat(129)))]),
+            read(vec![with(event(), &["type"], json!(""))]),
+            read(vec![with(event(), &["id"], json!(""))]),
+            read(vec![with(event(), &["idempotency_key"], json!(""))]),
+            read(vec![with(event(), &["committed_at"], json!("yesterday"))]),
+            read(vec![event(); 501]),
+        ];
+        for value in &refused {
+            assert!(!admits(value), "{value}");
+        }
+        assert!(admits(&with(
+            appended("committed"),
+            &["version"],
+            json!(MAX_SAFE_INTEGER)
+        )));
+        assert!(admits(&read(vec![event(); 500])));
+        Ok(())
+    }
+}
