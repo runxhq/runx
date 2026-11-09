@@ -587,6 +587,8 @@ impl<T: RunxSchema> RunxSchema for Box<T> {
 /// property names with their grammar.
 pub trait SchemaMapKey {
     const PATTERN: Option<&'static str>;
+    /// A pattern no key matches, said as a `not` beside `PATTERN`.
+    const RESERVED: Option<&'static str> = None;
 }
 
 impl SchemaMapKey for String {
@@ -609,14 +611,18 @@ impl<K: SchemaMapKey, T: RunxSchema> RunxSchema for BTreeMap<K, T> {
 
 /// An object whose keys are `K`s and whose values each take `value`.
 fn map_schema<K: SchemaMapKey>(value: Value) -> Value {
-    match K::PATTERN {
-        None => json!({ "type": "object", "additionalProperties": value }),
-        Some(pattern) => json!({
-            "type": "object",
-            "propertyNames": { "pattern": pattern },
-            "additionalProperties": value,
-        }),
+    let Some(pattern) = K::PATTERN else {
+        return json!({ "type": "object", "additionalProperties": value });
+    };
+    let mut names = json!({ "pattern": pattern });
+    if let Some(reserved) = K::RESERVED {
+        names["not"] = json!({ "pattern": reserved });
     }
+    json!({
+        "type": "object",
+        "propertyNames": names,
+        "additionalProperties": value,
+    })
 }
 
 /// A non-empty string (`minLength: 1`), the ubiquitous contract constraint. It

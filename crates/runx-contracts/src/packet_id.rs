@@ -5,7 +5,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, de};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::connector::ids::identifier;
 use crate::connector::is_publisher_namespace;

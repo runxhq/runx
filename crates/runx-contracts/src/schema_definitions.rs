@@ -519,4 +519,147 @@ mod tests {
             json!({ "title": "ReferenceType", "type": "string" });
         assert!(publish_schema_artifacts(&[artifact]).is_err());
     }
+
+    /// Why `pattern` is outside the portable subset every JSON Schema
+    /// consumer's regex engine reads, ECMA-262 and RE2 alike: no lookaround,
+    /// no backreference and no named group. None when it's inside.
+    fn outside_the_portable_subset(pattern: &str) -> Option<&'static str> {
+        let chars = pattern.chars().collect::<Vec<_>>();
+        let mut in_class = false;
+        let mut index = 0;
+        while let Some(&char) = chars.get(index) {
+            let next = |offset: usize| chars.get(index + offset).copied();
+            match char {
+                '\\' => {
+                    match next(1) {
+                        Some('1'..='9') => return Some("a backreference"),
+                        Some('k') if next(2) == Some('<') => return Some("a named backreference"),
+                        _ => {}
+                    }
+                    index += 2;
+                    continue;
+                }
+                '[' if !in_class => in_class = true,
+                ']' if in_class => in_class = false,
+                '(' if !in_class && next(1) == Some('?') => match (next(2), next(3)) {
+                    (Some('=' | '!'), _) => return Some("a lookahead"),
+                    (Some('<'), Some('=' | '!')) => return Some("a lookbehind"),
+                    (Some('<' | 'P'), _) => return Some("a named group"),
+                    _ => {}
+                },
+                _ => {}
+            }
+            index += 1;
+        }
+        None
+    }
+
+    /// Each pattern in `schema`, at `pointer` in `file_name`, that is outside
+    /// the portable subset: a `pattern`, and a `patternProperties` name. Only
+    /// schema positions are read, so a literal value such as an example is
+    /// never taken for a pattern.
+    fn non_portable_patterns(
+        schema: &Value,
+        file_name: &str,
+        pointer: &str,
+        found: &mut Vec<String>,
+    ) {
+        let Value::Object(object) = schema else {
+            return;
+        };
+        let at = |keyword: &str| {
+            format!(
+                "{pointer}/{}",
+                keyword.replace('~', "~0").replace('/', "~1")
+            )
+        };
+        let mut refuse = |pattern: &str, where_: String| {
+            if let Some(why) = outside_the_portable_subset(pattern) {
+                found.push(format!("{file_name}#{where_}: {why} in {pattern:?}"));
+            }
+        };
+        if let Some(Value::String(pattern)) = object.get("pattern") {
+            refuse(pattern, at("pattern"));
+        }
+        if let Some(Value::Object(properties)) = object.get("patternProperties") {
+            for name in properties.keys() {
+                refuse(
+                    name,
+                    format!(
+                        "{}/{}",
+                        at("patternProperties"),
+                        name.replace('~', "~0").replace('/', "~1")
+                    ),
+                );
+            }
+        }
+        for (keyword, value) in object {
+            match value {
+                Value::Array(items)
+                    if SCHEMA_LIST_KEYWORDS.contains(&keyword.as_str()) || keyword == "items" =>
+                {
+                    for (position, item) in items.iter().enumerate() {
+                        non_portable_patterns(
+                            item,
+                            file_name,
+                            &format!("{}/{position}", at(keyword)),
+                            found,
+                        );
+                    }
+                }
+                Value::Object(members) if SCHEMA_MAP_KEYWORDS.contains(&keyword.as_str()) => {
+                    for (name, member) in members {
+                        let member_at = format!(
+                            "{}/{}",
+                            at(keyword),
+                            name.replace('~', "~0").replace('/', "~1")
+                        );
+                        non_portable_patterns(member, file_name, &member_at, found);
+                    }
+                }
+                _ if SCHEMA_KEYWORDS.contains(&keyword.as_str()) => {
+                    non_portable_patterns(value, file_name, &at(keyword), found);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// A published schema is read by every consumer's own regex engine, and
+    /// Go's RE2 and others parse no lookaround, backreference or named group,
+    /// so no published pattern uses one.
+    #[test]
+    fn every_published_pattern_is_in_the_portable_subset() -> Result<(), String> {
+        let published = publish_schema_artifacts(&generated_schema_artifacts())
+            .map_err(|error| error.to_string())?;
+        let mut found = Vec::new();
+        for (file_name, document) in published.documents() {
+            non_portable_patterns(document, file_name, "", &mut found);
+        }
+        assert!(
+            found.is_empty(),
+            "patterns outside the portable subset:\n{}",
+            found.join("\n")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_portable_subset_refuses_lookaround_backreferences_and_named_groups() {
+        for (pattern, why) in [
+            ("^(?!versions$)[a-z]+$", Some("a lookahead")),
+            ("^(?=.{1,64}$)[a-z]+$", Some("a lookahead")),
+            ("(?<!x)y", Some("a lookbehind")),
+            ("(?<=x)y", Some("a lookbehind")),
+            ("(a)\\1", Some("a backreference")),
+            ("(?<word>a)\\k<word>", Some("a named group")),
+            ("(?P<word>a)", Some("a named group")),
+            ("^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$", None),
+            ("^versions(/|$)|/versions$", None),
+            ("^[(?!]+$", None),
+            ("^\\(\\?!x\\)$", None),
+        ] {
+            assert_eq!(outside_the_portable_subset(pattern), why, "{pattern}");
+        }
+    }
 }

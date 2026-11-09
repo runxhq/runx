@@ -9,12 +9,18 @@ use serde_json::{Value, json};
 
 use crate::schema::{RunxSchema, SchemaMapKey};
 
-/// A connector's whole name: `<namespace>` or `<namespace>/<surface>`. The
-/// namespace is a registry namespace, in the publisher slug grammar; a surface
-/// is lowercase, starts with a letter and is 2 to 64 characters. `versions` is
-/// reserved in either place, so `/v1/connectors/<name>/versions/<v>` reads one
-/// way.
-pub const CONNECTOR_NAME_PATTERN: &str = "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$";
+/// A connector's whole name's shape: `<namespace>` or `<namespace>/<surface>`.
+/// The namespace is a registry namespace, in the publisher slug grammar; a
+/// surface is lowercase, starts with a letter and is 2 to 64 characters. A
+/// name of this shape is a connector name unless it matches
+/// [`RESERVED_CONNECTOR_NAME_PATTERN`].
+pub const CONNECTOR_NAME_SHAPE_PATTERN: &str =
+    "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/[a-z][a-z0-9-]{0,62}[a-z0-9])?$";
+/// A name of that shape whose namespace or surface is `versions`, which no
+/// connector name is, so `/v1/connectors/<name>/versions/<v>` reads one way.
+/// A schema says it as a `not` beside the shape, never as a lookahead inside
+/// it, so its patterns stay in the subset every consumer's regex engine reads.
+pub const RESERVED_CONNECTOR_NAME_PATTERN: &str = "^versions(?:/|$)|/versions$";
 /// The word no namespace or surface may be: it names a connector's versions.
 pub const RESERVED_CONNECTOR_SEGMENT: &str = "versions";
 /// Dotted lowercase segments, underscores allowed, at least two segments.
@@ -126,8 +132,25 @@ fn is_digest(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+/// An identifier's schema: a string of its shape, at most `max` long, that
+/// `reserved` doesn't match. A reserved pattern is a `not` beside the shape,
+/// so no pattern needs a lookahead.
+pub(crate) fn identifier_schema(pattern: &str, reserved: Option<&str>, max: usize) -> Value {
+    let mut schema = json!({ "type": "string", "pattern": pattern, "maxLength": max });
+    if let Some(reserved) = reserved {
+        schema["not"] = json!({ "pattern": reserved });
+    }
+    schema
+}
+
 macro_rules! identifier {
     ($(#[$meta:meta])* $name:ident, $pattern:expr, $max:expr, $valid:path, $what:literal) => {
+        identifier!(@define $(#[$meta])* $name, $pattern, None, $max, $valid, $what);
+    };
+    ($(#[$meta:meta])* $name:ident, $pattern:expr, except $reserved:expr, $max:expr, $valid:path, $what:literal) => {
+        identifier!(@define $(#[$meta])* $name, $pattern, Some($reserved), $max, $valid, $what);
+    };
+    (@define $(#[$meta:meta])* $name:ident, $pattern:expr, $reserved:expr, $max:expr, $valid:path, $what:literal) => {
         $(#[$meta])*
         #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
         #[serde(transparent)]
@@ -195,12 +218,13 @@ macro_rules! identifier {
 
         impl RunxSchema for $name {
             fn json_schema() -> Value {
-                json!({ "type": "string", "pattern": $pattern, "maxLength": $max })
+                $crate::connector::ids::identifier_schema($pattern, $reserved, $max)
             }
         }
 
         impl SchemaMapKey for $name {
             const PATTERN: Option<&'static str> = Some($pattern);
+            const RESERVED: Option<&'static str> = $reserved;
         }
     };
 }
@@ -212,7 +236,8 @@ identifier!(
     /// `google/calendar`. Who published a version is provenance, never part
     /// of the name.
     ConnectorName,
-    CONNECTOR_NAME_PATTERN,
+    CONNECTOR_NAME_SHAPE_PATTERN,
+    except RESERVED_CONNECTOR_NAME_PATTERN,
     129,
     is_connector_name,
     "connector name"

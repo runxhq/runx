@@ -223,13 +223,8 @@ fn identifiers_follow_their_grammar() {
     assert!(!is_operation_name(&format!("a.{}", "b".repeat(99))));
 
     // A connector name is a namespace, or a namespace and one surface; the
-    // published pattern and the check agree on every case.
-    let pattern = jsonschema::validator_for(&json!({
-        "type": "string",
-        "pattern": CONNECTOR_NAME_PATTERN,
-        "maxLength": 129
-    }))
-    .unwrap();
+    // published schema and the check agree on every case.
+    let pattern = jsonschema::validator_for(&<ConnectorName as RunxSchema>::json_schema()).unwrap();
     for (name, valid) in [
         ("stripe", true),
         ("github", true),
@@ -251,6 +246,13 @@ fn identifiers_follow_their_grammar() {
         ("google/versions", false),
         ("versioned", true),
         ("google/versioning", true),
+        // `versions` is reserved only as a whole namespace or surface.
+        ("versionsx", true),
+        ("xversions", true),
+        ("versions-x/evm", true),
+        ("google/versionsx", true),
+        ("google/xversions", true),
+        ("versions/versions", false),
         ("Slack", false),
         ("slack-", false),
         ("-slack", false),

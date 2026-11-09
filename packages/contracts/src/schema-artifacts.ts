@@ -769,7 +769,10 @@ export const runxSchemaArtifacts = {
     "properties": {
       "connector": {
         "maxLength": 129,
-        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+        "not": {
+          "pattern": "^versions(?:/|$)|/versions$"
+        },
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "connector_digest": {
@@ -812,7 +815,10 @@ export const runxSchemaArtifacts = {
       },
       "connector": {
         "maxLength": 129,
-        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+        "not": {
+          "pattern": "^versions(?:/|$)|/versions$"
+        },
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "connector_digest": {
@@ -902,7 +908,10 @@ export const runxSchemaArtifacts = {
       "name": {
         "description": "The connector's whole name: `stripe`, `google/calendar`.",
         "maxLength": 129,
-        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+        "not": {
+          "pattern": "^versions(?:/|$)|/versions$"
+        },
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "operations": {
@@ -5072,7 +5081,10 @@ export const runxSchemaArtifacts = {
           },
           "connector": {
             "maxLength": 129,
-            "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+            "not": {
+              "pattern": "^versions(?:/|$)|/versions$"
+            },
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
             "type": "string"
           },
           "connector_digest": {
@@ -12870,7 +12882,10 @@ export const runxSchemaArtifacts = {
     "properties": {
       "connector": {
         "maxLength": 129,
-        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+        "not": {
+          "pattern": "^versions(?:/|$)|/versions$"
+        },
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "cost": {
