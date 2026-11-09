@@ -37,7 +37,7 @@ fn published_vectors_match_rust_and_json_schema_contracts() -> Result<(), Box<dy
                 serde_json::from_slice(&fs::read(schema_root().join(schema_file))?)?;
             validators.insert(
                 schema_id.to_owned(),
-                jsonschema::draft202012::options().build(&schema)?,
+                crate::published_schemas::published_validator(&schema)?,
             );
         }
         let schema_valid = validators

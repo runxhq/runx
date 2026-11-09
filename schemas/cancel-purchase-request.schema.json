@@ -4,24 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "idempotency": {
-      "additionalProperties": false,
-      "properties": {
-        "binding_digest": {
-          "maxLength": 71,
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "key": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "binding_digest"
-      ],
-      "title": "PaymentIdempotencyBinding",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaymentIdempotencyBinding"
     },
     "purchase_id": {
       "minLength": 1,

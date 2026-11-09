@@ -25,21 +25,10 @@
       "type": "array"
     },
     "output_mode": {
-      "description": "How a command's output is returned: its digest only, as text, or parsed as JSON.",
-      "enum": [
-        "digest",
-        "text",
-        "json"
-      ],
-      "title": "CommandOutputMode",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CommandOutputMode"
     },
     "schema": {
-      "enum": [
-        "runx.command.plan.v1"
-      ],
-      "title": "CommandPlanSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CommandPlanSchema"
     },
     "timeout_ms": {
       "maximum": 3600000,

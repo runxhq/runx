@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -14,9 +14,20 @@ const targets = [
   },
 ] as const;
 
+// A published schema refers to the definitions it shares with the rest of
+// the set, so each validator compiles against the whole published set.
+const schemasDir = path.join(workspaceRoot, "schemas");
+const published = readdirSync(schemasDir)
+  .filter((fileName) => fileName.endsWith(".schema.json"))
+  .sort()
+  .map((fileName) => [
+    fileName,
+    JSON.parse(readFileSync(path.join(schemasDir, fileName), "utf8")) as Record<string, unknown>,
+  ] as const);
+
 for (const target of targets) {
   const schema = JSON.parse(
-    readFileSync(path.join(workspaceRoot, "schemas", target.schema), "utf8"),
+    readFileSync(path.join(schemasDir, target.schema), "utf8"),
   ) as Record<string, unknown>;
   const ajv = new Ajv2020({
     allErrors: false,
@@ -24,6 +35,9 @@ for (const target of targets) {
     validateSchema: false,
     code: { esm: true, lines: true, source: true },
   });
+  for (const [fileName, document] of published) {
+    if (fileName !== target.schema) ajv.addSchema(document);
+  }
   const generated = standaloneCode(ajv, ajv.compile(schema));
   const imports: string[] = [];
   const portable = generated.replace(

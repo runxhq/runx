@@ -10,6 +10,7 @@ mod fixture_support;
 mod host_protocol_fixtures;
 mod operational_policy;
 mod operational_proposal_fixtures;
+mod published_schemas;
 mod purchase;
 mod reference;
 mod run_spine_fixtures;

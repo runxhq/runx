@@ -22,11 +22,7 @@
       ]
     },
     "schema": {
-      "enum": [
-        "runx.conversation_page.v1"
-      ],
-      "title": "ConversationPageSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ConversationPageSchema"
     }
   },
   "required": [

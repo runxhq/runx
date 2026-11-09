@@ -15,34 +15,7 @@
     },
     "deletes": {
       "items": {
-        "anyOf": [
-          {
-            "minLength": 1,
-            "type": "string"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "expected_digest": {
-                "maxLength": 71,
-                "pattern": "^sha256:[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "path": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "path",
-              "expected_digest"
-            ],
-            "title": "FileBoundDelete",
-            "type": "object"
-          }
-        ],
-        "description": "A file a bundle deletes: its path, or its path with the digest of the content it removes.",
-        "title": "FileBundleDelete"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBundleDelete"
       },
       "type": "array"
     },
@@ -53,34 +26,7 @@
     },
     "writes": {
       "items": {
-        "additionalProperties": false,
-        "description": "A file a bundle writes.",
-        "properties": {
-          "contents": {
-            "type": "string"
-          },
-          "create": {
-            "const": true,
-            "description": "The file must not exist yet.",
-            "type": "boolean"
-          },
-          "expected_digest": {
-            "description": "The digest of the content it replaces, as a read returned it.",
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "contents"
-        ],
-        "title": "FileBundleWrite",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBundleWrite"
       },
       "type": "array"
     }

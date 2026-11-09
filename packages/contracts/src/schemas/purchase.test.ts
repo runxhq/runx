@@ -173,11 +173,12 @@ describe("purchase V1 contract facade", () => {
     })).toThrow(/method's inputs alone/u);
   });
 
-  it("binds nested values through exact generated fragments without new ids", () => {
-    expect(paymentIdempotencyBindingSchema)
-      .toBe((quotePurchaseRequestV1Schema.properties as Record<string, unknown>).idempotency);
-    expect(purchasePaymentChallengeSchema)
-      .toBe((quotePurchaseResultV1Schema.$defs as Record<string, unknown>).PurchasePaymentChallenge);
+  it("binds nested values through their one generated definition without new ids", () => {
+    const definitions = runxGeneratedSchemaArtifacts["definitions.schema.json"].$defs as Record<string, unknown>;
+    expect(paymentIdempotencyBindingSchema).toBe(definitions.PaymentIdempotencyBinding);
+    expect(purchasePaymentChallengeSchema).toBe(definitions.PurchasePaymentChallenge);
+    expect((quotePurchaseRequestV1Schema.properties as Record<string, unknown>).idempotency)
+      .toEqual({ $ref: `${runxGeneratedSchemaArtifacts["definitions.schema.json"].$id}#/$defs/PaymentIdempotencyBinding` });
     expect(paymentIdempotencyBindingSchema.$id).toBeUndefined();
     expect(purchasePaymentChallengeSchema.$id).toBeUndefined();
 

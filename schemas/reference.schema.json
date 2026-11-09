@@ -17,51 +17,14 @@
       "type": "string"
     },
     "proof_kind": {
-      "enum": [
-        "effect_evidence",
-        "effect_finality",
-        "credential_resolution"
-      ],
-      "title": "ProofKind",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProofKind"
     },
     "provider": {
       "minLength": 1,
       "type": "string"
     },
     "type": {
-      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
-      "enum": [
-        "thread",
-        "comment",
-        "event",
-        "tracking_item",
-        "change_request",
-        "repository",
-        "signal",
-        "run",
-        "act",
-        "receipt",
-        "artifact",
-        "verification",
-        "harness",
-        "host",
-        "surface",
-        "target",
-        "skill_binding",
-        "principal",
-        "scope_admission",
-        "grant",
-        "mandate",
-        "credential",
-        "webhook_delivery",
-        "redaction_policy",
-        "external_url",
-        "connector_instance",
-        "connector_operation"
-      ],
-      "title": "ReferenceType",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ReferenceType"
     },
     "uri": {
       "minLength": 1,

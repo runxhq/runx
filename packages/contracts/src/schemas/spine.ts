@@ -1,9 +1,4 @@
-import {
-  type JsonSchema,
-  generatedSchema,
-  generatedSchemaAt,
-  validateContractSchema,
-} from "../internal.js";
+import { generatedDefinition, generatedSchema, validateContractSchema } from "../internal.js";
 import type {
   ActAddressContract,
   ActFormContract,
@@ -23,21 +18,12 @@ import type {
   IntentContract,
   ProofKindContract,
   ReceiptActContract,
-  ReceiptContract,
   ReceiptIssuerContract,
   ReceiptSignatureContract,
   ReferenceContract,
   ReferenceTypeContract,
   RunOutcomeContract,
 } from "../generated/contract-types.js";
-
-function schemaAt<TStatic>(
-  schema: JsonSchema,
-  path: readonly (string | number)[],
-  label: string,
-): JsonSchema<TStatic> {
-  return generatedSchemaAt<TStatic>(schema, path, label);
-}
 
 export const referenceSchema = generatedSchema<ReferenceContract>("reference.schema.json");
 export const authoritySubsetProofSchema = generatedSchema<AuthoritySubsetProofContract>(
@@ -47,99 +33,26 @@ export const authorityTermSchema = generatedSchema<AuthorityTermContract>("autho
 export const decisionSchema = generatedSchema<DecisionContract>("decision.schema.json");
 export const artifactSchema = generatedSchema<ArtifactContract>("artifact.schema.json");
 
-const receiptRootSchema = generatedSchema<ReceiptContract>("receipt.schema.json");
 
-export const referenceTypeSchema = schemaAt<ReferenceTypeContract>(
-  referenceSchema,
-  ["properties", "type"],
-  "reference.type",
-);
-export const actAddressSchema = schemaAt<ActAddressContract>(
-  artifactSchema,
-  ["properties", "produced_by", "properties", "act"],
-  "artifact.produced_by.act",
-);
-export const proofKindSchema = schemaAt<ProofKindContract>(
-  referenceSchema,
-  ["properties", "proof_kind"],
-  "reference.proof_kind",
-);
-export const digestCommitmentSchema = schemaAt<DigestCommitmentContract>(
-  artifactSchema,
-  ["properties", "digest"],
-  "artifact.digest",
-);
-export const authorityBoundsSchema = schemaAt<AuthorityBoundsContract>(
-  authorityTermSchema,
-  ["properties", "bounds"],
-  "authority.terms[].bounds",
-);
-export const authorityVerbSchema = schemaAt<AuthorityVerbContract>(
-  authorityTermSchema,
-  ["properties", "verbs", "items"],
-  "authority.terms[].verbs[]",
-);
-export const authorityApprovalSchema = schemaAt<AuthorityApprovalContract>(
-  authorityTermSchema,
-  ["properties", "approvals", "items"],
-  "authority.terms[].approvals[]",
-);
-export const authoritySubsetComparisonSchema = schemaAt<AuthoritySubsetComparisonContract>(
-  authoritySubsetProofSchema,
-  ["properties", "compared_terms", "items"],
-  "authority_subset_proof.compared_terms[]",
-);
-const receiptActSchema = schemaAt<ReceiptActContract>(
-  receiptRootSchema,
-  ["properties", "acts", "items"],
-  "receipt.acts[]",
-);
-export const intentSchema = schemaAt<IntentContract>(
-  receiptActSchema,
-  ["properties", "intent"],
-  "receipt.acts[].intent",
-);
-export const criterionBindingSchema = schemaAt<CriterionBindingContract>(
-  receiptActSchema,
-  ["properties", "criterion_bindings", "items"],
-  "receipt.acts[].criterion_bindings[]",
-);
-export const criterionSchema = schemaAt<CriterionContract>(
-  criterionBindingSchema,
-  ["properties", "criterion_id"],
-  "receipt.acts[].criterion_bindings[].criterion_id",
-);
-export const criterionStatusSchema = schemaAt<CriterionStatusContract>(
-  criterionBindingSchema,
-  ["properties", "status"],
-  "receipt.acts[].criterion_bindings[].status",
-);
-export const runOutcomeSchema = schemaAt<RunOutcomeContract>(
-  receiptRootSchema,
-  ["properties", "seal", "properties", "outcome"],
-  "receipt.seal.outcome",
-);
-export const actFormSchema = schemaAt<ActFormContract>(
-  receiptActSchema,
-  ["properties", "form"],
-  "receipt.acts[].form",
-);
-export const decisionChoiceSchema = schemaAt<DecisionChoiceContract>(
-  decisionSchema,
-  ["properties", "choice"],
-  "decision.choice",
-);
+export const referenceTypeSchema = generatedDefinition<ReferenceTypeContract>("ReferenceType");
+export const actAddressSchema = generatedDefinition<ActAddressContract>("ActAddress");
+export const proofKindSchema = generatedDefinition<ProofKindContract>("ProofKind");
+export const digestCommitmentSchema = generatedDefinition<DigestCommitmentContract>("DigestCommitment");
+export const authorityBoundsSchema = generatedDefinition<AuthorityBoundsContract>("AuthorityBounds");
+export const authorityVerbSchema = generatedDefinition<AuthorityVerbContract>("AuthorityVerb");
+export const authorityApprovalSchema = generatedDefinition<AuthorityApprovalContract>("AuthorityApproval");
+export const authoritySubsetComparisonSchema = generatedDefinition<AuthoritySubsetComparisonContract>("AuthoritySubsetComparison");
+const receiptActSchema = generatedDefinition<ReceiptActContract>("ReceiptAct");
+export const intentSchema = generatedDefinition<IntentContract>("Intent");
+export const criterionBindingSchema = generatedDefinition<CriterionBindingContract>("CriterionBinding");
+export const criterionSchema = generatedDefinition<CriterionContract>("Criterion");
+export const criterionStatusSchema = generatedDefinition<CriterionStatusContract>("CriterionStatus");
+export const runOutcomeSchema = generatedDefinition<RunOutcomeContract>("RunOutcome");
+export const actFormSchema = generatedDefinition<ActFormContract>("ActForm");
+export const decisionChoiceSchema = generatedDefinition<DecisionChoiceContract>("DecisionChoice");
 
-export const receiptIssuerSchema = schemaAt<ReceiptIssuerContract>(
-  receiptRootSchema,
-  ["properties", "issuer"],
-  "receipt.issuer",
-);
-export const receiptSignatureSchema = schemaAt<ReceiptSignatureContract>(
-  receiptRootSchema,
-  ["properties", "signature"],
-  "receipt.signature",
-);
+export const receiptIssuerSchema = generatedDefinition<ReceiptIssuerContract>("ReceiptIssuer");
+export const receiptSignatureSchema = generatedDefinition<ReceiptSignatureContract>("ReceiptSignature");
 
 export function validateReferenceContract(value: unknown, label = "reference"): ReferenceContract {
   return validateContractSchema(referenceSchema, value, label) as ReferenceContract;

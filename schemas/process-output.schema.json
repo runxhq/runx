@@ -6,29 +6,7 @@
   "properties": {
     "chunks": {
       "items": {
-        "additionalProperties": false,
-        "description": "Consecutive output of one stream.",
-        "properties": {
-          "stream": {
-            "description": "A process's stdout or stderr, or the terminal a `tty` process writes to.",
-            "enum": [
-              "stdout",
-              "stderr",
-              "terminal"
-            ],
-            "title": "ProcessStream",
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "stream",
-          "text"
-        ],
-        "title": "ProcessOutputChunk",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProcessOutputChunk"
       },
       "type": "array"
     },
@@ -38,39 +16,7 @@
       "type": "integer"
     },
     "exit": {
-      "additionalProperties": false,
-      "description": "How a process ended.",
-      "properties": {
-        "at": {
-          "type": "string"
-        },
-        "code": {
-          "type": "integer"
-        },
-        "message": {
-          "description": "Why it failed, for a process that never ran or whose supervisor ended without recording its exit.",
-          "type": "string"
-        },
-        "reason": {
-          "enum": [
-            "exited",
-            "stopped",
-            "timed_out",
-            "failed"
-          ],
-          "title": "ProcessExitReason",
-          "type": "string"
-        },
-        "signal": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "reason",
-        "at"
-      ],
-      "title": "ProcessExit",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProcessExit"
     },
     "from": {
       "description": "Where this read began: the cursor asked for, or the oldest output the log still keeps when that is later.",
@@ -86,14 +32,7 @@
       "type": "string"
     },
     "state": {
-      "description": "Where a process stands: recorded and waiting on its supervisor, running under it, or exited.",
-      "enum": [
-        "starting",
-        "running",
-        "exited"
-      ],
-      "title": "ProcessState",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProcessState"
     }
   },
   "required": [

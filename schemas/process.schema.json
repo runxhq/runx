@@ -30,48 +30,10 @@
       "type": "string"
     },
     "exit": {
-      "additionalProperties": false,
-      "description": "How a process ended.",
-      "properties": {
-        "at": {
-          "type": "string"
-        },
-        "code": {
-          "type": "integer"
-        },
-        "message": {
-          "description": "Why it failed, for a process that never ran or whose supervisor ended without recording its exit.",
-          "type": "string"
-        },
-        "reason": {
-          "enum": [
-            "exited",
-            "stopped",
-            "timed_out",
-            "failed"
-          ],
-          "title": "ProcessExitReason",
-          "type": "string"
-        },
-        "signal": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "reason",
-        "at"
-      ],
-      "title": "ProcessExit",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProcessExit"
     },
     "kind": {
-      "description": "What a process is: one `process.start` detached under a supervisor of its own, or a `command.execute` its driver runs and follows until its call settles. A command takes no input.",
-      "enum": [
-        "detached",
-        "command"
-      ],
-      "title": "ProcessKind",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProcessKind"
     },
     "max_seconds": {
       "description": "How long its supervisor lets it run before stopping it.",
@@ -89,34 +51,11 @@
       "type": "string"
     },
     "state": {
-      "description": "Where a process stands: recorded and waiting on its supervisor, running under it, or exited.",
-      "enum": [
-        "starting",
-        "running",
-        "exited"
-      ],
-      "title": "ProcessState",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProcessState"
     },
     "tty": {
-      "additionalProperties": false,
-      "description": "The terminal it runs in, when it was given one.",
-      "properties": {
-        "cols": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "rows": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "rows",
-        "cols"
-      ],
-      "title": "TerminalSize",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TerminalSize",
+      "description": "The terminal it runs in, when it was given one."
     }
   },
   "required": [

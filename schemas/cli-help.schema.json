@@ -34,14 +34,7 @@
       "description": "Null when a signal ended the CLI."
     },
     "help_flag": {
-      "description": "The form a CLI is asked for its help in.",
-      "enum": [
-        "--help",
-        "-h",
-        "help"
-      ],
-      "title": "CliHelpFlag",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CliHelpFlag"
     },
     "stderr": {
       "type": "string"

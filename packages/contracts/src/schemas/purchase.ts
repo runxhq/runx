@@ -1,6 +1,6 @@
 import {
   generatedSchema,
-  generatedSchemaAt,
+  generatedDefinition,
   validatePrecompiledContract,
   validateContractSchema,
 } from "../internal.js";
@@ -77,24 +77,12 @@ export const cancelPurchaseResultV1Schema =
   generatedSchema<CancelPurchaseResultContract>("cancel-purchase-result.schema.json");
 
 export const paymentIdempotencyBindingSchema =
-  generatedSchemaAt<PaymentIdempotencyBindingContract>(
-    quotePurchaseRequestV1Schema,
-    ["properties", "idempotency"],
-    "quote_purchase_request.idempotency",
-  );
+  generatedDefinition<PaymentIdempotencyBindingContract>("PaymentIdempotencyBinding");
 export const purchasePaymentChallengeSchema =
-  generatedSchemaAt<PurchasePaymentChallengeContract>(
-    quotePurchaseResultV1Schema,
-    ["$defs", "PurchasePaymentChallenge"],
-    "quote_purchase_result.$defs.PurchasePaymentChallenge",
-  );
+  generatedDefinition<PurchasePaymentChallengeContract>("PurchasePaymentChallenge");
 
 export const purchasePaymentOptionBindingSchema =
-  generatedSchemaAt<PurchasePaymentOptionBindingContract>(
-    quotePurchaseResultV1Schema,
-    ["$defs", "PurchasePaymentOptionBinding"],
-    "quote_purchase_result.$defs.PurchasePaymentOptionBinding",
-  );
+  generatedDefinition<PurchasePaymentOptionBindingContract>("PurchasePaymentOptionBinding");
 
 const RUNX_PRINCIPAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
 

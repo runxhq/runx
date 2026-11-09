@@ -12,47 +12,8 @@
       "description": "What executes once the gate is approved, when it is at most 64 KiB. A host recomputes `summary.payload_digest` over it before it offers Approve; the request's digest binds it with the rest of the gate."
     },
     "payload_artifact": {
-      "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "additionalProperties": false,
-      "description": "What executes, when it is larger: a project artifact whose bytes are its canonical JSON.",
-      "properties": {
-        "bytes": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "digest": {
-          "type": "string"
-        },
-        "media_type": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "schema": {
-          "enum": [
-            "runx.project_artifact.v1"
-          ],
-          "title": "ProjectArtifactSchema",
-          "type": "string"
-        },
-        "uri": {
-          "description": "`runx:project-artifact:` and the artifact's digest.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "schema",
-        "uri",
-        "digest",
-        "bytes",
-        "media_type",
-        "path"
-      ],
-      "title": "ProjectArtifact",
-      "type": "object",
-      "x-runx-schema": "runx.project_artifact.v1"
+      "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json",
+      "description": "What executes, when it is larger: a project artifact whose bytes are its canonical JSON."
     },
     "reason": {
       "minLength": 1,

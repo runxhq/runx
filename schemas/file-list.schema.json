@@ -6,33 +6,7 @@
   "properties": {
     "entries": {
       "items": {
-        "additionalProperties": false,
-        "description": "One entry `fs.list` found.",
-        "properties": {
-          "bytes": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "kind": {
-            "enum": [
-              "file",
-              "directory",
-              "symlink"
-            ],
-            "title": "FileEntryKind",
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "kind"
-        ],
-        "title": "FileListEntry",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileListEntry"
       },
       "maxItems": 5000,
       "minItems": 0,

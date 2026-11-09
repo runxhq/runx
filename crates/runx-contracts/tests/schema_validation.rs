@@ -127,7 +127,7 @@ fn a_decided_gate_is_rejected_inside_a_host_resolution_request()
 
 fn schema_validator(schema: &str) -> Result<jsonschema::Validator, Box<dyn std::error::Error>> {
     let schema: Value = serde_json::from_str(schema)?;
-    Ok(jsonschema::draft202012::options().build(&schema)?)
+    Ok(crate::published_schemas::published_validator(&schema)?)
 }
 
 fn schema_file_validator(

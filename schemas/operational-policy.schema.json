@@ -9,145 +9,20 @@
       "type": "string"
     },
     "dedupe": {
-      "additionalProperties": false,
-      "properties": {
-        "key_fields": {
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "on_duplicate": {
-          "enum": [
-            "reuse",
-            "comment",
-            "block"
-          ],
-          "title": "OperationalPolicyDuplicateBehavior",
-          "type": "string"
-        },
-        "strategy": {
-          "enum": [
-            "source_digest",
-            "provider_search",
-            "branch"
-          ],
-          "title": "OperationalPolicyDedupeStrategy",
-          "type": "string"
-        }
-      },
-      "required": [
-        "strategy",
-        "key_fields",
-        "on_duplicate"
-      ],
-      "title": "OperationalPolicyDedupePolicy",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyDedupePolicy"
     },
     "outcomes": {
-      "additionalProperties": false,
-      "properties": {
-        "close_source_issue": {
-          "enum": [
-            "never",
-            "when_verified",
-            "when_terminal"
-          ],
-          "title": "OperationalPolicyOutcomeCloseMode",
-          "type": "string"
-        },
-        "observe_provider": {
-          "type": "boolean"
-        },
-        "publish_final_source_thread_update": {
-          "type": "boolean"
-        },
-        "verification_required": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "observe_provider",
-        "verification_required",
-        "close_source_issue",
-        "publish_final_source_thread_update"
-      ],
-      "title": "OperationalPolicyOutcomePolicy",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyOutcomePolicy"
     },
     "owner_routes": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "labels": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "owners": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "project": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "route_id": {
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9_.:-]+$",
-            "type": "string"
-          },
-          "target_repos": {
-            "items": {
-              "minLength": 3,
-              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "route_id",
-          "owners",
-          "target_repos"
-        ],
-        "title": "OperationalPolicyOwnerRoute",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyOwnerRoute"
       },
       "minItems": 1,
       "type": "array"
     },
     "permissions": {
-      "additionalProperties": false,
-      "properties": {
-        "auto_merge": {
-          "const": false,
-          "type": "boolean"
-        },
-        "mutate_target_repo": {
-          "type": "boolean"
-        },
-        "require_human_merge_gate": {
-          "const": true,
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "auto_merge",
-        "mutate_target_repo",
-        "require_human_merge_gate"
-      ],
-      "title": "OperationalPolicyAutomationPermissions",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAutomationPermissions"
     },
     "policy_id": {
       "minLength": 1,
@@ -156,240 +31,27 @@
     },
     "runners": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "allowed_actions": {
-            "items": {
-              "enum": [
-                "reply-only",
-                "issue-intake",
-                "work-plan",
-                "issue-to-pr",
-                "manual-review",
-                "pr-review",
-                "pr-fix-up",
-                "merge-assist"
-              ],
-              "title": "OperationalPolicyAction",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "kind": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "runner_id": {
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9_.:-]+$",
-            "type": "string"
-          },
-          "scafld_required": {
-            "type": "boolean"
-          },
-          "state": {
-            "enum": [
-              "available",
-              "disabled",
-              "maintenance"
-            ],
-            "title": "OperationalPolicyRunnerState",
-            "type": "string"
-          },
-          "target_repos": {
-            "items": {
-              "minLength": 3,
-              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "runner_id",
-          "kind",
-          "state",
-          "allowed_actions",
-          "target_repos",
-          "scafld_required"
-        ],
-        "title": "OperationalPolicyRunnerRule",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyRunnerRule"
       },
       "minItems": 1,
       "type": "array"
     },
     "schema": {
-      "enum": [
-        "runx.operational_policy.v1"
-      ],
-      "title": "OperationalPolicySchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicySchema"
     },
     "schema_version": {
-      "enum": [
-        "runx.operational_policy.v1"
-      ],
-      "title": "OperationalPolicySchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicySchema"
     },
     "sources": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "adapter_policy": {
-            "additionalProperties": {},
-            "propertyNames": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "allowed_actions": {
-            "items": {
-              "enum": [
-                "reply-only",
-                "issue-intake",
-                "work-plan",
-                "issue-to-pr",
-                "manual-review",
-                "pr-review",
-                "pr-fix-up",
-                "merge-assist"
-              ],
-              "title": "OperationalPolicyAction",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "allowed_locators": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "minimum_confidence": {
-            "maximum": 1,
-            "minimum": 0,
-            "type": "number"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "source_id": {
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9_.:-]+$",
-            "type": "string"
-          },
-          "source_thread": {
-            "additionalProperties": false,
-            "properties": {
-              "missing_behavior": {
-                "enum": [
-                  "fail_closed"
-                ],
-                "title": "OperationalPolicyMissingBehavior",
-                "type": "string"
-              },
-              "publish_mode": {
-                "enum": [
-                  "reply",
-                  "comment",
-                  "none"
-                ],
-                "title": "OperationalPolicyPublishMode",
-                "type": "string"
-              },
-              "required": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "required",
-              "publish_mode",
-              "missing_behavior"
-            ],
-            "title": "OperationalPolicySourceThreadPolicy",
-            "type": "object"
-          }
-        },
-        "required": [
-          "source_id",
-          "provider",
-          "allowed_locators",
-          "allowed_actions",
-          "source_thread"
-        ],
-        "title": "OperationalPolicySourceRule",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicySourceRule"
       },
       "minItems": 1,
       "type": "array"
     },
     "targets": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "allowed_actions": {
-            "items": {
-              "enum": [
-                "reply-only",
-                "issue-intake",
-                "work-plan",
-                "issue-to-pr",
-                "manual-review",
-                "pr-review",
-                "pr-fix-up",
-                "merge-assist"
-              ],
-              "title": "OperationalPolicyAction",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "base_branch": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "default_owner_route": {
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9_.:-]+$",
-            "type": "string"
-          },
-          "repo": {
-            "minLength": 3,
-            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-            "type": "string"
-          },
-          "runner_ids": {
-            "items": {
-              "minLength": 1,
-              "pattern": "^[A-Za-z0-9_.:-]+$",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "scafld_required": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "repo",
-          "runner_ids",
-          "allowed_actions",
-          "default_owner_route",
-          "scafld_required"
-        ],
-        "title": "OperationalPolicyTargetRule",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyTargetRule"
       },
       "minItems": 1,
       "type": "array"

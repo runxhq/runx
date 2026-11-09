@@ -10,12 +10,15 @@ The surface is contract-only:
 
 - `json`: contract-owned JSON values backed by deterministic `BTreeMap`
   objects.
-- `act`: governed act payloads and act assignment envelopes.
+- `act`: governed act payloads.
 - `receipt`: signed governed proof records.
-- `authority`, `decision`, `signal`, `verification`, and governance objects:
-  spine contracts used at governed boundaries.
+- `authority`, `decision`, `verification`, and governance objects: spine
+  contracts used at governed boundaries.
 - `schema_artifacts`: the Rust-owned manifest that emits `oss/schemas/*.json`
   and the generated TypeScript schema artifact table.
+- `schema_definitions`: publishes that set with each named type defined once,
+  in its own document or in `definitions.schema.json`, and referred to with
+  `$ref` everywhere else.
 
 SDKs and TypeScript packages consume these schemas and generated artifacts;
 they must not hand-maintain mirror schemas for Rust-owned contracts.

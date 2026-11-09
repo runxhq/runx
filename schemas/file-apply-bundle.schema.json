@@ -10,39 +10,7 @@
     },
     "deletes": {
       "items": {
-        "additionalProperties": false,
-        "description": "One file `fs.apply_bundle` deleted, or found already absent.",
-        "properties": {
-          "before_digest": {
-            "description": "What the file held before, when it existed.",
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "diff": {
-            "description": "The unified diff from what the file held to its removal; empty when it was already absent.",
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "deleted",
-              "already_absent"
-            ],
-            "title": "FileDeleteStatus",
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "status",
-          "diff"
-        ],
-        "title": "FileAppliedDelete",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileAppliedDelete"
       },
       "type": "array"
     },
@@ -61,42 +29,7 @@
     },
     "writes": {
       "items": {
-        "additionalProperties": false,
-        "description": "One file `fs.apply_bundle` wrote.",
-        "properties": {
-          "before_digest": {
-            "description": "What the file held before, when it existed.",
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "bytes_written": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "content_digest": {
-            "description": "The digest of what the file now holds.",
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "diff": {
-            "description": "The unified diff from what the file held to what it holds now.",
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "bytes_written",
-          "content_digest",
-          "diff"
-        ],
-        "title": "FileAppliedWrite",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileAppliedWrite"
       },
       "type": "array"
     }

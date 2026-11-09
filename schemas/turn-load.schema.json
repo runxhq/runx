@@ -7,222 +7,30 @@
     "connectors": {
       "description": "Each connector what it bound reaches, at the exact manifest and implementation it binds: a later load that binds another revision of a name is refused, and the project's own reaching a connector the turn does not already reach at that implementation waits on trust.",
       "items": {
-        "$id": "https://schemas.runx.ai/runx/connector-binding/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "description": "An exact connector revision. Acquisition, grant delivery and hosted calls carry this same binding; a name alone cannot substitute bytes.",
-        "properties": {
-          "connector": {
-            "maxLength": 129,
-            "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
-            "type": "string"
-          },
-          "connector_digest": {
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "manifest_digest": {
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "connector",
-          "manifest_digest",
-          "connector_digest"
-        ],
-        "title": "ConnectorBinding",
-        "type": "object",
-        "x-runx-schema": "runx.connector_binding.v1"
+        "$ref": "https://schemas.runx.ai/runx/connector-binding/v1.json"
       },
       "minItems": 1,
       "type": "array"
     },
     "manual": {
-      "additionalProperties": false,
-      "description": "A loaded skill's manual; none for a connector.",
-      "properties": {
-        "content": {
-          "type": "string"
-        },
-        "digest": {
-          "description": "`sha256:` over `content`'s bytes.",
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "digest",
-        "content"
-      ],
-      "title": "SkillManual",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillManual",
+      "description": "A loaded skill's manual; none for a connector."
     },
     "methods": {
       "description": "Every method of a loaded skill, as a model chooses one, and whether this load bound it.",
       "items": {
-        "additionalProperties": false,
-        "description": "One method of a loaded skill, as a model chooses it.",
-        "properties": {
-          "bound": {
-            "description": "Whether this load bound it, so the turn offers it as a tool.",
-            "type": "boolean"
-          },
-          "inputs": {
-            "items": {
-              "additionalProperties": false,
-              "description": "One input of a loaded skill's method.",
-              "properties": {
-                "name": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "required": {
-                  "type": "boolean"
-                },
-                "type": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name",
-                "type",
-                "required"
-              ],
-              "title": "LoadedMethodInput",
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "purpose": {
-            "description": "What it does and when to use it, as its package states it.",
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "inputs",
-          "bound"
-        ],
-        "title": "LoadedMethod",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/LoadedMethod"
       },
       "minItems": 1,
       "type": "array"
     },
     "package": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "const": "skill",
-              "type": "string"
-            },
-            "package_digest": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "publisher": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "skill": {
-              "description": "The ref each of its tools names: the canonical `<publisher>/<name>@<version>` of a registry skill, or the project's path.",
-              "minLength": 1,
-              "type": "string"
-            },
-            "trust_tier": {
-              "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
-              "enum": [
-                "first_party",
-                "verified",
-                "community"
-              ],
-              "title": "TrustTier",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "skill",
-            "package_digest"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "connector": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "kind": {
-              "const": "connector",
-              "type": "string"
-            },
-            "manifest_digest": {
-              "description": "The manifest each of its operations runs; one that changed since the load is refused.",
-              "minLength": 1,
-              "type": "string"
-            },
-            "publisher": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "trust_tier": {
-              "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
-              "enum": [
-                "first_party",
-                "verified",
-                "community"
-              ],
-              "title": "TrustTier",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "connector",
-            "manifest_digest"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": "The package a load bound. A project's own package has no tier and no publisher.",
-      "title": "LoadedPackage"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/LoadedPackage"
     },
     "projects": {
       "description": "Each skill package of the person's own it bound, `project:<name>`, at its directory: a later load in the run that binds another directory as the same `project:<name>` is refused, since the two would be one package.",
       "items": {
-        "additionalProperties": false,
-        "description": "A skill package of the person's own, as a run binds it (D30): it is `project:<name>`, and one directory is that package in the run.",
-        "properties": {
-          "directory": {
-            "description": "Its directory: relative to the workspace when within it, else absolute.",
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "description": "Its manifest's name.",
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "directory"
-        ],
-        "title": "ProjectBinding",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProjectBinding"
       },
       "minItems": 1,
       "type": "array"
@@ -230,149 +38,7 @@
     "tools": {
       "description": "One per bound method, or per operation of a loaded connector, as the turn offers it from then on.",
       "items": {
-        "additionalProperties": false,
-        "description": "One call an open turn offers its agent: an allowance entry, named for MCP, with the input it takes.",
-        "properties": {
-          "description": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "input_schema": {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          "name": {
-            "description": "Distinct within the turn, in the MCP tool-name grammar.",
-            "minLength": 1,
-            "type": "string"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "kind": {
-                    "const": "tool",
-                    "type": "string"
-                  },
-                  "tool": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "tool"
-                ],
-                "type": "object"
-              },
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "kind": {
-                    "const": "operation",
-                    "type": "string"
-                  },
-                  "operation": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "requirement": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "requirement",
-                  "operation"
-                ],
-                "type": "object"
-              },
-              {
-                "additionalProperties": false,
-                "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
-                "properties": {
-                  "bound": {
-                    "additionalProperties": false,
-                    "description": "The exact package and execution closure a load bound for one method.",
-                    "properties": {
-                      "closure_digest": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "package_digest": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "package_digest",
-                      "closure_digest"
-                    ],
-                    "title": "BoundClosure",
-                    "type": "object"
-                  },
-                  "kind": {
-                    "const": "skill",
-                    "type": "string"
-                  },
-                  "method": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "skill": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "skill"
-                ],
-                "type": "object"
-              },
-              {
-                "additionalProperties": false,
-                "description": "The call's input is `{reason}`; the human approves or declines it.",
-                "properties": {
-                  "kind": {
-                    "const": "ask",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "type": "object"
-              },
-              {
-                "additionalProperties": false,
-                "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
-                "properties": {
-                  "kind": {
-                    "const": "load",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "type": "object"
-              }
-            ],
-            "description": "What a turn call names: one entry of the turn's allowance.",
-            "title": "TurnTarget"
-          }
-        },
-        "required": [
-          "name",
-          "description",
-          "target",
-          "input_schema"
-        ],
-        "title": "TurnTool",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnTool"
       },
       "type": "array"
     }

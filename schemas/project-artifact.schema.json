@@ -17,11 +17,7 @@
       "type": "string"
     },
     "schema": {
-      "enum": [
-        "runx.project_artifact.v1"
-      ],
-      "title": "ProjectArtifactSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProjectArtifactSchema"
     },
     "uri": {
       "description": "`runx:project-artifact:` and the artifact's digest.",

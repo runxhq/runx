@@ -10,53 +10,7 @@
     },
     "matches": {
       "items": {
-        "additionalProperties": false,
-        "description": "One line `fs.search` matched.",
-        "properties": {
-          "after": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 3,
-            "minItems": 0,
-            "type": "array"
-          },
-          "before": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 3,
-            "minItems": 0,
-            "type": "array"
-          },
-          "content_digest": {
-            "description": "The whole file's digest, which a write of it names.",
-            "maxLength": 71,
-            "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "line": {
-            "minimum": 1,
-            "type": "integer"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "line",
-          "text",
-          "before",
-          "after",
-          "content_digest"
-        ],
-        "title": "FileSearchMatch",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileSearchMatch"
       },
       "maxItems": 1000,
       "minItems": 0,

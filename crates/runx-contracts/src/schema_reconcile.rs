@@ -1,10 +1,10 @@
-//! Filesystem reconciliation for schema artifacts supplied by contract owners.
+//! Filesystem reconciliation for the published schema set.
 
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use crate::SchemaArtifact;
+use crate::{PublishedSchemas, document_text};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SchemaDrift {
@@ -19,31 +19,25 @@ impl SchemaDrift {
     }
 }
 
+/// Write every published document to `out_dir` and remove any other schema
+/// file there, or under `check` report what differs.
 pub fn reconcile_schema_artifacts(
     out_dir: &Path,
     check: bool,
-    artifacts: Vec<SchemaArtifact>,
+    published: &PublishedSchemas,
 ) -> Result<SchemaDrift, std::io::Error> {
     fs::create_dir_all(out_dir)?;
 
-    let expected_file_names = artifacts
-        .iter()
-        .map(|artifact| artifact.file_name)
-        .collect::<BTreeSet<_>>();
-    if expected_file_names.len() != artifacts.len() {
-        return Err(std::io::Error::other(
-            "contract owners declared duplicate schema artifact filenames",
-        ));
-    }
-
+    let mut expected_file_names = BTreeSet::new();
     let mut stale = Vec::new();
-    for artifact in artifacts {
-        let path = out_dir.join(artifact.file_name);
-        let generated = artifact.document().map_err(std::io::Error::other)?;
+    for (file_name, document) in published.documents() {
+        expected_file_names.insert(file_name);
+        let path = out_dir.join(file_name);
+        let generated = document_text(document).map_err(std::io::Error::other)?;
         if check {
             match fs::read_to_string(&path) {
                 Ok(current) if current == generated => {}
-                _ => stale.push(artifact.file_name),
+                _ => stale.push(file_name),
             }
         } else {
             fs::write(path, generated)?;

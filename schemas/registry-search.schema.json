@@ -6,78 +6,7 @@
   "properties": {
     "hits": {
       "items": {
-        "additionalProperties": false,
-        "description": "One package `registry.search` found.",
-        "properties": {
-          "kind": {
-            "description": "What a skill or connector is, as the catalog lists it.",
-            "enum": [
-              "skill",
-              "connector"
-            ],
-            "title": "CatalogPackageKind",
-            "type": "string"
-          },
-          "methods": {
-            "description": "A skill's methods, each with its purpose when its source states one.",
-            "items": {
-              "additionalProperties": false,
-              "description": "One method of a skill, as a model chooses it from an index.",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "purpose": {
-                  "description": "What it does and when to use it, as its package states it.",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "title": "CatalogMethod",
-              "type": "object"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "package": {
-            "description": "What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace.",
-            "type": "string"
-          },
-          "publisher": {
-            "type": "string"
-          },
-          "source": {
-            "description": "Where a package is: the registry publishes it, or the project authored it.",
-            "enum": [
-              "registry",
-              "project"
-            ],
-            "title": "CatalogSource",
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          },
-          "trust_tier": {
-            "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
-            "enum": [
-              "first_party",
-              "verified",
-              "community"
-            ],
-            "title": "TrustTier",
-            "type": "string"
-          }
-        },
-        "required": [
-          "package",
-          "kind",
-          "source"
-        ],
-        "title": "CatalogHit",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CatalogHit"
       },
       "type": "array"
     },

@@ -6,39 +6,7 @@
   "properties": {
     "commits": {
       "items": {
-        "additionalProperties": false,
-        "description": "One commit as `git.log` reports it.",
-        "properties": {
-          "author": {
-            "type": "string"
-          },
-          "commit": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "date": {
-            "type": "string"
-          },
-          "files": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "subject": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "commit",
-          "author",
-          "date",
-          "subject",
-          "files"
-        ],
-        "title": "GitCommit",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/GitCommit"
       },
       "maxItems": 200,
       "minItems": 0,

@@ -5,149 +5,18 @@
   "properties": {
     "items": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "description": {
-            "description": "A skill's description, from the frontmatter of its own `SKILL.md`.",
-            "type": "string"
-          },
-          "diagnostics": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "fixtures": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "kind": {
-            "enum": [
-              "tool",
-              "skill",
-              "packet"
-            ],
-            "title": "RunxListItemKind",
-            "type": "string"
-          },
-          "methods": {
-            "description": "A skill's methods, each with its purpose when its `run.yaml` states one.",
-            "items": {
-              "additionalProperties": false,
-              "description": "One method of a skill, as a model chooses it from an index.",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "purpose": {
-                  "description": "What it does and when to use it, as its package states it.",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "title": "CatalogMethod",
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "name": {
-            "type": "string"
-          },
-          "packets": {
-            "description": "The outputs it keeps as artifacts, each with its packet.",
-            "items": {
-              "additionalProperties": false,
-              "description": "An output kept as an artifact, and its packet.",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "packet": {
-                  "maxLength": 200,
-                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "title": "RunxListOutputPacket",
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "path": {
-            "type": "string"
-          },
-          "source": {
-            "enum": [
-              "local",
-              "workspace",
-              "dependencies",
-              "built-in"
-            ],
-            "title": "RunxListSource",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "ok",
-              "invalid"
-            ],
-            "title": "RunxListStatus",
-            "type": "string"
-          },
-          "steps": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "test_cases": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "visibility": {
-            "description": "A skill's catalog visibility; public when its manifest declares none.",
-            "enum": [
-              "public",
-              "internal"
-            ],
-            "title": "RunxListVisibility",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "name",
-          "source",
-          "path",
-          "status"
-        ],
-        "title": "RunxListItem",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunxListItem"
       },
       "type": "array"
     },
     "requested_kind": {
-      "enum": [
-        "all",
-        "tools",
-        "skills",
-        "packets"
-      ],
-      "title": "RunxListRequestedKind",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunxListRequestedKind"
     },
     "root": {
       "type": "string"
     },
     "schema": {
-      "enum": [
-        "runx.list.v1"
-      ],
-      "title": "RunxListSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunxListSchema"
     }
   },
   "required": [

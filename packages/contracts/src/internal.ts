@@ -19,26 +19,24 @@ export function generatedSchema<TStatic>(fileName: RunxSchemaArtifactName): Json
   return runxSchemaArtifacts[fileName] as JsonSchema<TStatic>;
 }
 
-export function generatedSchemaAt<TStatic>(
-  schema: JsonSchema,
-  path: readonly (string | number)[],
-  label: string,
-): JsonSchema<TStatic> {
-  let current: unknown = schema;
-  for (const segment of path) {
-    if (
-      current === null
-      || typeof current !== "object"
-      || !(segment in current)
-    ) {
-      throw new Error(`generated schema fragment not found: ${label}`);
-    }
-    current = (current as Record<string | number, unknown>)[segment];
-  }
-  if (current === null || typeof current !== "object") {
-    throw new Error(`generated schema fragment is not an object: ${label}`);
-  }
-  return current as JsonSchema<TStatic>;
+const DEFINITIONS_FILE = "definitions.schema.json";
+
+/**
+ * The one definition of the named contract type `typeName`: the document it
+ * is published as, or its entry in the definitions document, which defines
+ * every named type that has no document of its own.
+ */
+export function generatedDefinition<TStatic>(typeName: string): JsonSchema<TStatic> {
+  const own = Object.entries(runxSchemaArtifacts).find(
+    ([fileName, schema]) => fileName !== DEFINITIONS_FILE && (schema as JsonSchema).title === typeName,
+  );
+  if (own) return own[1] as JsonSchema<TStatic>;
+  const definitions = (runxSchemaArtifacts[DEFINITIONS_FILE] as JsonSchema).$defs as
+    | Readonly<Record<string, JsonSchema>>
+    | undefined;
+  const definition = definitions?.[typeName];
+  if (!definition) throw new Error(`no generated contract type is named ${typeName}`);
+  return definition as JsonSchema<TStatic>;
 }
 
 export function validateContractSchema<TSchemaValue extends JsonSchema>(
@@ -103,7 +101,11 @@ function contractValidator(
   if (cached) return cached;
 
   const ajv = createContractAjv(canonicalReferences);
-  const compiled = ajv.compile(normalizeSchemaForAjv(canonicalSchema));
+  const id = canonicalSchema.$id;
+  const published = typeof id === "string" && generatedSchemaById.get(id) === canonicalSchema
+    ? ajv.getSchema(id)
+    : undefined;
+  const compiled = published ?? ajv.compile(normalizeSchemaForAjv(canonicalSchema));
   byReferenceSet.set(referenceKey, compiled);
   return compiled;
 }
@@ -123,6 +125,9 @@ function createContractAjv(references: readonly JsonSchema[] = []) {
     strict: false,
     validateSchema: false,
   });
+  // A generated schema refers to the definitions it shares with the rest of
+  // the published set, so every generated document resolves.
+  for (const schema of generatedSchemaById.values()) ajv.addSchema(normalizeSchemaForAjv(schema));
   for (const reference of references.map(schemaWithGeneratedArtifact)) {
     const id = reference.$id;
     if (typeof id === "string" && id.length > 0 && !ajv.getSchema(id)) {

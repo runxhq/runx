@@ -14,14 +14,7 @@
       "type": "string"
     },
     "decision": {
-      "description": "How an execution ended: it completed, it failed, or it was stopped.",
-      "enum": [
-        "completed",
-        "failed",
-        "stopped"
-      ],
-      "title": "CommandDecision",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CommandDecision"
     },
     "duration_ms": {
       "minimum": 0,
@@ -29,25 +22,7 @@
     },
     "errors": {
       "items": {
-        "additionalProperties": false,
-        "description": "One reason an execution failed.",
-        "properties": {
-          "code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "exit_code": {
-            "type": "integer"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "code"
-        ],
-        "title": "CommandError",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CommandError"
       },
       "maxItems": 4,
       "minItems": 0,
@@ -67,11 +42,7 @@
       "description": "The parsed output in `json` mode; null otherwise."
     },
     "schema": {
-      "enum": [
-        "runx.command.execution.v1"
-      ],
-      "title": "CommandExecutionSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CommandExecutionSchema"
     },
     "stderr": {
       "type": "string"

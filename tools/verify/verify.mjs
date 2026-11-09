@@ -12,7 +12,8 @@
 //   node verify.mjs <receipt.json> --issuer-type <local|hosted|ci> --kid <kid> --pubkey <base64-raw-ed25519>
 //   node verify.mjs <receipt.json> --jwks <jwks-file-or-url>
 //   [--walk-ancestry] [--receipt-dir <dir>]
-//   [--schema <receipt.schema.json>]  (default: this repository's schemas/receipt.schema.json)
+//   [--schema <receipt.schema.json>]  (default: this repository's schemas/receipt.schema.json;
+//                                      the documents it refers to are read from beside it)
 //
 // You name the keys you trust: one issuer type, key id and public key, or a
 // JWKS whose keys each carry a `kid` and an `issuer_type`. A receipt verifies
@@ -22,6 +23,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 if (Number(process.versions.node.split(".")[0]) < 22) {
   process.stderr.write("verify.mjs needs Node.js 22 or later to read receipt numbers exactly\n");
@@ -98,9 +100,10 @@ function canonNumber(n) {
 
 // The receipt's published JSON Schema (schemas/receipt.schema.json) decides
 // its wire shape: the issuer writes exactly that, so a document outside it is
-// not a receipt runx issued, whatever key signed it. The schema is inline and
-// uses the assertions below; any other assertion keyword fails closed rather
-// than passing unchecked.
+// not a receipt runx issued, whatever key signed it. It refers to the
+// definitions it shares with the other published documents, which sit beside
+// it, and uses the assertions below; any other assertion keyword fails closed
+// rather than passing unchecked.
 const SCHEMA_ANNOTATIONS = new Set(["$id", "$schema", "title", "description", "x-runx-schema", "x-runx-packet"]);
 
 function jsonType(value) {
@@ -109,6 +112,22 @@ function jsonType(value) {
   if (typeof value === "bigint") return "integer";
   if (typeof value === "number") return Number.isInteger(value) ? "integer" : "number";
   return typeof value;
+}
+
+// Every published document beside the receipt schema, by `$id`.
+let schemaDocuments = new Map();
+
+// The schema a `$ref` names: a published document, or a definition inside
+// one by JSON Pointer.
+function referenced(ref, at) {
+  const [id, pointer = ""] = ref.split("#");
+  let target = schemaDocuments.get(id);
+  if (target === undefined) throw new Error(`receipt schema refers to ${ref} at ${at || "/"}, which is not beside it`);
+  for (const token of pointer.split("/").slice(1)) {
+    target = target?.[token.replaceAll("~1", "/").replaceAll("~0", "~")];
+  }
+  if (target === null || typeof target !== "object") throw new Error(`receipt schema refers to ${ref}, which it does not define`);
+  return target;
 }
 
 function schemaFaults(schema, value, at, faults) {
@@ -124,6 +143,9 @@ function schemaFaults(schema, value, at, faults) {
 }
 
 const ASSERTIONS = {
+  $ref(schema, value, at, faults) {
+    schemaFaults(referenced(schema.$ref, at), value, at, faults);
+  },
   type(schema, value, at, faults) {
     const actual = jsonType(value);
     const allowed = [schema.type].flat();
@@ -173,7 +195,14 @@ const ASSERTIONS = {
 };
 
 function readReceiptSchema() {
-  const schemaPath = arg("--schema") ?? new URL("../../schemas/receipt.schema.json", import.meta.url);
+  const schemaPath = arg("--schema") ?? fileURLToPath(new URL("../../schemas/receipt.schema.json", import.meta.url));
+  const directory = path.dirname(schemaPath);
+  schemaDocuments = new Map();
+  for (const name of fs.readdirSync(directory)) {
+    if (!name.endsWith(".schema.json")) continue;
+    const document = JSON.parse(fs.readFileSync(path.join(directory, name), "utf8"));
+    if (typeof document.$id === "string") schemaDocuments.set(document.$id, document);
+  }
   return JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 }
 

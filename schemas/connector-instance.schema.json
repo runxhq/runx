@@ -9,173 +9,7 @@
       "type": "string"
     },
     "authority": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "description": "A runx Connect grant. Hosted placement only.",
-          "properties": {
-            "grant_id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "kind": {
-              "const": "hosted_grant",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "grant_id"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The named connector credential, held by the secret the operator keeps in runx under `secret` (`runx secret set`): stored in the runx home, or read through a secrets manager by reference. Every call reads it again, so setting it anew serves without binding again. `proof` is an HMAC keyed by the binding operator's runx home over the whole binding, the proof left out: a project store can neither name the operator's secret nor widen a binding. `scopes` is what the operator grants it.",
-          "properties": {
-            "credential": {
-              "maxLength": 64,
-              "pattern": "^[a-z][a-z0-9_]{0,63}$",
-              "type": "string"
-            },
-            "kind": {
-              "const": "secret",
-              "type": "string"
-            },
-            "proof": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "scopes": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "secret": {
-              "maxLength": 256,
-              "pattern": "^[^\\s\\x00-\\x1f\\x7f]([^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "credential",
-            "secret",
-            "scopes",
-            "proof"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The named connector credential, read on every call from the variable its declaration delivers it in, in the process environment or the workspace `.env`. The instance holds the variable's name, never its value, so a key rotated there serves without binding again. `scopes` is what the operator grants it, as for a stored credential.",
-          "properties": {
-            "credential": {
-              "maxLength": 64,
-              "pattern": "^[a-z][a-z0-9_]{0,63}$",
-              "type": "string"
-            },
-            "kind": {
-              "const": "environment",
-              "type": "string"
-            },
-            "scopes": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "variable": {
-              "maxLength": 128,
-              "pattern": "^[A-Z][A-Z0-9_]{0,127}$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "credential",
-            "variable",
-            "scopes"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "A local session the runtime can identify. A command session pins its account in the instance's `account_id`. `scopes` is what the operator grants it: every scope its credential serves unless narrowed when it was confirmed. The provider enforces the account's own permissions.",
-          "properties": {
-            "kind": {
-              "const": "session",
-              "type": "string"
-            },
-            "scopes": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "session": {
-              "enum": [
-                "command",
-                "managed_command",
-                "host_browser"
-              ],
-              "title": "SessionKind",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "session",
-            "scopes"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "What a purchase bought (S10, N11): one resource's credential, held by runx Connect for the principal and presented only to the requests of operations on that resource. Admission pins it for one call, by the target the call names; it is never confirmed or selected. Hosted placement only.",
-          "properties": {
-            "credential": {
-              "maxLength": 64,
-              "pattern": "^[a-z][a-z0-9_]{0,63}$",
-              "type": "string"
-            },
-            "kind": {
-              "const": "held",
-              "type": "string"
-            },
-            "target": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "credential",
-            "target"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "A public API; reads only.",
-          "properties": {
-            "kind": {
-              "const": "public",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": "Where the principal's authority over the provider is held.",
-      "title": "InstanceAuthority"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/InstanceAuthority"
     },
     "confirmed_at": {
       "minLength": 1,
@@ -226,12 +60,7 @@
       "type": "object"
     },
     "placement": {
-      "enum": [
-        "hosted",
-        "local"
-      ],
-      "title": "Placement",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Placement"
     },
     "principal_uri": {
       "description": "The principal the instance acts for. Free of secret material.",
@@ -239,11 +68,7 @@
       "type": "string"
     },
     "schema": {
-      "enum": [
-        "runx.connector_instance.v1"
-      ],
-      "title": "ConnectorInstanceSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ConnectorInstanceSchema"
     }
   },
   "required": [

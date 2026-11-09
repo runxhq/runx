@@ -5,47 +5,7 @@
   "properties": {
     "results": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "errors": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "instance_path": {
-                  "type": "string"
-                },
-                "schema_path": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "instance_path",
-                "schema_path"
-              ],
-              "title": "DataValidationIssue",
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "index": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "truncated": {
-            "type": "boolean"
-          },
-          "valid": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "index",
-          "valid",
-          "errors",
-          "truncated"
-        ],
-        "title": "DataValueValidation",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DataValueValidation"
       },
       "type": "array"
     },

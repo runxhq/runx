@@ -1,12 +1,16 @@
+//! The published schema set as a validator reads it: a published document
+//! refers to the definitions it shares with the rest of the set, so each
+//! reference resolves to the document beside it that carries that `$id`.
+
 use std::path::PathBuf;
 
 use serde_json::Value;
 
-pub(super) struct SchemaDirRetriever {
-    pub(super) dir: PathBuf,
+pub(crate) struct PublishedSchemas {
+    pub(crate) dir: PathBuf,
 }
 
-impl jsonschema::Retrieve for SchemaDirRetriever {
+impl jsonschema::Retrieve for PublishedSchemas {
     fn retrieve(
         &self,
         uri: &jsonschema::Uri<String>,
@@ -27,6 +31,18 @@ impl jsonschema::Retrieve for SchemaDirRetriever {
     }
 }
 
-pub(super) fn committed_dir() -> PathBuf {
+/// `oss/schemas`, where the published set is committed.
+pub(crate) fn published_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../schemas")
+}
+
+/// A validator for `schema`, its references resolved against the published set.
+pub(crate) fn published_validator(
+    schema: &Value,
+) -> Result<jsonschema::Validator, jsonschema::ValidationError<'static>> {
+    jsonschema::draft202012::options()
+        .with_retriever(PublishedSchemas {
+            dir: published_dir(),
+        })
+        .build(schema)
 }

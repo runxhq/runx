@@ -4,18 +4,7 @@
   "description": "A step's declared outputs: each output field by name.",
   "patternProperties": {
     "^(.*)$": {
-      "additionalProperties": true,
-      "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
-      "properties": {
-        "optional": {
-          "type": "boolean"
-        },
-        "packet": {
-          "type": "string"
-        }
-      },
-      "title": "OutputField",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OutputField"
     }
   },
   "title": "Output",

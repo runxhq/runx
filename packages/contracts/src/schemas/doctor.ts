@@ -1,4 +1,4 @@
-import { generatedSchema, generatedSchemaAt, validateContractSchema } from "../internal.js";
+import { generatedSchema, generatedDefinition, validateContractSchema } from "../internal.js";
 import type {
   DoctorDiagnosticContract,
   DoctorLocationContract,
@@ -8,26 +8,10 @@ import type {
 } from "../generated/contract-types.js";
 
 export const doctorV1Schema = generatedSchema<DoctorReportContract>("doctor.schema.json");
-export const doctorDiagnosticSchema = generatedSchemaAt<DoctorDiagnosticContract>(
-  doctorV1Schema,
-  ["properties", "diagnostics", "items"],
-  "doctor.diagnostics[]",
-);
-export const doctorLocationSchema = generatedSchemaAt<DoctorLocationContract>(
-  doctorDiagnosticSchema,
-  ["properties", "location"],
-  "doctor.diagnostics[].location",
-);
-export const doctorRepairSchema = generatedSchemaAt<DoctorRepairContract>(
-  doctorDiagnosticSchema,
-  ["properties", "repairs", "items"],
-  "doctor.diagnostics[].repairs[]",
-);
-export const doctorSummarySchema = generatedSchemaAt<DoctorSummaryContract>(
-  doctorV1Schema,
-  ["properties", "summary"],
-  "doctor.summary",
-);
+export const doctorDiagnosticSchema = generatedDefinition<DoctorDiagnosticContract>("DoctorDiagnostic");
+export const doctorLocationSchema = generatedDefinition<DoctorLocationContract>("DoctorLocation");
+export const doctorRepairSchema = generatedDefinition<DoctorRepairContract>("DoctorRepair");
+export const doctorSummarySchema = generatedDefinition<DoctorSummaryContract>("DoctorSummary");
 
 export function validateDoctorReportContract(value: unknown, label = "doctor_report"): DoctorReportContract {
   return validateContractSchema(doctorV1Schema, value, label);

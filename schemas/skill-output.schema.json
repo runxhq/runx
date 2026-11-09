@@ -5,46 +5,7 @@
   "properties": {
     "artifacts": {
       "items": {
-        "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "bytes": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "digest": {
-            "type": "string"
-          },
-          "media_type": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "schema": {
-            "enum": [
-              "runx.project_artifact.v1"
-            ],
-            "title": "ProjectArtifactSchema",
-            "type": "string"
-          },
-          "uri": {
-            "description": "`runx:project-artifact:` and the artifact's digest.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "schema",
-          "uri",
-          "digest",
-          "bytes",
-          "media_type",
-          "path"
-        ],
-        "title": "ProjectArtifact",
-        "type": "object",
-        "x-runx-schema": "runx.project_artifact.v1"
+        "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
       },
       "type": "array"
     },
@@ -52,46 +13,7 @@
       "description": "The run's operator context and step trace, written only with `--diagnostics`; otherwise they live behind `diagnostics_artifact`."
     },
     "diagnostics_artifact": {
-      "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "additionalProperties": false,
-      "properties": {
-        "bytes": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "digest": {
-          "type": "string"
-        },
-        "media_type": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "schema": {
-          "enum": [
-            "runx.project_artifact.v1"
-          ],
-          "title": "ProjectArtifactSchema",
-          "type": "string"
-        },
-        "uri": {
-          "description": "`runx:project-artifact:` and the artifact's digest.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "schema",
-        "uri",
-        "digest",
-        "bytes",
-        "media_type",
-        "path"
-      ],
-      "title": "ProjectArtifact",
-      "type": "object",
-      "x-runx-schema": "runx.project_artifact.v1"
+      "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
     },
     "entry_provenance": {
       "additionalProperties": {},
@@ -111,19 +33,8 @@
       "type": "string"
     },
     "outcome": {
-      "description": "How the run ended: its seal's outcome, or `deferred` while it waits.",
-      "enum": [
-        "completed",
-        "deferred",
-        "superseded",
-        "declined",
-        "blocked",
-        "failed",
-        "killed",
-        "timed_out"
-      ],
-      "title": "RunOutcome",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunOutcome",
+      "description": "How the run ended: its seal's outcome, or `deferred` while it waits."
     },
     "receipt_id": {
       "type": "string"
@@ -134,46 +45,7 @@
       "type": "object"
     },
     "request_set_artifact": {
-      "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "additionalProperties": false,
-      "properties": {
-        "bytes": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "digest": {
-          "type": "string"
-        },
-        "media_type": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "schema": {
-          "enum": [
-            "runx.project_artifact.v1"
-          ],
-          "title": "ProjectArtifactSchema",
-          "type": "string"
-        },
-        "uri": {
-          "description": "`runx:project-artifact:` and the artifact's digest.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "schema",
-        "uri",
-        "digest",
-        "bytes",
-        "media_type",
-        "path"
-      ],
-      "title": "ProjectArtifact",
-      "type": "object",
-      "x-runx-schema": "runx.project_artifact.v1"
+      "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
     },
     "requests": {
       "items": {},
@@ -184,46 +56,17 @@
       "type": "string"
     },
     "schema": {
-      "enum": [
-        "runx.skill_run.v1"
-      ],
-      "title": "SkillOutputSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillOutputSchema"
     },
     "seal_reason": {
-      "description": "Why the seal ended the run so, where the outcome alone does not say.",
-      "enum": [
-        "preflight_refused",
-        "input_contract_invalid",
-        "workflow_step_failed",
-        "workflow_blocked",
-        "authority_denied",
-        "cost_limit_exceeded",
-        "resolution_pending",
-        "managed_agent_provider_failed",
-        "managed_agent_resolution_failed",
-        "managed_agent_empty_turn_budget_exhausted",
-        "managed_agent_tool_execution_failed",
-        "managed_agent_round_budget_exhausted",
-        "host_closed"
-      ],
-      "title": "SealReason",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SealReason",
+      "description": "Why the seal ended the run so, where the outcome alone does not say."
     },
     "skill_name": {
       "type": "string"
     },
     "status": {
-      "enum": [
-        "sealed",
-        "needs_agent",
-        "needs_approval",
-        "payment_required",
-        "policy_denied",
-        "failure"
-      ],
-      "title": "SkillOutputStatus",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillOutputStatus"
     },
     "trace": {}
   },

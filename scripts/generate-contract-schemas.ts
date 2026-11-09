@@ -28,11 +28,7 @@ const declared = JSON.parse(runArtifacts(["--types"], "pipe")) as {
 
 reconcile(schemaArtifactsPath, renderSchemaArtifactsSource(schemasDir));
 reconcile(contractTypesPath, renderContractTypes(
-  Object.entries(declared.artifacts).map(([fileName, typeName]) => ({
-    fileName,
-    typeName,
-    schema: JSON.parse(readFileSync(path.join(schemasDir, fileName), "utf8")) as Record<string, unknown>,
-  })),
+  Object.entries(declared.artifacts).map(([fileName, typeName]) => ({ fileName, typeName })),
   declared.types,
 ));
 

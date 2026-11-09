@@ -10,13 +10,12 @@
 
 mod corpora;
 mod covered;
-mod support;
 
+use crate::published_schemas::{PublishedSchemas, published_dir};
 use covered::covered;
 use runx_contracts::Receipt;
 use runx_contracts::schema::RunxSchema;
 use serde_json::{Value, json};
-use support::{SchemaDirRetriever, committed_dir};
 
 #[test]
 fn receipt_refuses_a_field_no_issuer_writes() -> Result<(), String> {
@@ -60,12 +59,7 @@ fn receipt_with_term(bounds: Value, approvals: Option<Value>) -> Result<Value, S
 }
 
 fn validator(schema: &Value) -> Result<jsonschema::Validator, String> {
-    jsonschema::draft202012::options()
-        .with_retriever(SchemaDirRetriever {
-            dir: committed_dir(),
-        })
-        .build(schema)
-        .map_err(|error| error.to_string())
+    crate::published_schemas::published_validator(schema).map_err(|error| error.to_string())
 }
 
 /// A field left off the wire at its default has one wire form: the schema
@@ -98,7 +92,7 @@ fn accepted_schema_takes_an_omitted_default_written_out_as_decoding_does() -> Re
 
 #[test]
 fn emitted_schemas_conform_to_committed_value_domains() {
-    let dir = committed_dir();
+    let dir = published_dir();
     let mut failures: Vec<String> = Vec::new();
 
     for contract in covered() {
@@ -130,7 +124,7 @@ fn emitted_schemas_conform_to_committed_value_domains() {
         }
 
         let Ok(committed_validator) = jsonschema::draft202012::options()
-            .with_retriever(SchemaDirRetriever { dir: dir.clone() })
+            .with_retriever(PublishedSchemas { dir: dir.clone() })
             .build(&committed)
         else {
             failures.push(format!(
@@ -139,7 +133,7 @@ fn emitted_schemas_conform_to_committed_value_domains() {
             continue;
         };
         let Ok(emitted_validator) = jsonschema::draft202012::options()
-            .with_retriever(SchemaDirRetriever { dir: dir.clone() })
+            .with_retriever(PublishedSchemas { dir: dir.clone() })
             .build(&contract.emitted)
         else {
             failures.push(format!("{name}: emitted schema is not a usable validator"));

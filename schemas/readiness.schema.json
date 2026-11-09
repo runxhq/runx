@@ -9,44 +9,8 @@
       "type": "string"
     },
     "cost": {
-      "additionalProperties": false,
-      "description": "What the provider charges per call, when the operation declares it.",
-      "properties": {
-        "per": {
-          "description": "When a call becomes billable.",
-          "enum": [
-            "request",
-            "success"
-          ],
-          "title": "CostBasis",
-          "type": "string"
-        },
-        "source": {
-          "description": "Where the price was read.",
-          "enum": [
-            "docs",
-            "rate_card",
-            "observed"
-          ],
-          "title": "CostSource",
-          "type": "string"
-        },
-        "source_url": {
-          "description": "The page that states it, `https` only.",
-          "minLength": 1,
-          "type": "string"
-        },
-        "usd_micro": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "per",
-        "source"
-      ],
-      "title": "OperationCost",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationCost",
+      "description": "What the provider charges per call, when the operation declares it."
     },
     "instance_id": {
       "maxLength": 128,
@@ -59,12 +23,7 @@
       "type": "string"
     },
     "placement": {
-      "enum": [
-        "hosted",
-        "local"
-      ],
-      "title": "Placement",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Placement"
     },
     "ready": {
       "description": "True when no check failed. Approval may still be owed at call time.",
@@ -72,127 +31,7 @@
     },
     "reasons": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "check": {
-            "description": "The checks admission runs, in order; each refuses before the next.",
-            "enum": [
-              "requirement",
-              "instance",
-              "capability",
-              "delegation",
-              "cost",
-              "approval",
-              "implementation",
-              "tolerance"
-            ],
-            "title": "AdmissionCheck",
-            "type": "string"
-          },
-          "detail": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "pass",
-              "fail",
-              "required",
-              "unknown"
-            ],
-            "title": "CheckOutcome",
-            "type": "string"
-          },
-          "refs": {
-            "items": {
-              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "locator": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "observed_at": {
-                  "minLength": 1,
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "proof_kind": {
-                  "enum": [
-                    "effect_evidence",
-                    "effect_finality",
-                    "credential_resolution"
-                  ],
-                  "title": "ProofKind",
-                  "type": "string"
-                },
-                "provider": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "type": {
-                  "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
-                  "enum": [
-                    "thread",
-                    "comment",
-                    "event",
-                    "tracking_item",
-                    "change_request",
-                    "repository",
-                    "signal",
-                    "run",
-                    "act",
-                    "receipt",
-                    "artifact",
-                    "verification",
-                    "harness",
-                    "host",
-                    "surface",
-                    "target",
-                    "skill_binding",
-                    "principal",
-                    "scope_admission",
-                    "grant",
-                    "mandate",
-                    "credential",
-                    "webhook_delivery",
-                    "redaction_policy",
-                    "external_url",
-                    "connector_instance",
-                    "connector_operation"
-                  ],
-                  "title": "ReferenceType",
-                  "type": "string"
-                },
-                "uri": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "uri"
-              ],
-              "title": "Reference",
-              "type": "object",
-              "x-runx-schema": "runx.reference.v1"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "check",
-          "outcome",
-          "detail"
-        ],
-        "title": "AdmissionReason",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/AdmissionReason"
       },
       "type": "array"
     },

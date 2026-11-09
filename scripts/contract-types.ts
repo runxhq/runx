@@ -9,7 +9,6 @@ export interface ContractTypeSource {
   readonly fileName: string;
   /** The Rust type the schema is generated from, `Receipt`. */
   readonly typeName: string;
-  readonly schema: Schema;
 }
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;
@@ -17,8 +16,9 @@ const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;
 /**
  * One `export type` per named Rust contract type, `Receipt` as
  * `ReceiptContract`. `types` holds each one's own schema by name, as Rust
- * records it; a schema anywhere that carries a type's name as its `title` is
- * that type, and must be its shape.
+ * records it, with each type it holds inline under that type's `title`. The
+ * Rust publisher refuses a titled schema that is not its type's shape, so a
+ * title names its type.
  */
 export function renderContractTypes(
   sources: readonly ContractTypeSource[],
@@ -28,7 +28,6 @@ export function renderContractTypes(
     if (!(source.typeName in types)) {
       throw new Error(`${source.fileName} comes from ${source.typeName}, which records no schema`);
     }
-    checkTitles(source.schema, types, source.fileName);
   }
 
   const blocks = Object.keys(types)
@@ -46,25 +45,6 @@ export function renderContractTypes(
     blocks.join("\n\n"),
     "",
   ].join("\n");
-}
-
-/** Every titled schema under `value` is the named type of that title. */
-function checkTitles(value: unknown, types: Readonly<Record<string, Schema>>, at: string): void {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => checkTitles(item, types, `${at}[${index}]`));
-    return;
-  }
-  const schema = asSchema(value);
-  if (!schema) return;
-  const title = schema.title;
-  if (typeof title === "string") {
-    const own = types[title];
-    if (!own) throw new Error(`${at} is titled ${title}, which records no schema`);
-    if (shapeOf(own) !== shapeOf(schema)) {
-      throw new Error(`${at} is titled ${title} but is not its shape; a narrowed schema drops the title`);
-    }
-  }
-  for (const [key, child] of Object.entries(schema)) checkTitles(child, types, `${at}/${key}`);
 }
 
 class Renderer {
@@ -174,22 +154,6 @@ class Renderer {
 
 function contractName(typeName: string): string {
   return `${typeName}Contract`;
-}
-
-/** A schema's shape: what it admits, without what documents or marks it. */
-function shapeOf(schema: Schema): string {
-  const strip = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(strip);
-    const object = asSchema(value);
-    if (!object) return value;
-    return Object.fromEntries(
-      Object.keys(object)
-        .filter((key) => !["description", "$id", "$schema", "x-runx-packet"].includes(key))
-        .sort()
-        .map((key) => [key, strip(object[key])]),
-    );
-  };
-  return JSON.stringify(strip(schema));
 }
 
 function describedAs(schema: Schema): string | undefined {

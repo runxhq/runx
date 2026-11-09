@@ -131,7 +131,7 @@ fn published_vectors_validate_against_published_schemas() -> Result<(), Box<dyn 
                 serde_json::from_slice(&fs::read(repo_root().join("schemas").join(schema_file))?)?;
             validators.insert(
                 schema_id.to_owned(),
-                jsonschema::draft202012::options().build(&schema)?,
+                crate::published_schemas::published_validator(&schema)?,
             );
         }
         let fixture = vector(string_field(entry, "file")?)?;

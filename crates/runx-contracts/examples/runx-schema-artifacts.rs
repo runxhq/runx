@@ -1,10 +1,12 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use runx_contracts::{SchemaDrift, generated_schema_artifacts, reconcile_schema_artifacts};
+use runx_contracts::{
+    SchemaDrift, generated_schema_artifacts, publish_schema_artifacts, reconcile_schema_artifacts,
+};
 
 enum Options {
-    /// Write, or with `check` compare, every artifact in `out_dir`.
+    /// Write, or with `check` compare, every published document in `out_dir`.
     Reconcile { out_dir: PathBuf, check: bool },
     /// Print what generated bindings declare: each artifact's file name with
     /// the Rust type it comes from, and every named type with its own schema.
@@ -16,7 +18,9 @@ fn main() -> Result<(), std::io::Error> {
         Options::Reconcile { out_dir, check } => (out_dir, check),
         Options::Types => return print_types(),
     };
-    let drift = reconcile_schema_artifacts(&out_dir, check, generated_schema_artifacts())?;
+    let published =
+        publish_schema_artifacts(&generated_schema_artifacts()).map_err(std::io::Error::other)?;
+    let drift = reconcile_schema_artifacts(&out_dir, check, &published)?;
     if drift.is_empty() {
         return Ok(());
     }

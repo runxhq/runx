@@ -11,31 +11,8 @@
       "type": "string"
     },
     "cost": {
-      "additionalProperties": false,
-      "description": "What a priced call cost; absent when the operation declares no cost.",
-      "properties": {
-        "payer": {
-          "description": "Who pays a priced call.",
-          "enum": [
-            "provider_account"
-          ],
-          "title": "CostPayer",
-          "type": "string"
-        },
-        "quoted_usd_micro": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "settled_usd_micro": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "payer"
-      ],
-      "title": "CallCost",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallCost",
+      "description": "What a priced call cost; absent when the operation declares no cost."
     },
     "finality": {
       "type": "string"

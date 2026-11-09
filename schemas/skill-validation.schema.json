@@ -17,25 +17,14 @@
       "type": "string"
     },
     "schema": {
-      "enum": [
-        "runx.skill.validation.v1"
-      ],
-      "title": "SkillValidationSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillValidationSchema"
     },
     "test": {
       "additionalProperties": {},
       "type": "object"
     },
     "verdict": {
-      "description": "How far validating a package got.",
-      "enum": [
-        "tested",
-        "needs_consequential_test_approval",
-        "validation_failed"
-      ],
-      "title": "SkillValidationVerdict",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillValidationVerdict"
     }
   },
   "required": [

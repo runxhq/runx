@@ -560,7 +560,7 @@ impl RunxSchema for QuotePurchaseAdmission {
                 Property::new("purchase", Purchase::json_schema(), true),
                 Property::new(
                     "payment_options",
-                    json!({ "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/PurchasePaymentChallenge" } }),
+                    crate::schema::NonEmptyVec::<PurchasePaymentChallenge>::json_schema(),
                     true,
                 ),
             ],
@@ -601,29 +601,19 @@ impl RunxSchema for QuotePurchaseResult {
             None,
         );
         let refused = refusal_variant_schema();
-        let mut schema = any_of_with_identity(
+        let schema = any_of_with_identity(
             vec![admitted, refused],
             Some(Identity::Runx {
                 logical: QUOTE_PURCHASE_RESULT_SCHEMA,
                 url: None,
             }),
         );
-        if let Some(object) = schema.as_object_mut() {
-            object.insert(
-                "$defs".to_owned(),
-                json!({
-                    "PurchasePaymentChallenge": PurchasePaymentChallenge::json_schema(),
-                    "PurchasePaymentOptionBinding": PurchasePaymentOptionBinding::json_schema()
-                }),
-            );
-        }
         titled(schema, "QuotePurchaseResult")
     }
 
     fn named_schemas(named: &mut NamedSchemas) {
         if record_named(named, "QuotePurchaseResult", Self::json_schema) {
             QuotePurchaseAdmission::named_schemas(named);
-            PurchasePaymentOptionBinding::named_schemas(named);
             PurchaseRefusalCode::named_schemas(named);
             PurchaseRefusalReason::named_schemas(named);
         }

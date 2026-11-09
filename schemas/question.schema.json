@@ -18,21 +18,7 @@
     "options": {
       "description": "What the person may choose, the recommended first.",
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "detail": {
-            "type": "string"
-          },
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "label"
-        ],
-        "title": "QuestionOption",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/QuestionOption"
       },
       "minItems": 1,
       "type": "array"

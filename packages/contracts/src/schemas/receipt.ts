@@ -1,6 +1,6 @@
 import {
   generatedSchema,
-  generatedSchemaAt,
+  generatedDefinition,
   validateContractSchema,
 } from "../internal.js";
 import type {
@@ -44,41 +44,13 @@ export type {
 export const RECEIPT_CANONICALIZATION = "runx.receipt.c14n.v1" as const;
 
 export const receiptV1Schema = generatedSchema<ReceiptContract>("receipt.schema.json");
-export const receiptSubjectSchema = generatedSchemaAt<SubjectContract>(
-  receiptV1Schema,
-  ["properties", "subject"],
-  "receipt.subject",
-);
-export const receiptEnforcementSchema = generatedSchemaAt<ReceiptEnforcementContract>(
-  receiptV1Schema,
-  ["properties", "authority", "properties", "enforcement"],
-  "receipt.authority.enforcement",
-);
-export const receiptAuthoritySchema = generatedSchemaAt<ReceiptAuthorityContract>(
-  receiptV1Schema,
-  ["properties", "authority"],
-  "receipt.authority",
-);
-export const receiptCriterionSchema = generatedSchemaAt<CriterionBindingContract>(
-  receiptV1Schema,
-  ["properties", "seal", "properties", "criteria", "items"],
-  "receipt.seal.criteria[]",
-);
-export const receiptActSchema = generatedSchemaAt<ReceiptActContract>(
-  receiptV1Schema,
-  ["properties", "acts", "items"],
-  "receipt.acts[]",
-);
-export const receiptSealSchema = generatedSchemaAt<SealContract>(
-  receiptV1Schema,
-  ["properties", "seal"],
-  "receipt.seal",
-);
-export const receiptLineageSchema = generatedSchemaAt<LineageContract>(
-  receiptV1Schema,
-  ["properties", "lineage"],
-  "receipt.lineage",
-);
+export const receiptSubjectSchema = generatedDefinition<SubjectContract>("Subject");
+export const receiptEnforcementSchema = generatedDefinition<ReceiptEnforcementContract>("ReceiptEnforcement");
+export const receiptAuthoritySchema = generatedDefinition<ReceiptAuthorityContract>("ReceiptAuthority");
+export const receiptCriterionSchema = generatedDefinition<CriterionBindingContract>("CriterionBinding");
+export const receiptActSchema = generatedDefinition<ReceiptActContract>("ReceiptAct");
+export const receiptSealSchema = generatedDefinition<SealContract>("Seal");
+export const receiptLineageSchema = generatedDefinition<LineageContract>("Lineage");
 
 export function validateReceiptContract(value: unknown, label = "receipt"): ReceiptContract {
   return validateContractSchema(receiptV1Schema, value, label) as ReceiptContract;

@@ -6,113 +6,18 @@
   "properties": {
     "runs": {
       "items": {
-        "additionalProperties": false,
-        "description": "One run of a listing, read from its first and latest events.",
-        "properties": {
-          "created_at": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "method": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "outcome": {
-            "description": "How a run, or a receipt's subject, ended.",
-            "enum": [
-              "completed",
-              "deferred",
-              "superseded",
-              "declined",
-              "blocked",
-              "failed",
-              "killed",
-              "timed_out"
-            ],
-            "title": "RunOutcome",
-            "type": "string"
-          },
-          "pending_request_id": {
-            "description": "The request a paused run's step is held on: its turn's act, or what it asked.",
-            "minLength": 1,
-            "type": "string"
-          },
-          "receipt_id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "run_id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "skill": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "state": {
-            "description": "Where a run stands, from its latest event alone.",
-            "enum": [
-              "running",
-              "paused",
-              "sealed"
-            ],
-            "title": "RunState",
-            "type": "string"
-          },
-          "updated_at": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "run_id",
-          "skill",
-          "method",
-          "state",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "RunListEntry",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunListEntry"
       },
       "maxItems": 1000,
       "minItems": 0,
       "type": "array"
     },
     "schema": {
-      "enum": [
-        "runx.run.list.v1"
-      ],
-      "title": "RunListSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunListSchema"
     },
     "unreadable": {
       "items": {
-        "additionalProperties": false,
-        "description": "A run the listing found and couldn't read, such as one another runx version recorded: listed by its id, so one record never hides the rest.",
-        "properties": {
-          "reason": {
-            "description": "Why its record can't be read.",
-            "minLength": 1,
-            "type": "string"
-          },
-          "run_id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "updated_at": {
-            "description": "When the run last moved.",
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "run_id",
-          "updated_at",
-          "reason"
-        ],
-        "title": "UnreadableRun",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/UnreadableRun"
       },
       "maxItems": 1000,
       "minItems": 0,

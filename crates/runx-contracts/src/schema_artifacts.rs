@@ -36,6 +36,9 @@ pub struct SchemaArtifact {
     /// The Rust type the schema is generated from, without its module path:
     /// the name generated bindings give the contract.
     pub type_name: &'static str,
+    /// The type's schema with every type it holds inline: what a validator,
+    /// a host or a model provider reads in-process. Published, each held type
+    /// is a reference to its one definition (`schema_definitions`).
     pub schema: schema_json::Value,
     /// Each named type the schema reaches, with its own schema.
     pub named_schemas: NamedSchemas,
@@ -45,13 +48,6 @@ pub struct SchemaArtifact {
 }
 
 impl SchemaArtifact {
-    /// The exact bytes published as `schemas/<file_name>`. A core packet's
-    /// digest is the digest of these bytes, so a sealed packet check names
-    /// a schema anyone can fetch and hash.
-    pub fn document(&self) -> Result<String, schema_json::Error> {
-        schema_json::to_string_pretty(&self.schema).map(|document| format!("{document}\n"))
-    }
-
     /// The core packet id a native packet artifact is published under.
     #[must_use]
     pub fn packet_id(&self) -> Option<crate::PacketId> {

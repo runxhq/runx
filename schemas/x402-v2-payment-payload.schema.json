@@ -4,57 +4,7 @@
   "additionalProperties": true,
   "properties": {
     "accepted": {
-      "$id": "https://schemas.runx.ai/external/x402/v2/payment-requirements.schema.json",
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "additionalProperties": true,
-      "properties": {
-        "amount": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "asset": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "extra": {
-          "anyOf": [
-            {
-              "additionalProperties": {},
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "maxTimeoutSeconds": {
-          "exclusiveMinimum": 0,
-          "type": "number"
-        },
-        "network": {
-          "minLength": 3,
-          "pattern": "^.*:.*$",
-          "type": "string"
-        },
-        "payTo": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "scheme": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "scheme",
-        "network",
-        "amount",
-        "asset",
-        "payTo",
-        "maxTimeoutSeconds"
-      ],
-      "title": "X402PaymentRequirements",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/external/x402/v2/payment-requirements.schema.json"
     },
     "extensions": {
       "anyOf": [
@@ -74,81 +24,7 @@
     "resource": {
       "anyOf": [
         {
-          "$id": "https://schemas.runx.ai/external/x402/v2/resource-info.schema.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": true,
-          "properties": {
-            "description": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "iconUrl": {
-              "anyOf": [
-                {
-                  "maxLength": 2048,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "mimeType": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "serviceName": {
-              "anyOf": [
-                {
-                  "maxLength": 32,
-                  "minLength": 1,
-                  "pattern": "^[\\x20-\\x7e]+$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "tags": {
-              "anyOf": [
-                {
-                  "items": {
-                    "maxLength": 32,
-                    "minLength": 1,
-                    "pattern": "^[\\x20-\\x7e]+$",
-                    "type": "string"
-                  },
-                  "maxItems": 5,
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "url": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "url"
-          ],
-          "title": "X402ResourceInfo",
-          "type": "object"
+          "$ref": "https://schemas.runx.ai/external/x402/v2/resource-info.schema.json"
         },
         {
           "type": "null"

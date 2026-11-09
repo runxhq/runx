@@ -17,109 +17,13 @@
     },
     "catalog_skills": {
       "items": {
-        "additionalProperties": false,
-        "description": "One skill or tool an authored skill can reuse.",
-        "properties": {
-          "description": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "fixtures": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "kind": {
-            "enum": [
-              "tool",
-              "skill",
-              "packet"
-            ],
-            "title": "RunxListItemKind",
-            "type": "string"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "ok",
-              "invalid"
-            ],
-            "title": "RunxListStatus",
-            "type": "string"
-          },
-          "test_cases": {
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "path",
-          "status"
-        ],
-        "title": "SkillCatalogEntry",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillCatalogEntry"
       },
       "type": "array"
     },
     "core_tools": {
       "items": {
-        "additionalProperties": false,
-        "description": "One skill or tool an authored skill can reuse.",
-        "properties": {
-          "description": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "fixtures": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "kind": {
-            "enum": [
-              "tool",
-              "skill",
-              "packet"
-            ],
-            "title": "RunxListItemKind",
-            "type": "string"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "ok",
-              "invalid"
-            ],
-            "title": "RunxListStatus",
-            "type": "string"
-          },
-          "test_cases": {
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "path",
-          "status"
-        ],
-        "title": "SkillCatalogEntry",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillCatalogEntry"
       },
       "type": "array"
     },
@@ -144,24 +48,7 @@
     },
     "target_files": {
       "items": {
-        "additionalProperties": false,
-        "description": "One file of a skill package.",
-        "properties": {
-          "bytes": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "bytes"
-        ],
-        "title": "SkillPackageFile",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageFile"
       },
       "type": "array"
     },
@@ -178,48 +65,7 @@
       "description": "The existing target's inspection, or why it would not inspect; null when the target does not exist."
     },
     "target_metrics": {
-      "additionalProperties": false,
-      "properties": {
-        "bytes": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "executable_files": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "executable_lines": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "files": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "generated_lines": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "production_lines": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "test_lines": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "files",
-        "bytes",
-        "production_lines",
-        "test_lines",
-        "generated_lines",
-        "executable_files",
-        "executable_lines"
-      ],
-      "title": "SkillPackageMetrics",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageMetrics"
     }
   },
   "required": [

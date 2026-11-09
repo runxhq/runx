@@ -2,7 +2,8 @@
 //!
 //! Asserts the three receipt bindings stay coherent:
 //!   1. The Rust emitter's canonical instances validate against the published
-//!      JSON Schema (`schemas/receipt.schema.json`) — emitter-validates-against-schema.
+//!      JSON Schema (`schemas/receipt.schema.json`, with the definitions it
+//!      refers to) — emitter-validates-against-schema.
 //!   2. The Rust canonicalizer reproduces the checked-in canonical-json oracle
 //!      byte-for-byte (full + body), so the c14n contract cannot drift silently.
 //!
@@ -54,9 +55,34 @@ struct OracleCase {
     body_digest: String,
 }
 
+/// The receipt schema refers to the definitions it shares with the rest of
+/// the published set, so each reference resolves to the document beside it
+/// that carries that `$id`.
+struct PublishedSchemas;
+
+impl jsonschema::Retrieve for PublishedSchemas {
+    fn retrieve(
+        &self,
+        uri: &jsonschema::Uri<String>,
+    ) -> Result<Value, Box<dyn std::error::Error + Send + Sync>> {
+        let expected = uri.to_string();
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schemas");
+        for entry in std::fs::read_dir(dir)? {
+            let schema: Value = serde_json::from_str(&std::fs::read_to_string(entry?.path())?)?;
+            if schema.get("$id").and_then(Value::as_str) == Some(expected.as_str()) {
+                return Ok(schema);
+            }
+        }
+        Err(format!("schema reference not found: {expected}").into())
+    }
+}
+
 fn schema() -> Validator {
     let schema_value: Value = serde_json::from_str(RECEIPT_SCHEMA).expect("receipt schema parses");
-    jsonschema::validator_for(&schema_value).expect("receipt schema compiles")
+    jsonschema::options()
+        .with_retriever(PublishedSchemas)
+        .build(&schema_value)
+        .expect("receipt schema compiles")
 }
 
 fn fixture_receipt(json: &str) -> Receipt {

@@ -4,181 +4,29 @@
   "additionalProperties": false,
   "properties": {
     "delivery": {
-      "additionalProperties": false,
-      "properties": {
-        "event_id": {
-          "type": "string"
-        },
-        "execution_context": {
-          "$id": "https://schemas.runx.ai/runx/orchestrator/execution-context/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": true,
-          "properties": {
-            "caller": {
-              "type": "string"
-            },
-            "caller_id": {
-              "type": "string"
-            },
-            "event_id": {
-              "type": "string"
-            },
-            "handoff_audience": {
-              "type": "string"
-            },
-            "handoff_scope": {
-              "type": "string"
-            },
-            "idempotency_key": {
-              "type": "string"
-            },
-            "platform": {
-              "type": "string"
-            },
-            "principal": {
-              "type": "string"
-            },
-            "principal_id": {
-              "type": "string"
-            },
-            "upstream_run_id": {
-              "description": "The orchestrator's own id for the run that made the call.",
-              "type": "string"
-            },
-            "workflow": {
-              "type": "string"
-            },
-            "workflow_id": {
-              "type": "string"
-            }
-          },
-          "title": "OrchestratorExecutionContext",
-          "type": "object",
-          "x-runx-schema": "runx.orchestrator.execution_context.v1"
-        },
-        "handoff_audience": {
-          "type": "string"
-        },
-        "handoff_scope": {
-          "type": "string"
-        },
-        "idempotency_key": {
-          "type": "string"
-        },
-        "payload": {},
-        "source": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "event_id",
-        "handoff_scope",
-        "handoff_audience",
-        "execution_context",
-        "payload",
-        "source",
-        "idempotency_key"
-      ],
-      "title": "OrchestratorHandoffDelivery",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OrchestratorHandoffDelivery"
     },
     "event_id": {
       "type": "string"
     },
     "handoff": {
-      "additionalProperties": false,
-      "properties": {
-        "audience": {
-          "type": "string"
-        },
-        "scope": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "scope",
-        "audience",
-        "source"
-      ],
-      "title": "OrchestratorHandoffBinding",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OrchestratorHandoffBinding"
     },
     "idempotency": {
-      "additionalProperties": false,
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "receiver_should_dedupe": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "key",
-        "receiver_should_dedupe"
-      ],
-      "title": "OrchestratorHandoffIdempotency",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OrchestratorHandoffIdempotency"
     },
     "platform": {
       "type": "string"
     },
     "receipt_expectations": {
-      "additionalProperties": false,
-      "properties": {
-        "context_artifact": {
-          "type": "string"
-        },
-        "delivered_credential_material_absent": {
-          "type": "boolean"
-        },
-        "outbound_effect_must_be_receipted": {
-          "type": "boolean"
-        },
-        "receiver_response_must_be_captured": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "context_artifact",
-        "outbound_effect_must_be_receipted",
-        "receiver_response_must_be_captured",
-        "delivered_credential_material_absent"
-      ],
-      "title": "OrchestratorReceiptExpectations",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OrchestratorReceiptExpectations"
     },
     "receiver": {
       "additionalProperties": {},
       "type": "object"
     },
     "receiver_validation": {
-      "additionalProperties": false,
-      "properties": {
-        "reject_duplicate_event_id": {
-          "type": "boolean"
-        },
-        "require_audience": {
-          "type": "string"
-        },
-        "require_event_id": {
-          "type": "string"
-        },
-        "require_scope": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "require_scope",
-        "require_audience",
-        "require_event_id",
-        "reject_duplicate_event_id"
-      ],
-      "title": "OrchestratorReceiverValidation",
-      "type": "object"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OrchestratorReceiverValidation"
     },
     "status": {
       "type": "string"

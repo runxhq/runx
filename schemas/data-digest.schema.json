@@ -5,12 +5,7 @@
   "description": "What `data.digest` returns: the SHA-256 digest of canonical JSON or of exact UTF-8 text.",
   "properties": {
     "algorithm": {
-      "description": "The algorithm a content digest was taken with.",
-      "enum": [
-        "sha256"
-      ],
-      "title": "DigestAlgorithm",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DigestAlgorithm"
     },
     "digest": {
       "maxLength": 71,

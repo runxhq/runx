@@ -3,10 +3,11 @@
 //!
 //! A contract type that derives [`RunxSchema`] emits its own wire-conformant
 //! JSON Schema document, so the Rust type is the single source of truth and the
-//! parallel TypeScript schema sources stay deleted. The emitted document
-//! reproduces the committed shape: fully inlined, closed string enums as
-//! `type: string` with `enum`, `additionalProperties: false`, and the `$id` /
-//! `x-runx-schema` identity.
+//! parallel TypeScript schema sources stay deleted. The emitted schema holds
+//! every type it reaches inline, each under its type's `title`, with closed
+//! string enums as `type: string` with `enum`, `additionalProperties: false`,
+//! and the `$id` / `x-runx-schema` identity. Published, each of those types is
+//! defined once and referred to (`schema_definitions`).
 // Module rationale: the schema emitter keeps shared JSON Schema
 // construction helpers and primitive type impls together so generated contract
 // shapes are reviewable as one boundary.

@@ -4,12 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "actor": {
-      "enum": [
-        "human",
-        "agent"
-      ],
-      "title": "ApprovalDecisionActor",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ApprovalDecisionActor"
     },
     "approved": {
       "anyOf": [
@@ -34,13 +29,7 @@
       "type": "string"
     },
     "status": {
-      "enum": [
-        "approved",
-        "denied",
-        "pending"
-      ],
-      "title": "ApprovalDecisionStatus",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ApprovalDecisionStatus"
     }
   },
   "required": [

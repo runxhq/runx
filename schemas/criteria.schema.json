@@ -6,30 +6,7 @@
   "properties": {
     "criteria": {
       "items": {
-        "additionalProperties": false,
-        "description": "One check: its stable id, whether it's required, and the question that must be answered yes.",
-        "properties": {
-          "id": {
-            "maxLength": 128,
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "question": {
-            "maxLength": 1024,
-            "minLength": 1,
-            "type": "string"
-          },
-          "required": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "required",
-          "question"
-        ],
-        "title": "VerdictCriterion",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/VerdictCriterion"
       },
       "minItems": 1,
       "type": "array"
@@ -41,11 +18,7 @@
       "type": "string"
     },
     "schema": {
-      "enum": [
-        "runx.criteria.v1"
-      ],
-      "title": "CriteriaSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CriteriaSchema"
     }
   },
   "required": [

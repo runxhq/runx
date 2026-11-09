@@ -4,17 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "choice": {
-      "description": "The decisions a governed call can carry out.",
-      "enum": [
-        "continue",
-        "escalate",
-        "defer",
-        "close",
-        "decline",
-        "monitor"
-      ],
-      "title": "DecisionChoice",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DecisionChoice"
     },
     "decision_id": {
       "minLength": 1,

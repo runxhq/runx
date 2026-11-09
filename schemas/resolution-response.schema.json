@@ -4,12 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "actor": {
-      "enum": [
-        "human",
-        "agent"
-      ],
-      "title": "ResolutionResponseActor",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ResolutionResponseActor"
     },
     "payload": {
       "description": "Shallow response payload."

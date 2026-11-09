@@ -47,6 +47,7 @@ pub mod resume;
 pub mod run_read;
 pub mod schema;
 pub mod schema_artifacts;
+pub mod schema_definitions;
 mod schema_reconcile;
 pub mod skill_authoring;
 pub mod skill_inspection;
@@ -252,6 +253,10 @@ pub use run_read::{
 };
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,
+};
+pub use schema_definitions::{
+    DEFINITIONS_FILE, DEFINITIONS_ID, PublishedSchemas, SchemaDefinitionError, document_text,
+    publish_schema_artifacts,
 };
 pub use schema_reconcile::{SchemaDrift, reconcile_schema_artifacts};
 pub use skill_authoring::{

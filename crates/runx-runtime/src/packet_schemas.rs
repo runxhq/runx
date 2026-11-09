@@ -266,7 +266,9 @@ pub(crate) struct PacketSchemaCatalog {
 impl PacketSchemaCatalog {
     /// The core packets: the reusable contracts the native Runx contract
     /// catalog owns. A core packet's bytes are exactly its published
-    /// `schemas/` document, and no package carries a copy.
+    /// `schemas/` document, and no package carries a copy. What a value is
+    /// validated against is that document with its references to the other
+    /// published definitions expanded: the inline schema its type emits.
     pub(crate) fn native_public() -> Result<Self, PacketSchemaCatalogError> {
         // The contracts are compiled in, so the catalog is the same for the
         // whole process: built once, then copied for each caller to extend.
@@ -280,7 +282,14 @@ impl PacketSchemaCatalog {
 
     fn build_native_public() -> Result<Self, PacketSchemaCatalogError> {
         let mut catalog = Self::default();
-        for artifact in runx_contracts::generated_schema_artifacts() {
+        let artifacts = runx_contracts::generated_schema_artifacts();
+        let published = runx_contracts::publish_schema_artifacts(&artifacts).map_err(|error| {
+            PacketSchemaCatalogError::Native {
+                file_name: runx_contracts::DEFINITIONS_FILE.to_owned(),
+                message: error.to_string(),
+            }
+        })?;
+        for artifact in artifacts {
             let Some(packet_id) = artifact.packet_id() else {
                 continue;
             };
@@ -288,11 +297,12 @@ impl PacketSchemaCatalog {
                 file_name: artifact.file_name.to_owned(),
                 message,
             };
-            let source = artifact
-                .document()
+            let source = published
+                .text(artifact.file_name)
+                .ok_or_else(|| native_error("is not published".to_owned()))?
                 .map_err(|error| native_error(error.to_string()))?;
-            let value =
-                serde_json::from_str(&source).map_err(|error| native_error(error.to_string()))?;
+            let value = serde_json::from_value(artifact.schema.clone())
+                .map_err(|error| native_error(error.to_string()))?;
             let digest = runx_contracts::sha256_prefixed(source.as_bytes());
             catalog.insert(PacketSchemaEntry {
                 path: PathBuf::from("[runx-native-packets]").join(artifact.file_name),

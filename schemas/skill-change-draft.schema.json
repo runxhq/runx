@@ -5,14 +5,7 @@
   "description": "Agent-authored package bytes and intent before the runtime binds them to an inspected package state. This contract deliberately contains no digest: agents never calculate or copy runtime integrity values.",
   "properties": {
     "decision": {
-      "enum": [
-        "write",
-        "no_skill",
-        "no_change",
-        "needs_core"
-      ],
-      "title": "SkillChangeDecision",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeDecision"
     },
     "deletes": {
       "items": {
@@ -23,28 +16,7 @@
     },
     "expected_outputs": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "packet": {
-            "maxLength": 200,
-            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-            "type": "string"
-          },
-          "value_type": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "value_type"
-        ],
-        "title": "SkillExpectedOutput",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillExpectedOutput"
       },
       "type": "array"
     },
@@ -56,11 +28,7 @@
       "type": "array"
     },
     "schema": {
-      "enum": [
-        "runx.skill.change_draft.v1"
-      ],
-      "title": "SkillChangeDraftSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeDraftSchema"
     },
     "summary": {
       "minLength": 1,
@@ -68,22 +36,7 @@
     },
     "writes": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "contents": {
-            "type": "string"
-          },
-          "path": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "contents"
-        ],
-        "title": "SkillFileWrite",
-        "type": "object"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillFileWrite"
       },
       "type": "array"
     }

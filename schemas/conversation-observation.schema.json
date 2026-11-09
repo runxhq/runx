@@ -8,11 +8,7 @@
       "type": "object"
     },
     "schema": {
-      "enum": [
-        "runx.conversation_observation.v1"
-      ],
-      "title": "ConversationObservationSchema",
-      "type": "string"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ConversationObservationSchema"
     },
     "source_kind": {
       "minLength": 1,
