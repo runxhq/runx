@@ -68,6 +68,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   config: annotation("filesystem", ["config", "cli-presentation"], ["config.set.validate", "config.get.validate", "config.list.execute"]),
   secret: annotation("filesystem", ["secrets", "cli-presentation"], ["secret.set.validate", "secret.list.execute"]),
   workspace: annotation("filesystem", ["workspaces", "cli-presentation"], ["workspace.list.execute", "workspace.rebind.validate"]),
+  authority: annotation("filesystem", ["saved-authorities", "workspaces", "cli-presentation"], ["authority.list.execute", "authority.save.validate"]),
   notarize: annotation("external-stub", ["receipts", "cli-presentation"], ["notarize.validate"]),
   doctor: annotation("filesystem", ["doctor", "cli-presentation"], ["doctor.validate"]),
   export: annotation("filesystem", ["skill-export", "cli-presentation"], ["export.validate"]),
@@ -96,6 +97,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("config", "runx-cli", "schema-exact", "RUNX_HOME and config file behavior are part of CLI parity."),
   surface("secrets", "runx-cli + runx-runtime secrets", "schema-exact", "Secrets are kept by name in the runx home, sealed or by reference, and listed and removed without their values; only secret read prints one."),
   surface("workspaces", "runx-cli + runx-runtime workspace ids", "schema-exact", "Each workspace's id is minted in the runx home by canonical path, never read from the workspace, listed, and rebound after a move."),
+  surface("saved-authorities", "runx-cli + runx-runtime saved authorities", "schema-exact", "A saved authority is kept by name in the runx home for the workspaces it lists, by workspace id, and applies only where a run or a server names it with --authority."),
   surface("public-api", "runx-cli + runx-runtime", "stubbed", "Public API identity and HTTP transport are resolved once and exercised against deterministic local servers."),
   surface("connect", "runx-cli + runx cloud", "stubbed", "runx connector use --hosted owns the provider-neutral grant lifecycle; governed skills and native provider tools own bounded provider operations."),
   surface("connectors", "runx-cli + runx-runtime kernel", "fixture-backed", "Runx-maintained connector manifests, instances and readiness are listed and selected natively; import-mcp pins what a server serves."),
@@ -129,6 +131,7 @@ function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCa
     execute(commands, "config.list.execute", "config", ["config", "list", "--json"], 0, true, [], []),
     execute(commands, "secret.list.execute", "secret", ["secret", "list", "--json"], 0, true, ["\"secrets\": []"], []),
     execute(commands, "workspace.list.execute", "workspace", ["workspace", "list", "--json"], 0, true, ["\"workspaces\": []"], []),
+    execute(commands, "authority.list.execute", "authority", ["authority", "list", "--json"], 0, true, ["\"authorities\": []"], []),
     execute(commands, "test.execute", "test", ["test", "fixtures/skills/echo/tests/cli-parity-echo-skill.yaml", "--json"], 0, true, [], []),
     execute(
       commands,
