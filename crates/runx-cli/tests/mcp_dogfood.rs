@@ -661,6 +661,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
 /// gracefully: the command it runs is terminated, the run records the call,
 /// and the turn's next call runs on the same connection. MCP sends no reply
 /// to a cancelled request, so the record is what says what happened.
+#[cfg(unix)]
 #[test]
 fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dyn std::error::Error>>
 {
