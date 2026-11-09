@@ -172,20 +172,9 @@ methods:
                   minLength: 1
                   maxLength: 200
                   pattern: \S
-      data_source_uri:
+      key:
         type: string
-        description: Operator-selected consent/request source; local:// uses the local workspace store unless explicitly bound elsewhere.
-        minLength: 1
-        maxLength: 512
-      resource:
-        type: string
-        description: Declared event resource for subject request verdicts.
-        minLength: 1
-        maxLength: 128
-        pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
-      aggregate_id:
-        type: string
-        description: Subject request stream key.
+        description: The subject request's key in this skill's own requests stream.
         minLength: 1
         maxLength: 192
         pattern: ^[A-Za-z0-9][A-Za-z0-9._:@/-]*$
@@ -227,9 +216,7 @@ methods:
               - profile
             export_allowed:
               - profile
-        data_source_uri: tenant://privacy/sqlite-requests
-        resource: subject_requests
-        aggregate_id: subject:alice:dsr-001
+        key: subject:alice:dsr-001
         expected_version: 0
         idempotency_key: dsr-001:verdict:v1
     result_from:
@@ -260,17 +247,16 @@ methods:
           reason: Record this verdict on the data subject's request. It decides whether their data is erased or exported.
           type: privacy_verdict
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          stream: requests
+          key: $input.key
           expected_version: $input.expected_version
-          event: $steps.judge.verdict_draft.event
+          type: subject_request.verdict_recorded
+          data: $steps.judge.verdict_draft.event
       - id: readback-verdict
         operation: store/events.read
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          stream: requests
+          key: $input.key
           after_version: $input.expected_version
           limit: 1
       - id: finalize
@@ -280,9 +266,7 @@ methods:
           request_digest: $steps.digest-request.digest_result.digest
           policy_digest: $steps.digest-policy.digest_result.digest
           recorded_readback: $steps.readback-verdict.provider_operation.result
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          key: $input.key
           expected_version: $input.expected_version
         tool:
           module: privacy-request-review.mjs

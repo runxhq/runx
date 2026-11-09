@@ -83,9 +83,9 @@ On the first `execute`, supply `plan_json` and its native `plan_digest` from
 `plan` or `select`. A valid plan is saved before the effect approval; saving it
 is not approval. On later calls, omit `plan_json` and supply only the digest.
 The skill reads its own progress, selects the next batch and derives the
-expected stream version and canonical retry key. The logical store defaults to
-`local://twitter`; pass `data_source_uri` when the operation uses another
-binding, and keep using that same workspace and store.
+expected stream version and canonical retry key. Saved plans and progress live
+in this skill's own store streams, `plans` and `execution`, which only it
+writes; keep using the same workspace and store instance.
 
 - `status` reads one plan and its progress without contacting X. It returns the
   objective, principal, current cursor, partial thread, last batch, next batch
@@ -347,12 +347,12 @@ confirmed.
   `is_retweet`, `text_prefix`, `text_contains`, `max_likes`, `max_reposts`,
   `before_year`, `after_year`; users take `non_mutual` or `user_ids`),
   `archive_base`, `max_acts`.
-- `execute`: `plan_digest` (required), optional `plan_json` on the first call,
-  `data_source_uri` (default `local://twitter`) and `max_acts` (1–50). Native
+- `execute`: `plan_digest` (required), optional `plan_json` on the first call
+  and `max_acts` (1–50). Native
   digest verification precedes saving the plan or provider effects. Version,
   retry identity and next batch are derived inside the skill.
-- `status`: `plan_digest` (required), optional `data_source_uri` and `max_acts`.
-- `recent`: optional `data_source_uri`, `limit` (1–100, default 5) and page
+- `status`: `plan_digest` (required), optional `max_acts`.
+- `recent`: optional `limit` (1–100, default 5) and page
   `cursor`. Only execution summaries are listed.
 
 ## Credentials and cost

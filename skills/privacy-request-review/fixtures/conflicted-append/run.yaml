@@ -41,9 +41,7 @@ methods:
                 - activity
               export_allowed:
                 - profile
-          data_source_uri: local://privacy-request-review/conflict
-          resource: subject_requests
-          aggregate_id: subject:conflict
+          key: subject:conflict
           expected_version: 0
           idempotency_key: privacy-conflict-v1
       - id: stale-verdict
@@ -83,8 +81,6 @@ methods:
                 - activity
               export_allowed:
                 - profile
-          data_source_uri: local://privacy-request-review/conflict
-          resource: subject_requests
-          aggregate_id: subject:conflict
+          key: subject:conflict
           expected_version: 0
           idempotency_key: privacy-conflict-v2

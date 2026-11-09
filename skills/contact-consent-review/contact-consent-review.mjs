@@ -1,26 +1,24 @@
 const WRITABLE_STATES = new Set(["re_permission", "suppress"]);
 
 export function decideListHygiene(inputs) {
-  const projectionResult = object(inputs.contact_readback);
+  const readback = object(inputs.contact_readback);
   const base = {
-    aggregate_id: inputs.aggregate_id,
-    data_source_uri: inputs.data_source_uri,
-    resource: inputs.resource,
+    key: inputs.key,
     expected_version: inputs.expected_version,
     idempotency_key: inputs.idempotency_key,
     observed_state: inputs.consent_evidence.state,
-    projection_version: integer(projectionResult.after_version),
-    projection_digest: string(projectionResult.projection_digest),
+    version: integer(readback.version),
+    chain_digest: string(readback.chain_digest),
   };
 
-  if (!sameSource(projectionResult, base) || projectionResult.status !== "read") {
+  if (!sameKey(readback, base) || readback.operation !== "events.read") {
     return noWrite(base, "human_review", "ledger readback did not match the requested contact", "source_mismatch");
   }
-  if (base.projection_version !== base.expected_version) {
+  if (base.version !== base.expected_version) {
     return noWrite(
       base,
       "human_review",
-      `ledger version ${base.projection_version} does not match expected version ${base.expected_version}`,
+      `ledger version ${base.version} does not match expected version ${base.expected_version}`,
       "stale_version",
     );
   }
@@ -42,13 +40,12 @@ export function decideListHygiene(inputs) {
       "stale_evidence",
     );
   }
-  if (base.projection_version > 0) {
-    const latest = projectionResult.events?.[0];
-    const event = latest?.event;
-    if (latest?.version !== base.projection_version ||
-        latest.event_type !== "list_hygiene.consent_transitioned" ||
+  if (base.version > 0) {
+    const latest = readback.events?.[0];
+    const event = latest?.data;
+    if (latest?.version !== base.version ||
+        latest.type !== "list_hygiene.consent_transitioned" ||
         event?.type !== "list_hygiene.consent_transitioned" ||
-        event.aggregate_id !== base.aggregate_id ||
         !WRITABLE_STATES.has(event.new_state)) {
       return noWrite(base, "human_review", "the ledger head is not an exact recognized consent transition", "unrecognized_ledger_state");
     }
@@ -100,8 +97,8 @@ export function decideListHygiene(inputs) {
 export function finalizeListHygiene(inputs) {
   const plan = object(inputs.decision_plan);
   const readback = object(inputs.recorded_readback);
-  const projection = object(readback.projection);
-  if (readback.status !== "read" || !sameSource(readback, plan)) {
+  const last = object(readback.last_event);
+  if (readback.operation !== "key.inspect" || !sameKey(readback, plan)) {
     throw new Error("ledger readback did not match the planned contact source");
   }
 
@@ -111,27 +108,27 @@ export function finalizeListHygiene(inputs) {
     if (!WRITABLE_STATES.has(plan.decision.state)) {
       throw new Error("only re_permission or suppress may be recorded automatically");
     }
-    if (!["committed", "idempotent_replay"].includes(writeResult.status)) {
+    if (!["committed", "replayed"].includes(writeResult.status)) {
       throw new Error("ledger append did not return a committed transition");
     }
-    if (!sameSource(writeResult, plan)) {
+    if (!sameKey(writeResult, plan)) {
       throw new Error("ledger append identity did not match the planned transition");
     }
-    if (writeResult.before_version !== plan.expected_version || writeResult.after_version !== plan.expected_version + 1) {
+    if (writeResult.before_version !== plan.expected_version || writeResult.version !== plan.expected_version + 1) {
       throw new Error("ledger append version did not match the planned transition");
     }
     if (
-      projection.version !== writeResult.after_version ||
-      projection.last_event_type !== plan.event.type ||
-      projection.last_event_id !== writeResult.event_id ||
-      projection.last_event_digest !== writeResult.event_digest ||
-      readback.projection_digest !== writeResult.projection_digest
+      readback.version !== writeResult.version ||
+      last.type !== plan.event.type ||
+      last.id !== writeResult.event?.id ||
+      last.digest !== writeResult.event?.digest ||
+      readback.chain_digest !== writeResult.chain_digest
     ) {
       throw new Error("ledger readback did not prove the exact appended transition");
     }
   } else if (
-    projection.version !== plan.projection_version ||
-    readback.projection_digest !== plan.projection_digest
+    readback.version !== plan.version ||
+    readback.chain_digest !== plan.chain_digest
   ) {
     throw new Error("ledger changed while evaluating a no-write decision");
   }
@@ -143,16 +140,14 @@ export function finalizeListHygiene(inputs) {
       recorded_transition: {
         recorded: appended,
         state: appended ? plan.decision.state : null,
-        aggregate_id: plan.aggregate_id,
-        data_source_uri: plan.data_source_uri,
-        resource: plan.resource,
+        key: plan.key,
         idempotency_key: appended ? plan.idempotency_key : null,
         write_status: appended ? writeResult.status : "not_attempted",
-        before_version: plan.projection_version,
-        after_version: projection.version,
-        event_id: appended ? writeResult.event_id : null,
-        event_digest: appended ? writeResult.event_digest : null,
-        projection_digest: readback.projection_digest,
+        before_version: plan.version,
+        version: readback.version,
+        event_id: appended ? writeResult.event.id : null,
+        event_digest: appended ? writeResult.event.digest : null,
+        chain_digest: readback.chain_digest,
       },
       escalation: plan.decision.state === "human_review"
         ? { lane: "human:list-hygiene-reviewer", reason_code: plan.reason_code, status: "required_before_any_write" }
@@ -175,7 +170,6 @@ function write(base, fromState, state, reason, evidence) {
       append_allowed: true,
       event: {
         type: "list_hygiene.consent_transitioned",
-        aggregate_id: base.aggregate_id,
         from_state: fromState,
         new_state: state,
         reason,
@@ -198,10 +192,12 @@ function noWrite(base, state, reason, reasonCode) {
   };
 }
 
-function sameSource(result, expected) {
-  return result.data_source_uri === expected.data_source_uri &&
-    result.resource === expected.resource &&
-    result.aggregate_id === expected.aggregate_id;
+// A store answer about this contact: its key in this skill's own consent
+// stream, which the runtime places under whichever package runs it.
+function sameKey(result, expected) {
+  return typeof result.stream === "string" &&
+    result.stream.endsWith("/consent") &&
+    result.key === expected.key;
 }
 
 function object(value) {

@@ -33,9 +33,7 @@ inputs:
         - activity
       export_allowed:
         - profile
-  data_source_uri: tenant://privacy/sqlite-requests
-  resource: subject_requests
-  aggregate_id: subject:scope-mismatch
+  key: subject:scope-mismatch
   expected_version: 0
   idempotency_key: scope-mismatch:verdict:v1
 host:

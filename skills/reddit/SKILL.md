@@ -17,7 +17,8 @@ compared targets and drafts. It never submits. `read` exposes typed connector re
 Each live effect has one native operation-owned approval gate. No host task submits
 forms or supplies evidence of a successful write.
 
-Account and voice records live in the local store at `local://reddit`. Cookies,
+Account and voice records live in this skill's own store streams, `accounts`
+and `contributions`, which only it writes. Cookies,
 passwords and MFA remain browser-owned. Account configuration is expected identity,
 not login proof. Select the connector instance explicitly; its native session
 confirmation pins the rendered account and checks it again before every operation.

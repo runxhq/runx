@@ -122,14 +122,14 @@ function executionPlanBase(
 }
 
 function readProgress(ledger, planDigest, acts, blockers) {
-  const version = nonNegativeInteger(ledger.after_version);
+  const version = nonNegativeInteger(ledger.version);
   const events = array(ledger.events);
   const empty = {
     version: version ?? 0, nextActIndex: 0, activeThread: null, accountId: null,
     counts: { processed: 0, succeeded: 0, failed: 0 }, lastFailure: null, stop: null,
   };
   if (version === null) {
-    blockers.push("execution ledger omitted a valid after_version");
+    blockers.push("execution ledger omitted a valid version");
     return empty;
   }
   if (version === 0) {
@@ -141,7 +141,7 @@ function readProgress(ledger, planDigest, acts, blockers) {
     return empty;
   }
   const latest = record(events[0]);
-  const event = record(latest.event);
+  const event = record(latest.data);
   const nextActIndex = nonNegativeInteger(event.next_act_index);
   const totalActCount = nonNegativeInteger(event.total_act_count);
   const currentThread = activeThread(event.active_thread);
@@ -159,7 +159,7 @@ function readProgress(ledger, planDigest, acts, blockers) {
     blockers.push("execution ledger progress names an account id that is not an X id");
   }
   if (nonNegativeInteger(latest.version) !== version) {
-    blockers.push("execution ledger tail version does not match after_version");
+    blockers.push("execution ledger tail version does not match the stream's version");
   }
   if (event.schema !== "runx/twitter.execution_progress.v1" || event.type !== "twitter.execution.progress") {
     blockers.push("execution ledger requires the compact runx/twitter.execution_progress.v1 shape");

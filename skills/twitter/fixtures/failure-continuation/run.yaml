@@ -31,7 +31,6 @@ methods:
       skill: ../..#execute
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-failure-proof
         max_acts: 1
         plan_json:
           decision: ready
@@ -57,26 +56,21 @@ methods:
       skill: ../..#status
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-failure-proof
         max_acts: 1
     - id: batch2
       skill: ../..#execute
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-failure-proof
         max_acts: 1
     - id: status2
       skill: ../..#status
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-failure-proof
         max_acts: 1
     - id: recent
       skill: ../..#recent
-      inputs:
-        data_source_uri: local://twitter-failure-proof
+      inputs: {}
     - id: complete
       skill: ../..#execute
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-failure-proof

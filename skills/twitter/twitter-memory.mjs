@@ -1,20 +1,21 @@
 import { array, record, text } from "./twitter-execution-values.mjs";
 
-// Immutable plan memory uses the same logical store as execution progress.
-// The runtime owns storage and integrity; these functions interpret X work.
+// Immutable plan memory lives in this skill's own plans stream, and execution
+// progress in its execution stream. The runtime owns storage, integrity and
+// who may write them; these functions interpret X work.
 export function resolvePlan(inputs) {
   const stored = record(inputs.saved_plan);
   const rows = array(stored.events);
-  const saved = record(record(rows[0]).event);
+  const saved = record(record(rows[0]).data);
   const supplied = record(inputs.plan_json);
   const present = Object.keys(supplied).length > 0;
-  if (stored.after_version > 0 && (stored.after_version !== 1 || rows.length !== 1 || saved.type !== "twitter.plan" || saved.plan_digest !== inputs.plan_digest)) {
+  if (stored.version > 0 && (stored.version !== 1 || rows.length !== 1 || record(rows[0]).type !== "twitter.plan" || saved.type !== "twitter.plan" || saved.plan_digest !== inputs.plan_digest)) {
     throw new Error("saved X plan is inconsistent; inspect the native store result");
   }
   return {
     resolved_plan: {
       plan: present ? supplied : record(saved.plan),
-      remember: stored.after_version === 0 && present,
+      remember: stored.version === 0 && present,
     },
   };
 }
@@ -23,7 +24,7 @@ export function executionStatus(inputs) {
   const plan = record(inputs.execution_plan);
   const original = record(inputs.plan);
   const ledger = record(inputs.execution_ledger);
-  const event = record(record(array(ledger.events)[0]).event);
+  const event = record(record(array(ledger.events)[0]).data);
   const hasPlan = Object.keys(original).length > 0;
   const stop = plan.stop ?? null;
   const decision = !hasPlan ? "needs_plan"
@@ -33,7 +34,6 @@ export function executionStatus(inputs) {
   return {
     twitter_status: {
       decision,
-      data_source_uri: inputs.data_source_uri,
       plan_digest: inputs.plan_digest,
       objective: text(original.objective) || null,
       principal: text(original.principal) || null,
@@ -54,7 +54,6 @@ export function executionStatus(inputs) {
       } : null,
       next_input: decision === "ready" || decision === "waiting" ? {
         plan_digest: inputs.plan_digest,
-        data_source_uri: inputs.data_source_uri,
         max_acts: inputs.max_acts,
       } : null,
       blockers: hasPlan ? array(plan.blockers) : ["Supply the exact plan and native digest to execute once; no saved plan is available in this store."],
@@ -66,11 +65,10 @@ export function recentExecutions(inputs) {
   const result = record(inputs.heads);
   return {
     twitter_recent: {
-      data_source_uri: inputs.data_source_uri,
-      items: array(result.rows).map((row) => {
-        const event = record(row.event);
+      items: array(result.keys).map((listed) => {
+        const event = record(record(listed.last_event).data);
         return {
-          plan_digest: row.aggregate_id,
+          plan_digest: listed.key,
           account_id: event.account_id ?? null,
           decision: event.decision,
           next_act_index: event.next_act_index,
@@ -81,7 +79,7 @@ export function recentExecutions(inputs) {
           retry_at: event.stop?.retry_at ?? null,
         };
       }),
-      next_cursor: record(result.projection).next_cursor ?? null,
+      next_cursor: result.next_cursor ?? null,
     },
   };
 }

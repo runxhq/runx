@@ -14,4 +14,4 @@ expect:
           observed_state: suppress
           recorded_transition:
             recorded: false
-            after_version: 1
+            version: 1

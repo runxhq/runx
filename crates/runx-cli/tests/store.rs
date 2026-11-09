@@ -680,6 +680,55 @@ fn another_packages_stream_is_read_only_under_a_term() -> TestResult {
     Ok(())
 }
 
+/// operations-review reads another package's stream before it plans, and
+/// only under a term naming that stream (plan §4.8, the rule's first test).
+#[test]
+fn operations_review_reads_another_packages_stream_under_a_term() -> TestResult {
+    let project = Project::new("runx-store-operations-review")?;
+    project.skill("counter", COUNTER)?;
+    project.result(
+        "skills/counter#bump",
+        &[("key", "k"), ("attempt", "one")],
+        None,
+    )?;
+    let review = crate::support::repo_root()?.join("skills/operations-review");
+    let reference = format!("{}#operate_from_projection", review.display());
+    let inputs = [
+        ("package", "project:counter"),
+        ("stream", "counts"),
+        ("key", "k"),
+        ("objective", "Tell me the next safe action."),
+        ("scope", "workspace:example"),
+    ];
+    let unnamed = project.run(&reference, &inputs, None)?;
+    assert_eq!(unnamed.status.code(), Some(1), "{}", printed(&unnamed));
+    assert!(
+        printed(&unnamed).contains("another package's stream"),
+        "{}",
+        printed(&unnamed)
+    );
+
+    let instance = project.instance(&reference, "store")?;
+    let term = delegated(
+        &instance,
+        &["read"],
+        &["store/key.inspect"],
+        &["store.read"],
+        &["project:counter/counts"],
+    );
+    // The read passes, and the review waits on its agent with the key's
+    // state as its snapshot.
+    let reviewed = json(&project.run(&reference, &inputs, Some(&term))?, 2)?;
+    assert_eq!(reviewed["status"], "needs_agent", "{reviewed}");
+    let request = std::fs::read_to_string(
+        reviewed["requests"][0]["artifact"]["path"]
+            .as_str()
+            .ok_or("the turn's request names its artifact")?,
+    )?;
+    assert!(request.contains("project:counter/counts"), "{request}");
+    Ok(())
+}
+
 // `packages`: every package in a call's chain must be covered (authority.md,
 // the 0state-a3 probe's table).
 

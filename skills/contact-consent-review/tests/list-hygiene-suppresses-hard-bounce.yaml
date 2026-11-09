@@ -1,9 +1,7 @@
 name: list-hygiene-suppresses-hard-bounce
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/hard-bounce
-  resource: contact_consent_events
-  aggregate_id: contact:hard-bounce
+  key: contact:hard-bounce
   expected_version: 0
   idempotency_key: contact:hard-bounce:consent:v1
   engagement_evidence:
@@ -38,6 +36,6 @@ expect:
             recorded: true
             state: suppress
             write_status: committed
-            after_version: 1
+            version: 1
   receipt:
     schema: runx.receipt.v1

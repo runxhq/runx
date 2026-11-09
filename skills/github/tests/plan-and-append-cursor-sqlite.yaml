@@ -1,9 +1,7 @@
 name: github-persists-cursor-through-native-data-operation
 method: plan_and_append_cursor
 inputs:
-  data_source_uri: tenant://github/sqlite-cursors
-  resource: github_sync_events
-  aggregate_id: runxhq/runx:triage-open
+  key: runxhq/runx:triage-open
   expected_version: 0
   idempotency_key: runxhq/runx:triage-open:pull:v2
   repo: runxhq/runx
@@ -27,15 +25,18 @@ expect:
         provider_operation:
           data:
             result:
+              schema: runx.store.result.v1
               operation: events.append
-              provider_evidence:
-                backend: sqlite
+              status: committed
+              key: runxhq/runx:triage-open
+              backend: sqlite
     readback:
       subset:
         provider_operation:
           data:
             result:
-              operation: projection.read
-              provider_evidence:
-                backend: sqlite
+              schema: runx.store.result.v1
+              operation: key.inspect
+              version: 1
+              backend: sqlite
   receipt: {schema: runx.receipt.v1}

@@ -1,9 +1,7 @@
 name: list-hygiene-stops-unsubscribe-marker
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/unsubscribed
-  resource: contact_consent_events
-  aggregate_id: contact:unsubscribed
+  key: contact:unsubscribed
   expected_version: 0
   idempotency_key: contact:unsubscribed:consent:v1
   engagement_evidence:

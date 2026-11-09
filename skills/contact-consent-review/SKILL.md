@@ -23,8 +23,9 @@ unsubscribe or bounce data.
 The caller supplies one bounded engagement observation, the current consent
 observation, and the policy threshold that applies to the contact. The evidence
 must be marked `read` and versioned to the same ledger head that the method
-reads through the store's `events.read`. The read returns only the latest
-event, its ledger version and projection digest. Once a transition exists, its
+reads through the store's `events.read`, in this skill's own `consent` stream,
+which only it writes. The read returns only the latest event, its ledger
+version and chain digest. Once a transition exists, its
 recorded state must agree with the caller observation; matching versions alone
 are insufficient. A conflicting or unrecognized ledger head requires review.
 Missing, stale, ambiguous, or conflicting
@@ -45,17 +46,17 @@ decides whether a person can be sent to, so its append waits on a person's
 approval of the exact event (`consent_transition`), whatever the run's
 `effects`. The append uses the observed ledger version and the caller's stable
 idempotency key. Readback must
-match the append status, source identity, new version, event reference, event
-digest, and projection digest before the result reports a recorded transition.
-No-write decisions also perform a second read and require the projection to
-remain unchanged.
+match the append status, the contact's key, new version, event reference, event
+digest, and chain digest before the result reports a recorded transition.
+No-write decisions also perform a second read and require the key to remain
+unchanged.
 
 ## Authority and finality
 
 The store reader requires `store.read` and, only for an admitted transition,
 the append requires `store.append`. These scopes authorize a bounded consent-ledger operation;
 they do not authorize delivery or changes to a CRM or mailing provider. The
-data-source binding owns storage and credentials.
+store instance owns storage and credentials.
 
 A sealed result proves the ledger reads and any exact recorded transition. It
 does not prove provider state, re-subscription, campaign approval, or delivery.
@@ -80,8 +81,7 @@ deciding whether another operation is needed.
 
 ## Inputs and result
 
-Provide the logical data source, consent-ledger resource, contact aggregate,
-observed version, stable transition key, bounded engagement counts and recency,
+Provide the contact's key in the consent ledger, the observed version, stable transition key, bounded engagement counts and recency,
 bounce policy, and current consent evidence. Counts must be non-negative and
 the policy threshold must be between 1 and 3,650 days.
 

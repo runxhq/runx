@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { judgeRequest, finalizeVerdict } from "./privacy-request-review.mjs";
 const source = {
-  data_source_uri: "local://privacy",
-  resource: "requests",
-  aggregate_id: "request:one",
+  stream: "runx/privacy-request-review/requests",
+  key: "request:one",
 };
 const input = {
   request_packet: {
@@ -48,22 +47,21 @@ const append = {
   operation: "events.append",
   status: "committed",
   before_version: 0,
-  after_version: 1,
-  event_id: "event:1",
-  event_digest: "sha256:" + "b".repeat(64),
+  version: 1,
+  event: { id: "event:1", digest: "sha256:" + "b".repeat(64) },
 };
 const record = {
   version: 1,
-  event_id: append.event_id,
-  event_digest: append.event_digest,
-  event_type: "subject_request.verdict_recorded",
+  id: append.event.id,
+  digest: append.event.digest,
+  type: "subject_request.verdict_recorded",
 };
 const finalize = (change = {}) =>
   finalizeVerdict({
-    ...source,
+    key: source.key,
     expected_version: 0,
     append_result: append,
-    recorded_readback: { ...source, status: "read", after_version: 9, events: [record] },
+    recorded_readback: { ...source, operation: "events.read", version: 9, last_version: 1, events: [record] },
     verdict_draft: judgeRequest(input).verdict_draft,
     request_digest: "sha256:" + "c".repeat(64),
     policy_digest: "sha256:" + "d".repeat(64),
@@ -73,24 +71,20 @@ test("only the exact committed event produces a durable verdict, even after late
   assert.equal(finalize().subject_request_verdict.persistence.after_version, 1);
   assert.equal(
     finalize({
-      append_result: {
-        ...append,
-        status: "idempotent_replay",
-        before_version: 9,
-        after_version: 9,
-      },
+      // A replay answers as the first append did, whatever followed it.
+      append_result: { ...append, status: "replayed" },
     }).subject_request_verdict.persistence.after_version,
     1,
   );
   for (const change of [
     { append_result: { ...append, status: "version_conflict" } },
-    { append_result: { ...append, aggregate_id: "other" } },
-    { append_result: { ...append, after_version: 2 } },
+    { append_result: { ...append, key: "other" } },
+    { append_result: { ...append, version: 2 } },
     {
       recorded_readback: {
         ...source,
-        status: "read",
-        events: [{ ...record, event_digest: "wrong" }],
+        operation: "events.read",
+        events: [{ ...record, digest: "wrong" }],
       },
     },
   ])

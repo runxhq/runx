@@ -1,9 +1,7 @@
 name: list-hygiene-rejects-negative-metrics
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/invalid
-  resource: contact_consent_events
-  aggregate_id: contact:invalid
+  key: contact:invalid
   expected_version: 0
   idempotency_key: contact:invalid:consent:v1
   engagement_evidence:

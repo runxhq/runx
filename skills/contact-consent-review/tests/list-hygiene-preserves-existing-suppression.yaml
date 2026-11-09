@@ -1,9 +1,7 @@
 name: list-hygiene-preserves-existing-suppression
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/suppressed
-  resource: contact_consent_events
-  aggregate_id: contact:suppressed
+  key: contact:suppressed
   expected_version: 0
   idempotency_key: contact:suppressed:consent:v1
   engagement_evidence:
@@ -34,6 +32,6 @@ expect:
             recorded: false
             state: null
             write_status: not_attempted
-            after_version: 0
+            version: 0
   receipt:
     schema: runx.receipt.v1

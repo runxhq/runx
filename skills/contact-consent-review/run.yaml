@@ -4,21 +4,12 @@ catalog:
   visibility: public
   category: growth
 shared_inputs:
-  data_source_uri:
+  key:
     type: string
-    description: Logical consent-ledger source selected by the operator.
+    description: Stable contact key in the skill's own consent stream.
     minLength: 1
-    maxLength: 500
-  resource:
-    type: string
-    description: Declared contact-consent event resource.
-    minLength: 1
-    maxLength: 200
-  aggregate_id:
-    type: string
-    description: Stable contact key in the consent ledger.
-    minLength: 1
-    maxLength: 500
+    maxLength: 192
+    pattern: ^[A-Za-z0-9][A-Za-z0-9._:@/-]*$
   expected_version:
     type: integer
     description: Consent-ledger version observed with the supplied evidence.
@@ -95,18 +86,14 @@ shared_inputs:
 methods:
   judge:
     inputs:
-      data_source_uri: {}
-      resource: {}
-      aggregate_id: {}
+      key: {}
       expected_version: {}
       idempotency_key: {}
       engagement_evidence: {}
       hygiene_policy: {}
       consent_evidence: {}
     examples:
-      - data_source_uri: local://contact-consent-review/example
-        resource: contact_consent_events
-        aggregate_id: contact:example
+      - key: contact:example
         expected_version: 0
         idempotency_key: contact:example:consent:v1
         engagement_evidence:
@@ -127,15 +114,12 @@ methods:
       - id: read-contact
         operation: store/events.read
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          stream: consent
+          key: $input.key
           limit: 1
       - id: decide
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          key: $input.key
           expected_version: $input.expected_version
           idempotency_key: $input.idempotency_key
           engagement_evidence: $input.engagement_evidence
@@ -150,24 +134,18 @@ methods:
             type: object
             additionalProperties: false
             required:
-              - aggregate_id
-              - data_source_uri
-              - resource
+              - key
               - expected_version
               - idempotency_key
               - observed_state
-              - projection_version
-              - projection_digest
+              - version
+              - chain_digest
               - decision
               - reason_code
               - append_allowed
               - event
             properties:
-              aggregate_id:
-                type: string
-              data_source_uri:
-                type: string
-              resource:
+              key:
                 type: string
               expected_version:
                 type: integer
@@ -181,10 +159,10 @@ methods:
                   - re_permission
                   - suppress
                   - unsubscribed
-              projection_version:
+              version:
                 type: integer
                 minimum: 0
-              projection_digest:
+              chain_digest:
                 type: string
                 pattern: ^sha256:[0-9a-f]{64}$
               decision:
@@ -218,7 +196,6 @@ methods:
                 additionalProperties: false
                 required:
                   - type
-                  - aggregate_id
                   - from_state
                   - new_state
                   - reason
@@ -227,8 +204,6 @@ methods:
                 properties:
                   type:
                     const: list_hygiene.consent_transitioned
-                  aggregate_id:
-                    type: string
                   from_state:
                     type: string
                     enum:
@@ -276,17 +251,16 @@ methods:
           reason: Record this consent transition for the contact. It decides whether they can be sent to.
           type: consent_transition
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          stream: consent
+          key: $input.key
           expected_version: $input.expected_version
-          event: $steps.decide.decision_plan.event
+          type: list_hygiene.consent_transitioned
+          data: $steps.decide.decision_plan.event
       - id: readback
-        operation: store/projection.read
+        operation: store/key.inspect
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          stream: consent
+          key: $input.key
       - id: finalize-written
         when:
           value: $steps.decide.decision_plan.append_allowed
@@ -340,16 +314,14 @@ methods:
                 required:
                   - recorded
                   - state
-                  - aggregate_id
-                  - data_source_uri
-                  - resource
+                  - key
                   - idempotency_key
                   - write_status
                   - before_version
-                  - after_version
+                  - version
                   - event_id
                   - event_digest
-                  - projection_digest
+                  - chain_digest
                 properties:
                   recorded:
                     type: boolean
@@ -361,11 +333,7 @@ methods:
                       - re_permission
                       - suppress
                       - null
-                  aggregate_id:
-                    type: string
-                  data_source_uri:
-                    type: string
-                  resource:
+                  key:
                     type: string
                   idempotency_key:
                     type:
@@ -375,12 +343,12 @@ methods:
                     type: string
                     enum:
                       - committed
-                      - idempotent_replay
+                      - replayed
                       - not_attempted
                   before_version:
                     type: integer
                     minimum: 0
-                  after_version:
+                  version:
                     type: integer
                     minimum: 0
                   event_id:
@@ -391,7 +359,7 @@ methods:
                     type:
                       - string
                       - "null"
-                  projection_digest:
+                  chain_digest:
                     type: string
                     pattern: ^sha256:[0-9a-f]{64}$
               escalation:
@@ -481,16 +449,14 @@ methods:
                 required:
                   - recorded
                   - state
-                  - aggregate_id
-                  - data_source_uri
-                  - resource
+                  - key
                   - idempotency_key
                   - write_status
                   - before_version
-                  - after_version
+                  - version
                   - event_id
                   - event_digest
-                  - projection_digest
+                  - chain_digest
                 properties:
                   recorded:
                     type: boolean
@@ -502,11 +468,7 @@ methods:
                       - re_permission
                       - suppress
                       - null
-                  aggregate_id:
-                    type: string
-                  data_source_uri:
-                    type: string
-                  resource:
+                  key:
                     type: string
                   idempotency_key:
                     type:
@@ -516,12 +478,12 @@ methods:
                     type: string
                     enum:
                       - committed
-                      - idempotent_replay
+                      - replayed
                       - not_attempted
                   before_version:
                     type: integer
                     minimum: 0
-                  after_version:
+                  version:
                     type: integer
                     minimum: 0
                   event_id:
@@ -532,7 +494,7 @@ methods:
                     type:
                       - string
                       - "null"
-                  projection_digest:
+                  chain_digest:
                     type: string
                     pattern: ^sha256:[0-9a-f]{64}$
               escalation:

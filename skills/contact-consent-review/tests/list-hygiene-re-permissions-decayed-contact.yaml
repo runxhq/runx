@@ -1,9 +1,7 @@
 name: list-hygiene-re-permissions-decayed-contact
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/decay
-  resource: contact_consent_events
-  aggregate_id: contact:decay
+  key: contact:decay
   expected_version: 0
   idempotency_key: contact:decay:consent:v1
   engagement_evidence:
@@ -38,7 +36,7 @@ expect:
             recorded: true
             state: re_permission
             write_status: committed
-            after_version: 1
+            version: 1
           downstream_send:
             skill: null
             status: not_run

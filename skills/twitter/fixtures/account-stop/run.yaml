@@ -31,7 +31,6 @@ methods:
       skill: ../..#execute
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-stop-proof
         max_acts: 1
         plan_json:
           decision: ready
@@ -57,5 +56,4 @@ methods:
       skill: ../..#status
       inputs:
         plan_digest: $steps.digest.digest_result.digest
-        data_source_uri: local://twitter-stop-proof
         max_acts: 1

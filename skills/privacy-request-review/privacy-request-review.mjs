@@ -36,23 +36,24 @@ export function judgeRequest({request_packet: request, requestor_proof: proof, p
 
 export function finalizeVerdict(inputs) {
   const {append_result: appended, recorded_readback: readback, expected_version: expected} = inputs;
-  const sameSource = value => value.data_source_uri === inputs.data_source_uri &&
-    value.resource === inputs.resource && value.aggregate_id === inputs.aggregate_id;
-  const committed = appended.status === "committed" && appended.before_version === expected && appended.after_version === expected + 1;
-  const replayed = appended.status === "idempotent_replay" && appended.before_version >= expected + 1 && appended.after_version === appended.before_version;
-  if ((!committed && !replayed) || appended.operation !== "events.append" || !sameSource(appended)) {
+  // A store answer about this request: its key in this skill's own requests
+  // stream, which the runtime places under whichever package runs it.
+  const sameKey = value => typeof value.stream === "string" && value.stream.endsWith("/requests") && value.key === inputs.key;
+  // A replay answers as the first append did.
+  const committed = ["committed", "replayed"].includes(appended.status) && appended.before_version === expected && appended.version === expected + 1;
+  if (!committed || appended.operation !== "events.append" || !sameKey(appended)) {
     throw new Error("The verdict append did not commit the exact expected source/version; retain its conflict and original request identity.");
   }
   const event = readback.events?.[0];
-  if (readback.status !== "read" || !sameSource(readback) ||
+  if (readback.operation !== "events.read" || !sameKey(readback) ||
       event?.version !== expected + 1 ||
-      event.event_id !== appended.event_id || event.event_digest !== appended.event_digest ||
-      event.event_type !== "subject_request.verdict_recorded") {
+      event.id !== appended.event?.id || event.digest !== appended.event?.digest ||
+      event.type !== "subject_request.verdict_recorded") {
     throw new Error("The independent readback did not prove the exact recorded verdict event.");
   }
   return {subject_request_verdict:{
     schema:"runx/privacy-request-review.verdict.v1",...inputs.verdict_draft.verdict,
-    persistence:{append_status:"committed",aggregate_id:appended.aggregate_id,after_version:event.version},
+    persistence:{append_status:"committed",aggregate_id:appended.key,after_version:event.version},
     request_digest:inputs.request_digest,policy_digest:inputs.policy_digest,downstream_effect_performed:false,
   }};
 }

@@ -1,9 +1,7 @@
 name: list-hygiene-verifies-clean-recent-contact
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/current
-  resource: contact_consent_events
-  aggregate_id: contact:current
+  key: contact:current
   expected_version: 0
   idempotency_key: contact:current:consent:v1
   engagement_evidence:
@@ -34,7 +32,7 @@ expect:
             recorded: false
             state: null
             write_status: not_attempted
-            after_version: 0
+            version: 0
           escalation: null
   receipt:
     schema: runx.receipt.v1

@@ -23,8 +23,8 @@ gate.
 ## What this skill does
 
 The default `operate` method reviews an already-supplied snapshot. The explicit
-`operate_from_projection` method can read a bounded product-owned projection
-before review. Neither owns the product state or a continuing work lifecycle. Both classify findings,
+`operate_from_projection` method can read a product's own stream before
+review. Neither owns the product state or a continuing work lifecycle. Both classify findings,
 rank the next action, select the governed lane, name blockers, prepare reviewable approval text when the execution owner requires a human decision, and state the
 receipt/effect/readback that will prove success.
 
@@ -38,10 +38,12 @@ must be a deterministic handoff to an existing skill method, CLI command, hosted
 API route, workflow, or provider tool.
 
 When the desk should start from durable state, use `operate_from_projection`.
-That method reads a projection through the store's `projection.read` first, then passes the
-projection as the dashboard snapshot. The storage provider is still selected by
-the logical `data_source_uri`; ops desk does not know whether state came from
-SQLite, Postgres, D1, Redis, or a product API.
+That method reads one key of another package's stream through the store's
+`key.inspect` first, naming that `package`, `stream` and `key`, then passes the
+key's version and newest event as the dashboard snapshot. A package's stream is
+its own, so the read is admitted only under a term the run's authority states
+for it, and the desk never writes it. The store instance decides whether state
+lives in SQLite, Postgres or Redis.
 
 ## When to use this skill
 
@@ -115,8 +117,8 @@ product gap. Do not invent a private workaround.
      whether the artifact is real, useful, complete, and valuable. A reachable
      artifact with no credible user, maintainer, operator, public proof, or
      marketing value is not ready.
-   - If using `operate_from_projection`, treat the read projection as the
-     dashboard snapshot. An empty projection is not an error, but it should
+   - If using `operate_from_projection`, treat the read key as the
+     dashboard snapshot. A key at version 0 is not an error, but it should
      usually produce `needs_input` rather than fake readiness.
 
 3. Route to governed lanes.

@@ -15,7 +15,6 @@ inputs:
       human_approval_required: true
       approval_id: approval:granted
   plan_digest: sha256:a43b03b13f5c531dc5aefec6784568d180eed2193cf30cc10ce5ec1b305c70c9
-  data_source_uri: tenant://twitter/refused-plan
 
 expect:
   status: sealed

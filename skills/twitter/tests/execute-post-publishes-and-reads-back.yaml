@@ -12,7 +12,6 @@ inputs:
       - {act_id: act-like-1, kind: like, params: {post_id: "5001"}, consequence: live_mutation, rationale: Thank the first reviewer.}
     gates: {human_approval_required: true, approval_id: approval:granted}
   plan_digest: sha256:87a42900aefb308c10af4ce8319a97624cb160444980ce4057d951317b8f6d94
-  data_source_uri: tenant://twitter/sqlite-post
 env:
   TWITTER_USER_AUTH: '{"consumer_key":"test-consumer","consumer_secret":"test-secret","access_token":"test-access","access_secret":"test-access-secret"}'
 host:

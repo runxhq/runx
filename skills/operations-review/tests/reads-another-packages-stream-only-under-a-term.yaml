@@ -1,0 +1,19 @@
+name: operations-review-reads-another-packages-stream-only-under-a-term
+method: operate_from_projection
+inputs:
+  package: runx/github
+  stream: sync_plans
+  key: workspace-example
+  objective: Check the workspace and tell me the next safe action.
+  scope: workspace:example
+  receipt_summary:
+    receipts: []
+  provider_status:
+    runx_api: ok
+  approval_context:
+    approvals: []
+  operator_policy: Route live sends through message-send and money movement through spend or refund.
+expect:
+  status: policy_denied
+  # The read is refused at admission, before any step runs.
+  steps: []

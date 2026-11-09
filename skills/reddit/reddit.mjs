@@ -4,22 +4,25 @@ const norm = value => value.replace(/\r\n?/gu, '\n');
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const username = value => typeof value === 'string' && /^[a-z0-9_-]{3,20}$/u.test(value);
 
-function tail(packet, resource, aggregate) {
-  ensure(packet?.status === 'read', 'State read did not complete.');
-  ensure(packet.resource === resource && packet.aggregate_id === aggregate, 'State belongs to another resource or account.');
-  ensure(Number.isInteger(packet.after_version) && packet.after_version >= 0, 'Missing state version.');
+// The latest event of `key` in this package's own `stream`, from a
+// store events.read of one event: the runtime places the stream under
+// whichever package runs this, so only its own name is checked.
+function tail(packet, stream, key) {
+  ensure(packet?.schema === 'runx.store.result.v1' && packet.operation === 'events.read', 'State read did not complete.');
+  ensure(typeof packet.stream === 'string' && packet.stream.endsWith(`/${stream}`) && packet.key === key, 'State belongs to another stream or account.');
+  ensure(Number.isInteger(packet.version) && packet.version >= 0, 'Missing state version.');
   ensure(Array.isArray(packet.events), 'Missing event tail.');
-  if (packet.after_version === 0) {
+  if (packet.version === 0) {
     ensure(packet.events.length === 0, 'Empty state has unexpected events.');
-    return { version: 0, event: null };
+    return { version: 0, type: null, event: null };
   }
-  ensure(packet.events.length === 1 && packet.events[0].version === packet.after_version, 'State tail does not match its head.');
-  return { version: packet.after_version, event: packet.events[0].event };
+  ensure(packet.events.length === 1 && packet.events[0].version === packet.version, 'State tail does not match its head.');
+  return { version: packet.version, type: packet.events[0].type, event: packet.events[0].data };
 }
 function accountState(packet, accountId) {
   ensure(username(accountId), 'Select an explicit lowercase Reddit username. The accounts method lists those configured here.');
-  const state = tail(packet, 'reddit_accounts', accountId);
-  ensure(state.event?.type === 'reddit.account', `Reddit account ${accountId} is not configured. The accounts method lists those that are; the configure method adds one.`);
+  const state = tail(packet, 'accounts', accountId);
+  ensure(state.type === 'reddit.account' && state.event?.type === 'reddit.account', `Reddit account ${accountId} is not configured. The accounts method lists those that are; the configure method adds one.`);
   ensure(state.event.account_id === accountId, 'Account configuration identity mismatch.');
   validateConfig(accountId, state.event.config);
   return { account_id: accountId, version: state.version, config: state.event.config };
@@ -113,11 +116,11 @@ export function prepare(inputs) {
   try {
     const account = accountState(inputs.account_state, inputs.account_id);
     const action = validateAction(inputs.action);
-    const history = tail(inputs.history, 'reddit_contributions', inputs.action_id);
+    const history = tail(inputs.history, 'contributions', inputs.action_id);
     ensure(!history.event, 'This exact contribution is already recorded. Do not submit it again.');
     if (action.kind === 'upvote') {
       ensure(username(action.target_author) && action.target_author !== account.account_id, 'Do not vote on your own content.');
-      ensure(tail(inputs.target_account_state, 'reddit_accounts', action.target_author).version === 0, 'Do not vote on content by another managed account.');
+      ensure(tail(inputs.target_account_state, 'accounts', action.target_author).version === 0, 'Do not vote on content by another managed account.');
     }
     const operation = {post: 'post.create', comment: 'comment.create', upvote: 'vote.upvote'}[action.kind];
     const input = {
@@ -154,5 +157,5 @@ export function complete(inputs) {
   return {result: {status: 'confirmed', account_id: inputs.contribution.account_id,
     action: inputs.contribution.action, permalink: inputs.contribution.permalink,
     visibility: inputs.contribution.visibility, readback_uri: inputs.provider_operation.readback_uri,
-    contribution_id: inputs.record.event_id}};
+    contribution_id: inputs.record.event.id}};
 }

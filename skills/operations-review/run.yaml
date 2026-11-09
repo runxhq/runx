@@ -94,17 +94,18 @@ methods:
           action_review_packet: {packet: runx/operations-review.action_review.v1}
         result_as: action_review_packet
   operate_from_projection:
-    description: Review the same way, reading a bounded product-owned projection first.
+    description: Review the same way, reading a product's own stream first, which the run's authority must name.
     inputs:
-      data_source_uri:
+      package:
         type: string
-        description: Logical data source that stores the operating projection.
-      resource:
+        description: The package whose stream holds the operating state, such as runx/github or project:ops. Another package's stream is read only under a term naming it.
+        pattern: ^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$
+      stream:
         type: string
-        description: Declared projection or event resource.
-      aggregate_id:
+        description: The stream, as its package names it.
+      key:
         type: string
-        description: Operating scope partition to read before planning.
+        description: Operating scope's key in the stream, read before planning.
       objective:
         type: string
         description: The bounded operator objective.
@@ -136,11 +137,11 @@ methods:
       - operate
     steps:
       - id: read-state
-        operation: store/projection.read
+        operation: store/key.inspect
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          package: $input.package
+          stream: $input.stream
+          key: $input.key
       - id: operate
         skill: .#operate
         inputs:
@@ -152,6 +153,6 @@ methods:
           operator_policy: $input.operator_policy
           project_profile: $input.project_profile
           requested_action: $input.requested_action
-          dashboard_snapshot: $steps.read-state.provider_operation.result.projection
+          dashboard_snapshot: $steps.read-state.provider_operation.result
         outputs:
           ops_desk_packet: {packet: runx/operations-review.desk.v1, optional: true}

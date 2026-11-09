@@ -7,9 +7,7 @@ methods:
       - id: contact-consent-review
         skill: ../..#judge
         inputs:
-          data_source_uri: local://contact-consent-review/decay
-          resource: contact_consent_events
-          aggregate_id: contact:decay
+          key: contact:decay
           expected_version: 0
           idempotency_key: contact:decay:consent:v1
           engagement_evidence: {hard_bounces: 0, recency_days: 121}

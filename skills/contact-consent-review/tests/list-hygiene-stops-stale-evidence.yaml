@@ -1,9 +1,7 @@
 name: list-hygiene-stops-stale-evidence
 method: judge
 inputs:
-  data_source_uri: local://contact-consent-review/stale
-  resource: contact_consent_events
-  aggregate_id: contact:stale
+  key: contact:stale
   expected_version: 0
   idempotency_key: contact:stale:consent:v1
   engagement_evidence:
@@ -33,7 +31,7 @@ expect:
           recorded_transition:
             recorded: false
             write_status: not_attempted
-            after_version: 0
+            version: 0
           escalation:
             lane: human:list-hygiene-reviewer
             status: required_before_any_write

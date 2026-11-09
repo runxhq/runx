@@ -51,9 +51,10 @@ actual erasure or export under its own authority and receipt.
 `decision`, `escalation`, `legal`, `requestor`, `scope_bounds`, `handoff` or
 null, `persistence` with the committed stream version, and both input digests.
 
-Inputs are `request_packet`, `requestor_proof`, `policy`, and the store
-binding (`data_source_uri`, `resource`, `aggregate_id`, `expected_version`,
-`idempotency_key`).
+Inputs are `request_packet`, `requestor_proof`, `policy`, and the request's
+place in this skill's own `requests` stream, which only it writes: its `key`,
+`expected_version` and `idempotency_key`. `persistence.aggregate_id` reports
+that key, as the published packet names it.
 
 ## Trust and continuation
 

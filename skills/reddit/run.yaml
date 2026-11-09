@@ -60,9 +60,8 @@ methods:
     - id: account-state
       operation: store/events.read
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_accounts
-        aggregate_id: $input.account_id
+        stream: accounts
+        key: $input.account_id
         limit: 1
     - id: load
       tool:
@@ -570,11 +569,11 @@ methods:
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_accounts
-        aggregate_id: $input.account_id
+        stream: accounts
+        key: $input.account_id
         expected_version: $input.expected_version
-        event: $steps.prepare.event
+        type: reddit.account
+        data: $steps.prepare.event
   accounts:
     description: List the configured Reddit accounts.
     inputs:
@@ -590,10 +589,9 @@ methods:
     - list
     steps:
     - id: list
-      operation: store/heads.list
+      operation: store/keys.list
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_accounts
+        stream: accounts
         limit: 20
         cursor: $input.cursor
   publish:
@@ -660,9 +658,8 @@ methods:
     - id: account-state
       operation: store/events.read
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_accounts
-        aggregate_id: $input.account_id
+        stream: accounts
+        key: $input.account_id
         limit: 1
     - id: identify
       tool:
@@ -680,9 +677,8 @@ methods:
     - id: history
       operation: store/events.read
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_contributions
-        aggregate_id: $steps.digest.digest_result.digest
+        stream: contributions
+        key: $steps.digest.digest_result.digest
         limit: 1
     - id: prepare
       tool:
@@ -722,11 +718,11 @@ methods:
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_contributions
-        aggregate_id: $steps.digest.digest_result.digest
-        event: $steps.finish.contribution
+        stream: contributions
+        key: $steps.digest.digest_result.digest
         expected_version: 0
+        type: reddit.contribution
+        data: $steps.finish.contribution
       when:
         value: $steps.prepare.admission.admitted
         equals: true
@@ -819,16 +815,14 @@ methods:
     - id: account-state
       operation: store/events.read
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_accounts
-        aggregate_id: $input.account_id
+        stream: accounts
+        key: $input.account_id
         limit: 1
     - id: target-account
       operation: store/events.read
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_accounts
-        aggregate_id: $input.action.target_author
+        stream: accounts
+        key: $input.action.target_author
         limit: 1
     - id: identify
       tool:
@@ -846,9 +840,8 @@ methods:
     - id: history
       operation: store/events.read
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_contributions
-        aggregate_id: $steps.digest.digest_result.digest
+        stream: contributions
+        key: $steps.digest.digest_result.digest
         limit: 1
     - id: prepare
       tool:
@@ -889,11 +882,11 @@ methods:
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
       inputs:
-        data_source_uri: local://reddit
-        resource: reddit_contributions
-        aggregate_id: $steps.digest.digest_result.digest
-        event: $steps.finish.contribution
+        stream: contributions
+        key: $steps.digest.digest_result.digest
         expected_version: 0
+        type: reddit.contribution
+        data: $steps.finish.contribution
       when:
         value: $steps.prepare.admission.admitted
         equals: true

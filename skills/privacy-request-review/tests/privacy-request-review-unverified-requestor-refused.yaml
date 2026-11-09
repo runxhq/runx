@@ -27,9 +27,7 @@ inputs:
         - profile
       export_allowed:
         - profile
-  data_source_uri: tenant://privacy/sqlite-requests
-  resource: subject_requests
-  aggregate_id: subject:alice:dsr-002
+  key: subject:alice:dsr-002
   expected_version: 0
   idempotency_key: dsr-002:verdict:v1
 host:

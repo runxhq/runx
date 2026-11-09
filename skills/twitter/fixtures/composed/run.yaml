@@ -21,7 +21,6 @@ methods:
               human_approval_required: true
               approval_id: approval:granted
           plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-          data_source_uri: tenant://twitter/sqlite-mismatch
 
       - id: digest
         tool: data.digest

@@ -445,11 +445,6 @@ methods:
         minimum: 1
         maximum: 50
         optional: true
-      data_source_uri:
-        type: string
-        default: local://twitter
-        description: Logical store for saved X plans and execution progress; bind its store connector in this workspace.
-        optional: true
     examples:
       - plan_json:
           decision: refused
@@ -464,17 +459,15 @@ methods:
           gates: {human_approval_required: true, approval_id: approval:granted}
         plan_digest: sha256:1b705d1cbf6f52e505f351ff99ad73a1a803f52152603ffe8d4258622d25bafb
         max_acts: 50
-        data_source_uri: tenant://twitter/refused-plan
     result_from: [apply, apply_noop, persist]
     steps:
       - id: saved
         operation: store/events.read
         result:
-          required: [after_version, events]
+          required: [version, events]
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_plans
-          aggregate_id: "$input.plan_digest"
+          stream: plans
+          key: "$input.plan_digest"
           limit: 1
       - id: resolve
         inputs:
@@ -487,11 +480,10 @@ methods:
       - id: ledger
         operation: store/events.read
         result:
-          required: [after_version, events]
+          required: [version, events]
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_execution
-          aggregate_id: "$input.plan_digest"
+          stream: execution
+          key: "$input.plan_digest"
           limit: 1
       - id: digest
         tool: data.digest
@@ -515,11 +507,11 @@ methods:
         operation: store/events.append
         idempotency_key: $steps.prepare.twitter_execution_plan.saved_plan_key
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_plans
-          aggregate_id: "$input.plan_digest"
+          stream: plans
+          key: "$input.plan_digest"
           expected_version: 0
-          event: $steps.prepare.twitter_execution_plan.saved_plan_event
+          type: twitter.plan
+          data: $steps.prepare.twitter_execution_plan.saved_plan_event
       - id: self
         when:
           value: $steps.prepare.twitter_execution_plan.decision
@@ -580,11 +572,11 @@ methods:
           value: $steps.prepare.twitter_execution_plan.decision
           equals: ready
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_execution
-          aggregate_id: $steps.prepare.twitter_execution_plan.plan_digest
+          stream: execution
+          key: $steps.prepare.twitter_execution_plan.plan_digest
           expected_version: $steps.prepare.twitter_execution_plan.expected_version
-          event: $steps.apply.twitter_execution.ledger_delta
+          type: twitter.execution.progress
+          data: $steps.apply.twitter_execution.ledger_delta
 
   status:
     description: Read one saved plan and its durable progress, proposed next batch and provider retry time without calling X or granting approval.
@@ -593,11 +585,6 @@ methods:
         type: string
         description: Native digest of the saved plan, obtained from plan, select, execute or recent.
         pattern: '^sha256:[0-9a-f]{64}$'
-      data_source_uri:
-        type: string
-        default: local://twitter
-        description: Logical store for saved X plans and execution progress; bind its store connector in this workspace.
-        optional: true
       max_acts:
         type: integer
         default: 50
@@ -612,11 +599,10 @@ methods:
       - id: saved
         operation: store/events.read
         result:
-          required: [after_version, events]
+          required: [version, events]
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_plans
-          aggregate_id: "$input.plan_digest"
+          stream: plans
+          key: "$input.plan_digest"
           limit: 1
       - id: resolve
         inputs:
@@ -629,11 +615,10 @@ methods:
       - id: ledger
         operation: store/events.read
         result:
-          required: [after_version, events]
+          required: [version, events]
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_execution
-          aggregate_id: "$input.plan_digest"
+          stream: execution
+          key: "$input.plan_digest"
           limit: 1
       - id: digest
         tool: data.digest
@@ -656,17 +641,15 @@ methods:
           plan: $steps.resolve.resolved_plan.plan
           execution_ledger: $steps.ledger.provider_operation.result
           plan_digest: "$input.plan_digest"
-          data_source_uri: "$input.data_source_uri"
           max_acts: "$input.max_acts"
         tool: {module: twitter-memory.mjs, export: executionStatus}
         outputs:
           twitter_status:
             type: object
             additionalProperties: false
-            required: [decision, data_source_uri, plan_digest, objective, principal, next_act_index, total_act_count, remaining_count, thread_reply_to, counts, last_failure, last_batch, stop, retry_at, next_batch, next_input, blockers]
+            required: [decision, plan_digest, objective, principal, next_act_index, total_act_count, remaining_count, thread_reply_to, counts, last_failure, last_batch, stop, retry_at, next_batch, next_input, blockers]
             properties:
               decision: {type: string, enum: [needs_plan, ready, complete, complete_with_failures, refused, waiting, stopped]}
-              data_source_uri: {type: string}
               plan_digest: {type: string}
               objective: {type: [string, 'null']}
               principal: {type: [string, 'null']}
@@ -790,21 +773,15 @@ methods:
               next_input:
                 type: [object, 'null']
                 additionalProperties: false
-                required: [plan_digest, data_source_uri, max_acts]
+                required: [plan_digest, max_acts]
                 properties:
                   plan_digest: {type: string}
-                  data_source_uri: {type: string}
                   max_acts: {type: integer, minimum: 1, maximum: 50}
               blockers: {type: array, maxItems: 250, items: {type: string}}
 
   recent:
     description: List a bounded page of execution summaries from this workspace so another host can find the plan digest to inspect and continue.
     inputs:
-      data_source_uri:
-        type: string
-        default: local://twitter
-        description: Logical store for saved X plans and execution progress; bind its store connector in this workspace.
-        optional: true
       limit:
         type: integer
         default: 5
@@ -821,24 +798,21 @@ methods:
     result_from: [recent]
     steps:
       - id: heads
-        operation: store/heads.list
+        operation: store/keys.list
         inputs:
-          data_source_uri: "$input.data_source_uri"
-          resource: twitter_execution
+          stream: execution
           limit: "$input.limit"
           cursor: "$input.cursor"
       - id: recent
         inputs:
           heads: $steps.heads.provider_operation.result
-          data_source_uri: "$input.data_source_uri"
         tool: {module: twitter-memory.mjs, export: recentExecutions}
         outputs:
           twitter_recent:
             type: object
             additionalProperties: false
-            required: [data_source_uri, items, next_cursor]
+            required: [items, next_cursor]
             properties:
-              data_source_uri: {type: string}
               items:
                 type: array
                 maxItems: 100
