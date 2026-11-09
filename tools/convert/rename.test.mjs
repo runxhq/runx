@@ -32,7 +32,7 @@ test("scan reads a name's run sense from whole segments, so a test's harness-ref
   // scan writes the table beside the program, so it runs on a copy of both.
   const program = tree(t, {});
   copyFileSync(RENAME, path.join(program, "rename.mjs"));
-  for (const file of ["words.mjs", "script-collisions.mjs", "identifiers.tsv"]) copyFileSync(new URL(`./${file}`, import.meta.url), path.join(program, file));
+  for (const file of ["words.mjs", "script-collisions.mjs", "rust-collisions.mjs", "identifiers.tsv"]) copyFileSync(new URL(`./${file}`, import.meta.url), path.join(program, file));
   const root = tree(t, { "src/case.mjs": 'export const id = "checkout-harness-references";\nexport const ref = "checkout-harness-ref";\n' });
   const { status, out } = run(path.join(program, "rename.mjs"), "scan", "oss", root);
   assert.equal(status, 0, out);
@@ -191,6 +191,39 @@ test("TypeScript's AST refuses the store contract's duplicate binding, and the r
   assert.match(out, /^  packages\/registry\/src\/contract\.ts:3\tharness -> test\tnow resolves to line 1's binding, not line 2's binding\t/m);
   assert.doesNotMatch(out, /contract\.ts:1\t/);
   assert.equal(read(root, "packages/registry/src/contract.ts"), code);
+});
+
+// A Cargo workspace of one crate on the repo's own toolchain, so clippy is there.
+const TOOLCHAIN = readFileSync(new URL("../../rust-toolchain.toml", import.meta.url), "utf8");
+const crate = (lib) => ({
+  "rust-toolchain.toml": TOOLCHAIN,
+  "crates/Cargo.toml": '[workspace]\nmembers = ["demo"]\nresolver = "2"\n',
+  "crates/demo/Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2021"\n',
+  "crates/demo/src/lib.rs": lib,
+});
+function runInCache(t, ...args) {
+  const cache = mkdtempSync(path.join(tmpdir(), "runx-rename-cargo-"));
+  t.after(() => rmSync(cache, { recursive: true, force: true }));
+  const ran = spawnSync(process.execPath, [RENAME, ...args], { encoding: "utf8", env: { ...process.env, RUNX_CONVERT_CACHE: cache } });
+  return { status: ran.status, out: ran.stdout + ran.stderr };
+}
+
+test("Rust's compiler decides a landing: a field named method is no collision for a local renamed to method", (t) => {
+  const lib = "pub struct Call {\n    pub method: String,\n}\n\npub fn name(call: &Call) -> usize {\n    let runner = call.method.len();\n    runner\n}\n";
+  const root = tree(t, crate(lib));
+  const { status, out } = runInCache(t, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "crates/demo/src/lib.rs"), lib.replaceAll("runner", "method"));
+});
+
+test("Rust's compiler refuses a rename that shadows a binding, at the shadowing site", (t) => {
+  const lib = "pub fn pick(method: &str) -> usize {\n    let runner = method.len();\n    runner\n}\n";
+  const root = tree(t, crate(lib));
+  const { status, out } = runInCache(t, "apply", "oss", root, "--write");
+  assert.equal(status, 1, out);
+  assert.match(out, /^  crates\/demo\/src\/lib\.rs:2\trunner -> method\tclippy::shadow_[a-z]+: /m);
+  assert.doesNotMatch(out, /lib\.rs:3\t/);
+  assert.equal(read(root, "crates/demo/src/lib.rs"), lib);
 });
 
 test("a row decides one exact token in its file, at every site or only where its patterns match", () => {
