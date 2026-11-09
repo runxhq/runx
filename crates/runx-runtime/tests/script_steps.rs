@@ -487,3 +487,39 @@ fn effects_none_refuses_a_write_at_any_depth() -> TestResult {
     assert!(!temp.path().join("writer-child/child.txt").exists());
     Ok(())
 }
+
+/// A child skill whose own step takes a malformed input fails that one call
+/// with the child's reason, and leaves the script to decide; it never aborts
+/// the parent run.
+#[test]
+fn a_childs_malformed_step_input_fails_the_call_not_the_run() -> TestResult {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("bad-child"),
+        "---\nname: bad-child\ndescription: Calls a tool without its input.\n---\n# Bad child\n\nTry it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        tool: fs.write\n        inputs: {path: child.txt, content: written}\n",
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        effects: none\n        calls:\n          skills: [../bad-child]\n        max_calls: 1\n        outputs:\n          reason: {type: string}\n          message: {type: string}\n",
+        r#"export default async function (ctx) {
+  try {
+    await ctx.skill("../bad-child", {});
+    return { reason: "ran", message: "" };
+  } catch (rejected) {
+    return { reason: rejected.reason, message: rejected.message };
+  }
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(text(result, "reason"), Some("failed"), "{result:?}");
+    assert!(
+        text(result, "message").is_some_and(|message| message.contains("contents")),
+        "the child's reason: {result:?}"
+    );
+    Ok(())
+}

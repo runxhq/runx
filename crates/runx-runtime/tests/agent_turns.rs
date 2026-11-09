@@ -2696,3 +2696,46 @@ fn object(value: &JsonValue) -> TestResult<&JsonObject> {
 fn text<'a>(object: &'a JsonObject, field: &str) -> Option<&'a str> {
     object.get(field).and_then(JsonValue::as_str)
 }
+
+/// A child skill whose own step takes a malformed input fails the turn's
+/// call with the child's reason; the turn stays open for its agent to decide.
+#[test]
+fn a_childs_malformed_step_input_fails_the_turns_call_not_the_run() -> TestResult {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("bad-child"),
+        "---\nname: bad-child\ndescription: Calls a tool without its input.\n---\n# Bad child\n\nTry it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        tool: fs.write\n        inputs: {path: child.txt, content: written}\n",
+    )?;
+    let skill_dir = temp.path().join("turn-bad");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: turn-bad\ndescription: Calls a child that fails.\n---\n# Turn bad\n\n## Agent task: answer\n\nCall it, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    inputs:
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        effects: none
+        calls:
+          skills: [../bad-child]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    let paused = Paused::start(temp.path(), skill_dir, TURN)?;
+    let turn = paused.open()?;
+    let called = turn.call(TURN, "skill__bad-child", None, JsonObject::new())?;
+    assert!(
+        matches!(&called.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("contents")),
+        "{called:?}"
+    );
+    // The turn is still the agent's to answer.
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "it failed"}))?)?;
+    assert_eq!(text(object(&sealed.output)?, "status"), Some("sealed"));
+    Ok(())
+}

@@ -543,7 +543,9 @@ impl WorkflowExecution {
     }
 
     /// The floor's decision for a tool or operation step, under the run's
-    /// `effects`, over the inputs it would run with.
+    /// `effects`, over the inputs it would run with. Its failure is the
+    /// step's, scoped as the step's execution is, so a step whose effect
+    /// can't even be described seals failed there.
     fn floor<A>(
         &self,
         runtime: &Runtime<A>,
@@ -561,11 +563,12 @@ impl WorkflowExecution {
         {
             return Ok(super::floor::Admitted::Free);
         }
-        let inputs = super::super::workflow::materialize_step_invocation_inputs_with_index(
+        super::super::workflow::materialize_step_invocation_inputs_with_index(
             step,
             &PriorRunIndex::from_positions(&self.runs, &self.run_positions),
-        )?;
-        super::floor::hold(runtime, workflow_dir, step, &inputs, host)
+        )
+        .and_then(|inputs| super::floor::hold(runtime, workflow_dir, step, &inputs, host))
+        .map_err(|error| error.at_workflow_step(&step.id))
     }
 
     fn execute_step_plan<A>(
