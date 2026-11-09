@@ -223,6 +223,11 @@ const INVOKING_ACT = /^\$act(?=$|\.)/;
 
 function convertAct(step, where, notes) {
   const act = node(step, "act");
+  // An act forwarded whole, or a field of it, reads the invoking act too.
+  if (isScalar(act)) {
+    if (typeof act.value === "string" && INVOKING_ACT.test(act.value)) act.value = act.value.replace(INVOKING_ACT, "$run.act");
+    return;
+  }
   if (!isMap(act)) return;
   only(act, ACT_KEYS, `${where}.act`);
   if (take(act, "decision") !== undefined) notes.push(`${where}.act.decision removed: nothing in runx decides with it, so a skill's decision belongs in its own typed result`);

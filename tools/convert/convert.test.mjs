@@ -294,6 +294,30 @@ runners:
   assert.match(read(dir, "run.yaml"), /        act:\n          purpose: Read what the invoking act names\.\n          reason: \$run\.act\.reason\n          target: \$run\.act\n          form: \$\$act\n/);
 });
 
+test("a step that forwards the invoking act whole, or a field of it, reads it as $run.act", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": `skill: demo
+version: "0.1.0"
+runners:
+  run:
+    steps:
+      - id: whole
+        skill: ../other
+        runner: read
+        act: $act
+      - id: field
+        skill: ../other
+        runner: read
+        act: $act.previous
+`,
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(read(dir, "run.yaml"), /      - id: whole\n        skill: \.\.\/other#read\n        act: \$run\.act\n/);
+  assert.match(read(dir, "run.yaml"), /      - id: field\n        skill: \.\.\/other#read\n        act: \$run\.act\.previous\n/);
+});
+
 test("a tool manifest a package or connector owns declares its process and its interface as a method does", (t) => {
   const manifest = `{
   "schema": "runx.tool.manifest.v1",
