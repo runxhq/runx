@@ -682,6 +682,99 @@ methods:
         Ok(())
     }
 
+    /// A test's fixture package publishes inside its package, and its case's
+    /// session reaches the connector the package carries, as the case's calls
+    /// do: the package binds the connector, and the fixture calls it through
+    /// the package.
+    #[test]
+    fn a_published_fixture_packages_session_reaches_the_connector_its_package_carries()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        fs::write(temp.path().join("pnpm-workspace.yaml"), "packages: []\n")?;
+        crate::kernel::connectors::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"]);
+        let root = temp.path().join("skills/root");
+        fs::create_dir_all(root.join("tests"))?;
+        fs::write(
+            root.join("SKILL.md"),
+            "---\nname: root\ndescription: Root fixture.\n---\n# Root\n",
+        )?;
+        fs::write(
+            root.join("run.yaml"),
+            r#"minimum_runx: 0.12.0
+methods:
+  read:
+    steps:
+      - id: read
+        operation: fixture/forge/issue.read
+        inputs: {repository: acme/app, number: 7}
+"#,
+        )?;
+        let flow = root.join("fixtures/flow");
+        fs::create_dir_all(&flow)?;
+        fs::write(
+            flow.join("SKILL.md"),
+            "---\nname: flow\ndescription: Flow fixture.\n---\n# Flow\n",
+        )?;
+        fs::write(
+            flow.join("run.yaml"),
+            r#"minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: read
+        skill: ../..#read
+"#,
+        )?;
+        // The signed-in forge CLI, as far as a session needs it: a token.
+        let bin = root.join("fixtures/bin");
+        fs::create_dir_all(&bin)?;
+        fs::write(
+            bin.join("forge"),
+            "#!/bin/sh\nif [ \"$1 $2\" = \"auth token\" ]; then echo forge_fixture_token; exit 0; fi\nexit 1\n",
+        )?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(bin.join("forge"), fs::Permissions::from_mode(0o755))?;
+        }
+        fs::write(
+            root.join("tests/flow.yaml"),
+            r#"name: flow
+package: fixtures/flow
+setup:
+  sessions: [fixture/forge]
+env:
+  PATH: ../bin:/usr/bin:/bin
+providers:
+  http:
+    - request: {method: GET, url: "https://api.forge.fixture.invalid/user", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"id": 7, "login": "operator"}'
+    - request: {method: GET, url: "https://api.forge.fixture.invalid/repos/acme/app/issues/7", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"number": 7, "title": "A fixture issue"}'
+expect:
+  status: sealed
+"#,
+        )?;
+
+        let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
+            subject: root.to_str().ok_or("temporary path is not UTF-8")?,
+            env: &BTreeMap::new(),
+            cwd: &root,
+        })?;
+        let report = package.run_test(&crate::LocalOrchestrator::default(), &BTreeMap::new())?;
+        assert_eq!(report.status, "passed");
+        assert_eq!(report.case_names, ["flow"]);
+        Ok(())
+    }
+
     #[test]
     fn publication_is_independent_of_workspace_and_dependency_locations()
     -> Result<(), Box<dyn std::error::Error>> {

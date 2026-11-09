@@ -462,7 +462,14 @@ fn wire_operations(
     env.extend(provider_env);
     super::transport::seed_provider_grant(&fixture.providers, &scope, &closure, &env, skill_dir)
         .map_err(invalid_provider)?;
-    seed_test_instances(fixture, target_path, skill_dir, options, &transport)?;
+    seed_test_instances(
+        fixture,
+        target_path,
+        skill_dir,
+        options,
+        &transport,
+        &closure,
+    )?;
     Ok(transport.exchanges)
 }
 
@@ -513,6 +520,7 @@ fn seed_test_instances(
     skill_dir: &Path,
     options: &TestOptions,
     transport: &super::provider_responses::TestTransport,
+    closure: &[std::sync::Arc<crate::kernel::connectors::LoadedConnector>],
 ) -> Result<(), TestReplayError> {
     let setup = &fixture.setup;
     if setup.sessions.is_empty() && setup.credentials.is_empty() {
@@ -542,10 +550,14 @@ fn seed_test_instances(
             .get(key)
             .filter(|requirement| requirement.choose.is_none())
         {
-            Some(requirement) => scope.requirement(key, requirement),
-            None => scope.connector(key),
+            Some(requirement) => scope
+                .requirement(key, requirement)
+                .map_err(|error| error.to_string()),
+            // Reached as the case's calls reach it: from a bundle's package
+            // that carries it too, as a published fixture package's are.
+            None => super::transport::case_connector(&scope, closure, skill_dir, key),
         }
-        .map_err(|error| failed(error.to_string()))
+        .map_err(failed)
     };
     // A fixture's sessions read their accounts as its calls do: through its
     // transport and its recorded process calls.

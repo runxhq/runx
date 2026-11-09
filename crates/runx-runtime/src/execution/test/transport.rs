@@ -44,7 +44,7 @@ pub(super) fn test_transport(
         .hosted
         .as_ref()
         .and_then(|provider| provider.grant.as_ref())
-        .map(|grant| granted_connector(scope, closure, skill_dir, &grant.provider))
+        .map(|grant| case_connector(scope, closure, skill_dir, &grant.provider))
         .transpose()?;
     let mut connectors_with_leases: Vec<Arc<LoadedConnector>> = Vec::new();
     for lease in providers
@@ -52,7 +52,7 @@ pub(super) fn test_transport(
         .iter()
         .flat_map(|provider| &provider.leases)
     {
-        let connector = granted_connector(scope, closure, skill_dir, &lease.connector)?;
+        let connector = case_connector(scope, closure, skill_dir, &lease.connector)?;
         if !connectors_with_leases
             .iter()
             .any(|known| known.binding() == connector.binding())
@@ -90,12 +90,13 @@ pub(super) fn test_transport(
     })
 }
 
-/// The connector a case's provider grant names, as its operations reach it:
-/// from the case's own package, from whichever of a bundle's packages
-/// carries it, or from the closure its run binds, registry children
-/// included, since a case runs its whole closure. A name that reaches more
-/// than one revision is refused, never settled by where it was found first.
-fn granted_connector(
+/// The connector `id` a case names, for its provider grant, its leases or
+/// its setup's sessions and credentials, as its operations reach it: from
+/// the case's own package, from whichever of a bundle's packages carries it,
+/// or from the closure its run binds, registry children included, since a
+/// case runs its whole closure. A name that reaches more than one revision
+/// is refused, never settled by where it was found first.
+pub(super) fn case_connector(
     scope: &crate::ConnectorScope,
     closure: &[Arc<LoadedConnector>],
     skill_dir: &std::path::Path,
@@ -181,7 +182,7 @@ pub(crate) fn seed_provider_grant(
     else {
         return Ok(());
     };
-    let connector = granted_connector(scope, closure, cwd, &grant.provider)?;
+    let connector = case_connector(scope, closure, cwd, &grant.provider)?;
     let instances = crate::Instances::new(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))
             .map_err(|error| error.to_string())?,
