@@ -20,6 +20,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { SCRIPT, checkScripts } from "./script-collisions.mjs";
 import { GENERATED, HISTORY as HISTORY_DOCS, SOURCE, STAYING_PATHS, bareWord, decisionsFor, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
@@ -281,6 +282,39 @@ function scan(repo, root) {
   return 0;
 }
 
+/**
+ * The landing sites that collide: TypeScript, JavaScript and Astro by their
+ * AST, and other code, or a file the check can't read, by the file-level
+ * rule. A site that passes says how it was checked. A
+ * collision no renamed site carries, such as a table rename's, is refused
+ * where it is.
+ */
+function landingCollisions(root, landings, edited, writes, moves) {
+  const lineAt = (text, at) => text.slice(0, at).split("\n").length;
+  const landed = [...edited].filter(([, entry]) => entry.sites.length > 0);
+  const scripts = landed.filter(([file]) => SCRIPT.test(file)).map(([file, entry]) => ({ file, ...entry }));
+  const verdicts = checkScripts(scripts);
+  const collisions = [];
+  for (const site of landings) {
+    const verdict = verdicts.get(site.file);
+    if (!verdict || verdict.unread) {
+      collisions.push({ ...site, reason: `its file already holds ${site.next}${verdict?.unread ? `, and ${verdict.unread}` : ""}` });
+      continue;
+    }
+    const reasons = verdict.refused.filter((one) => !one.unattributed && one.site.at === site.at).map((one) => one.reason);
+    if (reasons.length > 0) collisions.push({ ...site, reason: [...new Set(reasons)].join("; ") });
+    else site.checked = "no collision in its AST";
+  }
+  for (const [file, verdict] of verdicts) {
+    for (const one of verdict.refused?.filter((entry) => entry.unattributed) ?? []) {
+      const text = edited.get(file)?.original ?? readFileSync(path.join(root, file), "utf8");
+      const line = lineAt(text, one.site.at);
+      collisions.push({ file, line, at: one.site.at, token: "", next: "", reason: one.reason, shown: text.split("\n")[line - 1].trim().slice(0, 140) });
+    }
+  }
+  return collisions;
+}
+
 function apply(repo, root, write, list, showStays) {
   const rows = readTable().filter((row) => row.repo === repo);
   const known = new Set(rows.map((row) => row.identifier));
@@ -368,11 +402,13 @@ function apply(repo, root, write, list, showStays) {
   let signed = 0;
   // The bare words (words.mjs): each one renamed unless a stay keeps it or a
   // row of bare-words.tsv decides what it becomes. A renamed bare word that
-  // lands on a name its code file already holds is refused, site by site,
-  // until a row decides it, because two names made one is a duplicate or a
-  // shadowing binding the compiler may never see. Prose landing on a word it
-  // already uses, such as "tests", is only English, and data names no
-  // binding. Nothing is written until every refusal has passed.
+  // lands on a name its code file already holds is checked, because two names
+  // made one is a duplicate or a shadowing binding the compiler may never
+  // see: TypeScript, JavaScript and Astro by their AST, and any other code
+  // by the file-level rule, which refuses each such site. A
+  // row decides a site either way. Prose landing on a word it already uses,
+  // such as "tests", is only English, and data names no binding. Nothing is
+  // written until every refusal has passed.
   const decisions = readDecisions(repo);
   let bare = 0;
   const stays = [];
@@ -380,31 +416,38 @@ function apply(repo, root, write, list, showStays) {
   const landings = [];
   const conflicts = [];
   const writes = [];
-  const fileNames = new Map();
-  const names = (file, text) => {
-    if (!fileNames.has(file)) fileNames.set(file, new Set(text.match(TOKEN) ?? []));
-    return fileNames.get(file);
-  };
+  const edited = new Map();
   for (const file of workingSources(root)) {
     const source = readSource(root, file);
     if (source?.signed) signed += 1;
     if (source?.text === undefined) continue;
-    const held = pins.filter((pin) => pin.file === file);
-    const text = held.reduce((masked, pin, index) => masked.split(pin.literal).join(`\u0000${index}\u0000`), source.text);
+    const original = source.text;
+    // A pinned literal keeps its bytes: no token inside one is renamed, and
+    // none counts among the names its file holds.
+    const pinned = pins.filter((pin) => pin.file === file).flatMap((pin) => [...original.matchAll(new RegExp(escape(pin.literal), "g"))].map((m) => [m.index, m.index + pin.literal.length]));
+    const inPin = (at) => pinned.some(([from, to]) => at >= from && at < to);
+    const held = new Set([...original.matchAll(TOKEN)].filter((m) => !inPin(m.index)).map((m) => m[0]));
     let count = 0;
-    const lines = text.split("\n");
-    const shownLines = source.text.split("\n");
-    const renamed = lines
-      .map((line, number) =>
-        line.replace(TOKEN, (token, index) => {
+    const edits = [];
+    const sites = [];
+    const shownLines = original.split("\n");
+    let lineStart = 0;
+    const renamed = shownLines
+      .map((line, number) => {
+        const start = lineStart;
+        lineStart += line.length + 1;
+        return line.replace(TOKEN, (token, index) => {
+          const at = start + index;
+          if (inPin(at)) return token;
           const to = renames.get(token);
           if (to !== undefined) {
             count += 1;
+            edits.push({ at, from: token, to });
             return to;
           }
           if (bareWord(token) === undefined) return token;
           const site = `${file}:${number + 1}`;
-          const shown = shownLines[number].trim().slice(0, 140);
+          const shown = line.trim().slice(0, 140);
           const stay = stayFor(file, line, index, token);
           if (stay) {
             stays.push(`${site}\t${stay.why}\t${shown}`);
@@ -416,28 +459,28 @@ function apply(repo, root, write, list, showStays) {
           if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
           if (rows.length > 0) {
             decided.push(`${site}\t${rows[0].why}\t${token} -> ${rows[0].becomes}\t${shown}`);
+            edits.push({ at, from: token, to: rows[0].becomes });
             return rows[0].becomes;
           }
           const next = renamedBare(token, line.slice(index + token.length));
-          if (CODE.test(file) && names(file, text).has(next)) landings.push(`${site}\t${token} -> ${next}\t${shown}`);
+          edits.push({ at, from: token, to: next });
+          if (CODE.test(file) && held.has(next)) sites.push({ at, token, next, line: number + 1, shown });
           return next;
-        }),
-      )
+        });
+      })
       .join("\n");
     if (count === 0) continue;
     files += 1;
     replaced += count;
     if (list) process.stdout.write(`${count}\t${file}\n`);
-    writes.push([file, held.reduce((restored, pin, index) => restored.split(`\u0000${index}\u0000`).join(pin.literal), renamed)]);
+    writes.push([file, renamed]);
+    // Each renamed file, its edits and the sites that land on a name it holds.
+    edited.set(file, { original, renamed, edits, sites });
+    landings.push(...sites.map((site) => ({ file, ...site })));
   }
   if (conflicts.length > 0) {
     process.stdout.write(`refused ${repo}: ${conflicts.length} bare words are decided by more than one row of bare-words.tsv; a site takes one\n`);
     for (const conflict of conflicts) process.stdout.write(`  ${conflict}\n`);
-    return 1;
-  }
-  if (landings.length > 0) {
-    process.stdout.write(`refused ${repo}: ${landings.length} renamed bare words land on a name their code file already holds, and no row of bare-words.tsv decides what they become\n`);
-    for (const landing of landings) process.stdout.write(`  ${landing}\n`);
     return 1;
   }
   // A name that's also a file or folder moves with it: a bench, a module and
@@ -478,6 +521,22 @@ function apply(repo, root, write, list, showStays) {
     process.stdout.write(`refused ${repo}: ${taken.length} renamed paths already exist\n`);
     for (const target of taken.slice(0, 20)) process.stdout.write(`  ${target}\n`);
     return 1;
+  }
+  let clashes;
+  try {
+    clashes = landingCollisions(root, landings, edited, writes, moves);
+  } catch (error) {
+    process.stdout.write(`refused ${repo}: ${landings.length} renamed bare words land on a name their code already holds, and the check that reads them couldn't run: ${error.message}\n`);
+    return 1;
+  }
+  if (clashes.length > 0) {
+    process.stdout.write(`refused ${repo}: ${clashes.length} renamed bare words collide with a name their code already holds, and no row of bare-words.tsv decides what they become\n`);
+    for (const one of clashes) process.stdout.write(`  ${one.file}:${one.line}\t${one.token ? `${one.token} -> ${one.next}` : "(no renamed site)"}\t${one.reason}\t${one.shown}\n`);
+    return 1;
+  }
+  if (showStays) {
+    const collided = new Set(clashes.map((one) => `${one.file}:${one.at}`));
+    for (const site of landings.filter((one) => !collided.has(`${one.file}:${one.at}`))) process.stdout.write(`lands\t${site.file}:${site.line}\t${site.token} -> ${site.next}\t${site.checked}\t${site.shown}\n`);
   }
   if (write) for (const [file, text] of writes) writeFileSync(path.join(root, file), text);
   for (const [from, to] of moves) {

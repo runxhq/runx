@@ -32,8 +32,7 @@ test("scan reads a name's run sense from whole segments, so a test's harness-ref
   // scan writes the table beside the program, so it runs on a copy of both.
   const program = tree(t, {});
   copyFileSync(RENAME, path.join(program, "rename.mjs"));
-  copyFileSync(new URL("./words.mjs", import.meta.url), path.join(program, "words.mjs"));
-  copyFileSync(new URL("./identifiers.tsv", import.meta.url), path.join(program, "identifiers.tsv"));
+  for (const file of ["words.mjs", "script-collisions.mjs", "identifiers.tsv"]) copyFileSync(new URL(`./${file}`, import.meta.url), path.join(program, file));
   const root = tree(t, { "src/case.mjs": 'export const id = "checkout-harness-references";\nexport const ref = "checkout-harness-ref";\n' });
   const { status, out } = run(path.join(program, "rename.mjs"), "scan", "oss", root);
   assert.equal(status, 0, out);
@@ -162,16 +161,36 @@ test("prose may already hold the word a name becomes", (t) => {
   assert.equal(read(root, "docs/plans.md"), "A test-only package is test-only by design.\n");
 });
 
-test("a bare word renamed onto a name its code file already binds is refused at each site, and nothing is written", (t) => {
-  const code = "export async function withFixture(test: (harness: Fixture) => Promise<void>): Promise<void> {\n  const harness = await create();\n  await test(harness);\n}\n";
+test("a bare word renamed onto a name a shell script already holds is refused at each site, and nothing is written", (t) => {
+  const code = 'method="$1"\nrunner="$2"\necho "${runner} ${method}"\n';
   const prose = "Run the harness before the tests.\n";
-  const root = tree(t, { "packages/registry/src/contract.ts": code, "docs/testing.md": prose });
+  const root = tree(t, { "scripts/release.sh": code, "docs/testing.md": prose });
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 1, out);
-  assert.match(out, /^refused oss: 3 renamed bare words land on a name their code file already holds, and no row of bare-words\.tsv decides what they become$/m);
-  for (const line of [1, 2, 3]) assert.match(out, new RegExp(`^  packages/registry/src/contract\\.ts:${line}\\tharness -> test\\t`, "m"));
-  assert.equal(read(root, "packages/registry/src/contract.ts"), code);
+  assert.match(out, /^refused oss: 2 renamed bare words collide with a name their code already holds, and no row of bare-words\.tsv decides what they become$/m);
+  for (const line of [2, 3]) assert.match(out, new RegExp(`^  scripts/release\\.sh:${line}\\trunner -> method\\tits file already holds method\\t`, "m"));
+  assert.equal(read(root, "scripts/release.sh"), code);
   assert.equal(read(root, "docs/testing.md"), prose);
+});
+
+test("TypeScript's AST decides a landing: a name held as a member, a string or another scope's binding is no collision", (t) => {
+  const code = '// The harness checks the test.\nexport const run = (harness: Fixture) => harness.test("the test");\nexport function other(test: number) {\n  return test;\n}\n';
+  const root = tree(t, { "packages/client/src/run.ts": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "packages/client/src/run.ts"), code.replaceAll("harness", "test"));
+});
+
+test("TypeScript's AST refuses the store contract's duplicate binding, and the reference it would move", (t) => {
+  const code = "export async function withFixture(test: (harness: Fixture) => Promise<void>): Promise<void> {\n  const harness = await create();\n  await test(harness);\n}\n";
+  const root = tree(t, { "packages/registry/src/contract.ts": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 1, out);
+  assert.match(out, /^refused oss: 2 renamed bare words collide with a name their code already holds/m);
+  assert.match(out, /^  packages\/registry\/src\/contract\.ts:2\tharness -> test\ta second binding in one scope \(TS2300: Duplicate identifier 'test'\.\)/m);
+  assert.match(out, /^  packages\/registry\/src\/contract\.ts:3\tharness -> test\tnow resolves to line 1's binding, not line 2's binding\t/m);
+  assert.doesNotMatch(out, /contract\.ts:1\t/);
+  assert.equal(read(root, "packages/registry/src/contract.ts"), code);
 });
 
 test("a row decides one exact token in its file, at every site or only where its patterns match", () => {
