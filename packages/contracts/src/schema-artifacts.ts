@@ -5249,6 +5249,15 @@ export const runxSchemaArtifacts = {
                       "minItems": 1,
                       "type": "array"
                     },
+                    "packages": {
+                      "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+                      "items": {
+                        "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
                     "scopes": {
                       "description": "Provider grant scopes.",
                       "items": {
@@ -6308,6 +6317,15 @@ export const runxSchemaArtifacts = {
             "description": "Connector operations, as `<connector>/<operation>` or `<connector>/*`.",
             "items": {
               "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "packages": {
+            "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+            "items": {
+              "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
               "type": "string"
             },
             "minItems": 1,
@@ -10241,7 +10259,7 @@ export const runxSchemaArtifacts = {
             },
             "target": {
               "additionalProperties": false,
-              "description": "The target an operation acts on, rendered from the call's arguments and the instance's parameters. The rendered value must equal the admitted target.",
+              "description": "The resource a term's `targets` are checked against. Every operation names one, but one the runtime's own `store` implements: its target is the stream the runtime renders under the calling package (§4.8).",
               "properties": {
                 "pattern": {
                   "description": "A regular expression the rendered target must match whole, for a connector whose targets have a shape authority compares, such as a conversation locator.",
@@ -10272,8 +10290,7 @@ export const runxSchemaArtifacts = {
           "required": [
             "description",
             "verb",
-            "scopes",
-            "target"
+            "scopes"
           ],
           "title": "ConnectorOperation",
           "type": "object"
@@ -11270,169 +11287,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.data.digest.v1"
-  } as JsonSchema,
-  "data-operation-result.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/data/operation-result/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "after_version": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "aggregate_id": {
-        "type": "string"
-      },
-      "before_version": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "data_source_uri": {
-        "type": "string"
-      },
-      "event_digest": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "event_id": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "events": {
-        "items": {},
-        "type": "array"
-      },
-      "has_more": {
-        "type": "boolean"
-      },
-      "idempotency_key": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "limit": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "next_after_version": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "operation": {
-        "type": "string"
-      },
-      "projection": {
-        "anyOf": [
-          {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "projection_digest": {
-        "type": "string"
-      },
-      "provider": {
-        "type": "string"
-      },
-      "provider_evidence": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "redactions": {
-        "items": {},
-        "type": "array"
-      },
-      "resource": {
-        "type": "string"
-      },
-      "result_digest": {
-        "type": "string"
-      },
-      "rows": {
-        "items": {},
-        "type": "array"
-      },
-      "schema": {
-        "type": "string"
-      },
-      "status": {
-        "enum": [
-          "committed",
-          "idempotent_replay",
-          "read",
-          "conflict"
-        ],
-        "title": "DataOperationStatus",
-        "type": "string"
-      },
-      "stop_conditions": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "code": {
-              "type": "string"
-            },
-            "message": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "code",
-            "message"
-          ],
-          "title": "DataStopCondition",
-          "type": "object"
-        },
-        "type": "array"
-      }
-    },
-    "required": [
-      "schema",
-      "data_source_uri",
-      "provider",
-      "operation",
-      "resource",
-      "aggregate_id",
-      "status",
-      "before_version",
-      "after_version",
-      "idempotency_key",
-      "event_id",
-      "event_digest",
-      "result_digest",
-      "projection_digest",
-      "projection",
-      "events",
-      "rows",
-      "redactions",
-      "stop_conditions",
-      "provider_evidence"
-    ],
-    "title": "DataOperationResult",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.data.operation_result.v1"
   } as JsonSchema,
   "data-validation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/data/validation/v1.json",
@@ -25067,6 +24921,15 @@ export const runxSchemaArtifacts = {
                                 "minItems": 1,
                                 "type": "array"
                               },
+                              "packages": {
+                                "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+                                "items": {
+                                  "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
+                                  "type": "string"
+                                },
+                                "minItems": 1,
+                                "type": "array"
+                              },
                               "scopes": {
                                 "description": "Provider grant scopes.",
                                 "items": {
@@ -26179,6 +26042,15 @@ export const runxSchemaArtifacts = {
                       "description": "Connector operations, as `<connector>/<operation>` or `<connector>/*`.",
                       "items": {
                         "minLength": 1,
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "packages": {
+                      "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+                      "items": {
+                        "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
                         "type": "string"
                       },
                       "minItems": 1,
@@ -40045,6 +39917,769 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.source_packet.v1"
+  } as JsonSchema,
+  "store-result.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/store/result/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "additionalProperties": false,
+        "description": "An append that committed or replayed.",
+        "properties": {
+          "backend": {
+            "description": "The backend that served an answer.",
+            "enum": [
+              "sqlite",
+              "postgres",
+              "redis"
+            ],
+            "title": "StoreBackend",
+            "type": "string"
+          },
+          "before_version": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "chain_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "event": {
+            "additionalProperties": false,
+            "description": "The event an append committed or replayed.",
+            "properties": {
+              "digest": {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "digest"
+            ],
+            "title": "StoreEventRef",
+            "type": "object"
+          },
+          "key": {
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "events.append"
+            ],
+            "title": "StoreAppendOperation",
+            "type": "string"
+          },
+          "result_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "schema": {
+            "description": "Every answer's schema.",
+            "enum": [
+              "runx.store.result.v1"
+            ],
+            "title": "StoreResultSchema",
+            "type": "string"
+          },
+          "status": {
+            "description": "An append that landed: `committed`, or `replayed`, the same idempotency key with the same event, answered as the first time.",
+            "enum": [
+              "committed",
+              "replayed"
+            ],
+            "title": "StoreAppliedStatus",
+            "type": "string"
+          },
+          "stream": {
+            "description": "The full stream, `<package>/<stream>`.",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema",
+          "operation",
+          "stream",
+          "key",
+          "backend",
+          "result_digest",
+          "status",
+          "before_version",
+          "version",
+          "event",
+          "chain_digest"
+        ],
+        "title": "StoreAppended",
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "An append that conflicted, appending nothing.",
+        "properties": {
+          "backend": {
+            "description": "The backend that served an answer.",
+            "enum": [
+              "sqlite",
+              "postgres",
+              "redis"
+            ],
+            "title": "StoreBackend",
+            "type": "string"
+          },
+          "before_version": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "chain_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "events.append"
+            ],
+            "title": "StoreAppendOperation",
+            "type": "string"
+          },
+          "result_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "schema": {
+            "description": "Every answer's schema.",
+            "enum": [
+              "runx.store.result.v1"
+            ],
+            "title": "StoreResultSchema",
+            "type": "string"
+          },
+          "status": {
+            "description": "An append that appended nothing: `version_conflict`, the key wasn't at the expected version, retried after a read; or `idempotency_conflict`, the idempotency key was used for a different event, checked first and never retried.",
+            "enum": [
+              "version_conflict",
+              "idempotency_conflict"
+            ],
+            "title": "StoreConflictStatus",
+            "type": "string"
+          },
+          "stream": {
+            "type": "string"
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema",
+          "operation",
+          "stream",
+          "key",
+          "backend",
+          "result_digest",
+          "status",
+          "before_version",
+          "version",
+          "chain_digest"
+        ],
+        "title": "StoreConflicted",
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "One page of a key's events, in version order.",
+        "properties": {
+          "backend": {
+            "description": "The backend that served an answer.",
+            "enum": [
+              "sqlite",
+              "postgres",
+              "redis"
+            ],
+            "title": "StoreBackend",
+            "type": "string"
+          },
+          "chain_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One event of a key.",
+              "properties": {
+                "committed_at": {
+                  "description": "When the store committed it; a fact's own date is in its data.",
+                  "type": "string"
+                },
+                "data": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "digest": {
+                  "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "id": {
+                  "description": "A length-delimited encoding of stream, key and version.",
+                  "type": "string"
+                },
+                "idempotency_key": {
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Declared by the writer, never guessed.",
+                  "type": "string"
+                },
+                "version": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "writer": {
+                  "additionalProperties": false,
+                  "description": "Absent on an event written before 0.12.",
+                  "properties": {
+                    "digest": {
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "package": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "package",
+                    "digest"
+                  ],
+                  "title": "StoreWriter",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "type",
+                "data",
+                "digest",
+                "idempotency_key",
+                "committed_at"
+              ],
+              "title": "StoreEvent",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "last_version": {
+            "description": "The last version in this page, which the next read passes as `after_version`; with no events, the version read after.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "operation": {
+            "enum": [
+              "events.read"
+            ],
+            "title": "StoreReadOperation",
+            "type": "string"
+          },
+          "result_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "schema": {
+            "description": "Every answer's schema.",
+            "enum": [
+              "runx.store.result.v1"
+            ],
+            "title": "StoreResultSchema",
+            "type": "string"
+          },
+          "stream": {
+            "type": "string"
+          },
+          "version": {
+            "description": "The key's version.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema",
+          "operation",
+          "stream",
+          "key",
+          "backend",
+          "result_digest",
+          "version",
+          "events",
+          "last_version",
+          "has_more",
+          "chain_digest"
+        ],
+        "title": "StoreRead",
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "A key's version, its newest event whole, and its chain.",
+        "properties": {
+          "backend": {
+            "description": "The backend that served an answer.",
+            "enum": [
+              "sqlite",
+              "postgres",
+              "redis"
+            ],
+            "title": "StoreBackend",
+            "type": "string"
+          },
+          "chain_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "last_event": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "description": "One event of a key.",
+                "properties": {
+                  "committed_at": {
+                    "description": "When the store committed it; a fact's own date is in its data.",
+                    "type": "string"
+                  },
+                  "data": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "digest": {
+                    "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                    "maxLength": 71,
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "A length-delimited encoding of stream, key and version.",
+                    "type": "string"
+                  },
+                  "idempotency_key": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "Declared by the writer, never guessed.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "writer": {
+                    "additionalProperties": false,
+                    "description": "Absent on an event written before 0.12.",
+                    "properties": {
+                      "digest": {
+                        "maxLength": 71,
+                        "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "package": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "package",
+                      "digest"
+                    ],
+                    "title": "StoreWriter",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "id",
+                  "version",
+                  "type",
+                  "data",
+                  "digest",
+                  "idempotency_key",
+                  "committed_at"
+                ],
+                "title": "StoreEvent",
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The key's newest event, or null at version 0."
+          },
+          "operation": {
+            "enum": [
+              "key.inspect"
+            ],
+            "title": "StoreInspectOperation",
+            "type": "string"
+          },
+          "result_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "schema": {
+            "description": "Every answer's schema.",
+            "enum": [
+              "runx.store.result.v1"
+            ],
+            "title": "StoreResultSchema",
+            "type": "string"
+          },
+          "stream": {
+            "type": "string"
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema",
+          "operation",
+          "stream",
+          "key",
+          "backend",
+          "result_digest",
+          "version",
+          "last_event",
+          "chain_digest"
+        ],
+        "title": "StoreInspected",
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "One page of a stream's keys, newest commit first.",
+        "properties": {
+          "backend": {
+            "description": "The backend that served an answer.",
+            "enum": [
+              "sqlite",
+              "postgres",
+              "redis"
+            ],
+            "title": "StoreBackend",
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "additionalProperties": false,
+              "description": "A listed key and its newest event.",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "last_event": {
+                  "additionalProperties": false,
+                  "description": "One event of a key.",
+                  "properties": {
+                    "committed_at": {
+                      "description": "When the store committed it; a fact's own date is in its data.",
+                      "type": "string"
+                    },
+                    "data": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "digest": {
+                      "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "A length-delimited encoding of stream, key and version.",
+                      "type": "string"
+                    },
+                    "idempotency_key": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "Declared by the writer, never guessed.",
+                      "type": "string"
+                    },
+                    "version": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "writer": {
+                      "additionalProperties": false,
+                      "description": "Absent on an event written before 0.12.",
+                      "properties": {
+                        "digest": {
+                          "maxLength": 71,
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "package": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package",
+                        "digest"
+                      ],
+                      "title": "StoreWriter",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "version",
+                    "type",
+                    "data",
+                    "digest",
+                    "idempotency_key",
+                    "committed_at"
+                  ],
+                  "title": "StoreEvent",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "key",
+                "last_event"
+              ],
+              "title": "StoreListedKey",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the next page starts, or null when there's no further page."
+          },
+          "operation": {
+            "enum": [
+              "keys.list"
+            ],
+            "title": "StoreListOperation",
+            "type": "string"
+          },
+          "result_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "schema": {
+            "description": "Every answer's schema.",
+            "enum": [
+              "runx.store.result.v1"
+            ],
+            "title": "StoreResultSchema",
+            "type": "string"
+          },
+          "stream": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "operation",
+          "stream",
+          "backend",
+          "result_digest",
+          "keys",
+          "next_cursor"
+        ],
+        "title": "StoreListed",
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "One page of a search of one stream's current entries, in score order with ties by key.",
+        "properties": {
+          "backend": {
+            "description": "The backend that served an answer.",
+            "enum": [
+              "sqlite",
+              "postgres",
+              "redis"
+            ],
+            "title": "StoreBackend",
+            "type": "string"
+          },
+          "matches": {
+            "items": {
+              "additionalProperties": false,
+              "description": "A key a search matched, by its newest event.",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "last_event": {
+                  "additionalProperties": false,
+                  "description": "One event of a key.",
+                  "properties": {
+                    "committed_at": {
+                      "description": "When the store committed it; a fact's own date is in its data.",
+                      "type": "string"
+                    },
+                    "data": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "digest": {
+                      "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "A length-delimited encoding of stream, key and version.",
+                      "type": "string"
+                    },
+                    "idempotency_key": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "Declared by the writer, never guessed.",
+                      "type": "string"
+                    },
+                    "version": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "writer": {
+                      "additionalProperties": false,
+                      "description": "Absent on an event written before 0.12.",
+                      "properties": {
+                        "digest": {
+                          "maxLength": 71,
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "package": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package",
+                        "digest"
+                      ],
+                      "title": "StoreWriter",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "version",
+                    "type",
+                    "data",
+                    "digest",
+                    "idempotency_key",
+                    "committed_at"
+                  ],
+                  "title": "StoreEvent",
+                  "type": "object"
+                },
+                "score": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "key",
+                "score",
+                "last_event"
+              ],
+              "title": "StoreMatch",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operation": {
+            "enum": [
+              "keys.search"
+            ],
+            "title": "StoreSearchOperation",
+            "type": "string"
+          },
+          "result_digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "schema": {
+            "description": "Every answer's schema.",
+            "enum": [
+              "runx.store.result.v1"
+            ],
+            "title": "StoreResultSchema",
+            "type": "string"
+          },
+          "stream": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "operation",
+          "stream",
+          "backend",
+          "result_digest",
+          "matches",
+          "next_cursor"
+        ],
+        "title": "StoreSearched",
+        "type": "object"
+      }
+    ],
+    "description": "One shape per operation, so an answer says only what its operation does.",
+    "title": "StoreResult",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.store.result.v1"
   } as JsonSchema,
   "tool-manifest.schema.json": {
     "$id": "https://schemas.runx.ai/runx/tool/manifest/v1.json",

@@ -7,7 +7,7 @@ import {
   actResultEnvelopeSchema,
   actAssignmentV1Schema,
   credentialDeliveryObservationV1Schema,
-  dataOperationResultV1Schema,
+  storeResultV1Schema,
   doctorV1Schema,
   fixtureV1Schema,
   ledgerEntrySchema,
@@ -30,7 +30,7 @@ import {
   validateAgentContextEnvelopeContract,
   validateOutputContract,
   validateResolutionRequestContract,
-  validateDataOperationResultContract,
+  validateStoreResultContract,
   validateActAssignmentContract,
   validateDoctorReportContract,
   validateReceiptContract,
@@ -47,8 +47,8 @@ describe("@runxhq/contracts", () => {
   it("uses durable schema URI ids", () => {
     expect(runxContractSchemas.toolManifest.$id).toBe("https://schemas.runx.ai/runx/tool/manifest/v1.json");
     expect(toolManifestV1Schema).toBe(runxContractSchemas.toolManifest);
-    expect(runxContractSchemas.dataOperationResult.$id)
-      .toBe("https://schemas.runx.ai/runx/data/operation-result/v1.json");
+    expect(runxContractSchemas.storeResult.$id)
+      .toBe("https://schemas.runx.ai/runx/store/result/v1.json");
     expect((toolManifestV1Schema.properties as Record<string, unknown>).source).toBeDefined();
     expect((toolManifestV1Schema.required as readonly string[])).not.toContain("version");
   });
@@ -70,7 +70,7 @@ describe("@runxhq/contracts", () => {
     expect(resolutionResponseSchema).toBe(runxContractSchemas.resolutionResponse);
     expect(actResultEnvelopeSchema).toBe(runxContractSchemas.actResultEnvelope);
     expect(credentialDeliveryObservationV1Schema).toBe(runxContractSchemas.credentialDeliveryObservation);
-    expect(dataOperationResultV1Schema).toBe(runxContractSchemas.dataOperationResult);
+    expect(storeResultV1Schema).toBe(runxContractSchemas.storeResult);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);
     expect(listV1Schema).toBe(runxContractSchemas.list);
@@ -89,66 +89,72 @@ describe("@runxhq/contracts", () => {
     });
   });
 
-  it("validates governed data operation result packets", () => {
-    const committed = validateDataOperationResultContract({
-      schema: "runx.data.operation_result.v1",
-      data_source_uri: "tenant://acme/board",
-      provider: "store",
+  it("validates store results, one shape per operation", () => {
+    const event = {
+      id: "21:project:board/items,3:a-1,3",
+      version: 3,
+      type: "item.labelled",
+      data: { label: "three" },
+      digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      idempotency_key: "runx:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      committed_at: "2026-11-09T00:00:00.000Z",
+      writer: { package: "project:board", digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    };
+    const common = {
+      schema: "runx.store.result.v1",
+      stream: "project:board/items",
+      backend: "postgres",
+      result_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    };
+    const committed = validateStoreResultContract({
+      ...common,
       operation: "events.append",
-      resource: "board_events",
-      aggregate_id: "posting-123",
+      key: "a-1",
       status: "committed",
       before_version: 2,
-      after_version: 3,
-      idempotency_key: "posting-123:claim:agent-9",
-      event_id: "board_events:posting-123:3",
-      event_digest: "sha256:event",
-      result_digest: "sha256:result",
-      projection_digest: "sha256:projection",
-      projection: null,
-      events: [],
-      rows: [],
-      redactions: [],
-      stop_conditions: [],
-      provider_evidence: {
-        backend: "postgres",
-      },
+      version: 3,
+      event: { id: event.id, digest: event.digest },
+      chain_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     });
+    expect(committed).toMatchObject({ status: "committed", backend: "postgres" });
 
-    expect(committed.status).toBe("committed");
-    expect(committed.provider_evidence?.backend).toBe("postgres");
-
-    const conflict = validateDataOperationResultContract({
-      schema: "runx.data.operation_result.v1",
-      data_source_uri: "tenant://acme/board",
-      provider: "store",
+    const conflict = validateStoreResultContract({
+      ...common,
       operation: "events.append",
-      resource: "board_events",
-      aggregate_id: "posting-123",
-      status: "conflict",
+      key: "a-1",
+      status: "version_conflict",
       before_version: 4,
-      after_version: 4,
-      idempotency_key: "posting-123:claim:agent-9",
-      event_id: null,
-      event_digest: "sha256:event",
-      result_digest: "sha256:conflict",
-      projection_digest: "sha256:projection",
-      projection: null,
-      events: [],
-      rows: [],
-      redactions: [],
-      stop_conditions: [
-        {
-          code: "conflict",
-          message: "expected version 2, got 4",
-        },
-      ],
-      provider_evidence: {
-        backend: "postgres",
-      },
+      version: 4,
+      chain_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     });
+    expect(conflict).toMatchObject({ status: "version_conflict" });
+    // A conflict appends nothing, so it names no event.
+    expect(() =>
+      validateStoreResultContract({ ...conflict, event: { id: event.id, digest: event.digest } }),
+    ).toThrow();
 
-    expect(conflict.stop_conditions[0]?.code).toBe("conflict");
+    expect(
+      validateStoreResultContract({
+        ...common,
+        operation: "key.inspect",
+        key: "a-1",
+        version: 3,
+        last_event: event,
+        chain_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      }),
+    ).toMatchObject({ operation: "key.inspect" });
+    expect(
+      validateStoreResultContract({
+        ...common,
+        operation: "keys.list",
+        keys: [{ key: "a-1", last_event: event }],
+        next_cursor: null,
+      }),
+    ).toMatchObject({ next_cursor: null });
+    // Today's names are refused.
+    expect(() =>
+      validateStoreResultContract({ ...committed, data_source_uri: "tenant://acme/board" }),
+    ).toThrow();
   });
 
   it("accepts typed proof kinds on references", () => {

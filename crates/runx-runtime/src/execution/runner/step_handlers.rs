@@ -1205,7 +1205,7 @@ where
         call: Some(&call),
     };
     // Source the tool manifest's artifact contract so the wrapped packet the
-    // dispatcher folds into the claim (e.g. `data_operation_result`) is
+    // dispatcher folds into the claim (e.g. `digest_result`) is
     // exposed at the OUTER step as `<step>.<packet>.data`.
     let tool_artifacts = crate::tool_catalogs::dispatch::resolve_tool_artifacts(
         &tool_request,

@@ -408,10 +408,7 @@ mod tests {
         // wrapped once.
         let value = JsonValue::from_serialize(&serde_json::json!({"events": "present"}))
             .unwrap_or(JsonValue::Null);
-        let both = artifacts(
-            Some("result"),
-            &[("result", "runx.data.operation_result.v1")],
-        );
+        let both = artifacts(Some("result"), &[("result", "runx.store.result.v1")]);
         assert_eq!(
             project_artifact_outputs(&value, Some(&both))
                 .get("result")

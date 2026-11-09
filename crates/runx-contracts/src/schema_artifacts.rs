@@ -4,14 +4,15 @@
 //! gate. Keep filenames aligned with `oss/schemas/*.json`.
 use serde_json as schema_json;
 
+use crate::StoreResult;
 use crate::schema::{NamedSchemas, RunxSchema};
 use crate::{
     ActAssignment, ActResultEnvelope, AgentContextEnvelope, ApprovalDecisionPacket, ApprovalGate,
     Artifact, Attestation, AuthorityDerivation, AuthoritySubsetProof, AuthorityTerm,
     CancelPurchaseRequest, CancelPurchaseResult, CliHelp, CommandExecution, CommandPlan,
     ConnectorInstance, ConnectorManifest, ConversationObservation, ConversationPage,
-    CredentialDeliveryObservation, DataComparison, DataDigest, DataOperationResult, DataValidation,
-    Decision, DecisionObservation, DoctorReport, ExecutePurchaseRequest, ExecutePurchaseResult,
+    CredentialDeliveryObservation, DataComparison, DataDigest, DataValidation, Decision,
+    DecisionObservation, DoctorReport, ExecutePurchaseRequest, ExecutePurchaseResult,
     ExternalJobContinuation, ExternalJobSchedule, ExternalJobScheduleIntent,
     ExternalJobStageRequest, ExternalJobStageResult, FileApplyBundle, FileEdit, FileInverseBundle,
     FileList, FileRead, FileReadBundle, FileSearch, FileWrite, Fixture, GetPurchaseRequest,
@@ -120,7 +121,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<GitLog>("git-log.schema.json"),
         public_packet_artifact::<GitShow>("git-show.schema.json"),
         public_packet_artifact::<GitPatch>("git-patch.schema.json"),
-        public_packet_artifact::<DataOperationResult>("data-operation-result.schema.json"),
+        public_packet_artifact::<StoreResult>("store-result.schema.json"),
         public_packet_artifact::<DataValidation>("data-validation.schema.json"),
         public_packet_artifact::<DataDigest>("data-digest.schema.json"),
         public_packet_artifact::<DataComparison>("data-comparison.schema.json"),

@@ -16,6 +16,7 @@ mod process;
 mod receipts;
 mod registry;
 mod runs;
+mod store;
 
 pub use approval::{ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus};
 pub use artifacts::{LocalArtifact, LocalArtifactPage};
@@ -35,8 +36,7 @@ pub use command::{
 };
 pub use control::RunContext;
 pub use data::{
-    DataComparison, DataDigest, DataOperationResult, DataOperationStatus, DataStopCondition,
-    DataValidation, DataValidationIssue, DataValueValidation,
+    DataComparison, DataDigest, DataValidation, DataValidationIssue, DataValueValidation,
 };
 pub use fs::{
     FS_BUNDLE_MAX_BYTES, FS_BUNDLE_MAX_FILES, FS_LIST_MAX_ENTRIES, FS_SEARCH_MAX_CONTEXT_LINES,
@@ -65,3 +65,9 @@ pub use registry::{
     InspectedOperation, RegistryInspection, RegistrySearchPacket,
 };
 pub use runs::{RUN_LIST_MAX_RUNS, RunList, RunListEntry, RunListSchema, UnreadableRun};
+pub use store::{
+    StoreAppendOperation, StoreAppended, StoreAppliedStatus, StoreBackend, StoreConflictStatus,
+    StoreConflicted, StoreEvent, StoreEventRef, StoreInspectOperation, StoreInspected,
+    StoreListOperation, StoreListed, StoreListedKey, StoreMatch, StoreRead, StoreReadOperation,
+    StoreResult, StoreResultSchema, StoreSearchOperation, StoreSearched, StoreWriter,
+};

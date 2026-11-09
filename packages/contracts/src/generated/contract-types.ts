@@ -302,6 +302,8 @@ export type AuthorityApprovalContract = {
 export type AuthorityBoundsContract = {
   /** Connector operations, as `<connector>/<operation>` or `<connector>/*`. */
   readonly operations?: readonly string[];
+  /** The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. */
+  readonly packages?: readonly string[];
   /** Provider grant scopes. */
   readonly scopes?: readonly string[];
   /** Provider targets: exact values, `<prefix>*`, or `*`. */
@@ -653,7 +655,8 @@ export type ConnectorOperationContract = {
   readonly result_fields?: readonly string[];
   /** Grant scopes, all required. */
   readonly scopes: readonly string[];
-  readonly target: OperationTargetContract;
+  /** The resource a term's `targets` are checked against. Every operation names one, but one the runtime's own `store` implements: its target is the stream the runtime renders under the calling package (§4.8). */
+  readonly target?: OperationTargetContract;
   readonly verb: OperationVerbContract;
 };
 
@@ -840,43 +843,6 @@ export type DataComparisonContract = {
 export type DataDigestContract = {
   readonly algorithm: DigestAlgorithmContract;
   readonly digest: string;
-};
-
-export type DataOperationResultContract = {
-  readonly after_version: number;
-  readonly aggregate_id: string;
-  readonly before_version: number;
-  readonly data_source_uri: string;
-  readonly event_digest: string | null;
-  readonly event_id: string | null;
-  readonly events: readonly unknown[];
-  readonly has_more?: boolean;
-  readonly idempotency_key: string | null;
-  readonly limit?: number;
-  readonly next_after_version?: number;
-  readonly operation: string;
-  readonly projection: {
-    readonly [key: string]: unknown;
-  } | null;
-  readonly projection_digest: string;
-  readonly provider: string;
-  readonly provider_evidence: {
-    readonly [key: string]: unknown;
-  };
-  readonly redactions: readonly unknown[];
-  readonly resource: string;
-  readonly result_digest: string;
-  readonly rows: readonly unknown[];
-  readonly schema: string;
-  readonly status: DataOperationStatusContract;
-  readonly stop_conditions: readonly DataStopConditionContract[];
-};
-
-export type DataOperationStatusContract = "committed" | "idempotent_replay" | "read" | "conflict";
-
-export type DataStopConditionContract = {
-  readonly code: string;
-  readonly message: string;
 };
 
 export type DataValidationContract = {
@@ -3978,8 +3944,161 @@ export type StandingOperationsContract = {
   readonly names: readonly string[];
 };
 
+/** An append that committed or replayed. */
+export type StoreAppendedContract = {
+  readonly backend: StoreBackendContract;
+  readonly before_version: number;
+  readonly chain_digest: string;
+  readonly event: StoreEventRefContract;
+  readonly key: string;
+  readonly operation: StoreAppendOperationContract;
+  readonly result_digest: string;
+  readonly schema: StoreResultSchemaContract;
+  readonly status: StoreAppliedStatusContract;
+  /** The full stream, `<package>/<stream>`. */
+  readonly stream: string;
+  readonly version: number;
+};
+
+export type StoreAppendOperationContract = "events.append";
+
+/** An append that landed: `committed`, or `replayed`, the same idempotency key with the same event, answered as the first time. */
+export type StoreAppliedStatusContract = "committed" | "replayed";
+
+/** The backend that served an answer. */
+export type StoreBackendContract = "sqlite" | "postgres" | "redis";
+
+/** An append that conflicted, appending nothing. */
+export type StoreConflictedContract = {
+  readonly backend: StoreBackendContract;
+  readonly before_version: number;
+  readonly chain_digest: string;
+  readonly key: string;
+  readonly operation: StoreAppendOperationContract;
+  readonly result_digest: string;
+  readonly schema: StoreResultSchemaContract;
+  readonly status: StoreConflictStatusContract;
+  readonly stream: string;
+  readonly version: number;
+};
+
+/** An append that appended nothing: `version_conflict`, the key wasn't at the expected version, retried after a read; or `idempotency_conflict`, the idempotency key was used for a different event, checked first and never retried. */
+export type StoreConflictStatusContract = "version_conflict" | "idempotency_conflict";
+
+/** One event of a key. */
+export type StoreEventContract = {
+  /** When the store committed it; a fact's own date is in its data. */
+  readonly committed_at: string;
+  readonly data: {
+    readonly [key: string]: unknown;
+  };
+  /** Covers the writer, the type and the data; an event written before writers were recorded covers its data alone. */
+  readonly digest: string;
+  /** A length-delimited encoding of stream, key and version. */
+  readonly id: string;
+  readonly idempotency_key: string;
+  /** Declared by the writer, never guessed. */
+  readonly type: string;
+  readonly version: number;
+  /** Absent on an event written before 0.12. */
+  readonly writer?: StoreWriterContract;
+};
+
+/** The event an append committed or replayed. */
+export type StoreEventRefContract = {
+  readonly digest: string;
+  readonly id: string;
+};
+
 /** The runtime's event store: append-only streams with an expected version and an idempotency key per append, a rolling projection per stream, and stream heads by latest event. The instance's `url` parameter chooses SQLite, Postgres or Redis; without one it is the workspace store. */
 export type StoreImplementationContract = {};
+
+/** A key's version, its newest event whole, and its chain. */
+export type StoreInspectedContract = {
+  readonly backend: StoreBackendContract;
+  readonly chain_digest: string;
+  readonly key: string;
+  /** The key's newest event, or null at version 0. */
+  readonly last_event: StoreEventContract | null;
+  readonly operation: StoreInspectOperationContract;
+  readonly result_digest: string;
+  readonly schema: StoreResultSchemaContract;
+  readonly stream: string;
+  readonly version: number;
+};
+
+export type StoreInspectOperationContract = "key.inspect";
+
+/** One page of a stream's keys, newest commit first. */
+export type StoreListedContract = {
+  readonly backend: StoreBackendContract;
+  readonly keys: readonly StoreListedKeyContract[];
+  /** Where the next page starts, or null when there's no further page. */
+  readonly next_cursor: string | null;
+  readonly operation: StoreListOperationContract;
+  readonly result_digest: string;
+  readonly schema: StoreResultSchemaContract;
+  readonly stream: string;
+};
+
+/** A listed key and its newest event. */
+export type StoreListedKeyContract = {
+  readonly key: string;
+  readonly last_event: StoreEventContract;
+};
+
+export type StoreListOperationContract = "keys.list";
+
+/** A key a search matched, by its newest event. */
+export type StoreMatchContract = {
+  readonly key: string;
+  readonly last_event: StoreEventContract;
+  readonly score: number;
+};
+
+/** One page of a key's events, in version order. */
+export type StoreReadContract = {
+  readonly backend: StoreBackendContract;
+  readonly chain_digest: string;
+  readonly events: readonly StoreEventContract[];
+  readonly has_more: boolean;
+  readonly key: string;
+  /** The last version in this page, which the next read passes as `after_version`; with no events, the version read after. */
+  readonly last_version: number;
+  readonly operation: StoreReadOperationContract;
+  readonly result_digest: string;
+  readonly schema: StoreResultSchemaContract;
+  readonly stream: string;
+  /** The key's version. */
+  readonly version: number;
+};
+
+export type StoreReadOperationContract = "events.read";
+
+/** One shape per operation, so an answer says only what its operation does. */
+export type StoreResultContract = StoreAppendedContract | StoreConflictedContract | StoreReadContract | StoreInspectedContract | StoreListedContract | StoreSearchedContract;
+
+/** Every answer's schema. */
+export type StoreResultSchemaContract = "runx.store.result.v1";
+
+/** One page of a search of one stream's current entries, in score order with ties by key. */
+export type StoreSearchedContract = {
+  readonly backend: StoreBackendContract;
+  readonly matches: readonly StoreMatchContract[];
+  readonly next_cursor: string | null;
+  readonly operation: StoreSearchOperationContract;
+  readonly result_digest: string;
+  readonly schema: StoreResultSchemaContract;
+  readonly stream: string;
+};
+
+export type StoreSearchOperationContract = "keys.search";
+
+/** Who wrote an event: the package and the digest of the exact bytes it ran from, set by the runtime, never by a caller. */
+export type StoreWriterContract = {
+  readonly digest: string;
+  readonly package: string;
+};
 
 export type SubjectContract = {
   readonly kind: SubjectKindContract;

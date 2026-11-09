@@ -193,9 +193,9 @@ export {
 } from "./schemas/credential-delivery.js";
 
 export {
-  dataOperationResultV1Schema,
-  validateDataOperationResultContract,
-} from "./schemas/data-operation.js";
+  storeResultV1Schema,
+  validateStoreResultContract,
+} from "./schemas/store-result.js";
 
 export { outputSchema, validateOutputContract } from "./schemas/output.js";
 
@@ -455,7 +455,7 @@ import {
   cancelPurchaseRequestV1Schema,
   cancelPurchaseResultV1Schema,
 } from "./schemas/purchase.js";
-import { dataOperationResultV1Schema } from "./schemas/data-operation.js";
+import { storeResultV1Schema } from "./schemas/store-result.js";
 import { runxSchemaArtifacts } from "./schema-artifacts.js";
 
 export const runxContractSchemas = {
@@ -476,7 +476,7 @@ export const runxContractSchemas = {
   resolutionResponse: runxSchemaArtifacts["resolution-response.schema.json"],
   actResultEnvelope: runxSchemaArtifacts["act-result.schema.json"],
   credentialDeliveryObservation: runxSchemaArtifacts["credential-delivery-observation.schema.json"],
-  dataOperationResult: dataOperationResultV1Schema,
+  storeResult: storeResultV1Schema,
   doctor: runxSchemaArtifacts["doctor.schema.json"],
   list: runxSchemaArtifacts["list.schema.json"],
   skillArchitectureDecision: runxSchemaArtifacts["skill-architecture-decision.schema.json"],

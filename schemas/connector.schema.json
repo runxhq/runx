@@ -2254,7 +2254,7 @@
           },
           "target": {
             "additionalProperties": false,
-            "description": "The target an operation acts on, rendered from the call's arguments and the instance's parameters. The rendered value must equal the admitted target.",
+            "description": "The resource a term's `targets` are checked against. Every operation names one, but one the runtime's own `store` implements: its target is the stream the runtime renders under the calling package (§4.8).",
             "properties": {
               "pattern": {
                 "description": "A regular expression the rendered target must match whole, for a connector whose targets have a shape authority compares, such as a conversation locator.",
@@ -2285,8 +2285,7 @@
         "required": [
           "description",
           "verb",
-          "scopes",
-          "target"
+          "scopes"
         ],
         "title": "ConnectorOperation",
         "type": "object"

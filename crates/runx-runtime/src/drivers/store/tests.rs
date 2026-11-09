@@ -38,7 +38,10 @@ impl Test {
             ]),
             parameters: JsonObject::new(),
             connector: "store",
-            writer: link(OWNER, "sha256:board"),
+            writer: link(
+                OWNER,
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            ),
         }
     }
 
@@ -110,6 +113,7 @@ impl Test {
             })
             .transpose()?;
         let (result, operation_id) = driver.result(&observed.value, &[])?;
+        conforms(&result);
         Ok(Outcome {
             acknowledged: observed.value,
             landed,
@@ -117,6 +121,21 @@ impl Test {
             operation_id,
         })
     }
+}
+
+/// Every answer is one shape of `runx.store.result.v1`, as its generated
+/// schema states it.
+fn conforms(result: &JsonValue) {
+    use runx_contracts::schema::RunxSchema as _;
+    let schema = runx_contracts::StoreResult::json_schema();
+    let validator = jsonschema::draft202012::options().build(&schema).unwrap();
+    let instance = serde_json::to_value(result).unwrap();
+    let errors = validator
+        .iter_errors(&instance)
+        .map(|error| error.to_string())
+        .collect::<Vec<_>>();
+    assert!(errors.is_empty(), "{instance}: {errors:?}");
+    serde_json::from_value::<runx_contracts::StoreResult>(instance).unwrap();
 }
 
 fn link(package: &str, digest: &str) -> ChainLink {
@@ -322,7 +341,7 @@ fn scenario(store: &Test) -> Vec<String> {
     assert_eq!(
         last["writer"],
         serde_json::from_value::<JsonValue>(
-            serde_json::json!({"package": OWNER, "digest": "sha256:board"})
+            serde_json::json!({"package": OWNER, "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
         )
         .unwrap()
     );
@@ -425,14 +444,26 @@ fn an_events_digest_covers_its_writer() {
         package: OWNER.to_owned(),
         digest: digest.to_owned(),
     };
-    let one = event_digest(&event(Some(writer("sha256:one")), "item.labelled")).unwrap();
+    let one = event_digest(&event(
+        Some(writer(&format!("sha256:{}", "1".repeat(64)))),
+        "item.labelled",
+    ))
+    .unwrap();
     assert_ne!(
         one,
-        event_digest(&event(Some(writer("sha256:two")), "item.labelled")).unwrap()
+        event_digest(&event(
+            Some(writer(&format!("sha256:{}", "2".repeat(64)))),
+            "item.labelled"
+        ))
+        .unwrap()
     );
     assert_ne!(
         one,
-        event_digest(&event(Some(writer("sha256:one")), "item.renamed")).unwrap()
+        event_digest(&event(
+            Some(writer(&format!("sha256:{}", "1".repeat(64)))),
+            "item.renamed"
+        ))
+        .unwrap()
     );
     assert_eq!(
         event_digest(&event(None, "item.labelled")).unwrap(),
@@ -465,7 +496,10 @@ fn a_version_1_or_2_sqlite_store_migrates_to_owned_streams() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         let (digests, chain) = old::write_sqlite(&path, version);
         let store = Test {
-            writer: link("runx/reddit", "sha256:reddit"),
+            writer: link(
+                "runx/reddit",
+                "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            ),
             ..Test::workspace(root.path())
         };
         let read = store
@@ -502,7 +536,10 @@ fn a_version_1_or_2_sqlite_store_migrates_to_owned_streams() {
             .unwrap();
         assert_eq!(next.text("status"), "committed");
         let unowned = Test {
-            writer: link(OWNER, "sha256:board"),
+            writer: link(
+                OWNER,
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            ),
             ..Test::workspace(root.path())
         };
         let other = unowned
@@ -717,7 +754,10 @@ fn every_backend_keeps_the_same_streams() {
             old::clear(&url);
             let (digests, chain) = old::write(&url, version);
             let reddit = Test {
-                writer: link("runx/reddit", "sha256:reddit"),
+                writer: link(
+                    "runx/reddit",
+                    "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                ),
                 ..Test::at(isolated.path(), &url)
             };
             let read = reddit
