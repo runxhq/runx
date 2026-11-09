@@ -48,6 +48,30 @@ pub(super) fn validated_module(
     })
 }
 
+/// A script step's module and every module it reaches, from `loaded`, the
+/// validated package its run admitted.
+pub(super) fn validated_script(
+    script: &runx_parser::ScriptStep,
+    loaded: &crate::LoadedSkillPackage,
+    worker_path: Option<String>,
+) -> Result<super::PreparedScript, RuntimeError> {
+    let entry_module = package_relative(
+        profile_directory(loaded.profile_path.as_deref()),
+        &script.module,
+    );
+    let modules = reachable_modules(&loaded.package, &entry_module)?;
+    Ok(super::PreparedScript {
+        entry_module,
+        export_name: script
+            .export
+            .clone()
+            .unwrap_or_else(|| "default".to_owned()),
+        modules,
+        worker_path,
+        limits: InvocationLimits::default(),
+    })
+}
+
 fn reachable_modules(
     package: &runx_parser::ValidatedSkillPackage,
     entry_module: &str,

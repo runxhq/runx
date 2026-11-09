@@ -154,6 +154,7 @@ impl SkillOperatorContextStep {
                 None => format!("operation {}", target.requirement),
             },
             StepKind::Agent(agent) => format!("agent task {}", agent.task),
+            StepKind::Script(script) => format!("script {}", script.module),
             StepKind::Ask(ask) => format!("ask {}", ask.gate),
             StepKind::Load(load) => match &load.target {
                 LoadTarget::Skill { skill, .. } => format!("load skill {skill}"),
@@ -404,7 +405,7 @@ impl ExpansionState {
                 crate::tool_catalogs::native::execution_boundary(tool, &self.options.effects)
                     .map(boundary)
             }
-            StepKind::Tool(ToolTarget::Worker(_)) => {
+            StepKind::Tool(ToolTarget::Worker(_)) | StepKind::Script(_) => {
                 Some(boundary(ExecutionBoundaryKind::DeterministicWorker))
             }
             StepKind::Tool(ToolTarget::Process(_)) => {
@@ -675,7 +676,9 @@ fn step_declares_result(
         // `runx.provider.operation.v1` packet; a child skill's own workflow was
         // validated to declare its result when it was expanded.
         StepKind::Ask(_) | StepKind::Operation(_) | StepKind::Skill(_) | StepKind::Load(_) => true,
-        StepKind::Agent(_) | StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_)) => {
+        StepKind::Agent(_)
+        | StepKind::Script(_)
+        | StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_)) => {
             crate::output_contract::declares_output_contract(
                 definition.outputs.as_ref(),
                 definition.artifacts.as_ref(),

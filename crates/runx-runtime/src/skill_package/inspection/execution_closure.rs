@@ -860,6 +860,20 @@ impl<'a> ExecutionClosureInspector<'a> {
                             .insert(format!("load:{}", load_rule_label(rule)));
                     }
                 }
+                // A script reaches only what its calls name, and its child
+                // skills are walked below.
+                StepKind::Script(script) => {
+                    walk.closure.components.insert("worker".to_owned());
+                    for tool in &script.allowance.tools {
+                        walk.closure.components.insert(format!("tool:{tool}"));
+                    }
+                    for allowed in &script.allowance.operations {
+                        walk.closure.components.insert(format!(
+                            "operation:{}/{}",
+                            allowed.requirement, allowed.operation
+                        ));
+                    }
+                }
                 StepKind::Ask(_) | StepKind::Skill(_) | StepKind::Load(_) => {}
             }
             for child in crate::execution::workflow::child_skill_steps(step) {

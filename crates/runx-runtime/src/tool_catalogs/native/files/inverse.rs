@@ -162,7 +162,8 @@ fn recorded_edits(
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
     // A call is recorded as each of its outcomes; its last is how it ended.
-    let mut latest = BTreeMap::<(String, u32), (Option<String>, String, RunCallOutcome)>::new();
+    let mut latest =
+        BTreeMap::<(String, u32, u32), (Option<String>, String, RunCallOutcome)>::new();
     let mut cursor = None;
     loop {
         let page = crate::execution::run_record::read_run(
@@ -177,7 +178,8 @@ fn recorded_edits(
                 continue;
             }
             let RunEventFact::Call {
-                turn,
+                step_id,
+                attempt,
                 index,
                 target: TurnTarget::Tool { tool },
                 call_id,
@@ -187,8 +189,10 @@ fn recorded_edits(
             else {
                 continue;
             };
+            // A call is its step's attempt and its place in it, whichever
+            // turn or script made it.
             latest.insert(
-                (turn.as_str().to_owned(), index),
+                (step_id.as_str().to_owned(), attempt, index),
                 (
                     call_id.map(|id| id.as_str().to_owned()),
                     tool.as_str().to_owned(),
@@ -204,7 +208,7 @@ fn recorded_edits(
     let artifacts = RunxPaths::resolve(env, workspace).artifacts();
     let mut edits = Vec::new();
     let mut seen = BTreeSet::new();
-    for ((_, index), (call_id, tool, outcome)) in latest {
+    for ((_, _, index), (call_id, tool, outcome)) in latest {
         let Some(call_id) = call_id.filter(|id| wanted.contains(id.as_str())) else {
             continue;
         };

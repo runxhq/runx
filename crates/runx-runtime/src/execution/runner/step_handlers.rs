@@ -4,6 +4,7 @@
 mod host_resolution;
 mod load;
 mod output;
+mod script;
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
@@ -834,6 +835,7 @@ where
         StepKind::Operation(_) => run_operation_step(request)?,
         StepKind::Skill(_) => run_subskill_step(request)?,
         StepKind::Load(load) => load::run_load_step(request, load)?,
+        StepKind::Script(script) => script::run_script_step(request, script)?,
     };
     run.admission_witness =
         step_admission_witness(&step.id, run.receipt.id.as_str(), authority.as_ref());
@@ -1109,7 +1111,8 @@ where
             workflow_name,
             step_id: &step.id,
             attempt,
-            agent,
+            allowance: &agent.allowance,
+            connectors: &agent.connectors,
             effects: step.effects,
             reach: step.reach,
             reads_local_only: host.reads_local_only(),
@@ -1126,7 +1129,7 @@ where
         });
     };
     // A turn ends only once each of its calls has settled.
-    if let Some(index) = turn.unsettled()? {
+    if let Some(index) = turn.ledger().unsettled()? {
         return Err(RuntimeError::ContinuationRejected {
             reason: format!(
                 "agent answer {request_id} was refused: call {index} of its turn has not settled"
@@ -1164,7 +1167,7 @@ where
             extra_outputs: None,
             extra_artifacts: None,
             contract_checks,
-            calls: turn.completed()?,
+            calls: turn.ledger().completed()?,
         },
     )
 }

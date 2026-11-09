@@ -57,8 +57,8 @@ pub use tool::{
 };
 pub use workflow::{
     AgentTask, AskGate, AskReason, Binding, LoadStep, LoadTarget, Operand, OperationStepTarget,
-    ProcessTool, SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow,
-    WorkflowStep, WorkflowWhen, validate_process_tool,
+    ProcessTool, ScriptStep, SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool,
+    Workflow, WorkflowStep, WorkflowWhen, validate_process_tool,
 };
 pub use yaml::{
     assert_execution_profile_yaml_subset, assert_yaml_supported_subset, parse_yaml_document,

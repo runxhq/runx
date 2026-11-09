@@ -299,7 +299,7 @@ fn project(
             RunEventFact::Call {
                 step_id: call.step_id.into(),
                 attempt: call.attempt,
-                turn: call.turn.request_id.into(),
+                turn: call.turn.map(|turn| turn.request_id.into()),
                 index: call.index,
                 target: call.target,
                 input_digest: input_digest(&input)?.into(),

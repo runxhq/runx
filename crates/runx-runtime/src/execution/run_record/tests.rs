@@ -530,7 +530,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         log.record_call(&CallRecord {
             step_id: "answer",
             attempt: 1,
-            turn: &turn,
+            turn: Some(&turn),
             index,
             call_id: None,
             target: &target,
@@ -566,7 +566,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     log.record_call(&CallRecord {
         step_id: "answer",
         attempt: 1,
-        turn: &turn,
+        turn: Some(&turn),
         index: 1,
         call_id: None,
         target: &target,
@@ -591,7 +591,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     log.record_call(&CallRecord {
         step_id: "answer",
         attempt: 1,
-        turn: &turn,
+        turn: Some(&turn),
         index: 2,
         call_id: None,
         target: &target,
@@ -640,7 +640,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         .record_call(&CallRecord {
             step_id: "report",
             attempt: 1,
-            turn: &child_turn,
+            turn: Some(&child_turn),
             index: 0,
             call_id: None,
             target: &TurnTarget::Ask,
@@ -658,7 +658,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
     log.record_call(&CallRecord {
         step_id: "answer",
         attempt: 1,
-        turn: &root_turn,
+        turn: Some(&root_turn),
         index: 0,
         call_id: None,
         target: &TurnTarget::Skill {

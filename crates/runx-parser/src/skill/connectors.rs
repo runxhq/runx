@@ -197,6 +197,22 @@ fn named_operations(workflow: &Workflow) -> Vec<(String, OperationName)> {
     named
 }
 
+/// The requirements of the connectors an allowance's operations name.
+fn allowance_connectors(
+    allowance: &runx_contracts::TurnAllowance,
+    requirements: &BTreeMap<String, ConnectorRequirement>,
+) -> BTreeMap<String, ConnectorRequirement> {
+    allowance
+        .operations
+        .iter()
+        .filter_map(|allowed| {
+            requirements
+                .get_key_value(allowed.requirement.as_str())
+                .map(|(key, requirement)| (key.clone(), requirement.clone()))
+        })
+        .collect()
+}
+
 /// Bind each operation step to its requirement, so the kernel admits it
 /// without the manifest at hand, and each agent step to the requirements its
 /// turn's operations name. A step on a connector chosen per run reads the
@@ -210,16 +226,10 @@ pub(crate) fn bind_operation_steps(
             let field = format!("methods.{name}.steps.{}.operation", step.id);
             match &mut step.kind {
                 crate::StepKind::Agent(agent) => {
-                    agent.connectors = agent
-                        .allowance
-                        .operations
-                        .iter()
-                        .filter_map(|allowed| {
-                            requirements
-                                .get_key_value(allowed.requirement.as_str())
-                                .map(|(key, requirement)| (key.clone(), requirement.clone()))
-                        })
-                        .collect();
+                    agent.connectors = allowance_connectors(&agent.allowance, requirements);
+                }
+                crate::StepKind::Script(script) => {
+                    script.connectors = allowance_connectors(&script.allowance, requirements);
                 }
                 crate::StepKind::Operation(target) => {
                     let requirement = requirements.get(&target.requirement).ok_or_else(|| {

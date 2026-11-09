@@ -43,6 +43,34 @@ pub enum StepKind {
     /// A package a turn's catalog rule admits, bound for the turn's later
     /// calls.
     Load(LoadStep),
+    /// Deterministic code in the JavaScript worker that drives the calls its
+    /// step lists, each admitted, run and recorded by the kernel.
+    Script(ScriptStep),
+}
+
+/// A script step: `script: { module, export }`, called as `(ctx, inputs)`.
+/// It reaches only what its `calls` list, and replays from its run's record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptStep {
+    /// Relative ECMAScript module path inside the package.
+    pub module: String,
+    /// Named export; the module's default export when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub export: Option<String>,
+    /// What the script may call: the step's `calls`, its tools, operations
+    /// and skills. Writing them grants nothing.
+    #[serde(default, skip_serializing_if = "TurnAllowance::is_empty")]
+    pub allowance: TurnAllowance,
+    /// The skill's requirements for the connectors the allowance's operations
+    /// name, bound with it: what admits each operation call.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub connectors: BTreeMap<String, crate::ConnectorRequirement>,
+    /// The hard stop: a call past it fails the step.
+    pub max_calls: u32,
+    /// How many of its calls run at once, drawn from the run's
+    /// `max_concurrency`.
+    pub concurrency: u32,
 }
 
 /// A load an agent's call makes: what it names, the rules that admit it,

@@ -1,5 +1,5 @@
 // Module rationale: step validation is kept together so field-level
-// diagnostics stay consistent across the five step kinds.
+// diagnostics stay consistent across the six step kinds.
 use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::{
@@ -15,21 +15,32 @@ use super::helpers::{
 };
 use super::tool::validate_tool_target;
 use super::types::{
-    AgentTask, AskGate, AskReason, OperationStepTarget, SkillTarget, StepAct, StepKind,
+    AgentTask, AskGate, AskReason, OperationStepTarget, ScriptStep, SkillTarget, StepAct, StepKind,
     WorkflowStep, WorkflowWhen,
 };
 use crate::ValidationError;
 use crate::skill::OutputArtifacts;
 use runx_contracts::connector::{OperationName, is_connector_name, is_operation_name};
 
-/// The five step kinds; a step declares exactly one.
-const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill"];
+/// The six step kinds; a step declares exactly one.
+const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill", "script"];
 
 /// Keys every step may carry.
 const COMMON_FIELDS: &[&str] = &["id", "when", "guard", "effects", "reach"];
 
 /// What an agent step's `calls` may name.
 const CALLS_FIELDS: &[&str] = &["tools", "operations", "skills", "load", "ask"];
+
+/// What a script step's `calls` may name: a script has no `load` and no
+/// `ask`, so a person is asked by a step before or after it.
+const SCRIPT_CALLS_FIELDS: &[&str] = &["tools", "operations", "skills"];
+
+/// What `script` takes.
+const SCRIPT_FIELDS: &[&str] = &["module", "export"];
+
+/// The most calls one script step may make: the kernel's ceiling over every
+/// `max_calls`.
+pub const MAX_SCRIPT_CALLS: u32 = 10_000;
 
 /// What an agent step's `context` gives it.
 const CONTEXT_FIELDS: &[&str] = &["skills", "kinds", "entries"];
@@ -60,6 +71,14 @@ fn kind_fields(kind: &str) -> &'static [&'static str] {
         ],
         "tool" => &["inputs", "outputs", "result_as"],
         "skill" => &["inputs", "outputs", "result_as", "act"],
+        "script" => &[
+            "inputs",
+            "outputs",
+            "result_as",
+            "calls",
+            "max_calls",
+            "concurrency",
+        ],
         "ask" => &["inputs"],
         "operation" => &[
             "inputs",
@@ -204,7 +223,7 @@ fn step_kind_name(raw_step: &JsonObject, field: &str) -> Result<&'static str, Va
     match declared.as_slice() {
         [kind] => Ok(kind),
         _ => Err(validation_error(format!(
-            "{field} must declare exactly one of agent, tool, operation, ask, or skill."
+            "{field} must declare exactly one of agent, tool, operation, ask, skill, or script."
         ))),
     }
 }
@@ -301,6 +320,7 @@ fn validate_kind(
                 )?,
             }))
         }
+        "script" => script_step(raw_step, value, field).map(StepKind::Script),
         _ => skill_target(&non_empty(value, &qualified)?, &qualified).map(StepKind::Skill),
     }
 }
@@ -330,6 +350,62 @@ fn ask_reason(
             "{field} is text, or reads an earlier step's output: write $steps.<id>.<field>, and bind the values a person needs in the ask's inputs."
         ))),
     }
+}
+
+/// `script: { module, export }`, what it may call, and its hard stop.
+fn script_step(
+    raw_step: &JsonObject,
+    value: Option<&JsonValue>,
+    field: &str,
+) -> Result<ScriptStep, ValidationError> {
+    let qualified = format!("{field}.script");
+    let script = required_object(value, &qualified)?;
+    reject_unknown(script, &qualified, SCRIPT_FIELDS)?;
+    let module =
+        super::tool::validate_module(script.get("module"), &format!("{qualified}.module"))?;
+    let export =
+        super::tool::validate_export(script.get("export"), &format!("{qualified}.export"))?;
+    let allowance = match raw_step.get("calls") {
+        Some(calls) => {
+            let calls_field = format!("{field}.calls");
+            reject_unknown(
+                required_object(Some(calls), &calls_field)?,
+                &calls_field,
+                SCRIPT_CALLS_FIELDS,
+            )?;
+            turn_allowance(calls, &calls_field)?
+        }
+        None => TurnAllowance::default(),
+    };
+    let max_calls = match raw_step.get("max_calls") {
+        None => {
+            return Err(validation_error(format!(
+                "{field}.max_calls is required: it is the script's hard stop."
+            )));
+        }
+        Some(value) => bounded_count(value, &format!("{field}.max_calls"), MAX_SCRIPT_CALLS)?,
+    };
+    let concurrency = match raw_step.get("concurrency") {
+        None => 1,
+        Some(value) => bounded_count(value, &format!("{field}.concurrency"), max_calls)?,
+    };
+    Ok(ScriptStep {
+        module,
+        export,
+        allowance,
+        connectors: BTreeMap::new(),
+        max_calls,
+        concurrency,
+    })
+}
+
+/// A whole number from 1 to `maximum`.
+fn bounded_count(value: &JsonValue, field: &str, maximum: u32) -> Result<u32, ValidationError> {
+    value
+        .as_u64()
+        .and_then(|count| u32::try_from(count).ok())
+        .filter(|count| (1..=maximum).contains(count))
+        .ok_or_else(|| validation_error(format!("{field} is a whole number from 1 to {maximum}.")))
 }
 
 /// `skill: <reference>`, or `<reference>#<method>`: a registry name, a

@@ -145,8 +145,10 @@ pub enum RunEventFact {
     Call {
         step_id: NonEmptyString,
         attempt: u32,
-        /// The address of the turn the call was made in.
-        turn: NonEmptyString,
+        /// The address of the turn the call was made in; a script's calls
+        /// belong to no turn.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn: Option<NonEmptyString>,
         index: u32,
         target: TurnTarget,
         input_digest: NonEmptyString,

@@ -16,11 +16,12 @@ use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, InputDefinition, JsonObject,
     JsonValue, LoadedPackage, ProjectBinding, ProvenanceEntry, Reference, ReferenceType,
-    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad,
-    TurnLocator, TurnReadPage, TurnStatus, TurnTarget, TurnTool, TurnView,
+    ResolutionRequest, RunCallOutput, TurnAllowance, TurnCallOutcome, TurnCallResult,
+    TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus, TurnTarget, TurnTool,
+    TurnView,
 };
 use runx_parser::{
-    AgentTask, AskGate, AskReason, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
+    AskGate, AskReason, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
     SkillTarget, StepKind, ToolTarget, WorkflowStep,
 };
 
@@ -215,16 +216,20 @@ const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key"
 /// The longest call id a host may pin.
 const CALL_ID_BYTES: usize = 200;
 
-/// Where a turn runs: the agent step, its attempt, and its runtime.
+/// Where a step's calls run: the step, its attempt, what it may call, and
+/// its runtime.
 pub(super) struct TurnScope<'a, A> {
     pub(super) runtime: &'a Runtime<A>,
     pub(super) workflow_dir: &'a Path,
     pub(super) workflow_name: &'a str,
     pub(super) step_id: &'a str,
     pub(super) attempt: u32,
-    pub(super) agent: &'a AgentTask,
-    /// The agent step's own `effects` and `reach`, which each call it makes
-    /// runs under.
+    /// What the step may call: its `calls`.
+    pub(super) allowance: &'a TurnAllowance,
+    /// The requirements of the connectors the allowance's operations name.
+    pub(super) connectors: &'a BTreeMap<String, ConnectorRequirement>,
+    /// The step's own `effects` and `reach`, which each call it makes runs
+    /// under.
     pub(super) effects: Option<runx_contracts::Effects>,
     pub(super) reach: Option<runx_contracts::Reach>,
     /// Whether the step's host says its model runs on this machine, so the
@@ -232,15 +237,21 @@ pub(super) struct TurnScope<'a, A> {
     pub(super) reads_local_only: bool,
 }
 
-/// The open turn of one agent step: where it runs, the act it answers, and
-/// the calls made in it so far.
-pub(super) struct OpenTurn<'a, A> {
+/// The calls one step makes, as its run records them: admitted, executed and
+/// recorded the same way whichever drives them, an agent's turn or a script.
+pub(super) struct CallLedger<'a, A> {
     scope: TurnScope<'a, A>,
-    invocation: &'a TurnInvocation,
-    /// The act as the run records it.
-    request: PendingRequest,
-    /// The calls the run records for this turn, read when first needed.
+    /// The act of the turn that makes the calls, as the run records it; a
+    /// script's calls belong to no turn.
+    turn: Option<PendingRequest>,
+    /// The calls the run records for the step, read when first needed.
     calls: OnceCell<Vec<RecordedCall>>,
+}
+
+/// The open turn of one agent step: the act it answers, and its calls.
+pub(super) struct OpenTurn<'a, A> {
+    ledger: CallLedger<'a, A>,
+    invocation: &'a TurnInvocation,
 }
 
 /// A call as its host made it: its place in the turn, the id its host
@@ -345,15 +356,100 @@ where
             });
         };
         Ok(Self {
-            scope,
+            ledger: CallLedger {
+                scope,
+                turn: Some(pending_request(request)?),
+                calls: OnceCell::new(),
+            },
             invocation,
-            request: pending_request(request)?,
-            calls: OnceCell::new(),
         })
     }
 
-    /// The turn's calls as the run records them, in order.
-    fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
+    /// The turn's calls.
+    pub(super) fn ledger(&self) -> &CallLedger<'a, A> {
+        &self.ledger
+    }
+}
+
+impl<'a, A> CallLedger<'a, A>
+where
+    A: SkillAdapter,
+{
+    /// The calls of a step no turn drives: a script's.
+    pub(super) fn of_step(scope: TurnScope<'a, A>) -> Self {
+        Self {
+            scope,
+            turn: None,
+            calls: OnceCell::new(),
+        }
+    }
+
+    /// Make call `index`, at the position its driver gives it: admitted,
+    /// executed and recorded at once, as a turn's call is.
+    pub(super) fn make(
+        &mut self,
+        host: &mut dyn Host,
+        index: u32,
+        target: TurnTarget,
+        input: JsonObject,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        self.run(
+            AnsweringHost::new(host, None),
+            Made {
+                index,
+                call_id: None,
+                target,
+                input,
+                standing: None,
+            },
+        )
+    }
+
+    /// Take call `index` further under `host`, which now brings something for
+    /// what it waits on. A settled call returns how it settled.
+    pub(super) fn further(
+        &mut self,
+        host: &mut dyn Host,
+        index: u32,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let Some(call) = self
+            .recorded()?
+            .iter()
+            .find(|call| call.index == index)
+            .cloned()
+        else {
+            return Err(RuntimeError::ContinuationRejected {
+                reason: format!("step {} has no call {index}", self.scope.step_id),
+            });
+        };
+        match call.outcome.clone() {
+            CallOutcome::Child(_) => self.enter(host, call),
+            // The call asks again what it waits on, unchanged.
+            CallOutcome::Pending(waiting) => {
+                self.run(AnsweringHost::new(host, Some(&waiting)), Made::of(&call))
+            }
+            // A claimed call runs again only on the host's exact
+            // acknowledgement, which its new claim records.
+            CallOutcome::Claimed(retry) => {
+                let mut answering = AnsweringHost::new(host, Some(&retry));
+                let acknowledged = answering
+                    .resolve(resolution_request(&retry)?)?
+                    .is_some_and(|response| response.payload == retry_acknowledgement());
+                if !acknowledged {
+                    return Err(RuntimeError::ContinuationRejected {
+                        reason: format!(
+                            "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
+                        ),
+                    });
+                }
+                self.run(answering, Made::of(&call))
+            }
+            settled => self.result(&Made::of(&call), &settled, &call.outputs),
+        }
+    }
+
+    /// The step's calls as the run records them, in order.
+    pub(super) fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
         if let Some(calls) = self.calls.get() {
             return Ok(calls);
         }
@@ -405,7 +501,7 @@ where
 
     /// Why the turn's allowance refuses `target`, if it does.
     fn refusal(&self, target: &TurnTarget) -> Result<Option<String>, RuntimeError> {
-        let allowance = &self.scope.agent.allowance;
+        let allowance = &self.scope.allowance;
         let allowed =
             match target {
                 TurnTarget::Tool { tool } => allowance.tools.contains(tool),
@@ -726,7 +822,7 @@ where
         self.scope.runtime.options.run.record_call(&CallRecord {
             step_id: self.scope.step_id,
             attempt: self.scope.attempt,
-            turn: &self.request,
+            turn: self.turn.as_ref(),
             index: made.index,
             call_id: made.call_id.as_deref(),
             target: &made.target,
@@ -736,9 +832,13 @@ where
             standing: made.standing.as_ref(),
             answers,
         })?;
+        let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
+        let calls = self.recorded_mut()?;
+        // Each event takes the next place among the step's call events.
+        let order = calls.iter().map(|known| known.order + 1).max().unwrap_or(0);
         let call = RecordedCall {
-            step_id: self.scope.step_id.to_owned(),
-            attempt: self.scope.attempt,
+            step_id,
+            attempt,
             index: made.index,
             call_id: made.call_id.clone(),
             target: made.target.clone(),
@@ -746,8 +846,8 @@ where
             standing: made.standing.clone(),
             outcome,
             outputs: outputs.clone(),
+            order,
         };
-        let calls = self.recorded_mut()?;
         match calls.iter_mut().find(|known| known.index == call.index) {
             Some(known) => *known = call,
             None => calls.push(call),
@@ -812,11 +912,22 @@ where
         Ok(outputs)
     }
 
+    /// Whether a call's result is withheld from the step that made it: it
+    /// completed reading what's labelled `local_only`, and the step's host
+    /// can't say its model runs on this machine. A `local_only` result
+    /// reaches a step, a turn or a script, only where a `local_only` context
+    /// entry can.
+    pub(super) fn withholds(&self, outcome: &CallOutcome, outputs: &[RunCallOutput]) -> bool {
+        matches!(outcome, CallOutcome::Completed(run) if run.outcome.succeeded())
+            && !self.scope.reads_local_only
+            && outputs
+                .iter()
+                .any(|part| part.artifact.labels.is_local_only())
+    }
+
     /// How a call stands, as its agent reads it. A skill call waits on what
-    /// its child run waits on. A `local_only` result reaches a turn only where
-    /// a `local_only` context entry can: one whose host says its model runs
-    /// on this machine. Elsewhere the call is refused, and the turn never
-    /// sees what it read.
+    /// its child run waits on. A result it [withholds](Self::withholds) is
+    /// refused, and the turn never sees what it read.
     fn result(
         &self,
         made: &Made,
@@ -824,20 +935,12 @@ where
         outputs: &[RunCallOutput],
     ) -> Result<TurnCallResult, RuntimeError> {
         let outcome = match outcome {
-            CallOutcome::Completed(run)
-                if run.outcome.succeeded()
-                    && !self.scope.reads_local_only
-                    && outputs
-                        .iter()
-                        .any(|part| part.artifact.labels.is_local_only()) =>
-            {
-                TurnCallOutcome::Refused {
-                    reason: reason(format!(
-                        "call {} reads what's labelled local_only, and this turn's host can't say its model runs on this machine",
-                        made.index
-                    )),
-                }
-            }
+            _ if self.withholds(outcome, outputs) => TurnCallOutcome::Refused {
+                reason: reason(format!(
+                    "call {} reads what's labelled local_only, and this turn's host can't say its model runs on this machine",
+                    made.index
+                )),
+            },
             CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
                 output: run.contract.clone(),
                 receipt_id: run.receipt.id.to_string().into(),
@@ -1029,7 +1132,7 @@ where
             }
             TurnTarget::Load => StepKind::Load(LoadStep {
                 target: load_target(input)?,
-                rules: self.scope.agent.allowance.rules().copied().collect(),
+                rules: self.scope.allowance.rules().copied().collect(),
                 held: self.held().map_err(|error| error.to_string())?,
                 projects: self.held_projects().map_err(|error| error.to_string())?,
             }),
@@ -1313,7 +1416,7 @@ where
     /// skill's own, else that of a connector this turn loaded, pinned to the
     /// manifest the load bound.
     fn declared(&self, requirement: &str) -> Result<Option<ConnectorRequirement>, RuntimeError> {
-        if let Some(declared) = self.scope.agent.connectors.get(requirement) {
+        if let Some(declared) = self.scope.connectors.get(requirement) {
             return Ok(Some(declared.clone()));
         }
         for load in self.loads()? {
@@ -1353,7 +1456,7 @@ where
     /// when the turn's skill does not declare it itself: the only connector
     /// its calls run against.
     fn loaded_binding(&self, requirement: &str) -> Result<Option<ConnectorBinding>, RuntimeError> {
-        if self.scope.agent.connectors.contains_key(requirement) {
+        if self.scope.connectors.contains_key(requirement) {
             return Ok(None);
         }
         Ok(self.loads()?.into_iter().rev().find_map(|load| {
@@ -1373,7 +1476,7 @@ where
     /// binds: its skill's requirements, and what its loads bound.
     fn held(&self) -> Result<Vec<ConnectorBinding>, RuntimeError> {
         let mut held = Vec::new();
-        let connectors = &self.scope.agent.connectors;
+        let connectors = self.scope.connectors;
         if !connectors.is_empty() {
             let scope = self.connector_scope()?;
             for (key, requirement) in connectors {
@@ -1532,23 +1635,23 @@ where
     }
 
     fn step_id(&self) -> &str {
-        self.scope.step_id
+        self.ledger.scope.step_id
     }
 
     fn tools(&self) -> Result<Vec<TurnTool>, RuntimeError> {
-        let allowance = &self.scope.agent.allowance;
+        let allowance = &self.ledger.scope.allowance;
         let mut tools = Vec::new();
         for tool in &allowance.tools {
-            tools.push(self.catalog_tool(tool)?);
+            tools.push(self.ledger.catalog_tool(tool)?);
         }
         if !allowance.operations.is_empty() {
-            let connectors = self.connector_scope()?;
+            let connectors = self.ledger.connector_scope()?;
             for allowed in &allowance.operations {
-                tools.push(self.operation_tool(&connectors, allowed)?);
+                tools.push(self.ledger.operation_tool(&connectors, allowed)?);
             }
         }
         for skill in allowance.named_skills() {
-            tools.push(self.skill_tool(
+            tools.push(self.ledger.skill_tool(
                 TurnTarget::Skill {
                     skill: skill.clone(),
                     method: None,
@@ -1568,7 +1671,7 @@ where
         }
         // What a load added, as it described it when it bound it: a package
         // that changed since is refused at its call, never re-read here.
-        for load in self.loads()? {
+        for load in self.ledger.loads()? {
             tools.extend(load.tools.into_iter().filter(|tool| {
                 !matches!(&tool.target, TurnTarget::Operation { requirement, operation }
                 if allowance.operations.iter().any(|allowed| {
@@ -1590,9 +1693,13 @@ where
     }
 
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError> {
-        self.recorded()?
+        self.ledger
+            .recorded()?
             .iter()
-            .map(|call| self.result(&Made::of(call), &call.outcome, &call.outputs))
+            .map(|call| {
+                self.ledger
+                    .result(&Made::of(call), &call.outcome, &call.outputs)
+            })
             .collect()
     }
 
@@ -1615,6 +1722,7 @@ where
                 });
             }
             if let Some(known) = self
+                .ledger
                 .recorded()?
                 .iter()
                 .find(|known| known.call_id.as_deref() == Some(call_id.as_str()))
@@ -1629,11 +1737,13 @@ where
                     });
                 }
                 return self
+                    .ledger
                     .result(&Made::of(known), &known.outcome, &known.outputs)
                     .map(|result| Admission::Settled(Box::new(result)));
             }
         }
         let index = self
+            .ledger
             .recorded()?
             .iter()
             .map(|call| call.index + 1)
@@ -1646,7 +1756,8 @@ where
             input,
             standing: None,
         };
-        self.admit_made(&mut AnsweringHost::new(host, None), made)
+        self.ledger
+            .admit_made(&mut AnsweringHost::new(host, None), made)
     }
 
     fn execute(
@@ -1654,48 +1765,16 @@ where
         host: &mut dyn Host,
         admitted: AdmittedCall,
     ) -> Result<ExecutedCall, RuntimeError> {
-        self.execute_admitted(&mut AnsweringHost::new(host, None), admitted)
+        self.ledger
+            .execute_admitted(&mut AnsweringHost::new(host, None), admitted)
     }
 
     fn conclude(&mut self, executed: ExecutedCall) -> Result<TurnCallResult, RuntimeError> {
-        self.conclude_executed(executed)
+        self.ledger.conclude_executed(executed)
     }
 
     fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError> {
-        let Some(call) = self
-            .recorded()?
-            .iter()
-            .find(|call| call.index == index)
-            .cloned()
-        else {
-            return Err(RuntimeError::ContinuationRejected {
-                reason: format!("the turn has no call {index}"),
-            });
-        };
-        match call.outcome.clone() {
-            CallOutcome::Child(_) => self.enter(host, call),
-            // The call asks again what it waits on, unchanged.
-            CallOutcome::Pending(waiting) => {
-                self.run(AnsweringHost::new(host, Some(&waiting)), Made::of(&call))
-            }
-            // A claimed call runs again only on the host's exact
-            // acknowledgement, which its new claim records.
-            CallOutcome::Claimed(retry) => {
-                let mut answering = AnsweringHost::new(host, Some(&retry));
-                let acknowledged = answering
-                    .resolve(resolution_request(&retry)?)?
-                    .is_some_and(|response| response.payload == retry_acknowledgement());
-                if !acknowledged {
-                    return Err(RuntimeError::ContinuationRejected {
-                        reason: format!(
-                            "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
-                        ),
-                    });
-                }
-                self.run(answering, Made::of(&call))
-            }
-            settled => self.result(&Made::of(&call), &settled, &call.outputs),
-        }
+        self.ledger.further(host, index)
     }
 }
 

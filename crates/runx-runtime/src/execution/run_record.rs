@@ -236,16 +236,17 @@ enum HoldEvent {
     },
 }
 
-/// A call an agent made during its turn. A later event with the same index
-/// settles a call that was pending.
+/// A call a step made: an agent during its turn, or a script. A later event
+/// with the same index settles a call that was pending.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CallEvent {
     step_id: String,
     attempt: u32,
     /// The request the turn answers, so the run's latest event still names
-    /// what it waits on.
-    turn: TurnRequestEvent,
+    /// what it waits on. A script's calls belong to no turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    turn: Option<TurnRequestEvent>,
     index: u32,
     /// The id its host pinned on the call, unique within its turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -405,6 +406,9 @@ pub(crate) struct RecordedCall {
     pub outcome: CallOutcome,
     /// A completed call's output as project artifacts.
     pub outputs: Vec<RunCallOutput>,
+    /// The place of the call's latest event among its step's call events, so
+    /// its calls read back in the order they settled.
+    pub order: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -420,11 +424,12 @@ pub(crate) enum CallOutcome {
     Child(String),
 }
 
-/// What a call records: its turn, its place in it, and how it ended.
+/// What a call records: its turn, if a turn made it, its place in its step,
+/// and how it ended.
 pub(crate) struct CallRecord<'a> {
     pub step_id: &'a str,
     pub attempt: u32,
-    pub turn: &'a PendingRequest,
+    pub turn: Option<&'a PendingRequest>,
     pub index: u32,
     pub call_id: Option<&'a str>,
     pub target: &'a TurnTarget,
@@ -480,9 +485,11 @@ pub(crate) struct RunRecord {
     /// The standing approvals the person last set, which replace the set the
     /// run started with.
     pub standing: Option<Vec<StandingApproval>>,
-    /// Every call agents made during the run's turns, each as its latest
-    /// event settled it, in the order they were first made.
+    /// Every call the run's steps made, each as its latest event settled it,
+    /// in the order they were first made.
     pub calls: Vec<RecordedCall>,
+    /// How many call events the run records.
+    pub calls_recorded: u64,
     /// How many times the run has waited for a bounded retry.
     pub retries: u32,
     pub sealed: Option<Sealed>,
@@ -1126,9 +1133,19 @@ impl RunLog {
 
     /// A call an agent made during its turn, with the answers it consumed.
     pub(crate) fn record_call(&self, call: &CallRecord<'_>) -> Result<(), RunRecordError> {
-        let turn = Blob::json(&call.turn.value)?;
         let input = Blob::json(call.input)?;
-        let mut blobs = vec![turn, input];
+        let turn = call.turn.map(|turn| Blob::json(&turn.value)).transpose()?;
+        let turn_event = call
+            .turn
+            .zip(turn.as_ref())
+            .map(|(turn, blob)| TurnRequestEvent {
+                request_id: turn.id.clone(),
+                request: blob.digest().to_owned(),
+                digest: turn.digest.clone(),
+            });
+        let input_digest = input.digest().to_owned();
+        let mut blobs = vec![input];
+        blobs.extend(turn);
         let settlement = match call.outcome {
             CallOutcome::Completed(step) => step.settlement.as_ref(),
             _ => None,
@@ -1197,15 +1214,11 @@ impl RunLog {
         let event = CallEvent {
             step_id: call.step_id.to_owned(),
             attempt: call.attempt,
-            turn: TurnRequestEvent {
-                request_id: call.turn.id.clone(),
-                request: blobs[0].digest().to_owned(),
-                digest: call.turn.digest.clone(),
-            },
+            turn: turn_event,
             index: call.index,
             call_id: call.call_id.map(str::to_owned),
             target: call.target.clone(),
-            input: blobs[1].digest().to_owned(),
+            input: input_digest,
             outcome,
             standing: call.standing.cloned(),
             answers: call
@@ -1422,10 +1435,12 @@ fn standing(latest: &RunEvent) -> (RunState, Option<RunOutcome>, Option<String>)
             Some(sealed.outcome),
             Some(sealed.receipt_id.clone()),
         ),
-        RunEvent::Suspended(_)
-        | RunEvent::Call(_)
-        | RunEvent::Answered(_)
-        | RunEvent::Standing(_) => (RunState::Paused, None, None),
+        RunEvent::Suspended(_) | RunEvent::Answered(_) | RunEvent::Standing(_) => {
+            (RunState::Paused, None, None)
+        }
+        // A turn's call leaves its run paused at the turn; a script's call
+        // is its step still running.
+        RunEvent::Call(call) if call.turn.is_some() => (RunState::Paused, None, None),
         _ => (RunState::Running, None, None),
     }
 }
@@ -1544,6 +1559,7 @@ fn replay(
         admitted: Vec::new(),
         standing: None,
         calls: Vec::new(),
+        calls_recorded: 0,
         retries: 0,
         sealed: None,
     };
@@ -1616,7 +1632,9 @@ fn replay(
             RunEvent::Call(call) => {
                 let call = *call;
                 record.consume(store, &call.answers)?;
-                settle_call(&mut record.calls, recorded_call(store, call)?);
+                let order = record.calls_recorded;
+                record.calls_recorded += 1;
+                settle_call(&mut record.calls, recorded_call(store, call, order)?);
             }
             // A new standing set leaves the run where it waits.
             RunEvent::Standing(standing) => record.standing = Some(standing.approvals),
@@ -1658,12 +1676,14 @@ fn turn_calls(
     attempt: u32,
 ) -> Result<Vec<RecordedCall>, RunRecordError> {
     let mut calls = Vec::new();
+    let mut order = 0;
     for event in events {
         if let RunEvent::Call(call) = event
             && call.step_id == step_id
             && call.attempt == attempt
         {
-            settle_call(&mut calls, recorded_call(store, *call)?);
+            settle_call(&mut calls, recorded_call(store, *call, order)?);
+            order += 1;
         }
     }
     calls.sort_by_key(|call| call.index);
@@ -1682,8 +1702,13 @@ fn settle_call(calls: &mut Vec<RecordedCall>, recorded: RecordedCall) {
     }
 }
 
-fn recorded_call(store: &KernelStore, call: CallEvent) -> Result<RecordedCall, RunRecordError> {
+fn recorded_call(
+    store: &KernelStore,
+    call: CallEvent,
+    order: u64,
+) -> Result<RecordedCall, RunRecordError> {
     Ok(RecordedCall {
+        order,
         outcome: call_outcome(store, &call)?,
         input: store.blob_json(&call.input)?,
         step_id: call.step_id,
@@ -1863,14 +1888,18 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
         };
         let suspended = match latest.event {
             RunEvent::Suspended(suspended) => suspended,
-            // A call leaves the run waiting on the turn it was made in.
+            // A turn's call leaves the run waiting on the turn it was made
+            // in.
             RunEvent::Call(call) => {
+                let Some(turn) = call.turn else {
+                    return Ok(None);
+                };
                 return Ok(Some(Held {
                     run_id: current,
                     request: PendingRequest {
-                        id: call.turn.request_id,
-                        value: store.blob_json(&call.turn.request)?,
-                        digest: call.turn.digest,
+                        id: turn.request_id,
+                        value: store.blob_json(&turn.request)?,
+                        digest: turn.digest,
                     },
                     step_id: call.step_id,
                     attempt: call.attempt,
@@ -2146,7 +2175,7 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunListEntry>, R
     let (state, outcome, receipt_id) = standing(&latest.event);
     let pending_request_id = match latest.event {
         RunEvent::Suspended(_) => held(store, &head.key)?.map(|held| held.request.id),
-        RunEvent::Call(call) => Some(call.turn.request_id),
+        RunEvent::Call(call) => call.turn.map(|turn| turn.request_id),
         _ => None,
     };
     Ok(Some(RunListEntry {

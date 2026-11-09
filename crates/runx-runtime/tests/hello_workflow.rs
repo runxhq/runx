@@ -26,7 +26,8 @@ methods:
     };
     let message = error.to_string();
     assert!(
-        message.contains("must declare exactly one of agent, tool, operation, ask, or skill"),
+        message
+            .contains("must declare exactly one of agent, tool, operation, ask, skill, or script"),
         "unexpected error: {message}"
     );
     Ok(())

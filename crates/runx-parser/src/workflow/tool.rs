@@ -144,7 +144,10 @@ fn optional_u64(value: Option<&JsonValue>, field: &str) -> Result<Option<u64>, V
         .transpose()
 }
 
-fn validate_module(value: Option<&JsonValue>, field: &str) -> Result<String, ValidationError> {
+pub(super) fn validate_module(
+    value: Option<&JsonValue>,
+    field: &str,
+) -> Result<String, ValidationError> {
     let module = required_string(value, field)?;
     let segments = module.split('/').collect::<Vec<_>>();
     if module.starts_with('/')
@@ -161,7 +164,7 @@ fn validate_module(value: Option<&JsonValue>, field: &str) -> Result<String, Val
     Ok(module)
 }
 
-fn validate_export(
+pub(super) fn validate_export(
     value: Option<&JsonValue>,
     field: &str,
 ) -> Result<Option<String>, ValidationError> {

@@ -7949,7 +7949,7 @@ export const runxSchemaArtifacts = {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnTarget"
               },
               "turn": {
-                "description": "The address of the turn the call was made in.",
+                "description": "The address of the turn the call was made in; a script's calls belong to no turn.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -7958,7 +7958,6 @@ export const runxSchemaArtifacts = {
               "kind",
               "step_id",
               "attempt",
-              "turn",
               "index",
               "target",
               "input_digest",

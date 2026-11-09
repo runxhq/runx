@@ -42,6 +42,23 @@ pub(crate) struct PreparedJavaScriptInvocation {
     limits: runx_contracts::javascript_worker::InvocationLimits,
 }
 
+/// A script step's module bundle, prepared once and passed again after each
+/// settlement.
+pub(crate) struct PreparedScript {
+    entry_module: String,
+    export_name: String,
+    modules: std::collections::BTreeMap<String, String>,
+    worker_path: Option<String>,
+    limits: runx_contracts::javascript_worker::InvocationLimits,
+}
+
+/// What one script pass came to: the calls it made, in position order, and
+/// how it ended.
+pub(crate) struct ScriptPassed {
+    pub(crate) calls: Vec<runx_contracts::javascript_worker::ScriptCall>,
+    pub(crate) ending: runx_contracts::javascript_worker::ScriptEnding,
+}
+
 impl PreparedJavaScriptInvocation {
     fn with_inputs(
         &self,
@@ -108,6 +125,51 @@ impl JavaScriptAdapter {
         let started = Instant::now();
         let outcome = self.supervisor.invoke(prepared.with_inputs(inputs)?)?;
         project_worker_outcome(started, outcome)
+    }
+
+    /// Prepare script step `script` to run from `package`, the validated
+    /// package its run admitted.
+    pub(crate) fn prepare_script(
+        &self,
+        script: &runx_parser::ScriptStep,
+        package: &crate::LoadedSkillPackage,
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> Result<PreparedScript, RuntimeError> {
+        bundle::validated_script(script, package, env.get(WORKER_PATH_ENV).cloned())
+    }
+
+    /// Run one pass of `prepared` against what its calls `settled`, in the
+    /// order they settled; a `ctx.now()` past the record reads `now`.
+    pub(crate) fn pass(
+        &self,
+        prepared: &PreparedScript,
+        inputs: &JsonObject,
+        settled: Vec<runx_contracts::javascript_worker::ScriptSettlement>,
+        now: i64,
+    ) -> Result<ScriptPassed, RuntimeError> {
+        let inputs = serde_json::to_value(inputs)
+            .map_err(|source| RuntimeError::json("serializing a script's inputs", source))?;
+        let outcome = self.supervisor.pass(supervisor::ScriptPassInvocation {
+            entry_module: prepared.entry_module.clone(),
+            export_name: prepared.export_name.clone(),
+            modules: prepared.modules.clone(),
+            inputs,
+            worker_path: prepared.worker_path.clone(),
+            limits: prepared.limits,
+            settled,
+            now,
+        })?;
+        match outcome.result {
+            supervisor::WorkerInvocationResult::Passed { calls, ending } => {
+                Ok(ScriptPassed { calls, ending })
+            }
+            supervisor::WorkerInvocationResult::Failure { message, .. } => {
+                Err(RuntimeError::JavaScriptWorker { message })
+            }
+            supervisor::WorkerInvocationResult::Success(_) => Err(RuntimeError::JavaScriptWorker {
+                message: "the worker answered a script pass with a tool's result".to_owned(),
+            }),
+        }
     }
 
     /// Run `request` from `package`, the validated package its run admitted.
@@ -180,6 +242,9 @@ fn project_worker_outcome(
                 worker_observations(outcome.execution_boundary),
             ),
         ),
+        supervisor::WorkerInvocationResult::Passed { .. } => Err(RuntimeError::JavaScriptWorker {
+            message: "the worker answered a tool with a script pass".to_owned(),
+        }),
     }
 }
 

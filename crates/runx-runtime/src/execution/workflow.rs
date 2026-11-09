@@ -565,36 +565,37 @@ pub(crate) fn purchase_workflow(skill: &str, method: &str, inputs: &JsonObject) 
 pub(crate) const PURCHASE_STEP: &str = "purchase";
 
 /// The child skills `step` may run, each as the skill step that runs it: a
-/// skill step its own target, and an agent turn one step per child skill its
-/// allowance names, resolved exactly as the turn's call to it is.
+/// skill step its own target, and an agent turn or a script one step per
+/// child skill its `calls` name, resolved exactly as its call to it is.
 pub(crate) fn child_skill_steps(step: &WorkflowStep) -> Vec<Cow<'_, WorkflowStep>> {
-    match &step.kind {
-        StepKind::Skill(_) => vec![Cow::Borrowed(step)],
-        StepKind::Agent(agent) => agent
-            .allowance
-            .named_skills()
-            .map(|skill| {
-                Cow::Owned(WorkflowStep {
-                    id: step.id.clone(),
-                    kind: StepKind::Skill(turn_skill_target(skill.as_str())),
-                    artifacts: None,
-                    outputs: None,
-                    inputs: JsonObject::new(),
-                    bindings: Vec::new(),
-                    act: None,
-                    context_skills: Vec::new(),
-                    when: None,
-                    guard: Vec::new(),
-                    retry_unknown_outcomes: false,
-                    effects: step.effects,
-                    reach: step.reach,
-                })
-            })
-            .collect(),
+    let allowance = match &step.kind {
+        StepKind::Skill(_) => return vec![Cow::Borrowed(step)],
+        StepKind::Agent(agent) => &agent.allowance,
+        StepKind::Script(script) => &script.allowance,
         StepKind::Tool(_) | StepKind::Operation(_) | StepKind::Ask(_) | StepKind::Load(_) => {
-            Vec::new()
+            return Vec::new();
         }
-    }
+    };
+    allowance
+        .named_skills()
+        .map(|skill| {
+            Cow::Owned(WorkflowStep {
+                id: step.id.clone(),
+                kind: StepKind::Skill(turn_skill_target(skill.as_str())),
+                artifacts: None,
+                outputs: None,
+                inputs: JsonObject::new(),
+                bindings: Vec::new(),
+                act: None,
+                context_skills: Vec::new(),
+                when: None,
+                guard: Vec::new(),
+                retry_unknown_outcomes: false,
+                effects: step.effects,
+                reach: step.reach,
+            })
+        })
+        .collect()
 }
 
 /// What a turn's call to child skill `skill` runs: the method its reference

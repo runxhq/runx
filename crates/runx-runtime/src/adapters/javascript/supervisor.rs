@@ -4,7 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    InvocationLimits, PROTOCOL_VERSION, WorkerFate, WorkerInvocationRequest, WorkerRequest,
+    InvocationLimits, PROTOCOL_VERSION, ScriptCall, ScriptEnding, ScriptPassRequest,
+    ScriptSettlement, WorkerFate, WorkerInvocationRequest, WorkerRequest,
 };
 
 use crate::RuntimeError;
@@ -29,9 +30,30 @@ pub(super) struct WorkerInvocation {
     pub(super) limits: InvocationLimits,
 }
 
+/// One pass of a script step, as the supervisor sends it.
+#[derive(Debug)]
+pub(super) struct ScriptPassInvocation {
+    pub(super) entry_module: String,
+    pub(super) export_name: String,
+    pub(super) modules: BTreeMap<String, String>,
+    pub(super) inputs: serde_json::Value,
+    pub(super) worker_path: Option<String>,
+    pub(super) limits: InvocationLimits,
+    pub(super) settled: Vec<ScriptSettlement>,
+    pub(super) now: i64,
+}
+
 pub(super) enum WorkerInvocationResult {
     Success(serde_json::Value),
-    Failure { message: String, fate: WorkerFate },
+    /// A script pass: the calls it made and how it ended.
+    Passed {
+        calls: Vec<ScriptCall>,
+        ending: ScriptEnding,
+    },
+    Failure {
+        message: String,
+        fate: WorkerFate,
+    },
 }
 
 pub(super) struct WorkerInvocationOutcome {
@@ -66,15 +88,46 @@ impl JavaScriptWorkerSupervisor {
         self.invoke_inner(invocation, || {})
     }
 
+    /// Run one pass of a script step.
+    pub(super) fn pass(
+        &self,
+        pass: ScriptPassInvocation,
+    ) -> Result<WorkerInvocationOutcome, RuntimeError> {
+        let invocation_id = self.invocation_id();
+        let cpu_budget = Duration::from_millis(pass.limits.cpu_milliseconds);
+        let request = WorkerRequest::Pass(Box::new(ScriptPassRequest {
+            protocol_version: PROTOCOL_VERSION,
+            invocation_id: invocation_id.clone(),
+            entry_module: pass.entry_module,
+            export_name: pass.export_name,
+            modules: pass.modules,
+            inputs: pass.inputs,
+            limits: pass.limits,
+            settled: pass.settled,
+            now: pass.now,
+        }));
+        self.exchange(
+            &invocation_id,
+            &request,
+            cpu_budget,
+            pass.worker_path.as_deref(),
+            || {},
+        )
+    }
+
+    fn invocation_id(&self) -> String {
+        format!(
+            "js-{}",
+            self.next_invocation.fetch_add(1, Ordering::Relaxed)
+        )
+    }
+
     fn invoke_inner(
         &self,
         invocation: WorkerInvocation,
         after_acquire: impl FnOnce(),
     ) -> Result<WorkerInvocationOutcome, RuntimeError> {
-        let invocation_id = format!(
-            "js-{}",
-            self.next_invocation.fetch_add(1, Ordering::Relaxed)
-        );
+        let invocation_id = self.invocation_id();
         let cpu_budget = Duration::from_millis(invocation.limits.cpu_milliseconds);
         let worker_path = invocation.worker_path;
         let request = WorkerRequest::Invoke(Box::new(WorkerInvocationRequest {
@@ -87,18 +140,40 @@ impl JavaScriptWorkerSupervisor {
             environment: invocation.environment,
             limits: invocation.limits,
         }));
-        let mut lease = self.pool.acquire(worker_path.as_deref())?;
+        self.exchange(
+            &invocation_id,
+            &request,
+            cpu_budget,
+            worker_path.as_deref(),
+            after_acquire,
+        )
+    }
+
+    /// Send `request` on a leased worker and read its answer within
+    /// `cpu_budget` of the worker's CPU time; a worker that failed in a way
+    /// that leaves it unusable is discarded.
+    fn exchange(
+        &self,
+        invocation_id: &str,
+        request: &WorkerRequest,
+        cpu_budget: Duration,
+        worker_path: Option<&str>,
+        after_acquire: impl FnOnce(),
+    ) -> Result<WorkerInvocationOutcome, RuntimeError> {
+        let mut lease = self.pool.acquire(worker_path)?;
         after_acquire();
         let (execution_boundary, result) = {
             let session = lease.session_mut()?;
             let execution_boundary = session.execution_boundary;
-            let result = session.invoke(&invocation_id, &request, cpu_budget, self.clock.as_ref());
+            let result = session.invoke(invocation_id, request, cpu_budget, self.clock.as_ref());
             (execution_boundary, result)
         };
         match result {
             Ok(response) => {
                 let fate = match &response {
-                    WorkerInvocationResult::Success(_) => WorkerFate::Reuse,
+                    WorkerInvocationResult::Success(_) | WorkerInvocationResult::Passed { .. } => {
+                        WorkerFate::Reuse
+                    }
                     WorkerInvocationResult::Failure { fate, .. } => *fate,
                 };
                 if fate == WorkerFate::Discard {

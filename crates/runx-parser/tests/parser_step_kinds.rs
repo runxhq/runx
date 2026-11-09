@@ -541,3 +541,68 @@ fn an_input_cannot_take_the_name_of_the_invokers_act() -> Result<(), String> {
     assert!(error.contains("never one of them"), "{error}");
     Ok(())
 }
+
+#[test]
+fn a_script_step_names_its_module_calls_and_hard_stop() -> Result<(), String> {
+    let parsed = method(
+        "      - id: prepare\n        script: {module: batch.mjs, export: prepare}\n        inputs: {leads: $input.leads}\n        calls:\n          skills: [lead-enrichment#enrich, .#draft]\n          tools: [fs.read]\n          operations: [github/issues.list]\n        max_calls: 120\n        concurrency: 4\n",
+    )?;
+    let StepKind::Script(script) = &only_step(&parsed).kind else {
+        return Err("expected a script step".to_owned());
+    };
+    assert_eq!(script.module, "batch.mjs");
+    assert_eq!(script.export.as_deref(), Some("prepare"));
+    assert_eq!(script.max_calls, 120);
+    assert_eq!(script.concurrency, 4);
+    assert_eq!(script.allowance.tools.len(), 1);
+    assert_eq!(script.allowance.operations.len(), 1);
+    assert_eq!(script.allowance.named_skills().count(), 2);
+    let plain =
+        method("      - id: prepare\n        script: {module: batch.mjs}\n        max_calls: 1\n")?;
+    let StepKind::Script(script) = &only_step(&plain).kind else {
+        return Err("expected a script step".to_owned());
+    };
+    assert_eq!(script.export, None);
+    assert_eq!(script.concurrency, 1);
+    Ok(())
+}
+
+#[test]
+fn a_script_step_refuses_what_a_script_cannot_do() {
+    for (step, refusal) in [
+        ("script: {module: batch.mjs}\n", "max_calls is required"),
+        (
+            "script: {module: batch.mjs}\n        max_calls: 0\n",
+            "from 1 to",
+        ),
+        (
+            "script: {module: batch.mjs}\n        max_calls: 2\n        concurrency: 3\n",
+            "concurrency is a whole number from 1 to 2",
+        ),
+        (
+            "script: {module: batch.mjs}\n        max_calls: 2\n        calls: {ask: true}\n",
+            "calls.ask is not a field here",
+        ),
+        (
+            "script: {module: batch.mjs}\n        max_calls: 2\n        calls: {load: [{project: true}]}\n",
+            "calls.load is not a field here",
+        ),
+        (
+            "script: {module: ../escape.mjs}\n        max_calls: 2\n",
+            "module",
+        ),
+        (
+            "script: {module: batch.mjs, timeout_seconds: 3}\n        max_calls: 2\n",
+            "timeout_seconds is not a field here",
+        ),
+        (
+            "script: {module: batch.mjs}\n        max_calls: 2\n        context: {skills: [release]}\n",
+            "context does not apply to this script step",
+        ),
+    ] {
+        let error = method(&format!("      - id: prepare\n        {step}"))
+            .err()
+            .unwrap_or_default();
+        assert!(error.contains(refusal), "{step}: {error}");
+    }
+}

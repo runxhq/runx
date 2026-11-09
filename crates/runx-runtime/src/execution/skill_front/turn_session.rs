@@ -500,7 +500,7 @@ mod tests {
         log.record_call(&CallRecord {
             step_id: "answer",
             attempt: 1,
-            turn: &turn,
+            turn: Some(&turn),
             index: 0,
             call_id: None,
             target: &TurnTarget::Tool {

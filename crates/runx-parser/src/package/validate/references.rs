@@ -123,6 +123,11 @@ fn collect_workflow_references(
                     .module_roots
                     .insert(package_relative(profile_dir, &worker.module));
             }
+            StepKind::Script(script) => {
+                references
+                    .module_roots
+                    .insert(package_relative(profile_dir, &script.module));
+            }
             StepKind::Tool(ToolTarget::Process(process)) => collect_process_execution_files(
                 profile_dir,
                 std::iter::once(&process.command).chain(&process.args),

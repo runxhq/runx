@@ -2722,8 +2722,8 @@ export type RunEventFactContract = {
   readonly standing?: StandingApprovalContract;
   readonly step_id: string;
   readonly target: TurnTargetContract;
-  /** The address of the turn the call was made in. */
-  readonly turn: string;
+  /** The address of the turn the call was made in; a script's calls belong to no turn. */
+  readonly turn?: string;
 } | {
   readonly kind: "sealed";
   readonly outcome: RunOutcomeContract;
