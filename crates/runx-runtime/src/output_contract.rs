@@ -104,7 +104,7 @@ pub(crate) fn project_artifact_outputs(
 /// outputs are artifacts is declared, so a value is never inspected to guess
 /// whether it is wrapped already.
 #[must_use]
-fn data_envelope(value: JsonValue) -> JsonValue {
+pub(crate) fn data_envelope(value: JsonValue) -> JsonValue {
     JsonValue::Object(JsonObject::from([("data".to_owned(), value)]))
 }
 

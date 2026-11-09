@@ -1113,3 +1113,109 @@ fn a_reference_in_an_operations_input_reaches_it_as_the_artifacts_content() -> T
     );
     Ok(())
 }
+
+/// A child skill, `pack`, whose JavaScript returns `letters` letters as the
+/// `text` of its `letters` packet.
+fn write_pack(root: &Path, letters: usize) -> TestResult {
+    let pack = root.join("pack");
+    crate::support::write_test_skill_package(
+        &pack,
+        "---\nname: pack\ndescription: Packs letters.\n---\n# Pack\n\nPack them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  pack:\n    steps:\n      - id: pack\n        tool: {module: pack.mjs, export: pack}\n        outputs:\n          letters: {type: object, packet: acme/pack.letters.v1}\n",
+    )?;
+    std::fs::create_dir_all(pack.join("packets"))?;
+    std::fs::write(
+        pack.join("packets/letters.v1.schema.json"),
+        r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/acme/pack/letters/v1.json",
+  "x-runx-packet-id": "acme/pack.letters.v1",
+  "type": "object",
+  "required": ["text"],
+  "properties": { "text": { "type": "string" } },
+  "additionalProperties": false
+}"#,
+    )?;
+    std::fs::write(
+        pack.join("pack.mjs"),
+        format!(
+            "export const pack = () => ({{ letters: {{ text: \"a\".repeat({letters}) }} }});\n"
+        ),
+    )?;
+    Ok(())
+}
+
+/// The packet a script step's own `letters` output declares, requiring
+/// `field`.
+fn write_letters_packet(skill_dir: &Path, field: &str) -> TestResult {
+    std::fs::create_dir_all(skill_dir.join("packets"))?;
+    std::fs::write(
+        skill_dir.join("packets/letters.v1.schema.json"),
+        format!(
+            r#"{{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/acme/script-one/letters/v1.json",
+  "x-runx-packet-id": "acme/script-one.letters.v1",
+  "type": "object",
+  "required": ["{field}"],
+  "properties": {{ "{field}": {{ "type": "string" }} }},
+  "additionalProperties": false
+}}"#
+        ),
+    )?;
+    Ok(())
+}
+
+/// A packet output's field past the inline bound reaches the script as a
+/// reference to the packet's artifact. `ctx.read` of it returns exactly what
+/// the field would have held inline, the packet in its envelope, and the
+/// reference returned as the script's own packet output is the packet,
+/// checked against that output's packet schema.
+#[test]
+fn a_large_packet_reads_as_its_inline_value_and_returns_as_a_checked_packet() -> TestResult {
+    let script = r#"export default async function (ctx) {
+  const made = await ctx.skill("../pack", {});
+  const read = await ctx.read(made.letters);
+  return { kind: typeof made.letters, read, letters: made.letters };
+}
+"#;
+    let step = "        calls:\n          skills: [../pack]\n        max_calls: 2\n        outputs:\n          kind: {type: string}\n          read: {type: object}\n          letters: {type: object, packet: acme/script-one.letters.v1}\n";
+    let temp = tempdir()?;
+    write_pack(temp.path(), 100_000)?;
+    let skill_dir = write_one_step(temp.path(), step, script)?;
+    write_letters_packet(&skill_dir, "text")?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    let letters = serde_json::json!({"text": "a".repeat(100_000)});
+    assert_eq!(
+        text(result, "kind"),
+        Some("object"),
+        "it arrived by reference"
+    );
+    assert_eq!(
+        serde_json::to_value(result.get("read").ok_or("read")?)?,
+        serde_json::json!({ "data": letters }),
+        "ctx.read returns the field as it would have held it inline"
+    );
+    assert_eq!(
+        serde_json::to_value(result.get("letters").ok_or("letters")?)?,
+        serde_json::json!({ "data": letters }),
+        "the returned reference is the step's packet"
+    );
+
+    // The returned packet is checked against the output's packet schema.
+    let temp = tempdir()?;
+    write_pack(temp.path(), 100_000)?;
+    let skill_dir = write_one_step(temp.path(), step, script)?;
+    write_letters_packet(&skill_dir, "count")?;
+    let failed = run(temp.path(), skill_dir)?;
+    let output = object(&failed.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    assert!(
+        serde_json::to_string(output)?.contains("output violates schema"),
+        "the packet schema refused it: {output:?}"
+    );
+    Ok(())
+}

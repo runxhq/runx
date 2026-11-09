@@ -598,7 +598,7 @@ where
             }
         }
         CallOutcome::Read(artifact) => ScriptCallOutcome::Resolved {
-            value: serde_json::to_value(ledger.content(artifact)?).map_err(delivering)?,
+            value: serde_json::to_value(ledger.read_value(artifact)?).map_err(delivering)?,
             references: Vec::new(),
         },
         CallOutcome::TooLarge { size_bytes, bound } => rejected(
