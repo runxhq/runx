@@ -44,6 +44,15 @@ pub(crate) enum Work {
     ReceiptIndexEntryRead,
     /// An entry written to the receipt index, by an append or a rebuild.
     ReceiptIndexEntryWritten,
+    /// A row a key listing of the `private` store visited.
+    StoreKeyRowVisited,
+    /// A row a key listing visited and passed over, its newest event of a type
+    /// it wasn't asked for.
+    StoreKeyRowPassedOver,
+    /// One page of a stream's search in the `private` store.
+    StoreSearchPage,
+    /// One event read from a key's history in the `private` store.
+    StoreEventRowRead,
 }
 
 static PROCESS_SPAWNS: AtomicU64 = AtomicU64::new(0);
@@ -62,6 +71,10 @@ static STORE_ROWS_READ: AtomicU64 = AtomicU64::new(0);
 static RECEIPT_DIRECTORY_ENTRIES_READ: AtomicU64 = AtomicU64::new(0);
 static RECEIPT_INDEX_ENTRIES_READ: AtomicU64 = AtomicU64::new(0);
 static RECEIPT_INDEX_ENTRIES_WRITTEN: AtomicU64 = AtomicU64::new(0);
+static STORE_KEY_ROWS_VISITED: AtomicU64 = AtomicU64::new(0);
+static STORE_KEY_ROWS_PASSED_OVER: AtomicU64 = AtomicU64::new(0);
+static STORE_SEARCH_PAGES: AtomicU64 = AtomicU64::new(0);
+static STORE_EVENT_ROWS_READ: AtomicU64 = AtomicU64::new(0);
 
 /// The points an artifact's bytes are copied at, from the store to a worker
 /// and to a result.
@@ -120,6 +133,10 @@ pub(crate) fn count_many(work: Work, units: usize) {
         Work::ReceiptDirectoryEntryRead => &RECEIPT_DIRECTORY_ENTRIES_READ,
         Work::ReceiptIndexEntryRead => &RECEIPT_INDEX_ENTRIES_READ,
         Work::ReceiptIndexEntryWritten => &RECEIPT_INDEX_ENTRIES_WRITTEN,
+        Work::StoreKeyRowVisited => &STORE_KEY_ROWS_VISITED,
+        Work::StoreKeyRowPassedOver => &STORE_KEY_ROWS_PASSED_OVER,
+        Work::StoreSearchPage => &STORE_SEARCH_PAGES,
+        Work::StoreEventRowRead => &STORE_EVENT_ROWS_READ,
     };
     counter.fetch_add(u64::try_from(units).unwrap_or(u64::MAX), Ordering::Relaxed);
 }
@@ -221,6 +238,15 @@ pub struct WorkCounts {
     pub receipt_index_entries_read: u64,
     /// Entries written to the receipt index.
     pub receipt_index_entries_written: u64,
+    /// Rows the `private` store's key listings visited, as SQLite's recency
+    /// index stepped them.
+    pub store_key_rows_visited: u64,
+    /// Of those, the rows a listing passed over for their type.
+    pub store_key_rows_passed_over: u64,
+    /// Pages of the `private` store's stream searches.
+    pub store_search_pages: u64,
+    /// Events read from keys' histories in the `private` store.
+    pub store_event_rows_read: u64,
 }
 
 #[must_use]
@@ -256,6 +282,10 @@ pub fn snapshot() -> WorkCounts {
         receipt_directory_entries_read: RECEIPT_DIRECTORY_ENTRIES_READ.load(Ordering::Relaxed),
         receipt_index_entries_read: RECEIPT_INDEX_ENTRIES_READ.load(Ordering::Relaxed),
         receipt_index_entries_written: RECEIPT_INDEX_ENTRIES_WRITTEN.load(Ordering::Relaxed),
+        store_key_rows_visited: STORE_KEY_ROWS_VISITED.load(Ordering::Relaxed),
+        store_key_rows_passed_over: STORE_KEY_ROWS_PASSED_OVER.load(Ordering::Relaxed),
+        store_search_pages: STORE_SEARCH_PAGES.load(Ordering::Relaxed),
+        store_event_rows_read: STORE_EVENT_ROWS_READ.load(Ordering::Relaxed),
     }
 }
 

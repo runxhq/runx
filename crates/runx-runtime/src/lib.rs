@@ -64,6 +64,27 @@ pub use time::now_iso8601;
 pub mod saved_authorities;
 pub mod tool_catalogs;
 pub mod work_counts;
+
+/// What a performance probe lays down before it counts: never a product
+/// surface, and nothing calls it but a probe.
+#[doc(hidden)]
+pub mod probe_fixtures {
+    pub use crate::drivers::store::HistoryEvent;
+
+    /// Lay down `history` in the `private` store `env` names, in one
+    /// transaction, each event at the next version of its key.
+    ///
+    /// # Errors
+    ///
+    /// Returns why the store refused the history.
+    pub fn lay_down_private_history(
+        env: &std::collections::BTreeMap<String, String>,
+        history: &[HistoryEvent],
+    ) -> Result<(), String> {
+        crate::drivers::store::lay_down_private_history(env, history)
+            .map_err(|error| error.to_string())
+    }
+}
 pub mod workspace_ids;
 
 pub use execution::orchestrator;

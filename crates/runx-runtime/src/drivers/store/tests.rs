@@ -591,6 +591,42 @@ fn store_and_private_never_open_each_others_file() {
 /// `keys.search` ranks one stream's keys by their newest event, quotes its
 /// query, pages in score order with ties by key, filters by type, and is
 /// `private`'s alone.
+/// A key listing walks the keys' recency index in the order it returns
+/// them: no scan, and no sort, so the rows it visits are the rows it steps.
+#[test]
+fn a_key_listing_walks_the_recency_index_with_no_scan_and_no_sort() {
+    let root = tempfile::tempdir().unwrap();
+    let private = Test::private(root.path());
+    let kept = private
+        .call("events.append", append("k1", "tea", 0, "tea black"))
+        .unwrap();
+    assert_eq!(kept.text("status"), "committed");
+    let file = crate::paths::RunxPaths::resolve(&private.env, root.path()).private_store();
+    let connection = rusqlite::Connection::open(file).unwrap();
+    for after_cursor in [false, true] {
+        let sql = super::sqlite::keys_query(after_cursor);
+        let mut statement = connection
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap();
+        let parameters = 1 + if after_cursor { 3 } else { 0 };
+        let values = vec![rusqlite::types::Value::Text("x".to_owned()); parameters];
+        let plan = statement
+            .query_map(rusqlite::params_from_iter(values.iter()), |row| {
+                row.get::<_, String>(3)
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(
+            plan.iter().any(|step| step.contains("store_keys_recent"))
+                && plan
+                    .iter()
+                    .all(|step| !step.starts_with("SCAN") && !step.contains("TEMP B-TREE")),
+            "after a cursor {after_cursor}: {plan:?}"
+        );
+    }
+}
+
 #[test]
 fn private_searches_one_streams_current_entries() {
     let root = tempfile::tempdir().unwrap();

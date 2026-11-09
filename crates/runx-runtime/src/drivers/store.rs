@@ -358,6 +358,72 @@ fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
     }
 }
 
+/// One event of a history a probe lays down: on a stream as it's stored,
+/// under its package, written by `writer_package`.
+pub struct HistoryEvent {
+    pub stream: String,
+    pub key: String,
+    pub event_type: String,
+    pub data: JsonObject,
+    pub committed_at: String,
+    pub writer_package: String,
+}
+
+/// Lay down `history` in the `private` store `env` names, in one
+/// transaction, each event at the next version of its key, exactly as an
+/// append writes it: how a probe gives memory a long record without a call per
+/// event.
+pub(crate) fn lay_down_private_history(
+    env: &std::collections::BTreeMap<String, String>,
+    history: &[HistoryEvent],
+) -> Result<(), StoreError> {
+    let path = match Location::of(Kind::Private, &JsonObject::new(), env)? {
+        Location::Sqlite(path) => path,
+        #[cfg(feature = "store")]
+        _ => {
+            return Err(StoreError::invalid(
+                "a history is laid down in a sqlite store",
+            ));
+        }
+    };
+    let mut store = sqlite::Sqlite::open(&path, Kind::Private)?;
+    let mut versions = std::collections::BTreeMap::<(&str, &str), u64>::new();
+    let idempotency = history
+        .iter()
+        .enumerate()
+        .map(|(index, event)| format!("history:{index}:{}", event.key))
+        .collect::<Vec<_>>();
+    let appends = history
+        .iter()
+        .zip(&idempotency)
+        .map(|(event, idempotency_key)| {
+            let version = versions
+                .entry((event.stream.as_str(), event.key.as_str()))
+                .or_insert(0);
+            let expected_version = *version;
+            *version += 1;
+            (
+                Append {
+                    at: Key {
+                        stream: &event.stream,
+                        key: &event.key,
+                    },
+                    expected_version,
+                    idempotency_key,
+                    event_type: &event.event_type,
+                    data: &event.data,
+                    writer: Writer {
+                        package: event.writer_package.clone(),
+                        digest: sha256_prefixed(event.writer_package.as_bytes()),
+                    },
+                },
+                event.committed_at.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    store.append_history(&appends)
+}
+
 /// The store, as the kernel drives it.
 pub(crate) struct Store<'a> {
     pub call: &'a AdmittedCall<'a>,

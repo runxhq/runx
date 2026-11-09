@@ -77,6 +77,36 @@ pub(super) struct Sqlite {
 }
 
 impl Sqlite {
+    /// Append each event of `history` in one transaction, each at its own
+    /// `committed_at` and at the version it expects, as a probe lays down a
+    /// long record. A call appends one event in a transaction of its own.
+    pub(super) fn append_history(
+        &mut self,
+        history: &[(Append<'_>, String)],
+    ) -> Result<(), StoreError> {
+        let kind = self.kind;
+        let _open = crate::work_counts::OpenTransaction::begin();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| database("starting the history", &error))?;
+        let mut streams = SqliteStreams(transaction, kind);
+        for (append, committed_at) in history {
+            match append_in(&mut streams, append, committed_at)? {
+                Appended::Committed { .. } => {}
+                _ => {
+                    return Err(StoreError::invalid(
+                        "a history's event didn't commit at the version it expected",
+                    ));
+                }
+            }
+        }
+        streams
+            .0
+            .commit()
+            .map_err(|error| database("committing the history", &error))
+    }
+
     pub(super) fn open(path: &Path, kind: Kind) -> Result<Self, StoreError> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|error| {
@@ -242,7 +272,10 @@ impl Backend for Sqlite {
                     integer(request.after_version.unwrap_or(0))?,
                     integer(limit as u64)?,
                 ],
-                |row| record_at(row, 0),
+                |row| {
+                    crate::work_counts::count(crate::work_counts::Work::StoreEventRowRead);
+                    record_at(row, 0)
+                },
             )
             .and_then(Iterator::collect::<Result<Vec<_>, _>>)
             .map_err(|error| database("reading events", &error))?;
@@ -254,42 +287,49 @@ impl Backend for Sqlite {
         Ok((events, has_more))
     }
 
+    /// A page of a stream's keys, newest commit first. The listing steps the
+    /// recency index row by row and keeps the types it was asked for itself,
+    /// so every row it visits is a row it steps and counts, the ones it
+    /// passes over included, and it stops once it holds the page and one more.
     fn keys(&mut self, request: &ListKeys<'_>) -> Result<(Vec<Listed>, bool), StoreError> {
         let cursor = model::decode_cursor(request.cursor)?;
-        let mut sql = format!("SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = ?");
+        let sql = keys_query(cursor.is_some());
         let mut values = vec![SqlValue::Text(request.stream.to_owned())];
-        if !request.types.is_empty() {
-            sql.push_str(" AND type IN (");
-            sql.push_str(&vec!["?"; request.types.len()].join(","));
-            sql.push(')');
-            values.extend(
-                request
-                    .types
-                    .iter()
-                    .map(|value| SqlValue::Text((*value).to_owned())),
-            );
-        }
         if let Some(cursor) = cursor {
-            sql.push_str(" AND (committed_at < ? OR (committed_at = ? AND key > ?))");
             values.push(SqlValue::Text(cursor.committed_at.clone()));
             values.push(SqlValue::Text(cursor.committed_at));
             values.push(SqlValue::Text(cursor.key));
         }
-        sql.push_str(" ORDER BY committed_at DESC, key ASC LIMIT ?");
-        values.push(SqlValue::Integer(integer(request.limit as u64 + 1)?));
         let mut statement = self
             .connection
             .prepare(&sql)
             .map_err(|error| database("reading keys", &error))?;
-        let mut keys = statement
-            .query_map(rusqlite::params_from_iter(values.iter()), |row| {
-                Ok(Listed {
-                    key: row.get(0)?,
-                    last: record_at(row, 1)?,
-                })
-            })
-            .and_then(Iterator::collect::<Result<Vec<_>, _>>)
+        let mut rows = statement
+            .query(rusqlite::params_from_iter(values.iter()))
             .map_err(|error| database("reading keys", &error))?;
+        let mut keys = Vec::new();
+        while keys.len() <= request.limit {
+            let Some(row) = rows
+                .next()
+                .map_err(|error| database("reading keys", &error))?
+            else {
+                break;
+            };
+            crate::work_counts::count(crate::work_counts::Work::StoreKeyRowVisited);
+            let event_type: String = row
+                .get(3)
+                .map_err(|error| database("reading keys", &error))?;
+            if !request.types.is_empty() && !request.types.contains(&event_type.as_str()) {
+                crate::work_counts::count(crate::work_counts::Work::StoreKeyRowPassedOver);
+                continue;
+            }
+            keys.push(Listed {
+                key: row
+                    .get(0)
+                    .map_err(|error| database("reading keys", &error))?,
+                last: record_at(row, 1).map_err(|error| database("reading keys", &error))?,
+            });
+        }
         let has_more = keys.len() > request.limit;
         keys.truncate(request.limit);
         Ok((keys, has_more))
@@ -299,6 +339,7 @@ impl Backend for Sqlite {
         if self.kind != Kind::Private {
             return Err(StoreError::invalid("only private's streams are searched"));
         }
+        crate::work_counts::count(crate::work_counts::Work::StoreSearchPage);
         let Some(query) = model::quoted_query(request.query) else {
             return Ok((Vec::new(), false));
         };
@@ -510,6 +551,18 @@ fn existing(
 }
 
 /// The event whose [`EVENT_COLUMNS`] start at `offset`.
+/// The query a page of a stream's keys steps, newest commit first, after a
+/// cursor when it has one. It filters nothing and limits nothing, so the
+/// listing that steps it sees every row it visits.
+pub(super) fn keys_query(after_cursor: bool) -> String {
+    let mut sql = format!("SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = ?");
+    if after_cursor {
+        sql.push_str(" AND (committed_at < ? OR (committed_at = ? AND key > ?))");
+    }
+    sql.push_str(" ORDER BY committed_at DESC, key ASC");
+    sql
+}
+
 fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRecord> {
     let corrupt = |index: usize, error: Box<dyn std::error::Error + Send + Sync>| {
         rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, error)
