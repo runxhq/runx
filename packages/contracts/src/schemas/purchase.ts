@@ -89,16 +89,7 @@ export function principalReferenceFromRunxPrincipalId(
 }
 
 export function validatePurchaseContract(value: unknown, label = "purchase") {
-  const purchase = validateContractSchema(purchaseV1Schema, value, label);
-  if (purchase.external_job_ref
-    && (purchase.external_job_ref.type !== "target"
-      || !purchase.external_job_ref.uri.startsWith("runx:external-job:"))) {
-    throw new Error(`${label}.external_job_ref must identify a Runx external job target.`);
-  }
-  if (purchase.execution_state === "waiting_external" && !purchase.external_job_ref) {
-    throw new Error(`${label}.waiting_external requires external_job_ref.`);
-  }
-  return purchase;
+  return validateContractSchema(purchaseV1Schema, value, label);
 }
 
 export function validatePaidSkillListingContract(value: unknown, label = "paid_skill_listing") {

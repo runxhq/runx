@@ -399,7 +399,6 @@ pub enum PurchaseExecutionState {
     Unstarted,
     Queued,
     Running,
-    WaitingExternal,
     Cancelling,
     Succeeded,
     Failed,
@@ -449,8 +448,6 @@ pub struct Purchase {
     /// performs and capacity reserves.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub act_ref: Option<Reference>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub external_job_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payment_ref: Option<PaymentReference>,
     pub created_at: IsoDateTime,
