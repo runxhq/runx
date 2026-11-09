@@ -14,9 +14,55 @@ use crate::registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX, RegistryManifestSignature,
     RegistryManifestSigner, RegistrySubject, is_registry_subject_name,
 };
-use crate::{CanonicalJsonError, TrustTier, is_registry_version, to_canonical_bytes};
+use crate::schema::RunxSchema;
+use crate::{CanonicalJsonError, is_registry_version, to_canonical_bytes};
 
 pub const REGISTRY_TIER_STATEMENT_SCHEMA: &str = "runx.registry.tier_statement.v1";
+
+/// How far the registry vouches for a publisher: runx's own packages, a
+/// publisher it verified, or anyone's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TrustTier {
+    FirstParty,
+    Verified,
+    Community,
+}
+
+impl TrustTier {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FirstParty => "first_party",
+            Self::Verified => "verified",
+            Self::Community => "community",
+        }
+    }
+
+    /// The tier `name` names, as `as_str` writes it.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::FirstParty, Self::Verified, Self::Community]
+            .into_iter()
+            .find(|tier| tier.as_str() == name)
+    }
+
+    /// Whether a package of this tier meets `minimum`: first party meets
+    /// every tier, verified meets verified and community, community only
+    /// itself.
+    #[must_use]
+    pub const fn meets(self, minimum: Self) -> bool {
+        self.rank() >= minimum.rank()
+    }
+
+    const fn rank(self) -> u8 {
+        match self {
+            Self::FirstParty => 2,
+            Self::Verified => 1,
+            Self::Community => 0,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

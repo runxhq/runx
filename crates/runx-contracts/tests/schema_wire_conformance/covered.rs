@@ -19,7 +19,6 @@ use runx_contracts::output::Output;
 use runx_contracts::packet_lock::PacketLock;
 use runx_contracts::receipt::Receipt;
 use runx_contracts::reference::Reference;
-use runx_contracts::registry_binding::RegistryBinding;
 use runx_contracts::run_read::{RunEventRecord, RunRead};
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::signal::Signal;
@@ -132,11 +131,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "packet-lock.schema.json",
             emitted: PacketLock::json_schema(),
             corpus: packet_lock_corpus(),
-        },
-        Covered {
-            file_name: "registry-binding.schema.json",
-            emitted: RegistryBinding::json_schema(),
-            corpus: registry_binding_corpus(),
         },
         Covered {
             file_name: "agent-context-envelope.schema.json",

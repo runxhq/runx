@@ -5,9 +5,6 @@ import { relative, walk, workspaceRoot } from "./context.mjs";
 
 export function checkContractBindingOwnership(findings) {
   const bindings = [
-    ["packages/contracts/src/schemas/registry.ts", [
-      "registry-binding.schema.json",
-    ]],
     ["packages/contracts/src/schemas/operational-policy.ts", [
       "operational-policy.schema.json",
     ]],

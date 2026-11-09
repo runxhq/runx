@@ -2862,58 +2862,6 @@ export type ReferenceLinkContract = {
 /** What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind. */
 export type ReferenceTypeContract = "thread" | "comment" | "event" | "tracking_item" | "change_request" | "repository" | "signal" | "run" | "act" | "receipt" | "artifact" | "verification" | "harness" | "host" | "surface" | "target" | "skill_binding" | "principal" | "scope_admission" | "grant" | "mandate" | "credential" | "webhook_delivery" | "redaction_policy" | "external_url" | "connector_instance" | "connector_operation";
 
-export type RegistryBindingContract = {
-  readonly registry: {
-    readonly materialized_package_is_registry_artifact: true;
-    readonly profile_path: string;
-    readonly publisher: string;
-    readonly trust_tier: TrustTierContract;
-    readonly version: string;
-    readonly [key: string]: unknown;
-  };
-  readonly schema: RegistryBindingSchemaContract;
-  readonly skill: RegistryBindingSkillContract;
-  readonly state: RegistryBindingStateContract;
-  readonly test: RegistryBindingTestContract;
-  readonly upstream: {
-    readonly blob_sha: string;
-    readonly branch?: string;
-    readonly commit: string;
-    readonly host: string;
-    readonly html_url?: string;
-    readonly merged_at?: string;
-    readonly owner: string;
-    readonly path: string;
-    readonly pr_url?: string;
-    readonly raw_url?: string;
-    readonly repo: string;
-    readonly source_of_truth: true;
-    readonly [key: string]: unknown;
-  };
-  readonly [key: string]: unknown;
-};
-
-export type RegistryBindingSchemaContract = "runx.registry_binding.v1";
-
-/** The skill identity for a registry binding. Open (`additionalProperties: true`). */
-export type RegistryBindingSkillContract = {
-  readonly description: string;
-  readonly id: string;
-  readonly name: string;
-  readonly [key: string]: unknown;
-};
-
-export type RegistryBindingStateContract = "registry_binding_drafted" | "registry_bound" | "test_verified" | "published";
-
-/** Where a binding's test verification is. Open. */
-export type RegistryBindingTestContract = {
-  readonly assertion_count?: number;
-  readonly case_count: number;
-  readonly case_names?: readonly string[];
-  readonly state: RegistryTestStateContract;
-  readonly [key: string]: unknown;
-};
-
 /** What `registry.inspect` reports: a skill's inspection (`runx.skill.inspect.v1`), or a connector's. */
 export type RegistryInspectionContract = SkillInspectionContract | ConnectorInspectionContract;
 
@@ -2922,8 +2870,6 @@ export type RegistrySearchPacketContract = {
   readonly hits: readonly CatalogHitContract[];
   readonly query: string;
 };
-
-export type RegistryTestStateContract = "pending" | "failed" | "test_verified";
 
 /** The lease a buyer must hold to buy a paid method, such as the inbox an extension extends: only a buyer holding that lease, on the resource the method's inputs name, may buy, so the buyer hands the seller's run no bearer. It is checked before the quote and again before payment. */
 export type RequiredLeaseContract = {

@@ -21,14 +21,13 @@ use crate::{
     OrchestratorHandoffContext, Output, PacketLock, PaidSkillListing, PolicyLint, ProcessList,
     ProcessOutput, ProviderOperationPacket, Purchase, PurchaseClaim, PurchaseRead, Question,
     QuotePurchaseRequest, QuotePurchaseResult, Readiness, Receipt, ReceiptProof, ReceiptQuery,
-    Reference, RegistryBinding, RegistryInspection, RegistrySearchPacket, ResolutionRequest,
-    ResolutionResponse, RunContext, RunList, RunxListReport, RunxProcess,
-    RunxX402PurchaseExtensionInfo, Signal, SkillApplyResult, SkillArchitectureDecision,
-    SkillArchitecturePlan, SkillAuthoringContext, SkillChangeBundle, SkillChangeDraft,
-    SkillInspection, SkillValidation, SkillValidationResult, SourcePacket, ToolManifest,
-    TurnCallResult, TurnInvocation, TurnLoad, TurnReadPage, TurnStatus, WorkOutcome,
-    X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements, X402ResourceInfo,
-    X402SettleResponse,
+    Reference, RegistryInspection, RegistrySearchPacket, ResolutionRequest, ResolutionResponse,
+    RunContext, RunList, RunxListReport, RunxProcess, RunxX402PurchaseExtensionInfo, Signal,
+    SkillApplyResult, SkillArchitectureDecision, SkillArchitecturePlan, SkillAuthoringContext,
+    SkillChangeBundle, SkillChangeDraft, SkillInspection, SkillValidation, SkillValidationResult,
+    SourcePacket, ToolManifest, TurnCallResult, TurnInvocation, TurnLoad, TurnReadPage, TurnStatus,
+    WorkOutcome, X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements,
+    X402ResourceInfo, X402SettleResponse,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -170,7 +169,6 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<OrchestratorHandoffContext>(
             "orchestrator-handoff-context.schema.json",
         ),
-        schema_artifact::<RegistryBinding>("registry-binding.schema.json"),
         public_packet_artifact::<ProviderOperationPacket>("provider-operation.schema.json"),
         public_packet_artifact::<ExternalJobContinuation>("external-job-continuation.schema.json"),
         public_packet_artifact::<ExternalJobSchedule>("external-job-schedule.schema.json"),

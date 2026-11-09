@@ -251,8 +251,6 @@ export {
   validateResolutionResponseContract,
 } from "./schemas/resolution.js";
 
-export { registryBindingSchema, validateRegistryBindingContract } from "./schemas/registry.js";
-
 export {
   doctorRepairSchema,
   doctorLocationSchema,

@@ -44,7 +44,6 @@ pub mod purchase_claim;
 pub mod purchase_request_digest;
 pub mod receipt;
 pub mod reference;
-pub mod registry_binding;
 pub mod registry_signed_manifest;
 pub mod registry_taxonomy;
 pub mod registry_tier_statement;
@@ -240,11 +239,6 @@ pub use reference::{
     ActAddress, ExternalReferenceKind, ProofKind, Reference, ReferenceLink, ReferenceType,
     RunxPrincipalId,
 };
-pub use registry_binding::{
-    RegistryBinding, RegistryBindingRegistry, RegistryBindingSchema, RegistryBindingSkill,
-    RegistryBindingState, RegistryBindingTest, RegistryBindingUpstream, RegistryTestState,
-    TrustTier,
-};
 pub use registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX,
     REGISTRY_SIGNED_MANIFEST_SCHEMA, RegistryContentDigestError, RegistryContentFile,
@@ -255,7 +249,9 @@ pub use registry_taxonomy::{
     Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_category,
     validate_registry_category,
 };
-pub use registry_tier_statement::{REGISTRY_TIER_STATEMENT_SCHEMA, RegistryTierStatement};
+pub use registry_tier_statement::{
+    REGISTRY_TIER_STATEMENT_SCHEMA, RegistryTierStatement, TrustTier,
+};
 pub use registry_version::{
     REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,
     validate_registry_version,

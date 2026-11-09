@@ -14,7 +14,6 @@ import {
   outputSchema,
   packetLockV1Schema,
   questionSchema,
-  registryBindingSchema,
   resolutionRequestSchema,
   resolutionResponseSchema,
   receiptV1Schema,
@@ -31,7 +30,6 @@ import {
   validateStoreResultContract,
   validateDoctorReportContract,
   validateReceiptContract,
-  validateRegistryBindingContract,
   validateRunxListReportContract,
   validateOperationalPolicyContract,
   validateOperationalProposalContract,
@@ -280,8 +278,6 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns generated auxiliary schemas", () => {
-    expect(registryBindingSchema).toBe(runxGeneratedSchemaArtifacts["registry-binding.schema.json"]);
-    expect(registryBindingSchema.$id).toBe("https://schemas.runx.ai/runx/registry-binding/v1.json");
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
     expect(runxGeneratedSchemaArtifacts["operational-policy.schema.json"]).toBe(runxContractSchemas.operationalPolicy);
@@ -603,68 +599,6 @@ describe("@runxhq/contracts", () => {
       title: "Old evidence bundle ref",
       observed_at: "2026-05-18T00:00:00Z",
     })).toThrow(/signal\/v1\.json/);
-  });
-
-  it("validates auxiliary schema payloads", () => {
-    expect(validateRegistryBindingContract({
-      schema: "runx.registry_binding.v1",
-      state: "registry_bound",
-      skill: {
-        id: "runx/github-issue-triage",
-        name: "github-issue-triage",
-        description: "Issue triage skill.",
-      },
-      upstream: {
-        host: "github.com",
-        owner: "runxhq",
-        repo: "runx",
-        path: "skills/github-issue-triage",
-        commit: "abc123",
-        blob_sha: "def456",
-        source_of_truth: true,
-      },
-      registry: {
-        publisher: "runx",
-        trust_tier: "first_party",
-        version: "1.0.0",
-        profile_path: "run.yaml",
-        materialized_package_is_registry_artifact: true,
-      },
-      test: {
-        state: "test_verified",
-        case_count: 1,
-      },
-    })).toMatchObject({ schema: "runx.registry_binding.v1" });
-
-    expect(() => validateRegistryBindingContract({
-      schema: "runx.registry_binding.v1",
-      state: "registry_bound",
-      skill: {
-        id: "runx/github-issue-triage",
-        name: "github-issue-triage",
-        description: "Issue triage skill.",
-      },
-      upstream: {
-        host: "github.com",
-        owner: "runxhq",
-        repo: "runx",
-        path: "skills/github-issue-triage",
-        commit: "abc123",
-        blob_sha: "def456",
-        source_of_truth: false,
-      },
-      registry: {
-        publisher: "runx",
-        trust_tier: "first_party",
-        version: "1.0.0",
-        profile_path: "run.yaml",
-        materialized_package_is_registry_artifact: true,
-      },
-      test: {
-        state: "test_verified",
-        case_count: 1,
-      },
-    })).toThrow(/runx\/registry-binding\/v1\.json/);
   });
 
   it("routes public schema validation through Rust-generated artifacts", () => {
