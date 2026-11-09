@@ -293,6 +293,10 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     };
     let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(call.env, call.cwd))
         .map_err(state)?;
+    // The call's one time, read once from its run's clock: its quote's and
+    // methods' expiry are decided at it and its approval is recorded at it,
+    // so a replay decides what the call decided when it was admitted.
+    let at = call.clock.now();
     let key = sha256_prefixed(format!("purchase\0{}\0{}", call.run_id, call.step_id).as_bytes());
     let custody = EffectCustody::for_key(Arc::clone(&store), key.clone());
     let recorded = custody.custody().map_err(state)?;
@@ -316,7 +320,13 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         }
     };
     let purchase_key = sha256_prefixed(format!("{key}\0{}", recorded.sequence).as_bytes());
-    let quote = match quote(call, &route, &session, &format!("{purchase_key}:quote")) {
+    let quote = match quote(
+        call,
+        &route,
+        &session,
+        &format!("{purchase_key}:quote"),
+        &at,
+    ) {
         Ok(quote) => quote,
         Err(refusal) => return Ok(refusal),
     };
@@ -343,7 +353,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
             ));
         }
     }
-    let methods = methods(call, &store, &quote, amount_micro)?;
+    let methods = methods(call, &store, &quote, amount_micro, &at)?;
     if methods.is_empty() {
         return Ok(refused(
             "payment_method_unavailable",
@@ -441,11 +451,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         method: method.paid.clone(),
         spend: spend.clone(),
     };
-    let approval = ApprovalRecord::new(
-        ApprovalActor::Human,
-        request_digest.clone(),
-        call.clock.now(),
-    );
+    let approval = ApprovalRecord::new(ApprovalActor::Human, request_digest.clone(), at.clone());
     custody
         .attempt_with(
             &Attempt {
@@ -788,6 +794,7 @@ fn quote(
     route: &str,
     session: &HostedSession,
     key: &str,
+    at: &str,
 ) -> Result<Quote, Bought> {
     let mut body = serde_json::json!({"method": call.paid.method, "inputs": call.inputs});
     if let (Some(version), Some(object)) = (&call.paid.version, body.as_object_mut()) {
@@ -865,7 +872,7 @@ fn quote(
             "the purchase expiry does not match its payment options",
         ));
     }
-    let now = moment(&crate::time::now_iso8601().into())?;
+    let now = moment(&at.into())?;
     if latest_expiry.is_none_or(|expiry| expiry <= now) {
         return Err(refused(
             "quote_expired",
@@ -954,6 +961,7 @@ fn methods(
     store: &Arc<KernelStore>,
     quote: &Quote,
     amount_micro: u64,
+    at: &str,
 ) -> Result<Vec<Method>, RuntimeError> {
     let total = PortableAmountMinor::new(quote.purchase.amount_minor.get())
         .ok_or_else(|| engine("the quoted amount is not a portable amount"))?;
@@ -961,8 +969,8 @@ fn methods(
         .list()
         .map_err(state)?;
     let scope = super::connectors::ConnectorScope::at(call.cwd).ok();
-    let now = runx_core::policy::parse_rfc3339_moment(&crate::time::now_iso8601())
-        .ok_or_else(|| engine("the current time cannot be read"))?;
+    let now = runx_core::policy::parse_rfc3339_moment(at)
+        .ok_or_else(|| engine("the call's time cannot be read"))?;
     let mut methods = Vec::new();
     if let Some(available_micro) = quote
         .balance_micro

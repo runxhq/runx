@@ -375,11 +375,28 @@ impl Project {
         PaidMethod::reached("registry:acme/inbox@1.0.0", None, "create", Some(&terms)).unwrap()
     }
 
+    /// The purchase, made in a run that replays at the recorded `RUN_CLOCK`.
     fn buy(
         &self,
         runx: &Runx,
         buyer: &mut Buyer,
         limit: Option<u64>,
+    ) -> Result<Bought, RuntimeError> {
+        self.buy_at(
+            runx,
+            buyer,
+            limit,
+            &crate::RunClock::Fixed(RUN_CLOCK.to_owned()),
+        )
+    }
+
+    /// The purchase, made in a run observing `clock`.
+    fn buy_at(
+        &self,
+        runx: &Runx,
+        buyer: &mut Buyer,
+        limit: Option<u64>,
+        clock: &crate::RunClock,
     ) -> Result<Bought, RuntimeError> {
         let paid = Self::paid();
         let inputs = JsonObject::new();
@@ -395,7 +412,7 @@ impl Project {
                 env: &self.env,
                 cwd: self.root.path(),
                 hosted: &hosted,
-                clock: &crate::RunClock::Fixed(RUN_CLOCK.to_owned()),
+                clock,
             },
             buyer,
         )
@@ -1120,6 +1137,41 @@ fn an_expired_purchase_refuses_before_a_decision_or_reservation() {
     assert!(buyer.asked.is_empty());
     assert!(runx.purchases().is_empty());
     assert_eq!(project.committed(), 0);
+}
+
+/// A call decides its quote's expiry at its run's clock, the time recorded
+/// for it: a replay at that time admits a quote valid then, though the wall
+/// clock has since passed its expiry, and a live call refuses it.
+#[test]
+fn a_quotes_expiry_is_decided_at_its_runs_clock() {
+    // Valid at RUN_CLOCK, 2026-05-18, and expired by the wall clock today.
+    let valid_then = || {
+        let mut offered = quote(NETWORK, 5);
+        offered["value"]["payment_options"][0]["quote_expires_at"] = json!("2026-06-01T00:00:00Z");
+        offered["value"]["purchase"]["expires_at"] = json!("2026-06-01T00:00:00Z");
+        offered
+    };
+    let replayed = Project::new();
+    let runx = Runx::new(valid_then(), vec![]);
+    let mut buyer = Buyer::pending();
+    let Err(RuntimeError::ResolutionPending { .. }) =
+        replayed.buy(&runx, &mut buyer, Some(1_000_000))
+    else {
+        panic!("a quote valid at the run's recorded time waits on its buyer");
+    };
+    assert_eq!(buyer.asked.len(), 1);
+
+    let live = Project::new();
+    let runx = Runx::new(valid_then(), vec![]);
+    let mut buyer = Buyer::pending();
+    let Ok(Bought::Refused { code, .. }) =
+        live.buy_at(&runx, &mut buyer, Some(1_000_000), &crate::RunClock::System)
+    else {
+        panic!("a live call refuses a quote expired now");
+    };
+    assert_eq!(code, "quote_expired");
+    assert!(buyer.asked.is_empty());
+    assert!(runx.purchases().is_empty());
 }
 
 #[test]
