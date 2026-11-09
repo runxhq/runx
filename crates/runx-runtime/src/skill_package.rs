@@ -767,6 +767,53 @@ mod tests {
         );
     }
 
+    /// Code a package incorporates writes its streams under its carrier, at
+    /// `<carrier>/<name>/...`, so two directories it carries under one name
+    /// would share them: a binding refuses them, and one directory reached
+    /// twice binds.
+    #[test]
+    fn a_package_never_carries_two_directories_under_one_name() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("skills/carrier");
+        write(
+            &root.join("SKILL.md"),
+            "---\nname: carrier\ndescription: Carries two githubs.\n---\n# Carrier\n",
+        );
+        for stage in ["one/github", "two/github"] {
+            write(
+                &root.join(stage).join("SKILL.md"),
+                "---\nname: github\ndescription: A stage named github.\n---\n# Github\n",
+            );
+            write(
+                &root.join(stage).join("run.yaml"),
+                &format!("minimum_runx: 0.12.0\nmethods:\n  say:\n{DIGEST_METHOD}"),
+            );
+        }
+        let carrier = |second: &str| {
+            format!(
+                "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: first\n        skill: ./one/github#say\n      - id: second\n        skill: {second}#say\n"
+            )
+        };
+        let env = std::collections::BTreeMap::from([(
+            crate::paths::RUNX_HOME_ENV.to_owned(),
+            temp.path().join("home").display().to_string(),
+        )]);
+        let bind = || {
+            let loaded = super::load_validated_skill_package(&root).expect("carrier loads");
+            super::verify_loaded_execution_binding(loaded, "main", &env, None, None)
+                .err()
+                .map(|error| error.to_string())
+        };
+        write(&root.join("run.yaml"), &carrier("./one/github"));
+        assert_eq!(bind(), None, "one directory reached twice binds");
+        write(&root.join("run.yaml"), &carrier("./two/github"));
+        let error = bind().unwrap_or_default();
+        assert!(
+            error.contains("carries two directories named github"),
+            "{error}"
+        );
+    }
+
     #[test]
     fn a_file_past_its_budget_is_refused_without_being_read_whole() {
         let root = tempfile::tempdir().expect("tempdir");

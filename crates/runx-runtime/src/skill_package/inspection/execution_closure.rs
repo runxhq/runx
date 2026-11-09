@@ -52,6 +52,10 @@ struct ClosureAccumulator {
     identities: BTreeMap<PathBuf, BoundIdentity>,
     /// Each `project:<name>` the closure binds, and the directory that is it.
     project_roots: BTreeMap<String, PathBuf>,
+    /// Each package a package incorporates, by its carrier's root and its own
+    /// name, and the directory that is it: its streams live at
+    /// `<carrier>/<name>/...`, so one name is one directory.
+    incorporated_roots: BTreeMap<(PathBuf, String), PathBuf>,
 }
 
 /// Who a bound package is, and whether that is its own identity or the one
@@ -515,6 +519,23 @@ impl<'a> ExecutionClosureInspector<'a> {
                             carrier.display()
                         ))
                     })?;
+                let name = loaded.package.skill.name.clone();
+                if let Some(other) = walk
+                    .closure
+                    .incorporated_roots
+                    .get(&(carrier.clone(), name.clone()))
+                    .filter(|other| other.as_path() != package_root)
+                {
+                    return Err(refused(format!(
+                        "{} carries two directories named {name}, {} and {}, which would write one set of streams; give one another name",
+                        carried.name(),
+                        other.display(),
+                        package_root.display()
+                    )));
+                }
+                walk.closure
+                    .incorporated_roots
+                    .insert((carrier, name), package_root.to_path_buf());
                 (carried, false)
             }
         };
