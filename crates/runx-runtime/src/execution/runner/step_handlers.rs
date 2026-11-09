@@ -337,6 +337,7 @@ where
             env: &runtime.options.env,
             cwd: workflow_dir,
             hosted: &hosted,
+            clock: &runtime.options.clock,
         },
         host,
     )?;

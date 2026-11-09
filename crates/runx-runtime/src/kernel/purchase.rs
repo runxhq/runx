@@ -108,6 +108,8 @@ pub(crate) struct PurchaseCall<'a> {
     pub cwd: &'a Path,
     /// The runx API session the purchase is made through.
     pub hosted: &'a HostedClient,
+    /// When the run observes the purchase: its approval is recorded at it.
+    pub clock: &'a crate::RunClock,
 }
 
 /// How a purchase ended for its call.
@@ -439,11 +441,10 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         method: method.paid.clone(),
         spend: spend.clone(),
     };
-    // A purchase call carries no run clock: its approval is recorded now.
     let approval = ApprovalRecord::new(
         ApprovalActor::Human,
         request_digest.clone(),
-        crate::time::now_iso8601(),
+        call.clock.now(),
     );
     custody
         .attempt_with(

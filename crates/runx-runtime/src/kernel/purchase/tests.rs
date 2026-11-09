@@ -23,6 +23,8 @@ use crate::kernel::store::KernelStore;
 const BASE_URL: &str = "https://api.runx.test";
 const ROUTE: &str = "https://api.runx.test/v1/skills/acme/inbox/run";
 const NETWORK: &str = "eip155:8453";
+/// The instant the purchase's run observes, as a test replay pins it.
+const RUN_CLOCK: &str = "2026-05-18T00:00:00Z";
 
 fn fixture(name: &str) -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -393,6 +395,7 @@ impl Project {
                 env: &self.env,
                 cwd: self.root.path(),
                 hosted: &hosted,
+                clock: &crate::RunClock::Fixed(RUN_CLOCK.to_owned()),
             },
             buyer,
         )
@@ -628,6 +631,34 @@ fn an_unknown_outcome_holds_and_the_next_pass_sends_the_same_purchase_again() {
         "the same purchase under the same key"
     );
     assert_eq!(project.committed(), 50_000, "reserved once");
+}
+
+/// A purchase is made in a run, so its buyer's approval is recorded at the
+/// run's clock, as every call's is.
+#[test]
+fn a_purchases_approval_is_recorded_at_its_runs_clock() {
+    let project = Project::new();
+    let runx = Runx::new(
+        quote(NETWORK, 5),
+        vec![(503, json!({"code": "unavailable"}))],
+    );
+    let Err(RuntimeError::ProviderEffectUnknown { .. }) =
+        project.buy(&runx, &mut project.approve(), Some(1_000_000))
+    else {
+        panic!("an unanswered purchase holds");
+    };
+    let key = runx_contracts::sha256_prefixed("purchase\0run_1\0purchase".as_bytes());
+    let pending = crate::kernel::custody::EffectCustody::for_key(Arc::clone(&project.store), key)
+        .pending()
+        .unwrap()
+        .expect("the purchase's attempt holds");
+    assert_eq!(
+        pending
+            .approval
+            .map(|approval| approval.recorded_at)
+            .as_deref(),
+        Some(RUN_CLOCK)
+    );
 }
 
 #[test]
