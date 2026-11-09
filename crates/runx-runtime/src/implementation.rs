@@ -1,30 +1,66 @@
 //! What a run is started by: the digest of the sources each binary was built
 //! from (reuse contract, `implementation`). The runtime's is made by its
-//! build script. The worker's is what the worker reports in its handshake,
-//! whatever this runtime was built beside; a runtime built beside the
-//! worker's sources also refuses a worker that reports others before it runs
-//! a script on it. A run records its implementation when it starts, and a
-//! resume under another is refused, so a build of changed sources never
-//! replays old history.
+//! build script. The worker's is what the worker gives in its handshake, and
+//! a run has one only when its own method can run JavaScript: such a run
+//! starts its worker as it starts, so a runtime built beside the worker's
+//! sources refuses a worker that reports others before the run begins. A run
+//! records its implementation when it starts, and a resume under another is
+//! refused, so a build of changed sources never replays old history; a run
+//! that runs no JavaScript is never tied to the worker's sources.
 
 use std::collections::BTreeMap;
 
 use runx_contracts::RunImplementation;
+use runx_contracts::schema::NonEmptyString;
+use runx_parser::{StepKind, ToolTarget, Workflow};
 
 use crate::RuntimeError;
+use crate::adapters::javascript::JavaScriptAdapter;
 
-/// The implementation a run started under `env` runs on: this runtime, and
-/// the worker that environment names, as it reports itself.
-pub fn current(env: &BTreeMap<String, String>) -> Result<RunImplementation, RuntimeError> {
+/// Whether a run of `workflow` can run JavaScript itself: a script step, or
+/// a tool step on the worker. Nothing else reaches the worker. A catalog
+/// tool, by a step or by a call a step declares, is native or a manifest's
+/// process; an operation is its connector's; a skill step's child decides
+/// from its own method.
+pub(crate) fn runs_javascript(workflow: &Workflow) -> bool {
+    workflow.steps.iter().any(|step| {
+        matches!(
+            step.kind,
+            StepKind::Script(_) | StepKind::Tool(ToolTarget::Worker(_))
+        )
+    })
+}
+
+/// The implementation a run of `workflow` under `env` runs on: this runtime,
+/// and the worker it runs its JavaScript on, if it runs any.
+pub(crate) fn of_run(
+    workflow: &Workflow,
+    javascript: &JavaScriptAdapter,
+    env: &BTreeMap<String, String>,
+) -> Result<RunImplementation, RuntimeError> {
     Ok(implementation(
-        crate::adapters::javascript::reported_worker_digest(env)?,
+        worker(workflow, javascript, env)?.map(Into::into),
     ))
 }
 
-fn implementation(worker: String) -> RunImplementation {
+/// The digest of the worker a run of `workflow` runs its JavaScript on,
+/// started now on `javascript`'s session, which keeps it for the run's first
+/// call to it; none, and no worker started, for a run that runs none.
+pub(crate) fn worker(
+    workflow: &Workflow,
+    javascript: &JavaScriptAdapter,
+    env: &BTreeMap<String, String>,
+) -> Result<Option<String>, RuntimeError> {
+    if !runs_javascript(workflow) {
+        return Ok(None);
+    }
+    javascript.worker_digest(env).map(Some)
+}
+
+fn implementation(worker: Option<NonEmptyString>) -> RunImplementation {
     RunImplementation {
         runtime: env!("RUNX_RUNTIME_SOURCE_DIGEST").into(),
-        worker: worker.into(),
+        worker,
     }
 }
 
@@ -40,11 +76,9 @@ pub(crate) fn refusal(
     started: Option<&RunImplementation>,
     current: &RunImplementation,
 ) -> Option<String> {
-    let describe = |implementation: &RunImplementation| {
-        format!(
-            "runtime {}, worker {}",
-            implementation.runtime, implementation.worker
-        )
+    let describe = |implementation: &RunImplementation| match &implementation.worker {
+        Some(worker) => format!("runtime {}, worker {worker}", implementation.runtime),
+        None => format!("runtime {}, no worker", implementation.runtime),
     };
     match started {
         Some(started) if started == current => None,
@@ -138,7 +172,7 @@ mod tests {
 
     #[test]
     fn a_resume_under_another_implementation_names_both() {
-        let now = implementation("sha256:worker".to_owned());
+        let now = implementation(Some("sha256:worker".into()));
         assert_eq!(refusal(Some(&now), &now), None);
         let earlier = RunImplementation {
             runtime: "sha256:earlier".into(),

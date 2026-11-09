@@ -91,32 +91,19 @@ fn pin(command: &str, digest: &str) -> Result<(), RuntimeError> {
     }
 }
 
-/// The digest of the sources the worker `plan` starts reports it was built
-/// from: what it reported when this process first started it, or what it
-/// reports when started now.
-pub(super) fn reported_digest(plan: &WorkerLaunchPlan) -> Result<String, RuntimeError> {
-    let known = reported()?.get(&plan.command).cloned();
-    if let Some(known) = known {
-        return Ok(known);
+/// A worker built from other sources than the one this runtime was built
+/// beside, when it was, would run a run's JavaScript as another
+/// implementation than the one the runtime names.
+fn built_beside(digest: &str) -> Result<(), RuntimeError> {
+    match crate::implementation::expected_worker() {
+        Some(expected) if expected != digest => Err(worker_error(format!(
+            "the JavaScript worker was built from other sources ({digest}) than this runx expects ({expected}); build them together"
+        ))),
+        _ => Ok(()),
     }
-    let mut session = WorkerSession::start(plan)?;
-    Ok(std::mem::take(&mut session.source_digest))
 }
 
 impl WorkerSession {
-    /// A worker built from other sources than the one this runtime was built
-    /// beside, when it was, would run a run's scripts as another
-    /// implementation than the one the runtime names.
-    pub(super) fn built_beside(&self) -> Result<(), RuntimeError> {
-        match crate::implementation::expected_worker() {
-            Some(expected) if expected != self.source_digest => Err(worker_error(format!(
-                "the JavaScript worker was built from other sources ({}) than this runx expects ({expected}); build them together",
-                self.source_digest
-            ))),
-            _ => Ok(()),
-        }
-    }
-
     pub(super) fn start(plan: &WorkerLaunchPlan) -> Result<Self, RuntimeError> {
         let mut command = Command::new(&plan.command);
         let cwd = crate::process::child_process_cwd(&plan.cwd);
@@ -189,6 +176,7 @@ impl WorkerSession {
                 source_digest,
             } if protocol_version == PROTOCOL_VERSION => {
                 pin(&plan.command, &source_digest)?;
+                built_beside(&source_digest)?;
                 session.source_digest = source_digest.into_string();
                 Ok(session)
             }

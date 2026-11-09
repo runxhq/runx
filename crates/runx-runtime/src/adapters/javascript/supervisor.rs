@@ -19,12 +19,6 @@ mod watch;
 use pool::WorkerPool;
 use watch::{Clock, SystemClock};
 
-/// The digest of the sources the worker at `worker_path`, or the one beside
-/// this runx, reports it was built from.
-pub(super) fn reported_worker_digest(worker_path: Option<&str>) -> Result<String, RuntimeError> {
-    session::reported_digest(&session::WorkerLaunchPlan::prepare(worker_path)?)
-}
-
 #[derive(Debug)]
 pub(super) struct WorkerInvocation {
     pub(super) entry_module: String,
@@ -92,6 +86,13 @@ impl JavaScriptWorkerSupervisor {
         invocation: WorkerInvocation,
     ) -> Result<WorkerInvocationOutcome, RuntimeError> {
         self.invoke_inner(invocation, || {})
+    }
+
+    /// The digest the pool's worker for `worker_path` reports, from an idle
+    /// worker or one it starts now and keeps.
+    pub(super) fn worker_digest(&self, worker_path: Option<&str>) -> Result<String, RuntimeError> {
+        let mut lease = self.pool.acquire(worker_path)?;
+        Ok(lease.session_mut()?.source_digest.clone())
     }
 
     /// Run one pass of a script step from the beginning against its

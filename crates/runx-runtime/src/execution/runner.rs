@@ -818,6 +818,10 @@ where
         self.options.as_ref()
     }
 
+    pub(crate) fn javascript(&self) -> &crate::adapters::javascript::JavaScriptAdapter {
+        &self.javascript
+    }
+
     #[must_use]
     pub fn javascript_session_stats(&self) -> crate::adapters::javascript::JavaScriptSessionStats {
         self.javascript.session_stats()

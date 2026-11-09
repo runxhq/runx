@@ -152,6 +152,10 @@ pub(crate) struct ChildStarted {
     /// The act the parent's step gave the child, read as its `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<CallAct>,
+    /// What started it, decided from its own method. Absent for a child an
+    /// earlier runx started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<runx_contracts::RunImplementation>,
     pub created_at: String,
 }
 
@@ -606,6 +610,8 @@ pub enum RunRecordError {
     Contended { run_id: String },
     #[error("run {run_id} already exists with a different {field}")]
     IdentityMismatch { run_id: String, field: &'static str },
+    #[error("run {run_id} cannot replace its original implementation: {reason}")]
+    Implementation { run_id: String, reason: String },
     #[error("run {run_id} has an invalid record: {reason}")]
     Invalid { run_id: String, reason: String },
     #[error(
@@ -974,13 +980,17 @@ impl RunLog {
     /// Start, or continue, the child run a nested skill step runs as.
     pub(crate) fn start_child(
         &self,
-        parent: &str,
-        step_id: &str,
-        skill: &str,
-        inputs: &JsonObject,
-        act: Option<&CallAct>,
-        created_at: &str,
+        started: ChildStart<'_>,
     ) -> Result<Option<RunRecord>, RunRecordError> {
+        let ChildStart {
+            parent,
+            step_id,
+            skill,
+            inputs,
+            act,
+            implementation,
+            created_at,
+        } = started;
         let inputs = Blob::json(inputs)?;
         if let Some(existing) = self.load()? {
             let Origin::Child(recorded) = &existing.origin else {
@@ -995,6 +1005,14 @@ impl RunLog {
             if recorded.act.as_ref() != act {
                 return Err(self.mismatch("act"));
             }
+            if let Some(reason) =
+                crate::implementation::refusal(recorded.implementation.as_ref(), implementation)
+            {
+                return Err(RunRecordError::Implementation {
+                    run_id: self.0.run_id.clone(),
+                    reason,
+                });
+            }
             return Ok(Some(existing));
         }
         let event = ChildStarted {
@@ -1003,6 +1021,7 @@ impl RunLog {
             skill: skill.to_owned(),
             inputs: inputs.digest().to_owned(),
             act: act.cloned(),
+            implementation: Some(implementation.clone()),
             created_at: created_at.to_owned(),
         };
         self.append_first(RunEvent::ChildStarted(Box::new(event)), vec![inputs])?;
@@ -1489,6 +1508,18 @@ pub(crate) struct StartRequest<'a> {
     pub prepared: Option<&'a crate::execution::prepared_skill::PreparedContext>,
     pub purchase: Option<&'a str>,
     /// The implementation it runs on.
+    pub implementation: &'a runx_contracts::RunImplementation,
+    pub created_at: &'a str,
+}
+
+/// What a child run is started with, by its parent's step.
+pub(crate) struct ChildStart<'a> {
+    pub parent: &'a str,
+    pub step_id: &'a str,
+    pub skill: &'a str,
+    pub inputs: &'a JsonObject,
+    pub act: Option<&'a CallAct>,
+    /// The implementation it runs on, decided from its own method.
     pub implementation: &'a runx_contracts::RunImplementation,
     pub created_at: &'a str,
 }

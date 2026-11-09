@@ -2735,6 +2735,8 @@ export type RunEventFactContract = {
   readonly method: string;
   readonly skill: string;
 } | {
+  /** What started it, decided from the child's own method. Absent for a child an earlier runx started. */
+  readonly implementation?: RunImplementationContract;
   readonly kind: "child_started";
   readonly parent: string;
   readonly skill: string;
@@ -2823,8 +2825,8 @@ export type RunHoldContract = {
 export type RunImplementationContract = {
   /** The runtime's: the runx binary that drove it. */
   readonly runtime: string;
-  /** The JavaScript worker's it runs scripts and workers with, as the worker reported it in its handshake. */
-  readonly worker: string;
+  /** The JavaScript worker's, as the worker gave it in its handshake. Present exactly when the run's own method can run JavaScript, a script step or a tool step on the worker; a run whose method has neither starts no worker and records none. */
+  readonly worker?: string;
 };
 
 /** What `run.list` returns: the workspace's top-level runs, most recently advanced first, and those whose record this runx can't read. */

@@ -569,14 +569,18 @@ where
             reason,
         });
     }
-    let existing = log.start_child(
-        runtime.options.run.run_id(),
-        &nested.step.id,
-        nested.skill,
-        nested.inputs,
-        nested.act,
-        &runtime.options.clock.now(),
-    )?;
+    // A child decides its implementation from its own method, and starts its
+    // worker, if it has one, on the session it shares with its parent.
+    let implementation = crate::implementation::of_run(&workflow, &runtime.javascript, nested.env)?;
+    let existing = log.start_child(crate::execution::run_record::ChildStart {
+        parent: runtime.options.run.run_id(),
+        step_id: &nested.step.id,
+        skill: nested.skill,
+        inputs: nested.inputs,
+        act: nested.act,
+        implementation: &implementation,
+        created_at: &runtime.options.clock.now(),
+    })?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
         return super::sealed_workflow_run(workflow, record);
     }

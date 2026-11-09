@@ -33,7 +33,7 @@ pub mod host;
 mod hosted_api;
 mod http;
 mod identity;
-pub mod implementation;
+pub(crate) mod implementation;
 mod input_contract;
 mod install;
 pub mod interrupt;

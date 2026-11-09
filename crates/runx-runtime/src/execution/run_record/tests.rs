@@ -24,7 +24,7 @@ fn store() -> (tempfile::TempDir, Arc<KernelStore>) {
 fn implementation() -> runx_contracts::RunImplementation {
     runx_contracts::RunImplementation {
         runtime: "sha256:runtime".into(),
-        worker: "sha256:worker".into(),
+        worker: Some("sha256:worker".into()),
     }
 }
 
@@ -286,14 +286,15 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
     assert_eq!(child.run_id(), "run_triage_4/review");
     assert!(
         child
-            .start_child(
-                "run_triage_4",
-                "review",
-                "review",
-                &JsonObject::new(),
-                None,
-                "2026-10-09T00:00:00.000Z"
-            )
+            .start_child(ChildStart {
+                parent: "run_triage_4",
+                step_id: "review",
+                skill: "review",
+                inputs: &JsonObject::new(),
+                act: None,
+                implementation: &implementation(),
+                created_at: "2026-10-09T00:00:00.000Z",
+            })
             .unwrap()
             .is_none()
     );
@@ -307,14 +308,15 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
     assert_eq!(waiting_ids(&store, "run_triage_4"), ["review.approval"]);
     // A child continues only under the parent step that started it.
     assert!(matches!(
-        child.start_child(
-            "run_triage_4",
-            "other",
-            "review",
-            &JsonObject::new(),
-            None,
-            "2026-10-09T00:00:00.000Z"
-        ),
+        child.start_child(ChildStart {
+            parent: "run_triage_4",
+            step_id: "other",
+            skill: "review",
+            inputs: &JsonObject::new(),
+            act: None,
+            implementation: &implementation(),
+            created_at: "2026-10-09T00:00:00.000Z",
+        }),
         Err(RunRecordError::IdentityMismatch { .. })
     ));
 }
@@ -356,14 +358,15 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
         .unwrap();
     let child = paused.child("review").unwrap();
     child
-        .start_child(
-            "run_triage_a",
-            "review",
-            "review",
-            &JsonObject::new(),
-            None,
-            "2026-10-09T00:00:00.000Z",
-        )
+        .start_child(ChildStart {
+            parent: "run_triage_a",
+            step_id: "review",
+            skill: "review",
+            inputs: &JsonObject::new(),
+            act: None,
+            implementation: &implementation(),
+            created_at: "2026-10-09T00:00:00.000Z",
+        })
         .unwrap();
 
     let listing = list_runs(&env, workspace.path(), &RunFilter::default()).unwrap();
@@ -637,14 +640,15 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
     assert_eq!(local_request_id("answer/0#report/0"), "report/0");
     assert_eq!(local_request_id("answer"), "answer");
     child
-        .start_child(
-            "run_tree_1",
-            "answer/0",
-            "report",
-            &JsonObject::new(),
-            None,
-            "2026-10-09T00:00:00.000Z",
-        )
+        .start_child(ChildStart {
+            parent: "run_tree_1",
+            step_id: "answer/0",
+            skill: "report",
+            inputs: &JsonObject::new(),
+            act: None,
+            implementation: &implementation(),
+            created_at: "2026-10-09T00:00:00.000Z",
+        })
         .unwrap();
     child
         .record_request("report", 1, &turn(&child.address("report")))
@@ -713,14 +717,15 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
     start(&parent, &JsonObject::new());
     let child = parent.child("review").unwrap();
     child
-        .start_child(
-            "run_held_1",
-            "review",
-            "review",
-            &JsonObject::new(),
-            None,
-            "2026-10-09T00:00:00.000Z",
-        )
+        .start_child(ChildStart {
+            parent: "run_held_1",
+            step_id: "review",
+            skill: "review",
+            inputs: &JsonObject::new(),
+            act: None,
+            implementation: &implementation(),
+            created_at: "2026-10-09T00:00:00.000Z",
+        })
         .unwrap();
     child
         .record_request("approve", 1, &approval(&child.address("review.approval")))
@@ -965,14 +970,15 @@ fn a_read_after_its_cursor_returns_only_new_events_in_every_stream() {
     // A child that starts after the first read is read from its beginning.
     let child = parent.child("review").unwrap();
     child
-        .start_child(
-            "run_read_1",
-            "review",
-            "review",
-            &JsonObject::new(),
-            None,
-            "2026-10-09T00:00:00.000Z",
-        )
+        .start_child(ChildStart {
+            parent: "run_read_1",
+            step_id: "review",
+            skill: "review",
+            inputs: &JsonObject::new(),
+            act: None,
+            implementation: &implementation(),
+            created_at: "2026-10-09T00:00:00.000Z",
+        })
         .unwrap();
     parent
         .record_step(&step("run_read_1", "send"), &[])

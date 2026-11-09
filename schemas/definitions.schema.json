@@ -6716,6 +6716,10 @@
         {
           "additionalProperties": false,
           "properties": {
+            "implementation": {
+              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
+              "description": "What started it, decided from the child's own method. Absent for a child an earlier runx started."
+            },
             "kind": {
               "const": "child_started",
               "type": "string"
@@ -7101,14 +7105,13 @@
           "type": "string"
         },
         "worker": {
-          "description": "The JavaScript worker's it runs scripts and workers with, as the worker reported it in its handshake.",
+          "description": "The JavaScript worker's, as the worker gave it in its handshake. Present exactly when the run's own method can run JavaScript, a script step or a tool step on the worker; a run whose method has neither starts no worker and records none.",
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
-        "runtime",
-        "worker"
+        "runtime"
       ],
       "title": "RunImplementation",
       "type": "object"

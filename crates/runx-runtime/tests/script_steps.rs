@@ -984,37 +984,49 @@ fn a_scripts_call_that_runs_javascript_never_waits_on_the_scripts_worker() -> Te
     Ok(())
 }
 
-/// A run records the implementation that started it: the digest of the
-/// sources the runtime and the worker beside it were built from, which a
-/// resume must match.
+/// Each run records the implementation that started it, decided from its
+/// own method: a script's run records the digest of the sources the runtime
+/// was built from and the one its worker reports, which a resume must match;
+/// the child it calls, whose method runs no JavaScript, records no worker.
 #[test]
 fn a_run_records_the_implementation_that_started_it() -> TestResult {
     let temp = tempdir()?;
-    let skill_dir = write_one_step(
+    let skill_dir = write_script_skill(
         temp.path(),
-        "        calls:\n          tools: [data.digest]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
-        "export default async function () {\n  return { done: true };\n}\n",
+        DIGEST_THEN_CONFIRM,
+        "          digested: {type: array}\n          confirmed: {type: array}\n",
     )?;
-    let sealed = run(temp.path(), skill_dir)?;
-    let run_id = text(object(&sealed.output)?, "run_id")
-        .ok_or("missing run_id")?
-        .to_owned();
-    let read = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), &run_id, None)?;
-    let started = read
+    let paused = run(temp.path(), skill_dir)?;
+    assert_eq!(
+        requests(&paused)?,
+        ["prepare/1#confirm"],
+        "{:?}",
+        paused.output
+    );
+    let run_id = text(object(&paused.output)?, "run_id").ok_or("missing run_id")?;
+    let runtime = runx_contracts::schema::NonEmptyString::from(env!("RUNX_RUNTIME_SOURCE_DIGEST"));
+    assert_eq!(
+        started_implementation(temp.path(), run_id)?,
+        Some(runx_contracts::RunImplementation {
+            runtime: runtime.clone(),
+            worker: Some(env!("RUNX_JS_WORKER_SOURCE_DIGEST").into()),
+        })
+    );
+    let child = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), run_id, None)?
         .events
         .into_iter()
         .find_map(|record| match record.event {
-            RunEventFact::Started { implementation, .. } => Some(implementation),
+            RunEventFact::ChildStarted { implementation, .. } => Some(implementation),
             _ => None,
         })
-        .ok_or("the run started")?;
-    let current = runx_runtime::implementation::current(&env(temp.path()))?;
+        .ok_or("the child started")?;
     assert_eq!(
-        current.worker.as_str(),
-        env!("RUNX_JS_WORKER_SOURCE_DIGEST"),
-        "the worker beside this runx reports the sources it was built beside"
+        child,
+        Some(runx_contracts::RunImplementation {
+            runtime,
+            worker: None,
+        })
     );
-    assert_eq!(started, Some(current));
     Ok(())
 }
 
@@ -1034,11 +1046,27 @@ fn started_implementation(
         .ok_or("the run started")?)
 }
 
-/// A worker at `root/worker` that greets as one built from the sources
-/// `digest` names, then reads until it's stopped.
+/// A worker at `root/<name>` that marks each start of it in
+/// `root/<name>.starts`, then does `then`.
+#[cfg(unix)]
+fn write_worker(root: &Path, name: &str, then: &str) -> TestResult<String> {
+    use std::os::unix::fs::PermissionsExt;
+    let worker = root.join(name);
+    std::fs::write(
+        &worker,
+        format!(
+            "#!/bin/sh\necho start >> '{}.starts'\n{then}\n",
+            worker.display()
+        ),
+    )?;
+    std::fs::set_permissions(&worker, std::fs::Permissions::from_mode(0o755))?;
+    Ok(worker.to_string_lossy().into_owned())
+}
+
+/// A worker that greets as one built from the sources `digest` names, then
+/// reads until it's stopped.
 #[cfg(unix)]
 fn write_worker_reporting(root: &Path, digest: &str) -> TestResult<String> {
-    use std::os::unix::fs::PermissionsExt;
     let ready = serde_json::to_string(&serde_json::json!({
         "type": "ready",
         "protocol_version": runx_contracts::javascript_worker::PROTOCOL_VERSION,
@@ -1049,64 +1077,56 @@ fn write_worker_reporting(root: &Path, digest: &str) -> TestResult<String> {
         .iter()
         .map(|byte| format!("\\{byte:03o}"))
         .collect::<String>();
-    let worker = root.join("worker");
-    std::fs::write(
-        &worker,
-        format!("#!/bin/sh\nprintf '{length}{ready}'\nexec /bin/cat >/dev/null\n"),
-    )?;
-    std::fs::set_permissions(&worker, std::fs::Permissions::from_mode(0o755))?;
-    Ok(worker.to_string_lossy().into_owned())
+    write_worker(
+        root,
+        "reporting",
+        &format!("printf '{length}{ready}'\nexec /bin/cat >/dev/null"),
+    )
 }
 
-/// What a run records as its worker is what the worker reports in its
-/// handshake, not what this runx was built to expect: a worker that reports
-/// other sources is recorded as itself. This runx, built beside the worker's
-/// sources, still runs no script on it.
+/// The worker beside this runx, started through a wrapper that marks each
+/// start.
 #[cfg(unix)]
-#[test]
-fn a_run_records_the_sources_its_worker_reports() -> TestResult {
-    let temp = tempdir()?;
-    let skill_dir = write_script_skill(
-        temp.path(),
-        DIGEST_THEN_CONFIRM,
-        "          digested: {type: array}\n          confirmed: {type: array}\n",
-    )?;
-    let worker = write_worker_reporting(temp.path(), "sha256:other")?;
-    let mut other = env(temp.path());
-    other.insert("RUNX_JS_WORKER_PATH".to_owned(), worker);
-
-    let paused = run_under(
-        LocalOrchestrator::default(),
-        temp.path(),
-        temp.path().join("confirm-child"),
-        &other,
-    )?;
-    assert_eq!(requests(&paused)?, ["confirm"], "{:?}", paused.output);
-    let run_id = text(object(&paused.output)?, "run_id").ok_or("missing run_id")?;
-    let recorded = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
-    assert_eq!(recorded.worker.as_str(), "sha256:other");
-    assert_eq!(
-        recorded.runtime.as_str(),
-        env!("RUNX_RUNTIME_SOURCE_DIGEST")
-    );
-
-    let refused = run_under(LocalOrchestrator::default(), temp.path(), skill_dir, &other)?;
-    let output = serde_json::to_string(&refused.output)?;
-    assert!(
-        output.contains(&format!(
-            "built from other sources (sha256:other) than this runx expects ({})",
-            env!("RUNX_JS_WORKER_SOURCE_DIGEST")
-        )),
-        "{output}"
-    );
-    Ok(())
+fn write_counted_worker(root: &Path) -> TestResult<String> {
+    let beside = std::env::current_exe()?
+        .parent()
+        .and_then(Path::parent)
+        .ok_or("the test binary has no build directory")?
+        .join("runx-js-worker");
+    if !beside.is_file() {
+        return Err(format!("no worker at {}", beside.display()).into());
+    }
+    // The worker refuses any environment, and the shell gives it one.
+    write_worker(
+        root,
+        "counted",
+        &format!("exec /usr/bin/env -i '{}'", beside.display()),
+    )
 }
 
-/// A run started under one worker doesn't resume under a worker that
-/// reports other sources, and the refusal names both.
+/// How many times `worker` was started.
+#[cfg(unix)]
+fn starts(worker: &str) -> TestResult<usize> {
+    match std::fs::read_to_string(format!("{worker}.starts")) {
+        Ok(marks) => Ok(marks.lines().count()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Under `worker`.
+#[cfg(unix)]
+fn with_worker(root: &Path, worker: String) -> BTreeMap<String, String> {
+    let mut env = env(root);
+    env.insert("RUNX_JS_WORKER_PATH".to_owned(), worker);
+    env
+}
+
+/// A run whose method runs no JavaScript starts no worker and records none,
+/// so a worker of other sources never refuses its resume.
 #[cfg(unix)]
 #[test]
-fn a_resume_under_a_worker_that_reports_other_sources_is_refused() -> TestResult {
+fn a_run_that_runs_no_javascript_records_no_worker_and_resumes_under_another() -> TestResult {
     let temp = tempdir()?;
     write_script_skill(
         temp.path(),
@@ -1116,23 +1136,134 @@ fn a_resume_under_a_worker_that_reports_other_sources_is_refused() -> TestResult
     let paused = run(temp.path(), temp.path().join("confirm-child"))?;
     assert_eq!(requests(&paused)?, ["confirm"], "{:?}", paused.output);
     let run_id = text(object(&paused.output)?, "run_id").ok_or("missing run_id")?;
-    let started = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    let recorded = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    assert_eq!(recorded.worker, None);
 
     let worker = write_worker_reporting(temp.path(), "sha256:other")?;
-    let mut other = env(temp.path());
-    other.insert("RUNX_JS_WORKER_PATH".to_owned(), worker);
-    let refused = resume_under(
+    let sealed = resume_under(
         temp.path(),
         run_id,
         serde_json::json!({"approvals": {"confirm": true}}),
-        other,
+        with_worker(temp.path(), worker.clone()),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(starts(&worker)?, 0, "the resume started no worker");
+    Ok(())
+}
+
+/// A run of a worker tool starts one worker process, which learns the
+/// worker's digest as the run starts and then runs the tool, and records
+/// that digest.
+#[cfg(unix)]
+#[test]
+fn a_javascript_run_starts_one_worker_process_and_records_it() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("echo");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: echo\ndescription: Echoes a value.\n---\n# Echo\n\nEcho the value.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  echo:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: echo\n        tool: {module: echo.mjs}\n        inputs:\n          value: $input.value\n        outputs:\n          value: {type: string}\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("echo.mjs"),
+        "export default ({ value }) => ({ value });\n",
+    )?;
+    let worker = write_counted_worker(temp.path())?;
+    let sealed = run_under(
+        LocalOrchestrator::default(),
+        temp.path(),
+        skill_dir,
+        &with_worker(temp.path(), worker.clone()),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        starts(&worker)?,
+        1,
+        "one worker learned the digest and ran the tool"
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?;
+    let recorded = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    assert_eq!(
+        recorded.worker.as_deref(),
+        Some(env!("RUNX_JS_WORKER_SOURCE_DIGEST"))
+    );
+    Ok(())
+}
+
+/// A run whose method runs JavaScript doesn't start under a worker that
+/// reports other sources than this runx, built beside the worker's, expects:
+/// the refusal names both, and no run is recorded.
+#[cfg(unix)]
+#[test]
+fn a_javascript_run_does_not_start_on_a_worker_of_other_sources() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        DIGEST_THEN_CONFIRM,
+        "          digested: {type: array}\n          confirmed: {type: array}\n",
+    )?;
+    let worker = write_worker_reporting(temp.path(), "sha256:other")?;
+    let refused = run_under(
+        LocalOrchestrator::default(),
+        temp.path(),
+        skill_dir,
+        &with_worker(temp.path(), worker),
+    )
+    .err()
+    .ok_or("the run was refused")?
+    .to_string();
+    assert!(
+        refused.contains(&format!(
+            "built from other sources (sha256:other) than this runx expects ({})",
+            env!("RUNX_JS_WORKER_SOURCE_DIGEST")
+        )),
+        "{refused}"
+    );
+    let runs = runx_runtime::run_record::list_runs(
+        &env(temp.path()),
+        temp.path(),
+        &runx_runtime::run_record::RunFilter::default(),
+    )?;
+    assert!(runs.runs.is_empty(), "{:?}", runs.runs);
+    Ok(())
+}
+
+/// A run whose method runs JavaScript doesn't resume under a worker that
+/// reports other sources, and the refusal names both.
+#[cfg(unix)]
+#[test]
+fn a_resume_under_a_worker_that_reports_other_sources_is_refused() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        DIGEST_THEN_CONFIRM,
+        "          digested: {type: array}\n          confirmed: {type: array}\n",
+    )?;
+    let paused = run(temp.path(), skill_dir)?;
+    assert_eq!(
+        requests(&paused)?,
+        ["prepare/1#confirm"],
+        "{:?}",
+        paused.output
+    );
+    let run_id = text(object(&paused.output)?, "run_id").ok_or("missing run_id")?;
+    let started = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    let recorded = started.worker.ok_or("the run records its worker")?;
+
+    let worker = write_worker_reporting(temp.path(), "sha256:other")?;
+    let refused = resume_under(
+        temp.path(),
+        run_id,
+        serde_json::json!({"approvals": {"prepare/1#confirm": true}}),
+        with_worker(temp.path(), worker),
     )
     .err()
     .ok_or("the resume was refused")?
     .to_string();
     assert!(
-        refused.contains(&format!("worker {}", started.worker))
-            && refused.contains("worker sha256:other"),
+        refused.contains(recorded.as_str()) && refused.contains("sha256:other"),
         "{refused}"
     );
     Ok(())

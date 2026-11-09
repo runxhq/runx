@@ -131,6 +131,10 @@ pub enum RunEventFact {
         parent: NonEmptyString,
         step_id: NonEmptyString,
         skill: NonEmptyString,
+        /// What started it, decided from the child's own method. Absent for
+        /// a child an earlier runx started.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        implementation: Option<RunImplementation>,
     },
     Step {
         step_id: NonEmptyString,
@@ -232,9 +236,12 @@ pub enum RunHold {
 pub struct RunImplementation {
     /// The runtime's: the runx binary that drove it.
     pub runtime: NonEmptyString,
-    /// The JavaScript worker's it runs scripts and workers with, as the
-    /// worker reported it in its handshake.
-    pub worker: NonEmptyString,
+    /// The JavaScript worker's, as the worker gave it in its handshake.
+    /// Present exactly when the run's own method can run JavaScript, a
+    /// script step or a tool step on the worker; a run whose method has
+    /// neither starts no worker and records none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker: Option<NonEmptyString>,
 }
 
 /// How a call stood when this event recorded it.

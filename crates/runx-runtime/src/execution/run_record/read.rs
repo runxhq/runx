@@ -214,6 +214,7 @@ fn project(
             parent: started.parent.into(),
             step_id: started.step_id.into(),
             skill: started.skill.into(),
+            implementation: started.implementation,
         },
         RunEvent::EvaluationStarted(_) => {
             return Err(invalid(stream, "an evaluation inside a run".to_owned()));

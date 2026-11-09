@@ -90,7 +90,8 @@ impl BoundRun {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
         };
-        let implementation = crate::implementation::current(self.workspace.env())?;
+        let javascript = self.overrides.javascript.clone().unwrap_or_default();
+        let implementation = self.implementation(&javascript)?;
         let (workflow_inputs, run_act, run_context, run_authority, prepared) = match &existing {
             Some(record) => {
                 let started = continuation_identity(
@@ -186,8 +187,8 @@ impl BoundRun {
             run_context,
             run_authority,
             prepared.as_ref(),
-            host.gate.clone(),
-            host.stops.clone(),
+            host,
+            javascript,
         )?;
         let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
@@ -309,6 +310,27 @@ impl BoundRun {
         self.method.offer.is_some().then_some(reference)
     }
 
+    /// The implementation the run runs on, decided from what it runs as its
+    /// own method: for a purchase, the one step that calls the method, whose
+    /// child run decides from the method itself. A method that runs
+    /// JavaScript starts its worker on `javascript` now.
+    fn implementation(
+        &self,
+        javascript: &crate::adapters::javascript::JavaScriptAdapter,
+    ) -> Result<runx_contracts::RunImplementation, RuntimeError> {
+        let own = match self.purchase() {
+            Some(reference) => {
+                std::borrow::Cow::Owned(crate::execution::workflow::purchase_workflow(
+                    reference,
+                    &self.method.name,
+                    &JsonObject::new(),
+                ))
+            }
+            None => std::borrow::Cow::Borrowed(&self.method.workflow),
+        };
+        crate::implementation::of_run(&own, javascript, self.workspace.env())
+    }
+
     /// The workflow the run drives: the method's own, or for a purchase one step
     /// that calls the method through the registry, which the kernel buys as
     /// it buys any call.
@@ -335,15 +357,16 @@ impl BoundRun {
     }
 
     /// The run's runtime for one pass: the skill's environment, the run's
-    /// identity, authority and prepared context, and its log.
+    /// identity, authority and prepared context, its log, the gate and stops
+    /// its host brings, and the JavaScript session it started.
     fn runtime(
         &self,
         log: &RunLog,
         context: CallerContext,
         run_authority: Option<RunAuthority>,
         prepared: Option<&PreparedContext>,
-        effect_gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
-        call_stops: Option<std::sync::Arc<crate::execution::runner::CallStops>>,
+        host: &RunHost,
+        javascript: crate::adapters::javascript::JavaScriptAdapter,
     ) -> Result<Runtime<ExecutableAdapter>, RuntimeError> {
         let mut env = self.workspace.skill_env_for_skill(&self.skill_dir);
         PreparedContext::apply(prepared, &mut env)?;
@@ -365,8 +388,8 @@ impl BoundRun {
             receipt_signature: self.receipts.signature_config().clone(),
             effects: self.effects.clone(),
             run: log.clone(),
-            effect_gate,
-            call_stops: call_stops.unwrap_or_default(),
+            effect_gate: host.gate.clone(),
+            call_stops: host.stops.clone().unwrap_or_default(),
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
             reads: crate::execution::runner::RunReads::default(),
@@ -377,15 +400,12 @@ impl BoundRun {
             &options.run.store().project_dir(),
             crate::execution::run_record::root_run_id(options.run.run_id()),
         );
-        Ok(match &self.overrides.javascript {
-            Some(javascript) => Runtime::with_native_services(
-                ExecutableAdapter,
-                options,
-                javascript.clone(),
-                local_artifacts,
-            ),
-            None => Runtime::new(ExecutableAdapter, options),
-        })
+        Ok(Runtime::with_native_services(
+            ExecutableAdapter,
+            options,
+            javascript,
+            local_artifacts,
+        ))
     }
 
     /// Every request the run waits on, by address.
@@ -1151,7 +1171,10 @@ methods:
                 driver: RunDriver::Managed,
                 prepared: None,
                 purchase: None,
-                implementation: &crate::implementation::current(&env)?,
+                implementation: &runx_contracts::RunImplementation {
+                    runtime: "sha256:runtime".into(),
+                    worker: None,
+                },
                 created_at: "2026-07-24T00:00:00Z",
             })?;
             if suspended {
