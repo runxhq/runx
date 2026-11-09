@@ -1,16 +1,24 @@
 //! Bounded reads from an immutable snapshot, checked against its bound chunks.
 
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 
 use super::storage::SNAPSHOT_CHUNK_BYTES;
+
+/// The chunks a reader keeps once it has read and checked them, the most
+/// recent last: the largest page's, and one either side, so a page's range
+/// read again, or the next page's first chunk, is never read from the store
+/// twice.
+const RETAINED_CHUNKS: usize =
+    super::MAX_ARTIFACT_PAGE_BYTES / super::storage::SNAPSHOT_CHUNK_BYTES + 2;
 
 pub(super) struct SnapshotReader {
     file: File,
     bytes: u64,
     chunks: Vec<String>,
     position: u64,
-    cached: Option<(usize, Vec<u8>)>,
+    cached: VecDeque<(usize, Vec<u8>)>,
 }
 
 impl SnapshotReader {
@@ -23,17 +31,17 @@ impl SnapshotReader {
             bytes,
             chunks,
             position: 0,
-            cached: None,
+            cached: VecDeque::new(),
         })
     }
 
-    fn load_chunk(&mut self, index: usize) -> std::io::Result<()> {
-        if self
-            .cached
-            .as_ref()
-            .is_some_and(|(cached, _)| *cached == index)
-        {
-            return Ok(());
+    /// Chunk `index`, read from the store and checked the first time, and
+    /// kept.
+    fn load_chunk(&mut self, index: usize) -> std::io::Result<&[u8]> {
+        if let Some(at) = self.cached.iter().position(|(cached, _)| *cached == index) {
+            let kept = self.cached.remove(at).ok_or_else(integrity_error)?;
+            self.cached.push_back(kept);
+            return self.newest();
         }
         let start = u64::try_from(index)
             .ok()
@@ -48,12 +56,26 @@ impl SnapshotReader {
         self.file.seek(SeekFrom::Start(start))?;
         let mut bytes = vec![0_u8; length];
         self.file.read_exact(&mut bytes)?;
+        crate::work_counts::count_artifact_bytes(
+            crate::work_counts::ArtifactCopy::StoreRead,
+            length as u64,
+        );
         let expected = self.chunks.get(index).ok_or_else(integrity_error)?;
         if &runx_contracts::sha256_prefixed(&bytes) != expected {
             return Err(integrity_error());
         }
-        self.cached = Some((index, bytes));
-        Ok(())
+        if self.cached.len() >= RETAINED_CHUNKS {
+            self.cached.pop_front();
+        }
+        self.cached.push_back((index, bytes));
+        self.newest()
+    }
+
+    fn newest(&self) -> std::io::Result<&[u8]> {
+        self.cached
+            .back()
+            .map(|(_, bytes)| bytes.as_slice())
+            .ok_or_else(integrity_error)
     }
 }
 
@@ -66,8 +88,7 @@ impl Read for SnapshotReader {
             .map_err(|_| integrity_error())?;
         let within = usize::try_from(self.position % SNAPSHOT_CHUNK_BYTES as u64)
             .map_err(|_| integrity_error())?;
-        self.load_chunk(index)?;
-        let (_, bytes) = self.cached.as_ref().ok_or_else(integrity_error)?;
+        let bytes = self.load_chunk(index)?;
         let remaining = bytes.get(within..).ok_or_else(integrity_error)?;
         let length = output.len().min(remaining.len());
         output[..length].copy_from_slice(&remaining[..length]);

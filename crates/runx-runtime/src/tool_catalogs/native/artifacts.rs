@@ -50,6 +50,10 @@ fn read(
                 maximum,
             )
             .map_err(|error| invalid_input(READ_TOOL, error.to_string()))?;
+        crate::work_counts::count_artifact_bytes(
+            crate::work_counts::ArtifactCopy::ToResult,
+            page.length,
+        );
         return Ok(ArtifactPage {
             reference: page.artifact.reference,
             offset: page.offset,
@@ -82,6 +86,10 @@ fn read(
             encoding,
         )
         .map_err(|error| invalid_input(READ_TOOL, error.to_string()))?;
+    crate::work_counts::count_artifact_bytes(
+        crate::work_counts::ArtifactCopy::ToResult,
+        page.length,
+    );
     Ok(ArtifactPage {
         reference: page.artifact.reference,
         offset: page.offset,

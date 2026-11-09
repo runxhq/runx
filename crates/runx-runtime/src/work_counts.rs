@@ -43,6 +43,36 @@ static STORE_WRITES: AtomicU64 = AtomicU64::new(0);
 static PROVIDER_CALLS: AtomicU64 = AtomicU64::new(0);
 static TRANSACTIONS_SPANNING_PROVIDER_CALLS: AtomicU64 = AtomicU64::new(0);
 static RUN_MATERIALIZATIONS: AtomicU64 = AtomicU64::new(0);
+static ARTIFACT_BYTES_ADMITTED: AtomicU64 = AtomicU64::new(0);
+static ARTIFACT_STORE_BYTES_READ: AtomicU64 = AtomicU64::new(0);
+static ARTIFACT_BYTES_TO_WORKER: AtomicU64 = AtomicU64::new(0);
+static ARTIFACT_BYTES_TO_RESULT: AtomicU64 = AtomicU64::new(0);
+
+/// The points an artifact's bytes are copied at, from the store to a worker
+/// and to a result.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ArtifactCopy {
+    /// A source's bytes copied into the artifact store.
+    Admitted,
+    /// Bytes read from the artifact store: a snapshot's chunks, and the
+    /// manifest that names them.
+    StoreRead,
+    /// An artifact's bytes handed to a worker in a page.
+    ToWorker,
+    /// An artifact's bytes in a page a read returns.
+    ToResult,
+}
+
+/// Count `bytes` an artifact copy point copied.
+pub(crate) fn count_artifact_bytes(copy: ArtifactCopy, bytes: u64) {
+    let counter = match copy {
+        ArtifactCopy::Admitted => &ARTIFACT_BYTES_ADMITTED,
+        ArtifactCopy::StoreRead => &ARTIFACT_STORE_BYTES_READ,
+        ArtifactCopy::ToWorker => &ARTIFACT_BYTES_TO_WORKER,
+        ArtifactCopy::ToResult => &ARTIFACT_BYTES_TO_RESULT,
+    };
+    counter.fetch_add(bytes, Ordering::Relaxed);
+}
 
 /// Each package identity verified, with how many times.
 type VerifiedIdentities = Mutex<BTreeMap<[u8; 32], u64>>;
@@ -150,6 +180,14 @@ pub struct WorkCounts {
     /// Runs taken whole: a record replayed from its stream, or every call
     /// sealed into a receipt.
     pub run_materializations: u64,
+    /// Bytes copied into the artifact store from their sources.
+    pub artifact_bytes_admitted: u64,
+    /// Bytes read from the artifact store: chunks and manifests.
+    pub artifact_store_bytes_read: u64,
+    /// Artifact bytes handed to workers in pages.
+    pub artifact_bytes_to_worker: u64,
+    /// Artifact bytes in the pages reads returned.
+    pub artifact_bytes_to_result: u64,
 }
 
 #[must_use]
@@ -177,6 +215,10 @@ pub fn snapshot() -> WorkCounts {
         transactions_spanning_provider_calls: TRANSACTIONS_SPANNING_PROVIDER_CALLS
             .load(Ordering::Relaxed),
         run_materializations: RUN_MATERIALIZATIONS.load(Ordering::Relaxed),
+        artifact_bytes_admitted: ARTIFACT_BYTES_ADMITTED.load(Ordering::Relaxed),
+        artifact_store_bytes_read: ARTIFACT_STORE_BYTES_READ.load(Ordering::Relaxed),
+        artifact_bytes_to_worker: ARTIFACT_BYTES_TO_WORKER.load(Ordering::Relaxed),
+        artifact_bytes_to_result: ARTIFACT_BYTES_TO_RESULT.load(Ordering::Relaxed),
     }
 }
 

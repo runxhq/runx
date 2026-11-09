@@ -64,6 +64,10 @@ pub(super) fn invoke(
         }
     };
     let prepared = adapter.prepare_invocation(&request, package)?;
+    // One reader for every page, so each byte is read from the store once.
+    let mut pages = artifacts
+        .pages(&artifact.reference)
+        .map_err(|error| page_error(error.to_string()))?;
 
     let mut state = JsonValue::Null;
     let mut offset = 0_u64;
@@ -71,9 +75,8 @@ pub(super) fn invoke(
     for page_index in 0..MAX_PAGES {
         let record_budget =
             page_record_budget(&request.inputs, &artifact, page_index, offset, &state)?;
-        let page = artifacts
-            .read_json_array_page_with_record_budget(
-                &artifact.reference,
+        let page = pages
+            .json_array_page(
                 offset,
                 usize::try_from(page_source.page_bytes)
                     .map_err(|_| page_error("page size is not representable"))?,
@@ -88,6 +91,10 @@ pub(super) fn invoke(
             ));
         }
 
+        crate::work_counts::count_artifact_bytes(
+            crate::work_counts::ArtifactCopy::ToWorker,
+            page.length,
+        );
         let inputs = page_inputs(&request.inputs, &page, page_index, state)?;
         let mut output = adapter.invoke_prepared(&prepared, &inputs)?;
         total_duration_ms = total_duration_ms.saturating_add(output.duration_ms());

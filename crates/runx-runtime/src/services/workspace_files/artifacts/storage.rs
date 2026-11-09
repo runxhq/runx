@@ -1,10 +1,11 @@
 //! The persisted form of a local snapshot. The run's existing artifact root
 //! owns it; no original file is reopened when a later process reads a page.
 
+use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
@@ -15,7 +16,12 @@ use crate::services::{WorkspaceFile, WorkspaceFileError};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{Artifact, ArtifactLabels, ArtifactSchema, Reach};
 
-pub(super) const SNAPSHOT_CHUNK_BYTES: usize = 1024 * 1024;
+/// A snapshot's unit of verification. A read loads, and checks, each chunk
+/// its range covers, so a chunk no larger than a page lets a page read only
+/// its range from the store.
+pub(super) const SNAPSHOT_CHUNK_BYTES: usize = 64 * 1024;
+/// How many resolved snapshots a process keeps.
+const RESOLVED_RETAINED: usize = 32;
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 const SNAPSHOT_FORMAT: &str = "runx.artifact_snapshot.v1";
 /// The format a snapshot had before runx 0.12, which is refused by name.
@@ -59,6 +65,7 @@ struct SnapshotFormat {
     format: String,
 }
 
+#[derive(Clone)]
 pub(super) struct StoredArtifact {
     pub(super) descriptor: Artifact,
     root: PathBuf,
@@ -152,6 +159,7 @@ impl SnapshotStore {
                 }
                 other => other,
             })?;
+        crate::work_counts::count_artifact_bytes(crate::work_counts::ArtifactCopy::Admitted, bytes);
         let chunks = indexed.finish();
         if expected
             .is_some_and(|artifact| artifact.size_bytes != bytes || artifact.digest != whole_digest)
@@ -200,18 +208,29 @@ impl SnapshotStore {
                 return Err(WorkspaceFileError::SnapshotIntegrity);
             }
         }
+        if let Some(stamp) = record_stamp(&root, name) {
+            keep_resolved(&stored, stamp);
+        }
         Ok(stored.descriptor)
     }
 
     pub(super) fn resolve(&self, reference: &str) -> Result<StoredArtifact, WorkspaceFileError> {
         let name = reference_name(reference)?;
         let (root, namespace) = self.directory(false)?;
+        let stamp = record_stamp(&root, name);
+        if let Some(stored) = resolved_snapshot(&root, reference, stamp.as_ref()) {
+            return Ok(stored);
+        }
         let mut record = checked_file(&root, &format!("{name}.json"))?;
         let mut encoded = Vec::new();
         Read::by_ref(&mut record)
             .take(MAX_MANIFEST_BYTES + 1)
             .read_to_end(&mut encoded)
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
+        crate::work_counts::count_artifact_bytes(
+            crate::work_counts::ArtifactCopy::StoreRead,
+            encoded.len() as u64,
+        );
         if encoded.len() as u64 > MAX_MANIFEST_BYTES {
             return Err(WorkspaceFileError::SnapshotIntegrity);
         }
@@ -236,13 +255,64 @@ impl SnapshotStore {
         {
             return Err(WorkspaceFileError::SnapshotIntegrity);
         }
-        Ok(StoredArtifact {
+        let stored = StoredArtifact {
             descriptor: descriptor(reference, &manifest),
             root,
             name: name.to_owned(),
             manifest,
-        })
+        };
+        if let Some(stamp) = stamp {
+            keep_resolved(&stored, stamp);
+        }
+        Ok(stored)
     }
+}
+
+/// A manifest file as it was when this process verified it: its length and
+/// when it last changed, which a stat reads without reading the file.
+type RecordStamp = (u64, Option<std::time::SystemTime>);
+
+type Resolved = BTreeMap<(PathBuf, String), (StoredArtifact, RecordStamp)>;
+
+/// The snapshots this process has verified, by their directory and
+/// reference, with the stamp their manifest had then. A reference digests its
+/// manifest, so what it names never changes: while its manifest file is
+/// unchanged, a page read later reads only its range, never the manifest
+/// again. A manifest changed since is read and verified again.
+fn resolved() -> &'static Mutex<Resolved> {
+    static RESOLVED: OnceLock<Mutex<Resolved>> = OnceLock::new();
+    RESOLVED.get_or_init(Mutex::default)
+}
+
+fn record_stamp(root: &Path, name: &str) -> Option<RecordStamp> {
+    let metadata = fs::symlink_metadata(root.join(format!("{name}.json"))).ok()?;
+    Some((metadata.len(), metadata.modified().ok()))
+}
+
+fn resolved_snapshot(
+    root: &Path,
+    reference: &str,
+    stamp: Option<&RecordStamp>,
+) -> Option<StoredArtifact> {
+    let resolved = resolved().lock().ok()?;
+    let (stored, kept) = resolved.get(&(root.to_path_buf(), reference.to_owned()))?;
+    (Some(kept) == stamp).then(|| stored.clone())
+}
+
+fn keep_resolved(stored: &StoredArtifact, stamp: RecordStamp) {
+    let Ok(mut resolved) = resolved().lock() else {
+        return;
+    };
+    if resolved.len() >= RESOLVED_RETAINED {
+        resolved.clear();
+    }
+    resolved.insert(
+        (
+            stored.root.clone(),
+            stored.descriptor.reference.as_str().to_owned(),
+        ),
+        (stored.clone(), stamp),
+    );
 }
 
 /// A snapshot as the artifact it is. Its bytes are never in the project, so

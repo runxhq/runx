@@ -12,6 +12,7 @@ mod reader;
 mod storage;
 
 use framing::frame_json_array_page;
+use reader::SnapshotReader;
 use storage::{SnapshotStore, StoredArtifact};
 
 pub(crate) const MAX_ARTIFACT_BYTES: u64 = 512 * 1024 * 1024;
@@ -155,18 +156,18 @@ impl LocalArtifactService {
         let mut file = artifact.reader()?;
         file.seek(SeekFrom::Start(offset))
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
+        // A page reads its window and nothing past it: a UTF-8 page that
+        // stops inside a character ends before it, and the next page begins
+        // with it.
         let remaining = artifact.descriptor.size_bytes.saturating_sub(offset);
-        let capture = usize::try_from(remaining.min((maximum + 4) as u64)).unwrap_or(maximum + 4);
+        let capture = usize::try_from(remaining.min(maximum as u64)).unwrap_or(maximum);
         let mut bytes = vec![0; capture];
         file.read_exact(&mut bytes)
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
-        if encoding == ArtifactPageEncoding::Utf8 && bytes.len() > maximum {
-            bytes.truncate(maximum);
+        if encoding == ArtifactPageEncoding::Utf8 && (capture as u64) < remaining {
             while std::str::from_utf8(&bytes).is_err_and(|error| error.error_len().is_none()) {
                 bytes.pop();
             }
-        } else if bytes.len() > maximum {
-            bytes.truncate(maximum);
         }
         let data = match encoding {
             ArtifactPageEncoding::Base64 => {
@@ -206,24 +207,52 @@ impl LocalArtifactService {
         maximum: usize,
         maximum_encoded_records: usize,
     ) -> Result<ArtifactRecordPage, WorkspaceFileError> {
+        self.pages(reference)?
+            .json_array_page(offset, maximum, maximum_encoded_records)
+    }
+
+    /// The artifact `reference` names, open for page reads one after
+    /// another: each chunk it reads stays read, so reading it whole reads
+    /// each byte from the store once.
+    pub(crate) fn pages(&self, reference: &str) -> Result<ArtifactPages, WorkspaceFileError> {
+        let artifact = self.store.resolve(reference)?;
+        let reader = artifact.reader()?;
+        Ok(ArtifactPages { artifact, reader })
+    }
+}
+
+/// An artifact open for page reads, with one reader for all of them.
+pub(crate) struct ArtifactPages {
+    artifact: StoredArtifact,
+    reader: SnapshotReader,
+}
+
+impl ArtifactPages {
+    /// The JSON array records from `offset`, at most `maximum` bytes of them
+    /// and `maximum_encoded_records` encoded, and the digest of the range they
+    /// were read from.
+    pub(crate) fn json_array_page(
+        &mut self,
+        offset: u64,
+        maximum: usize,
+        maximum_encoded_records: usize,
+    ) -> Result<ArtifactRecordPage, WorkspaceFileError> {
         if maximum == 0 || maximum > MAX_ARTIFACT_PAGE_BYTES {
             return Err(WorkspaceFileError::InvalidPageSize {
                 maximum: MAX_ARTIFACT_PAGE_BYTES,
             });
         }
-        let artifact = self.store.resolve(reference)?;
-        if offset > artifact.descriptor.size_bytes {
+        if offset > self.artifact.descriptor.size_bytes {
             return Err(WorkspaceFileError::InvalidArtifactOffset {
                 offset,
-                bytes: artifact.descriptor.size_bytes,
+                bytes: self.artifact.descriptor.size_bytes,
             });
         }
-        let file = artifact.reader()?;
-        let frame = frame_json_array_page(file, offset, maximum, maximum_encoded_records)?;
-
-        let range = read_exact_range(&artifact, offset, frame.next_offset)?;
+        let frame =
+            frame_json_array_page(&mut self.reader, offset, maximum, maximum_encoded_records)?;
+        let range = read_exact_range(&mut self.reader, offset, frame.next_offset)?;
         Ok(ArtifactRecordPage {
-            artifact: artifact.descriptor.clone(),
+            artifact: self.artifact.descriptor.clone(),
             offset,
             length: frame.next_offset.saturating_sub(offset),
             next_offset: frame.next_offset,
@@ -234,12 +263,13 @@ impl LocalArtifactService {
     }
 }
 
+/// The bytes from `offset` to `end`, which a page's framing has just read,
+/// so they're read again from the chunks the reader kept.
 fn read_exact_range(
-    artifact: &StoredArtifact,
+    file: &mut SnapshotReader,
     offset: u64,
     end: u64,
 ) -> Result<Vec<u8>, WorkspaceFileError> {
-    let mut file = artifact.reader()?;
     file.seek(SeekFrom::Start(offset))
         .map_err(WorkspaceFileError::SnapshotUnavailable)?;
     let length = usize::try_from(end.saturating_sub(offset)).map_err(|_| {

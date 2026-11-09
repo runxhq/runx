@@ -323,3 +323,92 @@ fn a_run_reads_its_package_no_more_at_call_1000_than_at_call_10() -> TestResult 
     );
     Ok(())
 }
+
+/// A page read touches only its range: two 64 KiB pages of an artifact read
+/// those 128 KiB from the store, whether the artifact holds 256 KiB or 4 MiB.
+#[test]
+fn a_page_read_reads_only_its_range_from_the_store() -> TestResult {
+    let read = |bytes: usize| -> TestResult<Value> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-pages-{bytes}"));
+        fs::create_dir_all(root.join("home"))?;
+        fs::write(root.join("artifact.txt"), vec![b'x'; bytes])?;
+        let package = root.join("skills/pages");
+        fs::create_dir_all(&package)?;
+        fs::write(
+            package.join("SKILL.md"),
+            "---\nname: pages\ndescription: Reads two pages of an artifact.\n---\n# pages\n",
+        )?;
+        let page = |id: &str, offset: u64| {
+            format!(
+                "      - id: {id}\n        tool: artifact.read\n        inputs:\n          ref: $steps.admit.artifact.ref\n          offset: {offset}\n          max_bytes: 65536\n          encoding: utf8\n"
+            )
+        };
+        fs::write(
+            package.join("run.yaml"),
+            format!(
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: admit\n        tool: artifact.admit\n        inputs:\n          path: artifact.txt\n          media_type: text/plain\n{}{}",
+                page("first", 0),
+                page("second", 65536)
+            ),
+        )?;
+        counted(&root, &["skill", "skills/pages", "--json"])
+    };
+    for counts in [read(256 * 1024)?, read(4 * 1024 * 1024)?] {
+        assert_eq!(
+            count_of(&counts, "artifact_store_bytes_read")?,
+            2 * 65536,
+            "{counts}"
+        );
+    }
+    Ok(())
+}
+
+/// Each byte of an artifact is copied a bounded number of times from the
+/// store to a worker: copied into the store, read from it, and handed to the
+/// worker, as many times per byte for 512 KiB of records as for 4 MiB.
+#[test]
+fn an_artifact_byte_is_copied_as_often_at_every_size() -> TestResult {
+    let copies = |bytes: usize| -> TestResult<(u64, Value)> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-copies-{bytes}"));
+        fs::create_dir_all(root.join("home"))?;
+        let record = format!("\"{}\"", "x".repeat(998));
+        let mut array = String::from("[");
+        while array.len() + record.len() + 2 < bytes {
+            if array.len() > 1 {
+                array.push(',');
+            }
+            array.push_str(&record);
+        }
+        array.push(']');
+        fs::write(root.join("records.json"), &array)?;
+        let package = root.join("skills/counter");
+        fs::create_dir_all(&package)?;
+        fs::write(
+            package.join("SKILL.md"),
+            "---\nname: counter\ndescription: Counts a JSON array's records.\n---\n# counter\n",
+        )?;
+        fs::write(
+            package.join("count.mjs"),
+            "export default ({ runx_page: page }) => {\n  const seen = (page.state?.seen ?? 0) + page.records.length;\n  if (!page.eof) return { runx_page: { state: { seen } } };\n  return { runx_page: { state: { seen }, done: true }, records: seen };\n};\n",
+        )?;
+        fs::write(
+            package.join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  count:\n    steps:\n      - id: count\n        tool:\n          module: count.mjs\n          paged_input: {path: source, media_type: application/json, framing: json_array}\n        inputs:\n          source: records.json\n        outputs:\n          records: {type: number}\n",
+        )?;
+        Ok((
+            array.len() as u64,
+            counted(&root, &["skill", "skills/counter", "--json"])?,
+        ))
+    };
+    let per_byte = |(bytes, counts): &(u64, Value)| -> TestResult<(u64, u64)> {
+        let copied = count_of(counts, "artifact_bytes_admitted")?
+            + count_of(counts, "artifact_store_bytes_read")?
+            + count_of(counts, "artifact_bytes_to_worker")?;
+        Ok((copied / bytes, copied % bytes))
+    };
+    let small = copies(512 * 1024)?;
+    let large = copies(4 * 1024 * 1024)?;
+    assert_eq!(per_byte(&small)?, (3, 0), "{}", small.1);
+    assert_eq!(per_byte(&large)?, (3, 0), "{}", large.1);
+    Ok(())
+}
