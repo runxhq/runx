@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/slack/decision-observation/v1.json",
+  "x-runx-packet-id": "runx/slack.decision_observation.v1",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "coverage_complete": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nonce": {
+          "type": "string"
+        },
+        "request_digest": {
+          "type": "string"
+        },
+        "status": {
+          "const": "pending",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "request_digest",
+        "nonce",
+        "coverage_complete",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "boolean"
+        },
+        "evidence_locator": {
+          "type": "string"
+        },
+        "nonce": {
+          "type": "string"
+        },
+        "occurred_at": {
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "human_account",
+            "app_or_bot",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "presentation_locator": {
+          "type": "string"
+        },
+        "request_digest": {
+          "type": "string"
+        },
+        "status": {
+          "const": "decided",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "request_digest",
+        "nonce",
+        "presentation_locator",
+        "actor_id",
+        "origin",
+        "evidence_locator",
+        "occurred_at",
+        "approved"
+      ],
+      "type": "object"
+    }
+  ]
+}

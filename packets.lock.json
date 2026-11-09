@@ -202,6 +202,10 @@
       "digest": "sha256:8d29bf460c658e17bdd4ea1a5e692087ed9a3817a505691d6f924247a9450801"
     },
     {
+      "id": "runx/slack.decision_observation.v1",
+      "digest": "sha256:580c63b43fa1a2362532235f8f06d82a306fcb7e11822c2f6425e0d2d35765c2"
+    },
+    {
       "id": "runx/sql-analysis.plan.v1",
       "digest": "sha256:f9534b5b20b6f53a3bb8e6d92ef3ada713f2fb0e8c1afdaa27595856eccca7b9"
     },
