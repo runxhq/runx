@@ -66,6 +66,12 @@ export interface RunAuthority {
   readonly max_fanout?: number;
   readonly max_child_depth?: number;
   /**
+   * The most calls the run, its steps and child runs included, may have
+   * executing at once: 1 to the kernel's ceiling of 16, which applies when
+   * it's absent. A step's `concurrency` only narrows it.
+   */
+  readonly max_concurrency?: number;
+  /**
    * What the run may change: `none` refuses every change, `ask` holds every
    * write with no approval of its own for a person, and `allow`, the default,
    * holds nothing. A method or step only narrows it.

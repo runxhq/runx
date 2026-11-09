@@ -309,6 +309,11 @@ nobody. A host delegating to a different actor names it as the delegation's
 `principal_ref` and as the run's `actor_ref`, under the operator's
 `mandate_ref`, which the call's receipt cites.
 
+A run's authority may set `max_concurrency`, the most calls the run, its steps
+and child runs included, may have executing at once: from 1 to the kernel's
+ceiling of 16, which applies when a host states none. A step that runs calls at
+once only narrows it, so nesting can't multiply it.
+
 A run's authority may also set `max_spend_micro_usd`, the most the run may spend in
 integer micro-USD (1 = $0.000001); `runx skill --max-spend <usd>` sets it for a
 local run. Every priced call's quote, and every amount a call moves in USD or
