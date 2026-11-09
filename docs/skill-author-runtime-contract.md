@@ -183,13 +183,16 @@ TypeScript entrypoint, or path/name mismatch fails before execution or publish.
 
 ## Permission proof
 
-Method and tool scopes are opaque exact strings. Native capabilities and
-provider operations declare the scopes they own, and the production dispatcher
-refuses invocation when the selected step does not declare them. The package
-test uses that same catalog and dispatcher; a permission-bearing path should
-therefore include an admitted case and, where the owner is harnessable, a
-withheld-scope or withheld-grant case. There is no test-only permission
-evaluator or scope vocabulary.
+What a call may do is decided by its run's authority, never by a name the
+package writes: the run's `effects` say whether it may change anything and
+whether a person approves first, its `reach` says where its tools may go, and
+a provider operation runs under its instance's grant, whose scopes come only
+from the grant's evidence. A native capability owns its effect
+classification, and the production dispatcher admits a call only within those
+bounds. The package test uses that same catalog and dispatcher, so a path that
+changes something should include an admitted case and a refused one: under
+`effects: none`, outside its `reach`, or with its grant withheld. There is no
+test-only permission evaluator.
 
 This is positive enforcement evidence for native capabilities and provider
 boundaries. It is not negative syscall evidence for a process tool or a process
