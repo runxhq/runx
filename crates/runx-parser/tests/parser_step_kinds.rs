@@ -1,7 +1,7 @@
 use runx_parser::{
-    AgentTask, AskGate, InputMode, StepKind, ToolTarget, ValidateSkillMode, ValidateSkillOptions,
-    parse_method_manifest_yaml, parse_skill_markdown, validate_method_manifest, validate_skill,
-    validate_skill_with_options,
+    AgentTask, AskGate, InputMode, Source, StepKind, ToolTarget, ValidateSkillMode,
+    ValidateSkillOptions, parse_method_manifest_yaml, parse_skill_markdown,
+    validate_method_manifest, validate_skill, validate_skill_with_options,
 };
 
 /// One method named `main` with the given steps (each line indented for a
@@ -177,6 +177,7 @@ fn an_agent_step_names_its_task() -> Result<(), String> {
             connectors: Default::default(),
             requires: Default::default(),
             context_kinds: Default::default(),
+            context_entries: Default::default(),
         })
     );
     assert!(only_step(&method).outputs.is_some());
@@ -243,6 +244,51 @@ fn an_agent_step_names_the_kinds_of_context_its_host_supplies() -> Result<(), St
         .err()
         .unwrap_or_default();
         assert!(refused.contains(refusal), "{kinds}: {refused}");
+    }
+    Ok(())
+}
+
+#[test]
+fn an_agent_step_is_given_context_entries_only_from_an_earlier_steps_output() -> Result<(), String>
+{
+    let recall = "      - id: recall\n        tool: {module: recall.mjs, export: recall}\n        outputs: {entries: {type: array}}\n";
+    let parsed = method(&format!(
+        "{recall}      - id: answer\n        agent: answer\n        context: {{entries: [$steps.recall.entries]}}\n"
+    ))?;
+    let answer = &parsed.graph.steps[1];
+    let StepKind::Agent(task) = &answer.kind else {
+        return Err("expected an agent step".to_owned());
+    };
+    assert_eq!(
+        task.context_entries,
+        [Source::Step {
+            step: "recall".to_owned(),
+            path: vec!["entries".to_owned()],
+        }]
+    );
+    // The step it reads from is one the workflow waits on.
+    assert_eq!(answer.reads(), ["recall"]);
+    for (entries, refusal) in [
+        (
+            "[$input.entries]",
+            "reads an earlier step's output of context entries",
+        ),
+        (
+            "[$steps.recall.entries, $steps.recall.entries]",
+            "names $steps.recall.entries again",
+        ),
+        ("[$steps.later.entries]", "later"),
+        (
+            "$steps.recall.entries",
+            "is a list of $steps.<id>.<field> references",
+        ),
+    ] {
+        let refused = method(&format!(
+            "{recall}      - id: answer\n        agent: answer\n        context: {{entries: {entries}}}\n"
+        ))
+        .err()
+        .unwrap_or_default();
+        assert!(refused.contains(refusal), "{entries}: {refused}");
     }
     Ok(())
 }

@@ -883,6 +883,9 @@ where
             admission_refs,
             held_by_effects,
             host,
+            // A turn's call is a tool, operation or skill, never an agent
+            // step, so it reads no earlier steps' context entries.
+            context_entries: Vec::new(),
         };
         let result = match target {
             TurnTarget::Skill {

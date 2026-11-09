@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use runx_contracts::EnvironmentRequirements;
 
-use super::binding::{Binding, Operand};
+use super::binding::{Binding, Operand, Source};
 use crate::skill::{ArtifactPageSource, InputMode, SkillArtifactContract};
 
 /// A condition on a step: `value` equals, or does not equal, a literal. As a
@@ -100,6 +100,10 @@ pub struct AgentTask {
     /// `context.kinds` (N22, D31).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_kinds: Vec<String>,
+    /// The earlier steps' outputs of context entries the turn is given: the
+    /// step's `context.entries`, each a step's field.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_entries: Vec<Source>,
 }
 
 /// A tool step's target.
@@ -260,11 +264,17 @@ impl WorkflowStep {
     #[must_use]
     pub fn reads(&self) -> Vec<&str> {
         let mut steps = Vec::new();
+        let entries = match &self.kind {
+            StepKind::Agent(task) => task.context_entries.as_slice(),
+            _ => &[],
+        };
         for step in self
             .bindings
             .iter()
             .chain(self.act.iter().flat_map(|act| &act.bindings))
-            .filter_map(|binding| binding.source.step())
+            .map(|binding| &binding.source)
+            .chain(entries)
+            .filter_map(Source::step)
         {
             if !steps.contains(&step) {
                 steps.push(step);

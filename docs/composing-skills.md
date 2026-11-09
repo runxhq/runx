@@ -142,6 +142,32 @@ steps:
   supply, as lowercase words joined by `_` or `-`. The invocation carries
   them, and the host supplies what it has.
 
+## Context From An Earlier Step
+
+An agent step can be given what an earlier step produced as context:
+
+```yaml
+steps:
+  - id: recall
+    tool: {module: recall.mjs, export: recall}
+    outputs:
+      entries: {type: array}
+  - id: draft
+    agent: draft
+    context:
+      entries: [$steps.recall.entries]
+```
+
+- Each of `context.entries` is an earlier step's output, `$steps.<id>.<field>`,
+  holding a list of `runx.context_entry.v1` values. The turn waits on that
+  step, as it waits on a step its inputs read.
+- Each entry keeps the labels its producer gave it: its `purpose`, its `trust`
+  and its `sharing`. The runtime never raises an entry's trust or widens
+  where it may go. An output that isn't a list of context entries fails the
+  step, saying which output it read.
+- The turn reads the entries after its `context.skills`, and before the
+  context its run's caller supplied.
+
 ## Run The Test
 
 Use the example's test as the executable contract:

@@ -1446,6 +1446,133 @@ methods:
     Ok(())
 }
 
+/// A package whose `recall` step returns `entries` from `recall.mjs`, and
+/// whose `answer` turn is given them through `context.entries`.
+fn write_context_entries_skill(
+    root: &Path,
+    recall: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("context-entries");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: context-entries\ndescription: An answer given what an earlier step recalled.\n---\n# Context entries\n\n## Agent task: answer\n\nAnswer from what was recalled.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  main:
+    steps:
+      - id: recall
+        tool: {module: recall.mjs, export: recall}
+        outputs:
+          entries: {type: array}
+      - id: answer
+        agent: answer
+        context:
+          entries: [$steps.recall.entries]
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    fs::write(skill_dir.join("recall.mjs"), recall)?;
+    Ok(skill_dir)
+}
+
+fn run_context_entries_skill(
+    root: &Path,
+    skill_dir: PathBuf,
+) -> Result<RunResult, Box<dyn std::error::Error>> {
+    run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(root.join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env: path_env(),
+        cwd: root.to_path_buf(),
+        managed_agent: Default::default(),
+    })
+}
+
+#[test]
+fn an_agent_step_is_given_an_earlier_steps_context_entries_with_their_own_labels()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_context_entries_skill(
+        temp.path(),
+        r#"export const recall = () => ({ entries: [{
+  schema: "runx.context_entry.v1",
+  type: "memory.said",
+  summary: "Kam's launch date",
+  data: { text: "We launch on the third of November." },
+  labels: { purpose: "confirmed_memory", trust: "person_confirmed", sharing: "local_only" },
+  sources: ["conversation:2026-10-20"],
+  origin: {
+    artifact_id: "memory:said:personal#launch@1",
+    run_id: "rx_recall",
+    step_id: null,
+    producer: { skill: "runx/memory", method: "index" },
+    created_at: "2026-10-20T00:00:00Z",
+    digest: "sha256:launch",
+    size_bytes: 36
+  }
+}] });
+"#,
+    )?;
+
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    let output = object(&result.output, "context entries result")?;
+    assert_eq!(string_field(output, "status"), Some("needs_agent"));
+    let requests = array_field(output, "requests").ok_or("missing requests")?;
+    let request = object(&requests[0], "request")?;
+    let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
+    let envelope = object_field(invocation, "envelope").ok_or("missing envelope")?;
+    let current_context =
+        array_field(envelope, "current_context").ok_or("missing current_context")?;
+    assert_eq!(current_context.len(), 1, "{current_context:?}");
+    let entry = object(&current_context[0], "recalled entry")?;
+    assert_eq!(string_field(entry, "type"), Some("memory.said"));
+    // The entry keeps the labels its producer gave it: the runtime neither
+    // raises its trust nor widens where it may go.
+    let labels = object_field(entry, "labels").ok_or("missing labels")?;
+    assert_eq!(string_field(labels, "purpose"), Some("confirmed_memory"));
+    assert_eq!(string_field(labels, "trust"), Some("person_confirmed"));
+    assert_eq!(string_field(labels, "sharing"), Some("local_only"));
+    Ok(())
+}
+
+#[test]
+fn an_agent_step_refuses_an_earlier_output_that_isnt_context_entries()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    // `scope` was a context entry's labels before 0.12; it isn't one now.
+    let skill_dir = write_context_entries_skill(
+        temp.path(),
+        r#"export const recall = () => ({ entries: [{ type: "memory.said", scope: { purpose: "confirmed_memory" } }] });
+"#,
+    )?;
+
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    let output = object(&result.output, "context entries result")?;
+    assert_ne!(string_field(output, "status"), Some("needs_agent"));
+    let rendered = serde_json::to_string(&result.output)?;
+    assert!(
+        rendered.contains(
+            "context.entries reads $steps.recall.entries, which isn't a list of context entries"
+        ),
+        "{rendered}"
+    );
+    Ok(())
+}
+
 #[test]
 fn workflow_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn std::error::Error>>
 {

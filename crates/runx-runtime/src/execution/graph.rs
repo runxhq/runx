@@ -873,6 +873,36 @@ fn bind_earlier_steps(
     Ok(values)
 }
 
+/// The context entries an agent step's turn is given from earlier steps: each
+/// output its `context.entries` names, a list of `runx.context_entry.v1`
+/// values, in the order the step names them. Each keeps its own labels.
+pub(crate) fn materialize_step_context_entries_with_index(
+    step: &WorkflowStep,
+    prior_run_index: &PriorRunIndex<'_>,
+) -> Result<Vec<runx_contracts::ContextEntry>, RuntimeError> {
+    let StepKind::Agent(task) = &step.kind else {
+        return Ok(Vec::new());
+    };
+    let mut entries = Vec::new();
+    for source in &task.context_entries {
+        let Source::Step { step: from, path } = source else {
+            continue;
+        };
+        let value = prior_run_index.output(&step.id, "context.entries", from, path)?;
+        let listed = value
+            .deserialize_into::<Vec<runx_contracts::ContextEntry>>()
+            .map_err(|error| RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason: format!(
+                    "context.entries reads {}, which isn't a list of context entries: {error}",
+                    source.reference()
+                ),
+            })?;
+        entries.extend(listed);
+    }
+    Ok(entries)
+}
+
 pub(crate) fn materialize_step_invocation_provenance_with_index(
     step: &WorkflowStep,
     prior_run_index: &PriorRunIndex<'_>,

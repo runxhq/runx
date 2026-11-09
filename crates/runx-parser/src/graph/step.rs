@@ -6,7 +6,9 @@ use runx_contracts::{
     AllowedOperation, CatalogRule, JsonObject, JsonValue, PacketId, SkillAllowance, TurnAllowance,
 };
 
-use super::binding::{parse_act, parse_call, parse_literal, parse_operand, parse_whole};
+use super::binding::{
+    Operand, Source, parse_act, parse_call, parse_literal, parse_operand, parse_whole,
+};
 use super::helpers::{
     gate_id, narrowing, optional_non_empty_string, optional_object, required_array,
     required_object, required_string, step_id, validation_error,
@@ -30,7 +32,7 @@ const COMMON_FIELDS: &[&str] = &["id", "when", "guard", "effects", "reach"];
 const CALLS_FIELDS: &[&str] = &["tools", "operations", "skills", "load", "ask"];
 
 /// What an agent step's `context` gives it.
-const CONTEXT_FIELDS: &[&str] = &["skills", "kinds"];
+const CONTEXT_FIELDS: &[&str] = &["skills", "kinds", "entries"];
 
 /// An operation step's `result`.
 const RESULT_FIELDS: &[&str] = &["required", "optional", "equals", "ephemeral"];
@@ -260,6 +262,11 @@ fn validate_kind(
                 raw_step.get("context"),
                 &format!("{field}.context.kinds"),
             )?,
+            context_entries: context_entries(
+                raw_step.get("context"),
+                previous_step_ids,
+                &format!("{field}.context.entries"),
+            )?,
         })),
         "tool" => validate_tool_target(
             value.ok_or_else(|| validation_error(format!("{qualified} is required.")))?,
@@ -351,6 +358,47 @@ fn context_kinds(context: Option<&JsonValue>, field: &str) -> Result<Vec<String>
         }
     }
     Ok(kinds)
+}
+
+/// The context entries an agent step's turn is given from earlier steps
+/// (memory.md): each an earlier step's output of `ContextEntry` values,
+/// `$steps.<id>.<field>`, named once. The entries keep their own labels.
+fn context_entries(
+    context: Option<&JsonValue>,
+    previous_step_ids: &BTreeSet<String>,
+    field: &str,
+) -> Result<Vec<Source>, ValidationError> {
+    let Some(entries) = context
+        .and_then(JsonValue::as_object)
+        .and_then(|context| context.get("entries"))
+    else {
+        return Ok(Vec::new());
+    };
+    let JsonValue::Array(entries) = entries else {
+        return Err(validation_error(format!(
+            "{field} is a list of $steps.<id>.<field> references."
+        )));
+    };
+    let mut sources = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let entry_field = format!("{field}[{index}]");
+        let source = match parse_operand(entry, previous_step_ids, &entry_field)? {
+            Operand::Reference(source @ Source::Step { .. }) => source,
+            Operand::Reference(_) | Operand::Literal(_) => {
+                return Err(validation_error(format!(
+                    "{entry_field} reads an earlier step's output of context entries: write $steps.<id>.<field>."
+                )));
+            }
+        };
+        if sources.contains(&source) {
+            return Err(validation_error(format!(
+                "{entry_field} names {} again.",
+                source.reference()
+            )));
+        }
+        sources.push(source);
+    }
+    Ok(sources)
 }
 
 /// What an agent step's turn needs from its agent harness. Each is named once, and

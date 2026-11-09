@@ -6,7 +6,7 @@ use runx_contracts::Reference;
 use runx_parser::WorkflowStep;
 
 use super::super::graph::{
-    LoadedStepSkill, materialize_step_act_with_index,
+    LoadedStepSkill, materialize_step_act_with_index, materialize_step_context_entries_with_index,
     materialize_step_invocation_inputs_with_index,
     materialize_step_invocation_provenance_with_index,
 };
@@ -56,7 +56,9 @@ where
     let mut provenance =
         materialize_step_invocation_provenance_with_index(request.step, prior_run_index)?;
     provenance.extend_from_slice(request.runtime.inherited_provenance(&request.step.id));
-    run_step_with_loaded_skill_inputs(request, inputs, child_act, provenance)
+    let context_entries =
+        materialize_step_context_entries_with_index(request.step, prior_run_index)?;
+    run_step_with_loaded_skill_inputs(request, inputs, child_act, provenance, context_entries)
 }
 
 fn run_step_with_loaded_skill_inputs<A>(
@@ -64,6 +66,7 @@ fn run_step_with_loaded_skill_inputs<A>(
     inputs: runx_contracts::JsonObject,
     child_act: Option<runx_contracts::CallAct>,
     provenance: Vec<runx_contracts::ProvenanceEntry>,
+    context_entries: Vec<runx_contracts::ContextEntry>,
 ) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
@@ -91,6 +94,7 @@ where
         admission_refs,
         held_by_effects,
         host,
+        context_entries,
     };
     match loaded_skill {
         Some(skill) => super::step_handlers::run_step_with_loaded_skill_inputs(request, skill),

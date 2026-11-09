@@ -45,6 +45,7 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
             connectors: Default::default(),
             requires: Default::default(),
             context_kinds: Default::default(),
+            context_entries: Default::default(),
         }),
         outputs,
         requirements: ExecutionRequirements::default(),

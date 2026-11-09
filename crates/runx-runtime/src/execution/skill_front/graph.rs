@@ -1002,6 +1002,7 @@ mod tests {
                 connectors: Default::default(),
                 requires: Default::default(),
                 context_kinds: Default::default(),
+                context_entries: Default::default(),
             }),
             outputs: None,
             inputs: JsonObject::new(),

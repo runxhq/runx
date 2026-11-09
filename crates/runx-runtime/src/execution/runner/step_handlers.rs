@@ -13,8 +13,8 @@ use std::time::Instant;
 use output::{build_ephemeral_step_output, build_step_output_projection, contract_output_claim};
 
 use runx_contracts::{
-    ApprovalGate, CallAct, ExecutionEvent, JsonObject, JsonValue, ProvenanceEntry, Receipt,
-    Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
+    ApprovalGate, CallAct, ContextEntry, ExecutionEvent, JsonObject, JsonValue, ProvenanceEntry,
+    Receipt, Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{AskGate, SkillArtifactContract, StepKind, ToolTarget, WorkflowStep};
@@ -114,6 +114,9 @@ pub(super) struct StepRunRequest<'a, A> {
     /// carries that reason.
     pub(super) held_by_effects: bool,
     pub(super) host: &'a mut dyn Host,
+    /// The context entries an agent step's `context.entries` reads from
+    /// earlier steps, resolved where its inputs are.
+    pub(super) context_entries: Vec<ContextEntry>,
 }
 
 struct StepHandlerCtx<'a, A> {
@@ -129,6 +132,7 @@ struct StepHandlerCtx<'a, A> {
     host: &'a mut dyn Host,
     authority: Option<StepAuthorityContext>,
     loaded_skill: Option<LoadedStepSkill>,
+    context_entries: Vec<ContextEntry>,
 }
 
 struct RegularSkillSeal<'a, A> {
@@ -196,6 +200,7 @@ where
         admission_refs,
         held_by_effects,
         host,
+        context_entries,
     } = request;
     // An operation call is admitted against the packages it calls from.
     let chain = if step.operation().is_some() {
@@ -232,6 +237,7 @@ where
         host,
         authority,
         loaded_skill,
+        context_entries,
     })
 }
 
@@ -854,6 +860,7 @@ where
         authority,
         loaded_skill: _,
         admission_refs,
+        context_entries: _,
     } = request;
     let executable = match &step.kind {
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
@@ -1005,6 +1012,7 @@ where
         authority: _,
         loaded_skill: _,
         admission_refs: _,
+        context_entries,
     } = request;
     let StepKind::Agent(agent) = &step.kind else {
         return Err(RuntimeError::StepFailed {
@@ -1044,6 +1052,9 @@ where
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
     let mut invocation = invocation;
+    // Then the entries its earlier steps produced, each with its own labels,
+    // then what the run's caller supplied.
+    invocation.current_context.extend(context_entries);
     invocation
         .current_context
         .extend(runtime.options.current_context.clone());
@@ -1164,6 +1175,7 @@ where
         host: _,
         authority,
         loaded_skill: _,
+        context_entries: _,
     } = request;
     let tool = step
         .catalog_tool()
