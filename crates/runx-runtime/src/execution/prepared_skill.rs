@@ -1110,7 +1110,7 @@ mod tests {
         let temp = tempdir()?;
         write_skill(
             temp.path(),
-            "    inputs:\n      data_source_uri:\n        type: string\n        default: local://runx/default\n        optional: true\n",
+            "    inputs:\n      region:\n        type: string\n        default: eu-west\n        optional: true\n",
             "# Prepared",
         )?;
 
@@ -1121,8 +1121,8 @@ mod tests {
         )?;
 
         assert_eq!(
-            prepared.request().inputs.get("data_source_uri"),
-            Some(&JsonValue::String("local://runx/default".to_owned()))
+            prepared.request().inputs.get("region"),
+            Some(&JsonValue::String("eu-west".to_owned()))
         );
         Ok(())
     }
