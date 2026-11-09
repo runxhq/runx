@@ -6,9 +6,8 @@
 // copies the site serves at each `$id`, and `packets.lock.json`, the digest
 // each published package packet id was frozen at, ordered by id. The lock's
 // shape (`runx.packet.lock.v1`) is this script's: it alone writes and reads
-// it. With `--check` it writes nothing and fails on any drift.
-// `--core-only` scopes collection to bundled skills and preserves every
-// other package's artifacts and existing lock entries.
+// it. With `--check` it writes nothing and fails on any drift. It always
+// reads every package in the workspace, so no package's packet drifts unseen.
 //
 // Gates: the parser admits each package's packets (an id names its owner and
 // its file); every declared packet resolves; every package packet is
@@ -30,7 +29,6 @@ import {
   validateMethodManifestYamlBatch,
   validateSkillMarkdownBatch,
 } from "./lib/native-parser.mjs";
-import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
 type JsonObject = Record<string, unknown>;
 
@@ -74,7 +72,6 @@ const skillsRoot = path.join(workspaceRoot, "skills");
 const distRoot = path.join(workspaceRoot, "dist", "packets");
 const lockPath = path.join(workspaceRoot, "packets.lock.json");
 const check = process.argv.includes("--check");
-const selectedSkills = process.argv.includes("--core-only") ? new Set(bundledCoreSkills()) : null;
 const findings: string[] = [];
 
 ensureCurrentNativeRunx();
@@ -170,7 +167,6 @@ async function readPackagePackets(): Promise<Map<string, PacketFile>> {
   };
   const packets = new Map<string, PacketFile>();
   for (const item of report.items) {
-    if (selectedSkills && !selectedSkills.has(item.path.split("/")[1]!)) continue;
     if (item.status !== "ok") {
       findings.push(`${item.path}: ${(item.diagnostics ?? []).join(", ")}`);
       continue;
@@ -188,10 +184,7 @@ async function readPackagePackets(): Promise<Map<string, PacketFile>> {
 async function readDeclarations(): Promise<
   Map<string, { ids: Set<string>; wrapped: { packet: string; outputs: string[]; at: string }[] }>
 > {
-  const profileRoots = selectedSkills
-    ? [...selectedSkills].map((name) => path.join(skillsRoot, name))
-    : [skillsRoot];
-  const profilePaths = (await Promise.all(profileRoots.map(findProfiles))).flat().sort();
+  const profilePaths = (await findProfiles(skillsRoot)).sort();
   // Each run.yaml is validated as the package its SKILL.md names.
   const skills = validateSkillMarkdownBatch(
     await Promise.all(profilePaths.map((profilePath) => readFile(path.join(path.dirname(profilePath), "SKILL.md"), "utf8"))),
@@ -309,10 +302,7 @@ async function reconcileDist(packets: readonly PacketFile[]): Promise<string[]> 
     }),
   );
   const drift: string[] = [];
-  const roots = selectedSkills
-    ? [...selectedSkills].map((name) => path.join(distRoot, PUBLISHER, name))
-    : [distRoot];
-  const existingFiles = (await Promise.all(roots.map(listFiles))).flat();
+  const existingFiles = await listFiles(distRoot);
   for (const existing of existingFiles) {
     if (expected.has(existing)) continue;
     drift.push(`stale ${path.relative(workspaceRoot, existing)}`);

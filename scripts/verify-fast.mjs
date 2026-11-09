@@ -60,8 +60,8 @@ if (rustBuild.status === 0) {
       step("fixtures:kernel:keys", "pnpm", ["fixtures:kernel:keys"]),
       step("fixtures:parser:check", "pnpm", ["fixtures:parser:check"]),
       step("contracts:schemas:check", "pnpm", ["contracts:schemas:check"]),
-      // Bundled packets: ownership, declarations, immutability, the site copy.
-      step("packets:check", "pnpm", ["packets:check", "--core-only"]),
+      // Every package's packets: ownership, declarations, immutability, the site copy.
+      step("packets:check", "pnpm", ["packets:check"]),
       step("x402 contract conformance", "pnpm", ["x402:contract-conformance"]),
       step("fixtures:contracts:check", "pnpm", ["fixtures:contracts:check"]),
       step("fixtures:contracts:keys", "pnpm", ["fixtures:contracts:keys"]),
