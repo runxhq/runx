@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// Every `[[bench]]` target in the workspace declares `harness = false`.
+// Every `[[bench]]` target in the workspace runs under Criterion.
 //
-// Criterion supplies its own `main`, so a bench target needs Cargo's
+// Criterion supplies its own `main`, so a bench target declares Cargo's
 // `harness = false`. Without it Cargo builds the target under libtest's
-// harness, which runs no Criterion workload and refuses Criterion's own
-// arguments, and nothing fails: `cargo test --benches` passes over an empty
-// harness, and a capture finds no estimates. A rename once turned the key
-// into `test = false`, which Cargo also accepts, and the benches ran nothing
-// unseen. This check refuses any bench target that doesn't say it, naming the
-// file and the target.
+// test runner, which runs no Criterion workload and refuses Criterion's own
+// arguments, and nothing fails: `cargo test --benches` passes over a target
+// with no tests, and a capture finds no estimates. A rename once turned the
+// key into `test = false`, which Cargo also accepts, and the benches ran
+// nothing unseen. This check refuses any bench target that doesn't declare
+// it, naming the file and the target.
 //
-// Usage: node scripts/check-bench-harness.mjs [root]
+// Usage: node scripts/check-bench-targets.mjs [root]
 
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -32,15 +32,18 @@ function manifests(directory) {
   return found;
 }
 
-// Each `[[bench]]` table in a manifest, with its name and whether it says
-// `harness = false`. A table runs from its header to the next header.
+// What a bench target writes when it supplies its own main, Criterion's.
+const CRITERION_MAIN = "harness = false";
+
+// Each `[[bench]]` table in a manifest, with its name and whether it runs
+// under Criterion. A table runs from its header to the next header.
 function benchTargets(text) {
   const targets = [];
   let current = null;
   for (const line of text.split(/\r?\n/u)) {
     const trimmed = line.replace(/#.*$/u, "").trim();
     if (trimmed.startsWith("[")) {
-      current = trimmed === "[[bench]]" ? { name: null, harnessFalse: false } : null;
+      current = trimmed === "[[bench]]" ? { name: null, runsUnderCriterion: false } : null;
       if (current) targets.push(current);
       continue;
     }
@@ -49,7 +52,7 @@ function benchTargets(text) {
     if (!pair) continue;
     const [, key, value] = pair;
     if (key === "name") current.name = value.replace(/^"|"$/gu, "");
-    if (key === "harness") current.harnessFalse = value === "false";
+    if (`${key} = ${value}` === CRITERION_MAIN) current.runsUnderCriterion = true;
   }
   return targets;
 }
@@ -57,9 +60,9 @@ function benchTargets(text) {
 const refused = [];
 for (const manifest of manifests(root).sort()) {
   for (const target of benchTargets(readFileSync(manifest, "utf8"))) {
-    if (!target.harnessFalse) {
+    if (!target.runsUnderCriterion) {
       refused.push(
-        `${path.relative(root, manifest)}: bench target ${target.name ?? "(unnamed)"} doesn't declare harness = false, so Cargo runs it under libtest and none of its Criterion workloads run`,
+        `${path.relative(root, manifest)}: bench target ${target.name ?? "(unnamed)"} doesn't declare harness = false, so Cargo runs it under libtest's test runner and none of its Criterion workloads run`,
       );
     }
   }

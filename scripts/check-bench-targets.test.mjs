@@ -6,10 +6,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const checker = fileURLToPath(new URL("./check-bench-harness.mjs", import.meta.url));
+const checker = fileURLToPath(new URL("./check-bench-targets.mjs", import.meta.url));
 
 function workspace(benchSection) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "runx-bench-harness-"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "runx-bench-targets-"));
   mkdirSync(path.join(root, "crates", "demo"), { recursive: true });
   writeFileSync(
     path.join(root, "crates", "demo", "Cargo.toml"),

@@ -297,11 +297,9 @@ export const STAYS = [
   // Cargo's own key in a [[bench]] or [[test]] table, the only tables that
   // take it: whether libtest's harness runs the target.
   { word: "harness", why: "Cargo's harness key, which says whether libtest runs a bench or test target", file: /(^|\/)Cargo\.toml$/, before: /^\s*$/, after: /^\s*=/ },
-  // The check holding every bench target to `harness = false` reads that key
-  // and libtest's harness it opts out of, and the verify-fast step running it
-  // names the key as a target writes it.
-  { word: "harness", why: "Cargo's harness key and libtest's harness, which the bench harness check reads", file: /^scripts\/check-bench-harness(\.test)?\.mjs$/ },
-  { word: "harness", why: "Cargo's harness key, as the step running the bench harness check names it", file: /^scripts\/verify-fast\.mjs$/, before: /\b(bench |as )$/ },
+  // The same key as written, `harness = false`, in the check that holds
+  // every bench target to it and in that check's test.
+  { word: "harness", why: "Cargo's key as written, harness = false, which the bench targets check reads", file: /^scripts\/check-bench-targets(\.test)?\.mjs$/, after: /^\s*=\s*false\b/ },
   { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
   // harness: a fixture post's own words, which its approved payload digest binds.
   { word: "harness", why: "a fixture post's own words, which its approved payload digest binds", file: /^skills\/moltbook\/tests\/publish-creates-and-reads-back-post\.yaml$/ },

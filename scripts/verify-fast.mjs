@@ -28,10 +28,10 @@ await runParallelGroup("source checks", [
     "docs/architecture/deterministic-module-engine.json",
   ]),
   step("integration module guard", "node", ["scripts/check-integration-test-modules.mjs"]),
-  // Criterion's benches run only as harness = false targets: a bench under
-  // libtest runs nothing, and nothing else would notice.
-  step("bench harness", "node", ["scripts/check-bench-harness.mjs"]),
-  step("bench harness check's test", "node", ["--test", "scripts/check-bench-harness.test.mjs"]),
+  // A Criterion bench runs only as a target with its own main: under
+  // libtest's test runner it runs nothing, and nothing else would notice.
+  step("bench targets", "node", ["scripts/check-bench-targets.mjs"]),
+  step("bench targets check's test", "node", ["--test", "scripts/check-bench-targets.test.mjs"]),
   // Offline over fixed fixtures, so the performance gate can't drift unseen.
   step("perf:test-check", "node", ["scripts/check-runtime-perf-test.mjs"]),
   // The audit's own rules over fixed inspections; the audit itself needs the
