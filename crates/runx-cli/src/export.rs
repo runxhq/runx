@@ -116,7 +116,16 @@ impl From<RunxExportLoadError> for ExportError {
     }
 }
 
-pub fn run_native_export(plan: ExportPlan, workspace: &WorkspaceEnv) -> ExitCode {
+pub fn run_native_export(mut plan: ExportPlan, workspace: &WorkspaceEnv) -> ExitCode {
+    // A skill named by its path is named from where the operator typed it.
+    for reference in &mut plan.refs {
+        if let Some(invoked) = workspace
+            .invoked_path(Path::new(reference.as_str()))
+            .and_then(|path| path.to_str().map(str::to_owned))
+        {
+            *reference = invoked;
+        }
+    }
     match run_export_command(&plan, workspace.cwd(), workspace.env()) {
         Ok(report) => report::write_report(&report, plan.json),
         Err(ExportError::InvalidArgs(message)) => {

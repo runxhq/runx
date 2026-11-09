@@ -29,6 +29,8 @@ pub struct WorkspaceEnv {
     env: BTreeMap<String, String>,
     cwd: PathBuf,
     paths: RunxPaths,
+    /// Where the paths an operator types are read from.
+    invoked_dir: PathBuf,
     env_file_loaded: bool,
 }
 
@@ -49,6 +51,7 @@ impl WorkspaceEnv {
     ) -> Result<Self, WorkspaceEnvError> {
         require_absolute_cwd(&cwd)?;
         let invoked = cwd;
+        let invoked_dir = invoked_dir(&ambient_env, &invoked);
         let cwd = RunxPaths::resolve(&ambient_env, &invoked)
             .workspace()
             .to_path_buf();
@@ -76,6 +79,7 @@ impl WorkspaceEnv {
             env,
             cwd,
             paths,
+            invoked_dir,
             env_file_loaded: env_file.loaded,
         })
     }
@@ -86,6 +90,7 @@ impl WorkspaceEnv {
     ) -> Result<Self, WorkspaceEnvError> {
         require_absolute_cwd(&cwd)?;
         let invoked = cwd;
+        let invoked_dir = invoked_dir(&env, &invoked);
         let cwd = RunxPaths::resolve(&env, &invoked).workspace().to_path_buf();
         require_absolute_cwd(&cwd)?;
         env.insert(RUNX_CWD_ENV.to_owned(), cwd.to_string_lossy().into_owned());
@@ -94,6 +99,7 @@ impl WorkspaceEnv {
             env,
             cwd,
             paths,
+            invoked_dir,
             env_file_loaded: false,
         })
     }
@@ -121,16 +127,34 @@ impl WorkspaceEnv {
         &self.paths
     }
 
-    /// The path an operator typed, from the directory they typed it in, when
-    /// it names one there: `.` inside a package is that package, never the
-    /// workspace around it. A name, a ref, or a path that names nothing
-    /// there is none of these, and resolves from the workspace as written.
+    /// The directory an operator's typed paths are read from: the one
+    /// `RUNX_CWD` names when runx's caller named one, as runx names it for
+    /// what it runs, else the directory the process runs in.
+    #[must_use]
+    pub fn invoked_dir(&self) -> &Path {
+        &self.invoked_dir
+    }
+
+    /// A path an operator typed, from the directory they typed it in, as
+    /// given when it's absolute. An argument that is only ever a path, as a
+    /// receipt directory or an input file, names it there whether or not it
+    /// exists yet.
+    #[must_use]
+    pub fn typed_path(&self, typed: &Path) -> PathBuf {
+        crate::path_util::lexical_normalize(&self.invoked_dir.join(typed))
+    }
+
+    /// An argument that is a path or a name, as the path it names from where
+    /// the operator typed it, when it names one there: `.` inside a package
+    /// is that package, never the workspace around it. A name, a ref, or a
+    /// path that names nothing there is none, and resolves from the
+    /// workspace as written.
     #[must_use]
     pub fn invoked_path(&self, typed: &Path) -> Option<PathBuf> {
         if typed.is_absolute() {
             return None;
         }
-        let candidate = self.paths.cwd().join(typed);
+        let candidate = self.typed_path(typed);
         candidate.exists().then_some(candidate)
     }
 
@@ -155,6 +179,18 @@ impl WorkspaceEnv {
         merge_inferred_tool_roots(&mut env, skill_dir);
         env
     }
+}
+
+/// Where an operator's typed paths are read from: a caller that names the
+/// directory runx runs in, in `RUNX_CWD`, names it; with none, it's the
+/// directory the process was invoked in.
+fn invoked_dir(env: &BTreeMap<String, String>, invoked: &Path) -> PathBuf {
+    env.get(RUNX_CWD_ENV)
+        .filter(|named| !named.is_empty())
+        .map_or_else(
+            || crate::path_util::lexical_normalize(invoked),
+            |named| crate::path_util::lexical_normalize(&invoked.join(named)),
+        )
 }
 
 impl fmt::Debug for WorkspaceEnv {

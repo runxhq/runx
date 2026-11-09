@@ -11,6 +11,18 @@ pub enum DocumentInputSource {
     Stdin,
 }
 
+impl DocumentInputSource {
+    /// This source with its path, if it has one, named from where the
+    /// operator typed it.
+    #[must_use]
+    pub fn typed_in(self, workspace: &runx_runtime::WorkspaceEnv) -> Self {
+        match self {
+            Self::Path(path) => Self::Path(workspace.typed_path(&path)),
+            Self::Stdin => Self::Stdin,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum DocumentInputError {
     Workspace {
@@ -79,7 +91,10 @@ pub fn read_document_input_with<R: Read>(
             let root = runx_runtime::RunxPaths::resolve(env, cwd)
                 .workspace()
                 .to_path_buf();
-            runx_runtime::read_workspace_text(&root, path, MAX_DOCUMENT_INPUT_BYTES).map_err(
+            // A path made absolute from where the operator typed it is read
+            // as the part of the workspace it names.
+            let requested = path.strip_prefix(&root).unwrap_or(path);
+            runx_runtime::read_workspace_text(&root, requested, MAX_DOCUMENT_INPUT_BYTES).map_err(
                 |source| DocumentInputError::Workspace {
                     location: location.clone(),
                     source,

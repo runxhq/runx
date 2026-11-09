@@ -109,10 +109,19 @@ pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &Workspac
             Err(error) => return write_skill_failure(&error, plan.json, "skill_error", 1, None),
         }
     }
-    // A package named by its path is named from where the operator typed it.
+    // Each path the operator typed names what it names from where they
+    // typed it: the package, its inputs and its receipts.
     if let Some(invoked) = workspace.invoked_path(&plan.skill_path) {
         plan.skill_path = invoked;
     }
+    plan.input_document = plan
+        .input_document
+        .take()
+        .map(|source| source.typed_in(workspace));
+    plan.receipt_dir = plan
+        .receipt_dir
+        .take()
+        .map(|dir| workspace.typed_path(&dir));
     let cwd = workspace.cwd().to_path_buf();
     let env = workspace.env().clone();
     let artifacts = workspace.paths().artifacts();

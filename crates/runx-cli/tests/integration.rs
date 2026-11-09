@@ -33,6 +33,7 @@ mod store;
 mod support;
 mod test;
 mod tool;
+mod typed_paths;
 mod verify;
 mod work_counts;
 mod workspace;

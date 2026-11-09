@@ -20,7 +20,15 @@ use runx_runtime::{
 use crate::router::{DoctorMode, DoctorPlan};
 use runx_runtime::registry::resolve::{RegistryTarget, resolve_registry_target};
 
-pub fn run_native_doctor(plan: DoctorPlan, workspace: &WorkspaceEnv) -> ExitCode {
+pub fn run_native_doctor(mut plan: DoctorPlan, workspace: &WorkspaceEnv) -> ExitCode {
+    // The path checked is named from where the operator typed it.
+    if let Some(invoked) = plan
+        .path
+        .as_deref()
+        .and_then(|path| workspace.invoked_path(path))
+    {
+        plan.path = Some(invoked);
+    }
     match run_doctor_command(&plan, workspace.env(), workspace.cwd()) {
         Ok(output) => crate::cli_io::write_stdout_code(&output.stdout, output.exit_code),
         Err(error) => crate::cli_io::write_stderr_code(&format!("runx: {error}\n"), 1),

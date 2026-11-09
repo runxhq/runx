@@ -151,6 +151,8 @@ impl VerifyReport {
     }
 }
 
+/// Verify what `args` name, each path an operator typed read from `cwd`,
+/// the directory runx was invoked in.
 pub fn run_verify_command_with_stdin<R: Read>(
     args: &[OsString],
     env: &BTreeMap<String, String>,
@@ -166,8 +168,12 @@ pub fn run_verify_command_with_stdin<R: Read>(
     }
     let paths = RunxPaths::resolve(env, cwd);
     let receipt_config = RuntimeReceiptConfig::default();
+    let receipt_dir = parsed
+        .receipt_dir
+        .as_deref()
+        .map(|dir| resolve_under_cwd(dir, cwd));
     let resolved = resolve_receipt_path(ReceiptPathInputs {
-        explicit_dir: parsed.receipt_dir.as_deref(),
+        explicit_dir: receipt_dir.as_deref(),
         runtime_config: Some(&receipt_config),
         paths: &paths,
     });
@@ -372,8 +378,9 @@ fn run_single_receipt_verify<R: Read>(
     })
 }
 
-/// Resolve a possibly-relative user-supplied path against `cwd`. The single
-/// resolver for receipt and notary-key file inputs, so both stay consistent.
+/// Resolve a possibly-relative user-supplied path against `cwd`, where it
+/// was typed. The single resolver for receipt directories, receipt and
+/// notary documents, and notary keys, so all stay consistent.
 fn resolve_under_cwd(path: &Path, cwd: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()

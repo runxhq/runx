@@ -1,6 +1,6 @@
 // Module rationale: command wiring keeps tool search and inspect output together.
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use runx_runtime::{
@@ -28,7 +28,7 @@ struct ToolCliOutput {
 fn run_tool(plan: ToolPlan, workspace: &WorkspaceEnv) -> Result<ToolCliOutput, ToolCliError> {
     match plan.action {
         ToolAction::Search => run_search(plan),
-        ToolAction::Inspect => run_inspect(plan, workspace.env(), workspace.cwd()),
+        ToolAction::Inspect => run_inspect(plan, workspace),
     }
 }
 
@@ -56,16 +56,13 @@ fn run_search(plan: ToolPlan) -> Result<ToolCliOutput, ToolCliError> {
     })
 }
 
-fn run_inspect(
-    plan: ToolPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<ToolCliOutput, ToolCliError> {
+fn run_inspect(plan: ToolPlan, workspace: &WorkspaceEnv) -> Result<ToolCliOutput, ToolCliError> {
+    let env = workspace.env();
     let tool = plan.ref_or_query;
-    let root = runx_runtime::RunxPaths::resolve(env, cwd)
-        .workspace()
-        .to_path_buf();
-    let search_from_directory = resolve_user_path(Path::new("."), env, cwd);
+    let root = workspace.paths().workspace().to_path_buf();
+    // A tool is searched for, and a manifest path read, from where the
+    // operator typed it, up to the workspace root.
+    let search_from_directory = workspace.invoked_dir().to_path_buf();
     let tool_roots = env_value(env, "RUNX_TOOL_ROOTS")
         .map(|value| split_env_paths(&value))
         .unwrap_or_default();
@@ -96,10 +93,6 @@ fn run_inspect(
 
 fn env_value(env: &BTreeMap<String, String>, key: &str) -> Option<String> {
     env.get(key).cloned()
-}
-
-fn resolve_user_path(user_path: &Path, env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    runx_runtime::RunxPaths::resolve(env, cwd).existing_input(user_path)
 }
 
 fn split_env_paths(value: &str) -> Vec<PathBuf> {

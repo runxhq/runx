@@ -166,7 +166,16 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
 
 /// Continue a paused run with the host's answers. The run's skill, method
 /// and digests come from its record; pinned digests must match them.
-pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceEnv) -> ExitCode {
+pub fn run_native_resume_with_workspace(
+    mut plan: ResumePlan,
+    workspace: &WorkspaceEnv,
+) -> ExitCode {
+    // The receipts go where the operator typed their directory; the answers
+    // are read from there already.
+    plan.receipt_dir = plan
+        .receipt_dir
+        .take()
+        .map(|dir| workspace.typed_path(&dir));
     let answers = match read_answers(&plan.answers_path, workspace) {
         Ok(answers) => answers,
         Err(error) => return write_resume_failure(&error, plan.json, 1),

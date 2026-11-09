@@ -198,10 +198,12 @@ fn run_native_process(args: Vec<OsString>, workspace: &runx_runtime::WorkspaceEn
 
 fn run_native_verify(args: Vec<OsString>, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
     let json = runx_cli::router::json_requested(&args);
+    // Verify reads the receipts, notary documents and keys it's named from
+    // where the operator typed them.
     match runx_cli::verify::run_verify_command_with_stdin(
         &args,
         workspace.env(),
-        workspace.cwd(),
+        workspace.invoked_dir(),
         io::stdin(),
     ) {
         Ok(result) => {
@@ -260,12 +262,17 @@ fn run_native_config(
 }
 
 fn run_native_test(mut plan: TestPlan, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
-    // What to test is named by its path, from where the operator typed it.
+    // What to test, and where its receipts go, are named from where the
+    // operator typed them.
     for typed in &mut plan.fixture_paths {
         if let Some(invoked) = workspace.invoked_path(Path::new(typed.as_os_str())) {
             *typed = invoked.into_os_string();
         }
     }
+    plan.receipt_dir = plan
+        .receipt_dir
+        .take()
+        .map(|dir| workspace.typed_path(Path::new(&dir)).into_os_string());
     if contains_skill_package(&plan.fixture_paths) {
         let [target] = plan.fixture_paths.as_slice() else {
             let _ignored = write_stderr_line(

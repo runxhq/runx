@@ -121,7 +121,18 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
 
 // Function rationale: native MCP startup owns one cohesive
 // stdio-vs-HTTP transport selection and error presentation boundary.
-pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) -> ExitCode {
+pub fn run_native_mcp_with_workspace(mut plan: McpPlan, workspace: &WorkspaceEnv) -> ExitCode {
+    // The skills served, and where their receipts go, are named from where
+    // the operator typed them.
+    for skill_ref in &mut plan.refs {
+        if let Some(invoked) = workspace.invoked_path(&skill_ref.skill_path) {
+            skill_ref.skill_path = invoked;
+        }
+    }
+    plan.receipt_dir = plan
+        .receipt_dir
+        .take()
+        .map(|dir| workspace.typed_path(&dir));
     if plan.run.is_some() {
         crate::runtime::end_with_host();
     }

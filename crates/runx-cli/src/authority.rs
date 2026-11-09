@@ -142,9 +142,10 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             }
             .map_err(|error| error.to_string())?;
             let authority = parse_run_authority(&text, "the authority to save")?;
+            // Each workspace is named from where the operator typed it.
             let workspaces = workspaces
                 .iter()
-                .map(|path| workspace.cwd().join(path))
+                .map(|path| workspace.typed_path(path))
                 .collect::<Vec<_>>();
             let saved = saved_authorities::save(
                 workspace.env(),

@@ -72,8 +72,9 @@ impl RegistryPlan {
 
 pub fn run_native_registry(mut plan: RegistryPlan, workspace: &WorkspaceEnv) -> ExitCode {
     let json = plan.json;
-    // A package to package or publish is named by its path, from where the
-    // operator typed it.
+    // A records file, and a package to package or publish, are named from
+    // where the operator typed them.
+    plan.records = plan.records.take().map(|source| source.typed_in(workspace));
     if matches!(
         plan.action,
         RegistryAction::Package | RegistryAction::Publish
