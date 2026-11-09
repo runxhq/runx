@@ -63,6 +63,7 @@
     "fixtures:test:check": "tsx scripts/generate-rust-test-fixtures.ts --check",
     "fixtures:test:generate": "tsx scripts/generate-rust-test-fixtures.ts --write",
     "fixtures:test:summary": "tsx scripts/generate-rust-test-fixtures.ts --check --summary-json",
+    "fixtures:canonical-receipts:generate": "cargo run --quiet --manifest-path crates/Cargo.toml -p runx-runtime --example runx-canonical-receipts",
     "fixtures:doctor:check": "tsx scripts/generate-rust-doctor-fixtures.ts --check",
     "fixtures:doctor:generate": "tsx scripts/generate-rust-doctor-fixtures.ts",
     "fixtures:tool-catalog:check": "tsx scripts/generate-tool-catalog-oracles.ts --check",

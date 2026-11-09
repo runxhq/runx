@@ -9,6 +9,7 @@ mod abnormal_seal;
 mod agent_turns;
 mod approval;
 mod call_acts;
+mod canonical_receipts;
 mod config;
 mod connect_requests;
 mod credential_delivery;
