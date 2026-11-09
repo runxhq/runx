@@ -31,6 +31,9 @@ const nativeCliSampleCount = 20;
 // the next one's latency counts that wait.
 const defaultArrivalPerSecond = 10;
 const requestTimeoutMs = 10_000;
+// Journey 1's sizes: one skill alone, then workspaces of 10, 100 and 1,000
+// packages. Declared with the rest, above the command that may capture.
+const coldStartSizes = [1, 10, 100, 1000];
 let cachedNativeCliProbe;
 const runtimeBench = {
   package: "runx-runtime",
@@ -612,10 +615,6 @@ methods:
     rmSync(root, { recursive: true, force: true });
   }
 }
-
-// Journey 1's sizes: one skill alone, then workspaces of 10, 100 and 1,000
-// packages.
-const coldStartSizes = [1, 10, 100, 1000];
 
 // performance.md's journey 1, cold start, counted: `runx skill inspect`
 // resolving one skill in a workspace of each size, as a new process after one
