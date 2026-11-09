@@ -308,7 +308,7 @@ export const STAYS = [
   // runner: a consumer's own runx operational policy, whose runners are
   // machinery as OSS's are, and the code that reads it.
   { word: "runner", why: "the operational policy's runners, in a consumer's own policy", file: /^(config\/runx-frantic-policy\.json|\.runx\/runx-issue-flow\.json)$/ },
-  { word: "runner", why: "the operational policy's runners, as the code reading a consumer's policy names them", file: /^scripts\/runx-issue-flow\.test\.mjs$/, before: /\bpolicy\.$/ },
+  { word: "runner", why: "the operational policy's runners, as the code reading a consumer's policy names them", file: /^scripts\/runx-issue-flow\.test\.mjs$/ },
   // harness: a product's own production check, which its dogfood target
   // verifies (Nitrosend's Makefile help), not a runx test.
   { word: "harness", why: "a product's own production check harness, which a dogfood target verifies", file: /^Makefile$/, before: /\bproduction $/ },

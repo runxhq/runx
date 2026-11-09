@@ -552,7 +552,8 @@ test("nitrosend renames only where runx's words live, and its own product keeps 
   const root = tree(t, {
     "skills/support/notes.md": "The harness runs first.\n",
     ".runx/runx-issue-flow.json": '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a"}]}\n',
-    "scripts/runx-issue-flow.test.mjs": "assert.equal(policy.runners.length, 1);\n",
+    "scripts/runx-issue-flow.test.mjs": "const sentryRunner = policy.runners[0];\nassert.ok(sentryRunner, \"sentry outcome runner is declared\");\n",
+    "skills/nitrosend/mcp-authoring-quality/README.md": "The live runner drives each trial, and the harness detects a claim.\n",
     "dogfood/audit/runner.mjs": "// the runner uses Expect\n",
     "frontend/flow.md": "An interactive node graph, and the email builder's regression harness.\n",
   });
@@ -560,7 +561,8 @@ test("nitrosend renames only where runx's words live, and its own product keeps 
   assert.equal(status, 0, out);
   assert.equal(read(root, "skills/support/notes.md"), "The test runs first.\n");
   assert.equal(read(root, ".runx/runx-issue-flow.json"), '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a"}]}\n');
-  assert.equal(read(root, "scripts/runx-issue-flow.test.mjs"), "assert.equal(policy.runners.length, 1);\n");
+  assert.equal(read(root, "scripts/runx-issue-flow.test.mjs"), "const sentryRunner = policy.runners[0];\nassert.ok(sentryRunner, \"sentry outcome runner is declared\");\n");
+  assert.equal(read(root, "skills/nitrosend/mcp-authoring-quality/README.md"), "The live runner drives each trial, and the harness detects a claim.\n");
   assert.equal(read(root, "dogfood/audit/runner.mjs"), "// the runner uses Expect\n");
   assert.equal(read(root, "frontend/flow.md"), "An interactive node graph, and the email builder's regression harness.\n");
 });

@@ -493,7 +493,7 @@ nitrosend	harness-nitrosend-token	17	harness	test-nitrosend-token	the test sense
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
 nitrosend	holds	7	hold	holds	English: stays	AGENTS.md artifacts/aws-marketplace/submission-packet.md
 nitrosend	runners	7	runner	?	a bare word: code or prose, read in place	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
-nitrosend	sentryRunner	7	runner	sentryMethod		scripts/runx-issue-flow.test.mjs
+nitrosend	sentryRunner	7	runner	sentryRunner	the operational policy's runner, as the code reading Nitrosend's policy names it: stays	scripts/runx-issue-flow.test.mjs
 nitrosend	agent_act_closed	3	agent_act	turn_closed		skills/nitrosend/issue-intake/X.yaml skills/nitrosend/team-slack/X.yaml
 nitrosend	api-runner	3	runner	api-runner	the Make target that runs Rails's runner (make api-runner CMD='puts 1'): stays	Makefile
 nitrosend	runner_id	3	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs

@@ -173,10 +173,11 @@ function readDecisions(repo) {
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 // Where a consumer's runx words live, when the product around them has its
 // own vocabulary: Nitrosend's Flow builder has a node graph, its dogfood
-// audits have harnesses and a runner, and Rails has a runner command. Only
-// these paths are renamed there; every other repo is renamed whole.
+// audits have harnesses and a runner, Rails has a runner command, and
+// mcp-authoring-quality is its own model eval harness, in a format runx never
+// reads. Only these paths are renamed there; every other repo is renamed whole.
 const SCOPES = {
-  nitrosend: /^(skills|connectors|\.runx)\/|^\.agents\/skills\/support\/|(^|\/)runx-[^/]*$/,
+  nitrosend: /^(?!skills\/nitrosend\/mcp-authoring-quality\/)((skills|connectors|\.runx)\/|\.agents\/skills\/support\/|(.*\/)?runx-[^/]*$)/,
 };
 // The repo being renamed's scope, set once from the command line.
 let scope = /(?:)/;
