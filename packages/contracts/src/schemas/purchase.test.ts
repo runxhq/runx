@@ -3,35 +3,21 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  cancelPurchaseRequestV1Schema,
-  cancelPurchaseResultV1Schema,
-  executePurchaseRequestV1Schema,
-  executePurchaseResultV1Schema,
-  getPurchaseRequestV1Schema,
-  getPurchaseResultV1Schema,
   offerVersionBindingV1Schema,
   purchasePaymentChallengeSchema,
   paidSkillListingV1Schema,
   purchaseV1Schema,
   paymentIdempotencyBindingSchema,
   principalReferenceFromRunxPrincipalId,
-  quotePurchaseRequestV1Schema,
   quotePurchaseResultV1Schema,
   runxContractSchemas,
   runxGeneratedSchemaArtifacts,
-  validateCancelPurchaseRequestContract,
-  validateCancelPurchaseResultContract,
-  validateExecutePurchaseRequestContract,
-  validateExecutePurchaseResultContract,
-  validateGetPurchaseRequestContract,
-  validateGetPurchaseResultContract,
   validatePurchaseReadContract,
   validateOfferVersionBindingContract,
   validatePurchaseContract,
   validatePurchasePaymentChallengeContract,
   validatePaidSkillListingContract,
   validatePaymentIdempotencyBindingContract,
-  validateQuotePurchaseRequestContract,
   validateQuotePurchaseResultContract,
   validateRunxPrincipalId,
   type QuotePurchaseResultContract,
@@ -72,15 +58,8 @@ const principalFixture = JSON.parse(
 
 const validatorsBySchemaId = {
   "runx.marketplace.paid_skill_listing.v1": validatePaidSkillListingContract,
-  "runx.payment.quote_purchase.request.v1": validateQuotePurchaseRequestContract,
   "runx.payment.quote_purchase.result.v1": validateQuotePurchaseResultContract,
-  "runx.payment.execute_purchase.request.v1": validateExecutePurchaseRequestContract,
-  "runx.payment.execute_purchase.result.v1": validateExecutePurchaseResultContract,
-  "runx.payment.get_purchase.request.v1": validateGetPurchaseRequestContract,
-  "runx.payment.get_purchase.result.v1": validateGetPurchaseResultContract,
   "runx.payment.purchase_read.v1": validatePurchaseReadContract,
-  "runx.payment.cancel_purchase.request.v1": validateCancelPurchaseRequestContract,
-  "runx.payment.cancel_purchase.result.v1": validateCancelPurchaseResultContract,
 } as const;
 
 function fixturePayload(file: string): unknown {
@@ -109,14 +88,7 @@ describe("purchase V1 contract facade", () => {
       [paidSkillListingV1Schema, "paid-skill-listing.schema.json", "paidSkillListing"],
       [purchaseV1Schema, "purchase.schema.json", "purchase"],
       [offerVersionBindingV1Schema, "offer-version-binding.schema.json", "offerVersionBinding"],
-      [quotePurchaseRequestV1Schema, "quote-purchase-request.schema.json", "quotePurchaseRequest"],
       [quotePurchaseResultV1Schema, "quote-purchase-result.schema.json", "quotePurchaseResult"],
-      [executePurchaseRequestV1Schema, "execute-purchase-request.schema.json", "executePurchaseRequest"],
-      [executePurchaseResultV1Schema, "execute-purchase-result.schema.json", "executePurchaseResult"],
-      [getPurchaseRequestV1Schema, "get-purchase-request.schema.json", "getPurchaseRequest"],
-      [getPurchaseResultV1Schema, "get-purchase-result.schema.json", "getPurchaseResult"],
-      [cancelPurchaseRequestV1Schema, "cancel-purchase-request.schema.json", "cancelPurchaseRequest"],
-      [cancelPurchaseResultV1Schema, "cancel-purchase-result.schema.json", "cancelPurchaseResult"],
     ] as const;
 
     for (const [schema, file, registryKey] of bindings) {
@@ -177,18 +149,19 @@ describe("purchase V1 contract facade", () => {
     const definitions = runxGeneratedSchemaArtifacts["definitions.schema.json"].$defs as Record<string, unknown>;
     expect(paymentIdempotencyBindingSchema).toBe(definitions.PaymentIdempotencyBinding);
     expect(purchasePaymentChallengeSchema).toBe(definitions.PurchasePaymentChallenge);
-    expect((quotePurchaseRequestV1Schema.properties as Record<string, unknown>).idempotency)
+    expect((purchaseV1Schema.properties as Record<string, unknown>).idempotency)
       .toEqual({ $ref: `${runxGeneratedSchemaArtifacts["definitions.schema.json"].$id}#/$defs/PaymentIdempotencyBinding` });
     expect(paymentIdempotencyBindingSchema.$id).toBeUndefined();
     expect(purchasePaymentChallengeSchema.$id).toBeUndefined();
 
-    const request = fixturePayload("quote-independent-purchase.json") as {
-      readonly idempotency: unknown;
-    };
     const result = fixturePayload("quote-direct-admission.json") as {
       readonly status: string;
-      readonly value: { readonly payment_options: readonly unknown[] };
+      readonly value: {
+        readonly payment_options: readonly unknown[];
+        readonly purchase: { readonly idempotency: unknown };
+      };
     };
+    const request = result.value.purchase;
     expect(validatePaymentIdempotencyBindingContract(request.idempotency)).toBe(request.idempotency);
     expect(validatePurchasePaymentChallengeContract(result.value.payment_options[0]))
       .toBe(result.value.payment_options[0]);
@@ -202,9 +175,7 @@ describe("purchase V1 contract facade", () => {
     const result = fixturePayload("quote-direct-admission.json") as {
       readonly value: { readonly purchase: unknown };
     };
-    const request = fixturePayload("quote-independent-purchase.json") as {
-      readonly offer_version: unknown;
-    };
+    const request = result.value.purchase as { readonly offer_version: unknown };
 
     expect(validatePurchaseContract(result.value.purchase))
       .toBe(result.value.purchase);
@@ -259,10 +230,10 @@ describe("purchase V1 contract facade", () => {
       }
     }
 
-    const request = structuredClone(
-      fixturePayload("quote-independent-purchase.json"),
+    const purchase = structuredClone(
+      (fixturePayload("quote-direct-admission.json") as { value: { purchase: unknown } }).value.purchase,
     ) as { seller_ref: { uri: string } };
-    request.seller_ref.uri = "did:example:external-seller";
-    expect(validateQuotePurchaseRequestContract(request)).toBe(request);
+    purchase.seller_ref.uri = "did:example:external-seller";
+    expect(validatePurchaseContract(purchase)).toBe(purchase);
   });
 });

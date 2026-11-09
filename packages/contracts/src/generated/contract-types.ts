@@ -328,20 +328,6 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
-export type CancelPurchaseRequestContract = {
-  readonly idempotency: PaymentIdempotencyBindingContract;
-  readonly purchase_id: string;
-};
-
-export type CancelPurchaseResultContract = {
-  readonly status: "admitted";
-  readonly value: PurchaseAdmissionContract;
-} | {
-  readonly code: PurchaseRefusalCodeContract;
-  readonly reason: string;
-  readonly status: "refused";
-};
-
 /** One package `registry.search` found. */
 export type CatalogHitContract = {
   readonly kind: CatalogPackageKindContract;
@@ -890,22 +876,6 @@ export type EvaluatorContract = {
   readonly run: string;
 };
 
-export type ExecutePurchaseRequestContract = {
-  readonly idempotency: PaymentIdempotencyBindingContract;
-  readonly payment_ref: PaymentReferenceContract;
-  readonly purchase_id: string;
-  readonly settlement_family: string;
-};
-
-export type ExecutePurchaseResultContract = {
-  readonly status: "admitted";
-  readonly value: PurchaseAdmissionContract;
-} | {
-  readonly code: PurchaseRefusalCodeContract;
-  readonly reason: string;
-  readonly status: "refused";
-};
-
 export type ExecutionBoundaryKindContract = "trusted_host_process" | "deterministic_worker" | "native_capability" | "remote_provider";
 
 export type ExecutionBoundaryObservationContract = {
@@ -1180,29 +1150,6 @@ export type FileWriteContract = {
   readonly journal?: number;
   readonly path: string;
   readonly repo_root: string;
-};
-
-export type GetPurchaseAdmissionContract = {
-  /** Why a refund won. Present only after refund won. */
-  readonly failure?: PurchaseFailureContract;
-  readonly purchase: PurchaseContract;
-  readonly receipt_ref?: ReferenceContract;
-  /** What fulfilled the purchase: the source run (act) or the durable continuation's result (artifact). Present only after fulfilment won. */
-  readonly result_ref?: ReferenceContract;
-  readonly run_ref?: PurchaseRunReferenceContract;
-};
-
-export type GetPurchaseRequestContract = {
-  readonly purchase_id: string;
-};
-
-export type GetPurchaseResultContract = {
-  readonly status: "admitted";
-  readonly value: GetPurchaseAdmissionContract;
-} | {
-  readonly code: PurchaseRefusalCodeContract;
-  readonly reason: string;
-  readonly status: "refused";
 };
 
 export type GitBlobDigestContract = {
@@ -2249,24 +2196,8 @@ export type PurchaseContract = {
   readonly updated_at: string;
 };
 
-export type PurchaseAdmissionContract = {
-  readonly purchase: PurchaseContract;
-};
-
 /** The sole V1 canonicalization identifier for digest-bound inputs. */
 export type PurchaseCanonicalizerVersionContract = "runx.receipt.c14n.v1";
-
-/** What a buyer sends runx's claim route for a held value (`runx.payment.purchase_claim.v1`). */
-export type PurchaseClaimContract = {
-  /** The endpoint this claim is sent to: a claim is good for one endpoint. */
-  readonly claim_url: string;
-  /** When the buyer signed; runx refuses a stale claim. */
-  readonly issued_at: string;
-  /** The digest of runx's receipt for the fulfilled purchase, as the purchase gave it: a purchase has none until it is fulfilled. */
-  readonly receipt_digest: string;
-  /** The buyer's signature over the claim schema, the endpoint, the time and the receipt digest, as stable JSON. */
-  readonly signature: string;
-};
 
 export type PurchaseExecutionStateContract = "unstarted" | "queued" | "running" | "waiting_external" | "cancelling" | "succeeded" | "failed" | "cancelled";
 
@@ -2377,16 +2308,6 @@ export type PurchaseRequestContract = {
   readonly skill: string;
 };
 
-export type PurchaseRunReferenceContract = {
-  readonly label?: string;
-  readonly locator?: string;
-  readonly observed_at?: string;
-  readonly proof_kind?: ProofKindContract;
-  readonly provider?: string;
-  readonly type: "act";
-  readonly uri: string;
-};
-
 export type QuestionContract = {
   readonly description?: string;
   /** Whether the person may answer in their own words. */
@@ -2408,25 +2329,6 @@ export type QuestionOptionContract = {
 export type QuotePurchaseAdmissionContract = {
   readonly payment_options: readonly PurchasePaymentChallengeContract[];
   readonly purchase: PurchaseContract;
-};
-
-export type QuotePurchaseRequestContract = {
-  readonly accepted_settlement_families: readonly string[];
-  readonly amount_minor: number;
-  /** The key the buyer claims with; runx's purchase receipt binds it. */
-  readonly buyer_key?: string;
-  readonly buyer_ref: PrincipalReferenceContract;
-  readonly canonicalizer_version: PurchaseCanonicalizerVersionContract;
-  readonly currency: string;
-  readonly idempotency: PaymentIdempotencyBindingContract;
-  readonly input_digest: string;
-  readonly offer_version: OfferVersionBindingContract;
-  /** The execution package digest the purchase runs (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds. */
-  readonly package_digest: string;
-  /** The seller: the publisher's principal enrolled to sell the skill. */
-  readonly seller_ref: PrincipalReferenceContract;
-  /** What is bought: the skill method binding the seller's run performs. */
-  readonly skill_ref: ReferenceContract;
 };
 
 export type QuotePurchaseResultContract = {

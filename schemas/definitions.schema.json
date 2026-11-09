@@ -2463,33 +2463,6 @@
       "title": "FileSearchMatch",
       "type": "object"
     },
-    "GetPurchaseAdmission": {
-      "additionalProperties": false,
-      "properties": {
-        "failure": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseFailure",
-          "description": "Why a refund won. Present only after refund won."
-        },
-        "purchase": {
-          "$ref": "https://schemas.runx.ai/runx/payment/purchase/v1.json"
-        },
-        "receipt_ref": {
-          "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-        },
-        "result_ref": {
-          "$ref": "https://schemas.runx.ai/runx/reference/v1.json",
-          "description": "What fulfilled the purchase: the source run (act) or the durable continuation's result (artifact). Present only after fulfilment won."
-        },
-        "run_ref": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseRunReference"
-        }
-      },
-      "required": [
-        "purchase"
-      ],
-      "title": "GetPurchaseAdmission",
-      "type": "object"
-    },
     "GitCommit": {
       "additionalProperties": false,
       "description": "One commit as `git.log` reports it.",
@@ -5386,19 +5359,6 @@
       "title": "ProviderNotCalled",
       "type": "string"
     },
-    "PurchaseAdmission": {
-      "additionalProperties": false,
-      "properties": {
-        "purchase": {
-          "$ref": "https://schemas.runx.ai/runx/payment/purchase/v1.json"
-        }
-      },
-      "required": [
-        "purchase"
-      ],
-      "title": "PurchaseAdmission",
-      "type": "object"
-    },
     "PurchaseCanonicalizerVersion": {
       "description": "The sole V1 canonicalization identifier for digest-bound inputs.",
       "enum": [
@@ -5798,46 +5758,6 @@
       "title": "PurchaseRequest",
       "type": "object",
       "x-runx-schema": "runx.purchase_request.v1"
-    },
-    "PurchaseRunReference": {
-      "additionalProperties": false,
-      "properties": {
-        "label": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "locator": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "observed_at": {
-          "minLength": 1,
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-          "type": "string"
-        },
-        "proof_kind": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProofKind"
-        },
-        "provider": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": {
-          "const": "act",
-          "type": "string"
-        },
-        "uri": {
-          "pattern": "^runx:run:[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "uri"
-      ],
-      "title": "PurchaseRunReference",
-      "type": "object",
-      "x-runx-schema": "runx.reference.v1"
     },
     "QuestionOption": {
       "additionalProperties": false,

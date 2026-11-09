@@ -544,77 +544,6 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.authority_term.v1"
   } as JsonSchema,
-  "cancel-purchase-request.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/cancel-purchase/request/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "idempotency": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaymentIdempotencyBinding"
-      },
-      "purchase_id": {
-        "minLength": 1,
-        "type": "string"
-      }
-    },
-    "required": [
-      "purchase_id",
-      "idempotency"
-    ],
-    "title": "CancelPurchaseRequest",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.cancel_purchase.request.v1"
-  } as JsonSchema,
-  "cancel-purchase-result.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/cancel-purchase/result/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "anyOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "const": "admitted",
-            "type": "string"
-          },
-          "value": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseAdmission"
-          }
-        },
-        "required": [
-          "status",
-          "value"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseRefusalCode"
-          },
-          "reason": {
-            "maxLength": 512,
-            "minLength": 1,
-            "type": "string"
-          },
-          "status": {
-            "const": "refused",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "code",
-          "reason"
-        ],
-        "type": "object"
-      }
-    ],
-    "title": "CancelPurchaseResult",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.cancel_purchase.result.v1"
-  } as JsonSchema,
   "cli-help.schema.json": {
     "$id": "https://schemas.runx.ai/runx/cli/help/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3714,33 +3643,6 @@ export const runxSchemaArtifacts = {
         "title": "FileSearchMatch",
         "type": "object"
       },
-      "GetPurchaseAdmission": {
-        "additionalProperties": false,
-        "properties": {
-          "failure": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseFailure",
-            "description": "Why a refund won. Present only after refund won."
-          },
-          "purchase": {
-            "$ref": "https://schemas.runx.ai/runx/payment/purchase/v1.json"
-          },
-          "receipt_ref": {
-            "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-          },
-          "result_ref": {
-            "$ref": "https://schemas.runx.ai/runx/reference/v1.json",
-            "description": "What fulfilled the purchase: the source run (act) or the durable continuation's result (artifact). Present only after fulfilment won."
-          },
-          "run_ref": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseRunReference"
-          }
-        },
-        "required": [
-          "purchase"
-        ],
-        "title": "GetPurchaseAdmission",
-        "type": "object"
-      },
       "GitCommit": {
         "additionalProperties": false,
         "description": "One commit as `git.log` reports it.",
@@ -6637,19 +6539,6 @@ export const runxSchemaArtifacts = {
         "title": "ProviderNotCalled",
         "type": "string"
       },
-      "PurchaseAdmission": {
-        "additionalProperties": false,
-        "properties": {
-          "purchase": {
-            "$ref": "https://schemas.runx.ai/runx/payment/purchase/v1.json"
-          }
-        },
-        "required": [
-          "purchase"
-        ],
-        "title": "PurchaseAdmission",
-        "type": "object"
-      },
       "PurchaseCanonicalizerVersion": {
         "description": "The sole V1 canonicalization identifier for digest-bound inputs.",
         "enum": [
@@ -7049,46 +6938,6 @@ export const runxSchemaArtifacts = {
         "title": "PurchaseRequest",
         "type": "object",
         "x-runx-schema": "runx.purchase_request.v1"
-      },
-      "PurchaseRunReference": {
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProofKind"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": {
-            "const": "act",
-            "type": "string"
-          },
-          "uri": {
-            "pattern": "^runx:run:[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "title": "PurchaseRunReference",
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
       },
       "QuestionOption": {
         "additionalProperties": false,
@@ -10988,88 +10837,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.doctor.v1"
   } as JsonSchema,
-  "execute-purchase-request.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/execute-purchase/request/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "idempotency": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaymentIdempotencyBinding"
-      },
-      "payment_ref": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaymentReference"
-      },
-      "purchase_id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "settlement_family": {
-        "maxLength": 64,
-        "minLength": 1,
-        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-        "type": "string"
-      }
-    },
-    "required": [
-      "purchase_id",
-      "settlement_family",
-      "payment_ref",
-      "idempotency"
-    ],
-    "title": "ExecutePurchaseRequest",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.execute_purchase.request.v1"
-  } as JsonSchema,
-  "execute-purchase-result.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/execute-purchase/result/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "anyOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "const": "admitted",
-            "type": "string"
-          },
-          "value": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseAdmission"
-          }
-        },
-        "required": [
-          "status",
-          "value"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseRefusalCode"
-          },
-          "reason": {
-            "maxLength": 512,
-            "minLength": 1,
-            "type": "string"
-          },
-          "status": {
-            "const": "refused",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "code",
-          "reason"
-        ],
-        "type": "object"
-      }
-    ],
-    "title": "ExecutePurchaseResult",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.execute_purchase.result.v1"
-  } as JsonSchema,
   "external-job-continuation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/external-job-continuation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -11840,73 +11607,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.fs.file_write.v1"
-  } as JsonSchema,
-  "get-purchase-request.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/get-purchase/request/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "purchase_id": {
-        "minLength": 1,
-        "type": "string"
-      }
-    },
-    "required": [
-      "purchase_id"
-    ],
-    "title": "GetPurchaseRequest",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.get_purchase.request.v1"
-  } as JsonSchema,
-  "get-purchase-result.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/get-purchase/result/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "anyOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "const": "admitted",
-            "type": "string"
-          },
-          "value": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/GetPurchaseAdmission"
-          }
-        },
-        "required": [
-          "status",
-          "value"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseRefusalCode"
-          },
-          "reason": {
-            "maxLength": 512,
-            "minLength": 1,
-            "type": "string"
-          },
-          "status": {
-            "const": "refused",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "code",
-          "reason"
-        ],
-        "type": "object"
-      }
-    ],
-    "title": "GetPurchaseResult",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.get_purchase.result.v1"
   } as JsonSchema,
   "git-blob-digest.schema.json": {
     "$id": "https://schemas.runx.ai/runx/git/blob-digest/v1.json",
@@ -12888,46 +12588,6 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.provider.operation.v1"
   } as JsonSchema,
-  "purchase-claim.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/purchase-claim/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "description": "What a buyer sends runx's claim route for a held value (`runx.payment.purchase_claim.v1`).",
-    "properties": {
-      "claim_url": {
-        "description": "The endpoint this claim is sent to: a claim is good for one endpoint.",
-        "minLength": 1,
-        "type": "string"
-      },
-      "issued_at": {
-        "description": "When the buyer signed; runx refuses a stale claim.",
-        "minLength": 1,
-        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-        "type": "string"
-      },
-      "receipt_digest": {
-        "description": "The digest of runx's receipt for the fulfilled purchase, as the purchase gave it: a purchase has none until it is fulfilled.",
-        "maxLength": 71,
-        "pattern": "^sha256:[0-9a-f]{64}$",
-        "type": "string"
-      },
-      "signature": {
-        "description": "The buyer's signature over the claim schema, the endpoint, the time and the receipt digest, as stable JSON.",
-        "pattern": "^ed25519:[A-Za-z0-9_-]{85}[AQgw]$",
-        "type": "string"
-      }
-    },
-    "required": [
-      "receipt_digest",
-      "claim_url",
-      "issued_at",
-      "signature"
-    ],
-    "title": "PurchaseClaim",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.purchase_claim.v1"
-  } as JsonSchema,
   "purchase-read.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/purchase-read/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13149,87 +12809,6 @@ export const runxSchemaArtifacts = {
     "title": "Question",
     "type": "object",
     "x-runx-schema": "runx.question.v1"
-  } as JsonSchema,
-  "quote-purchase-request.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/payment/quote-purchase/request/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "accepted_settlement_families": {
-        "items": {
-          "maxLength": 64,
-          "minLength": 1,
-          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-          "type": "string"
-        },
-        "maxItems": 16,
-        "minItems": 1,
-        "type": "array",
-        "uniqueItems": true
-      },
-      "amount_minor": {
-        "maximum": 9007199254740991,
-        "minimum": 1,
-        "type": "integer"
-      },
-      "buyer_key": {
-        "description": "The key the buyer claims with; runx's purchase receipt binds it.",
-        "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
-        "type": "string"
-      },
-      "buyer_ref": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PrincipalReference"
-      },
-      "canonicalizer_version": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PurchaseCanonicalizerVersion"
-      },
-      "currency": {
-        "pattern": "^[A-Z]{3}$",
-        "type": "string"
-      },
-      "idempotency": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaymentIdempotencyBinding"
-      },
-      "input_digest": {
-        "maxLength": 71,
-        "pattern": "^sha256:[0-9a-f]{64}$",
-        "type": "string"
-      },
-      "offer_version": {
-        "$ref": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json"
-      },
-      "package_digest": {
-        "description": "The execution package digest the purchase runs (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
-        "maxLength": 71,
-        "pattern": "^sha256:[0-9a-f]{64}$",
-        "type": "string"
-      },
-      "seller_ref": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PrincipalReference",
-        "description": "The seller: the publisher's principal enrolled to sell the skill."
-      },
-      "skill_ref": {
-        "$ref": "https://schemas.runx.ai/runx/reference/v1.json",
-        "description": "What is bought: the skill method binding the seller's run performs."
-      }
-    },
-    "required": [
-      "buyer_ref",
-      "seller_ref",
-      "skill_ref",
-      "offer_version",
-      "package_digest",
-      "input_digest",
-      "canonicalizer_version",
-      "amount_minor",
-      "currency",
-      "accepted_settlement_families",
-      "idempotency"
-    ],
-    "title": "QuotePurchaseRequest",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.payment.quote_purchase.request.v1"
   } as JsonSchema,
   "quote-purchase-result.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/quote-purchase/result/v1.json",

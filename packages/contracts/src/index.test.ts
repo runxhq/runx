@@ -16,8 +16,8 @@ import {
   receiptV1Schema,
   paidSkillListingV1Schema,
   purchaseV1Schema,
-  quotePurchaseRequestV1Schema,
-  cancelPurchaseResultV1Schema,
+  quotePurchaseResultV1Schema,
+  purchaseReadV1Schema,
   runxContractSchemas,
   runxGeneratedSchemaArtifacts,
   toolManifestV1Schema,
@@ -46,8 +46,8 @@ describe("@runxhq/contracts", () => {
   it("publishes purchase V1 through the curated contract registry", () => {
     expect(paidSkillListingV1Schema).toBe(runxContractSchemas.paidSkillListing);
     expect(purchaseV1Schema).toBe(runxContractSchemas.purchase);
-    expect(quotePurchaseRequestV1Schema).toBe(runxContractSchemas.quotePurchaseRequest);
-    expect(cancelPurchaseResultV1Schema).toBe(runxContractSchemas.cancelPurchaseResult);
+    expect(quotePurchaseResultV1Schema).toBe(runxContractSchemas.quotePurchaseResult);
+    expect(purchaseReadV1Schema).toBe(runxContractSchemas.purchaseRead);
   });
 
   it("exports Rust-generated artifacts for control schema facades", () => {

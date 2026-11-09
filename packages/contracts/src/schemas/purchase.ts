@@ -6,12 +6,6 @@ import {
 } from "../internal.js";
 import validatePaidSkillListing from "../generated/paid-skill-listing-validator.js";
 import type {
-  CancelPurchaseRequestContract,
-  CancelPurchaseResultContract,
-  ExecutePurchaseRequestContract,
-  ExecutePurchaseResultContract,
-  GetPurchaseRequestContract,
-  GetPurchaseResultContract,
   OfferVersionBindingContract,
   PaidSkillListingContract,
   PaymentIdempotencyBindingContract,
@@ -20,7 +14,6 @@ import type {
   PurchasePaymentChallengeContract,
   PurchasePaymentOptionBindingContract,
   PurchaseReadContract,
-  QuotePurchaseRequestContract,
   QuotePurchaseResultContract,
 } from "../generated/contract-types.js";
 import { paidSkillPriceProblem, paidSkillRequiredLeaseProblem } from "../paid-skill-price.js";
@@ -54,27 +47,13 @@ export const paidSkillListingV1Schema =
   generatedSchema<PaidSkillListingContract>("paid-skill-listing.schema.json");
 export const offerVersionBindingV1Schema =
   generatedSchema<OfferVersionBindingContract>("offer-version-binding.schema.json");
-export const quotePurchaseRequestV1Schema =
-  generatedSchema<QuotePurchaseRequestContract>("quote-purchase-request.schema.json");
 export const quotePurchaseResultV1Schema =
   generatedSchema<QuotePurchaseResultContract>("quote-purchase-result.schema.json");
 /** Explicit content negotiation for the canonical quote, rather than a rail's wire projection. */
 export const quotePurchaseMediaType =
   `application/json; profile="${quotePurchaseResultV1Schema.$id}"`;
-export const executePurchaseRequestV1Schema =
-  generatedSchema<ExecutePurchaseRequestContract>("execute-purchase-request.schema.json");
-export const executePurchaseResultV1Schema =
-  generatedSchema<ExecutePurchaseResultContract>("execute-purchase-result.schema.json");
-export const getPurchaseRequestV1Schema =
-  generatedSchema<GetPurchaseRequestContract>("get-purchase-request.schema.json");
-export const getPurchaseResultV1Schema =
-  generatedSchema<GetPurchaseResultContract>("get-purchase-result.schema.json");
 export const purchaseReadV1Schema =
   generatedSchema<PurchaseReadContract>("purchase-read.schema.json");
-export const cancelPurchaseRequestV1Schema =
-  generatedSchema<CancelPurchaseRequestContract>("cancel-purchase-request.schema.json");
-export const cancelPurchaseResultV1Schema =
-  generatedSchema<CancelPurchaseResultContract>("cancel-purchase-result.schema.json");
 
 export const paymentIdempotencyBindingSchema =
   generatedDefinition<PaymentIdempotencyBindingContract>("PaymentIdempotencyBinding");
@@ -155,38 +134,10 @@ export function validatePurchasePaymentOptionBindingContract(value: unknown, lab
   return validateContractSchema(purchasePaymentOptionBindingSchema, value, label);
 }
 
-export function validateQuotePurchaseRequestContract(value: unknown, label = "request") {
-  return validateContractSchema(quotePurchaseRequestV1Schema, value, label);
-}
-
 export function validateQuotePurchaseResultContract(value: unknown, label = "result") {
   return validateContractSchema(quotePurchaseResultV1Schema, value, label);
 }
 
-export function validateExecutePurchaseRequestContract(value: unknown, label = "request") {
-  return validateContractSchema(executePurchaseRequestV1Schema, value, label);
-}
-
-export function validateExecutePurchaseResultContract(value: unknown, label = "result") {
-  return validateContractSchema(executePurchaseResultV1Schema, value, label);
-}
-
-export function validateGetPurchaseRequestContract(value: unknown, label = "request") {
-  return validateContractSchema(getPurchaseRequestV1Schema, value, label);
-}
-
-export function validateGetPurchaseResultContract(value: unknown, label = "result") {
-  return validateContractSchema(getPurchaseResultV1Schema, value, label);
-}
-
 export function validatePurchaseReadContract(value: unknown, label = "purchase") {
   return validateContractSchema(purchaseReadV1Schema, value, label);
-}
-
-export function validateCancelPurchaseRequestContract(value: unknown, label = "request") {
-  return validateContractSchema(cancelPurchaseRequestV1Schema, value, label);
-}
-
-export function validateCancelPurchaseResultContract(value: unknown, label = "result") {
-  return validateContractSchema(cancelPurchaseResultV1Schema, value, label);
 }

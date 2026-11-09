@@ -24,7 +24,6 @@ type ContractScope =
   | "purchase"
   | "paid-skill-price"
   | "principal-id"
-  | "purchase-claim"
   | "registry-tier-statement"
   | "x402-v2";
 
@@ -37,7 +36,6 @@ if (
   && selectedScope !== "purchase"
   && selectedScope !== "paid-skill-price"
   && selectedScope !== "principal-id"
-  && selectedScope !== "purchase-claim"
   && selectedScope !== "registry-tier-statement"
   && selectedScope !== "x402-v2"
 ) {
@@ -57,9 +55,6 @@ if (selectedScope === undefined || selectedScope === "paid-skill-price") {
 if (selectedScope === undefined || selectedScope === "principal-id") {
   runPrincipalIdFixtures();
 }
-if (selectedScope === undefined || selectedScope === "purchase-claim") {
-  runExampleFixtures("purchase-claim", "runx-purchase-claim-fixtures", "RUNX_PURCHASE_CLAIM_FIXTURES_BIN");
-}
 if (selectedScope === undefined || selectedScope === "registry-tier-statement") {
   runExampleFixtures(
     "registry-tier-statement",
@@ -73,15 +68,10 @@ if (selectedScope === undefined || selectedScope === "x402-v2") {
 
 function runPurchaseFixtures(): void {
   const outputRoot = path.join(fixtureRoot, "purchase");
-  const fingerprintOracle = path.join(
-    fixtureRoot,
-    "canonical-json",
-    "runx-purchase-request-digest-v1.oracles.json",
-  );
   const configured = process.env.RUNX_PURCHASE_FIXTURES_BIN;
   const command = configured || (process.platform === "win32" ? "cargo.exe" : "cargo");
   const args = configured
-    ? ["--out", outputRoot, "--schema-dir", path.join(workspaceRoot, "schemas"), "--oracle-out", fingerprintOracle]
+    ? ["--out", outputRoot, "--schema-dir", path.join(workspaceRoot, "schemas")]
     : [
         "run",
         "--quiet",
@@ -96,8 +86,6 @@ function runPurchaseFixtures(): void {
         outputRoot,
         "--schema-dir",
         path.join(workspaceRoot, "schemas"),
-        "--oracle-out",
-        fingerprintOracle,
       ];
   if (check) args.push("--check");
   const result = spawnSync(command, args, { cwd: workspaceRoot, env: process.env, stdio: "inherit" });

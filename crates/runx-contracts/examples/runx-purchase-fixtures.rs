@@ -4,12 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    CANCEL_PURCHASE, CancelPurchaseRequest, CancelPurchaseResult, EXECUTE_PURCHASE,
-    ExecutePurchaseRequest, ExecutePurchaseResult, GetPurchaseRequest, GetPurchaseResult,
-    JsonObject, JsonValue as RunxJsonValue, MAX_PORTABLE_INTEGER, PURCHASE_REQUEST_DIGEST_SCHEMA,
-    PaidSkillListing, PurchaseRead, QUOTE_PURCHASE, QuotePurchaseRequest, QuotePurchaseResult,
-    STABLE_JSON_CANONICALIZATION, canonical_stable_json, digest_cancel_purchase_request,
-    digest_execute_purchase_request, digest_quote_purchase_request, sha256_prefixed,
+    MAX_PORTABLE_INTEGER, PaidSkillListing, PurchaseRead, QuotePurchaseResult, sha256_prefixed,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -26,44 +21,15 @@ const SCHEMAS: &[(&str, &str)] = &[
         "offer-version-binding.schema.json",
     ),
     (
-        "runx.payment.quote_purchase.request.v1",
-        "quote-purchase-request.schema.json",
-    ),
-    (
         "runx.payment.quote_purchase.result.v1",
         "quote-purchase-result.schema.json",
     ),
-    (
-        "runx.payment.execute_purchase.request.v1",
-        "execute-purchase-request.schema.json",
-    ),
-    (
-        "runx.payment.execute_purchase.result.v1",
-        "execute-purchase-result.schema.json",
-    ),
-    (
-        "runx.payment.get_purchase.request.v1",
-        "get-purchase-request.schema.json",
-    ),
-    (
-        "runx.payment.get_purchase.result.v1",
-        "get-purchase-result.schema.json",
-    ),
     ("runx.payment.purchase_read.v1", "purchase-read.schema.json"),
-    (
-        "runx.payment.cancel_purchase.request.v1",
-        "cancel-purchase-request.schema.json",
-    ),
-    (
-        "runx.payment.cancel_purchase.result.v1",
-        "cancel-purchase-result.schema.json",
-    ),
 ];
 
 struct Options {
     out_dir: PathBuf,
     schema_dir: PathBuf,
-    oracle_out: PathBuf,
     check: bool,
 }
 
@@ -86,11 +52,6 @@ fn main() -> io::Result<()> {
         canonical_bytes(&manifest)?,
         options.check,
     )?;
-    reconcile_file(
-        &options.oracle_out,
-        canonical_bytes(&digest_oracle()?)?,
-        options.check,
-    )?;
     reject_orphan_vectors(&options, &vectors)?;
     Ok(())
 }
@@ -98,14 +59,12 @@ fn main() -> io::Result<()> {
 fn parse_args() -> io::Result<Options> {
     let mut out_dir = None;
     let mut schema_dir = None;
-    let mut oracle_out = None;
     let mut check = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--out" => out_dir = args.next().map(PathBuf::from),
             "--schema-dir" => schema_dir = args.next().map(PathBuf::from),
-            "--oracle-out" => oracle_out = args.next().map(PathBuf::from),
             "--check" => check = true,
             other => return Err(io::Error::other(format!("unsupported argument: {other}"))),
         }
@@ -113,7 +72,6 @@ fn parse_args() -> io::Result<Options> {
     Ok(Options {
         out_dir: out_dir.ok_or_else(|| io::Error::other("--out is required"))?,
         schema_dir: schema_dir.ok_or_else(|| io::Error::other("--schema-dir is required"))?,
-        oracle_out: oracle_out.ok_or_else(|| io::Error::other("--oracle-out is required"))?,
         check,
     })
 }
@@ -168,13 +126,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
                 }
             }),
         )?,
-        valid::<QuotePurchaseRequest>(
-            "quote-independent-purchase.json",
-            "The same input digest with another idempotency binding remains a distinct purchase intent.",
-            "QuotePurchase",
-            "runx.payment.quote_purchase.request.v1",
-            quote_request("idem_independent"),
-        )?,
         valid::<QuotePurchaseResult>(
             "quote-terms-changed.json",
             "A change of terms is a typed domain refusal.",
@@ -198,27 +149,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "QuotePurchase",
             "runx.payment.quote_purchase.result.v1",
             refusal("quote_expired", "The quote has expired."),
-        )?,
-        valid::<ExecutePurchaseRequest>(
-            "execute-request.json",
-            "Execution names the purchase, its payment proof, its settlement family and the idempotency binding of the quote it executes.",
-            "ExecutePurchase",
-            "runx.payment.execute_purchase.request.v1",
-            execute_request(),
-        )?,
-        valid::<ExecutePurchaseResult>(
-            "execute-admitted.json",
-            "Payment authorization admits execution without exposing a provider rail payload.",
-            "ExecutePurchase",
-            "runx.payment.execute_purchase.result.v1",
-            admitted(direct),
-        )?,
-        valid::<GetPurchaseResult>(
-            "get-fulfilment-won.json",
-            "A fulfilled record carries the fulfilment winner.",
-            "GetPurchase",
-            "runx.payment.get_purchase.result.v1",
-            admitted(fulfilled.clone()),
         )?,
         valid::<PurchaseRead>(
             "purchase-read-fulfilled.json",
@@ -244,72 +174,15 @@ fn vectors() -> io::Result<Vec<Vector>> {
                 }]
             }),
         )?,
-        valid::<GetPurchaseResult>(
-            "get-refund-won.json",
-            "The refund winner is orthogonal to terminal execution observation.",
-            "GetPurchase",
-            "runx.payment.get_purchase.result.v1",
-            admitted(purchase(
-                "paid_refund",
-                "refunded",
-                "failed",
-                "refund_won",
-                true,
-            )),
-        )?,
-        valid::<GetPurchaseResult>(
-            "get-run-reference.json",
-            "A completed purchase exposes its hosted run without embedding run-domain state.",
-            "GetPurchase",
-            "runx.payment.get_purchase.result.v1",
+        valid::<PurchaseRead>(
+            "purchase-read-refund-won.json",
+            "The refund winner is orthogonal to terminal execution observation, and the read says why it won.",
+            "PurchaseRead",
+            "runx.payment.purchase_read.v1",
             json!({
-                "status": "admitted",
-                "value": {
-                    "purchase": purchase("paid_run", "settled", "succeeded", "fulfilment_won", true),
-                    "receipt_ref": reference("receipt", "runx:receipt:paid-run-1"),
-                    "run_ref": reference("act", "runx:run:hosted-1")
-                }
+                "purchase": purchase("paid_refund", "refunded", "failed", "refund_won", true),
+                "failure": {"code": "execution_failed", "message": "The method run failed; the payment was refunded."}
             }),
-        )?,
-        valid::<GetPurchaseRequest>(
-            "get-request.json",
-            "Lookup names only the purchase.",
-            "GetPurchase",
-            "runx.payment.get_purchase.request.v1",
-            json!({"purchase_id": "paid_direct"}),
-        )?,
-        valid::<CancelPurchaseRequest>(
-            "cancel-request.json",
-            "Cancellation is idempotently bound to the purchase.",
-            "CancelPurchase",
-            "runx.payment.cancel_purchase.request.v1",
-            json!({"idempotency": idempotency("cancel_direct"), "purchase_id": "paid_direct"}),
-        )?,
-        valid::<CancelPurchaseResult>(
-            "cancel-before-settlement.json",
-            "Cancellation before settlement leaves the payment unpaid.",
-            "CancelPurchase",
-            "runx.payment.cancel_purchase.result.v1",
-            admitted(purchase(
-                "paid_cancel_early",
-                "unpaid",
-                "cancelled",
-                "open",
-                false,
-            )),
-        )?,
-        valid::<CancelPurchaseResult>(
-            "cancel-after-settlement.json",
-            "Cancellation after settlement does not imply a refund transition.",
-            "CancelPurchase",
-            "runx.payment.cancel_purchase.result.v1",
-            admitted(purchase(
-                "paid_cancel_late",
-                "settled",
-                "cancelled",
-                "open",
-                true,
-            )),
         )?,
         invalid(
             "invalid-paid-skill-listing-provider-field.json",
@@ -324,19 +197,29 @@ fn vectors() -> io::Result<Vec<Vector>> {
         ),
         invalid(
             "invalid-unknown-field.json",
-            "V1 request objects reject additive fields.",
+            "V1 purchase objects reject additive fields.",
             "QuotePurchase",
-            "runx.payment.quote_purchase.request.v1",
-            with_field(quote_request("idem_unknown"), "unexpected", json!(true))?,
+            "runx.payment.quote_purchase.result.v1",
+            admitted(with_field(
+                purchase("paid_unknown", "unpaid", "unstarted", "open", false),
+                "unexpected",
+                json!(true),
+            )?),
         ),
         invalid(
             "invalid-malformed-digest.json",
             "Digest values are lowercase prefixed SHA-256 only.",
             "QuotePurchase",
-            "runx.payment.quote_purchase.request.v1",
-            with_field(
-                quote_request("idem_digest"),
-                "input_digest",
+            "runx.payment.quote_purchase.result.v1",
+            with_pointer_value(
+                admitted(purchase(
+                    "paid_digest",
+                    "unpaid",
+                    "unstarted",
+                    "open",
+                    false,
+                )),
+                "/value/purchase/input_digest",
                 json!("sha256:no"),
             )?,
         ),
@@ -344,10 +227,16 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "invalid-amount-above-portable.json",
             "Minor-unit amounts above the shared portable integer bound are rejected.",
             "QuotePurchase",
-            "runx.payment.quote_purchase.request.v1",
-            with_field(
-                quote_request("idem_amount"),
-                "amount_minor",
+            "runx.payment.quote_purchase.result.v1",
+            with_pointer_value(
+                admitted(purchase(
+                    "paid_amount",
+                    "unpaid",
+                    "unstarted",
+                    "open",
+                    false,
+                )),
+                "/value/purchase/amount_minor",
                 json!(MAX_PORTABLE_INTEGER + 1),
             )?,
         ),
@@ -355,12 +244,25 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "invalid-non-principal.json",
             "The buyer reference cannot name another reference type than a principal.",
             "QuotePurchase",
-            "runx.payment.quote_purchase.request.v1",
-            with_field(
-                quote_request("idem_principal"),
-                "buyer_ref",
+            "runx.payment.quote_purchase.result.v1",
+            with_pointer_value(
+                admitted(purchase(
+                    "paid_principal",
+                    "unpaid",
+                    "unstarted",
+                    "open",
+                    false,
+                )),
+                "/value/purchase/buyer_ref",
                 reference("artifact", "runx:artifact:not-a-principal"),
             )?,
+        ),
+        invalid(
+            "invalid-response-status-mismatch.json",
+            "An admitted status cannot carry refusal fields.",
+            "QuotePurchase",
+            "runx.payment.quote_purchase.result.v1",
+            json!({"code": "payment_not_authorized", "reason": "No authority.", "status": "admitted"}),
         ),
         invalid(
             "invalid-expiry.json",
@@ -378,13 +280,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
                 "/value/purchase/expires_at",
                 json!("tomorrow"),
             )?,
-        ),
-        invalid(
-            "invalid-response-status-mismatch.json",
-            "An admitted status cannot carry refusal fields.",
-            "ExecutePurchase",
-            "runx.payment.execute_purchase.result.v1",
-            json!({"code": "payment_not_authorized", "reason": "No authority.", "status": "admitted"}),
         ),
     ])
 }
@@ -425,22 +320,6 @@ fn invalid(
     }
 }
 
-fn quote_request(idempotency_key: &str) -> Value {
-    json!({
-        "accepted_settlement_families": ["mock", "hosted"],
-        "amount_minor": 1250,
-        "buyer_ref": reference("principal", "runx:principal:buyer-1"),
-        "canonicalizer_version": "runx.receipt.c14n.v1",
-        "currency": "USD",
-        "idempotency": idempotency(idempotency_key),
-        "input_digest": digest('1'),
-        "offer_version": offer_version(),
-        "package_digest": digest('7'),
-        "seller_ref": reference("principal", "runx:principal:seller-1"),
-        "skill_ref": reference("skill_binding", "runx:skill:acme/transcribe@1.0.0#transcribe")
-    })
-}
-
 fn paid_skill_listing() -> Value {
     json!({
         "skill_id": "acme/transcribe",
@@ -461,15 +340,6 @@ fn paid_skill_listing() -> Value {
             "currency": "USD",
             "accepts": ["x402", "stripe-spt"]
         }}
-    })
-}
-
-fn execute_request() -> Value {
-    json!({
-        "idempotency": idempotency("execute_direct"),
-        "purchase_id": "paid_direct",
-        "payment_ref": reference("receipt", "runx:receipt:payment-proof-1"),
-        "settlement_family": "hosted"
     })
 }
 
@@ -530,187 +400,6 @@ fn offer_version() -> Value {
 
 fn idempotency(key: &str) -> Value {
     json!({"binding_digest": digest('6'), "key": key})
-}
-
-fn digest_oracle() -> io::Result<Value> {
-    let quote = quote_request("digest_quote");
-    let quote_cases = [
-        ("quote-base", quote.clone()),
-        (
-            "quote-buyer-ref",
-            with_pointer_value(
-                quote.clone(),
-                "/buyer_ref/uri",
-                json!("runx:principal:buyer-2"),
-            )?,
-        ),
-        (
-            "quote-seller-ref",
-            with_pointer_value(
-                quote.clone(),
-                "/seller_ref/uri",
-                json!("runx:principal:seller-2"),
-            )?,
-        ),
-        (
-            "quote-skill-ref",
-            with_pointer_value(
-                quote.clone(),
-                "/skill_ref/uri",
-                json!("runx:skill:acme/transcribe@1.0.1#transcribe"),
-            )?,
-        ),
-        (
-            "quote-offer-version",
-            with_pointer_value(
-                quote.clone(),
-                "/offer_version/version",
-                json!("2026-08-22.2"),
-            )?,
-        ),
-        (
-            "quote-package-digest",
-            with_pointer_value(quote.clone(), "/package_digest", json!(digest('8')))?,
-        ),
-        (
-            "quote-input-digest",
-            with_pointer_value(quote.clone(), "/input_digest", json!(digest('9')))?,
-        ),
-        (
-            "quote-maximum-portable-amount",
-            with_pointer_value(quote.clone(), "/amount_minor", json!(MAX_PORTABLE_INTEGER))?,
-        ),
-        (
-            "quote-currency",
-            with_pointer_value(quote.clone(), "/currency", json!("EUR"))?,
-        ),
-        (
-            "quote-settlement-families",
-            with_pointer_value(
-                quote.clone(),
-                "/accepted_settlement_families",
-                json!(["hosted"]),
-            )?,
-        ),
-        (
-            "quote-idempotency",
-            with_pointer_value(quote, "/idempotency/binding_digest", json!(digest('a')))?,
-        ),
-    ];
-
-    let execute = execute_request();
-    let execute_cases = [
-        ("execute-base", execute.clone()),
-        (
-            "execute-purchase",
-            with_pointer_value(execute.clone(), "/purchase_id", json!("paid_other"))?,
-        ),
-        (
-            "execute-settlement-family",
-            with_pointer_value(execute.clone(), "/settlement_family", json!("mock"))?,
-        ),
-        (
-            "execute-payment-ref",
-            with_pointer_value(
-                execute.clone(),
-                "/payment_ref/uri",
-                json!("runx:receipt:payment-proof-2"),
-            )?,
-        ),
-        (
-            "execute-idempotency",
-            with_pointer_value(execute, "/idempotency/binding_digest", json!(digest('a')))?,
-        ),
-    ];
-
-    let cancel = json!({
-        "idempotency": idempotency("digest_cancel"),
-        "purchase_id": "paid_direct"
-    });
-    let cancel_cases = [
-        ("cancel-base", cancel.clone()),
-        (
-            "cancel-purchase",
-            with_pointer_value(cancel.clone(), "/purchase_id", json!("paid_other"))?,
-        ),
-        (
-            "cancel-idempotency",
-            with_pointer_value(cancel, "/idempotency/binding_digest", json!(digest('a')))?,
-        ),
-    ];
-
-    let mut cases = Vec::new();
-    for (name, request) in quote_cases {
-        cases.push(digest_case(name, QUOTE_PURCHASE, request)?);
-    }
-    for (name, request) in execute_cases {
-        cases.push(digest_case(name, EXECUTE_PURCHASE, request)?);
-    }
-    for (name, request) in cancel_cases {
-        cases.push(digest_case(name, CANCEL_PURCHASE, request)?);
-    }
-
-    Ok(json!({
-        "canonicalization": STABLE_JSON_CANONICALIZATION,
-        "cases": cases,
-        "schema": "runx.canonical_json_oracle.v1"
-    }))
-}
-
-fn digest_case(name: &str, operation: &str, request: Value) -> io::Result<Value> {
-    let expected_digest = match operation {
-        QUOTE_PURCHASE => digest_quote_purchase_request(
-            &serde_json::from_value::<QuotePurchaseRequest>(request.clone())
-                .map_err(io::Error::other)?,
-        ),
-        EXECUTE_PURCHASE => digest_execute_purchase_request(
-            &serde_json::from_value::<ExecutePurchaseRequest>(request.clone())
-                .map_err(io::Error::other)?,
-        ),
-        CANCEL_PURCHASE => digest_cancel_purchase_request(
-            &serde_json::from_value::<CancelPurchaseRequest>(request.clone())
-                .map_err(io::Error::other)?,
-        ),
-        _ => {
-            return Err(io::Error::other(format!(
-                "unsupported operation: {operation}"
-            )));
-        }
-    }
-    .map_err(io::Error::other)?;
-
-    let request_value =
-        serde_json::from_value::<RunxJsonValue>(request.clone()).map_err(io::Error::other)?;
-    let preimage = RunxJsonValue::Object(JsonObject::from([
-        (
-            "canonicalization".to_owned(),
-            RunxJsonValue::String(STABLE_JSON_CANONICALIZATION.to_owned()),
-        ),
-        (
-            "operation".to_owned(),
-            RunxJsonValue::String(operation.to_owned()),
-        ),
-        ("request".to_owned(), request_value),
-        (
-            "schema".to_owned(),
-            RunxJsonValue::String(PURCHASE_REQUEST_DIGEST_SCHEMA.to_owned()),
-        ),
-    ]));
-    let canonical_json = canonical_stable_json(&preimage).map_err(io::Error::other)?;
-    if sha256_prefixed(canonical_json.as_bytes()) != expected_digest {
-        return Err(io::Error::other(format!(
-            "request digest helper and oracle preimage disagree for {name}"
-        )));
-    }
-
-    Ok(json!({
-        "canonical_json": canonical_json,
-        "expected_digest": expected_digest,
-        "name": name,
-        "operation": operation,
-        "preimage": serde_json::to_value(preimage).map_err(io::Error::other)?,
-        "request": request
-    }))
 }
 
 fn reference(reference_type: &str, uri: &str) -> Value {

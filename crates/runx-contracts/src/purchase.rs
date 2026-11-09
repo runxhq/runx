@@ -11,7 +11,6 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::purchase_claim::BuyerKey;
 use crate::schema::{
     BoundedString, Identity, IsoDateTime, NamedSchemas, NonEmptyString, Property, RunxSchema,
     any_of_with_identity, const_string, object_schema, record_named, titled,
@@ -22,20 +21,8 @@ use crate::{
 
 pub const PURCHASE_SCHEMA: &str = "runx.payment.purchase.v1";
 pub const OFFER_VERSION_BINDING_SCHEMA: &str = "runx.payment.offer_version_binding.v1";
-pub const QUOTE_PURCHASE_REQUEST_SCHEMA: &str = "runx.payment.quote_purchase.request.v1";
 pub const QUOTE_PURCHASE_RESULT_SCHEMA: &str = "runx.payment.quote_purchase.result.v1";
-pub const EXECUTE_PURCHASE_REQUEST_SCHEMA: &str = "runx.payment.execute_purchase.request.v1";
-pub const EXECUTE_PURCHASE_RESULT_SCHEMA: &str = "runx.payment.execute_purchase.result.v1";
-pub const GET_PURCHASE_REQUEST_SCHEMA: &str = "runx.payment.get_purchase.request.v1";
-pub const GET_PURCHASE_RESULT_SCHEMA: &str = "runx.payment.get_purchase.result.v1";
 pub const PURCHASE_READ_SCHEMA: &str = "runx.payment.purchase_read.v1";
-pub const CANCEL_PURCHASE_REQUEST_SCHEMA: &str = "runx.payment.cancel_purchase.request.v1";
-pub const CANCEL_PURCHASE_RESULT_SCHEMA: &str = "runx.payment.cancel_purchase.result.v1";
-
-pub const QUOTE_PURCHASE: &str = "QuotePurchase";
-pub const EXECUTE_PURCHASE: &str = "ExecutePurchase";
-pub const GET_PURCHASE: &str = "GetPurchase";
-pub const CANCEL_PURCHASE: &str = "CancelPurchase";
 
 /// A positive minor-unit amount that crosses Rust and JavaScript JSON
 /// boundaries without integer precision loss.
@@ -277,59 +264,62 @@ impl RunxSchema for PaymentReference {
     }
 }
 
-/// The exact hosted run attached to a purchase.
-///
-/// The purchase feature owns only this reference. Hosted run state and output
-/// remain behind the run-control service and its own store.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(transparent)]
-pub struct PurchaseRunReference(Reference);
+const ED25519_PREFIX: &str = "ed25519:";
 
-impl PurchaseRunReference {
-    pub fn new(value: Reference) -> Option<Self> {
-        let identifier = value.uri.as_str().strip_prefix("runx:run:")?;
-        let valid_identifier = !identifier.is_empty()
-            && identifier.len() <= 256
-            && identifier.bytes().enumerate().all(|(index, byte)| {
-                byte.is_ascii_alphanumeric()
-                    || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'-'))
-            });
-        (value.reference_type == ReferenceType::Act && valid_identifier).then_some(Self(value))
+/// An Ed25519 public key a buyer holds: `ed25519:` and the 32 key bytes
+/// in unpadded base64url, spelled one way only.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+#[serde(transparent)]
+pub struct BuyerKey(String);
+
+impl BuyerKey {
+    pub fn new(value: String) -> Option<Self> {
+        canonical_ed25519_key(&value).then_some(Self(value))
     }
 }
 
-impl<'de> Deserialize<'de> for PurchaseRunReference {
+impl<'de> Deserialize<'de> for BuyerKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let value = Reference::deserialize(deserializer)?;
-        Self::new(value).ok_or_else(|| {
-            de::Error::custom("run_ref must be an act reference with a runx:run: URI")
+        Self::new(String::deserialize(deserializer)?).ok_or_else(|| {
+            de::Error::custom("buyer_key is ed25519: and 32 bytes of unpadded base64url")
         })
     }
 }
 
-impl RunxSchema for PurchaseRunReference {
+impl RunxSchema for BuyerKey {
     fn json_schema() -> Value {
-        let mut schema = Reference::json_schema();
-        if let Some(properties) = schema.get_mut("properties").and_then(Value::as_object_mut) {
-            properties.insert("type".to_owned(), const_string("act"));
-            properties.insert(
-                "uri".to_owned(),
-                json!({
-                    "type": "string",
-                    "pattern": "^runx:run:[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
-                }),
-            );
-        }
-        titled(schema, "PurchaseRunReference")
+        json!({ "type": "string", "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$" })
     }
+}
 
-    fn named_schemas(named: &mut NamedSchemas) {
-        if record_named(named, "PurchaseRunReference", Self::json_schema) {
-            Reference::named_schemas(named);
-        }
+/// `ed25519:` and exactly 32 bytes of unpadded base64url whose two unused
+/// trailing bits are zero, so each key has one spelling.
+fn canonical_ed25519_key(value: &str) -> bool {
+    let Some(encoded) = value.strip_prefix(ED25519_PREFIX) else {
+        return false;
+    };
+    encoded.len() == 43
+        && encoded
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        && encoded
+            .bytes()
+            .last()
+            .and_then(base64url_value)
+            .is_some_and(|last| last & 0b11 == 0)
+}
+
+fn base64url_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'A'..=b'Z' => Some(byte - b'A'),
+        b'a'..=b'z' => Some(byte - b'a' + 26),
+        b'0'..=b'9' => Some(byte - b'0' + 52),
+        b'-' => Some(62),
+        b'_' => Some(63),
+        _ => None,
     }
 }
 
@@ -521,31 +511,6 @@ pub enum PurchaseRefusalCode {
 
 pub type PurchaseRefusalReason = BoundedString<512>;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.payment.quote_purchase.request.v1")]
-pub struct QuotePurchaseRequest {
-    pub buyer_ref: PrincipalReference,
-    /// The seller: the publisher's principal enrolled to sell the skill.
-    pub seller_ref: PrincipalReference,
-    /// What is bought: the skill method binding the seller's run performs.
-    pub skill_ref: Reference,
-    pub offer_version: OfferVersionBinding,
-    /// The execution package digest the purchase runs (`runx.skill-package.v1`
-    /// over the files a run loads), not the registry's digest of the published
-    /// package files that a listing binds.
-    pub package_digest: Digest,
-    pub input_digest: Digest,
-    pub canonicalizer_version: PurchaseCanonicalizerVersion,
-    pub amount_minor: PortableAmountMinor,
-    pub currency: CurrencyCode,
-    pub accepted_settlement_families: SettlementFamilies,
-    pub idempotency: PaymentIdempotencyBinding,
-    /// The key the buyer claims with; runx's purchase receipt binds it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub buyer_key: Option<BuyerKey>,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QuotePurchaseAdmission {
@@ -620,87 +585,12 @@ impl RunxSchema for QuotePurchaseResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.payment.execute_purchase.request.v1")]
-pub struct ExecutePurchaseRequest {
-    pub purchase_id: NonEmptyString,
-    pub settlement_family: SettlementFamily,
-    pub payment_ref: PaymentReference,
-    pub idempotency: PaymentIdempotencyBinding,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PurchaseAdmission {
-    pub purchase: Purchase,
-}
-
-macro_rules! purchase_result {
-    ($name:ident, $schema_id:literal) => {
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-        #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
-        #[runx_schema(id = $schema_id)]
-        pub enum $name {
-            Admitted {
-                value: Box<PurchaseAdmission>,
-            },
-            Refused {
-                code: PurchaseRefusalCode,
-                reason: PurchaseRefusalReason,
-            },
-        }
-    };
-}
-
-purchase_result!(
-    ExecutePurchaseResult,
-    "runx.payment.execute_purchase.result.v1"
-);
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.payment.get_purchase.request.v1")]
-pub struct GetPurchaseRequest {
-    pub purchase_id: NonEmptyString,
-}
-
 /// Bounded, customer-safe reason a refund won the outcome gate.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PurchaseFailure {
     pub code: BoundedString<96>,
     pub message: BoundedString<500>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct GetPurchaseAdmission {
-    pub purchase: Purchase,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub run_ref: Option<PurchaseRunReference>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub receipt_ref: Option<Reference>,
-    /// What fulfilled the purchase: the source run (act) or the durable
-    /// continuation's result (artifact). Present only after fulfilment won.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub result_ref: Option<Reference>,
-    /// Why a refund won. Present only after refund won.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub failure: Option<PurchaseFailure>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
-#[runx_schema(id = "runx.payment.get_purchase.result.v1")]
-pub enum GetPurchaseResult {
-    Admitted {
-        value: Box<GetPurchaseAdmission>,
-    },
-    Refused {
-        code: PurchaseRefusalCode,
-        reason: PurchaseRefusalReason,
-    },
 }
 
 /// What a buyer reads of its purchase: the purchase, its receipt once
@@ -742,19 +632,6 @@ pub struct PurchaseLease {
     pub value_digest: Digest,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.payment.cancel_purchase.request.v1")]
-pub struct CancelPurchaseRequest {
-    pub purchase_id: NonEmptyString,
-    pub idempotency: PaymentIdempotencyBinding,
-}
-
-purchase_result!(
-    CancelPurchaseResult,
-    "runx.payment.cancel_purchase.result.v1"
-);
-
 fn refusal_variant_schema() -> Value {
     object_schema(
         vec![
@@ -780,6 +657,17 @@ mod tests {
     }
 
     #[test]
+    fn a_buyer_key_has_one_spelling() {
+        let key = format!("ed25519:{}", "A".repeat(43));
+        assert!(BuyerKey::new(key).is_some());
+        // 32 bytes leave two unused bits; a set unused bit is another spelling.
+        assert!(BuyerKey::new(format!("ed25519:{}B", "A".repeat(42))).is_none());
+        assert!(BuyerKey::new(format!("ed25519:{}", "A".repeat(44))).is_none());
+        assert!(BuyerKey::new(format!("ed25519:{}=", "A".repeat(43))).is_none());
+        assert!(BuyerKey::new(format!("x25519:{}", "A".repeat(43))).is_none());
+    }
+
+    #[test]
     fn bounded_values_reject_ambiguous_forms() {
         assert!(Digest::new(format!("sha256:{}", "a".repeat(64))).is_some());
         assert!(Digest::new(format!("sha256:{}", "A".repeat(64))).is_none());
@@ -787,20 +675,5 @@ mod tests {
         assert!(CurrencyCode::new("usd").is_none());
         assert!(SettlementFamily::new("hosted.mock-v1").is_some());
         assert!(SettlementFamily::new("Hosted").is_none());
-    }
-
-    #[test]
-    fn paid_run_reference_requires_the_exact_run_namespace() {
-        let run = Reference::with_uri(ReferenceType::Act, "runx:run:hosted-1");
-        assert!(PurchaseRunReference::new(run).is_some());
-        let authority = Reference::with_uri(ReferenceType::Act, "runx:act:hosted-1");
-        assert!(PurchaseRunReference::new(authority).is_none());
-        let wrong_type = Reference::with_uri(ReferenceType::Artifact, "runx:run:hosted-1");
-        assert!(PurchaseRunReference::new(wrong_type).is_none());
-        let malformed = Reference::with_uri(ReferenceType::Act, "runx:run:-hosted");
-        assert!(PurchaseRunReference::new(malformed).is_none());
-        let oversized =
-            Reference::with_uri(ReferenceType::Act, format!("runx:run:{}", "r".repeat(257)));
-        assert!(PurchaseRunReference::new(oversized).is_none());
     }
 }

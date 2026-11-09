@@ -6,8 +6,7 @@ use runx_contracts::{JsonValue, QuotePurchaseResult, sha256_prefixed};
 use serde_json::Value;
 
 #[test]
-fn vectors_cover_identity_replay_terms_binding_and_outcomes()
--> Result<(), Box<dyn std::error::Error>> {
+fn vectors_cover_identity_replay_terms_and_outcomes() -> Result<(), Box<dyn std::error::Error>> {
     let direct = vector("quote-direct-admission.json")?;
     let replay = vector("quote-same-term-replay.json")?;
     assert_eq!(
@@ -23,20 +22,6 @@ fn vectors_cover_identity_replay_terms_binding_and_outcomes()
         replay.pointer("/payload/value/purchase/package_digest")
     );
 
-    let independent = vector("quote-independent-purchase.json")?;
-    assert_eq!(
-        direct.pointer("/payload/value/purchase/input_digest"),
-        independent.pointer("/payload/input_digest")
-    );
-    assert_eq!(
-        direct.pointer("/payload/value/purchase/package_digest"),
-        independent.pointer("/payload/package_digest")
-    );
-    assert_ne!(
-        direct.pointer("/payload/value/purchase/idempotency/key"),
-        independent.pointer("/payload/idempotency/key")
-    );
-
     for (file, code) in [
         ("quote-terms-changed.json", "terms_changed"),
         ("quote-replay-conflict.json", "replay_conflict"),
@@ -49,21 +34,19 @@ fn vectors_cover_identity_replay_terms_binding_and_outcomes()
     }
 
     assert_eq!(
-        vector("get-fulfilment-won.json")?.pointer("/payload/value/purchase/outcome_gate"),
+        vector("purchase-read-fulfilled.json")?.pointer("/payload/purchase/outcome_gate"),
         Some(&Value::String("fulfilment_won".to_owned()))
     );
+    let refund = vector("purchase-read-refund-won.json")?;
     assert_eq!(
-        vector("get-refund-won.json")?.pointer("/payload/value/purchase/outcome_gate"),
+        refund.pointer("/payload/purchase/outcome_gate"),
         Some(&Value::String("refund_won".to_owned()))
     );
     assert_eq!(
-        vector("cancel-before-settlement.json")?.pointer("/payload/value/purchase/payment_state"),
-        Some(&Value::String("unpaid".to_owned()))
+        refund.pointer("/payload/purchase/execution_state"),
+        Some(&Value::String("failed".to_owned()))
     );
-    assert_eq!(
-        vector("cancel-after-settlement.json")?.pointer("/payload/value/purchase/payment_state"),
-        Some(&Value::String("settled".to_owned()))
-    );
+    assert!(refund.pointer("/payload/failure/code").is_some());
     Ok(())
 }
 
