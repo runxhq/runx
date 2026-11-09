@@ -102,6 +102,17 @@ impl RuntimeEffectRegistry {
         Ok(None)
     }
 
+    /// Admit what the step declares it may call, in every family, before any
+    /// call is made.
+    pub(crate) fn admit_declared(
+        &self,
+        request: EffectStepRequest<'_>,
+    ) -> Result<(), RuntimeEffectError> {
+        self.families
+            .values()
+            .try_for_each(|effect| effect.admit_declared(request))
+    }
+
     pub(crate) fn prepare_execution(
         &self,
         request: EffectStepRequest<'_>,

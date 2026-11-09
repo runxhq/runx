@@ -1,0 +1,15 @@
+minimum_runx: 0.12.0
+methods:
+  start:
+    inputs:
+      target: {type: string}
+    steps:
+      - id: start
+        script: {module: start.mjs}
+        inputs:
+          target: $input.target
+        calls:
+          operations: [fixture/compute/jobs.start]
+        max_calls: 1
+        outputs:
+          job: {type: object}

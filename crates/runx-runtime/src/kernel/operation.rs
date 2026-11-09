@@ -595,6 +595,39 @@ impl RuntimeEffect for OperationEffect {
         request.step.operation().is_some()
     }
 
+    /// A script's declared operations, admitted before it runs from the
+    /// checks each call of them meets, so a script whose operations can't
+    /// be admitted never starts.
+    fn admit_declared(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
+        let runx_parser::StepKind::Script(script) = &request.step.kind else {
+            return Ok(());
+        };
+        if script.allowance.operations.is_empty() {
+            return Ok(());
+        }
+        let paths = crate::paths::RunxPaths::resolve(request.env, request.workflow_dir);
+        let store = KernelStore::for_project(&paths).map_err(state)?;
+        let scope = ConnectorScope::in_project(request.workflow_dir, &paths)
+            .map_err(|error| invalid(error.to_string()))?;
+        let instances = Instances::new(Arc::clone(&store));
+        admission::admit_declared(
+            &script.connectors,
+            &script.allowance.operations,
+            request.run_authority,
+            request.chain,
+            request.run_id,
+            request.clock,
+            Context {
+                scope: &scope,
+                instances: &instances,
+                hosted: &self.placements.hosted,
+                env: request.env,
+                cwd: request.workflow_dir,
+            },
+        )
+        .map_err(refused)
+    }
+
     fn admit(
         &self,
         request: EffectStepRequest<'_>,
@@ -639,22 +672,7 @@ impl RuntimeEffect for OperationEffect {
             },
             clock: request.clock,
         })
-        .map_err(|error| match error {
-            AdmitError::Refused(refusal) if refusal.check == AdmissionCheck::Cost => {
-                RuntimeEffectError::CostLimitExceeded {
-                    family: OPERATION_EFFECT_FAMILY.to_owned(),
-                    message: refusal.message(),
-                }
-            }
-            AdmitError::Refused(refusal) => RuntimeEffectError::Denied {
-                family: OPERATION_EFFECT_FAMILY.to_owned(),
-                message: refusal.message(),
-                // A requirement that names no operation has no verb of its
-                // own; it is refused as the write it might have been.
-                verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
-            },
-            AdmitError::State(message) => state(message),
-        })?;
+        .map_err(refused)?;
         let verb = admitted.operation().verb.authority_verb();
         let target_ref = match call.act.as_ref().and_then(|act| act.target.as_ref()) {
             Some(target) => {
@@ -2465,6 +2483,27 @@ fn verification(uri: String, provider: &str, proof_kind: ProofKind) -> Reference
         provider: Some(provider.to_owned().into()),
         proof_kind: Some(proof_kind),
         ..Reference::with_uri(ReferenceType::Verification, uri)
+    }
+}
+
+/// An admission refusal as the effect error a step meets: over the run's
+/// money limit, or denied with the verb of the operation refused.
+fn refused(error: AdmitError) -> RuntimeEffectError {
+    match error {
+        AdmitError::Refused(refusal) if refusal.check == AdmissionCheck::Cost => {
+            RuntimeEffectError::CostLimitExceeded {
+                family: OPERATION_EFFECT_FAMILY.to_owned(),
+                message: refusal.message(),
+            }
+        }
+        AdmitError::Refused(refusal) => RuntimeEffectError::Denied {
+            family: OPERATION_EFFECT_FAMILY.to_owned(),
+            message: refusal.message(),
+            // A requirement that names no operation has no verb of its
+            // own; it is refused as the write it might have been.
+            verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
+        },
+        AdmitError::State(message) => state(message),
     }
 }
 

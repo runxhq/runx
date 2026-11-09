@@ -1,0 +1,23 @@
+name: compute-job-starts-under-the-case-grant
+method: start
+inputs:
+  target: compute://account/306607894404/object/audio-9999
+providers:
+  hosted:
+    principal_id: operator-fixture
+    grant:
+      grant_id: compute-fixture
+      provider: fixture/compute
+      scopes: [jobs.execute]
+    operations:
+      - operation: jobs.start
+        target: compute://account/306607894404/object/audio-9999
+        access: mutate
+        result:
+          job_ref: compute://account/306607894404/job/1
+          status: started
+          output_available: false
+          failure_reason: ""
+          recovered: false
+expect:
+  status: sealed

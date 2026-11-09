@@ -779,6 +779,86 @@ pub(crate) fn skill_readiness(
     project(&scope, requirements, calls, authority, chain, env, cwd)
 }
 
+/// Admit the operations a step declares it may call, `allowed` on the
+/// connectors `requirements` holds, before any call names its inputs: each
+/// one projected from the checks an exact call's admission runs, from the
+/// instances, evidence and grants here and the run's own authority, and the
+/// first that fails refuses the step with its reason, as the call would be.
+/// A connector chosen at run time is admitted when any its requirement
+/// allows can be.
+pub(crate) fn admit_declared(
+    requirements: &BTreeMap<String, ConnectorRequirement>,
+    allowed: &[runx_contracts::AllowedOperation],
+    run_authority: Option<&RunAuthority>,
+    chain: &[crate::identity::ChainLink],
+    run_id: &str,
+    clock: &crate::RunClock,
+    context: Context<'_>,
+) -> Result<(), AdmitError> {
+    let caller = Caller {
+        authority: run_authority,
+        chain,
+        run_id,
+        clock,
+    };
+    for allowed in allowed {
+        let key = allowed.requirement.as_str();
+        let Some(requirement) = requirements.get(key) else {
+            return Err(Reasons(Vec::new(), None).refuse(
+                AdmissionCheck::Requirement,
+                format!("the step's calls name {key}, which it requires no connector for"),
+            ));
+        };
+        let Some(operation) = OperationName::new(allowed.operation.as_str()) else {
+            return Err(Reasons(Vec::new(), None).refuse(
+                AdmissionCheck::Requirement,
+                format!(
+                    "the step's calls name {key}/{}, which is no operation name",
+                    allowed.operation
+                ),
+            ));
+        };
+        let references = if requirement.choose.is_some() {
+            requirement
+                .from
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        } else {
+            vec![key]
+        };
+        let mut refused = None;
+        for reference in references {
+            let (projected, verb) = readiness(
+                key,
+                reference,
+                requirement,
+                &operation,
+                &[],
+                caller,
+                context,
+            );
+            if projected.ready {
+                refused = None;
+                break;
+            }
+            refused.get_or_insert(Refusal {
+                check: projected
+                    .reasons
+                    .iter()
+                    .find(|reason| reason.outcome == CheckOutcome::Fail)
+                    .map_or(AdmissionCheck::Requirement, |reason| reason.check),
+                reasons: projected.reasons,
+                verb,
+            });
+        }
+        if let Some(refusal) = refused {
+            return Err(AdmitError::Refused(refusal));
+        }
+    }
+    Ok(())
+}
+
 /// The readiness of every operation of one connector in the workspace at
 /// `cwd`, as if a skill required all of them.
 pub fn connector_readiness(
@@ -853,9 +933,15 @@ fn project(
                         requirement,
                         operation,
                         calls,
-                        Caller { authority, chain },
+                        Caller {
+                            authority,
+                            chain,
+                            run_id: INSPECTION,
+                            clock: &INSPECTION_CLOCK,
+                        },
                         context,
                     )
+                    .0
                 })
             })
         })
@@ -888,13 +974,19 @@ fn standing_instance(
 /// without an exact call: the requirement, the instance and its pins, the
 /// capability's scopes where they can be read without a target, the
 /// approval floor and the implementation.
-/// Who a projected call would be made by: the run's authority, and the
-/// packages it would be made from.
+/// Who a projected call would be made by: the run's authority, the packages
+/// it would be made from, the run it would belong to, and the run's clock.
 #[derive(Clone, Copy)]
 struct Caller<'a> {
     authority: Option<&'a RunAuthority>,
     chain: &'a [crate::identity::ChainLink],
+    run_id: &'a str,
+    clock: &'a crate::RunClock,
 }
+
+/// The run an inspection's projection stands in for, and its clock.
+const INSPECTION: &str = "inspection";
+static INSPECTION_CLOCK: crate::RunClock = crate::RunClock::System;
 
 fn readiness(
     requirement_key: &str,
@@ -904,8 +996,13 @@ fn readiness(
     calls: &[runx_parser::WorkflowStep],
     caller: Caller<'_>,
     context: Context<'_>,
-) -> Readiness {
-    let Caller { authority, chain } = caller;
+) -> (Readiness, Option<runx_contracts::AuthorityVerb>) {
+    let Caller {
+        authority,
+        chain,
+        run_id,
+        clock,
+    } = caller;
     let Context {
         scope,
         hosted,
@@ -930,7 +1027,7 @@ fn readiness(
             .iter()
             .any(|reason| reason.outcome == CheckOutcome::Fail);
         readiness.reasons = reasons.0;
-        readiness
+        (readiness, reasons.1)
     };
     let connector = match scope.requirement(reference, requirement) {
         Ok(connector) => connector,
@@ -960,6 +1057,7 @@ fn readiness(
         AdmissionCheck::Requirement,
         format!("{}/{operation_name}", connector.manifest.name),
     );
+    reasons.1 = Some(spec.verb.authority_verb());
     readiness.cost.clone_from(&spec.cost);
     let instance = match standing_instance(context, &connector, authority) {
         Ok(instance) => instance,
@@ -1007,13 +1105,7 @@ fn readiness(
         actor_ref: authority.and_then(|authority| authority.actor_ref.as_ref()),
     }) {
         Ok(capability) => {
-            match delegated_terms(
-                &capability.term,
-                &instance,
-                authority,
-                "inspection",
-                &crate::RunClock::System,
-            ) {
+            match delegated_terms(&capability.term, &instance, authority, run_id, clock) {
                 Ok(delegated) => {
                     let limits = std::iter::once(&capability.term)
                         .chain(delegated.terms())

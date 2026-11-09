@@ -764,11 +764,15 @@ where
         &target.method.workflow,
     );
     let runtime = Runtime::new(adapter, options);
-    // A case whose method runs JavaScript starts its worker first, so a case
-    // that can't run its JavaScript doesn't start.
-    crate::implementation::worker(&workflow, runtime.javascript(), &runtime.options().env)?;
+    // A case starts as any run does: its scripts' declared operations
+    // admitted, then its worker started if its method runs JavaScript. A case
+    // refused as it starts runs nothing, and seals with the refusal.
+    let start = crate::implementation::start(&runtime, &target.skill_dir, &workflow)?;
     let mut host = FixtureHost::new(fixture);
-    let workflow_run = runtime.run_workflow_for_test(&target.skill_dir, workflow, &mut host)?;
+    let workflow_run = match start.refusal {
+        Some(refusal) => runtime.seal_stop(workflow, refusal, &mut host)?.run,
+        None => runtime.run_workflow_for_test(&target.skill_dir, workflow, &mut host)?,
+    };
     let (replayed_answers, unanswered) = host.finish();
     let mut output =
         replay_output_from_workflow(fixture, workflow_run, replayed_answers, unanswered);

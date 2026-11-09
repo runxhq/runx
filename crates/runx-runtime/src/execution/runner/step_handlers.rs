@@ -560,7 +560,8 @@ where
         log.run_id(),
         runtime.options.workspace.as_ref(),
     )?;
-    if log.load()?.is_none()
+    let recorded = log.load()?;
+    if recorded.is_none()
         && let Some(reason) = super::child_depth_refusal(&runtime.options)
     {
         return Err(RuntimeError::AuthorityDenied {
@@ -568,21 +569,6 @@ where
             step_id: nested.step.id.clone(),
             reason,
         });
-    }
-    // A child decides its implementation from its own method, and starts its
-    // worker, if it has one, on the session it shares with its parent.
-    let implementation = crate::implementation::of_run(&workflow, &runtime.javascript, nested.env)?;
-    let existing = log.start_child(crate::execution::run_record::ChildStart {
-        parent: runtime.options.run.run_id(),
-        step_id: &nested.step.id,
-        skill: nested.skill,
-        inputs: nested.inputs,
-        act: nested.act,
-        implementation: &implementation,
-        created_at: &runtime.options.clock.now(),
-    })?;
-    if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
-        return super::sealed_workflow_run(workflow, record);
     }
     let mut child_options = runtime.options.as_ref().clone();
     // A child holds what its parent step does, narrowed by its own method.
@@ -605,7 +591,42 @@ where
         runtime.local_artifacts.clone(),
     )
     .with_inherited_provenance(inherited);
-    match child_runtime.run_workflow_with_host(nested.skill_directory, workflow.clone(), host) {
+    // A child that sealed runs nothing again. Any other starts as any run
+    // does, decided from its own method: its scripts' declared operations
+    // admitted, and its worker, if it has one, started on the session it
+    // shares with its parent.
+    let start = if recorded.is_some_and(|record| record.sealed.is_some()) {
+        None
+    } else {
+        Some(crate::implementation::start(
+            &child_runtime,
+            nested.skill_directory,
+            &workflow,
+        )?)
+    };
+    let runtime_alone = crate::implementation::runtime_alone();
+    let existing = log.start_child(crate::execution::run_record::ChildStart {
+        parent: runtime.options.run.run_id(),
+        step_id: &nested.step.id,
+        skill: nested.skill,
+        inputs: nested.inputs,
+        act: nested.act,
+        implementation: start
+            .as_ref()
+            .map_or(&runtime_alone, |start| &start.implementation),
+        must_match: start.as_ref().is_some_and(|start| start.refusal.is_none()),
+        created_at: &runtime.options.clock.now(),
+    })?;
+    if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
+        return super::sealed_workflow_run(workflow, record);
+    }
+    let ran = match start.and_then(|start| start.refusal) {
+        Some(refusal) => Err(refusal),
+        None => {
+            child_runtime.run_workflow_with_host(nested.skill_directory, workflow.clone(), host)
+        }
+    };
+    match ran {
         Ok(run) => {
             log.record_sealed(&run.receipt, None)?;
             Ok(run)

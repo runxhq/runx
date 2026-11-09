@@ -41,6 +41,7 @@ mod step_handlers;
 pub mod turn;
 mod workflow_engine;
 
+pub(crate) use admission::declared_operations_refusal;
 pub use call_stops::CallCancel;
 pub(crate) use call_stops::{CallStop, CallStops, CallWork};
 use workflow_engine::WorkflowExecution;

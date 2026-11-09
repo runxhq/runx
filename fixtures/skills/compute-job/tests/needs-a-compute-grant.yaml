@@ -1,0 +1,6 @@
+name: compute-job-needs-a-compute-grant
+method: start
+inputs:
+  target: compute://account/306607894404/object/audio-9999
+expect:
+  status: policy_denied

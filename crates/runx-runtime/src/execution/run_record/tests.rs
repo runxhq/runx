@@ -293,6 +293,7 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
                 inputs: &JsonObject::new(),
                 act: None,
                 implementation: &implementation(),
+                must_match: true,
                 created_at: "2026-10-09T00:00:00.000Z",
             })
             .unwrap()
@@ -315,6 +316,7 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
             inputs: &JsonObject::new(),
             act: None,
             implementation: &implementation(),
+            must_match: true,
             created_at: "2026-10-09T00:00:00.000Z",
         }),
         Err(RunRecordError::IdentityMismatch { .. })
@@ -365,6 +367,7 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
             inputs: &JsonObject::new(),
             act: None,
             implementation: &implementation(),
+            must_match: true,
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -647,6 +650,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             inputs: &JsonObject::new(),
             act: None,
             implementation: &implementation(),
+            must_match: true,
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -724,6 +728,7 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
             inputs: &JsonObject::new(),
             act: None,
             implementation: &implementation(),
+            must_match: true,
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -977,6 +982,7 @@ fn a_read_after_its_cursor_returns_only_new_events_in_every_stream() {
             inputs: &JsonObject::new(),
             act: None,
             implementation: &implementation(),
+            must_match: true,
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();

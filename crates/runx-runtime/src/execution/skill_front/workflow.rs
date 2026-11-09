@@ -91,69 +91,50 @@ impl BoundRun {
             historical: request.historical_context.clone(),
         };
         let javascript = self.overrides.javascript.clone().unwrap_or_default();
-        let implementation = self.implementation(&javascript)?;
-        let (workflow_inputs, run_act, run_context, run_authority, prepared) = match &existing {
-            Some(record) => {
-                let started = continuation_identity(
-                    record,
-                    request,
-                    &request_context,
-                    &self.method,
-                    &self.package_digest,
-                    execution_closure_digest,
-                    &implementation,
-                )?;
-                host.check_driver(log.run_id(), started.driver)?;
-                (
-                    record.inputs.clone(),
-                    record.act.clone(),
-                    record.context.clone(),
-                    started.run_authority.clone(),
-                    started.prepared.clone(),
-                )
-            }
-            None if request.answers.is_some() => {
-                return Err(invalid(format!(
-                    "run {} has no record to continue",
-                    log.run_id()
-                )));
-            }
-            None => {
-                let inputs = request
-                    .inputs
-                    .iter()
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect::<JsonObject>();
-                let prepared = PreparedContext::from_env(self.workspace.env())?;
-                log.begin(StartRequest {
-                    skill: &self.manifest.skill,
-                    skill_path: &request.skill_path.to_string_lossy(),
-                    method: &self.method.name,
-                    package_digest: &self.package_digest,
-                    execution_closure_digest,
-                    inputs: &inputs,
-                    context: &request_context,
-                    run_authority: request.run_authority.as_ref(),
-                    act: request.act.as_ref(),
-                    driver: if request.managed_agent.max_rounds().is_some() {
-                        RunDriver::Managed
-                    } else {
-                        RunDriver::Attached
-                    },
-                    prepared: prepared.as_ref(),
-                    purchase: self.purchase(),
-                    implementation: &implementation,
-                    created_at: &crate::time::now_iso8601(),
-                })?;
-                (
-                    inputs,
-                    request.act.clone(),
-                    request_context,
-                    request.run_authority.clone(),
-                    prepared,
-                )
-            }
-        };
+        let (workflow_inputs, run_act, run_context, run_authority, prepared, started) =
+            match &existing {
+                Some(record) => {
+                    let started = continuation_identity(
+                        record,
+                        request,
+                        &request_context,
+                        &self.method,
+                        &self.package_digest,
+                        execution_closure_digest,
+                    )?;
+                    host.check_driver(log.run_id(), started.driver)?;
+                    (
+                        record.inputs.clone(),
+                        record.act.clone(),
+                        record.context.clone(),
+                        started.run_authority.clone(),
+                        started.prepared.clone(),
+                        Some(started),
+                    )
+                }
+                None if request.answers.is_some() => {
+                    return Err(invalid(format!(
+                        "run {} has no record to continue",
+                        log.run_id()
+                    )));
+                }
+                None => {
+                    let inputs = request
+                        .inputs
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone()))
+                        .collect::<JsonObject>();
+                    let prepared = PreparedContext::from_env(self.workspace.env())?;
+                    (
+                        inputs,
+                        request.act.clone(),
+                        request_context.clone(),
+                        request.run_authority.clone(),
+                        prepared,
+                        None,
+                    )
+                }
+            };
         if let Some(record) = existing.as_ref().filter(|record| record.sealed.is_some()) {
             return self.restore_sealed_run(&log, record.clone());
         }
@@ -190,6 +171,50 @@ impl BoundRun {
             host,
             javascript,
         )?;
+        // The run starts as its own method needs: its scripts' declared
+        // operations admitted, then its worker started if it runs JavaScript.
+        let start = self.start(&runtime)?;
+        match started {
+            // A continuation runs on the implementation the run started on,
+            // unless it's refused as it starts and runs nothing.
+            Some(started) => {
+                if let Some(reason) = start
+                    .refusal
+                    .is_none()
+                    .then(|| {
+                        crate::implementation::refusal(
+                            started.implementation.as_ref(),
+                            &start.implementation,
+                        )
+                    })
+                    .flatten()
+                {
+                    return Err(invalid(format!(
+                        "run identity cannot replace its original implementation: {reason}"
+                    )));
+                }
+            }
+            None => log.begin(StartRequest {
+                skill: &self.manifest.skill,
+                skill_path: &request.skill_path.to_string_lossy(),
+                method: &self.method.name,
+                package_digest: &self.package_digest,
+                execution_closure_digest,
+                inputs: &workflow_inputs,
+                context: &request_context,
+                run_authority: request.run_authority.as_ref(),
+                act: request.act.as_ref(),
+                driver: if request.managed_agent.max_rounds().is_some() {
+                    RunDriver::Managed
+                } else {
+                    RunDriver::Attached
+                },
+                prepared: prepared.as_ref(),
+                purchase: self.purchase(),
+                implementation: &start.implementation,
+                created_at: &crate::time::now_iso8601(),
+            })?,
+        }
         let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
             bound: self,
@@ -197,6 +222,11 @@ impl BoundRun {
             runtime: &runtime,
             workflow: &workflow,
         };
+        // A run refused as it starts runs nothing, and seals with the refusal
+        // as its step's admission would.
+        if let Some(refusal) = start.refusal {
+            return run.seal_stopped(refusal);
+        }
         let suspension = existing
             .as_ref()
             .and_then(|record| record.suspension.as_ref());
@@ -310,14 +340,13 @@ impl BoundRun {
         self.method.offer.is_some().then_some(reference)
     }
 
-    /// The implementation the run runs on, decided from what it runs as its
-    /// own method: for a purchase, the one step that calls the method, whose
-    /// child run decides from the method itself. A method that runs
-    /// JavaScript starts its worker on `javascript` now.
-    fn implementation(
+    /// How the run starts on `runtime`, decided from what it runs as its own
+    /// method: for a purchase, the one step that calls the method, whose
+    /// child run decides from the method itself.
+    fn start(
         &self,
-        javascript: &crate::adapters::javascript::JavaScriptAdapter,
-    ) -> Result<runx_contracts::RunImplementation, RuntimeError> {
+        runtime: &Runtime<ExecutableAdapter>,
+    ) -> Result<crate::implementation::Start, RuntimeError> {
         let own = match self.purchase() {
             Some(reference) => {
                 std::borrow::Cow::Owned(crate::execution::workflow::purchase_workflow(
@@ -328,7 +357,7 @@ impl BoundRun {
             }
             None => std::borrow::Cow::Borrowed(&self.method.workflow),
         };
-        crate::implementation::of_run(&own, javascript, self.workspace.env())
+        crate::implementation::start(runtime, &self.skill_dir, &own)
     }
 
     /// The workflow the run drives: the method's own, or for a purchase one step
@@ -482,7 +511,6 @@ fn continuation_identity<'a>(
     method: &SkillMethodDefinition,
     package_digest: &str,
     execution_closure_digest: &str,
-    implementation: &runx_contracts::RunImplementation,
 ) -> Result<&'a crate::execution::run_record::Started, SkillRunError> {
     let Origin::Run(started) = &record.origin else {
         return Err(invalid("a child run continues only through its parent"));
@@ -500,13 +528,6 @@ fn continuation_identity<'a>(
     }
     if started.execution_closure_digest != execution_closure_digest {
         return Err(refuse("execution closure"));
-    }
-    if let Some(reason) =
-        crate::implementation::refusal(started.implementation.as_ref(), implementation)
-    {
-        return Err(invalid(format!(
-            "run identity cannot replace its original implementation: {reason}"
-        )));
     }
     let request_inputs = request
         .inputs

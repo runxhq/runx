@@ -989,6 +989,7 @@ impl RunLog {
             inputs,
             act,
             implementation,
+            must_match,
             created_at,
         } = started;
         let inputs = Blob::json(inputs)?;
@@ -1005,8 +1006,11 @@ impl RunLog {
             if recorded.act.as_ref() != act {
                 return Err(self.mismatch("act"));
             }
-            if let Some(reason) =
-                crate::implementation::refusal(recorded.implementation.as_ref(), implementation)
+            if let Some(reason) = must_match
+                .then(|| {
+                    crate::implementation::refusal(recorded.implementation.as_ref(), implementation)
+                })
+                .flatten()
             {
                 return Err(RunRecordError::Implementation {
                     run_id: self.0.run_id.clone(),
@@ -1519,8 +1523,13 @@ pub(crate) struct ChildStart<'a> {
     pub skill: &'a str,
     pub inputs: &'a JsonObject,
     pub act: Option<&'a CallAct>,
-    /// The implementation it runs on, decided from its own method.
+    /// The implementation it runs on, decided from its own method, which a
+    /// new child records.
     pub implementation: &'a runx_contracts::RunImplementation,
+    /// Whether an existing child must still be on the implementation it
+    /// recorded: not when it runs nothing now, sealed already or refused as
+    /// it starts.
+    pub must_match: bool,
     pub created_at: &'a str,
 }
 

@@ -525,3 +525,83 @@ methods:
     );
     Ok(())
 }
+
+/// Makes `root` a project holding `fixtures/skills/compute-job`, a
+/// one-script method whose script declares `fixture/compute/jobs.start`, and
+/// the kernel fixture connector it declares.
+fn compute_job_project(root: &std::path::Path) -> TestResult<std::path::PathBuf> {
+    crate::support::plugin_with_fixture_connectors(root, &["fixture/compute"])?;
+    let skill = root.join("skills/compute-job");
+    crate::support::copy_dir(
+        &crate::support::repo_root()?.join("fixtures/skills/compute-job"),
+        &skill,
+    )?;
+    fs::create_dir_all(root.join("home"))?;
+    Ok(skill)
+}
+
+/// `runx test <case>` in `root`, which passes, with the receipt it sealed
+/// and what the process counted.
+fn tested_and_counted(
+    root: &std::path::Path,
+    case: &std::path::Path,
+) -> TestResult<(serde_json::Value, serde_json::Value)> {
+    let counts = root.join("counts.json");
+    let output = crate::support::unsigned_runx_command_at(root)
+        .env("RUNX_CWD", root)
+        .env("RUNX_PERF_COUNTS_PATH", &counts)
+        .args([
+            "test",
+            case.to_str().ok_or("non-utf8 case path")?,
+            "--receipt-dir",
+            root.join(".runx/receipts")
+                .to_str()
+                .ok_or("non-utf8 receipt dir")?,
+            "--json",
+        ])
+        .output()?;
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok((
+        serde_json::from_slice(&output.stdout)?,
+        serde_json::from_slice(&fs::read(&counts)?)?,
+    ))
+}
+
+/// A script's declared operations are admitted before it runs, as an
+/// operation step's operation is: with no grant for `fixture/compute`, the
+/// one-script method is refused `policy_denied`, and no worker starts.
+#[test]
+fn a_script_whose_declared_operation_has_no_grant_is_refused_before_its_worker_starts() -> TestResult
+{
+    let root = crate::support::temp_root("runx-script-operation-no-grant");
+    let skill = compute_job_project(&root)?;
+    let (receipt, counts) =
+        tested_and_counted(&root, &skill.join("tests/needs-a-compute-grant.yaml"))?;
+    // Refused as an operation step's operation is, with its reason.
+    assert_eq!(receipt["seal"]["outcome"], "blocked", "{receipt}");
+    assert_eq!(receipt["seal"]["reason"], "authority_denied", "{receipt}");
+    assert_eq!(counts["process_spawns"], 0, "no worker started: {counts}");
+    Ok(())
+}
+
+/// The same method under the case's grant runs its script, whose operation
+/// is admitted as it's made.
+#[test]
+fn a_script_whose_declared_operation_has_a_grant_runs() -> TestResult {
+    let root = crate::support::temp_root("runx-script-operation-grant");
+    let skill = compute_job_project(&root)?;
+    let (receipt, counts) =
+        tested_and_counted(&root, &skill.join("tests/starts-under-the-case-grant.yaml"))?;
+    assert_eq!(receipt["seal"]["outcome"], "completed", "{receipt}");
+    assert_eq!(
+        counts["process_spawns"], 1,
+        "the script ran on its worker: {counts}"
+    );
+    Ok(())
+}

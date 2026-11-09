@@ -63,6 +63,15 @@ pub trait RuntimeEffect: Send + Sync {
         Ok(None)
     }
 
+    /// Admit what the step declares it may call through this family before
+    /// any call is made, from the checks its calls' admission runs, refusing
+    /// as the first refused call would be. A family no step declares calls
+    /// to admits every step.
+    fn admit_declared(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
+        let _ = request;
+        Ok(())
+    }
+
     /// Prepare an admitted effect immediately before dispatch. The effect owner
     /// creates any attempt state and may return a host-resolution request when
     /// this exact act also requires approval.

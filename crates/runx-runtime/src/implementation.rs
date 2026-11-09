@@ -31,9 +31,43 @@ pub(crate) fn runs_javascript(workflow: &Workflow) -> bool {
     })
 }
 
+/// How a run starts: the implementation it records, and the refusal it
+/// meets before any step runs, if any.
+pub(crate) struct Start {
+    pub(crate) implementation: RunImplementation,
+    pub(crate) refusal: Option<RuntimeError>,
+}
+
+/// How a run of `workflow` from `workflow_dir` starts on `runtime`: its own
+/// scripts' declared operations admitted first, as each call of them would
+/// be, then its worker started if it runs JavaScript. A run one of whose
+/// scripts can't be admitted is refused as it starts: it runs no step and no
+/// JavaScript, starts no worker and records none.
+pub(crate) fn start<A>(
+    runtime: &crate::Runtime<A>,
+    workflow_dir: &std::path::Path,
+    workflow: &Workflow,
+) -> Result<Start, RuntimeError>
+where
+    A: crate::SkillAdapter,
+{
+    if let Some(refusal) =
+        crate::execution::runner::declared_operations_refusal(runtime, workflow_dir, workflow)?
+    {
+        return Ok(Start {
+            implementation: runtime_alone(),
+            refusal: Some(refusal),
+        });
+    }
+    Ok(Start {
+        implementation: of_run(workflow, runtime.javascript(), &runtime.options().env)?,
+        refusal: None,
+    })
+}
+
 /// The implementation a run of `workflow` under `env` runs on: this runtime,
 /// and the worker it runs its JavaScript on, if it runs any.
-pub(crate) fn of_run(
+fn of_run(
     workflow: &Workflow,
     javascript: &JavaScriptAdapter,
     env: &BTreeMap<String, String>,
@@ -46,7 +80,7 @@ pub(crate) fn of_run(
 /// The digest of the worker a run of `workflow` runs its JavaScript on,
 /// started now on `javascript`'s session, which keeps it for the run's first
 /// call to it; none, and no worker started, for a run that runs none.
-pub(crate) fn worker(
+fn worker(
     workflow: &Workflow,
     javascript: &JavaScriptAdapter,
     env: &BTreeMap<String, String>,
@@ -55,6 +89,12 @@ pub(crate) fn worker(
         return Ok(None);
     }
     javascript.worker_digest(env).map(Some)
+}
+
+/// This runtime alone: the implementation of a run that runs no JavaScript
+/// now.
+pub(crate) fn runtime_alone() -> RunImplementation {
+    implementation(None)
 }
 
 fn implementation(worker: Option<NonEmptyString>) -> RunImplementation {
