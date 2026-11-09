@@ -1,6 +1,7 @@
 {
-  "$id": "https://schemas.runx.ai/runx/decision-observation/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/slack/decision-observation/v1.json",
+  "x-runx-packet-id": "runx/slack.decision_observation.v1",
   "anyOf": [
     {
       "additionalProperties": false,
@@ -62,7 +63,6 @@
             "app_or_bot",
             "unknown"
           ],
-          "title": "DecisionOrigin",
           "type": "string"
         },
         "presentation_locator": {
@@ -89,8 +89,5 @@
       ],
       "type": "object"
     }
-  ],
-  "title": "DecisionObservation",
-  "x-runx-packet": true,
-  "x-runx-schema": "runx.decision_observation.v1"
+  ]
 }

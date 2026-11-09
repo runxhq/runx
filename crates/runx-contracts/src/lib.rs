@@ -15,7 +15,6 @@ pub mod connector_instance;
 pub mod conversation_source;
 pub mod copyable_command;
 pub mod decision;
-pub mod decision_adapter;
 pub mod digest;
 pub mod doctor;
 pub mod execution;
@@ -91,7 +90,6 @@ pub use connector_instance::{ConnectorInstance, InstanceAuthority};
 pub use conversation_source::{ConversationObservation, ConversationPage};
 pub use copyable_command::{CommandShell, CopyableCommand, render_posix_command};
 pub use decision::{Decision, DecisionChoice};
-pub use decision_adapter::{DecisionObservation, DecisionOrigin};
 pub use digest::{ContentDigest, DigestAlgorithm, hex_lower, sha256_hex, sha256_prefixed};
 pub use doctor::{
     DoctorDiagnostic, DoctorDiagnosticSeverity, DoctorLocation, DoctorRepair,

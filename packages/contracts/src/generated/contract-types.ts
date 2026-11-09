@@ -754,26 +754,6 @@ export type DecisionContract = {
 /** The decisions a governed call can carry out. */
 export type DecisionChoiceContract = "continue" | "escalate" | "defer" | "close" | "decline" | "monitor";
 
-export type DecisionObservationContract = {
-  readonly coverage_complete: boolean;
-  readonly next_cursor: string | null;
-  readonly nonce: string;
-  readonly request_digest: string;
-  readonly status: "pending";
-} | {
-  readonly actor_id: string;
-  readonly approved: boolean;
-  readonly evidence_locator: string;
-  readonly nonce: string;
-  readonly occurred_at: string;
-  readonly origin: DecisionOriginContract;
-  readonly presentation_locator: string;
-  readonly request_digest: string;
-  readonly status: "decided";
-};
-
-export type DecisionOriginContract = "human_account" | "app_or_bot" | "unknown";
-
 export type DecodeStepContract = {
   readonly op: "auto_json";
 } | {

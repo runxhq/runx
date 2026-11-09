@@ -43,7 +43,7 @@ methods:
           module: assistant-source.mjs
           export: decideAssistantRequest
         outputs:
-          decision_observation: {type: object, packet: runx.decision_observation.v1}
+          decision_observation: {type: object, packet: runx/slack.decision_observation.v1}
   assistant_scan:
     description: For an assistant watching Slack, search a bounded page of new source messages under its configuration.
     inputs:
