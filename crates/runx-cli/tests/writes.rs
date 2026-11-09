@@ -1,6 +1,8 @@
 //! Who may write, and whether a write waits: a turn's own call never writes
-//! to `store` (D19), and under `effects: ask` every write with no approval of
-//! its own waits on a person, at any depth (D25).
+//! to `store` (D19), under `effects: ask` every write with no approval of its
+//! own waits on a person, at any depth (D25), and a read turn keeps nothing
+//! but the person's words, in `said:` on `private`, under its host's term
+//! (D22).
 //!
 //! Each runs as a host runs its agent: the bundled `agent` skill,
 //! started with `effects: ask` and `reach: workspace` and no standing
@@ -440,6 +442,263 @@ fn a_read_turn_changes_nothing_at_any_depth_whatever_its_host_allows() -> TestRe
         "{called}"
     );
     assert!(!marker.exists(), "a read turn's load wrote at depth");
+    std::fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+// D22: a read turn may keep the person's exact words, in `said:` on
+// `private`, under a term its host grants. It isn't an exception to D16's
+// wall, which covers the workspace and providers, and no skill's name is in
+// the rule: a `said:` stream on `private` is the person's own record,
+// whichever package keeps it.
+
+/// A project package a read turn loads: `keep` appends words to the
+/// `private` stream it's given, `count` appends to its own `store` stream,
+/// and `read` reads a `private` stream back.
+const KEEPER: &str = r#"minimum_runx: 0.12.0
+methods:
+  keep:
+    inputs:
+      stream: {type: string}
+      text: {type: string}
+    steps:
+      - id: before
+        operation: private/key.inspect
+        inputs: {stream: $input.stream, key: words}
+      - id: append
+        operation: private/events.append
+        idempotency_key: $input.text
+        inputs:
+          stream: $input.stream
+          key: words
+          expected_version: $steps.before.provider_operation.result.version
+          type: words.kept
+          data: {text: $input.text}
+  count:
+    steps:
+      - id: append
+        operation: store/events.append
+        idempotency_key: counted
+        inputs: {stream: counts, key: words, expected_version: 0, type: words.counted, data: {}}
+  read:
+    inputs:
+      stream: {type: string}
+    steps:
+      - id: events
+        operation: private/events.read
+        inputs: {stream: $input.stream, key: words}
+"#;
+
+/// Where the keeper's streams live when a read turn loads it from the
+/// workspace: under the turn's package, as code it incorporates.
+const KEEPER_STREAMS: &str = "runx/agent/keeper/";
+
+/// A project with the keeper package, and the `private` instance its calls
+/// resolve, as `skill inspect` reports it.
+fn keeper_project(root: &Path) -> TestResult<String> {
+    let skill = root.join("skills/keeper");
+    std::fs::create_dir_all(&skill)?;
+    std::fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: keeper\ndescription: Keeps words.\n---\n# Keeper\n\nKeep the words.\n",
+    )?;
+    std::fs::write(skill.join("run.yaml"), KEEPER)?;
+    let inspected = assert_json(
+        &command(root)
+            .args(["skill", "inspect", "skills/keeper#keep", "--json"])
+            .output()?,
+        0,
+    )?;
+    inspected["connector_readiness"]
+        .as_array()
+        .and_then(|readiness| {
+            readiness
+                .iter()
+                .find(|entry| entry["connector"] == "private")
+                .and_then(|entry| entry["instance_id"].as_str())
+        })
+        .map(str::to_owned)
+        .ok_or_else(|| format!("the keeper reaches no private instance: {inspected}").into())
+}
+
+/// A host's authority that allows every change, so only the read turn's own
+/// `effects: none` holds, with one term on the keeper's `private` instance
+/// when the host grants one: `verbs` over the keeper's streams that begin
+/// with `streams`, for the read turn and the keeper.
+fn keeper_authority(term: Option<(&str, &[&str], &str)>) -> String {
+    let mut authority = json!({"effects": "allow", "reach": "workspace"});
+    if let Some((instance, verbs, streams)) = term {
+        let actor = json!({"type": "principal", "uri": "runx:principal:host:test"});
+        authority["actor_ref"] = actor.clone();
+        authority["mandate_ref"] = json!({"type": "mandate", "uri": "runx:mandate:test"});
+        authority["delegations"] = json!([{
+            "principal_ref": actor,
+            "resource_ref": {"type": "connector_instance", "uri": format!("runx:connector_instance:{instance}")},
+            "resource_family": "connector",
+            "verbs": verbs,
+            "bounds": {
+                "operations": ["private/*"],
+                "scopes": ["store.read", "store.append"],
+                "targets": [format!("{KEEPER_STREAMS}{streams}*")],
+                "packages": ["runx/agent", "project:keeper"],
+            },
+        }]);
+    }
+    authority.to_string()
+}
+
+/// The outcome of a fresh read turn under `authority` that loads the
+/// keeper's `method` and calls it with `input`. The keeper reaches
+/// connectors the turn doesn't, so its first load in the home waits on the
+/// person's trust, which they give.
+fn keeper_call(root: &Path, authority: &str, method: &str, input: Value) -> TestResult<Value> {
+    let run = start_session(command(root), "read", authority)?;
+    let load = json!({"skill": "skills/keeper", "method": method});
+    let loaded = turn_call(command(root), &run, "read", "load", load)?;
+    if let Some(trust) = waiting_approval(&loaded).filter(|gate| gate["gate"]["type"] == "trust") {
+        let address = trust["id"].as_str().ok_or("a trust request has an id")?;
+        let read = assert_json(
+            &command(root).args(["history", &run, "--json"]).output()?,
+            0,
+        )?;
+        let answers = root.join("trust.json");
+        std::fs::write(
+            &answers,
+            crate::support::bind_resume(&read, json!({"approvals": {address: true}}))?.to_string(),
+        )?;
+        let resumed = command(root)
+            .args(["resume", &run])
+            .arg(&answers)
+            .arg("--json")
+            .output()?;
+        assert_eq!(resumed.status.code(), Some(2), "{resumed:?}");
+    } else {
+        assert_eq!(loaded["status"], "completed", "{loaded}");
+    }
+    turn_call(
+        command(root),
+        &run,
+        "read",
+        &format!("skill__keeper__{method}"),
+        input,
+    )
+}
+
+/// The texts the keeper's `private` `stream` holds, read by a read turn
+/// under `authority`.
+fn kept(root: &Path, authority: &str, stream: &str) -> TestResult<Vec<Value>> {
+    let read = keeper_call(root, authority, "read", json!({"stream": stream}))?;
+    assert_eq!(read["status"], "completed", "{read}");
+    let result = &read["output"]["provider_operation"]["data"]["result"];
+    assert_eq!(
+        result["stream"],
+        format!("{KEEPER_STREAMS}{stream}"),
+        "{read}"
+    );
+    Ok(result["events"]
+        .as_array()
+        .ok_or_else(|| format!("no events: {read}"))?
+        .iter()
+        .map(|event| event["data"]["text"].clone())
+        .collect())
+}
+
+/// Whether a read turn's call of the keeper was refused at its `step`,
+/// for `reason`, and so never ran past it.
+fn refused_at(called: &Value, step: &str, reason: &str) -> bool {
+    called["status"] != "completed"
+        && called["reason"].as_str().is_some_and(|stopped| {
+            stopped.contains(&format!("workflow step '{step}'")) && stopped.contains(reason)
+        })
+}
+
+#[test]
+fn a_read_turn_keeps_the_persons_words_in_said_on_private_under_its_hosts_term() -> TestResult {
+    let root = crate::support::temp_root("runx-writes-read-remembers");
+    std::fs::create_dir_all(&root)?;
+    let instance = keeper_project(&root)?;
+    let said = keeper_authority(Some((&instance, &["read", "write"], "said:")));
+
+    let kept_words = keeper_call(
+        &root,
+        &said,
+        "keep",
+        json!({"stream": "said:personal", "text": "I write in Australian English."}),
+    )?;
+    assert_eq!(kept_words["status"], "completed", "{kept_words}");
+    let appended = &kept_words["output"]["provider_operation"]["data"]["result"];
+    assert_eq!(appended["status"], "committed", "{kept_words}");
+    assert_eq!(
+        kept(&root, &said, "said:personal")?,
+        vec![json!("I write in Australian English.")]
+    );
+    std::fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+#[test]
+fn a_read_turn_without_its_hosts_term_keeps_nothing() -> TestResult {
+    let root = crate::support::temp_root("runx-writes-read-no-term");
+    std::fs::create_dir_all(&root)?;
+    let instance = keeper_project(&root)?;
+    let words = json!({"stream": "said:personal", "text": "Call me Sam."});
+    let reading = keeper_authority(Some((&instance, &["read"], "said:")));
+
+    // No term at all: no call on private is made.
+    let called = keeper_call(&root, &keeper_authority(None), "keep", words.clone())?;
+    assert!(
+        refused_at(&called, "before", "every private call needs a term"),
+        "{called}"
+    );
+    // A term that only reads the person's words: the read runs, the write
+    // is refused by the term, and the wall never stood in its way.
+    let called = keeper_call(&root, &reading, "keep", words)?;
+    assert!(
+        refused_at(&called, "append", "authority Write denied"),
+        "{called}"
+    );
+    assert!(!called.to_string().contains("effects are none"), "{called}");
+    assert_eq!(kept(&root, &reading, "said:personal")?, Vec::<Value>::new());
+    std::fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+#[test]
+fn a_read_turn_keeps_nothing_but_said_on_private_whatever_its_term_reaches() -> TestResult {
+    let root = crate::support::temp_root("runx-writes-read-only-said");
+    std::fs::create_dir_all(&root)?;
+    let instance = keeper_project(&root)?;
+    let everything = keeper_authority(Some((&instance, &["read", "write"], "")));
+
+    // An observation, and streams that only start like the person's words.
+    for stream in ["observed:personal", "saidx:personal", "said"] {
+        let called = keeper_call(
+            &root,
+            &everything,
+            "keep",
+            json!({"stream": stream, "text": "The person prefers tea."}),
+        )?;
+        assert!(
+            refused_at(
+                &called,
+                "append",
+                "the run's effects are none, so it changes nothing: the private/events.append write is refused"
+            ),
+            "{stream}: {called}"
+        );
+        assert_eq!(kept(&root, &everything, stream)?, Vec::<Value>::new());
+    }
+
+    // The package's own store state: a read turn's wall holds it too.
+    let counted = keeper_call(&root, &everything, "count", json!({}))?;
+    assert!(
+        refused_at(
+            &counted,
+            "append",
+            "the run's effects are none, so it changes nothing: the store/events.append write is refused"
+        ),
+        "{counted}"
+    );
     std::fs::remove_dir_all(&root)?;
     Ok(())
 }

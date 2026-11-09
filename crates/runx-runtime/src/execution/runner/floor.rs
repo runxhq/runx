@@ -13,6 +13,12 @@
 //! or its step's, keeps that one, and a package's own `store` state is
 //! exempt. Under `none` every change is refused, a write with its own
 //! approval and a `store` write included.
+//!
+//! Keeping the person's exact words, an append to a `said:` stream on the
+//! runtime's own `private`, is no change to the workspace or at a provider,
+//! so the floor never holds it, and its term decides it (D22). That isn't an
+//! exception to `none`'s wall: every `private` call needs a term the host
+//! grants, and no skill's name is in the rule.
 
 use std::path::Path;
 
@@ -254,7 +260,7 @@ fn change<A>(
     ) else {
         return Ok(None);
     };
-    if effects == Effects::Ask && (write.approved || write.store) {
+    if write.persons_words || (effects == Effects::Ask && (write.approved || write.store)) {
         return Ok(None);
     }
     Ok(Some(Change::Write(write)))
@@ -424,6 +430,7 @@ pub(crate) fn covers(
                 operation,
                 approved: false,
                 store: false,
+                persons_words: false,
             };
             Ok(covering(&Change::Write(write), approvals).is_some())
         }

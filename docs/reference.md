@@ -595,7 +595,12 @@ own, its operation's declared one or its step's `approval`, keeps that one and
 the floor adds none. A package's own `store` state is exempt, unless its step carries an
 `approval`. A person who declines it refuses the call. Under `effects: none`
 every change is refused, at any depth: every local effect, every provider write
-even with its own approval, every `store` write, and every purchase.
+even with its own approval, every `store` write, and every purchase. Keeping
+the person's exact words, an append to a `said:` stream on `private`, is no
+change to the workspace or at a provider, so a read turn may keep them, and
+the term its host grants on `private` decides it, as it decides every
+`private` call. Anything else on `private`, an `observed:` stream included, is
+refused under `none` like any other write.
 
 A turn's own call never writes to `store`, at any `effects`: a stream is
 written by a package's deterministic step, and a turn's call to a `store`

@@ -29,6 +29,7 @@ fn write(connector: &str, operation: &str) -> Change {
         operation: operation.to_owned(),
         approved: false,
         store: false,
+        persons_words: false,
     })
 }
 
@@ -292,6 +293,7 @@ fn named(connector: &str, operation: &str, approved: bool, store: bool) -> Optio
         operation: operation.to_owned(),
         approved,
         store,
+        persons_words: false,
     })
 }
 
@@ -329,5 +331,35 @@ fn a_write_is_named_with_whether_it_carries_its_own_approval_or_writes_store()
         plugin.write("store", "events.append", none)?,
         named("store", "events.append", false, true)
     );
+    Ok(())
+}
+
+#[test]
+fn only_an_append_to_a_said_stream_on_private_keeps_the_persons_words()
+-> Result<(), Box<dyn std::error::Error>> {
+    let plugin = Plugin::new()?;
+    let append = |connector: &str, stream: &str| -> Result<Option<bool>, serde_json::Error> {
+        Ok(plugin
+            .write(
+                connector,
+                "events.append",
+                serde_json::json!({"inputs": {
+                    "stream": stream,
+                    "key": "words",
+                    "expected_version": 0,
+                    "type": "words.kept",
+                    "data": {},
+                }}),
+            )?
+            .map(|write| write.persons_words))
+    };
+    assert_eq!(append("private", "said:personal")?, Some(true));
+    assert_eq!(append("private", "said:brand:ws_1:acme")?, Some(true));
+    // An observation, and a stream that only starts like the person's words.
+    assert_eq!(append("private", "observed:personal")?, Some(false));
+    assert_eq!(append("private", "saidx:personal")?, Some(false));
+    assert_eq!(append("private", "said")?, Some(false));
+    // A package's own store state is no one's words.
+    assert_eq!(append("store", "said:personal")?, Some(false));
     Ok(())
 }

@@ -302,7 +302,14 @@ pub(crate) struct OperationWrite {
     pub(crate) approved: bool,
     /// It writes `store`'s streams.
     pub(crate) store: bool,
+    /// It keeps the person's words: an append to a `said:` stream on the
+    /// runtime's own `private`, the person's own record, which changes
+    /// nothing in the workspace or at a provider (D22).
+    pub(crate) persons_words: bool,
 }
+
+/// The stream kind that holds the person's exact words, on `private`.
+const PERSONS_WORDS: &str = "said:";
 
 /// The write the operation step `target` would make with `inputs`, when its
 /// operation writes. A call that names no operation its requirement resolves
@@ -328,6 +335,13 @@ pub(crate) fn operation_write(
         approved: call.approval.is_some()
             || declared.approval == runx_contracts::connector::ApprovalFloor::Required,
         store: matches!(declared.implementation, Some(Implementation::Store(_))),
+        persons_words: admission::is_private(&connector)
+            && operation.as_str() == "events.append"
+            && call
+                .inputs
+                .get("stream")
+                .and_then(JsonValue::as_str)
+                .is_some_and(|stream| stream.starts_with(PERSONS_WORDS)),
     })
 }
 

@@ -1405,7 +1405,7 @@ fn leased_resource(
 /// The runtime's own connector for the person's own data, which every call
 /// reaches only under a term (D21). The kernel knows it by its origin, never
 /// by what a manifest claims.
-fn is_private(connector: &LoadedConnector) -> bool {
+pub(crate) fn is_private(connector: &LoadedConnector) -> bool {
     connector.name.as_str() == crate::drivers::store::PRIVATE
         && matches!(
             connector.origin,
