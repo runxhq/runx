@@ -40,7 +40,7 @@ pub(crate) fn refusal(
             describe(current)
         )),
         None => Some(format!(
-            "the run records no implementation, and this runx is {}; a run resumes only under the implementation that started it",
+            "the run was started before runx recorded its implementation; finish it with the runx that started it (this runx is {})",
             describe(current)
         )),
     }
@@ -135,6 +135,10 @@ mod tests {
             refused.contains("runtime sha256:earlier") && refused.contains(now.runtime.as_str()),
             "{refused}"
         );
-        assert!(refusal(None, &now).is_some(), "a run that records none");
+        let older = refusal(None, &now).unwrap_or_default();
+        assert!(
+            older.contains("started before runx recorded its implementation; finish it with the runx that started it"),
+            "a run that records none says what to do: {older}"
+        );
     }
 }

@@ -2,6 +2,8 @@
 // (reuse contract, `implementation`): each binary reports it, so a run
 // started by one build is never resumed or reused by a build of other
 // sources. Shared by the build scripts that make it; it reads only files.
+// It lives at the runtime crate's root, and the worker's build script
+// includes it from here, because a `build/` directory is gitignored.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
