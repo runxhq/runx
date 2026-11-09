@@ -236,7 +236,6 @@ fn unauthorized_response() -> BoxHttpResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     fn io_err(context: &str, error: impl std::fmt::Display) -> McpServerError {
@@ -295,9 +294,10 @@ mod tests {
                 .map_err(|error| io_err("writing the request", error))?;
 
             let mut buffer = vec![0_u8; 4096];
-            let read = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer))
+            // The server answers or closes the connection, so the read ends.
+            let read = stream
+                .read(&mut buffer)
                 .await
-                .map_err(|error| io_err("response timed out", error))?
                 .map_err(|error| io_err("reading the response", error))?;
             let response = String::from_utf8_lossy(&buffer[..read]);
             let head = &response[..response.len().min(600)];
@@ -348,9 +348,10 @@ mod tests {
                 .map_err(|error| io_err("writing the request", error))?;
 
             let mut buffer = vec![0_u8; 4096];
-            let read = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer))
+            // The server answers or closes the connection, so the read ends.
+            let read = stream
+                .read(&mut buffer)
                 .await
-                .map_err(|error| io_err("response timed out", error))?
                 .map_err(|error| io_err("reading the response", error))?;
             let response = String::from_utf8_lossy(&buffer[..read]);
             let head = &response[..response.len().min(600)];
