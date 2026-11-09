@@ -19,7 +19,8 @@ use runx_contracts::connector::{
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, JsonValue, Readiness};
 use runx_runtime::kernel::connector_setup::{
-    AuthoritySources, ConnectorSetup, Revoked, UseOptions, UseOutcome, UseRequest, setup_forms,
+    AuthoritySources, ConnectorSetup, HOSTED_GRANT_WAIT, Revoked, UseOptions, UseOutcome,
+    UseRequest, setup_forms,
 };
 use runx_runtime::kernel::{admission, setup};
 use runx_runtime::{
@@ -29,10 +30,6 @@ use runx_runtime::{
 use serde::Serialize;
 
 use crate::cli_args::{flag_value, os_arg, split_flag};
-
-/// How long `use --hosted` waits for the person to authorize before it
-/// returns the command that finishes the grant.
-const HOSTED_GRANT_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectorPlan {

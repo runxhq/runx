@@ -72,6 +72,10 @@ pub type SecretReader<'a> = &'a dyn Fn(&str) -> Result<String, String>;
 /// grant is only useful once the person has the link.
 pub type LinkShower<'a> = &'a dyn Fn(&str, &str);
 
+/// How long `use --hosted` waits for the person to authorize before it
+/// returns the command that finishes the grant.
+pub const HOSTED_GRANT_WAIT: Duration = Duration::from_secs(120);
+
 /// What narrows the instance `use` confirms.
 #[derive(Clone, Debug, Default)]
 pub struct UseOptions {

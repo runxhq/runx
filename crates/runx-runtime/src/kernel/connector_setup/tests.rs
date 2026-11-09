@@ -204,7 +204,7 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
                 target: None,
                 secret: None,
             },
-            &options(Duration::from_secs(30)),
+            &options(super::HOSTED_GRANT_WAIT),
         )
         .unwrap();
 
@@ -310,7 +310,7 @@ fn a_new_grant_shows_its_link_once_before_it_waits() {
                 target: None,
                 secret: None,
             },
-            &options(Duration::from_secs(30)),
+            &options(super::HOSTED_GRANT_WAIT),
         )
         .unwrap();
 
@@ -537,7 +537,7 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
                 target: None,
                 secret: None,
             },
-            &options(Duration::from_secs(30)),
+            &options(super::HOSTED_GRANT_WAIT),
         )
         .err()
         .unwrap();
