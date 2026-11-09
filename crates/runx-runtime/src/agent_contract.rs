@@ -97,6 +97,8 @@ mod tests {
                 task: "notify".into(),
                 envelope,
                 allowance: Default::default(),
+                requires: Default::default(),
+                context_kinds: Default::default(),
             }),
         })
     }

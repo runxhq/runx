@@ -2142,8 +2142,11 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
         JsonObject::new(),
     )?;
     let child_turn = "answer/0#answer";
-    assert!(turn.fail(child_turn, " ").is_err(), "a failure says why");
-    turn.fail(child_turn, "the source is gone")?;
+    assert!(
+        turn.fail(child_turn, " ", None).is_err(),
+        "a failure says why"
+    );
+    turn.fail(child_turn, "the source is gone", None)?;
 
     let [call] = turn
         .status(TURN)?
@@ -2163,9 +2166,96 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
     );
 
     // The calling agent fails its own act; the run seals failed.
-    let sealed = turn.fail(TURN, "nothing to answer with")?;
+    let sealed = turn.fail(TURN, "nothing to answer with", None)?;
     let output = object(&sealed.output)?;
     assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    Ok(())
+}
+
+/// A one-turn skill whose turn requires a fresh context of its agent harness.
+fn write_requiring_skill(root: &Path) -> TestResult<PathBuf> {
+    let skill_dir = root.join("judge");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: judge\ndescription: Judges from its purpose alone.\n---\n# Judge\n\n## Agent task: answer\n\nJudge it from its purpose alone.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    inputs:
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        requires: [fresh_context]
+        context: {kinds: [people]}
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    Ok(skill_dir)
+}
+
+/// A turn's requirement reaches its host, and is never assumed met: a run
+/// whose answer doesn't say its agent harness met it seals failed, saying
+/// so; one that says so seals completed; and one whose agent harness
+/// couldn't ends the act failed with the requirement named.
+#[test]
+fn a_turns_requirement_reaches_its_host_and_is_never_assumed_met() -> TestResult {
+    let fresh = runx_contracts::TurnRequirement::FreshContext;
+    let start = || -> TestResult<(tempfile::TempDir, Paused)> {
+        let temp = tempdir()?;
+        let paused = Paused::start(temp.path(), write_requiring_skill(temp.path())?, TURN)?;
+        Ok((temp, paused))
+    };
+
+    let (_temp, paused) = start()?;
+    let status = paused.open()?.status(TURN)?;
+    assert_eq!(status.invocation.requires, [fresh]);
+    assert_eq!(
+        status
+            .invocation
+            .context_kinds
+            .iter()
+            .map(|kind| kind.as_str())
+            .collect::<Vec<_>>(),
+        ["people"],
+        "the host is asked for the kinds the step declares"
+    );
+    let unstated = paused
+        .open()?
+        .complete(TURN, input(serde_json::json!({"answer": "yes"}))?)?;
+    let output = object(&unstated.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    assert!(
+        serde_json::to_string(output)?.contains(
+            "requires fresh_context, and its answer doesn't say its agent harness met it"
+        ),
+        "{output:?}"
+    );
+
+    let (_temp, paused) = start()?;
+    let sealed = paused.open()?.complete(
+        TURN,
+        input(serde_json::json!({
+            "answer": "yes",
+            "closure": {"outcome": "completed", "requirements": ["fresh_context"]},
+        }))?,
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(text(output, "outcome"), Some("completed"), "{output:?}");
+
+    let (_temp, paused) = start()?;
+    let refused = paused
+        .open()?
+        .fail(TURN, "this agent harness has no subagent", Some(fresh))?;
+    let output = object(&refused.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    assert!(
+        serde_json::to_string(output)?.contains("unsupported_requirement fresh_context"),
+        "{output:?}"
+    );
     Ok(())
 }
 

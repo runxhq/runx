@@ -324,6 +324,61 @@ pub struct TurnInvocation {
     pub envelope: AgentContextEnvelope,
     /// What the agent may call while its turn is open.
     pub allowance: TurnAllowance,
+    /// What the turn needs from its agent harness, as its step's `requires`.
+    /// An agent harness that meets one says so in its answer's
+    /// `closure.requirements`; one that can't ends the act failed with
+    /// `closure.unsupported_requirement`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<TurnRequirement>,
+    /// The kinds of context the turn asks its host to supply, as its step's
+    /// `context.kinds` (N22): a child run's turn gets only what this and its
+    /// act declare (D31).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_kinds: Vec<NonEmptyString>,
+}
+
+/// What a turn can need from the agent harness that works it.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnRequirement {
+    /// The agent harness keeps its own coding tools beside the turn's calls, a
+    /// trusted mode a host or person grants per Work, never for outward work
+    /// (D23).
+    NativeTools,
+    /// The turn starts from its act alone: no inherited conversation or
+    /// ambient memory.
+    FreshContext,
+    /// The turn is worked by a reviewer other than the one that produced
+    /// what it judges.
+    SeparateReviewer,
+}
+
+impl TurnRequirement {
+    /// Every requirement, in the order a step lists them.
+    pub const ALL: [Self; 3] = [
+        Self::NativeTools,
+        Self::FreshContext,
+        Self::SeparateReviewer,
+    ];
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NativeTools => "native_tools",
+            Self::FreshContext => "fresh_context",
+            Self::SeparateReviewer => "separate_reviewer",
+        }
+    }
+
+    /// The requirement a name says, as a step writes it.
+    #[must_use]
+    pub fn named(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|requirement| requirement.as_str() == name)
+    }
 }
 
 /// The calls an open turn admits: the skill's declared limits.
@@ -642,6 +697,12 @@ pub struct TurnView {
     pub id: NonEmptyString,
     pub task: NonEmptyString,
     pub envelope: TurnViewEnvelope,
+    /// What the turn needs from its agent harness.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<TurnRequirement>,
+    /// The kinds of context the turn asks its host to supply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_kinds: Vec<NonEmptyString>,
 }
 
 impl From<&TurnInvocation> for TurnView {
@@ -651,11 +712,15 @@ impl From<&TurnInvocation> for TurnView {
             task,
             envelope,
             allowance: _,
+            requires,
+            context_kinds,
         } = invocation;
         Self {
             id: id.clone(),
             task: task.clone(),
             envelope: TurnViewEnvelope::from(envelope),
+            requires: requires.clone(),
+            context_kinds: context_kinds.clone(),
         }
     }
 }

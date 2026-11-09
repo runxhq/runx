@@ -79,6 +79,18 @@ impl ManagedAgent {
         else {
             return Ok(None);
         };
+        // This agent harness starts each turn from its act alone, and has no tools
+        // of its own and no second reviewer, so it meets only a fresh context.
+        let requires = turn.invocation().requires.clone();
+        if let Some(unmet) = requires
+            .iter()
+            .find(|requirement| !MANAGED_AGENT_MEETS.contains(requirement))
+        {
+            return Ok(Some(crate::execution::outcome::failed_answer(
+                format!("runx's managed agent can't meet {}", unmet.as_str()),
+                Some(*unmet),
+            )));
+        }
         let envelope = turn.invocation().envelope.clone();
         if !shares_context(&config, &envelope) {
             return Err(fail(ManagedAgentError::sanitized(
@@ -121,9 +133,17 @@ impl ManagedAgent {
                     error.telemetry().clone(),
                 ))
             })?;
-        Ok(end.answer)
+        end.answer
+            .map(|answer| crate::execution::outcome::with_met_requirements(answer, &requires))
+            .transpose()
+            .map_err(|message| fail(ManagedAgentError::sanitized(message)))
     }
 }
+
+/// What runx's managed agent meets of a turn's requirements: it starts each
+/// turn from its act alone.
+const MANAGED_AGENT_MEETS: [runx_contracts::TurnRequirement; 1] =
+    [runx_contracts::TurnRequirement::FreshContext];
 
 /// The model's tool calls, made through the turn it works.
 struct TurnCalls<'a> {

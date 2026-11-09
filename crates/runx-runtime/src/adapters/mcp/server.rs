@@ -795,6 +795,65 @@ mod tests {
             &state.served_run_prefix(),
         );
         assert!(both.is_error, "{both:?}");
+        // An agent harness states the requirements it met, or the one it couldn't,
+        // by name.
+        let complete_schema = state
+            .options
+            .tools
+            .iter()
+            .find(|tool| tool.name == "turn_complete")
+            .map(|tool| tool.input_schema.clone())
+            .ok_or("expected the turn_complete tool")?;
+        let properties = complete_schema
+            .get("properties")
+            .and_then(JsonValue::as_object)
+            .ok_or("turn_complete has properties")?;
+        assert!(properties.contains_key("requirements"));
+        assert!(
+            properties
+                .get("failure")
+                .and_then(JsonValue::as_object)
+                .and_then(|failure| failure.get("properties"))
+                .and_then(JsonValue::as_object)
+                .is_some_and(|failure| failure.contains_key("unsupported_requirement"))
+        );
+        let refuse = |extra: (&str, JsonValue), body: (&str, JsonValue)| {
+            super::super::server_turn::execute_mcp_turn_tool(
+                &complete,
+                [
+                    ("run".to_owned(), JsonValue::String(run_id.clone())),
+                    ("turn".to_owned(), JsonValue::String("default".to_owned())),
+                    (body.0.to_owned(), body.1),
+                    (extra.0.to_owned(), extra.1),
+                ]
+                .into(),
+                &state.served_run_prefix(),
+            )
+        };
+        let misnamed = refuse(
+            (
+                "requirements",
+                JsonValue::Array(vec![JsonValue::String("telepathy".to_owned())]),
+            ),
+            ("output", JsonValue::Object(JsonObject::new())),
+        );
+        assert!(
+            misnamed.is_error && misnamed.content[0].text.contains("names no requirement"),
+            "{misnamed:?}"
+        );
+        let failed_with_met = refuse(
+            (
+                "requirements",
+                JsonValue::Array(vec![JsonValue::String("fresh_context".to_owned())]),
+            ),
+            (
+                "failure",
+                JsonValue::Object(
+                    [("reason".to_owned(), JsonValue::String("no".to_owned()))].into(),
+                ),
+            ),
+        );
+        assert!(failed_with_met.is_error, "{failed_with_met:?}");
         let call_schema = state
             .options
             .tools
@@ -824,6 +883,10 @@ mod tests {
                     JsonValue::Object(
                         [("verdict".to_owned(), JsonValue::String("pass".to_owned()))].into(),
                     ),
+                ),
+                (
+                    "requirements".to_owned(),
+                    JsonValue::Array(vec![JsonValue::String("fresh_context".to_owned())]),
                 ),
             ]
             .into(),

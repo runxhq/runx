@@ -30,7 +30,7 @@ const COMMON_FIELDS: &[&str] = &["id", "when", "guard", "effects", "reach"];
 const CALLS_FIELDS: &[&str] = &["tools", "operations", "skills", "load", "ask"];
 
 /// What an agent step's `context` gives it.
-const CONTEXT_FIELDS: &[&str] = &["skills"];
+const CONTEXT_FIELDS: &[&str] = &["skills", "kinds"];
 
 /// An operation step's `result`.
 const RESULT_FIELDS: &[&str] = &["required", "optional", "equals", "ephemeral"];
@@ -48,7 +48,14 @@ const APPROVAL_DECISION_PACKET: &str = "runx.approval.decision.v1";
 
 fn kind_fields(kind: &str) -> &'static [&'static str] {
     match kind {
-        "agent" => &["inputs", "outputs", "result_as", "calls", "context"],
+        "agent" => &[
+            "inputs",
+            "outputs",
+            "result_as",
+            "calls",
+            "context",
+            "requires",
+        ],
         "tool" => &["inputs", "outputs", "result_as"],
         "skill" => &["inputs", "outputs", "result_as", "act"],
         "ask" => &["inputs"],
@@ -248,6 +255,11 @@ fn validate_kind(
                 None => TurnAllowance::default(),
             },
             connectors: BTreeMap::new(),
+            requires: turn_requirements(raw_step.get("requires"), &format!("{field}.requires"))?,
+            context_kinds: context_kinds(
+                raw_step.get("context"),
+                &format!("{field}.context.kinds"),
+            )?,
         })),
         "tool" => validate_tool_target(
             value.ok_or_else(|| validation_error(format!("{qualified} is required.")))?,
@@ -318,6 +330,51 @@ fn non_empty(value: Option<&JsonValue>, field: &str) -> Result<String, Validatio
 }
 
 /// A list of distinct non-empty strings, or none.
+/// The kinds of context an agent step's turn asks its host to supply (N22,
+/// D31), each named once: lowercase words joined by `_` or `-`.
+fn context_kinds(context: Option<&JsonValue>, field: &str) -> Result<Vec<String>, ValidationError> {
+    let kinds = string_list(
+        context
+            .and_then(JsonValue::as_object)
+            .and_then(|context| context.get("kinds")),
+        field,
+    )?;
+    for (index, kind) in kinds.iter().enumerate() {
+        let named = kind.starts_with(|first: char| first.is_ascii_lowercase())
+            && kind
+                .chars()
+                .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-');
+        if !named {
+            return Err(validation_error(format!(
+                "{field}[{index}] is {kind}: a kind is lowercase words joined by _ or -."
+            )));
+        }
+    }
+    Ok(kinds)
+}
+
+/// What an agent step's turn needs from its agent harness. Each is named once, and
+/// a name that isn't a requirement is refused by name.
+fn turn_requirements(
+    value: Option<&JsonValue>,
+    field: &str,
+) -> Result<Vec<runx_contracts::TurnRequirement>, ValidationError> {
+    string_list(value, field)?
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            runx_contracts::TurnRequirement::named(name).ok_or_else(|| {
+                validation_error(format!(
+                    "{field}[{index}] is {name}, which no agent harness is asked for: a turn requires {}.",
+                    runx_contracts::TurnRequirement::ALL
+                        .map(runx_contracts::TurnRequirement::as_str)
+                        .join(", ")
+                ))
+            })
+        })
+        .collect()
+}
+
 fn string_list(value: Option<&JsonValue>, field: &str) -> Result<Vec<String>, ValidationError> {
     let Some(value) = value else {
         return Ok(Vec::new());

@@ -108,15 +108,19 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
         (
             McpTurnAction::Complete,
             "turn_complete",
-            "End an open turn with its output, which must match the turn's output schema, or with a failure and its reason when the act cannot be done; the run continues. A turn whose calls have not settled cannot end.",
+            "End an open turn with its output, which must match the turn's output schema, or with a failure and its reason when the act cannot be done; the run continues. A turn that requires something of its agent harness ends with `requirements` naming each one its agent harness met, or fails with `unsupported_requirement` naming the one it can't. A turn whose calls have not settled cannot end.",
             fields(
                 &[turn()],
                 &[
                     ("output", any_object_schema()),
+                    ("requirements", requirements_schema()),
                     (
                         "failure",
                         JsonValue::Object(object_schema(
-                            &[("reason", string_schema())],
+                            &[
+                                ("reason", string_schema()),
+                                ("unsupported_requirement", requirement_schema()),
+                            ],
                             &["reason"],
                         )),
                     ),
@@ -228,10 +232,30 @@ pub(super) fn execute_mcp_turn_tool(
         }),
         McpTurnAction::Complete => text(&arguments, "turn").and_then(|turn| {
             let ended = match (arguments.get("output"), arguments.get("failure")) {
-                (Some(_), None) => session.complete(turn, object(&arguments, "output")?),
+                (Some(_), None) => {
+                    let met = requirements(&arguments)?;
+                    let answer = crate::execution::outcome::with_met_requirements(
+                        JsonValue::Object(object(&arguments, "output")?),
+                        &met,
+                    )?;
+                    let JsonValue::Object(answer) = answer else {
+                        return Err("turn_complete's output must be an object".to_owned());
+                    };
+                    session.complete(turn, answer)
+                }
+                (None, Some(_)) if arguments.contains_key("requirements") => {
+                    return Err(
+                        "a failed turn names what its agent harness couldn't meet in failure.unsupported_requirement, not requirements"
+                            .to_owned(),
+                    );
+                }
                 (None, Some(_)) => {
                     let failure = object(&arguments, "failure")?;
-                    session.fail(turn, text(&failure, "reason")?)
+                    let unsupported = failure
+                        .get("unsupported_requirement")
+                        .map(|value| requirement(value, "failure.unsupported_requirement"))
+                        .transpose()?;
+                    session.fail(turn, text(&failure, "reason")?, unsupported)
                 }
                 _ => return Err("turn_complete takes its output or a failure, not both".to_owned()),
             };
@@ -313,6 +337,32 @@ fn count(arguments: &JsonObject, field: &str) -> Result<Option<u64>, String> {
         .transpose()
 }
 
+/// The requirements an agent harness says it met, by name.
+fn requirements(arguments: &JsonObject) -> Result<Vec<runx_contracts::TurnRequirement>, String> {
+    match arguments.get("requirements") {
+        None => Ok(Vec::new()),
+        Some(JsonValue::Array(values)) => values
+            .iter()
+            .map(|value| requirement(value, "requirements"))
+            .collect(),
+        Some(_) => Err("requirements must be a list".to_owned()),
+    }
+}
+
+fn requirement(value: &JsonValue, field: &str) -> Result<runx_contracts::TurnRequirement, String> {
+    value
+        .as_str()
+        .and_then(runx_contracts::TurnRequirement::named)
+        .ok_or_else(|| {
+            format!(
+                "{field} names no requirement: a turn requires {}",
+                runx_contracts::TurnRequirement::ALL
+                    .map(runx_contracts::TurnRequirement::as_str)
+                    .join(", ")
+            )
+        })
+}
+
 fn object(arguments: &JsonObject, field: &str) -> Result<JsonObject, String> {
     arguments
         .get(field)
@@ -342,6 +392,28 @@ fn string_schema() -> JsonValue {
     JsonValue::Object(JsonObject::from([
         ("type".to_owned(), JsonValue::String("string".to_owned())),
         ("minLength".to_owned(), JsonValue::Number(1_u64.into())),
+    ]))
+}
+
+fn requirement_schema() -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("type".to_owned(), JsonValue::String("string".to_owned())),
+        (
+            "enum".to_owned(),
+            JsonValue::Array(
+                runx_contracts::TurnRequirement::ALL
+                    .map(|requirement| JsonValue::String(requirement.as_str().to_owned()))
+                    .to_vec(),
+            ),
+        ),
+    ]))
+}
+
+fn requirements_schema() -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("type".to_owned(), JsonValue::String("array".to_owned())),
+        ("items".to_owned(), requirement_schema()),
+        ("uniqueItems".to_owned(), JsonValue::Bool(true)),
     ]))
 }
 

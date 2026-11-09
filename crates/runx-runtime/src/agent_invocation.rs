@@ -53,6 +53,12 @@ pub(crate) fn build_turn_invocation(
         task: non_empty(&agent.task, "task")?,
         envelope: envelope(request, package, act)?,
         allowance: agent.allowance.clone(),
+        requires: agent.requires.clone(),
+        context_kinds: agent
+            .context_kinds
+            .iter()
+            .map(|kind| non_empty(kind, "context kind"))
+            .collect::<Result<_, _>>()?,
     })
 }
 

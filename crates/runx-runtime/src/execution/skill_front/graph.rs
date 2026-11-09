@@ -568,8 +568,12 @@ pub(super) enum TurnAction {
     /// Answer the act; the run continues.
     Complete(JsonObject),
     /// End the act as failed, saying why: its step fails, and a skill call
-    /// that started this run settles failed with the reason.
-    Fail(String),
+    /// that started this run settles failed with the reason. It names the
+    /// requirement its agent harness couldn't meet, when that's why.
+    Fail {
+        reason: String,
+        unsupported: Option<runx_contracts::TurnRequirement>,
+    },
 }
 
 /// What an action on a turn did.
@@ -840,8 +844,14 @@ impl Host for RunHost {
                     self.given.insert(address, JsonValue::Object(output));
                     TurnActed::Completed
                 }
-                TurnAction::Fail(reason) => {
-                    self.given.insert(address, failed_act(reason));
+                TurnAction::Fail {
+                    reason,
+                    unsupported,
+                } => {
+                    self.given.insert(
+                        address,
+                        crate::execution::outcome::failed_answer(reason, unsupported),
+                    );
                     TurnActed::Completed
                 }
             });
@@ -869,17 +879,6 @@ fn is_due(due_at: Option<&str>) -> bool {
         Some((Some(due), Some(now))) => now >= due,
         _ => true,
     }
-}
-
-/// The answer of an act that failed: its closure, with why.
-fn failed_act(reason: String) -> JsonValue {
-    JsonValue::Object(JsonObject::from([(
-        "closure".to_owned(),
-        JsonValue::Object(JsonObject::from([
-            ("outcome".to_owned(), JsonValue::String("failed".to_owned())),
-            ("reason".to_owned(), JsonValue::String(reason)),
-        ])),
-    )]))
 }
 
 fn is_turn(request: &PendingRequest) -> bool {
@@ -1000,6 +999,8 @@ mod tests {
                 task: "review".to_owned(),
                 allowance: Default::default(),
                 connectors: Default::default(),
+                requires: Default::default(),
+                context_kinds: Default::default(),
             }),
             outputs: None,
             inputs: JsonObject::new(),

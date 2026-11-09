@@ -175,9 +175,75 @@ fn an_agent_step_names_its_task() -> Result<(), String> {
             task: "decide-release".to_owned(),
             allowance: Default::default(),
             connectors: Default::default(),
+            requires: Default::default(),
+            context_kinds: Default::default(),
         })
     );
     assert!(only_step(&method).outputs.is_some());
+    Ok(())
+}
+
+#[test]
+fn an_agent_step_requires_only_what_a_turn_can_ask_for() -> Result<(), String> {
+    let parsed = method(
+        "      - id: judge\n        agent: judge\n        requires: [fresh_context, separate_reviewer]\n",
+    )?;
+    let StepKind::Agent(task) = &only_step(&parsed).kind else {
+        return Err("expected an agent step".to_owned());
+    };
+    assert_eq!(
+        task.requires,
+        [
+            runx_contracts::TurnRequirement::FreshContext,
+            runx_contracts::TurnRequirement::SeparateReviewer
+        ]
+    );
+    for (requires, refusal) in [
+        (
+            "[telepathy]",
+            "telepathy, which no agent harness is asked for",
+        ),
+        ("[fresh_context, fresh_context]", "repeats fresh_context"),
+        ("[]", "lists nothing"),
+    ] {
+        let refused = method(&format!(
+            "      - id: judge\n        agent: judge\n        requires: {requires}\n"
+        ))
+        .err()
+        .unwrap_or_default();
+        assert!(refused.contains(refusal), "{requires}: {refused}");
+    }
+    let on_a_tool = method(
+        "      - id: run\n        tool: {command: node, args: [run.mjs]}\n        requires: [fresh_context]\n",
+    );
+    assert!(
+        on_a_tool.is_err(),
+        "only an agent's turn has an agent harness"
+    );
+    Ok(())
+}
+
+#[test]
+fn an_agent_step_names_the_kinds_of_context_its_host_supplies() -> Result<(), String> {
+    let parsed = method(
+        "      - id: brief\n        agent: brief\n        context: {kinds: [people, open_threads]}\n",
+    )?;
+    let StepKind::Agent(task) = &only_step(&parsed).kind else {
+        return Err("expected an agent step".to_owned());
+    };
+    assert_eq!(task.context_kinds, ["people", "open_threads"]);
+    for (kinds, refusal) in [
+        ("[People]", "a kind is lowercase words"),
+        ("[people, people]", "repeats people"),
+        ("[]", "lists nothing"),
+    ] {
+        let refused = method(&format!(
+            "      - id: brief\n        agent: brief\n        context: {{kinds: {kinds}}}\n"
+        ))
+        .err()
+        .unwrap_or_default();
+        assert!(refused.contains(refusal), "{kinds}: {refused}");
+    }
     Ok(())
 }
 

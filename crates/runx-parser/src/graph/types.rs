@@ -93,6 +93,13 @@ pub struct AgentTask {
     /// name, bound with it: what admits each operation call.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub connectors: BTreeMap<String, crate::ConnectorRequirement>,
+    /// What the turn needs from its agent harness: the step's `requires`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<runx_contracts::TurnRequirement>,
+    /// The kinds of context the turn asks its host to supply: the step's
+    /// `context.kinds` (N22, D31).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_kinds: Vec<String>,
 }
 
 /// A tool step's target.

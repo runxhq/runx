@@ -139,7 +139,7 @@ pub use host_protocol::{
     QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend,
     SkillAllowance, SkillManual, TURN_READ_PAGE_CHARS, TurnAllowance, TurnCallOutcome,
     TurnCallResult, TurnContextLine, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage,
-    TurnStatus, TurnTarget, TurnTool, TurnView, TurnViewEnvelope, check_answer,
+    TurnRequirement, TurnStatus, TurnTarget, TurnTool, TurnView, TurnViewEnvelope, check_answer,
 };
 pub use json::{JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_string_field};
 pub use ledger::{

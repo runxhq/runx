@@ -43,6 +43,8 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
             task: "plan".to_owned(),
             allowance: Default::default(),
             connectors: Default::default(),
+            requires: Default::default(),
+            context_kinds: Default::default(),
         }),
         outputs,
         requirements: ExecutionRequirements::default(),

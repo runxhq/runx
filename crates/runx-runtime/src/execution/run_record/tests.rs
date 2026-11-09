@@ -121,6 +121,8 @@ fn turn(id: &str) -> ResolutionRequest {
             task: "answer".into(),
             envelope,
             allowance: Default::default(),
+            requires: Default::default(),
+            context_kinds: Default::default(),
         }),
     }
 }

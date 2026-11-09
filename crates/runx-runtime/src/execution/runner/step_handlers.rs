@@ -1475,16 +1475,27 @@ fn agent_task_output(
     outcome: &RunOutcome,
 ) -> Result<InvocationOutput, RuntimeError> {
     let succeeded = *outcome == RunOutcome::Completed;
-    // A failure says why, in the closure's reason.
-    let reason = response
+    // A failure says why, in the closure's reason, and names a requirement
+    // its agent harness couldn't meet.
+    let closure = response
         .payload
         .as_object()
         .and_then(|answer| answer.get("closure"))
-        .and_then(JsonValue::as_object)
+        .and_then(JsonValue::as_object);
+    let stated = closure
         .and_then(|closure| closure.get("reason"))
         .and_then(JsonValue::as_str)
-        .filter(|reason| !reason.trim().is_empty())
-        .map(str::to_owned);
+        .filter(|reason| !reason.trim().is_empty());
+    let unsupported = closure
+        .and_then(|closure| closure.get("unsupported_requirement"))
+        .and_then(JsonValue::as_str);
+    let reason = match (unsupported, stated) {
+        (Some(requirement), Some(stated)) => {
+            Some(format!("unsupported_requirement {requirement}: {stated}"))
+        }
+        (Some(requirement), None) => Some(format!("unsupported_requirement {requirement}")),
+        (None, stated) => stated.map(str::to_owned),
+    };
     Ok(if succeeded {
         InvocationOutput::runtime_success(response.payload, 0)
     } else {
@@ -1513,10 +1524,20 @@ fn agent_answer_outcome_value(
     step: &WorkflowStep,
     answer: &JsonValue,
 ) -> Result<RunOutcome, RuntimeError> {
-    agent_answer_outcome_or_completed(answer).map_err(|error| RuntimeError::InvalidRunStep {
-        step_id: step.id.clone(),
-        reason: format!("{error}"),
-    })
+    let outcome = agent_answer_outcome_or_completed(answer).map_err(|error| {
+        RuntimeError::InvalidRunStep {
+            step_id: step.id.clone(),
+            reason: format!("{error}"),
+        }
+    })?;
+    if let StepKind::Agent(task) = &step.kind {
+        crate::execution::outcome::check_turn_requirements(&task.requires, answer, outcome)
+            .map_err(|reason| RuntimeError::InvalidRunStep {
+                step_id: step.id.clone(),
+                reason,
+            })?;
+    }
+    Ok(outcome)
 }
 
 // Function rationale: an approval step resolves, projects,

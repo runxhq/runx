@@ -184,15 +184,28 @@ impl TurnSession {
         Ok(self.pass(&driver, turn, TurnAction::Complete(output))?.1)
     }
 
-    /// End the act of the turn at `turn` as failed, saying why; its step
+    /// End the act of the turn at `turn` as failed, saying why, and naming
+    /// the requirement its agent harness couldn't meet when that's why; its step
     /// fails and the run continues as far as that goes.
-    pub fn fail(&self, turn: &str, reason: &str) -> Result<RunResult, SkillRunError> {
+    pub fn fail(
+        &self,
+        turn: &str,
+        reason: &str,
+        unsupported: Option<runx_contracts::TurnRequirement>,
+    ) -> Result<RunResult, SkillRunError> {
         if reason.trim().is_empty() {
             return Err(invalid("a failed act says why"));
         }
         let driver = self.quiet();
         Ok(self
-            .pass(&driver, turn, TurnAction::Fail(reason.to_owned()))?
+            .pass(
+                &driver,
+                turn,
+                TurnAction::Fail {
+                    reason: reason.to_owned(),
+                    unsupported,
+                },
+            )?
             .1)
     }
 

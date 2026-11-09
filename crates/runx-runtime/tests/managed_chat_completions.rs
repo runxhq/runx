@@ -331,6 +331,104 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A one-turn skill whose turn requires `requirement` of its agent harness,
+/// worked by the managed agent at `endpoint`.
+fn run_requiring(
+    root: &std::path::Path,
+    requirement: &str,
+    endpoint: String,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let skill_dir = root.join(requirement);
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: judge\ndescription: judge fixture.\n---\n# Judge\n\n## Agent task: judge\n\nFinish with status done.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        format!(
+            "minimum_runx: 0.12.0\nmethods:\n  judge:\n    steps:\n      - id: judge\n        agent: judge\n        requires: [{requirement}]\n        outputs:\n          status: {{type: string}}\n"
+        ),
+    )?;
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            root.join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    Ok(serde_json::to_value(&result.output)?)
+}
+
+/// The managed agent starts each turn from its act alone, so it meets a
+/// fresh context and says so, and it has no tools of its own and no second
+/// reviewer, so a turn requiring either ends failed, naming the requirement,
+/// before any model is called.
+#[test]
+fn the_managed_agent_meets_a_fresh_context_and_refuses_what_it_cannot()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    // Nothing listens here, so a model call would fail at once, not hang.
+    let closed = {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        format!("http://{}/v1/chat/completions", listener.local_addr()?)
+    };
+    for requirement in ["native_tools", "separate_reviewer"] {
+        let output = run_requiring(temp.path(), requirement, closed.clone())?;
+        assert_eq!(output["outcome"], "failed", "{output}");
+        assert!(
+            output
+                .to_string()
+                .contains(&format!("unsupported_requirement {requirement}")),
+            "{output}"
+        );
+    }
+
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let output = run_requiring(temp.path(), "fresh_context", endpoint)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    assert_eq!(output["outcome"], "completed", "{output}");
+    assert_eq!(output["result"]["status"], "done", "{output}");
+    assert_eq!(finish_server(server)?.len(), 1);
+    Ok(())
+}
+
 #[test]
 fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance()
 -> Result<(), Box<dyn std::error::Error>> {
