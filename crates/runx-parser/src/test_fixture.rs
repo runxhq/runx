@@ -248,6 +248,11 @@ pub struct TestSetup {
     /// names them.
     #[serde(default)]
     pub credentials: Vec<String>,
+    /// The run's authority, as a host states it (authority.md), which the
+    /// test gives its run. A test that states none runs with none, so a
+    /// `private` call, which always needs a term, can only be refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority: Option<JsonObject>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

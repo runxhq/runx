@@ -319,6 +319,94 @@ expect:
     Ok(())
 }
 
+/// A package that keeps words on `private`: every call there needs a term, so
+/// only a test that states the run's authority can keep any.
+const KEEPER: &str = r#"minimum_runx: 0.12.0
+methods:
+  keep:
+    inputs:
+      text: {type: string}
+    steps:
+      - id: before
+        operation: private/key.inspect
+        inputs: {stream: "said:personal", key: words}
+      - id: append
+        operation: private/events.append
+        idempotency_key: keep-1
+        inputs:
+          stream: "said:personal"
+          key: words
+          expected_version: $steps.before.provider_operation.result.version
+          type: words.kept
+          data: {text: $input.text}
+"#;
+
+/// The run's authority, as a host saves it: one term on `private`, reading
+/// and writing the keeper's words.
+const KEEPER_AUTHORITY: &str = r#"  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["project:keeper/said:*"]
+              packages: ["project:keeper"]
+"#;
+
+#[test]
+fn a_test_that_states_the_runs_authority_runs_under_it() -> TestResult {
+    let root = crate::support::temp_root("runx-package-test-authority");
+    let skill_dir = root.join("keeper");
+    fs::create_dir_all(skill_dir.join("tests"))?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: keeper\ndescription: Keeps words.\n---\n# Keeper\n",
+    )?;
+    fs::write(skill_dir.join("run.yaml"), KEEPER)?;
+    // Granted a term on private, the words are kept.
+    fs::write(
+        skill_dir.join("tests/granted.yaml"),
+        format!(
+            r#"name: granted
+method: keep
+inputs: {{text: I take my tea black.}}
+setup:
+{KEEPER_AUTHORITY}expect:
+  status: sealed
+  step_outputs:
+    append:
+      subset:
+        provider_operation:
+          data:
+            result: {{operation: events.append, status: committed, stream: "project:keeper/said:personal", version: 1}}
+"#
+        ),
+    )?;
+    // Stating none, its first private call is refused and nothing is kept.
+    fs::write(
+        skill_dir.join("tests/refused.yaml"),
+        "name: refused\nmethod: keep\ninputs: {text: I take my tea black.}\nexpect:\n  status: policy_denied\n",
+    )?;
+
+    let output = unsigned_runx_command()?
+        .args([
+            "test",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--receipt-dir",
+            root.join("receipts")
+                .to_str()
+                .ok_or("non-utf8 receipt dir")?,
+            "--json",
+        ])
+        .output()?;
+    let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
+    assert_eq!(report["status"], "passed", "{report}");
+    assert_eq!(report["case_count"], 2, "{report}");
+    Ok(())
+}
+
 fn unsigned_runx_command() -> TestResult<Command> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
     command.env_clear();

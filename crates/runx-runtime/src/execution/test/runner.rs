@@ -145,6 +145,8 @@ pub enum TestReplayError {
     InvalidReplayMetadata { field: String, message: String },
     #[error("invalid test fixture environment {name}: {message}")]
     InvalidFixtureEnvironment { name: String, message: String },
+    #[error("setup.authority isn't an authority this run can be given: {message}")]
+    InvalidSetupAuthority { message: String },
     #[error("test setup receipt path escaped its skill package: {path}")]
     SetupReceiptPathEscape { path: PathBuf },
     #[error("failed to read test setup receipt {path}: {source}")]
@@ -159,6 +161,27 @@ pub enum TestReplayError {
     },
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
+}
+
+/// The run's authority `fixture` states as `setup.authority`, in connector
+/// and package names as a host saves one, with each delegation's connector
+/// resolved to the instance that stands for it at `skill_dir`, as the root's
+/// admission resolves a named authority. None when it states none.
+fn stated_authority(
+    fixture: &TestFixture,
+    skill_dir: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<Option<crate::RunAuthority>, TestReplayError> {
+    let Some(authority) = &fixture.setup.authority else {
+        return Ok(None);
+    };
+    let invalid = |message: String| TestReplayError::InvalidSetupAuthority { message };
+    let authority = serde_json::to_value(authority)
+        .and_then(serde_json::from_value::<crate::RunAuthority>)
+        .map_err(|error| invalid(error.to_string()))?;
+    crate::kernel::admission::resolved_authority(authority, skill_dir, env, skill_dir)
+        .map(Some)
+        .map_err(invalid)
 }
 
 #[derive(Debug, Error)]
@@ -715,9 +738,12 @@ where
         None,
     )?;
     let mut options = options.runtime(&run_id, fixture, &target.skill_dir)?;
-    // The run holds its method's effects and reach, as any run of it does.
-    options.run_authority =
-        crate::RunAuthority::of_method(options.run_authority.take(), &target.method.workflow);
+    // The run holds the authority the test states, as a host gives a run
+    // one, and its method's effects and reach, as any run of it does.
+    options.run_authority = crate::RunAuthority::of_method(
+        stated_authority(fixture, &target.skill_dir, &options.env)?,
+        &target.method.workflow,
+    );
     let runtime = Runtime::new(adapter, options);
     let mut host = FixtureHost::new(fixture);
     let workflow_run = runtime.run_workflow_for_test(&target.skill_dir, workflow, &mut host)?;

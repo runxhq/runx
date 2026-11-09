@@ -1341,6 +1341,15 @@ sends the purchase fails closed. A test that stops on a request it did not answe
 that request in its status mismatch. No test's `host` or `providers` is
 available to skill inputs, environment configuration, or ordinary live runs.
 
+`setup.authority` is the run's authority, as a host saves one for
+`--authority`: its delegations, each naming its connector, and its
+`packages`, `effects`, `reach` and limits. The test gives its run that
+authority, each delegation resolved to the instance its connector stands for,
+as the root's admission resolves a named one, and a test that states none
+runs with none. Every `private` call needs a term, so a test of a package
+that keeps the person's data states the term it's granted, and one that
+states none proves the refusal.
+
 Package replay uses a disposable project-owned workspace below `.runx/test`
 and a separate receipt store for every test, then cleans that scratch state.
 Tests therefore cannot satisfy each other through filename order or ambient
