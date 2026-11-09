@@ -4,7 +4,6 @@ use std::time::Instant;
 
 use runx_contracts::JsonObject;
 use runx_contracts::tools::ToolInspectResult;
-use runx_parser::SkillArtifactContract;
 
 use super::{ToolDispatchRequest, catalog_error, configured_tool_roots, failure, workspace_root};
 use crate::RuntimeError;
@@ -33,13 +32,16 @@ pub(super) fn inspect_catalog_tool(
     .map_err(|error| catalog_error(tool, error))
 }
 
-pub(super) fn resolve_artifacts(
+pub(super) fn resolve_result(
     request: &ToolDispatchRequest<'_>,
     tool: &str,
-) -> Result<Option<SkillArtifactContract>, RuntimeError> {
+) -> Result<super::ToolResultContract, RuntimeError> {
     match resolve_local_tool(&inspect_options(request, tool)) {
-        Ok(resolution) => Ok(resolution.tool.artifacts),
-        Err(error) if lookup_miss(&error) => Ok(None),
+        Ok(resolution) => Ok(super::ToolResultContract {
+            outputs: resolution.tool.outputs,
+            artifacts: resolution.tool.artifacts,
+        }),
+        Err(error) if lookup_miss(&error) => Ok(super::ToolResultContract::default()),
         Err(error) => Err(catalog_error(request.skill_name, error)),
     }
 }

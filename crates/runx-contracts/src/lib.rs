@@ -117,8 +117,8 @@ pub use doctor::{
     DoctorStatus, DoctorSummary,
 };
 pub use execution::{
-    ArtifactDeclaration, IdempotencyPolicy, InputDefinition, call_input_schema,
-    input_contract_schema, input_contract_schema_with_examples,
+    IdempotencyPolicy, InputDefinition, call_input_schema, input_contract_schema,
+    input_contract_schema_with_examples,
 };
 pub use execution_boundary::{ExecutionBoundaryKind, ExecutionBoundaryObservation};
 pub use execution_requirements::{

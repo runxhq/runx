@@ -166,22 +166,6 @@ pub fn call_input_schema(
     Ok(schema)
 }
 
-/// How a successful execution result is exposed to downstream graph context.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ArtifactDeclaration {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub emits: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub named_emits: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub packets: Option<BTreeMap<String, PacketId>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wrap_as: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet: Option<PacketId>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IdempotencyPolicy {

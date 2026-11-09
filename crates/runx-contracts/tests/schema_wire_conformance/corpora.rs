@@ -317,8 +317,8 @@ pub(super) fn output_corpus() -> Vec<(&'static str, Value)> {
             json!({ "report": { "type": "object", "required": true } }),
         ),
         (
-            "spec with enum + wrap_as",
-            json!({ "status": { "type": "string", "enum": ["ok", "fail"], "wrap_as": "value" } }),
+            "spec with enum + packet",
+            json!({ "status": { "type": "string", "enum": ["ok", "fail"], "packet": "runx.test.status.v1" } }),
         ),
         ("unknown bare type rejected", json!({ "result": "blob" })),
         (

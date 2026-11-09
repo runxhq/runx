@@ -3,7 +3,7 @@
 //! downstream graph state machines and receipt sealers consume.
 
 use runx_contracts::JsonObject;
-use runx_parser::{SkillArtifactContract, WorkflowStep};
+use runx_parser::{OutputArtifacts, WorkflowStep};
 
 use crate::RuntimeError;
 use crate::adapter::InvocationOutput;
@@ -20,7 +20,7 @@ pub(super) fn build_step_output_projection(
     step: &WorkflowStep,
     output: &InvocationOutput,
     extra_outputs: Option<&JsonObject>,
-    extra_artifacts: Option<&SkillArtifactContract>,
+    extra_artifacts: Option<&OutputArtifacts>,
 ) -> Result<StepOutputProjection, RuntimeError> {
     // A failed invocation produced diagnostics, not its declared success
     // contract. Preserve that failure for sealing instead of replacing it with
@@ -51,7 +51,7 @@ pub(super) fn build_ephemeral_step_output(
     step: &WorkflowStep,
     output: &InvocationOutput,
     extra_outputs: Option<&JsonObject>,
-    extra_artifacts: Option<&SkillArtifactContract>,
+    extra_artifacts: Option<&OutputArtifacts>,
 ) -> JsonObject {
     let Some(value) = output.ephemeral.as_value() else {
         return JsonObject::new();

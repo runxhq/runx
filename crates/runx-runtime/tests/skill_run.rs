@@ -1843,7 +1843,6 @@ fn native_workflow_skill_run_executes_local_tool_step() -> Result<(), Box<dyn st
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
-    let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
     assert_eq!(string_field(echo, "message"), Some("Workflow tool bug"));
 
     Ok(())
@@ -1880,7 +1879,7 @@ fn configured_model_credentials_do_not_enable_workflow_agent_without_run_consent
 }
 
 #[test]
-fn native_workflow_skill_run_resolves_agent_task_named_emit_context()
+fn native_workflow_skill_run_resolves_agent_task_tool_output_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_workflow_agent_artifact_context_skill(temp.path())?;
@@ -1945,7 +1944,6 @@ fn native_workflow_skill_run_resolves_agent_task_named_emit_context()
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
-    let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
     assert_eq!(string_field(echo, "message"), Some("Workflow tool bug"));
 
     Ok(())
@@ -2056,7 +2054,6 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
-    let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
     assert_eq!(string_field(echo, "message"), Some("/evidence/non-default"));
 
     Ok(())
@@ -2200,7 +2197,6 @@ fn native_workflow_skill_run_omits_missing_optional_workflow_input_references()
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
-    let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
     assert_eq!(
         string_field(echo, "message"),
         Some("Workflow optional JSON bug")
@@ -2471,8 +2467,7 @@ fn native_workflow_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn st
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
-    let echo_data = object_field(echo, "data").ok_or("missing echo data")?;
-    assert_eq!(string_field(echo_data, "message"), Some("root tools"));
+    assert_eq!(string_field(echo, "message"), Some("root tools"));
 
     Ok(())
 }
@@ -2509,9 +2504,8 @@ fn native_workflow_skill_run_merges_imported_workflow_skill_tool_roots()
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing nested echo output")?;
-    let echo_data = object_field(echo, "data").ok_or("missing nested echo data")?;
     assert_eq!(
-        string_field(echo_data, "message"),
+        string_field(echo, "message"),
         Some("Nested workflow tool root bug")
     );
     let root_receipt_id = string_field(output, "receipt_id").ok_or("missing receipt id")?;

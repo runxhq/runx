@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use runx_contracts::EnvironmentRequirements;
 
 use super::binding::{Binding, Operand, Source};
-use crate::skill::{ArtifactPageSource, InputMode, SkillArtifactContract};
+use crate::skill::{ArtifactPageSource, InputMode, OutputArtifacts};
 
 /// A condition on a step: `value` equals, or does not equal, a literal. As a
 /// step's `when` it selects the step: when the condition does not hold (or
@@ -193,7 +193,7 @@ pub struct WorkflowStep {
     /// The outputs kept as artifacts, from the step's `outputs` that name a
     /// packet and its `result_as`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifacts: Option<SkillArtifactContract>,
+    pub artifacts: Option<OutputArtifacts>,
     /// Complete output declarations owned by this step. Preserve these in
     /// typed IR so inspection, packet generation, and registry packaging do
     /// not have to reparse the raw manifest.

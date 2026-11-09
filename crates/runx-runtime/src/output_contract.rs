@@ -9,7 +9,7 @@ use runx_contracts::{
     JsonObject, JsonValue, OutputField, output_contract_digest,
     parse_output_contract as parse_contract_outputs, validate_output_value,
 };
-use runx_parser::SkillArtifactContract;
+use runx_parser::OutputArtifacts;
 
 use crate::RuntimeError;
 use crate::observations::ContractChecks;
@@ -22,16 +22,10 @@ use crate::observations::ContractChecks;
 #[must_use]
 pub(crate) fn declares_output_contract(
     raw_output: Option<&JsonObject>,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> bool {
     raw_output.is_some_and(|outputs| !outputs.is_empty())
-        || artifacts.is_some_and(|artifacts| {
-            artifacts.wrap_as.is_some()
-                || artifacts
-                    .named_emits
-                    .as_ref()
-                    .is_some_and(|outputs| !outputs.is_empty())
-        })
+        || artifacts.is_some_and(|artifacts| artifacts.outputs().next().is_some())
 }
 
 /// Project the exact semantic claim a successful producer declared.
@@ -44,7 +38,7 @@ pub(crate) fn project_declared_output_claim(
     producer: &str,
     payload: &JsonValue,
     raw_output: Option<&JsonObject>,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> Result<JsonObject, RuntimeError> {
     let fields = payload.as_object();
     let mut claim = JsonObject::new();
@@ -70,9 +64,9 @@ pub(crate) fn project_declared_output_claim(
 /// output but the one `result_as` names, which is the whole result.
 pub(crate) fn result_fields(
     mut outputs: BTreeMap<String, OutputField>,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> BTreeMap<String, OutputField> {
-    if let Some(whole) = artifacts.and_then(|artifacts| artifacts.wrap_as.as_deref()) {
+    if let Some(whole) = artifacts.and_then(|artifacts| artifacts.result_as.as_deref()) {
         outputs.remove(whole);
     }
     outputs
@@ -81,29 +75,27 @@ pub(crate) fn result_fields(
 /// Project only the artifact-addressable portion of a producer payload.
 ///
 /// Tool dispatch and step/receipt projection call this same function, so
-/// `wrap_as` and `named_emits` cannot drift by entry point.
+/// `result_as` and the outputs' packets cannot drift by entry point.
 #[must_use]
 pub(crate) fn project_artifact_outputs(
     payload: &JsonValue,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> JsonObject {
     let Some(artifacts) = artifacts else {
         return JsonObject::new();
     };
     let fields = payload.as_object();
     let mut outputs = JsonObject::new();
-    // `wrap_as` names the whole result as one artifact; `named_emits`
-    // selects fields of it. Neither looks at the result to decide.
-    if let Some(wrap_as) = artifacts.wrap_as.as_deref() {
-        outputs.insert(wrap_as.to_owned(), data_envelope(payload.clone()));
+    // `result_as` names the whole result as one artifact; an output with a
+    // packet is a field of it. Neither looks at the result to decide.
+    if let Some(result_as) = artifacts.result_as.as_deref() {
+        outputs.insert(result_as.to_owned(), data_envelope(payload.clone()));
     }
-    if let Some(named_emits) = artifacts.named_emits.as_ref() {
-        for name in named_emits.keys() {
-            let Some(value) = fields.and_then(|fields| fields.get(name)).cloned() else {
-                continue;
-            };
-            outputs.insert(name.clone(), data_envelope(value));
-        }
+    for (name, _) in artifacts.fields() {
+        let Some(value) = fields.and_then(|fields| fields.get(name)).cloned() else {
+            continue;
+        };
+        outputs.insert(name.clone(), data_envelope(value));
     }
     outputs
 }
@@ -121,15 +113,13 @@ fn data_envelope(value: JsonValue) -> JsonValue {
 #[must_use]
 pub(crate) fn artifact_outputs(
     outputs: &JsonObject,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> BTreeSet<String> {
     let Some(artifacts) = artifacts else {
         return BTreeSet::new();
     };
     artifacts
-        .wrap_as
-        .iter()
-        .chain(artifacts.named_emits.iter().flat_map(|emits| emits.keys()))
+        .outputs()
         .filter(|name| outputs.contains_key(name.as_str()))
         .cloned()
         .collect()
@@ -164,7 +154,7 @@ pub(crate) fn method_contract_checks(
     skill_name: &str,
     payload: &JsonValue,
     raw_output: Option<&JsonObject>,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
     skill_directory: &Path,
 ) -> Result<ContractChecks, RuntimeError> {
     let output = raw_output.map(parse_output_contract).transpose()?;
@@ -184,7 +174,7 @@ pub(crate) fn output_contract_checks(
     skill_name: &str,
     payload: &JsonValue,
     output: Option<&BTreeMap<String, OutputField>>,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
     skill_directory: &Path,
 ) -> Result<ContractChecks, RuntimeError> {
     let mut checks = ContractChecks::default();
@@ -197,7 +187,7 @@ pub(crate) fn output_contract_checks(
             .map_err(violation)?;
         // The output `result_as` names is the whole result, checked as one value.
         if let Some((whole, field)) = artifacts
-            .and_then(|artifacts| artifacts.wrap_as.as_deref())
+            .and_then(|artifacts| artifacts.result_as.as_deref())
             .and_then(|whole| output.get_key_value(whole))
         {
             validate_output_value(
@@ -224,7 +214,7 @@ pub(crate) fn output_contract_checks(
 /// nested run's are when its parent adopts them.
 pub(crate) fn artifact_contract_checks(
     held: &JsonObject,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
     skill_directory: &Path,
 ) -> Result<ContractChecks, RuntimeError> {
     Ok(ContractChecks {
@@ -249,18 +239,17 @@ pub(crate) fn parse_output_contract(
 mod tests {
     use super::*;
 
-    fn artifacts(wrap_as: Option<&str>, named_emits: &[(&str, &str)]) -> SkillArtifactContract {
-        SkillArtifactContract {
-            emits: None,
-            named_emits: (!named_emits.is_empty()).then(|| {
-                named_emits
-                    .iter()
-                    .map(|(name, packet)| ((*name).to_owned(), (*packet).to_owned()))
-                    .collect()
-            }),
-            packets: None,
-            wrap_as: wrap_as.map(str::to_owned),
-            packet: None,
+    fn artifacts(result_as: Option<&str>, packets: &[(&str, &str)]) -> OutputArtifacts {
+        OutputArtifacts {
+            result_as: result_as.map(str::to_owned),
+            packets: packets
+                .iter()
+                .map(|(name, packet)| {
+                    let packet = runx_contracts::PacketId::new((*packet).to_owned())
+                        .unwrap_or_else(|| unreachable!("{packet} is a packet id"));
+                    ((*name).to_owned(), packet)
+                })
+                .collect(),
         }
     }
 
@@ -268,13 +257,7 @@ mod tests {
     fn result_admission_matches_addressable_output_declarations() {
         let wrapped = artifacts(Some("result"), &[]);
         let named = artifacts(None, &[("result", "runx.test.result.v1")]);
-        let transport_only = SkillArtifactContract {
-            emits: Some(vec!["result".to_owned()]),
-            named_emits: None,
-            packets: None,
-            wrap_as: None,
-            packet: None,
-        };
+        let transport_only = OutputArtifacts::default();
 
         assert!(!declares_output_contract(None, None));
         assert!(!declares_output_contract(None, Some(&transport_only)));
@@ -343,7 +326,7 @@ mod tests {
             "producer",
             &payload,
             Some(&output),
-            Some(&artifacts(None, &[("result", "test.result.v1")])),
+            Some(&artifacts(None, &[("result", "runx.test.result.v1")])),
         )?;
 
         assert!(!claim.contains_key("transport_noise"));
@@ -404,7 +387,7 @@ mod tests {
                 Some(&value)
             );
         }
-        // An output named by both wrap_as and named_emits is one artifact,
+        // The output result_as names, with its packet, is one artifact,
         // wrapped once.
         let value = JsonValue::from_serialize(&serde_json::json!({"events": "present"}))
             .unwrap_or(JsonValue::Null);

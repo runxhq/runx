@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use runx_contracts::tools::ToolInspectResult;
 use runx_contracts::{JsonObject, JsonValue};
-use runx_parser::SkillArtifactContract;
+use runx_parser::OutputArtifacts;
 
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, InvocationStatus};
@@ -48,17 +48,28 @@ pub(crate) fn inspect_catalog_tool(
     local::inspect_catalog_tool(tool, env, skill_directory, effects)
 }
 
-/// Resolve the artifact contract used to project a tool step into graph
-/// context.
-pub(crate) fn resolve_tool_artifacts(
+/// What a catalog tool says it returns, which a tool step projects into its
+/// workflow's context: the outputs a tool's manifest declares, and the
+/// artifacts they keep. A native tool declares its artifact alone.
+#[derive(Default)]
+pub(crate) struct ToolResultContract {
+    pub(crate) outputs: Option<JsonObject>,
+    pub(crate) artifacts: Option<OutputArtifacts>,
+}
+
+/// Resolve what a tool step's tool says it returns.
+pub(crate) fn resolve_tool_result(
     request: &ToolDispatchRequest<'_>,
     effects: &RuntimeEffectRegistry,
-) -> Result<Option<SkillArtifactContract>, RuntimeError> {
+) -> Result<ToolResultContract, RuntimeError> {
     let tool = request.tool.as_ref();
     if let Some(artifacts) = crate::tool_catalogs::native::artifacts(tool, effects) {
-        return Ok(Some(artifacts));
+        return Ok(ToolResultContract {
+            outputs: None,
+            artifacts: Some(artifacts),
+        });
     }
-    local::resolve_artifacts(request, tool)
+    local::resolve_result(request, tool)
 }
 
 /// Dispatch one tool through the native registry, then the local manifest

@@ -828,19 +828,13 @@ impl RuntimeEffect for OperationEffect {
 
 /// An operation step emits one artifact: its `runx.provider.operation.v1`
 /// packet, as `<step>.provider_operation.data`.
-pub(crate) fn packet_artifacts() -> runx_parser::SkillArtifactContract {
-    runx_parser::SkillArtifactContract {
-        emits: None,
-        named_emits: Some(BTreeMap::from([(
-            "provider_operation".to_owned(),
-            "provider_operation".to_owned(),
-        )])),
-        packets: Some(BTreeMap::from([(
+pub(crate) fn packet_artifacts() -> runx_parser::OutputArtifacts {
+    runx_parser::OutputArtifacts {
+        result_as: None,
+        packets: BTreeMap::from([(
             "provider_operation".to_owned(),
             runx_contracts::ProviderOperationPacket::packet_id(),
-        )])),
-        wrap_as: None,
-        packet: None,
+        )]),
     }
 }
 

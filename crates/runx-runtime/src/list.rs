@@ -126,26 +126,13 @@ fn read_validated_tool_manifest(manifest_path: &Path) -> Result<runx_parser::Val
     crate::tool_catalogs::manifest::read(manifest_path).map_err(|_| ())
 }
 
-fn tool_emits(artifacts: &runx_parser::SkillArtifactContract) -> Vec<RunxListEmit> {
-    if let Some(named_emits) = &artifacts.named_emits {
-        return named_emits
-            .keys()
-            .map(|name| RunxListEmit {
-                name: name.clone(),
-                packet: artifacts
-                    .packets
-                    .as_ref()
-                    .and_then(|packets| packets.get(name))
-                    .cloned(),
-            })
-            .collect();
-    }
+/// The outputs a tool keeps as artifacts, each with its packet.
+fn tool_emits(artifacts: &runx_parser::OutputArtifacts) -> Vec<RunxListEmit> {
     artifacts
-        .wrap_as
-        .iter()
+        .outputs()
         .map(|name| RunxListEmit {
             name: name.clone(),
-            packet: artifacts.packet.clone(),
+            packet: artifacts.packets.get(name).cloned(),
         })
         .collect()
 }
@@ -400,16 +387,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn named_emit_lists_only_explicit_packet_binding() -> Result<(), &'static str> {
-        let artifacts = runx_parser::SkillArtifactContract {
-            emits: None,
-            named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
-            packets: Some(BTreeMap::from([(
+    fn an_artifact_output_lists_its_packet() -> Result<(), &'static str> {
+        let artifacts = runx_parser::OutputArtifacts {
+            result_as: None,
+            packets: BTreeMap::from([(
                 "plan".to_owned(),
                 runx_contracts::PacketId::new("runx.plan.v1").ok_or("packet id")?,
-            )])),
-            wrap_as: None,
-            packet: None,
+            )]),
         };
 
         assert_eq!(
@@ -420,25 +404,6 @@ mod tests {
             }]
         );
         Ok(())
-    }
-
-    #[test]
-    fn named_emit_output_name_is_not_reported_as_a_packet() {
-        let artifacts = runx_parser::SkillArtifactContract {
-            emits: None,
-            named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
-            packets: None,
-            wrap_as: None,
-            packet: None,
-        };
-
-        assert_eq!(
-            tool_emits(&artifacts),
-            vec![RunxListEmit {
-                name: "plan".to_owned(),
-                packet: None,
-            }]
-        );
     }
 
     #[test]

@@ -96,7 +96,7 @@ fn tool_manifests_reject_generated_parallel_contract_fields() -> Result<(), Stri
 
 #[test]
 fn tool_manifests_require_the_canonical_schema_marker() -> Result<(), String> {
-    let raw = parse_tool_manifest_yaml("name: missing-schema\nsource:\n  command: /bin/true\n")
+    let raw = parse_tool_manifest_yaml("name: missing-schema\nprocess:\n  command: /bin/true\n")
         .map_err(|error| error.to_string())?;
     let error = validate_tool_manifest(raw)
         .err()

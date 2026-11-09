@@ -52,17 +52,14 @@ fn declared_result_packets(
 ) -> BTreeMap<String, runx_contracts::PacketId> {
     let mut packets = BTreeMap::new();
     let mut conflicting = BTreeSet::new();
-    let mut add = |artifacts: &runx_parser::SkillArtifactContract| {
-        if let (Some(named), Some(schemas)) = (&artifacts.named_emits, &artifacts.packets) {
-            for (name, schema) in schemas {
-                if !named.contains_key(name) {
-                    continue;
-                }
-                if packets.get(name).is_some_and(|prior| prior != schema) {
-                    conflicting.insert(name.clone());
-                } else {
-                    packets.insert(name.clone(), schema.clone());
-                }
+    // Each result output's packet, by the output's name: a field's, and the
+    // whole result's under the name result_as gives it.
+    let mut add = |artifacts: &runx_parser::OutputArtifacts| {
+        for (name, schema) in &artifacts.packets {
+            if packets.get(name).is_some_and(|prior| prior != schema) {
+                conflicting.insert(name.clone());
+            } else {
+                packets.insert(name.clone(), schema.clone());
             }
         }
     };

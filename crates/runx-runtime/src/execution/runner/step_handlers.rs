@@ -17,7 +17,7 @@ use runx_contracts::{
     Receipt, Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
 };
 use runx_core::state_machine::StepAdmissionWitness;
-use runx_parser::{AskGate, SkillArtifactContract, StepKind, ToolTarget, WorkflowStep};
+use runx_parser::{AskGate, OutputArtifacts, StepKind, ToolTarget, WorkflowStep};
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
@@ -376,6 +376,7 @@ where
         },
         output,
         None,
+        None,
     )?;
     if let Some(settlement) = settlement {
         run.settlement = Some(settlement.sealed(run.receipt.id.as_str().to_owned()));
@@ -647,7 +648,7 @@ fn invoke_regular_skill_step<A>(
     runtime: &Runtime<A>,
     step: &WorkflowStep,
     invocation: SkillInvocation,
-    extra_artifacts: Option<&SkillArtifactContract>,
+    extra_artifacts: Option<&OutputArtifacts>,
     authority: Option<&StepAuthorityContext>,
 ) -> Result<RegularSkillStepOutput, RuntimeError>
 where
@@ -926,7 +927,7 @@ struct TurnStepSeal<'a> {
     skill_name: String,
     response: ResolutionResponse,
     extra_outputs: Option<&'a JsonObject>,
-    extra_artifacts: Option<&'a SkillArtifactContract>,
+    extra_artifacts: Option<&'a OutputArtifacts>,
     contract_checks: ContractChecks,
     /// The turn's completed calls, in order.
     calls: Vec<&'a StepRun>,
@@ -1219,10 +1220,10 @@ where
         reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         call: Some(&call),
     };
-    // Source the tool manifest's artifact contract so the wrapped packet the
-    // dispatcher folds into the claim (e.g. `digest_result`) is
-    // exposed at the OUTER step as `<step>.<packet>.data`.
-    let tool_artifacts = crate::tool_catalogs::dispatch::resolve_tool_artifacts(
+    // What the tool says it returns, so its outputs, and the artifact the
+    // dispatcher folds into the claim (e.g. `digest_result`), are exposed at
+    // the outer step, an artifact as `<step>.<output>.data`.
+    let tool_result = crate::tool_catalogs::dispatch::resolve_tool_result(
         &tool_request,
         &runtime.options.effects,
     )?;
@@ -1250,7 +1251,8 @@ where
             call: None,
         },
         output,
-        tool_artifacts.as_ref(),
+        tool_result.outputs.as_ref(),
+        tool_result.artifacts.as_ref(),
     )
 }
 
@@ -1273,7 +1275,8 @@ struct EffectStepSeal<'a, A> {
 fn seal_effect_step<A>(
     seal: EffectStepSeal<'_, A>,
     mut output: InvocationOutput,
-    artifacts: Option<&SkillArtifactContract>,
+    outputs: Option<&JsonObject>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
@@ -1289,7 +1292,7 @@ where
         skill,
         call,
     } = seal;
-    let provisional_projection = build_step_output_projection(step, &output, None, artifacts)?;
+    let provisional_projection = build_step_output_projection(step, &output, outputs, artifacts)?;
     let provisional_claim = contract_output_claim(&provisional_projection);
     prepare_effect_output_before_gate(
         step,
@@ -1298,7 +1301,7 @@ where
         &mut output,
         &runtime.options.effects,
     )?;
-    let projection = build_step_output_projection(step, &output, None, artifacts)?;
+    let projection = build_step_output_projection(step, &output, outputs, artifacts)?;
     if output.succeeded() {
         // The packets the step declares, or else its tool's own, are checked
         // against the artifacts it holds, as any step's are.
@@ -1530,6 +1533,7 @@ where
             call: Some(call),
         },
         output,
+        None,
         Some(&artifacts),
     )
 }
@@ -1911,7 +1915,7 @@ pub(super) fn approval_outputs(
 
     let mut outputs = JsonObject::new();
     outputs.insert(
-        artifact_wrap_as(step)?.to_owned(),
+        artifact_result_as(step)?.to_owned(),
         JsonValue::Object(packet),
     );
     Ok(outputs)
@@ -1938,11 +1942,11 @@ pub(super) fn actor_name(actor: &ResolutionResponseActor) -> String {
     }
 }
 
-pub(super) fn artifact_wrap_as(step: &WorkflowStep) -> Result<&str, RuntimeError> {
+pub(super) fn artifact_result_as(step: &WorkflowStep) -> Result<&str, RuntimeError> {
     let Some(artifacts) = &step.artifacts else {
         return Ok("approval");
     };
-    Ok(artifacts.wrap_as.as_deref().unwrap_or("approval"))
+    Ok(artifacts.result_as.as_deref().unwrap_or("approval"))
 }
 
 pub(super) fn artifact_packet(
@@ -1951,7 +1955,7 @@ pub(super) fn artifact_packet(
     Ok(step
         .artifacts
         .as_ref()
-        .and_then(|artifacts| artifacts.packet.clone()))
+        .and_then(|artifacts| artifacts.result_packet().cloned()))
 }
 
 pub(super) fn runtime_error_step_run<A>(

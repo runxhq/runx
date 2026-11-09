@@ -45,11 +45,10 @@ pub use packet::{
 pub use registry_ref::{REGISTRY_REF_PREFIX, registry_ref};
 pub use skill::{
     ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, CatalogMetadata, CatalogVisibility,
-    ConnectorRequirement, InputMode, RawSkillIr, SkillArtifactContract, SkillIdempotencyPolicy,
-    SkillInput, SkillMethodDefinition, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
+    ConnectorRequirement, InputMode, OutputArtifacts, RawSkillIr, SkillInput,
+    SkillMethodDefinition, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
     agent_task_manual, agent_task_sections, constrained_input_schema, parse_skill_markdown,
-    validate_input_examples, validate_skill, validate_skill_artifact_contract,
-    validate_skill_with_options,
+    validate_input_examples, validate_skill, validate_skill_with_options,
 };
 pub use test_fixture::{
     ReceiptExpectation, TestExpectation, TestFixture, TestHost, TestHttpExchangeFixture,

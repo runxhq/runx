@@ -13,13 +13,12 @@ mod types;
 pub use catalog::{CatalogMetadata, CatalogVisibility};
 pub use connectors::ConnectorRequirement;
 pub(crate) use connectors::{bind_operation_steps, connector_requirements};
-pub use governance::validate_skill_artifact_contract;
 pub use markdown::{agent_task_manual, agent_task_sections, parse_skill_markdown};
 pub use method_definition::validate_input_examples;
 pub use types::{
-    ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, InputMode, RawSkillIr,
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillMethodDefinition,
-    ValidateSkillMode, ValidateSkillOptions, ValidatedSkill, constrained_input_schema,
+    ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, InputMode, OutputArtifacts,
+    RawSkillIr, SkillInput, SkillMethodDefinition, ValidateSkillMode, ValidateSkillOptions,
+    ValidatedSkill, constrained_input_schema,
 };
 
 pub(crate) use catalog::validate_catalog_metadata;

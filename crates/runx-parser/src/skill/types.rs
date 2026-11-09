@@ -3,7 +3,7 @@
 // share one typed source of truth.
 use std::collections::BTreeMap;
 
-use runx_contracts::{EnvironmentRequirements, JsonObject};
+use runx_contracts::{EnvironmentRequirements, JsonObject, PacketId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -14,10 +14,46 @@ pub struct RawSkillIr {
     pub body: String,
 }
 
-pub use runx_contracts::{
-    ArtifactDeclaration as SkillArtifactContract, IdempotencyPolicy as SkillIdempotencyPolicy,
-    InputDefinition as SkillInput,
-};
+pub use runx_contracts::InputDefinition as SkillInput;
+
+/// The outputs a step or a tool keeps as artifacts, read from what it
+/// declares: `result_as`, the output the whole result becomes, and each
+/// output that names a `packet`, with it. An artifact is held in its
+/// `{ data }` envelope; any other output is a plain value.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutputArtifacts {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_as: Option<String>,
+    /// Each output's packet, by the output's name, `result_as`'s included.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub packets: BTreeMap<String, PacketId>,
+}
+
+impl OutputArtifacts {
+    /// The packet of the output the whole result becomes.
+    #[must_use]
+    pub fn result_packet(&self) -> Option<&PacketId> {
+        self.result_as
+            .as_ref()
+            .and_then(|output| self.packets.get(output))
+    }
+
+    /// The outputs kept as artifacts that are fields of the result: each one
+    /// with a packet but the one `result_as` names.
+    pub fn fields(&self) -> impl Iterator<Item = (&String, &PacketId)> {
+        self.packets
+            .iter()
+            .filter(|(output, _)| Some(output.as_str()) != self.result_as.as_deref())
+    }
+
+    /// Every output kept as an artifact: `result_as` and each field.
+    pub fn outputs(&self) -> impl Iterator<Item = &String> {
+        self.result_as
+            .iter()
+            .chain(self.fields().map(|(output, _)| output))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -187,7 +223,7 @@ impl SkillMethodDefinition {
     /// The artifact contracts of the steps whose outputs form the method's
     /// public result.
     #[must_use]
-    pub fn result_artifacts(&self) -> Vec<&SkillArtifactContract> {
+    pub fn result_artifacts(&self) -> Vec<&OutputArtifacts> {
         self.graph
             .steps
             .iter()

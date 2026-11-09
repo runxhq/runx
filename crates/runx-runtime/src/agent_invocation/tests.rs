@@ -6,7 +6,7 @@ use runx_contracts::{
     EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry,
     sha256_prefixed,
 };
-use runx_parser::{AgentTask, SkillArtifactContract};
+use runx_parser::{AgentTask, OutputArtifacts};
 
 use super::build_turn_invocation;
 use super::profiles::{BUNDLED_VOICE_PROFILE_CONTENT, bundled_profile};
@@ -140,15 +140,9 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
 }"#,
     )?;
     let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
-    request.artifacts = Some(SkillArtifactContract {
-        emits: None,
-        named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
-        packets: Some(BTreeMap::from([(
-            "plan".to_owned(),
-            packet_id("acme/contract-test.plan.v1")?,
-        )])),
-        wrap_as: None,
-        packet: None,
+    request.artifacts = Some(OutputArtifacts {
+        result_as: None,
+        packets: BTreeMap::from([("plan".to_owned(), packet_id("acme/contract-test.plan.v1")?)]),
     });
 
     let resolved =
@@ -217,12 +211,12 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
 }"#,
     )?;
     let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
-    request.artifacts = Some(SkillArtifactContract {
-        emits: None,
-        named_emits: None,
-        packets: None,
-        wrap_as: Some("complete_result".to_owned()),
-        packet: Some(packet_id("acme/contract-test.complete_result.v1")?),
+    request.artifacts = Some(OutputArtifacts {
+        result_as: Some("complete_result".to_owned()),
+        packets: BTreeMap::from([(
+            "complete_result".to_owned(),
+            packet_id("acme/contract-test.complete_result.v1")?,
+        )]),
     });
 
     let resolved =

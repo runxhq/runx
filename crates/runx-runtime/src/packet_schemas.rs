@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::PacketId;
 use runx_parser::{
-    PacketSchemaError, SkillArtifactContract, SkillInput, SkillMethodDefinition,
-    ValidatedPacketSchema, ValidatedSkillPackage, ValidatedTool, parse_packet_schema_document,
+    OutputArtifacts, PacketSchemaError, SkillInput, SkillMethodDefinition, ValidatedPacketSchema,
+    ValidatedSkillPackage, ValidatedTool, parse_packet_schema_document,
 };
 use thiserror::Error;
 
@@ -29,24 +29,26 @@ pub(crate) use input_contracts::{
 };
 
 /// Build the exact root schema the agent's final-result tool must enforce.
-/// Named packet outputs refine one declared field; `wrap_as` packet contracts
-/// constrain the complete result unless the wrapper is itself a declared field.
+/// An output with a packet refines its declared field; `result_as`'s packet
+/// constrains the complete result unless that output is itself a declared field.
 /// Native receipt verification independently enforces the same packet bytes.
 pub(crate) fn agent_output_contract_schema(
     output: &BTreeMap<String, runx_contracts::OutputField>,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
     skill_directory: &Path,
 ) -> Result<runx_contracts::JsonValue, RuntimeError> {
     let mut root = runx_contracts::output_value_schema(Some(output));
     let Some(artifacts) = artifacts else {
         return Ok(root);
     };
-    let named_bindings = artifacts.packets.clone().unwrap_or_default();
+    let named_bindings = artifacts
+        .fields()
+        .map(|(name, packet)| (name.clone(), packet.clone()))
+        .collect::<BTreeMap<_, _>>();
     let wrapped_binding = artifacts
-        .wrap_as
-        .as_ref()
-        .zip(artifacts.packet.as_ref())
-        .map(|(name, packet)| (name.clone(), packet.clone()));
+        .result_as
+        .clone()
+        .zip(artifacts.result_packet().cloned());
     if named_bindings.is_empty() && wrapped_binding.is_none() {
         return Ok(root);
     }
@@ -619,24 +621,18 @@ pub(crate) fn declared_input_packet_ids(
 }
 
 pub(crate) fn declared_artifact_packet_ids(
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> BTreeSet<PacketId> {
     let mut packet_ids = BTreeSet::new();
     extend_packet_ids(artifacts, &mut packet_ids);
     packet_ids
 }
 
-fn extend_packet_ids(
-    artifacts: Option<&SkillArtifactContract>,
-    packet_ids: &mut BTreeSet<PacketId>,
-) {
+fn extend_packet_ids(artifacts: Option<&OutputArtifacts>, packet_ids: &mut BTreeSet<PacketId>) {
     let Some(artifacts) = artifacts else {
         return;
     };
-    packet_ids.extend(artifacts.packet.iter().cloned());
-    if let Some(packets) = &artifacts.packets {
-        packet_ids.extend(packets.values().cloned());
-    }
+    packet_ids.extend(artifacts.packets.values().cloned());
 }
 
 fn extend_input_packet_ids(

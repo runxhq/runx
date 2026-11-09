@@ -9,17 +9,14 @@ use runx_contracts::{
     PacketId, RunxListEmit, RunxListItem, RunxListItemKind, RunxListSource, RunxListStatus,
     SkillCatalogEntry,
 };
-use runx_parser::SkillArtifactContract;
+use runx_parser::OutputArtifacts;
 
 use crate::effects::RuntimeEffectRegistry;
 use crate::{CapabilityArtifacts, CapabilityContract};
 
 use super::{NativeCapability, core_capabilities, definition};
 
-pub(crate) fn artifacts(
-    tool: &str,
-    effects: &RuntimeEffectRegistry,
-) -> Option<SkillArtifactContract> {
+pub(crate) fn artifacts(tool: &str, effects: &RuntimeEffectRegistry) -> Option<OutputArtifacts> {
     if let Some(tool) = definition(tool) {
         return artifact_contract(tool.definition().artifacts);
     }
@@ -207,7 +204,7 @@ fn searchable_tool_text(tool: &ToolCatalogSearchResult) -> String {
     .to_ascii_lowercase()
 }
 
-fn artifact_contract(artifacts: CapabilityArtifacts) -> Option<SkillArtifactContract> {
+fn artifact_contract(artifacts: CapabilityArtifacts) -> Option<OutputArtifacts> {
     match artifacts {
         CapabilityArtifacts::None => None,
         CapabilityArtifacts::Named { output, packet } => named_artifact(output, packet),
@@ -215,25 +212,18 @@ fn artifact_contract(artifacts: CapabilityArtifacts) -> Option<SkillArtifactCont
     }
 }
 
-fn named_artifact(output: &str, packet: &str) -> Option<SkillArtifactContract> {
-    Some(SkillArtifactContract {
-        emits: None,
-        named_emits: Some(BTreeMap::from([(output.to_owned(), output.to_owned())])),
-        packets: Some(BTreeMap::from([(
-            output.to_owned(),
-            PacketId::new(packet)?,
-        )])),
-        wrap_as: None,
-        packet: None,
+/// A field of the result kept as an artifact of its packet.
+fn named_artifact(output: &str, packet: &str) -> Option<OutputArtifacts> {
+    Some(OutputArtifacts {
+        result_as: None,
+        packets: BTreeMap::from([(output.to_owned(), PacketId::new(packet)?)]),
     })
 }
 
-fn wrapped_artifact(output: &str, packet: &str) -> Option<SkillArtifactContract> {
-    Some(SkillArtifactContract {
-        emits: None,
-        named_emits: None,
-        packets: None,
-        wrap_as: Some(output.to_owned()),
-        packet: Some(PacketId::new(packet)?),
+/// The whole result, as the output `result_as` names, with its packet.
+fn wrapped_artifact(output: &str, packet: &str) -> Option<OutputArtifacts> {
+    Some(OutputArtifacts {
+        result_as: Some(output.to_owned()),
+        packets: BTreeMap::from([(output.to_owned(), PacketId::new(packet)?)]),
     })
 }

@@ -567,7 +567,7 @@ impl ExpansionState {
                             content: Some(tool.content),
                             declared_artifact_output:
                                 crate::output_contract::declares_output_contract(
-                                    None,
+                                    tool.outputs.as_ref(),
                                     tool.artifacts.as_ref(),
                                 ),
                             execution_boundary: tool.execution_boundary,
@@ -657,7 +657,7 @@ fn validate_workflow_result_contracts(
             })?;
         if !step_declares_result(step, tools) {
             return Err(blocked(format!(
-                "workflow result producer '{}' declares no semantic output contract; add outputs or artifacts.wrap_as/named_emits before execution",
+                "workflow result producer '{}' declares no semantic output contract; declare its outputs, or the output result_as names, before execution",
                 step.node_path
             )));
         }
@@ -777,7 +777,9 @@ fn step_tools(step: &WorkflowStep) -> Vec<String> {
 struct ResolvedOperatorContextTool {
     path: PathBuf,
     content: String,
-    artifacts: Option<runx_parser::SkillArtifactContract>,
+    /// The outputs the manifest declares, and the artifacts they keep.
+    outputs: Option<runx_contracts::JsonObject>,
+    artifacts: Option<runx_parser::OutputArtifacts>,
     execution_boundary: ExecutionBoundaryObservation,
 }
 
@@ -807,6 +809,7 @@ fn resolve_referenced_local_tool(
         Ok(resolution) => Ok(Some(ResolvedOperatorContextTool {
             path: resolution.manifest_path,
             content: resolution.manifest_source,
+            outputs: resolution.tool.outputs,
             artifacts: resolution.tool.artifacts,
             execution_boundary: boundary(ExecutionBoundaryKind::TrustedHostProcess),
         })),

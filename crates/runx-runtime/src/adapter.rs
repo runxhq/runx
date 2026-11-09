@@ -3,7 +3,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use runx_contracts::{ContextEntry, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry};
-use runx_parser::{AgentTask, ProcessTool, SkillArtifactContract, WorkerTool};
+use runx_parser::{AgentTask, OutputArtifacts, ProcessTool, WorkerTool};
 use serde::{Deserialize, Serialize};
 
 use crate::RuntimeError;
@@ -77,7 +77,7 @@ pub struct SkillInvocation {
     /// Exact non-secret manifest requirements for this executable act.
     pub requirements: ExecutionRequirements,
     /// Parser-validated artifact contract for this invocation.
-    pub artifacts: Option<SkillArtifactContract>,
+    pub artifacts: Option<OutputArtifacts>,
     pub inputs: JsonObject,
     pub resolved_inputs: JsonObject,
     pub current_context: Vec<ContextEntry>,

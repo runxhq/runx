@@ -5,8 +5,8 @@ use crate::{
     ValidationError, parse_method_manifest_yaml, parse_packet_schema_document,
     parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml,
     test_fixture::{TestFixtureError, parse_test_fixture},
-    validate_method_manifest, validate_skill_artifact_contract, validate_skill_install,
-    validate_skill_with_options, validate_tool_manifest,
+    validate_method_manifest, validate_skill_install, validate_skill_with_options,
+    validate_tool_manifest,
 };
 use runx_contracts::{JsonObject, JsonValue, json_string_field};
 use serde::{Deserialize, Serialize};
@@ -111,7 +111,6 @@ fn is_supported_parser_kind(kind: &str) -> bool {
             | "parser.validateToolManifestJson"
             | "parser.validateTestFixtureYaml"
             | "parser.parsePacketSchemaDocument"
-            | "parser.validateSkillArtifactContract"
             | "parser.validateSkillInstall"
     )
 }
@@ -150,13 +149,6 @@ enum ParserInput {
     ValidateTestFixtureYaml { yaml: String },
     #[serde(rename = "parser.parsePacketSchemaDocument")]
     ParsePacketSchemaDocument { path: String, source: String },
-    #[serde(rename = "parser.validateSkillArtifactContract")]
-    ValidateSkillArtifactContract {
-        #[serde(default)]
-        artifacts: Option<JsonValue>,
-        #[serde(default = "default_artifact_field")]
-        field: String,
-    },
     #[serde(rename = "parser.validateSkillInstall")]
     ValidateSkillInstall {
         markdown: String,
@@ -278,9 +270,6 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
                 .map_err(|error| ParserEvalError::Validation(error.to_string()))?;
             to_json_value(parsed)
         }
-        ParserInput::ValidateSkillArtifactContract { artifacts, field } => to_json_value(
-            validate_skill_artifact_contract(artifacts.as_ref(), &field)?,
-        ),
         ParserInput::ValidateSkillInstall { markdown, origin } => {
             to_json_value(validate_skill_install(&markdown, origin)?)
         }
@@ -292,10 +281,6 @@ fn to_json_value<T: Serialize>(value: T) -> Result<JsonValue, ParserEvalError> {
         .map_err(|error| ParserEvalError::SerializeOutput(error.to_string()))?;
     serde_json::from_value(serialized)
         .map_err(|error| ParserEvalError::SerializeOutput(error.to_string()))
-}
-
-fn default_artifact_field() -> String {
-    "runx.artifacts".to_owned()
 }
 
 #[cfg(test)]

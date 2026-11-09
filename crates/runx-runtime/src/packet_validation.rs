@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::{JsonObject, JsonValue, PacketId};
-use runx_parser::SkillArtifactContract;
+use runx_parser::OutputArtifacts;
 
 use crate::RuntimeError;
 use crate::observations::PacketCheck;
@@ -12,7 +12,7 @@ use crate::packet_schemas::PacketSchemaCatalog;
 /// declares. `held` is the step's artifacts by name, each in its envelope.
 pub(crate) fn verify_declared_packets(
     held: &JsonObject,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
     skill_directory: &Path,
 ) -> Result<BTreeMap<String, PacketCheck>, RuntimeError> {
     let bindings = packet_bindings(held, artifacts)?;
@@ -83,18 +83,14 @@ struct PacketBinding {
 
 fn packet_bindings(
     held: &JsonObject,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> Result<Vec<PacketBinding>, RuntimeError> {
     let mut bindings = Vec::new();
-    if let Some(artifacts) = artifacts {
-        if let Some(named) = &artifacts.packets {
-            for (output, packet) in named {
-                bindings.push(projected_binding(held, output, packet)?);
-            }
-        }
-        if let (Some(output), Some(packet)) = (&artifacts.wrap_as, &artifacts.packet) {
-            bindings.push(projected_binding(held, output, packet)?);
-        }
+    for (output, packet) in artifacts
+        .into_iter()
+        .flat_map(|artifacts| &artifacts.packets)
+    {
+        bindings.push(projected_binding(held, output, packet)?);
     }
     Ok(bindings)
 }
@@ -131,12 +127,12 @@ mod tests {
     use std::fs;
 
     use runx_contracts::{JsonValue, PacketId};
-    use runx_parser::SkillArtifactContract;
+    use runx_parser::OutputArtifacts;
 
     use super::verify_declared_packets;
 
     /// The artifacts a step producing `value` holds under `artifacts`.
-    fn held(value: &JsonValue, artifacts: &SkillArtifactContract) -> runx_contracts::JsonObject {
+    fn held(value: &JsonValue, artifacts: &OutputArtifacts) -> runx_contracts::JsonObject {
         crate::output_contract::project_artifact_outputs(value, Some(artifacts))
     }
 
@@ -146,23 +142,17 @@ mod tests {
         Ok(directory)
     }
 
-    fn artifacts() -> SkillArtifactContract {
-        SkillArtifactContract {
-            emits: None,
-            named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
-            packets: Some(BTreeMap::from([("plan".to_owned(), packet_id(PLAN))])),
-            wrap_as: None,
-            packet: None,
+    fn artifacts() -> OutputArtifacts {
+        OutputArtifacts {
+            result_as: None,
+            packets: BTreeMap::from([("plan".to_owned(), packet_id(PLAN))]),
         }
     }
 
-    fn wrapped_artifacts() -> SkillArtifactContract {
-        SkillArtifactContract {
-            emits: None,
-            named_emits: None,
-            packets: None,
-            wrap_as: Some("plan_packet".to_owned()),
-            packet: Some(packet_id(WRAPPED_PLAN)),
+    fn wrapped_artifacts() -> OutputArtifacts {
+        OutputArtifacts {
+            result_as: Some("plan_packet".to_owned()),
+            packets: BTreeMap::from([("plan_packet".to_owned(), packet_id(WRAPPED_PLAN))]),
         }
     }
 

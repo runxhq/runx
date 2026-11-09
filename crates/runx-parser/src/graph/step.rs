@@ -19,7 +19,7 @@ use super::types::{
     WorkflowWhen,
 };
 use crate::ValidationError;
-use crate::skill::SkillArtifactContract;
+use crate::skill::OutputArtifacts;
 use runx_contracts::connector::{OperationName, is_connector_name, is_operation_name};
 
 /// The five step kinds; a step declares exactly one.
@@ -141,12 +141,11 @@ pub fn validate_step(
         }
     }
     let artifacts = match &kind {
-        StepKind::Ask(_) => Some(SkillArtifactContract {
-            emits: None,
-            named_emits: None,
-            packets: None,
-            wrap_as: Some(APPROVAL_DECISION.to_owned()),
-            packet: PacketId::new(APPROVAL_DECISION_PACKET.to_owned()),
+        StepKind::Ask(_) => Some(OutputArtifacts {
+            result_as: Some(APPROVAL_DECISION.to_owned()),
+            packets: PacketId::new(APPROVAL_DECISION_PACKET.to_owned())
+                .map(|packet| BTreeMap::from([(APPROVAL_DECISION.to_owned(), packet)]))
+                .unwrap_or_default(),
         }),
         _ => output_artifacts(
             outputs.as_ref(),
@@ -651,7 +650,7 @@ pub(crate) fn output_artifacts(
     outputs: Option<&JsonObject>,
     result_as: Option<String>,
     field: &str,
-) -> Result<Option<SkillArtifactContract>, ValidationError> {
+) -> Result<Option<OutputArtifacts>, ValidationError> {
     let at = |key: &str| {
         if field.is_empty() {
             key.to_owned()
@@ -685,24 +684,10 @@ pub(crate) fn output_artifacts(
             at("outputs")
         )));
     }
-    let packet = result_as
-        .as_ref()
-        .and_then(|result_as| packets.remove(result_as));
     if packets.is_empty() && result_as.is_none() {
         return Ok(None);
     }
-    Ok(Some(SkillArtifactContract {
-        emits: None,
-        named_emits: (!packets.is_empty()).then(|| {
-            packets
-                .keys()
-                .map(|name| (name.clone(), name.clone()))
-                .collect()
-        }),
-        packets: (!packets.is_empty()).then_some(packets),
-        wrap_as: result_as,
-        packet,
-    }))
+    Ok(Some(OutputArtifacts { result_as, packets }))
 }
 
 /// A list of conditions, all of which must hold before the step may run.

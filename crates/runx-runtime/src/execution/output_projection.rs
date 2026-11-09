@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use runx_contracts::JsonObject;
-use runx_parser::SkillArtifactContract;
+use runx_parser::OutputArtifacts;
 
 /// A step's declared result: its claim, and which outputs of it are
 /// artifacts.
@@ -20,7 +20,7 @@ pub(crate) struct StepOutputProjection {
 #[must_use]
 pub(crate) fn project_step_claim(
     outputs: JsonObject,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
 ) -> StepOutputProjection {
     let artifact_outputs = crate::output_contract::artifact_outputs(&outputs, artifacts);
     StepOutputProjection {

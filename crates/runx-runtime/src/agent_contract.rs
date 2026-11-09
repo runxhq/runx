@@ -6,7 +6,7 @@
 //! binds into the signed act and seal.
 
 use runx_contracts::{JsonValue, ResolutionRequest};
-use runx_parser::SkillArtifactContract;
+use runx_parser::OutputArtifacts;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -25,7 +25,7 @@ pub(crate) fn agent_contract_checks(
 pub(crate) fn agent_contract_checks_with_artifacts(
     request: &ResolutionRequest,
     payload: &JsonValue,
-    artifacts: Option<&SkillArtifactContract>,
+    artifacts: Option<&OutputArtifacts>,
     skill_directory: &Path,
 ) -> Result<ContractChecks, RuntimeError> {
     let ResolutionRequest::Turn { invocation, .. } = request else {

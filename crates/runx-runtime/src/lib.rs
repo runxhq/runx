@@ -168,8 +168,8 @@ pub use runner::{
 pub use runx_core::kernel_eval;
 pub use runx_core::policy::{ScopeGrantPolicy, scope_grant_allows};
 pub use runx_parser::{
-    PROFILE_FILE, SkillArtifactContract, SkillMethodDefinition, SkillMethodManifest,
-    SkillPackageSource, ValidatedSkillPackage,
+    OutputArtifacts, PROFILE_FILE, SkillMethodDefinition, SkillMethodManifest, SkillPackageSource,
+    ValidatedSkillPackage,
 };
 pub use runx_receipts::ReceiptTreeConfig;
 pub use services::{
