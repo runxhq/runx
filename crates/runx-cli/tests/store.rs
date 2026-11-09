@@ -231,28 +231,6 @@ impl Project {
         assert_eq!(ran["outcome"], "completed", "{ran}");
         Ok(store_result(&ran))
     }
-
-    /// The instance a store or private call in `skill` resolves, as `skill
-    /// inspect` reports it.
-    fn instance(&self, skill: &str, connector: &str) -> TestResult<String> {
-        let inspected = json(
-            &self
-                .runx()?
-                .args(["skill", "inspect", skill, "--json"])
-                .output()?,
-            0,
-        )?;
-        inspected["connector_readiness"]
-            .as_array()
-            .and_then(|readiness| {
-                readiness
-                    .iter()
-                    .find(|entry| entry["connector"] == connector)
-                    .and_then(|entry| entry["instance_id"].as_str())
-            })
-            .map(str::to_owned)
-            .ok_or_else(|| format!("{skill} reaches no {connector} instance: {inspected}").into())
-    }
 }
 
 /// `output`'s JSON, after its exit is `exit`.
@@ -281,30 +259,28 @@ fn store_result(ran: &Value) -> Value {
     ran["result"]["provider_operation"]["data"]["result"].clone()
 }
 
-/// A run's authority with one delegation on `instance`, of `verbs` over
-/// `targets` on `operations`, for every package.
+/// A run's authority with one delegation on `connector`'s instance, holding
+/// one term of `verbs` over `targets` on `operations`, for every package. A
+/// plain narrowing: it names no actor, mandate or principal.
 fn delegated(
-    instance: &str,
+    connector: &str,
     verbs: &[&str],
     operations: &[&str],
     scopes: &[&str],
     targets: &[&str],
 ) -> Value {
-    let actor = json!({"type": "principal", "uri": "runx:principal:host:test"});
     json!({
-        "actor_ref": actor,
-        "mandate_ref": {"type": "mandate", "uri": "runx:mandate:test"},
         "delegations": [{
-            "principal_ref": actor,
-            "resource_ref": {"type": "connector_instance", "uri": format!("runx:connector_instance:{instance}")},
-            "resource_family": "connector",
-            "verbs": verbs,
-            "bounds": {
-                "operations": operations,
-                "scopes": scopes,
-                "targets": targets,
-                "packages": ["*/*", "project:*"],
-            },
+            "connector": connector,
+            "terms": [{
+                "verbs": verbs,
+                "bounds": {
+                    "operations": operations,
+                    "scopes": scopes,
+                    "targets": targets,
+                    "packages": ["*/*", "project:*"],
+                },
+            }],
         }],
     })
 }
@@ -655,9 +631,8 @@ fn another_packages_stream_is_read_only_under_a_term() -> TestResult {
         printed(&unnamed)
     );
 
-    let instance = project.instance("skills/observer#read", "store")?;
     let term = delegated(
-        &instance,
+        "store",
         &["read"],
         &["store/events.read"],
         &["store.read"],
@@ -669,7 +644,7 @@ fn another_packages_stream_is_read_only_under_a_term() -> TestResult {
 
     // A term naming another stream doesn't reach this one.
     let elsewhere = delegated(
-        &instance,
+        "store",
         &["read"],
         &["store/events.read"],
         &["store.read"],
@@ -708,9 +683,8 @@ fn operations_review_reads_another_packages_stream_under_a_term() -> TestResult 
         printed(&unnamed)
     );
 
-    let instance = project.instance(&reference, "store")?;
     let term = delegated(
-        &instance,
+        "store",
         &["read"],
         &["store/key.inspect"],
         &["store.read"],
@@ -897,6 +871,31 @@ methods:
           expected_version: $steps.before.provider_operation.result.version
           type: notes.kept
           data: {text: $input.text}
+  recall:
+    inputs:
+      key: {type: string}
+    steps:
+      - id: events
+        operation: private/events.read
+        inputs: {stream: "said:personal", key: $input.key}
+  observe:
+    inputs:
+      key: {type: string}
+      text: {type: string}
+      attempt: {type: string}
+    steps:
+      - id: before
+        operation: private/key.inspect
+        inputs: {stream: "observed:habits", key: $input.key}
+      - id: append
+        operation: private/events.append
+        idempotency_key: $input.attempt
+        inputs:
+          stream: "observed:habits"
+          key: $input.key
+          expected_version: $steps.before.provider_operation.result.version
+          type: notes.observed
+          data: {text: $input.text}
   search:
     inputs:
       query: {type: string}
@@ -912,15 +911,14 @@ methods:
 "#;
 
 /// A term on the private instance for every operation on the notes stream.
-fn private_term(project: &Project) -> TestResult<Value> {
-    let instance = project.instance("skills/notes#keep", "private")?;
-    Ok(delegated(
-        &instance,
+fn private_term() -> Value {
+    delegated(
+        "private",
         &["read", "write"],
         &["private/*"],
         &["store.read", "store.append"],
         &["project:notes/said:personal"],
-    ))
+    )
 }
 
 #[test]
@@ -939,7 +937,7 @@ fn every_private_call_needs_a_term_and_lands_in_the_runx_home() -> TestResult {
     let refused = keep("tea", "I take my tea black", "no-term", None)?;
     assert!(!refused.status.success(), "{}", printed(&refused));
 
-    let term = private_term(&project)?;
+    let term = private_term();
     let kept = json(
         &keep("tea", "I take my tea black", "first", Some(&term))?,
         0,
@@ -963,7 +961,7 @@ fn every_private_call_needs_a_term_and_lands_in_the_runx_home() -> TestResult {
 fn private_refuses_a_home_that_fell_back_to_the_workspace() -> TestResult {
     let project = Project::new("runx-store-private-fallback")?;
     project.skill("notes", NOTES)?;
-    let term = private_term(&project)?;
+    let term = private_term();
     let mut command = crate::support::unsigned_runx_command_with_inherited_cwd();
     let ran = command
         .current_dir(&project.root)
@@ -989,7 +987,7 @@ fn private_refuses_a_home_that_fell_back_to_the_workspace() -> TestResult {
 fn private_searches_current_entries_and_reads_a_query_as_plain_words() -> TestResult {
     let project = Project::new("runx-store-private-search")?;
     project.skill("notes", NOTES)?;
-    let term = private_term(&project)?;
+    let term = private_term();
     for (key, text, attempt) in [
         ("tea", "I take my tea black", "tea-1"),
         ("coffee", "Coffee only before noon", "coffee-1"),
@@ -1071,6 +1069,223 @@ fn a_private_instance_that_cannot_search_is_refused_when_it_is_configured() -> T
             .output()?,
         0,
     )?;
+    Ok(())
+}
+
+// A delegation holds one or more terms, each narrowing a term of the link
+// before it, and a call is admitted when one of its terms covers it
+// (authority.md).
+
+/// The memory example as the notes package holds it: one delegation on
+/// `private`, reading the person's words and reading and writing
+/// observations, for notes alone. A plain narrowing: no actor, mandate or
+/// principal.
+fn memory_authority() -> Value {
+    let term = |verbs: &[&str], scopes: &[&str], targets: &[&str]| {
+        json!({
+            "verbs": verbs,
+            "bounds": {
+                "operations": ["private/*"],
+                "scopes": scopes,
+                "targets": targets,
+                "packages": ["project:notes"],
+            },
+        })
+    };
+    json!({
+        "delegations": [{
+            "connector": "private",
+            "terms": [
+                term(&["read"], &["store.read"], &["project:notes/said:*"]),
+                term(
+                    &["read", "write"],
+                    &["store.read", "store.append"],
+                    &["project:notes/observed:*"],
+                ),
+            ],
+        }],
+    })
+}
+
+#[test]
+fn a_delegation_with_two_terms_admits_each_and_refuses_what_neither_covers() -> TestResult {
+    let project = Project::new("runx-authority-two-terms")?;
+    project.skill("notes", NOTES)?;
+    let memory = memory_authority();
+    let observe = |key: &str, attempt: &str, authority: &Value| {
+        project.run(
+            "skills/notes#observe",
+            &[("key", key), ("text", "takes tea black"), ("attempt", attempt)],
+            Some(authority),
+        )
+    };
+
+    // Reading and writing observations: the second term.
+    let observed = json(&observe("tea", "seen", &memory)?, 0)?;
+    let appended = store_result(&observed);
+    assert_eq!(appended["status"], "committed", "{appended}");
+    assert_eq!(appended["stream"], "project:notes/observed:habits");
+    // Reading the person's words: the first.
+    let recalled = project.result("skills/notes#recall", &[("key", "tea")], Some(&memory))?;
+    assert_eq!(recalled["stream"], "project:notes/said:personal", "{recalled}");
+    // Writing them: neither, so it's refused and nothing is kept.
+    let kept = project.run(
+        "skills/notes#keep",
+        &[("key", "tea"), ("text", "I take my tea black"), ("attempt", "said")],
+        Some(&memory),
+    )?;
+    assert!(!kept.status.success(), "{}", printed(&kept));
+    let recalled = project.result("skills/notes#recall", &[("key", "tea")], Some(&memory))?;
+    assert_eq!(recalled["events"], json!([]), "{recalled}");
+
+    // Under a run's packages naming notes, each term narrows that link.
+    let mut narrowed = memory_authority();
+    narrowed["packages"] = json!(["project:notes"]);
+    let observed = json(&observe("coffee", "seen-under-packages", &narrowed)?, 0)?;
+    assert_eq!(store_result(&observed)["status"], "committed");
+    // A term that would widen it refuses, before any call.
+    let mut widening = narrowed.clone();
+    widening["delegations"][0]["terms"][1]["bounds"]["packages"] = json!(["*/*", "project:*"]);
+    let refused = observe("juice", "widened", &widening)?;
+    assert!(!refused.status.success(), "{}", printed(&refused));
+    assert!(printed(&refused).contains("widens"), "{}", printed(&refused));
+    Ok(())
+}
+
+#[test]
+fn one_delegation_per_instance_per_run() -> TestResult {
+    let project = Project::new("runx-authority-one-delegation")?;
+    project.skill("notes", NOTES)?;
+    let mut twice = memory_authority();
+    let again = twice["delegations"][0].clone();
+    twice["delegations"]
+        .as_array_mut()
+        .ok_or("delegations is a list")?
+        .push(again);
+    let refused = project.run("skills/notes#recall", &[("key", "tea")], Some(&twice))?;
+    assert!(!refused.status.success(), "{}", printed(&refused));
+    assert!(
+        printed(&refused).contains("one delegation"),
+        "{}",
+        printed(&refused)
+    );
+    Ok(())
+}
+
+/// A host delegating to a different actor names it, as the run's actor and
+/// as the delegation's principal, under the operator's mandate (§4.8).
+#[test]
+fn delegating_to_another_actor_takes_the_actor_and_its_mandate() -> TestResult {
+    let project = Project::new("runx-authority-actor")?;
+    project.skill("notes", NOTES)?;
+    let actor = json!({"type": "principal", "uri": "runx:principal:assistant:test"});
+    let mandate = json!({"type": "mandate", "uri": "runx:mandate:test"});
+    let mut delegated = memory_authority();
+    delegated["delegations"][0]["principal_ref"] = actor.clone();
+    let with = |extra: Value| {
+        let mut authority = delegated.clone();
+        if let (Some(authority), Some(extra)) = (authority.as_object_mut(), extra.as_object()) {
+            authority.extend(extra.clone());
+        }
+        authority
+    };
+    let observe = |attempt: &str, authority: &Value| {
+        project.run(
+            "skills/notes#observe",
+            &[("key", "tea"), ("text", "takes tea black"), ("attempt", attempt)],
+            Some(authority),
+        )
+    };
+    for (attempt, missing) in [
+        ("neither", json!({})),
+        ("no-mandate", json!({"actor_ref": actor})),
+        ("no-actor", json!({"mandate_ref": mandate})),
+    ] {
+        let refused = observe(attempt, &with(missing))?;
+        assert!(!refused.status.success(), "{attempt}: {}", printed(&refused));
+    }
+    let admitted = json(
+        &observe(
+            "both",
+            &with(json!({"actor_ref": actor, "mandate_ref": mandate})),
+        )?,
+        0,
+    )?;
+    assert_eq!(store_result(&admitted)["status"], "committed");
+    let term = project.receipt_with_term(&admitted, "private/events.append")?;
+    assert_eq!(term["principal_ref"], actor, "{term}");
+    Ok(())
+}
+
+// The chain sits beside the intent, never in it, so the same act through two
+// wrappers is one act, with one provider key (D31).
+
+/// A package that appends one fixed event at version 0 under the caller's
+/// attempt: the same attempt is the same act.
+const ONCE: &str = r#"minimum_runx: 0.12.0
+methods:
+  bump:
+    inputs:
+      key: {type: string}
+      attempt: {type: string}
+    steps:
+      - id: append
+        operation: store/events.append
+        idempotency_key: $input.attempt
+        inputs:
+          stream: counts
+          key: $input.key
+          expected_version: 0
+          type: once.done
+          data:
+            attempt: $input.attempt
+  read:
+    inputs:
+      key: {type: string}
+    steps:
+      - id: events
+        operation: store/events.read
+        inputs:
+          stream: counts
+          key: $input.key
+"#;
+
+#[test]
+fn the_same_act_through_two_wrappers_gets_one_provider_key() -> TestResult {
+    let project = Project::with_registry("runx-store-one-key")?;
+    project.publish("acme", "once", ONCE, &[])?;
+    let dependency = "registry:acme/once@1.0.0";
+    project.skill("wrap-a", &wrapper(dependency))?;
+    project.skill("wrap-b", &wrapper(dependency))?;
+    let bump = |wrapper: &str| -> TestResult<Value> {
+        let ran = json(
+            &project.run(
+                &format!("skills/{wrapper}#bump"),
+                &[("key", "k"), ("attempt", "the-act")],
+                None,
+            )?,
+            0,
+        )?;
+        find_store_result(&ran, "events.append").ok_or_else(|| format!("{ran}").into())
+    };
+    let first = bump("wrap-a")?;
+    assert_eq!(first["status"], "committed", "{first}");
+    // Through the other wrapper the provider sees the first act's key, so it
+    // answers with that event rather than a conflict at version 0.
+    let second = bump("wrap-b")?;
+    assert_eq!(second["status"], "replayed", "{second}");
+    assert_eq!(second["event"], first["event"], "{second}");
+
+    let ran = json(&project.run("skills/wrap-a#read", &[("key", "k")], None)?, 0)?;
+    let read = find_store_result(&ran, "events.read").ok_or("nothing read")?;
+    let events = read["events"].as_array().ok_or("events is a list")?;
+    assert_eq!(events.len(), 1, "{read}");
+    assert!(
+        events[0]["idempotency_key"]
+            .as_str()
+            .is_some_and(|key| key.starts_with("runx:sha256:")),
+        "{read}"
+    );
     Ok(())
 }
 

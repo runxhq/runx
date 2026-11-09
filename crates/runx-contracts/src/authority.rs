@@ -448,6 +448,49 @@ mod tests {
         }));
     }
 
+    /// `runx.authority_term.v1` changes in place (authority.md): a term names
+    /// no resource family, since the instance it names is the boundary, and
+    /// its packages never repeat.
+    #[test]
+    fn a_term_names_no_resource_family_and_its_packages_never_repeat() {
+        use crate::schema::RunxSchema;
+        let term = |extra: serde_json::Value, packages: serde_json::Value| {
+            let mut term = serde_json::json!({
+                "term_id": "capability",
+                "principal_ref": {"type": "principal", "uri": "runx:principal:operator"},
+                "resource_ref": {"type": "connector_instance", "uri": "runx:connector_instance:acme"},
+                "verbs": ["read"],
+                "bounds": {"operations": ["acme/*"], "packages": packages},
+                "issued_by_ref": {"type": "principal", "uri": "runx:principal:operator"},
+            });
+            if let (Some(term), Some(extra)) = (term.as_object_mut(), extra.as_object()) {
+                term.extend(extra.clone());
+            }
+            serde_json::from_value::<super::AuthorityTerm>(term)
+        };
+        let none = serde_json::json!({});
+        assert!(term(none.clone(), serde_json::json!(["acme/counter", "project:*"])).is_ok());
+        assert!(
+            term(
+                serde_json::json!({"resource_family": "connector"}),
+                serde_json::json!(["acme/counter"])
+            )
+            .is_err(),
+            "a term carrying resource_family is refused"
+        );
+        assert!(
+            term(none, serde_json::json!(["acme/counter", "acme/counter"])).is_err(),
+            "a package named twice is refused"
+        );
+        let schema = super::AuthorityTerm::json_schema();
+        assert!(schema["properties"].get("resource_family").is_none(), "{schema}");
+        assert_eq!(
+            schema["properties"]["bounds"]["properties"]["packages"]["uniqueItems"],
+            serde_json::json!(true),
+            "{schema}"
+        );
+    }
+
     use super::{Effects, Reach};
 
     #[test]

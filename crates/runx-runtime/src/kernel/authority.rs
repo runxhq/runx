@@ -235,6 +235,67 @@ mod tests {
         );
     }
 
+    /// A delegation names its connector and holds one or more terms, each its
+    /// own verbs and bounds (authority.md), and a run's packages never repeat.
+    #[test]
+    fn a_delegation_names_its_connector_and_holds_one_or_more_terms() -> Result<(), String> {
+        let read = |value: serde_json::Value| serde_json::from_value::<RunAuthority>(value);
+        let term = |verbs: &[&str], targets: &[&str]| {
+            serde_json::json!({
+                "verbs": verbs,
+                "bounds": {
+                    "operations": ["private/*"],
+                    "targets": targets,
+                    "packages": ["runx/agent", "runx/memory"],
+                },
+            })
+        };
+        let memory = read(serde_json::json!({"delegations": [{
+            "connector": "private",
+            "expires_at": "2026-12-01T00:00:00Z",
+            "terms": [
+                term(&["read"], &["runx/memory/said:*"]),
+                term(&["read", "write"], &["runx/memory/observed:*"]),
+            ],
+        }]}))
+        .map_err(|error| error.to_string())?;
+        let delegation = memory.delegations.first().ok_or("one delegation")?;
+        assert_eq!(delegation.connector.as_str(), "private");
+        assert_eq!(delegation.terms.len(), 2);
+        assert!(delegation.principal_ref.is_none(), "a plain narrowing names nobody");
+        assert!(
+            delegation.resource_ref.is_none(),
+            "root admission resolves the instance"
+        );
+        assert!(
+            read(serde_json::json!({"delegations": [{"connector": "private", "terms": []}]}))
+                .is_err(),
+            "a delegation holds at least one term"
+        );
+        assert!(
+            read(serde_json::json!({"delegations": [{
+                "connector": "private",
+                "verbs": ["read"],
+                "bounds": {"operations": ["private/*"]},
+            }]}))
+            .is_err(),
+            "verbs and bounds belong to a term"
+        );
+        assert!(
+            read(serde_json::json!({"delegations": [{
+                "connector": "private",
+                "terms": [term(&["read"], &["*"])],
+                "resource_family": "connector",
+            }]}))
+            .is_err()
+        );
+        assert!(
+            read(serde_json::json!({"packages": ["acme/counter", "acme/counter"]})).is_err(),
+            "a package named twice is refused"
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_run_authority_reads_effects_and_reach_and_leaves_their_defaults_off_the_wire()
     -> Result<(), serde_json::Error> {

@@ -1027,7 +1027,46 @@ impl RunxSchema for IsoDateTime {
 
 #[cfg(test)]
 mod tests {
-    use super::IsoDateTime;
+    use super::{IsoDateTime, RunxSchema};
+
+    /// A list whose items never repeat: decoding refuses a duplicate, and its
+    /// schema says `uniqueItems`, in both the wire and the accepted form.
+    #[derive(Debug, serde::Deserialize, super::RunxSchema)]
+    #[serde(deny_unknown_fields)]
+    struct Listed {
+        #[serde(default, deserialize_with = "super::deserialize_unique_items")]
+        #[runx_schema(unique_items)]
+        names: Vec<String>,
+        #[serde(default, deserialize_with = "super::deserialize_some_unique_items")]
+        #[runx_schema(unique_items)]
+        maybe: Option<Vec<String>>,
+        plain: Option<Vec<String>>,
+    }
+
+    #[test]
+    fn a_unique_list_refuses_a_duplicate_and_its_schema_says_so() {
+        for schema in [Listed::json_schema(), Listed::accepted_schema()] {
+            assert_eq!(
+                schema["properties"]["names"]["uniqueItems"],
+                serde_json::json!(true),
+                "{schema}"
+            );
+            assert_eq!(
+                schema["properties"]["maybe"]["uniqueItems"],
+                serde_json::json!(true),
+                "{schema}"
+            );
+            assert!(
+                schema["properties"]["plain"].get("uniqueItems").is_none(),
+                "{schema}"
+            );
+        }
+        let read = |value: serde_json::Value| serde_json::from_value::<Listed>(value);
+        assert!(read(serde_json::json!({"names": ["a", "b"], "maybe": ["a"], "plain": null})).is_ok());
+        assert!(read(serde_json::json!({"names": ["a", "a"], "plain": null})).is_err());
+        assert!(read(serde_json::json!({"maybe": ["b", "b"], "plain": null})).is_err());
+        assert!(read(serde_json::json!({"plain": ["c", "c"]})).is_ok());
+    }
 
     #[test]
     fn a_datetime_is_read_only_in_its_one_form() {
