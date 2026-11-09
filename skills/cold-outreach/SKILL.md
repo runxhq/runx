@@ -1,11 +1,12 @@
 ---
 name: cold-outreach
-description: Prepare one relevant, evidence-bound cold email for an exact prospect using scoped brand and taste context; hold unsafe or unsupported contact and leave delivery to an approved mail capability.
+description: Prepare one relevant, evidence-bound cold email for an exact prospect using scoped brand and taste context, or first contact for each lead of a batch; hold unsafe or unsupported contact and leave delivery to an approved mail capability.
 ---
 
 # Cold outreach
 
-Prepare one useful first contact, not a campaign or an email transport. Reuse
+Prepare useful first contact, for one prospect or for each lead of a batch, never
+a campaign sequence or an email transport. Reuse
 supplied prospect research, approved offer facts, `brand-voice` and `taste-profile`
 context. The calling application selects that workspace context; this skill never
 searches global memory or a private credential database.
@@ -17,6 +18,17 @@ admitted evidence before review. A matched
 lead, public address or good commercial fit does not establish contact permission.
 Unknown eligibility, suppression, missing policy evidence or an unsupported draft
 produces a hold. No approval, delivery or provider acknowledgement is implied.
+
+`batch` prepares first contact for each lead of one campaign. Each lead's
+supplied sources go through `lead-enrichment#enrich`, the lead is qualified
+against the criteria by `lead-qualify#qualify`, with its contact policy as its
+contact eligibility, and `prepare` drafts from that qualification. Leads run
+side by side and every lead's outcome is collected: a hold or a failure is that
+lead's alone, and a failure names the stage it stopped at. Each outcome carries
+the `idempotency_key` its send is made under, made from the campaign and the
+recipient and never the draft, so a revised batch never sends a lead twice. The
+batch runs under `effects: none` and sends nothing: a mail capability sends each
+approved draft under its key.
 
 ## Composes
 

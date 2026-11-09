@@ -18,6 +18,12 @@
       "prompt": "Prepare one relevant cold email using supplied evidence and policy, keeping delivery off.",
       "expected_output": "Return one exact evidence-bound reviewable email from one writing turn that ghostwrite admits and verifies, with no send.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Prepare first contact for each lead of a campaign batch: enrich, qualify and draft each, with no send.",
+      "expected_output": "Return one outcome per lead with the key its send is made under: a ready draft where its policy and qualification clear it, a hold or a failure that stays that lead's, and nothing sent.",
+      "files": []
     }
   ]
 }

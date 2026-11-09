@@ -27,7 +27,7 @@ Skills that run a standing mandate, route work, or operate a project workspace.
 | `operations-review/` | Review a supplied operating snapshot and propose actions through existing execution owners. |
 | `policy-draft/` | Turn a plain-English governance brief into one validated runx policy. |
 | `lead-qualify/` | Assess supplied ICP criteria against factual lead context; keep contact eligibility separate. |
-| `cold-outreach/` | Prepare relevant first-contact copy from evidence and scoped brand/taste context. |
+| `cold-outreach/` | Prepare relevant first-contact copy from evidence and scoped brand/taste context, for one prospect or each lead of a batch. |
 | `lead-enrichment/` | Normalize fresh matched professional facts, preserving missing and conflicting fields. |
 | `knowledge-router/` | Route a question or source event to the right knowledge source. |
 | `code-intake/` | Turn a noisy inbound request into a bounded intake artifact. |

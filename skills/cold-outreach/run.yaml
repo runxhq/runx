@@ -1,5 +1,6 @@
 version: "0.1.9"
 minimum_runx: 0.12.0
+default_method: prepare
 catalog:
   visibility: public
   category: growth
@@ -35,6 +36,7 @@ shared_inputs:
     maxLength: 3000
 methods:
   prepare:
+    description: Prepare one first-contact email for an exact prospect, holding any contact its policy, qualification or evidence doesn't support. Sends nothing.
     inputs:
       sender: {}
       prospect:
@@ -407,3 +409,165 @@ methods:
               properties:
                 draft: {type: 'null'}
                 draft_packet_digest: {type: 'null'}
+  batch:
+    description: For each lead, enrich its supplied sources, qualify it against the criteria and prepare its first contact, collecting every lead's outcome with the key its send is made under. Sends nothing.
+    inputs:
+      campaign:
+        type: string
+        description: This batch's campaign. With each recipient it makes the key that lead's send is made under, so a revised batch never sends a lead twice.
+        pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+        maxLength: 200
+      sender: {}
+      audience: {}
+      purpose: {}
+      offer: {}
+      required_footer: {}
+      criteria:
+        type: array
+        description: Supplied ICP requirements, as lead-qualify#qualify takes them. Each lead is qualified against them.
+        minItems: 1
+        maxItems: 20
+        items: {type: object, additionalProperties: true}
+      requested_fields:
+        type: array
+        description: The professional fields each lead's enrichment keeps, as lead-enrichment#enrich takes them.
+        minItems: 1
+        maxItems: 30
+        items: {type: string}
+      as_of:
+        type: string
+        description: The evaluation time of every lead's enrichment. No host clock is read, so an unchanged lead is qualified from the same packet in a revised batch.
+        format: date-time
+      leads:
+        type: array
+        description: The leads, each prepared on its own. One lead's hold or failure is that lead's outcome.
+        minItems: 1
+        maxItems: 300
+        items:
+          type: object
+          additionalProperties: false
+          required: [id, subject, sources, prospect, contact_policy]
+          properties:
+            id: {type: string, minLength: 1, maxLength: 1000}
+            subject:
+              type: object
+              description: The lead's exact person or company, as lead-enrichment#enrich takes it. The prospect is bound to its id.
+              additionalProperties: true
+            sources:
+              type: array
+              description: The lead's factual observations, as lead-enrichment#enrich takes them.
+              minItems: 1
+              maxItems: 100
+              items: {type: object, additionalProperties: true}
+            prospect:
+              type: object
+              description: Exact intended recipient. Its id is the subject's, so its qualification binds to it.
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: {type: string, format: email, maxLength: 320}
+                name: {type: string, minLength: 1, maxLength: 200}
+                company: {type: string, minLength: 1, maxLength: 200}
+            contact_policy:
+              type: object
+              description: Current policy status for this exact recipient, supplied by the caller. With its evidence it is the lead's contact eligibility for qualification.
+              additionalProperties: false
+              required: [recipient, status, suppressed, policy_id, evidence_ids]
+              properties:
+                recipient: {type: string, format: email, maxLength: 320}
+                status: {enum: [eligible, ineligible, unknown]}
+                suppressed: {type: boolean}
+                policy_id: {type: string, maxLength: 1000}
+                evidence_ids:
+                  type: array
+                  maxItems: 20
+                  uniqueItems: true
+                  items: {type: string, minLength: 1, maxLength: 1000}
+            facts:
+              type: array
+              description: Supplied prospect and offer facts the draft may use, as prepare takes them. A lead with none holds for evidence.
+              minItems: 1
+              maxItems: 100
+              items: {type: string, minLength: 1, maxLength: 4000}
+    result_from: [batch]
+    examples:
+    - campaign: release-review-2026-11
+      sender:
+        name: Sam at Acme
+        from_address: sam@acme.example
+        reply_to: sam@acme.example
+      audience: engineering leads at mid-size SaaS companies
+      purpose: Offer a short review of their release process.
+      offer: A free review of one release pipeline.
+      required_footer: Acme Inc, 1 Main St, Hobart. Reply to opt out.
+      criteria:
+      - id: industry
+        description: Sells B2B software.
+        required: true
+      requested_fields: [person.name, company.industry]
+      as_of: '2026-11-01T00:00:00Z'
+      leads:
+      - id: priya
+        subject: {id: 'person:priya', kind: person}
+        sources:
+        - source_id: crm:priya
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          subject_id: person:priya
+          observed_at: '2026-10-30T00:00:00Z'
+          match_confidence: high
+          facts:
+          - {field: person.name, value: Priya}
+          - {field: company.industry, value: B2B software}
+        prospect:
+          email: priya@northwind.example
+          name: Priya
+          company: Northwind
+        contact_policy:
+          recipient: priya@northwind.example
+          status: eligible
+          suppressed: false
+          policy_id: acme-outreach-policy
+          evidence_ids:
+          - crm:northwind-opted-in
+        facts:
+        - Northwind publishes release notes every two weeks.
+    steps:
+    - id: batch
+      script: {module: batch.mjs}
+      inputs:
+        campaign: $input.campaign
+        sender: $input.sender
+        audience: $input.audience
+        purpose: $input.purpose
+        offer: $input.offer
+        required_footer: $input.required_footer
+        criteria: $input.criteria
+        requested_fields: $input.requested_fields
+        as_of: $input.as_of
+        leads: $input.leads
+      calls:
+        skills: [../lead-enrichment#enrich, ../lead-qualify#qualify, .#prepare]
+      max_calls: 900
+      concurrency: 4
+      effects: none
+      outputs:
+        outcomes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [lead, idempotency_key, status]
+            properties:
+              lead: {type: string, minLength: 1, maxLength: 1000}
+              idempotency_key: {type: string, minLength: 1}
+              status: {enum: [fulfilled, rejected]}
+              outreach_review: {type: object, additionalProperties: true}
+              rejection:
+                type: object
+                additionalProperties: false
+                required: [stage, reason, code, message]
+                properties:
+                  stage: {enum: [enrich, qualify, prepare]}
+                  reason: {type: string}
+                  code: {type: string}
+                  message: {type: string}

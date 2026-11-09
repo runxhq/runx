@@ -18,5 +18,6 @@
   {"query": "Draft a plain-text cold email with a truthful subject line and our exact opt-out footer, for the prospect in this research packet.", "should_trigger": true},
   {"query": "write an outreach email to the CTO at Basalt, the angle is their new public API, and use our taste profile", "should_trigger": true},
   {"query": "Is there a worthwhile angle for cold emailing this company? If the evidence supports one, draft the email; if not, tell me what's missing.", "should_trigger": true},
-  {"query": "Prepare a first-touch email from the known facts and the recipient policy, and keep delivery off.", "should_trigger": true}
+  {"query": "Prepare a first-touch email from the known facts and the recipient policy, and keep delivery off.", "should_trigger": true},
+  {"query": "Prepare first-contact emails for these 30 leads: enrich each from the sources we hold, qualify them against our ICP, and draft only where the contact policy clears them. Don't send anything.", "should_trigger": true}
 ]
