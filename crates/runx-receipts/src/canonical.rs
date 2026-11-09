@@ -35,6 +35,23 @@ pub fn content_addressed_receipt_id(receipt: &Receipt) -> Result<String, Receipt
         .map(|bytes| sha256_prefixed(&bytes))
 }
 
+/// The content address a receipt's JSON commits, read from the JSON as it
+/// stands rather than decoded: the same body, every field but `id`,
+/// `signature` and `digest`, under `runx.receipt.c14n.v1`. A receipt an
+/// earlier runx wrote, in words this one doesn't decode, still commits its
+/// own address, which a damaged file doesn't.
+pub fn content_addressed_receipt_json_id(
+    receipt: &serde_json::Value,
+) -> Result<String, ReceiptError> {
+    let mut body = receipt.clone();
+    if let Some(fields) = body.as_object_mut() {
+        for excluded in ["id", "signature", "digest"] {
+            fields.remove(excluded);
+        }
+    }
+    canonical_bytes(&body).map(|bytes| sha256_prefixed(&bytes))
+}
+
 fn canonical_bytes<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, ReceiptError> {
     to_canonical_bytes(value).map_err(|source| ReceiptError::Serialization {
         message: source.to_string(),

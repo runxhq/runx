@@ -85,6 +85,8 @@ struct VerifyReport {
     receipt: Option<ReceiptInspection>,
     trees: Vec<TreeReport>,
     unreadable_files: Vec<FileIssue>,
+    /// Receipts an earlier runx wrote, which that runx verifies.
+    earlier_runx_files: Vec<FileIssue>,
     valid: bool,
 }
 
@@ -146,6 +148,14 @@ impl VerifyReport {
                     message: file.message,
                 })
                 .collect(),
+            earlier_runx_files: verification
+                .earlier
+                .into_iter()
+                .map(|file| FileIssue {
+                    file: file.file.display().to_string(),
+                    message: file.message,
+                })
+                .collect(),
             valid,
         }
     }
@@ -185,7 +195,8 @@ pub fn run_verify_command_with_stdin<R: Read>(
             RuntimeReceiptSignaturePolicy::verifying(&verifier),
         )
         .map_err(|error| match error {
-            ReceiptStoreError::ReceiptNotInStore { .. } => {
+            ReceiptStoreError::ReceiptNotInStore { .. }
+            | ReceiptStoreError::ReceiptBeforeThisRunx { .. } => {
                 VerifyCliError::InvalidArgs(error.to_string())
             }
             error => VerifyCliError::Store(format!(
@@ -595,6 +606,9 @@ fn render_report(report: &VerifyReport) -> String {
     }
     for issue in &report.unreadable_files {
         output.push_str(&format!("unreadable {}: {}\n", issue.file, issue.message));
+    }
+    for issue in &report.earlier_runx_files {
+        output.push_str(&format!("earlier runx {}: {}\n", issue.file, issue.message));
     }
     output.push_str(if report.valid {
         "verification: ok\n"

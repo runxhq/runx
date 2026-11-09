@@ -529,6 +529,77 @@ fn an_append_after_a_torn_one_leaves_an_index_of_every_receipt()
     Ok(())
 }
 
+/// A workflow's receipt as runx 0.11.1 wrote it, in that runx's words, which
+/// 0.12's don't read.
+const EARLIER_RUNX_RECEIPT: &str =
+    include_str!("../../../fixtures/receipt-store/runx-0.11.1-workflow.receipt.json");
+
+/// A receipt an earlier runx wrote breaks nothing: a listing skips it, a
+/// write indexes what this runx reads and leaves it out, that runx's own index
+/// stays where it is, and verifying it names the runx that wrote it.
+#[test]
+fn a_receipt_an_earlier_runx_wrote_is_skipped_and_verifying_it_names_that_runx()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = TestDir::new()?;
+    let earlier: serde_json::Value = serde_json::from_str(EARLIER_RUNX_RECEIPT)?;
+    let earlier_id = earlier["id"]
+        .as_str()
+        .ok_or("the receipt names its id")?
+        .to_owned();
+    fs::write(
+        temp.path().join(receipt_file_name(&earlier_id)),
+        EARLIER_RUNX_RECEIPT,
+    )?;
+    // That runx's own index, which it reads if a person goes back to it.
+    let earlier_index = r#"{"schema":"runx.receipt_store_index.v1","entries":[]}"#;
+    fs::write(temp.path().join("index.json"), earlier_index)?;
+    let store = LocalReceiptStore::new(temp.path());
+    assert!(store.list(crate::support::fixture_policy()?)?.is_empty());
+
+    let receipt = success_receipt()?;
+    store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
+
+    let index = store.index()?;
+    assert_eq!(
+        index
+            .entries
+            .iter()
+            .map(|entry| entry.receipt_id.as_str())
+            .collect::<Vec<_>>(),
+        [receipt.id.as_str()]
+    );
+    assert_eq!(
+        fs::read_to_string(temp.path().join("index.json"))?,
+        earlier_index
+    );
+    assert_eq!(store.list(crate::support::fixture_policy()?)?.len(), 1);
+    let history = runx_runtime::receipts::archive::list_receipts(
+        &store,
+        &project_paths(temp.path()),
+        &runx_runtime::receipts::archive::ReceiptFilter::default(),
+        crate::support::fixture_policy()?,
+    )?;
+    assert_eq!(history.receipts.len(), 1);
+    let verified = store.verify_trees(None, crate::support::fixture_policy()?)?;
+    assert!(verified.valid(), "{verified:?}");
+    assert_eq!(verified.earlier.len(), 1);
+    let refused = store
+        .verify_trees(Some(&earlier_id), crate::support::fixture_policy()?)
+        .err()
+        .ok_or("an earlier runx's receipt isn't verified here")?;
+    assert!(
+        matches!(refused, ReceiptStoreError::ReceiptBeforeThisRunx { .. }),
+        "{refused:?}"
+    );
+    assert_eq!(
+        refused.to_string(),
+        format!(
+            "receipt {earlier_id} was written by runx 0.11.1, a runx before 0.12; verify it with that version"
+        )
+    );
+    Ok(())
+}
+
 #[test]
 fn index_write_failure_reports_stale_but_receipt_stays_readable()
 -> Result<(), Box<dyn std::error::Error>> {
