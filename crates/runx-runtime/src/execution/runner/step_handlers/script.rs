@@ -13,15 +13,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::panic::AssertUnwindSafe;
 
 use runx_contracts::javascript_worker::{
-    ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
-    ScriptSettlement,
+    ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptReference,
+    ScriptRejection, ScriptSettlement,
 };
 use runx_contracts::{CallTarget, JsonObject, JsonValue, TurnCallOutcome};
 use runx_parser::ScriptStep;
 
 use super::super::super::run_record::{CallOutcome, RecordedCall};
 use super::super::bounded::run_bounded;
-use super::super::turn::{Admission, CallLedger, TurnScope, resolution_request};
+use super::super::turn::{Admission, CallLedger, TurnScope, past_inline_bound, resolution_request};
 use super::{
     RegularSkillSeal, RegularSkillStepOutput, StepHandlerCtx, StepReceiptLineage,
     build_ephemeral_step_output, build_step_output_projection, output_error,
@@ -153,6 +153,15 @@ where
                 waiting.push((call.position, vec![ledger.wait(call.position, until)?]));
             }
         }
+        // A read of a reference is the ledger's own too, settled at once.
+        let (reads, new): (Vec<_>, Vec<_>) = new
+            .into_iter()
+            .partition(|call| matches!(call.target, ScriptCallTarget::Read { .. }));
+        for call in &reads {
+            if let ScriptCallTarget::Read { digest } = &call.target {
+                ledger.read(call.position, digest)?;
+            }
+        }
         let recorded = ledger.recorded()?;
         calls += passed
             .calls
@@ -177,10 +186,12 @@ where
                         "the script returned with call {position} outstanding; a script awaits every call it starts"
                     ));
                 }
-                break Ok(output);
+                // A reference it returns is its field's value, which no copy
+                // through the script carries.
+                break referenced(&ledger, output)?;
             }
             ScriptEnding::Waiting => {
-                if new.is_empty() && waits.is_empty() {
+                if new.is_empty() && waits.is_empty() && reads.is_empty() {
                     if let Some((position, requests)) = waiting.into_iter().next() {
                         return Err(waiting_on(&step.id, position, requests));
                     }
@@ -194,7 +205,11 @@ where
                         script.max_calls
                     ));
                 }
-                let positions = new.iter().map(|call| call.position).collect::<Vec<_>>();
+                let positions = reads
+                    .iter()
+                    .chain(&new)
+                    .map(|call| call.position)
+                    .collect::<Vec<_>>();
                 match make_calls(&mut ledger, host, new, concurrency)? {
                     Err(refusal) => break Err(refusal),
                     Ok(still) => waiting.extend(still),
@@ -441,6 +456,47 @@ fn at(recorded: &[RecordedCall], position: u32) -> Option<&RecordedCall> {
         .and_then(|found| recorded.get(found))
 }
 
+/// The script's output, each field it returns a reference in taking the
+/// content of the artifact a call of the step returned it. A reference no
+/// call of the step returned fails the step, naming it.
+fn referenced<A>(
+    ledger: &CallLedger<'_, A>,
+    output: serde_json::Value,
+) -> Result<Result<serde_json::Value, String>, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let serde_json::Value::Object(mut fields) = output else {
+        return Ok(Ok(output));
+    };
+    for (field, value) in &mut fields {
+        let Some(digest) = value
+            .as_object()
+            .filter(|held| {
+                held.get("schema").and_then(serde_json::Value::as_str)
+                    == Some(runx_contracts::ARTIFACT_SCHEMA)
+            })
+            .and_then(|held| held.get("digest"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        match ledger.returned(&digest)? {
+            Some((_, content)) => {
+                *value = serde_json::to_value(content)
+                    .map_err(|source| RuntimeError::json("reading a returned reference", source))?;
+            }
+            None => {
+                return Ok(Err(format!(
+                    "output {field}: {digest} names no artifact a call of the step returned"
+                )));
+            }
+        }
+    }
+    Ok(Ok(serde_json::Value::Object(fields)))
+}
+
 /// What the script read of the clock, by position, as its replay takes it.
 fn clock_reads(clock: &BTreeMap<u32, i64>) -> impl Iterator<Item = ScriptSettlement> + '_ {
     clock.iter().map(|(position, millis)| ScriptSettlement {
@@ -482,12 +538,16 @@ fn settled(outcome: &CallOutcome) -> bool {
             | CallOutcome::Failed(_)
             | CallOutcome::Cancelled
             | CallOutcome::Waited(_)
+            | CallOutcome::Read(_)
+            | CallOutcome::TooLarge { .. }
     )
 }
 
-/// How a settled call reaches the script: a result the ledger withholds, as
-/// it withholds it from a turn, is refused, and the script never sees what
-/// it read.
+/// What `call` settled to, as the script's promise takes it. A result the
+/// ledger withholds, as it withholds it from a turn, is refused, and the
+/// script never sees what it read. A field of its result past the bound its
+/// record holds reaches the script as a reference to the artifact the call
+/// recorded it in.
 fn settlement<A>(
     ledger: &CallLedger<'_, A>,
     call: &RecordedCall,
@@ -495,6 +555,7 @@ fn settlement<A>(
 where
     A: SkillAdapter,
 {
+    let delivering = |source| RuntimeError::json("delivering a call's result", source);
     Ok(match &call.outcome {
         outcome if ledger.withholds(outcome, &call.outputs) => rejected(
             ScriptRejection::Refused,
@@ -503,10 +564,49 @@ where
                 call.index
             ),
         ),
-        CallOutcome::Completed(run) if run.outcome.succeeded() => ScriptCallOutcome::Resolved {
-            value: serde_json::to_value(&run.contract)
-                .map_err(|source| RuntimeError::json("delivering a call's result", source))?,
+        CallOutcome::Completed(run) if run.outcome.succeeded() => {
+            let mut value = JsonObject::new();
+            let mut references = Vec::new();
+            for (field, held) in &run.contract {
+                if !past_inline_bound(held, call.inline_bound)? {
+                    value.insert(field.clone(), held.clone());
+                    continue;
+                }
+                let artifact = call
+                    .outputs
+                    .iter()
+                    .find(|part| {
+                        part.output
+                            .as_ref()
+                            .is_some_and(|output| output.as_str() == field)
+                    })
+                    .map(|part| part.artifact.clone())
+                    .ok_or_else(|| RuntimeError::EngineInvariant {
+                        context: "delivering a call's result",
+                        message: format!(
+                            "field {field} is past the inline bound and has no artifact"
+                        ),
+                    })?;
+                references.push(ScriptReference {
+                    field: field.clone(),
+                    artifact,
+                });
+            }
+            ScriptCallOutcome::Resolved {
+                value: serde_json::to_value(&value).map_err(delivering)?,
+                references,
+            }
+        }
+        CallOutcome::Read(artifact) => ScriptCallOutcome::Resolved {
+            value: serde_json::to_value(ledger.content(artifact)?).map_err(delivering)?,
+            references: Vec::new(),
         },
+        CallOutcome::TooLarge { size_bytes, bound } => rejected(
+            ScriptRejection::TooLarge,
+            format!(
+                "the artifact's size_bytes is {size_bytes}, past the worker's input bound of {bound}; give it to a call or return it by reference"
+            ),
+        ),
         CallOutcome::Completed(run) => rejected(ScriptRejection::Failed, output_error(run)),
         CallOutcome::Failed(reason) => rejected(ScriptRejection::Failed, reason.clone()),
         CallOutcome::Refused(reason) => rejected(ScriptRejection::Refused, reason.clone()),
@@ -517,6 +617,7 @@ where
         // A wait returns the time it settled.
         CallOutcome::Waited(at) => ScriptCallOutcome::Resolved {
             value: serde_json::Value::from(*at),
+            references: Vec::new(),
         },
         CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
             return Err(RuntimeError::EngineInvariant {
@@ -533,6 +634,7 @@ fn rejected(reason: ScriptRejection, message: String) -> ScriptCallOutcome {
         ScriptRejection::Failed => "failed",
         ScriptRejection::Declined => "declined",
         ScriptRejection::Cancelled => "cancelled",
+        ScriptRejection::TooLarge => "too_large",
     };
     ScriptCallOutcome::Rejected {
         reason,
@@ -660,6 +762,12 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObje
             )
         }
         ScriptCallTarget::Wait { until } => (CallTarget::Wait { until: *until }, JsonObject::new()),
+        ScriptCallTarget::Read { digest } => (
+            CallTarget::Read {
+                digest: digest.as_str().into(),
+            },
+            JsonObject::new(),
+        ),
         ScriptCallTarget::Now { .. } => return Ok(None),
     }))
 }

@@ -123,6 +123,8 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<(u32, &'static str)>
                     RunCallOutcome::Child { .. } => "child",
                     RunCallOutcome::Cancelled => "cancelled",
                     RunCallOutcome::Waited { .. } => "waited",
+                    RunCallOutcome::Read { .. } => "read",
+                    RunCallOutcome::TooLarge { .. } => "too_large",
                 },
             )),
             _ => None,
@@ -702,6 +704,214 @@ fn a_resume_before_a_waits_until_reports_it_again() -> TestResult {
     assert!(
         waited(temp.path(), &run_id)?.is_empty(),
         "nothing settled it"
+    );
+    Ok(())
+}
+
+/// A child skill, `big`, whose process returns `letters` letters as its
+/// `text`: a result past the inline bound, as a provider's large read is.
+fn write_big(root: &Path, letters: usize) -> TestResult {
+    Ok(crate::support::write_test_skill_package(
+        &root.join("big"),
+        "---\nname: big\ndescription: Returns a large text.\n---\n# Big\n\nReturn it.\n",
+        &format!(
+            r#"minimum_runx: 0.12.0
+methods:
+  make:
+    steps:
+      - id: make
+        tool:
+          command: sh
+          args:
+            - -c
+            - "printf '{{\"text\":\"' && head -c {letters} /dev/zero | tr '\\0' a && printf '\"}}'"
+        outputs:
+          text: {{type: string}}
+"#
+        ),
+    )?)
+}
+
+/// The artifacts a call at `index` of run `run_id`'s stream recorded its
+/// output by, by output.
+fn call_outputs(root: &Path, run_id: &str, index: u32) -> TestResult<BTreeMap<String, String>> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    Ok(read
+        .events
+        .into_iter()
+        .filter(|record| record.stream.as_str() == run_id)
+        .filter_map(|record| match record.event {
+            RunEventFact::Call {
+                index: at, outcome, ..
+            } if at == index => match *outcome {
+                RunCallOutcome::Completed { outputs, .. } => Some(outputs),
+                _ => None,
+            },
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|part| {
+            part.output
+                .map(|output| (output.to_string(), part.artifact.digest.to_string()))
+        })
+        .collect())
+}
+
+/// A field of a call's result past the inline bound reaches the script as a
+/// reference, the artifact that holds it in its own words, which `ctx.read`
+/// reads as the value it would have held inline, and a drive after a wait
+/// replays the same reference and the same read.
+#[test]
+fn a_result_past_the_inline_bound_arrives_by_reference_and_reads_the_same_after_replay()
+-> TestResult {
+    let temp = tempdir()?;
+    write_big(temp.path(), 100_000)?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../big]\n        max_calls: 3\n        outputs:\n          kind: {type: string}\n          digest: {type: string}\n          held: {type: object}\n          length: {type: number}\n          letters: {type: boolean}\n",
+        r#"export default async function (ctx) {
+  const made = await ctx.skill("../big", {});
+  const kind = typeof made.text;
+  const { ref, size_bytes, labels } = made.text;
+  await ctx.wait({ until: ctx.now() });
+  const text = await ctx.read(made.text);
+  return {
+    kind,
+    digest: made.text.digest,
+    held: { schema: made.text.schema, ref, size_bytes, labels },
+    length: text.length,
+    letters: text === "a".repeat(100000),
+  };
+}
+"#,
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    assert_eq!(requests(&started)?, ["prepare/2"], "the script waits");
+    let sealed = resume(temp.path(), &run_id, serde_json::json!({}))?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    let recorded = call_outputs(temp.path(), &run_id, 0)?;
+    let digest = recorded.get("text").ok_or("the text is its own artifact")?;
+    assert_eq!(
+        serde_json::to_value(result)?,
+        serde_json::json!({
+            "kind": "object",
+            "digest": digest,
+            "held": {
+                "schema": "runx.artifact.v1",
+                "ref": format!("runx:project-artifact:{digest}"),
+                "size_bytes": 100_002,
+                "labels": {"sharing": "configured_model"},
+            },
+            "length": 100_000,
+            "letters": true,
+        }),
+        "the replayed reference names the artifact its call recorded, and reads as the text"
+    );
+    assert_eq!(
+        call_events(temp.path(), &run_id)?
+            .iter()
+            .filter(|(index, _)| *index == 0)
+            .count(),
+        2,
+        "the replay ran the call that made the text no more"
+    );
+    Ok(())
+}
+
+/// `ctx.read` reads only what fits the worker's input bound: past it, the
+/// read is refused as too large, naming the size and the bound.
+#[test]
+fn a_read_past_the_workers_input_bound_is_refused_as_too_large() -> TestResult {
+    let temp = tempdir()?;
+    write_big(temp.path(), 5_000_000)?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../big]\n        max_calls: 2\n        outputs:\n          reason: {type: string}\n          message: {type: string}\n",
+        r#"export default async function (ctx) {
+  const made = await ctx.skill("../big", {});
+  try {
+    await ctx.read(made.text);
+    return { reason: "read", message: "" };
+  } catch (refused) {
+    return { reason: refused.reason, message: refused.message };
+  }
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(text(result, "reason"), Some("too_large"), "{result:?}");
+    let message = text(result, "message").ok_or("a message")?;
+    assert!(
+        message.contains("5000002") && message.contains("4194304"),
+        "it names the size and the bound: {message}"
+    );
+    Ok(())
+}
+
+/// A reference given to a call reaches the callee as the artifact, its
+/// content checked against the input it's given to, and one returned is the
+/// output field's value, checked against its type. A reference no call of
+/// the step returned is refused, naming it.
+#[test]
+fn a_reference_given_to_a_call_or_returned_is_its_artifact_and_a_made_up_one_is_refused()
+-> TestResult {
+    let temp = tempdir()?;
+    write_big(temp.path(), 100_000)?;
+    write_sink(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../big, ../sink]\n        max_calls: 3\n        outputs:\n          length: {type: number}\n          made_up: {type: string}\n          text: {type: string}\n",
+        r#"export default async function (ctx) {
+  const made = await ctx.skill("../big", {});
+  const measured = await ctx.skill("../sink", { text: made.text });
+  const digest = "sha256:" + "a".repeat(64);
+  let made_up;
+  try {
+    await ctx.skill("../sink", {
+      text: {
+        schema: "runx.artifact.v1",
+        ref: "runx:project-artifact:" + digest,
+        digest,
+        size_bytes: 3,
+        media_type: "application/json",
+        path: "/nowhere.json",
+        labels: { sharing: "configured_model" },
+      },
+    });
+    made_up = "accepted";
+  } catch (refused) {
+    made_up = refused.reason + ": " + refused.message;
+  }
+  return { length: measured.length, made_up, text: made.text };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        result.get("length").and_then(JsonValue::as_u64),
+        Some(100_000),
+        "the child read the artifact: {result:?}"
+    );
+    let made_up = text(result, "made_up").ok_or("made_up")?;
+    assert!(
+        made_up.starts_with("refused") && made_up.contains(&"a".repeat(64)),
+        "a made-up reference is refused, naming it: {made_up}"
+    );
+    assert_eq!(
+        text(result, "text").map(str::len),
+        Some(100_000),
+        "the returned reference is the field's value"
     );
     Ok(())
 }

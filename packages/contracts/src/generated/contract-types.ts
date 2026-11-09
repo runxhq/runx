@@ -349,7 +349,7 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
-/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, and `wait`. */
+/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`. */
 export type CallTargetContract = {
   readonly kind: "tool";
   readonly tool: string;
@@ -369,6 +369,9 @@ export type CallTargetContract = {
 } | {
   readonly kind: "wait";
   readonly until: number;
+} | {
+  readonly digest: string;
+  readonly kind: "read";
 };
 
 /** One package `registry.search` found. */
@@ -2687,6 +2690,13 @@ export type RunCallOutcomeContract = {
 } | {
   readonly at: number;
   readonly status: "waited";
+} | {
+  readonly artifact: ArtifactContract;
+  readonly status: "read";
+} | {
+  readonly bound: number;
+  readonly size_bytes: number;
+  readonly status: "too_large";
 };
 
 /** A project artifact holding part of a call's output. */

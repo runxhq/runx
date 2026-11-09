@@ -266,6 +266,10 @@ struct CallEvent {
     /// Its host cancelled it; its outcome is how it settled.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     cancelled: bool,
+    /// The most a field of its result held inline when it reached a script:
+    /// each field past it reached the script by reference to its artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inline_bound: Option<u64>,
 }
 
 /// A script read the clock: what `ctx.now()` returned at its position in its
@@ -327,6 +331,13 @@ enum CallOutcomeEvent {
     Cancelled,
     /// A script's wait settled at `at`, in milliseconds since the epoch.
     Waited { at: i64 },
+    /// A script's read settled with the content of `artifact`.
+    Read {
+        artifact: Box<runx_contracts::Artifact>,
+    },
+    /// A script's read of a value of `size_bytes`, past the worker's input
+    /// `bound`, which it refused.
+    TooLarge { size_bytes: u64, bound: u64 },
 }
 
 /// An answer a step consumed, bound to the request it answered.
@@ -433,6 +444,8 @@ pub(crate) struct RecordedCall {
     pub order: u64,
     /// Its host cancelled it; its outcome is how it settled.
     pub cancelled: bool,
+    /// The most a field of its result held inline when it reached a script.
+    pub inline_bound: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -450,6 +463,14 @@ pub(crate) enum CallOutcome {
     Cancelled,
     /// A script's wait settled at this time, in milliseconds since the epoch.
     Waited(i64),
+    /// A script's read settled with this artifact's content.
+    Read(Box<runx_contracts::Artifact>),
+    /// A script's read of a value of `size_bytes`, past the worker's input
+    /// `bound`, which it refused.
+    TooLarge {
+        size_bytes: u64,
+        bound: u64,
+    },
 }
 
 /// What a call records: its turn, if a turn made it, its place in its step,
@@ -470,6 +491,8 @@ pub(crate) struct CallRecord<'a> {
     pub answers: &'a [Answer],
     /// Its host cancelled it; `outcome` is how it settled.
     pub cancelled: bool,
+    /// The most a field of its result holds inline as it reaches a script.
+    pub inline_bound: Option<u64>,
 }
 
 /// How a run began.
@@ -1274,6 +1297,13 @@ impl RunLog {
             },
             CallOutcome::Cancelled => CallOutcomeEvent::Cancelled,
             CallOutcome::Waited(at) => CallOutcomeEvent::Waited { at: *at },
+            CallOutcome::Read(artifact) => CallOutcomeEvent::Read {
+                artifact: artifact.clone(),
+            },
+            CallOutcome::TooLarge { size_bytes, bound } => CallOutcomeEvent::TooLarge {
+                size_bytes: *size_bytes,
+                bound: *bound,
+            },
         };
         let values = call
             .answers
@@ -1302,6 +1332,7 @@ impl RunLog {
                 })
                 .collect(),
             cancelled: call.cancelled,
+            inline_bound: call.inline_bound,
         };
         blobs.extend(values);
         self.append_settling(RunEvent::Call(Box::new(event)), blobs, settlement)
@@ -1826,6 +1857,7 @@ fn recorded_call(
             _ => Vec::new(),
         },
         cancelled: call.cancelled,
+        inline_bound: call.inline_bound,
     })
 }
 
@@ -1870,6 +1902,11 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
         CallOutcomeEvent::Child { run_id } => CallOutcome::Child(run_id.clone()),
         CallOutcomeEvent::Cancelled => CallOutcome::Cancelled,
         CallOutcomeEvent::Waited { at } => CallOutcome::Waited(*at),
+        CallOutcomeEvent::Read { artifact } => CallOutcome::Read(artifact.clone()),
+        CallOutcomeEvent::TooLarge { size_bytes, bound } => CallOutcome::TooLarge {
+            size_bytes: *size_bytes,
+            bound: *bound,
+        },
     })
 }
 
@@ -1969,7 +2006,9 @@ fn collect_waiting(
             | CallOutcome::Refused(_)
             | CallOutcome::Failed(_)
             | CallOutcome::Cancelled
-            | CallOutcome::Waited(_) => {}
+            | CallOutcome::Waited(_)
+            | CallOutcome::Read(_)
+            | CallOutcome::TooLarge { .. } => {}
         }
     }
     Ok(())

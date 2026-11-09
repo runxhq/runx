@@ -210,6 +210,8 @@ fn calls(root: &Path, run_id: &str, stream: &str) -> TestResult<Vec<(u32, &'stat
                     RunCallOutcome::Child { .. } => "child",
                     RunCallOutcome::Cancelled => "cancelled",
                     RunCallOutcome::Waited { .. } => "waited",
+                    RunCallOutcome::Read { .. } => "read",
+                    RunCallOutcome::TooLarge { .. } => "too_large",
                 },
                 cancelled,
             )),

@@ -544,12 +544,36 @@ pub struct ExecutedCall {
     stop: CallStop,
 }
 
+/// The most a field of a script call's result holds inline, in bytes of
+/// its canonical JSON (`runx.stable-json.v1`): a field past it reaches the
+/// script as a reference to the artifact that holds it.
+pub(super) const SCRIPT_INLINE_BYTES: u64 = 64 * 1024;
+
+/// Whether `value` is past `bound`, when there is one.
+pub(super) fn past_inline_bound(
+    value: &JsonValue,
+    bound: Option<u64>,
+) -> Result<bool, RuntimeError> {
+    let Some(bound) = bound else {
+        return Ok(false);
+    };
+    let bytes = runx_contracts::to_canonical_bytes(value).map_err(|error| {
+        RuntimeError::effect_state("measuring a call's result", error.to_string())
+    })?;
+    Ok(u64::try_from(bytes.len()).unwrap_or(u64::MAX) > bound)
+}
+
 /// A script's wait at position `index`, as its ledger records it.
 fn waiting(index: u32, until: i64) -> Made {
+    script_call(index, CallTarget::Wait { until })
+}
+
+/// A call of runx's own a script made at position `index`, naming `target`.
+fn script_call(index: u32, target: CallTarget) -> Made {
     Made {
         index,
         call_id: None,
-        target: CallTarget::Wait { until },
+        target,
         input: JsonObject::new(),
         standing: None,
         cancelled: false,
@@ -709,6 +733,67 @@ where
             .map(drop)
     }
 
+    /// Record the script's read at position `index` of the reference whose
+    /// artifact's digest is `digest`: settled with its content when a call of
+    /// the step returned it and it fits the worker's input bound, refused as
+    /// too large past the bound, and refused when no call of the step
+    /// returned it. Its outcome is the read's settlement.
+    pub(super) fn read(&mut self, index: u32, digest: &str) -> Result<(), RuntimeError> {
+        let held = self
+            .recorded()?
+            .iter()
+            .flat_map(|call| &call.outputs)
+            .find(|part| part.artifact.digest.as_str() == digest)
+            .map(|part| part.artifact.clone());
+        let bound =
+            u64::try_from(runx_contracts::javascript_worker::MAX_INPUT_BYTES).unwrap_or(u64::MAX);
+        let outcome = match held {
+            None => CallOutcome::Refused(format!(
+                "{digest} names no artifact a call of step {} returned",
+                self.scope.step_id
+            )),
+            Some(artifact) if artifact.size_bytes > bound => CallOutcome::TooLarge {
+                size_bytes: artifact.size_bytes,
+                bound,
+            },
+            Some(artifact) => CallOutcome::Read(Box::new(artifact)),
+        };
+        let target = CallTarget::Read {
+            digest: digest.into(),
+        };
+        self.record(&script_call(index, target), outcome, &[])
+            .map(drop)
+    }
+
+    /// The artifact a reference a call of the step returned names, by
+    /// `digest`, and that artifact's content; none for a digest no call of
+    /// the step returned.
+    pub(super) fn returned(
+        &self,
+        digest: &str,
+    ) -> Result<Option<(Artifact, JsonValue)>, RuntimeError> {
+        let Some(artifact) = self
+            .recorded()?
+            .iter()
+            .flat_map(|call| &call.outputs)
+            .find(|part| part.artifact.digest.as_str() == digest)
+            .map(|part| part.artifact.clone())
+        else {
+            return Ok(None);
+        };
+        let content = self.content(&artifact)?;
+        Ok(Some((artifact, content)))
+    }
+
+    /// The content of `artifact`, a call's output this run holds.
+    pub(super) fn content(&self, artifact: &Artifact) -> Result<JsonValue, RuntimeError> {
+        let options = &self.scope.runtime.options;
+        let artifacts =
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
+        crate::services::read_json_artifact(&artifacts, artifact)
+            .map_err(|message| RuntimeError::effect_state("reading a call's output", message))
+    }
+
     /// Record what the step's script read of the clock at position `index`.
     pub(super) fn record_clock(&mut self, index: u32, millis: i64) -> Result<(), RuntimeError> {
         self.step_record()?;
@@ -775,7 +860,9 @@ where
                 | CallOutcome::Refused(_)
                 | CallOutcome::Failed(_)
                 | CallOutcome::Cancelled
-                | CallOutcome::Waited(_) => None,
+                | CallOutcome::Waited(_)
+                | CallOutcome::Read(_)
+                | CallOutcome::TooLarge { .. } => None,
             }))
     }
 
@@ -801,8 +888,9 @@ where
                 CallTarget::Skill { .. } => self.loaded_offers(target)?,
                 CallTarget::Ask => allowance.asks,
                 CallTarget::Load => allowance.rules().next().is_some(),
-                // A script's wait is its ledger's own, never admitted.
-                CallTarget::Wait { .. } => false,
+                // A script's wait and read are its ledger's own, never
+                // admitted.
+                CallTarget::Wait { .. } | CallTarget::Read { .. } => false,
             };
         if !allowed {
             return Ok(Some(format!(
@@ -993,11 +1081,12 @@ where
             CallTarget::Skill { .. } => {
                 CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
             }
-            CallTarget::Wait { .. } => {
+            CallTarget::Wait { .. } | CallTarget::Read { .. } => {
                 return Err(RuntimeError::EngineInvariant {
                     context: "admitting a call",
-                    message: "a wait is its script's ledger's to record, never a call to run"
-                        .to_owned(),
+                    message:
+                        "a wait or a read is its script's ledger's to record, never a call to run"
+                            .to_owned(),
                 });
             }
             // A call that reaches nothing holds no claim: it runs now, under
@@ -1236,8 +1325,12 @@ where
         outcome: CallOutcome,
         answers: &[Answer],
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
+        // A script's call holds a field of its result inline only up to the
+        // bound, which its record keeps, so replay gives the same references.
+        let inline_bound = (self.turn.is_none() && matches!(outcome, CallOutcome::Completed(_)))
+            .then_some(SCRIPT_INLINE_BYTES);
         let outputs = match &outcome {
-            CallOutcome::Completed(run) => self.output_artifacts(made, run)?,
+            CallOutcome::Completed(run) => self.output_artifacts(made, run, inline_bound)?,
             _ => Vec::new(),
         };
         self.scope.runtime.options.run.record_call(&CallRecord {
@@ -1253,6 +1346,7 @@ where
             standing: made.standing.as_ref(),
             answers,
             cancelled: made.cancelled,
+            inline_bound,
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.
@@ -1271,6 +1365,7 @@ where
             outputs: outputs.clone(),
             order,
             cancelled: made.cancelled,
+            inline_bound,
         };
         match calls.iter_mut().find(|known| known.index == call.index) {
             Some(known) => *known = call,
@@ -1288,6 +1383,7 @@ where
         &self,
         made: &Made,
         run: &StepRun,
+        inline_bound: Option<u64>,
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         let options = &self.scope.runtime.options;
         let artifacts =
@@ -1322,6 +1418,12 @@ where
                 outputs.push(RunCallOutput {
                     output: NonEmptyString::new(name.clone()),
                     artifact: persist(&format!("{label}-{name}"), data)?,
+                });
+            } else if past_inline_bound(value, inline_bound)? {
+                // A field a script takes by reference is an artifact of its own.
+                outputs.push(RunCallOutput {
+                    output: NonEmptyString::new(name.clone()),
+                    artifact: persist(&format!("{label}-{name}"), value)?,
                 });
             } else {
                 rest.insert(name.clone(), value.clone());
@@ -1400,10 +1502,10 @@ where
                     .collect::<Result<_, _>>()?,
             },
             CallOutcome::Cancelled => TurnCallOutcome::Cancelled,
-            CallOutcome::Waited(_) => {
+            CallOutcome::Waited(_) | CallOutcome::Read(_) | CallOutcome::TooLarge { .. } => {
                 return Err(RuntimeError::EngineInvariant {
                     context: "reading a turn's call",
-                    message: "a turn's call never waits".to_owned(),
+                    message: "a turn's call never waits or reads by reference".to_owned(),
                 });
             }
         };
@@ -1496,7 +1598,9 @@ where
                 };
                 StepKind::Skill(target)
             }
-            CallTarget::Wait { .. } => return Err("a wait runs as no step".to_owned()),
+            CallTarget::Wait { .. } | CallTarget::Read { .. } => {
+                return Err("a wait or a read runs as no step".to_owned());
+            }
             CallTarget::Load => StepKind::Load(LoadStep {
                 target: load_target(input)?,
                 rules: self.scope.allowance.rules().copied().collect(),
@@ -1583,11 +1687,17 @@ where
         let artifacts =
             crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
         let recorded = self.recorded().map_err(|error| error.to_string())?;
+        // A script's reference is one a call of its step returned it, given
+        // to any input as that artifact's content.
+        let script = self.turn.is_none();
         let mut fed = Vec::new();
         for name in given {
             // Only an input of a packet type is given by reference; any other
             // takes the value as it is.
-            let Some(input) = declared.get(&name).filter(|input| input.packet.is_some()) else {
+            let Some(input) = declared
+                .get(&name)
+                .filter(|input| input.packet.is_some() || script)
+            else {
                 continue;
             };
             let named = step.inputs[&name]
@@ -1625,6 +1735,12 @@ where
                     ))
                 })
             });
+            if script && produced.is_none() {
+                return Err(format!(
+                    "input {name}: {} names no artifact a call of step {} returned",
+                    named.digest, self.scope.step_id
+                ));
+            }
             let reference = produced.map_or(&named, |(_, _, _, artifact)| artifact);
             let value = crate::services::read_json_artifact(&artifacts, reference)
                 .map_err(|error| format!("input {name}: {error}"))?;
@@ -1687,7 +1803,8 @@ where
             CallTarget::Operation { .. }
             | CallTarget::Ask
             | CallTarget::Load
-            | CallTarget::Wait { .. } => Ok(("call", BTreeMap::new())),
+            | CallTarget::Wait { .. }
+            | CallTarget::Read { .. } => Ok(("call", BTreeMap::new())),
         }
     }
 
@@ -2130,6 +2247,7 @@ fn label(target: &CallTarget) -> String {
         CallTarget::Ask => "ask".to_owned(),
         CallTarget::Load => "load".to_owned(),
         CallTarget::Wait { .. } => "wait".to_owned(),
+        CallTarget::Read { digest } => format!("read {digest}"),
     }
 }
 

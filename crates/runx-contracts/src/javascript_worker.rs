@@ -157,8 +157,14 @@ pub struct ScriptSettlement {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScriptCallOutcome {
-    /// The call returned `value`.
-    Resolved { value: serde_json::Value },
+    /// The call returned `value`. Each field `references` names reaches the
+    /// script as a reference to its artifact in place of the value, which
+    /// `ctx.read` reads.
+    Resolved {
+        value: serde_json::Value,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        references: Vec<ScriptReference>,
+    },
     /// The call didn't succeed: the script's promise rejects with
     /// `{ reason, code, message }`.
     Rejected {
@@ -168,6 +174,15 @@ pub enum ScriptCallOutcome {
     },
     /// What `ctx.now()` read at this position.
     Now { millis: i64 },
+}
+
+/// A field of a call's result past the kernel's inline bound, which reaches
+/// the script as a reference to the artifact that holds it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptReference {
+    pub field: String,
+    pub artifact: crate::Artifact,
 }
 
 /// Why a call rejected.
@@ -182,6 +197,8 @@ pub enum ScriptRejection {
     Declined,
     /// Its host cancelled it before it settled.
     Cancelled,
+    /// A read of a reference whose value is past the worker's input bound.
+    TooLarge,
 }
 
 /// A call a script made, at its position in the step.
@@ -217,6 +234,9 @@ pub enum ScriptCallTarget {
     /// `ctx.wait({ until })`, in the milliseconds `ctx.now()` reads. It
     /// resolves to the time it settled.
     Wait { until: i64 },
+    /// `ctx.read(reference)`, of a reference a call's result gave the
+    /// script, by its artifact's digest. It resolves to the value.
+    Read { digest: String },
 }
 
 /// How a pass ended.

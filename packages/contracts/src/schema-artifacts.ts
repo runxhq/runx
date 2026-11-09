@@ -2170,9 +2170,28 @@ export const runxSchemaArtifacts = {
               "until"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A script reads a value a call of its step returned by reference, by its artifact's digest. It's runx's own, and no turn is offered it.",
+            "properties": {
+              "digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "read",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "digest"
+            ],
+            "type": "object"
           }
         ],
-        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, and `wait`.",
+        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`.",
         "title": "CallTarget"
       },
       "CatalogHit": {
@@ -7879,6 +7898,48 @@ export const runxSchemaArtifacts = {
             "required": [
               "status",
               "at"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A script's read settled with the content of `artifact`.",
+            "properties": {
+              "artifact": {
+                "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
+              },
+              "status": {
+                "const": "read",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "artifact"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A script's read of a value of `size_bytes`, past `bound`, the worker's input bound, which it refused.",
+            "properties": {
+              "bound": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "size_bytes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "too_large",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "size_bytes",
+              "bound"
             ],
             "type": "object"
           }

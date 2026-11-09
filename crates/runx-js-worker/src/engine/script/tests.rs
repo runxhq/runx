@@ -30,7 +30,10 @@ fn run(source: &str, settled: &[ScriptSettlement]) -> Result<Passed, String> {
 fn resolved(position: u32, value: serde_json::Value) -> ScriptSettlement {
     ScriptSettlement {
         position,
-        outcome: ScriptCallOutcome::Resolved { value },
+        outcome: ScriptCallOutcome::Resolved {
+            value,
+            references: Vec::new(),
+        },
     }
 }
 
@@ -45,6 +48,7 @@ fn targets(passed: &Passed) -> Vec<(u32, String)> {
                 ScriptCallTarget::Operation { operation, .. } => format!("operation {operation}"),
                 ScriptCallTarget::Now { millis } => format!("now {millis}"),
                 ScriptCallTarget::Wait { until } => format!("wait {until}"),
+                ScriptCallTarget::Read { digest } => format!("read {digest}"),
             };
             (call.position, named)
         })

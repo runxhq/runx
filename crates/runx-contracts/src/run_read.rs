@@ -263,6 +263,16 @@ pub enum RunCallOutcome {
     Waited {
         at: i64,
     },
+    /// A script's read settled with the content of `artifact`.
+    Read {
+        artifact: Box<crate::Artifact>,
+    },
+    /// A script's read of a value of `size_bytes`, past `bound`, the
+    /// worker's input bound, which it refused.
+    TooLarge {
+        size_bytes: u64,
+        bound: u64,
+    },
 }
 
 /// A project artifact holding part of a call's output.

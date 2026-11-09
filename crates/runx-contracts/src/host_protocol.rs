@@ -479,8 +479,8 @@ pub struct AllowedOperation {
 /// What a call names, a turn's or a script's, as its step's ledger admits
 /// and records it. A turn is offered a tool, an operation or a skill its
 /// allowance lists, and `ask` and `load` where its step allows them; a script
-/// is offered a tool, an operation or a skill its step's `calls` lists, and
-/// `wait`.
+/// is offered a tool, an operation or a skill its step's `calls` lists,
+/// `wait` and `read`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CallTarget {
@@ -510,6 +510,11 @@ pub enum CallTarget {
     /// time `ctx.now()` reads. It's runx's own, and no turn is offered it.
     Wait {
         until: i64,
+    },
+    /// A script reads a value a call of its step returned by reference, by
+    /// its artifact's digest. It's runx's own, and no turn is offered it.
+    Read {
+        digest: NonEmptyString,
     },
 }
 

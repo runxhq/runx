@@ -297,6 +297,10 @@ fn project(
                 },
                 CallOutcomeEvent::Cancelled => RunCallOutcome::Cancelled,
                 CallOutcomeEvent::Waited { at } => RunCallOutcome::Waited { at },
+                CallOutcomeEvent::Read { artifact } => RunCallOutcome::Read { artifact },
+                CallOutcomeEvent::TooLarge { size_bytes, bound } => {
+                    RunCallOutcome::TooLarge { size_bytes, bound }
+                }
             };
             RunEventFact::Call {
                 step_id: call.step_id.into(),

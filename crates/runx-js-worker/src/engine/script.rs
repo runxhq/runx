@@ -17,7 +17,8 @@ use boa_engine::object::builtins::JsPromise;
 use boa_engine::object::{FunctionObjectBuilder, IntegrityLevel, ObjectInitializer};
 use boa_engine::property::Attribute;
 use boa_engine::{
-    Context, JsArgs, JsError, JsNativeError, JsResult, JsValue, NativeFunction, Source, js_string,
+    Context, JsArgs, JsError, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, Source,
+    js_string,
 };
 use boa_gc::{Finalize, Gc, GcRefCell, Trace};
 
@@ -28,7 +29,7 @@ use super::{
 };
 use crate::protocol::{
     InvocationLimits, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding,
-    ScriptSettlement, WorkerFailureCode,
+    ScriptReference, ScriptSettlement, WorkerFailureCode,
 };
 
 /// What a script's `ctx` sees of the clock: nothing but `ctx.now()`, which
@@ -67,6 +68,17 @@ struct Ledger {
     now: i64,
     /// The promise of each call not yet settled, by position.
     pending: BTreeMap<u32, ResolvingFunctions>,
+    /// Each reference the kernel gave the script, which only `ctx.read`
+    /// reads: the object is its brand, which a script can't make.
+    references: Vec<Issued>,
+}
+
+/// A reference the kernel gave the script in place of a large value.
+#[derive(Trace, Finalize)]
+struct Issued {
+    object: JsObject,
+    #[unsafe_ignore_trace]
+    digest: String,
 }
 
 type Shared = Gc<GcRefCell<Ledger>>;
@@ -169,6 +181,7 @@ pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Pass
             .collect(),
         now: request.now,
         pending: BTreeMap::new(),
+        references: Vec::new(),
     }));
     let ctx = script_context(&ledger, &mut context)?;
     let input = JsValue::from_json(&request.inputs, &mut context)
@@ -227,8 +240,9 @@ impl LiveScript {
         for settled in settled {
             let value = match &settled.outcome {
                 ScriptCallOutcome::Now { .. } => continue,
-                ScriptCallOutcome::Resolved { value } => Ok(JsValue::from_json(value, context)
-                    .map_err(|error| engine_failure("materializing a call's result", error))?),
+                ScriptCallOutcome::Resolved { value, references } => {
+                    Ok(resolved(value, references, &self.ledger, context)?)
+                }
                 ScriptCallOutcome::Rejected {
                     reason,
                     code,
@@ -341,18 +355,67 @@ fn rejection(value: serde_json::Value, context: &mut Context) -> Result<JsValue,
     Ok(reason)
 }
 
+/// A call's result as the script holds it: each field the kernel gave by
+/// reference is a frozen reference object in place of its value.
+fn resolved(
+    value: &serde_json::Value,
+    references: &[ScriptReference],
+    ledger: &Shared,
+    context: &mut Context,
+) -> Result<JsValue, EngineError> {
+    let materialized = |error| engine_failure("materializing a call's result", error);
+    let result = JsValue::from_json(value, context).map_err(materialized)?;
+    if references.is_empty() {
+        return Ok(result);
+    }
+    let object = result.as_object().ok_or_else(|| {
+        EngineError::new(
+            WorkerFailureCode::InvalidRequest,
+            "a result given by reference is an object",
+        )
+    })?;
+    for reference in references {
+        let descriptor = serde_json::to_value(&reference.artifact).map_err(|error| {
+            EngineError::new(WorkerFailureCode::InvalidRequest, error.to_string())
+        })?;
+        let held = JsValue::from_json(&descriptor, context).map_err(materialized)?;
+        let held = held.as_object().ok_or_else(|| {
+            EngineError::new(
+                WorkerFailureCode::InvalidRequest,
+                "a reference is an artifact's descriptor",
+            )
+        })?;
+        held.set_integrity_level(IntegrityLevel::Frozen, context)
+            .map_err(|error| engine_failure("freezing a reference", error))?;
+        object
+            .set(
+                js_string!(reference.field.as_str()),
+                held.clone(),
+                true,
+                context,
+            )
+            .map_err(materialized)?;
+        ledger.borrow_mut().references.push(Issued {
+            object: held.clone(),
+            digest: reference.artifact.digest.to_string(),
+        });
+    }
+    Ok(result)
+}
+
 fn take_calls(ledger: &Shared) -> Vec<ScriptCall> {
     std::mem::take(&mut ledger.borrow_mut().calls)
 }
 
-/// `ctx`: `skill`, `tool`, `operation`, `now` and `wait`, frozen.
+/// `ctx`: `skill`, `tool`, `operation`, `now`, `wait` and `read`, frozen.
 fn script_context(ledger: &Shared, context: &mut Context) -> Result<JsValue, EngineError> {
-    let functions: [(&str, usize, CallFn); 5] = [
+    let functions: [(&str, usize, CallFn); 6] = [
         ("skill", 2, skill),
         ("tool", 2, tool),
         ("operation", 3, operation),
         ("now", 0, now),
         ("wait", 1, wait),
+        ("read", 1, read),
     ];
     let mut built = Vec::with_capacity(functions.len());
     for (name, length, function) in functions {
@@ -493,6 +556,30 @@ fn wait(
     #[allow(clippy::cast_possible_truncation)]
     let until = until as i64;
     call(ledger, ScriptCallTarget::Wait { until }, context)
+}
+
+/// `ctx.read(value)`: a reference the kernel gave reads, as a call the kernel
+/// settles, as the value it would have held inline; any other value reads
+/// as it is.
+fn read(
+    _this: &JsValue,
+    arguments: &[JsValue],
+    ledger: &Shared,
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let value = arguments.get_or_undefined(0).clone();
+    let issued = value.as_object().and_then(|object| {
+        ledger
+            .borrow()
+            .references
+            .iter()
+            .find(|issued| JsObject::equals(&issued.object, &object))
+            .map(|issued| issued.digest.clone())
+    });
+    match issued {
+        Some(digest) => call(ledger, ScriptCallTarget::Read { digest }, context),
+        None => Ok(JsPromise::resolve(value, context).into()),
+    }
 }
 
 /// Take the next position for `target`, and hand the script a promise only

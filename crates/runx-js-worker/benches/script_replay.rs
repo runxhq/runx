@@ -124,6 +124,7 @@ fn record(calls: u32) -> Vec<ScriptSettlement> {
             position,
             outcome: ScriptCallOutcome::Resolved {
                 value: serde_json::json!({"one": 1}),
+                references: Vec::new(),
             },
         })
         .collect()
