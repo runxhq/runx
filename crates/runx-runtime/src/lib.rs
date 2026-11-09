@@ -60,13 +60,13 @@ pub use process::detached::{
 pub use time::now_iso8601;
 pub mod tool_catalogs;
 
-pub use execution::test;
 pub use execution::orchestrator;
 pub use execution::run_record;
 pub use execution::runner;
 pub use execution::runner::turn::Turn;
 pub use execution::skill_front;
 pub use execution::skill_front::TurnSession;
+pub use execution::test;
 pub use execution_environment::environment_requirement_statuses;
 pub use tool_catalogs::native::{NativeCapabilitySnapshot, native_capability_snapshot};
 
@@ -97,11 +97,6 @@ pub use effects::{
     EffectStepRequest, EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
 };
 pub use error::RuntimeError;
-pub use test::{
-    PackageTestReport, TestExpectedStatus, TestFixtureError, TestOptions, TestReplayError,
-    TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
-    run_test_fixture_with_adapter,
-};
 pub use host::{Host, NoopHost};
 pub use hosted_api::{
     AuthenticatedHostedApiEnvironment, DEFAULT_HOSTED_API_BASE_URL, HOSTED_API_BASE_URL_ENV,
@@ -184,6 +179,11 @@ pub use skill_package::{
     load_validated_skill_package, unheld_registry_refs_at,
 };
 pub use skill_package::{inspect_connector_readiness, resolve_local_skill_reference};
+pub use test::{
+    PackageTestReport, TestExpectedStatus, TestFixtureError, TestOptions, TestReplayError,
+    TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
+    run_test_fixture_with_adapter,
+};
 pub use tool_catalogs::{
     ToolCatalogError, ToolInspectOptions, ToolSearchOptions, inspect_tool_with_effects,
     search_tools_with_effects,

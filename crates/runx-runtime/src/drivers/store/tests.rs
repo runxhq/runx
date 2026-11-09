@@ -32,8 +32,7 @@ impl Test {
 
     fn at(root: &std::path::Path, url: &str) -> Self {
         let mut test = Self::workspace(root);
-        test
-            .parameters
+        test.parameters
             .insert("url".to_owned(), JsonValue::String(url.to_owned()));
         test
     }

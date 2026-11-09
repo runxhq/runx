@@ -22,9 +22,7 @@ pub(crate) fn managed_agent_policy(
 ) -> Result<ManagedAgentPolicy, String> {
     if !enabled {
         if max_rounds.is_some() {
-            return Err(format!(
-                "runx {command} --drive-rounds requires --drive"
-            ));
+            return Err(format!("runx {command} --drive-rounds requires --drive"));
         }
         return Ok(ManagedAgentPolicy::HostDriven);
     }

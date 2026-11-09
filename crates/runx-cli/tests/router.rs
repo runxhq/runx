@@ -768,9 +768,7 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
 fn managed_agent_rounds_need_explicit_managed_agent_consent() {
     assert_eq!(
         plan(&["skill", "skills/docs-demo", "--drive-rounds", "2"]),
-        RouterAction::Error(
-            "runx skill --drive-rounds requires --drive".to_owned()
-        )
+        RouterAction::Error("runx skill --drive-rounds requires --drive".to_owned())
     );
     let action = plan(&[
         "skill",

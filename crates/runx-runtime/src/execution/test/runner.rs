@@ -270,9 +270,7 @@ where
     let case_root = tempfile::Builder::new()
         .prefix("runx-test-case-")
         .tempdir()
-        .map_err(|error| {
-            RuntimeError::effect_state("isolating a test case", error.to_string())
-        })?;
+        .map_err(|error| RuntimeError::effect_state("isolating a test case", error.to_string()))?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
     stage_installed_connectors_for_case(&options.env, &fixture.env, &target_path)?;
     stage_installed_skills_for_case(&options.env, &fixture.env, &target_path)?;

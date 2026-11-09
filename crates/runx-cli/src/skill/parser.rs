@@ -374,11 +374,8 @@ fn parse_skill_arg(
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
         value if value.starts_with("--drive=") => {
-            state.managed_agent = parse_boolean_flag(
-                "skill",
-                "--drive",
-                value.trim_start_matches("--drive="),
-            )?;
+            state.managed_agent =
+                parse_boolean_flag("skill", "--drive", value.trim_start_matches("--drive="))?;
         }
         "--drive" => state.managed_agent = true,
         value if value.starts_with("--drive-rounds=") => {
@@ -445,15 +442,10 @@ mod tests {
     #[test]
     fn managed_agent_requires_explicit_consent_and_binds_round_budget() -> Result<(), String> {
         let plan = super::parse_skill_plan(
-            &[
-                "skill",
-                "skills/release",
-                "--drive",
-                "--drive-rounds=3",
-            ]
-            .into_iter()
-            .map(std::ffi::OsString::from)
-            .collect::<Vec<_>>(),
+            &["skill", "skills/release", "--drive", "--drive-rounds=3"]
+                .into_iter()
+                .map(std::ffi::OsString::from)
+                .collect::<Vec<_>>(),
         )?;
         assert_eq!(
             plan.managed_agent,

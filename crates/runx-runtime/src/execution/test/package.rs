@@ -100,10 +100,7 @@ pub(crate) fn run_package_case_with_effects(
     options.effects = effects.clone();
     options.env.insert(
         RUNX_RECEIPT_DIR_ENV.to_owned(),
-        test
-            .fixture_receipt_dir(0)
-            .to_string_lossy()
-            .into_owned(),
+        test.fixture_receipt_dir(0).to_string_lossy().into_owned(),
     );
     let receipt_services =
         ReceiptServices::from_signature_config(options.receipt_signature.clone());
@@ -167,8 +164,7 @@ fn replay_cases(
         let mut options = base_options.clone();
         options.env.insert(
             RUNX_RECEIPT_DIR_ENV.to_owned(),
-            test
-                .fixture_receipt_dir(index)
+            test.fixture_receipt_dir(index)
                 .to_string_lossy()
                 .into_owned(),
         );
@@ -258,10 +254,7 @@ impl PackageTestEnvironment {
         let workspace = scratch_root.join("workspace");
         fs::create_dir_all(&workspace).map_err(|source| {
             RuntimeError::io(
-                format!(
-                    "creating isolated test workspace {}",
-                    workspace.display()
-                ),
+                format!("creating isolated test workspace {}", workspace.display()),
                 source,
             )
         })?;
@@ -635,8 +628,7 @@ expect:
             None,
         )?;
         let workspace = PathBuf::from(
-            test
-                .env
+            test.env
                 .get(RUNX_CWD_ENV)
                 .ok_or("missing isolated RUNX_CWD")?,
         );
@@ -663,10 +655,7 @@ expect:
             test.env.get(crate::paths::RUNX_PROJECT_DIR_ENV),
             Some(&scratch_root.join("project").to_string_lossy().into_owned())
         );
-        assert_ne!(
-            test.fixture_receipt_dir(0),
-            test.fixture_receipt_dir(1)
-        );
+        assert_ne!(test.fixture_receipt_dir(0), test.fixture_receipt_dir(1));
         drop(test);
         assert!(!scratch_root.exists());
         fs::remove_dir_all(operator_workspace)?;

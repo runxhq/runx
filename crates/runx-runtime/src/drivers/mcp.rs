@@ -388,11 +388,14 @@ impl Session {
                 // One `tools/call`: a server's request for more input, or a
                 // task it starts, is not answered with another call.
                 let answered =
-                    block_on(self.deadline, async move { peer.call_tool_once(request).await })
-                        .map_err(|reason| Unperformed::MaybeSent {
-                            code: "transport_failed",
-                            reason,
-                        })?;
+                    block_on(
+                        self.deadline,
+                        async move { peer.call_tool_once(request).await },
+                    )
+                    .map_err(|reason| Unperformed::MaybeSent {
+                        code: "transport_failed",
+                        reason,
+                    })?;
                 let answer = match answered {
                     Ok(CallToolResponse::Complete(answer)) => answer,
                     // Input the server requires, a task it started, or any

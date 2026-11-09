@@ -669,11 +669,7 @@ methods:
                 .iter()
                 .any(|path| path.contains("provider/SKILL.md"))
         );
-        let test_path = package
-            .test
-            .as_ref()
-            .ok_or("staged test missing")?
-            .path();
+        let test_path = package.test.as_ref().ok_or("staged test missing")?.path();
         assert!(test_path.join("dependencies/1/SKILL.md").is_file());
         assert!(test_path.join("dependencies/1/run.yaml").is_file());
         assert!(test_path.join("packets/sibling.v1.schema.json").is_file());

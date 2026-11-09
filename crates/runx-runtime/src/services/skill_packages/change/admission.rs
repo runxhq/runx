@@ -53,9 +53,7 @@ fn validate_mode_decision(mode: &str, decision: SkillChangeDecision) -> Result<(
             SkillChangeDecision::Write | SkillChangeDecision::NoChange
         ),
         _ => {
-            return Err(invalid_skill_change(
-                "mode must be build, improve, or test",
-            ));
+            return Err(invalid_skill_change("mode must be build, improve, or test"));
         }
     };
     if allowed {

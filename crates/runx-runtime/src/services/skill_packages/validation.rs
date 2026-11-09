@@ -207,13 +207,12 @@ fn validation_result_report(
 ) -> SkillValidation {
     let (verdict, inspect, test) = match result {
         Ok(validation) => {
-            let verdict = if validation.test.get("status").and_then(JsonValue::as_str)
-                == Some("skipped")
-            {
-                SkillValidationVerdict::NeedsConsequentialTestApproval
-            } else {
-                SkillValidationVerdict::Tested
-            };
+            let verdict =
+                if validation.test.get("status").and_then(JsonValue::as_str) == Some("skipped") {
+                    SkillValidationVerdict::NeedsConsequentialTestApproval
+                } else {
+                    SkillValidationVerdict::Tested
+                };
             (verdict, validation.inspect, validation.test)
         }
         Err(error) => (

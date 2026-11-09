@@ -65,11 +65,8 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
                 index += 1;
             }
             value if value.starts_with("--drive=") => {
-                managed_agent = parse_boolean_flag(
-                    "resume",
-                    "--drive",
-                    value.trim_start_matches("--drive="),
-                )?;
+                managed_agent =
+                    parse_boolean_flag("resume", "--drive", value.trim_start_matches("--drive="))?;
                 index += 1;
             }
             value if value.starts_with("--drive-rounds=") => {
