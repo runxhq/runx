@@ -166,6 +166,15 @@ pub enum RunEventFact {
         #[serde(default, skip_serializing_if = "crate::schema::is_default")]
         cancelled: bool,
     },
+    /// A script read the clock: what `ctx.now()` returned at its position
+    /// in its step, in milliseconds since the epoch, so its replay returns
+    /// the same.
+    Clock {
+        step_id: NonEmptyString,
+        attempt: u32,
+        index: u32,
+        millis: i64,
+    },
     Sealed {
         outcome: RunOutcome,
         receipt_id: NonEmptyString,

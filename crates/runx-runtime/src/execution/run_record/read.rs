@@ -310,6 +310,12 @@ fn project(
                 cancelled: call.cancelled,
             }
         }
+        RunEvent::Clock(read) => RunEventFact::Clock {
+            step_id: read.step_id.into(),
+            attempt: read.attempt,
+            index: read.index,
+            millis: read.millis,
+        },
         RunEvent::Sealed(sealed) => RunEventFact::Sealed {
             outcome: sealed.outcome,
             receipt_id: sealed.receipt_id.into(),

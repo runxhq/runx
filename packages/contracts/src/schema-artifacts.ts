@@ -7986,6 +7986,39 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
+            "description": "A script read the clock: what `ctx.now()` returned at its position in its step, in milliseconds since the epoch, so its replay returns the same.",
+            "properties": {
+              "attempt": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "index": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "clock",
+                "type": "string"
+              },
+              "millis": {
+                "type": "integer"
+              },
+              "step_id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "step_id",
+              "attempt",
+              "index",
+              "millis"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "sealed",

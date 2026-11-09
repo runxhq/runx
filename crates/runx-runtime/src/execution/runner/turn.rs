@@ -436,10 +436,17 @@ pub(super) struct CallLedger<'a, A> {
     /// The act of the turn that makes the calls, as the run records it; a
     /// script's calls belong to no turn.
     turn: Option<PendingRequest>,
-    /// The calls the run records for the step, read when first needed.
-    calls: OnceCell<Vec<RecordedCall>>,
+    /// What the run records of the step, read when first needed.
+    record: OnceCell<StepRecord>,
     /// The place the step's next call event takes, once known.
     events: Cell<Option<u64>>,
+}
+
+/// What a run records of one step: its calls, in order, and its script's
+/// clock reads, by position.
+struct StepRecord {
+    calls: Vec<RecordedCall>,
+    clock: BTreeMap<u32, i64>,
 }
 
 /// The open turn of one agent step: the act it answers, and its calls.
@@ -567,7 +574,7 @@ where
             ledger: CallLedger {
                 scope,
                 turn: Some(pending_request(request)?),
-                calls: OnceCell::new(),
+                record: OnceCell::new(),
                 events: Cell::new(None),
             },
             invocation,
@@ -589,7 +596,7 @@ where
         Self {
             scope,
             turn: None,
-            calls: OnceCell::new(),
+            record: OnceCell::new(),
             events: Cell::new(None),
         }
     }
@@ -640,16 +647,40 @@ where
 
     /// The step's calls as the run records them, in order.
     pub(super) fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
-        if let Some(calls) = self.calls.get() {
-            return Ok(calls);
+        Ok(&self.step_record()?.calls)
+    }
+
+    /// What the step's script read of the clock, by position.
+    pub(super) fn clock(&self) -> Result<&BTreeMap<u32, i64>, RuntimeError> {
+        Ok(&self.step_record()?.clock)
+    }
+
+    fn step_record(&self) -> Result<&StepRecord, RuntimeError> {
+        if let Some(record) = self.record.get() {
+            return Ok(record);
         }
-        let read = self
+        let (calls, clock) = self
             .scope
             .runtime
             .options
             .run
-            .calls(self.scope.step_id, self.scope.attempt)?;
-        Ok(self.calls.get_or_init(|| read))
+            .step_calls(self.scope.step_id, self.scope.attempt)?;
+        Ok(self.record.get_or_init(|| StepRecord { calls, clock }))
+    }
+
+    /// Record what the step's script read of the clock at position `index`.
+    pub(super) fn record_clock(&mut self, index: u32, millis: i64) -> Result<(), RuntimeError> {
+        self.step_record()?;
+        self.scope.runtime.options.run.record_clock(
+            self.scope.step_id,
+            self.scope.attempt,
+            index,
+            millis,
+        )?;
+        if let Some(record) = self.record.get_mut() {
+            record.clock.insert(index, millis);
+        }
+        Ok(())
     }
 
     /// The place the step's next call event takes among its call events.
@@ -669,8 +700,9 @@ where
 
     fn recorded_mut(&mut self) -> Result<&mut Vec<RecordedCall>, RuntimeError> {
         self.recorded()?;
-        self.calls
+        self.record
             .get_mut()
+            .map(|record| &mut record.calls)
             .ok_or_else(|| RuntimeError::EngineInvariant {
                 context: "recording a turn call",
                 message: "the turn's calls were not read".to_owned(),

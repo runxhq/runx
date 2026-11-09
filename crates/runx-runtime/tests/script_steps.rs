@@ -524,3 +524,65 @@ fn a_childs_malformed_step_input_fails_the_call_not_the_run() -> TestResult {
     );
     Ok(())
 }
+
+/// Each clock read the stream of run `run_id` records, as `(index, millis)`.
+fn clock_reads(root: &Path, run_id: &str) -> TestResult<Vec<(u32, i64)>> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    Ok(read
+        .events
+        .into_iter()
+        .filter(|record| record.stream.as_str() == run_id)
+        .filter_map(|record| match record.event {
+            RunEventFact::Clock { index, millis, .. } => Some((index, millis)),
+            _ => None,
+        })
+        .collect())
+}
+
+/// `ctx.now()` is read once and recorded at its position: the drive after
+/// the approval replays the first read's recorded time, records only the
+/// read it makes past the record, and returns both.
+#[test]
+fn ctx_now_is_recorded_at_its_position_and_replays_the_same() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  const first = ctx.now();
+  await ctx.skill("../confirm-child", { value });
+  return { first, second: ctx.now() };
+}
+"#,
+        "          first: {type: number}\n          second: {type: number}\n",
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let waiting = requests(&started)?;
+    assert_eq!(waiting, ["prepare/1#confirm"]);
+    let first = clock_reads(temp.path(), &run_id)?;
+    let [(0, recorded)] = first[..] else {
+        return Err(format!("the first read is recorded at its position: {first:?}").into());
+    };
+
+    let sealed = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {waiting[0].as_str(): true}}),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let reads = clock_reads(temp.path(), &run_id)?;
+    let [(0, again), (2, second)] = reads[..] else {
+        return Err(format!("replay records nothing again: {reads:?}").into());
+    };
+    assert_eq!(again, recorded);
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        serde_json::to_value(result)?,
+        serde_json::json!({"first": recorded, "second": second}),
+        "the script read the recorded time again, and the new one"
+    );
+    Ok(())
+}

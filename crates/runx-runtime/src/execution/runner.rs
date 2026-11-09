@@ -199,6 +199,16 @@ impl RunClock {
             Self::Fixed(at) => at.clone(),
         }
     }
+
+    /// The time now in milliseconds since the epoch, as a script's
+    /// `ctx.now()` reads it; none for a pinned instant that isn't a time.
+    #[must_use]
+    pub fn now_millis(&self) -> Option<i64> {
+        let (days, seconds, nanos) = runx_core::policy::parse_rfc3339_moment(&self.now())?;
+        days.checked_mul(86_400_000)?
+            .checked_add(seconds.checked_mul(1_000)?)?
+            .checked_add(i64::from(nanos / 1_000_000))
+    }
 }
 
 #[derive(Clone, Debug)]

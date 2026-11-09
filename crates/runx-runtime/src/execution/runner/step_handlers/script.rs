@@ -80,12 +80,24 @@ where
     // Calls that wait on a person or a child, by position. A waiting call
     // never stops the others: the step holds only once none can go further.
     let mut waiting = further_open_calls(&mut ledger, host)?;
-    let (mut live, mut passed) = runtime.javascript.start_script(
-        &prepared,
-        &inputs,
-        settlements(&ledger, ledger.recorded()?)?,
-        0,
-    )?;
+    // What a `ctx.now()` past the record reads: the run's clock, as each
+    // pass or settlement reaches the script.
+    let now = || {
+        runtime
+            .options
+            .clock
+            .now_millis()
+            .ok_or_else(|| RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason: "the run's clock reads no time for ctx.now()".to_owned(),
+            })
+    };
+    let mut settled = settlements(&ledger, ledger.recorded()?)?;
+    settled.extend(clock_reads(ledger.clock()?));
+    let (mut live, mut passed) =
+        runtime
+            .javascript
+            .start_script(&prepared, &inputs, settled, now()?)?;
     // Every call the script has made, in position order, and how many of
     // them are calls rather than reads of the clock.
     let mut made = Vec::new();
@@ -100,14 +112,32 @@ where
     ))
     .unwrap_or(1);
     let ended = loop {
+        matches_record(&step.id, &passed.calls, ledger.recorded()?, ledger.clock()?)?;
+        // A clock read past the record is recorded at its position as the
+        // script made it, before anything else the pass did.
+        let read = passed
+            .calls
+            .iter()
+            .filter_map(|call| match call.target {
+                ScriptCallTarget::Now { millis } => Some((call.position, millis)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (position, millis) in read {
+            if !ledger.clock()?.contains_key(&position) {
+                ledger.record_clock(position, millis)?;
+            }
+        }
         let recorded = ledger.recorded()?;
-        matches_record(&step.id, &passed.calls, recorded)?;
         // Only a call this report holds can be new: every earlier one was made
         // before the script was given its settlement.
         let new = passed
             .calls
             .iter()
-            .filter(|call| at(recorded, call.position).is_none())
+            .filter(|call| {
+                !matches!(call.target, ScriptCallTarget::Now { .. })
+                    && at(recorded, call.position).is_none()
+            })
             .cloned()
             .collect::<Vec<_>>();
         calls += passed
@@ -169,7 +199,7 @@ where
                     }
                     break Err("the script's calls settled to nothing".to_owned());
                 }
-                passed = live.settle(fresh, 0)?;
+                passed = live.settle(fresh, now()?)?;
             }
         }
     };
@@ -231,8 +261,7 @@ type Waiting = (u32, Vec<runx_contracts::ResolutionRequest>);
 /// at most `concurrency` at once, apart from the driver where its host can
 /// detach a host for each, and recorded under the driver in the order they
 /// finish. Return those that wait on a person or a child; a waiting call
-/// doesn't stop the next. A pass that reads `ctx.now()` past its record is
-/// refused, since this runtime doesn't record the clock yet.
+/// doesn't stop the next.
 fn make_calls<A>(
     ledger: &mut CallLedger<'_, A>,
     host: &mut dyn Host,
@@ -248,10 +277,10 @@ where
         let (target, input) = match ledger_call(&call.target) {
             Ok(Some(call)) => call,
             Ok(None) => {
-                return Ok(Err(
-                    "ctx.now() is not recorded by this runtime yet, so a script can't read it"
-                        .to_owned(),
-                ));
+                return Err(RuntimeError::EngineInvariant {
+                    context: "making a script's calls",
+                    message: "a clock read is recorded, never made".to_owned(),
+                });
             }
             Err(refusal) => return Ok(Err(refusal)),
         };
@@ -384,6 +413,14 @@ fn at(recorded: &[RecordedCall], position: u32) -> Option<&RecordedCall> {
         .and_then(|found| recorded.get(found))
 }
 
+/// What the script read of the clock, by position, as its replay takes it.
+fn clock_reads(clock: &BTreeMap<u32, i64>) -> impl Iterator<Item = ScriptSettlement> + '_ {
+    clock.iter().map(|(position, millis)| ScriptSettlement {
+        position: *position,
+        outcome: ScriptCallOutcome::Now { millis: *millis },
+    })
+}
+
 /// What `calls` settled to, in the order they settled, as the script's
 /// promises take it.
 fn settlements<'r, A>(
@@ -472,15 +509,35 @@ fn rejected(reason: ScriptRejection, message: String) -> ScriptCallOutcome {
 }
 
 /// Every call the pass made at a recorded position must be the call the
-/// record holds there: the same target and the same input. A mismatch is a
-/// failed recovery, and nothing acts on it.
+/// record holds there: the same target and the same input, or a clock read
+/// of the same time. A mismatch is a failed recovery, and nothing acts on it.
 fn matches_record(
     step_id: &str,
     calls: &[ScriptCall],
     recorded: &[RecordedCall],
+    clock: &BTreeMap<u32, i64>,
 ) -> Result<(), RuntimeError> {
     let digest = crate::execution::run_record::input_digest;
     for call in calls {
+        let read = clock.get(&call.position);
+        match (&call.target, read) {
+            (ScriptCallTarget::Now { millis }, Some(known)) if millis == known => continue,
+            (ScriptCallTarget::Now { .. }, Some(_)) => {
+                return Err(diverged(
+                    step_id,
+                    call.position,
+                    "the script read another time there than its record holds",
+                ));
+            }
+            (_, Some(_)) => {
+                return Err(diverged(
+                    step_id,
+                    call.position,
+                    "the script made a call where its record holds a clock read",
+                ));
+            }
+            (_, None) => {}
+        }
         let Some(known) = at(recorded, call.position) else {
             continue;
         };

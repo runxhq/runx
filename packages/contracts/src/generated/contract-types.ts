@@ -2729,6 +2729,12 @@ export type RunEventFactContract = {
   /** The address of the turn the call was made in; a script's calls belong to no turn. */
   readonly turn?: string;
 } | {
+  readonly attempt: number;
+  readonly index: number;
+  readonly kind: "clock";
+  readonly millis: number;
+  readonly step_id: string;
+} | {
   readonly kind: "sealed";
   readonly outcome: RunOutcomeContract;
   readonly receipt_id: string;

@@ -66,6 +66,7 @@ enum RunEvent {
     Skipped(Skipped),
     Suspended(Box<SuspendedEvent>),
     Call(Box<CallEvent>),
+    Clock(Box<ClockEvent>),
     Sealed(Box<SealedEvent>),
     Answered(Box<AnsweredEvent>),
     Standing(Box<StandingEvent>),
@@ -83,6 +84,7 @@ impl StreamEvent for RunEvent {
             Self::Skipped(_) => "skipped",
             Self::Suspended(_) => "suspended",
             Self::Call(_) => "call",
+            Self::Clock(_) => "clock",
             Self::Sealed(_) => "sealed",
             Self::Answered(_) => ANSWERED,
             Self::Standing(_) => "standing",
@@ -264,6 +266,18 @@ struct CallEvent {
     /// Its host cancelled it; its outcome is how it settled.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     cancelled: bool,
+}
+
+/// A script read the clock: what `ctx.now()` returned at its position in its
+/// step, so replay returns the same.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClockEvent {
+    step_id: String,
+    attempt: u32,
+    index: u32,
+    /// Milliseconds since the epoch.
+    millis: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -604,9 +618,9 @@ struct RunLogInner {
     calls: Mutex<CallIndex>,
 }
 
-/// The version of each turn's first call, by step and attempt, complete for
-/// the stream through `through`: a turn's calls are read from its first, never
-/// from the run's start.
+/// The version of each step's first call or clock read, by step and attempt,
+/// complete for the stream through `through`: a turn's or a script's calls
+/// are read from its first, never from the run's start.
 #[derive(Clone, Default)]
 struct CallIndex {
     through: u64,
@@ -624,9 +638,15 @@ impl CallIndex {
 
     /// `event`, at `version`, the next the stream holds.
     fn note(&mut self, version: u64, event: &RunEvent) {
-        if let RunEvent::Call(call) = event {
+        let step = match event {
+            RunEvent::Call(call) => Some((&call.step_id, call.attempt)),
+            // A script may read the clock before it makes a call.
+            RunEvent::Clock(read) => Some((&read.step_id, read.attempt)),
+            _ => None,
+        };
+        if let Some((step_id, attempt)) = step {
             self.first
-                .entry((call.step_id.clone(), call.attempt))
+                .entry((step_id.clone(), attempt))
                 .or_insert(version);
         }
         self.through = version;
@@ -786,9 +806,20 @@ impl RunLog {
         step_id: &str,
         attempt: u32,
     ) -> Result<Vec<RecordedCall>, RunRecordError> {
-        // A driver's log knows where the turn's calls begin, as long as no
+        Ok(self.step_calls(step_id, attempt)?.0)
+    }
+
+    /// A step's calls, in order, and the clock reads its script recorded, by
+    /// position, as this driver last saw the run. A run another driver has
+    /// advanced since is contended.
+    pub(crate) fn step_calls(
+        &self,
+        step_id: &str,
+        attempt: u32,
+    ) -> Result<(Vec<RecordedCall>, BTreeMap<u32, i64>), RunRecordError> {
+        // A driver's log knows where the step's calls begin, as long as no
         // other writer has advanced the run since it last read it, so it reads
-        // them from there; settling a turn costs the same at call 1,000 as at
+        // them from there; settling a call costs the same at call 1,000 as at
         // call 1.
         if self.0.strict {
             let version = *self.version();
@@ -800,13 +831,13 @@ impl RunLog {
             let index = self.call_index().clone();
             if index.through == version {
                 let Some(&first) = index.first.get(&(step_id.to_owned(), attempt)) else {
-                    return Ok(Vec::new());
+                    return Ok((Vec::new(), BTreeMap::new()));
                 };
                 let events = self
                     .0
                     .store
                     .read_all_after::<RunEvent>(&self.0.run_id, first - 1)?;
-                return turn_calls(
+                return step_calls(
                     &self.0.store,
                     events.into_iter().map(|event| event.event),
                     step_id,
@@ -827,11 +858,31 @@ impl RunLog {
             }
             *self.call_index() = CallIndex::of(&events);
         }
-        turn_calls(
+        step_calls(
             &self.0.store,
             events.into_iter().map(|event| event.event),
             step_id,
             attempt,
+        )
+    }
+
+    /// Record what a script's `ctx.now()` read at position `index` of its
+    /// step: `millis` since the epoch.
+    pub(crate) fn record_clock(
+        &self,
+        step_id: &str,
+        attempt: u32,
+        index: u32,
+        millis: i64,
+    ) -> Result<(), RunRecordError> {
+        self.append(
+            RunEvent::Clock(Box::new(ClockEvent {
+                step_id: step_id.to_owned(),
+                attempt,
+                index,
+                millis,
+            })),
+            Vec::new(),
         )
     }
 
@@ -1682,6 +1733,8 @@ fn replay(
                     human: answered.human,
                 });
             }
+            // A clock read is its step's alone, which the step reads back.
+            RunEvent::Clock(_) => {}
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;
                 record.sealed = Some(Sealed {
@@ -1705,19 +1758,34 @@ fn turn_calls(
     step_id: &str,
     attempt: u32,
 ) -> Result<Vec<RecordedCall>, RunRecordError> {
+    Ok(step_calls(store, events, step_id, attempt)?.0)
+}
+
+/// A step's calls, by index, each keeping the place of its latest event, and
+/// its script's clock reads, by position.
+fn step_calls(
+    store: &KernelStore,
+    events: impl IntoIterator<Item = RunEvent>,
+    step_id: &str,
+    attempt: u32,
+) -> Result<(Vec<RecordedCall>, BTreeMap<u32, i64>), RunRecordError> {
     let mut calls = Vec::new();
+    let mut clock = BTreeMap::new();
     let mut order = 0;
     for event in events {
-        if let RunEvent::Call(call) = event
-            && call.step_id == step_id
-            && call.attempt == attempt
-        {
-            settle_call(&mut calls, recorded_call(store, *call, order)?);
-            order += 1;
+        match event {
+            RunEvent::Call(call) if call.step_id == step_id && call.attempt == attempt => {
+                settle_call(&mut calls, recorded_call(store, *call, order)?);
+                order += 1;
+            }
+            RunEvent::Clock(read) if read.step_id == step_id && read.attempt == attempt => {
+                clock.insert(read.index, read.millis);
+            }
+            _ => {}
         }
     }
     calls.sort_by_key(|call| call.index);
-    Ok(calls)
+    Ok((calls, clock))
 }
 
 /// A later event for a call's index settles the call.
