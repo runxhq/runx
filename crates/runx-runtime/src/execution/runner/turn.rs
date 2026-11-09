@@ -1673,6 +1673,24 @@ where
         step: &mut WorkflowStep,
         target: &CallTarget,
     ) -> Result<Vec<Fed>, String> {
+        // A script's reference is one a call of its step returned it, given
+        // to any input as that artifact's content, an operation's arguments
+        // included.
+        let script = self.turn.is_none();
+        let mut fed = Vec::new();
+        if script && matches!(target, CallTarget::Operation { .. }) {
+            if let Some(JsonValue::Object(arguments)) = step.inputs.get_mut("inputs") {
+                for (name, value) in arguments.iter_mut() {
+                    if !crate::services::is_project_artifact(value) {
+                        continue;
+                    }
+                    let (content, given) = self.referenced(name, value)?;
+                    *value = content;
+                    fed.push(given);
+                }
+            }
+            return Ok(fed);
+        }
         let given = step
             .inputs
             .iter()
@@ -1680,17 +1698,9 @@ where
             .map(|(name, _)| name.clone())
             .collect::<Vec<_>>();
         if given.is_empty() {
-            return Ok(Vec::new());
+            return Ok(fed);
         }
         let (declared_by, declared) = self.declared_inputs(step, target)?;
-        let options = &self.scope.runtime.options;
-        let artifacts =
-            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
-        let recorded = self.recorded().map_err(|error| error.to_string())?;
-        // A script's reference is one a call of its step returned it, given
-        // to any input as that artifact's content.
-        let script = self.turn.is_none();
-        let mut fed = Vec::new();
         for name in given {
             // Only an input of a packet type is given by reference; any other
             // takes the value as it is.
@@ -1700,12 +1710,6 @@ where
             else {
                 continue;
             };
-            let named = step.inputs[&name]
-                .clone()
-                .deserialize_into::<Artifact>()
-                .map_err(|error| {
-                    format!("input {name} is not a project artifact reference: {error}")
-                })?;
             // An input explicitly taking the descriptor's own packet type
             // receives the descriptor as its value. Other packet types use
             // it as a reference to retained content below.
@@ -1721,49 +1725,69 @@ where
                 step.inputs.insert(name, value);
                 continue;
             }
-            let produced = recorded.iter().find_map(|call| {
-                let CallOutcome::Completed(run) = &call.outcome else {
-                    return None;
-                };
-                call.outputs.iter().find_map(|part| {
-                    let output = part.output.as_ref()?;
-                    (part.artifact.digest == named.digest).then_some((
-                        call,
-                        run,
-                        output,
-                        &part.artifact,
-                    ))
-                })
-            });
-            if script && produced.is_none() {
-                return Err(format!(
-                    "input {name}: {} names no artifact a call of step {} returned",
-                    named.digest, self.scope.step_id
-                ));
-            }
-            let reference = produced.map_or(&named, |(_, _, _, artifact)| artifact);
-            let value = crate::services::read_json_artifact(&artifacts, reference)
-                .map_err(|error| format!("input {name}: {error}"))?;
+            let (value, given) = self.referenced(&name, &step.inputs[&name])?;
             crate::input_contract::admit_input_value(declared_by, &name, input, &value)
                 .map_err(|error| error.to_string())?;
-            step.inputs.insert(name.clone(), value);
-            fed.push(Fed {
-                edge: produced.map(|(call, run, output, _)| ProvenanceEntry {
-                    input: name.clone().into(),
-                    output: output.clone(),
-                    from_step: Some(call_step_id(self.scope.step_id, call.index)),
-                    artifact_id: Some(reference.digest.as_str().to_owned()),
-                    receipt_id: Some(run.receipt.id.to_string()),
-                }),
-                artifact: Reference {
-                    provider: Some("runx".into()),
-                    locator: Some(reference.digest.as_str().into()),
-                    label: Some(name.into()),
-                    ..Reference::with_uri(ReferenceType::Artifact, reference.reference.as_str())
-                },
-            });
+            step.inputs.insert(name, value);
+            fed.push(given);
         }
         Ok(fed)
+    }
+
+    /// The content of the artifact the reference given as input `name`
+    /// names, read from the project's artifact store, and how the call's
+    /// receipt names it: the artifact a call of the turn or script recorded,
+    /// when one did. A script gives only those.
+    fn referenced(&self, name: &str, value: &JsonValue) -> Result<(JsonValue, Fed), String> {
+        let named = value
+            .clone()
+            .deserialize_into::<Artifact>()
+            .map_err(|error| {
+                format!("input {name} is not a project artifact reference: {error}")
+            })?;
+        let recorded = self.recorded().map_err(|error| error.to_string())?;
+        let produced = recorded.iter().find_map(|call| {
+            let CallOutcome::Completed(run) = &call.outcome else {
+                return None;
+            };
+            call.outputs.iter().find_map(|part| {
+                let output = part.output.as_ref()?;
+                (part.artifact.digest == named.digest).then_some((
+                    call,
+                    run,
+                    output,
+                    &part.artifact,
+                ))
+            })
+        });
+        if self.turn.is_none() && produced.is_none() {
+            return Err(format!(
+                "input {name}: {} names no artifact a call of step {} returned",
+                named.digest, self.scope.step_id
+            ));
+        }
+        let options = &self.scope.runtime.options;
+        let artifacts =
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
+        let reference = produced.map_or(&named, |(_, _, _, artifact)| artifact);
+        let content = crate::services::read_json_artifact(&artifacts, reference)
+            .map_err(|error| format!("input {name}: {error}"))?;
+        let given = Fed {
+            edge: produced.map(|(call, run, output, _)| ProvenanceEntry {
+                input: name.to_owned().into(),
+                output: output.clone(),
+                from_step: Some(call_step_id(self.scope.step_id, call.index)),
+                artifact_id: Some(reference.digest.as_str().to_owned()),
+                receipt_id: Some(run.receipt.id.to_string()),
+            }),
+            artifact: Reference {
+                provider: Some("runx".into()),
+                locator: Some(reference.digest.as_str().into()),
+                label: Some(name.to_owned().into()),
+                ..Reference::with_uri(ReferenceType::Artifact, reference.reference.as_str())
+            },
+        };
+        Ok((content, given))
     }
 
     /// The inputs a call's target declares, and whose they are: a catalog

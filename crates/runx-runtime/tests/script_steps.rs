@@ -1080,3 +1080,36 @@ fn a_scripts_operation_call_reaches_its_connector() -> TestResult {
     );
     Ok(())
 }
+
+/// A reference given in an operation call's input reaches the operation as
+/// the artifact's content, the same way a skill's or a tool's input does.
+#[test]
+fn a_reference_in_an_operations_input_reaches_it_as_the_artifacts_content() -> TestResult {
+    let temp = tempdir()?;
+    write_big(temp.path(), 100_000)?;
+    write_measure_connector(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../big]\n          operations: [measure/text.measure]\n        max_calls: 2\n        outputs:\n          measured: {type: object}\n",
+        r#"export default async function (ctx) {
+  const made = await ctx.skill("../big", {});
+  const measured = await ctx.operation("measure/text.measure", { text: made.text });
+  return { measured };
+}
+"#,
+    )?;
+    // Connector operations run on the kernel's local effects.
+    let orchestrator = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        env(temp.path()),
+    );
+    let sealed = run_on(orchestrator, temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert!(
+        serde_json::to_string(result)?.contains("\"length\":100000"),
+        "the operation measured the artifact's text: {result:?}"
+    );
+    Ok(())
+}
