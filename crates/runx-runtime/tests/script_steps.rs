@@ -705,3 +705,42 @@ fn a_resume_before_a_waits_until_reports_it_again() -> TestResult {
     );
     Ok(())
 }
+
+/// A child skill, `sink`, that measures the text it's given in JavaScript.
+fn write_sink(root: &Path) -> TestResult {
+    let sink = root.join("sink");
+    crate::support::write_test_skill_package(
+        &sink,
+        "---\nname: sink\ndescription: Measures a text.\n---\n# Sink\n\nMeasure it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  measure:\n    inputs:\n      text: {type: string}\n    steps:\n      - id: measure\n        inputs: {text: $input.text}\n        tool: {module: measure.mjs, export: measure}\n        outputs: {length: {type: number}}\n",
+    )?;
+    std::fs::write(
+        sink.join("measure.mjs"),
+        "export function measure({ text }) { return { length: text.length }; }\n",
+    )?;
+    Ok(())
+}
+
+/// A script's live worker is its own, apart from the pool, so a call whose
+/// child runs JavaScript starts a worker of its own while the script waits
+/// on it, rather than waiting on the script's.
+#[test]
+fn a_scripts_call_that_runs_javascript_never_waits_on_the_scripts_worker() -> TestResult {
+    let temp = tempdir()?;
+    write_sink(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../sink]\n        max_calls: 1\n        outputs:\n          length: {type: number}\n",
+        r#"export default async function (ctx) {
+  const measured = await ctx.skill("../sink", { text: "four" });
+  return { length: measured.length };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(result.get("length").and_then(JsonValue::as_u64), Some(4));
+    Ok(())
+}

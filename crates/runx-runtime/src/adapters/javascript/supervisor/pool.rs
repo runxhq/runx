@@ -114,6 +114,20 @@ impl WorkerPool {
         }
     }
 
+    /// Take back a worker a live script owned, once the script has ended:
+    /// idle again while the pool has room, ended otherwise.
+    pub(super) fn adopt(&self, mut session: WorkerSession) {
+        if let Ok(mut state) = self.state.lock()
+            && state.total.saturating_add(state.starting) < self.maximum
+        {
+            state.total = state.total.saturating_add(1);
+            state.idle.push(session);
+            self.available.notify_one();
+            return;
+        }
+        session.terminate();
+    }
+
     pub(super) fn spawn_count(&self) -> u64 {
         self.spawn_count.load(Ordering::Relaxed)
     }
@@ -146,6 +160,22 @@ impl<'a> WorkerLease<'a> {
 
     pub(super) fn poison(&mut self) {
         self.fate = WorkerFate::Discard;
+    }
+
+    /// Take the worker out of the pool for a live script to own: it no
+    /// longer counts against the pool's capacity, so work the script's calls
+    /// do in JavaScript can start a worker of its own while the script waits.
+    pub(super) fn detach(mut self) -> Result<WorkerSession, RuntimeError> {
+        let session = self
+            .session
+            .take()
+            .ok_or_else(|| worker_error("JavaScript worker lease no longer owns its session"))?;
+        if let Ok(mut state) = self.pool.state.lock() {
+            state.in_flight = state.in_flight.saturating_sub(1);
+            state.total = state.total.saturating_sub(1);
+            self.pool.available.notify_all();
+        }
+        Ok(session)
     }
 }
 

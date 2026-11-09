@@ -108,13 +108,15 @@ impl JavaScriptWorkerSupervisor {
             settled: pass.settled,
             now: pass.now,
         }));
-        let lease = self.pool.acquire(pass.worker_path.as_deref())?;
+        let session = self.pool.acquire(pass.worker_path.as_deref())?.detach()?;
         let mut script = LiveScript {
-            lease,
+            pool: &self.pool,
+            session: Some(session),
             invocation_id,
             cpu_budget,
             clock: self.clock.as_ref(),
             ended: false,
+            discard: false,
         };
         let result = script.exchange(&request)?;
         Ok((script, result))
@@ -214,15 +216,20 @@ impl JavaScriptWorkerSupervisor {
     }
 }
 
-/// A script a pass left waiting, live on the worker that ran it. A script
-/// let go before it ends takes its worker with it, so no later lease finds it.
+/// A script a pass left waiting, live on the worker that ran it, which it
+/// owns apart from the pool, so its calls' own JavaScript never waits on it.
+/// A script let go before it ends takes its worker with it, so no later lease
+/// finds it; one that ended gives its worker back.
 pub(super) struct LiveScript<'a> {
-    lease: pool::WorkerLease<'a>,
+    pool: &'a WorkerPool,
+    session: Option<session::WorkerSession>,
     invocation_id: String,
     /// The CPU time each exchange with the script may spend.
     cpu_budget: Duration,
     clock: &'a dyn Clock,
     ended: bool,
+    /// Its worker failed, and is ended with the script.
+    discard: bool,
 }
 
 impl LiveScript<'_> {
@@ -248,12 +255,11 @@ impl LiveScript<'_> {
         &mut self,
         request: &WorkerRequest,
     ) -> Result<WorkerInvocationResult, RuntimeError> {
-        let result = self.lease.session_mut()?.invoke(
-            &self.invocation_id,
-            request,
-            self.cpu_budget,
-            self.clock,
-        );
+        let result = self
+            .session
+            .as_mut()
+            .ok_or_else(|| worker_error("the live script no longer owns its worker"))?
+            .invoke(&self.invocation_id, request, self.cpu_budget, self.clock);
         match result {
             Ok(result) => {
                 self.ended = !matches!(
@@ -268,13 +274,13 @@ impl LiveScript<'_> {
                     ..
                 } = result
                 {
-                    self.lease.poison();
+                    self.discard = true;
                 }
                 Ok(result)
             }
             Err(error) => {
                 self.ended = true;
-                self.lease.poison();
+                self.discard = true;
                 Err(error)
             }
         }
@@ -283,8 +289,13 @@ impl LiveScript<'_> {
 
 impl Drop for LiveScript<'_> {
     fn drop(&mut self) {
-        if !self.ended {
-            self.lease.poison();
+        let Some(mut session) = self.session.take() else {
+            return;
+        };
+        if self.ended && !self.discard {
+            self.pool.adopt(session);
+        } else {
+            session.terminate();
         }
     }
 }
