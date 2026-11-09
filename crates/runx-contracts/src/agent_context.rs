@@ -32,7 +32,11 @@ pub struct ContextProducer {
 #[serde(deny_unknown_fields)]
 pub struct ContextOrigin {
     pub artifact_id: NonEmptyString,
-    pub run_id: NonEmptyString,
+    /// The run that produced it. An entry made outside any run, such as a
+    /// host's supplied memory, or read from a store event, has none, and its
+    /// `artifact_id` names it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<NonEmptyString>,
     pub step_id: Option<NonEmptyString>,
     pub producer: ContextProducer,
     pub created_at: NonEmptyString,
@@ -42,9 +46,14 @@ pub struct ContextOrigin {
 
 /// One entry of context a turn is given (`runx.context_entry.v1`): memory, a
 /// skill's instructions, or any other context, with the labels that say how
-/// it may be read and where it may go.
+/// it may be read and where it may go. A core packet, because the kernel
+/// reads it through a step's `context.entries`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
+#[runx_schema(
+    id = "runx.context_entry.v1",
+    url = "https://schemas.runx.ai/runx/context-entry/v1.json"
+)]
 pub struct ContextEntry {
     pub schema: ContextEntrySchema,
     /// What the entry is.

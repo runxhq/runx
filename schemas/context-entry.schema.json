@@ -1,0 +1,51 @@
+{
+  "$id": "https://schemas.runx.ai/runx/context-entry/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go. A core packet, because the kernel reads it through a step's `context.entries`.",
+  "properties": {
+    "data": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "labels": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextLabels"
+    },
+    "origin": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextOrigin"
+    },
+    "schema": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntrySchema"
+    },
+    "sources": {
+      "description": "Where its content came from (D35).",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "summary": {
+      "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "type": {
+      "description": "What the entry is.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "type",
+    "data",
+    "labels",
+    "sources",
+    "origin"
+  ],
+  "title": "ContextEntry",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.context_entry.v1"
+}

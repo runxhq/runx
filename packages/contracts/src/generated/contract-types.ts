@@ -573,7 +573,7 @@ export type ContentDigestContract = {
   readonly value: string;
 };
 
-/** One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go. */
+/** One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go. A core packet, because the kernel reads it through a step's `context.entries`. */
 export type ContextEntryContract = {
   readonly data: {
     readonly [key: string]: unknown;
@@ -605,7 +605,8 @@ export type ContextOriginContract = {
   readonly created_at: string;
   readonly digest: string;
   readonly producer: ContextProducerContract;
-  readonly run_id: string;
+  /** The run that produced it. An entry made outside any run, such as a host's supplied memory, or read from a store event, has none, and its `artifact_id` names it. */
+  readonly run_id?: string;
   readonly size_bytes: number;
   readonly step_id: string | null;
 };

@@ -107,6 +107,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<GitShow>("git-show.schema.json"),
         public_packet_artifact::<GitPatch>("git-patch.schema.json"),
         public_packet_artifact::<StoreResult>("store-result.schema.json"),
+        public_packet_artifact::<crate::ContextEntry>("context-entry.schema.json"),
         public_packet_artifact::<DataValidation>("data-validation.schema.json"),
         public_packet_artifact::<DataDigest>("data-digest.schema.json"),
         public_packet_artifact::<DataComparison>("data-comparison.schema.json"),

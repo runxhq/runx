@@ -159,8 +159,13 @@ steps:
 ```
 
 - Each of `context.entries` is an earlier step's output, `$steps.<id>.<field>`,
-  holding a list of `runx.context_entry.v1` values. The turn waits on that
-  step, as it waits on a step its inputs read.
+  holding a list of `runx.context_entry.v1` values. That's a core packet,
+  published as `schemas/context-entry.schema.json`, so an output holding one
+  entry names it as its `packet`. An entry's `origin` names the run that made
+  it when one did;
+  one made in no run, such as one read from a store event, is named by its
+  `artifact_id`. The turn waits on that step, as it waits on a step its inputs
+  read.
 - Each entry keeps the labels its producer gave it: its `purpose`, its `trust`
   and its `sharing`. The runtime never raises an entry's trust or widens
   where it may go. An output that isn't a list of context entries fails the

@@ -125,6 +125,46 @@ fn a_decided_gate_is_rejected_inside_a_host_resolution_request()
     Ok(())
 }
 
+/// A remembered entry as memory gives a turn: read from a store event, so made
+/// in no run, and named by its handle.
+fn remembered_entry() -> Value {
+    json!({
+        "schema": "runx.context_entry.v1",
+        "type": "memory.said",
+        "summary": "2026-11-08 I write in Australian English.",
+        "data": {"handle": "memory:said:personal#k@1", "text": "I write in Australian English."},
+        "labels": {"purpose": "confirmed_memory", "trust": "person_confirmed", "sharing": "configured_model"},
+        "sources": ["conversation"],
+        "origin": {
+            "artifact_id": "memory:said:personal#k@1",
+            "step_id": null,
+            "producer": {"skill": "runx/memory", "method": "index"},
+            "created_at": "2026-11-08T00:00:00Z",
+            "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "size_bytes": 30
+        }
+    })
+}
+
+#[test]
+fn a_context_entry_made_in_no_run_is_a_published_context_entry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let validator = schema_file_validator("context-entry.schema.json")?;
+    let entry = remembered_entry();
+    assert_valid(&validator, &entry, "an entry with no run")?;
+    let parsed: runx_contracts::ContextEntry = serde_json::from_value(entry.clone())?;
+    assert_eq!(parsed.origin.run_id, None);
+    assert_eq!(serde_json::to_value(&parsed)?, entry);
+
+    let mut ran = entry;
+    ran["origin"]["run_id"] = json!("rx_index");
+    assert_valid(&validator, &ran, "an entry a run made")?;
+    let mut unlabelled = ran;
+    unlabelled["labels"]["trust"] = json!("operator_confirmed");
+    assert_invalid(&validator, &unlabelled, "a trust label 0.12 renamed");
+    Ok(())
+}
+
 fn schema_validator(schema: &str) -> Result<jsonschema::Validator, Box<dyn std::error::Error>> {
     let schema: Value = serde_json::from_str(schema)?;
     Ok(crate::published_schemas::published_validator(&schema)?)

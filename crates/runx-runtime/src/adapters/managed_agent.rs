@@ -833,7 +833,7 @@ mod tests {
             sources: vec![non_empty("registry:runx/taste-profile@1.0.0")],
             origin: ContextOrigin {
                 artifact_id: non_empty("sha256:artifact"),
-                run_id: non_empty("rx_pending"),
+                run_id: Some(non_empty("rx_pending")),
                 step_id: Some(non_empty("apply_taste")),
                 producer: ContextProducer {
                     skill: non_empty("runx-runtime"),

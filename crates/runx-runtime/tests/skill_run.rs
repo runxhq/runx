@@ -1624,6 +1624,95 @@ fn an_agent_step_refuses_an_earlier_output_that_isnt_context_entries()
     Ok(())
 }
 
+/// A package whose `read` step returns `entry` from `read.mjs`, an output that
+/// names the core packet `runx.context_entry.v1`.
+fn write_context_entry_packet_skill(
+    root: &Path,
+    read: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("entry-packet");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: entry-packet\ndescription: One context entry, named by its packet.\n---\n# Entry packet\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: read\n        tool: {module: read.mjs, export: read}\n        outputs:\n          entry: {type: object, packet: runx.context_entry.v1}\n",
+    )?;
+    fs::write(skill_dir.join("read.mjs"), read)?;
+    Ok(skill_dir)
+}
+
+#[test]
+fn an_output_naming_the_context_entry_packet_is_checked_against_it()
+-> Result<(), Box<dyn std::error::Error>> {
+    let entry = |trust: &str| {
+        format!(
+            r#"export const read = () => ({{ entry: {{
+  schema: "runx.context_entry.v1",
+  type: "memory.said",
+  summary: "2026-11-08 I write in Australian English.",
+  data: {{ handle: "memory:said:personal#k@1" }},
+  labels: {{ purpose: "confirmed_memory", trust: "{trust}", sharing: "configured_model" }},
+  sources: ["conversation"],
+  origin: {{
+    artifact_id: "memory:said:personal#k@1",
+    step_id: null,
+    producer: {{ skill: "runx/memory", method: "read" }},
+    created_at: "2026-11-08T00:00:00Z",
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    size_bytes: 30
+  }}
+}} }});
+"#
+        )
+    };
+    let run = |root: &Path, skill_dir: PathBuf| {
+        run_skill(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: path_env(),
+            cwd: root.to_path_buf(),
+            managed_agent: Default::default(),
+        })
+    };
+
+    // An entry made in no run is a context entry, and its packet holds.
+    let temp = tempdir()?;
+    let kept = run(
+        temp.path(),
+        write_context_entry_packet_skill(temp.path(), &entry("person_confirmed"))?,
+    )?;
+    let output = object(&kept.output, "entry result")?;
+    assert_eq!(string_field(output, "status"), Some("sealed"), "{output:?}");
+
+    // A label the packet doesn't have fails the step.
+    let temp = tempdir()?;
+    let refused = run(
+        temp.path(),
+        write_context_entry_packet_skill(temp.path(), &entry("operator_confirmed"))?,
+    )?;
+    let output = object(&refused.output, "entry result")?;
+    assert_eq!(
+        string_field(output, "outcome"),
+        Some("failed"),
+        "{output:?}"
+    );
+    assert!(
+        serde_json::to_string(&refused.output)?.contains("runx.context_entry.v1"),
+        "{output:?}"
+    );
+    Ok(())
+}
+
 /// A package whose `change` step says what a gate decides, and whose `gate`
 /// step shows that as its reason.
 fn write_bound_reason_skill(

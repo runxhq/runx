@@ -721,6 +721,22 @@ mod tests {
     }
 
     #[test]
+    fn a_context_entry_is_a_core_packet_whose_bytes_are_published()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let catalog = PacketSchemaCatalog::native_public()?;
+        let id = PacketId::new("runx.context_entry.v1").ok_or("id")?;
+        let entry = catalog
+            .get(&id)
+            .ok_or("runx.context_entry.v1 is no core packet")?;
+        let published = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../schemas/context-entry.schema.json"),
+        )?;
+        assert_eq!(entry.source, published);
+        Ok(())
+    }
+
+    #[test]
     fn a_package_packet_resolves_from_the_package_its_id_names()
     -> Result<(), Box<dyn std::error::Error>> {
         let workspace = tempfile::tempdir()?;

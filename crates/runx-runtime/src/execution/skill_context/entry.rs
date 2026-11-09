@@ -49,13 +49,13 @@ pub(super) fn skill_context_entry(
         sources: vec![non_empty(input.reference)?],
         origin: ContextOrigin {
             artifact_id: non_empty(artifact_id)?,
-            run_id: non_empty(
+            run_id: Some(non_empty(
                 input
                     .env
                     .get(crate::execution::runner::RUNX_RUN_ID_ENV)
                     .map(String::as_str)
                     .unwrap_or(PENDING_RUN_ID),
-            )?,
+            )?),
             step_id: Some(non_empty(input.step_id)?),
             producer: ContextProducer {
                 skill: non_empty(CONTEXT_PRODUCER_SKILL)?,

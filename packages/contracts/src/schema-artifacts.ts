@@ -74,7 +74,7 @@ export const runxSchemaArtifacts = {
       },
       "current_context": {
         "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntry"
+          "$ref": "https://schemas.runx.ai/runx/context-entry/v1.json"
         },
         "type": "array"
       },
@@ -83,7 +83,7 @@ export const runxSchemaArtifacts = {
       },
       "historical_context": {
         "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntry"
+          "$ref": "https://schemas.runx.ai/runx/context-entry/v1.json"
         },
         "type": "array"
       },
@@ -961,6 +961,57 @@ export const runxSchemaArtifacts = {
     "title": "ConnectorManifest",
     "type": "object",
     "x-runx-schema": "runx.connector.v1"
+  } as JsonSchema,
+  "context-entry.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/context-entry/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go. A core packet, because the kernel reads it through a step's `context.entries`.",
+    "properties": {
+      "data": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "labels": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextLabels"
+      },
+      "origin": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextOrigin"
+      },
+      "schema": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntrySchema"
+      },
+      "sources": {
+        "description": "Where its content came from (D35).",
+        "items": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "summary": {
+        "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": {
+        "description": "What the entry is.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema",
+      "type",
+      "data",
+      "labels",
+      "sources",
+      "origin"
+    ],
+    "title": "ContextEntry",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.context_entry.v1"
   } as JsonSchema,
   "conversation-observation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/conversation-observation/v1.json",
@@ -2367,53 +2418,6 @@ export const runxSchemaArtifacts = {
         "title": "ContentDigest",
         "type": "object"
       },
-      "ContextEntry": {
-        "additionalProperties": false,
-        "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
-        "properties": {
-          "data": {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          "labels": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextLabels"
-          },
-          "origin": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextOrigin"
-          },
-          "schema": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntrySchema"
-          },
-          "sources": {
-            "description": "Where its content came from (D35).",
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "summary": {
-            "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": {
-            "description": "What the entry is.",
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "schema",
-          "type",
-          "data",
-          "labels",
-          "sources",
-          "origin"
-        ],
-        "title": "ContextEntry",
-        "type": "object"
-      },
       "ContextEntrySchema": {
         "description": "A context entry's schema, `runx.context_entry.v1`.",
         "enum": [
@@ -2464,6 +2468,7 @@ export const runxSchemaArtifacts = {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextProducer"
           },
           "run_id": {
+            "description": "The run that produced it. An entry made outside any run, such as a host's supplied memory, or read from a store event, has none, and its `artifact_id` names it.",
             "minLength": 1,
             "type": "string"
           },
@@ -2485,7 +2490,6 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "artifact_id",
-          "run_id",
           "step_id",
           "producer",
           "created_at",

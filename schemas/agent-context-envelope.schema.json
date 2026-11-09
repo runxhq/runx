@@ -12,7 +12,7 @@
     },
     "current_context": {
       "items": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntry"
+        "$ref": "https://schemas.runx.ai/runx/context-entry/v1.json"
       },
       "type": "array"
     },
@@ -21,7 +21,7 @@
     },
     "historical_context": {
       "items": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextEntry"
+        "$ref": "https://schemas.runx.ai/runx/context-entry/v1.json"
       },
       "type": "array"
     },
