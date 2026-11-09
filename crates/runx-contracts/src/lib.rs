@@ -35,7 +35,6 @@ pub mod operational_proposal;
 pub mod orchestrator_handoff;
 pub mod output;
 pub mod packet_id;
-pub mod packet_lock;
 pub mod paid_skill_listing;
 pub mod provider_operation;
 pub mod purchase;
@@ -198,7 +197,6 @@ pub use output::{
 pub use packet_id::{
     PACKET_ID_EXPECTED, PACKET_ID_MAX_LENGTH, PACKET_ID_PATTERN, PacketId, is_packet_id,
 };
-pub use packet_lock::{PacketLock, PacketLockEntry, PacketLockSchema};
 pub use paid_skill_listing::{
     PAID_SKILL_LISTING_SCHEMA, PaidSkillExecutorBinding, PaidSkillListing, PaidSkillMethodOffer,
     PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PriceChoice,

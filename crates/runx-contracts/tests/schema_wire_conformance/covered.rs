@@ -15,7 +15,6 @@ use runx_contracts::orchestrator_handoff::{
     OrchestratorExecutionContext, OrchestratorHandoffContext,
 };
 use runx_contracts::output::Output;
-use runx_contracts::packet_lock::PacketLock;
 use runx_contracts::receipt::Receipt;
 use runx_contracts::reference::Reference;
 use runx_contracts::run_read::{RunEventRecord, RunRead};
@@ -125,11 +124,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "receipt.schema.json",
             emitted: Receipt::json_schema(),
             corpus: receipt_corpus(),
-        },
-        Covered {
-            file_name: "packet-lock.schema.json",
-            emitted: PacketLock::json_schema(),
-            corpus: packet_lock_corpus(),
         },
         Covered {
             file_name: "agent-context-envelope.schema.json",

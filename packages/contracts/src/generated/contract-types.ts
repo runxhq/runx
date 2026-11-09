@@ -2092,20 +2092,6 @@ export type OutputFieldContract = {
   readonly [key: string]: unknown;
 };
 
-/** Every packet id published from one source tree, ordered by id. */
-export type PacketLockContract = {
-  readonly packets: readonly PacketLockEntryContract[];
-  readonly schema: PacketLockSchemaContract;
-};
-
-/** One packet id and the digest of its schema's exact bytes. */
-export type PacketLockEntryContract = {
-  readonly digest: string;
-  readonly id: string;
-};
-
-export type PacketLockSchemaContract = "runx.packet.lock.v1";
-
 /** An exact execution package: the skill and method, and the digests of the package and closure that run. */
 export type PaidSkillExecutorBindingContract = {
   readonly execution_closure_digest: string;

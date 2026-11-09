@@ -4,8 +4,9 @@
 // a core packet's is its Rust type, published as `schemas/<file>`. This
 // writes `dist/packets/<publisher>/<package>/<name>.v<N>.schema.json`, exact
 // copies the site serves at each `$id`, and `packets.lock.json`, the digest
-// each published package packet id was frozen at. With `--check` it writes
-// nothing and fails on any drift.
+// each published package packet id was frozen at, ordered by id. The lock's
+// shape (`runx.packet.lock.v1`) is this script's: it alone writes and reads
+// it. With `--check` it writes nothing and fails on any drift.
 // `--core-only` scopes collection to bundled skills and preserves every
 // other package's artifacts and existing lock entries.
 //

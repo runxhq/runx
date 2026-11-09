@@ -148,65 +148,6 @@ pub(super) fn output_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn packet_lock_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.packet.lock.v1",
-        "packets": [{
-            "id": "runx/research.packet.v1",
-            "digest": format!("sha256:{}", "a".repeat(64)),
-        }],
-    });
-    vec![
-        ("valid with packet", valid.clone()),
-        (
-            "valid empty packets",
-            set_field(valid.clone(), "packets", json!([])),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        ("missing packets", drop_field(valid.clone(), "packets")),
-        (
-            "wrong schema const",
-            set_field(valid.clone(), "schema", json!("runx.other.v1")),
-        ),
-        (
-            "packet missing id",
-            set_field(
-                valid.clone(),
-                "packets",
-                json!([{ "digest": format!("sha256:{}", "a".repeat(64)) }]),
-            ),
-        ),
-        (
-            "packet id outside the grammar",
-            set_field(
-                valid.clone(),
-                "packets",
-                json!([{ "id": "research.packet.v1", "digest": format!("sha256:{}", "a".repeat(64)) }]),
-            ),
-        ),
-        (
-            "packet digest not sha256",
-            set_field(
-                valid.clone(),
-                "packets",
-                json!([{ "id": "runx/research.packet.v1", "digest": "abc" }]),
-            ),
-        ),
-        (
-            "packet additional property",
-            set_field(
-                valid.clone(),
-                "packets",
-                json!([{ "id": "runx/research.packet.v1", "digest": format!("sha256:{}", "a".repeat(64)), "bogus": true }]),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 fn agent_context_meta() -> Value {
     json!({
         "artifact_id": "art_1",

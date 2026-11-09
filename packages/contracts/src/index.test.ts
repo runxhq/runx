@@ -11,7 +11,6 @@ import {
   doctorV1Schema,
   listV1Schema,
   outputSchema,
-  packetLockV1Schema,
   questionSchema,
   resolutionRequestSchema,
   resolutionResponseSchema,
@@ -67,7 +66,6 @@ describe("@runxhq/contracts", () => {
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);
     expect(listV1Schema).toBe(runxContractSchemas.list);
-    expect(packetLockV1Schema).toBe(runxContractSchemas.packetLock);
   });
 
   it("validates store results, one shape per operation", () => {
