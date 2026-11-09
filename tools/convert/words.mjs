@@ -300,6 +300,9 @@ export const STAYS = [
   { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
   // harness: a fixture post's own words, which its approved payload digest binds.
   { word: "harness", why: "a fixture post's own words, which its approved payload digest binds", file: /^skills\/moltbook\/tests\/publish-creates-and-reads-back-post\.yaml$/ },
+  // harness: a product's own production check, which its dogfood target
+  // verifies (Nitrosend's Makefile help), not a runx test.
+  { word: "harness", why: "a product's own production check harness, which a dogfood target verifies", file: /^Makefile$/, before: /\bproduction $/ },
   // harness: an agent's host, such as Claude Code or Codex (D23, D39).
   { word: "harness", why: "an agent's host", before: /\b(agent|coding) $/i },
   { word: "harness", why: "an agent's host", after: /^(['’]s own | probe)/ },
