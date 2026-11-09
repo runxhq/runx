@@ -41,11 +41,11 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help,
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name] [-j] [--registry url] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json | --authority name] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help,
@@ -139,11 +139,11 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help("skill"),
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name] [-j] [--registry url] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json | --authority name] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help("skill"),

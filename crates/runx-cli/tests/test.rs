@@ -341,7 +341,7 @@ methods:
           data: {text: $input.text}
 "#;
 
-/// The run's authority, as a host saves it: one term on `private`, reading
+/// The run's authority, as a host states it: one term on `private`, reading
 /// and writing the keeper's words.
 const KEEPER_AUTHORITY: &str = r#"  authority:
     delegations:

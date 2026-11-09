@@ -10,41 +10,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const FIXTURE_SIGNING_SEED: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
 
-/// Save `authority`, a run authority's JSON, in the runx home `save` runs in,
-/// under the name its content gives, as a host gives a run its authority
-/// (authority.md); and that name, for `--authority`.
-pub fn save_authority(
-    mut save: Command,
-    authority: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    use std::io::Write;
-    let name = format!(
-        "test-{}",
-        &runx_contracts::sha256_hex(authority.as_bytes())[..32]
-    );
-    let mut child = save
-        .args(["authority", "save", &name, "-", "--json"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-    child
-        .stdin
-        .take()
-        .ok_or("the save's stdin")?
-        .write_all(authority.as_bytes())?;
-    let saved = child.wait_with_output()?;
-    if !saved.status.success() {
-        return Err(format!(
-            "saving the authority failed: {}{}",
-            String::from_utf8_lossy(&saved.stdout),
-            String::from_utf8_lossy(&saved.stderr)
-        )
-        .into());
-    }
-    Ok(name)
-}
-
 pub fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

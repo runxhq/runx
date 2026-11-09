@@ -52,13 +52,11 @@ travel to native on stdin, never in a file or on argv. Input keys are never conv
 act the run is invoked with, `context` gives it the caller's current and
 historical context (which informs the run and never grants authority), and
 `runId` pins its submission identity, so a retry continues the same run.
-`runAuthority` gives a run or an inspection the host's authority, such as its
-hosted grants by connector, `{ "grants": { "<connector>": "<grant id>" } }`. The
-client saves it on stdin as a saved authority, `runx authority save
-host-<digest> -`, in `home` for the workspace `cwd` is, and names it with
-`--authority`, so `cwd` must be a workspace: a directory with `.git`,
-`pnpm-workspace.yaml`, `skills/` or `connectors/`. The same authority is saved
-once for each workspace, under the name that workspace and its content give.
+`runAuthority` states the host's authority for that one run or inspection,
+such as its hosted grants by connector,
+`{ "grants": { "<connector>": "<grant id>" } }`, and travels as
+`--run-authority`, as `act` and `context` do. It needs no workspace and saves
+nothing.
 The resume packet passes to native unchanged; the client does not assign actors,
 answer approvals, retry a mutation or reinterpret a checkpoint.
 

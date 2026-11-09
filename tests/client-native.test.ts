@@ -86,7 +86,8 @@ describe("the client against the native CLI", () => {
       expect(sent.every((call) => call.grant_id === "grant_records_read"), JSON.stringify(sent)).toBe(true);
       // The project's store records the run.
       const read = await client.runs.read({ runId: ran.run_id as string });
-      expect(read.run_id).toBe(ran.run_id);
+      expect(read.run.run_id).toBe(ran.run_id);
+      expect(read.run.outcome).toBe("completed");
     } finally {
       await new Promise<void>((closed) => connect.close(() => closed()));
     }

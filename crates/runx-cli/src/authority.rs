@@ -98,6 +98,18 @@ pub fn run_native_authority(plan: AuthorityPlan, workspace: &WorkspaceEnv) -> Ex
     }
 }
 
+/// A run authority's JSON, as a host states one for an invocation
+/// (`--run-authority`) or an operator saves one: the one parser both
+/// deliveries share, so each refuses what the other does.
+///
+/// # Errors
+///
+/// Returns why `text` is no run authority, naming `what` gave it.
+pub fn parse_run_authority(text: &str, what: &str) -> Result<RunAuthority, String> {
+    serde_json::from_str(text)
+        .map_err(|error| format!("{what} must be a JSON run authority: {error}"))
+}
+
 /// The authority saved as `name`, for a run or a server started in
 /// `workspace` that names it with `--authority`.
 ///
@@ -129,9 +141,7 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 ),
             }
             .map_err(|error| error.to_string())?;
-            let authority: RunAuthority = serde_json::from_str(&text).map_err(|error| {
-                format!("the authority to save is not a run authority: {error}")
-            })?;
+            let authority = parse_run_authority(&text, "the authority to save")?;
             let workspaces = workspaces
                 .iter()
                 .map(|path| workspace.cwd().join(path))

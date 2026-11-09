@@ -225,14 +225,14 @@ describe("native invocation and decoding", () => {
     await createRunxClient({ ...config, environment: { ...config.environment, HOME: person } }).skills.run({ skillPath: "/skill", receiptDir });
     expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ home: person, runxHome: config.home });
   });
-  /** A native stub that records each call's arguments and stdin, and answers a save as `runx authority save` does. */
+  /** A native stub that records each call's arguments and stdin, and answers with `answer`. */
   const recording = (capture: string, answer: unknown) => `#!${process.execPath}\nimport { appendFileSync, readFileSync } from 'node:fs';
       const args = process.argv.slice(2);
       let input = ''; try { input = readFileSync(0, 'utf8'); } catch {}
       appendFileSync(${JSON.stringify(capture)}, JSON.stringify({ args, input }) + '\\n');
-      process.stdout.write(JSON.stringify(args[0] === 'authority' ? { status: 'success', name: args[2] } : ${JSON.stringify(answer)}));`;
+      process.stdout.write(JSON.stringify(${JSON.stringify(answer)}));`;
   const calls = async (capture: string) => (await readFile(capture, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { args: string[]; input: string });
-  it("gives a run the host's authority by saving and naming it, and its act and context as arguments", async () => {
+  it("states a run's authority, act and context as its arguments, in one call", async () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "capture.jsonl");
     await writeFile(config.command, recording(capture, output("sealed", "completed")));
@@ -240,45 +240,26 @@ describe("native invocation and decoding", () => {
     const act = { purpose: "reply to the thread" };
     const context = { current_context: [] };
     await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority, act, context });
-    const [save, run] = await calls(capture);
-    expect(save!.args.slice(0, 2)).toEqual(["authority", "save"]);
-    expect(save!.args[2]).toMatch(/^host-[0-9a-f]{40}$/u);
-    expect(save!.args.slice(3)).toEqual(["-", "--json"]);
-    expect(JSON.parse(save!.input)).toEqual(runAuthority);
-    expect(run!.args[run!.args.indexOf("--authority") + 1]).toBe(save!.args[2]);
-    expect(run!.args).not.toContain("--run-authority");
+    const sent = await calls(capture);
+    expect(sent).toHaveLength(1);
+    const [run] = sent;
+    expect(JSON.parse(run!.args[run!.args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
+    expect(run!.args).not.toContain("--authority");
     expect(JSON.parse(run!.args[run!.args.indexOf("--act") + 1]!)).toEqual(act);
     expect(JSON.parse(run!.args[run!.args.indexOf("--context") + 1]!)).toEqual(context);
-    // The same authority, its keys in another order, is the same saved authority.
-    await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority: { max_child_depth: 2, actor_ref: runAuthority.actor_ref, grants: runAuthority.grants }, act, context });
-    expect((await calls(capture))[2]!.args[2]).toBe(save!.args[2]);
-    // In another workspace sharing this home, it's saved under another name,
-    // so neither save replaces the workspaces the other lists.
-    await createRunxClient({ ...config, cwd: root }).skills.run({ skillPath: "/skill", receiptDir, runAuthority, act, context });
-    expect((await calls(capture))[4]!.args[2]).not.toBe(save!.args[2]);
   });
-  it("projects inspection readiness under the host's stated grants, saved and named", async () => {
+  it("projects inspection readiness under the host's stated grants", async () => {
     const { root, config } = await setup();
     const capture = path.join(root, "capture.jsonl");
     await writeFile(config.command, recording(capture, { schema: "runx.skill.inspect.v1", status: "ok", name: "agent-inbox", skill_path: "/skill", manual_digest: `sha256:${"e".repeat(64)}`, package_digest: `sha256:${"a".repeat(64)}`, methods: [] }));
     const runAuthority = { grants: { "ausca/inbox": "grant_ausca_1" } } as const;
     await createRunxClient(config).skills.inspect({ skillPath: "/skill", method: "create", runAuthority, inputs: {target: "resource-1"} });
-    const [save, inspect] = await calls(capture);
-    expect(JSON.parse(save!.input)).toEqual(runAuthority);
+    const [inspect] = await calls(capture);
     expect(JSON.parse(inspect!.input)).toEqual({target: "resource-1"});
     expect(inspect!.args[inspect!.args.indexOf("--inputs") + 1]).toBe("-");
     expect(inspect!.args.slice(0, 3)).toEqual(["skill", "inspect", "/skill#create"]);
     expect(inspect!.args).not.toContain("create");
-    expect(inspect!.args[inspect!.args.indexOf("--authority") + 1]).toBe(save!.args[2]);
-  });
-  it("refuses a run whose authority can't be saved, before it starts", async () => {
-    const { root, config, receiptDir } = await setup();
-    const capture = path.join(root, "capture.jsonl");
-    await writeFile(config.command, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';
-      appendFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), input: '' }) + '\\n');
-      process.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'authority_failed', message: 'the workspace is no workspace' } })); process.exit(1);`);
-    await expect(createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority: { grants: {} } })).rejects.toThrow("no workspace");
-    expect((await calls(capture)).map((call) => call.args[0])).toEqual(["authority"]);
+    expect(JSON.parse(inspect!.args[inspect!.args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();

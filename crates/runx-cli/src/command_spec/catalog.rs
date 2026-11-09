@@ -277,8 +277,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
-            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name] [-j] [--registry url] [--digest sha256]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json | --authority name] [-j] [--registry url] [--digest sha256]",
         ],
         notes: &[
             "#method names the method to run or inspect. A ref with none runs the package's default_method, or its only method. A package directory or a file in one is that package, never a registry name.",
@@ -287,7 +287,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "-i, --input name=value   Set an input, read by the type its method declares: a string as written, any other type as JSON; repeat for each input",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
-            "--authority name         Run under the authority saved as name (runx authority), which applies only in a workspace it lists",
+            "--run-authority json     The authority a host states for this run or inspection, as a JSON run authority: its grants, delegations, packages, effects, reach and limits. It needs no workspace and saves nothing",
+            "--authority name         Run under the preset an operator saved as name (runx authority), which applies only in a workspace it lists",
             "--max-spend usd           Bound the root run's operation quotes and moved USD/USDC amounts. Calls without a USD quote, or over what remains, are refused before dispatch (cost_limit_exceeded); an absent quote never means free",
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",

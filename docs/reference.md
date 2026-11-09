@@ -309,13 +309,18 @@ nobody. A host delegating to a different actor names it as the delegation's
 `principal_ref` and as the run's `actor_ref`, under the operator's
 `mandate_ref`, which the call's receipt cites.
 
-A person gives authority ahead of time by saving it: `runx authority save
+A host states the authority of the run or inspection it starts with
+`--run-authority <json>`, as it states the act and the context: the caller's
+own, for that invocation, so it needs no workspace and saves nothing. A person
+can also give authority ahead of time by saving a preset: `runx authority save
 <name> <file>` keeps it in the runx home for the workspaces it lists, by
 workspace id, by default the one it's saved in, once it resolves in each.
 `runx skill`, `runx skill inspect` and `runx mcp` apply it only where they name
 it with `--authority <name>`, and only in a workspace it lists, because a
 repository's `.mcp.json` can name one; nothing applies one unnamed, and an
-explicit empty authority stays empty. A `private` call with no term refuses and
+explicit empty authority stays empty. A run takes one or the other, and either
+goes through the same admission. `runx mcp` takes only a saved preset, because
+whoever writes a launch command would otherwise hold the term. A `private` call with no term refuses and
 says how to give one. A runx home that fell back to the workspace keeps none.
 `runx authority list`, `show <name>` and `remove <name>` manage them.
 
@@ -470,7 +475,8 @@ durable histories behind data cursors rather than carrying either through workfl
 context.
 
 `runx skill inspect` also accepts `--inputs file|-`. Inspection binds known
-caller inputs to check concrete connector targets under `--authority`;
+caller inputs to check concrete connector targets under `--run-authority` or
+`--authority`;
 values produced by later steps remain unknown until execution. Every actual
 call rechecks its target and current grant before provider execution.
 
@@ -1341,11 +1347,11 @@ sends the purchase fails closed. A test that stops on a request it did not answe
 that request in its status mismatch. No test's `host` or `providers` is
 available to skill inputs, environment configuration, or ordinary live runs.
 
-`setup.authority` is the run's authority, as a host saves one for
-`--authority`: its delegations, each naming its connector, and its
+`setup.authority` is the run's authority, as a host states one with
+`--run-authority`: its delegations, each naming its connector, and its
 `packages`, `effects`, `reach` and limits. The test gives its run that
 authority, each delegation resolved to the instance its connector stands for,
-as the root's admission resolves a named one, and a test that states none
+as the root's admission resolves any run's, and a test that states none
 runs with none. Every `private` call needs a term, so a test of a package
 that keeps the person's data states the term it's granted, and one that
 states none proves the refusal.

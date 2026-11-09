@@ -49,8 +49,9 @@ pub struct SkillPlan {
     pub input_document: Option<crate::document_input::DocumentInputSource>,
     /// The act the invoker states for the run (`--act`).
     pub act: Option<runx_contracts::CallAct>,
-    /// The authority the run starts with: the saved one it names, once read,
-    /// or, naming none, one that only bounds its spend (`--max-spend`).
+    /// The authority the run starts with: the one its host states for this
+    /// invocation (`--run-authority`), the saved preset it names once read,
+    /// or, given neither, one that only bounds its spend (`--max-spend`).
     pub run_authority: Option<Box<runx_runtime::RunAuthority>>,
     /// The saved authority the run names (`--authority`), which applies
     /// once it's read for the workspace the run is in.

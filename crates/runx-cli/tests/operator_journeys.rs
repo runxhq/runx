@@ -277,12 +277,11 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
 
     // Listing the tool cannot let a run whose reach is the workspace read
     // protected state.
-    let reach = crate::support::save_authority(command(&root), r#"{"reach":"workspace"}"#)?;
     let bounded = assert_json(
         &command(&root)
             .arg("skill")
             .arg(&skill)
-            .args(["--authority", &reach, "--json"])
+            .args(["--run-authority", r#"{"reach":"workspace"}"#, "--json"])
             .output()?,
         2,
     )?;
@@ -1028,27 +1027,21 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
         connect.apply(&mut command);
         command
     };
-    // A host's hosted grant, saved as an authority by connector and named,
-    // as @runxhq/client gives a run or an inspection its authority.
-    let stated = |grant: &str| -> TestResult<String> {
-        crate::support::save_authority(
-            operator(&root),
-            &format!(r#"{{"grants":{{"fixture/records":"{grant}"}}}}"#),
-        )
-    };
+    // A host states its hosted grant by connector, for each invocation.
+    let stated = |grant: &str| format!(r#"{{"grants":{{"fixture/records":"{grant}"}}}}"#);
     let inspect = |authority: &str| -> TestResult<Value> {
         let output = operator(&root)
             .arg("skill")
             .arg("inspect")
             .arg(method_ref(&skill_dir, "list"))
-            .args(["--authority", authority, "--json"])
+            .args(["--run-authority", authority, "--json"])
             .output()?;
         assert_json(&output, 0)
     };
 
     // The stated grant is the run's instance, read through the host: the
     // project has no setup at all.
-    let ready = inspect(&stated("grant_records_read")?)?;
+    let ready = inspect(&stated("grant_records_read"))?;
     assert_eq!(ready["readiness"]["status"], "ready", "{ready}");
     assert!(
         ready["connector_readiness"][0]["instance_id"]
@@ -1058,12 +1051,12 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
     );
 
     // A stated grant short of the operation's scopes is not ready, by name.
-    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_wrong_scope")?)?)?;
+    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_wrong_scope"))?)?;
     assert_eq!(check, "capability");
     assert!(detail.contains("lacks records.read"), "{detail}");
 
     // A grant the host does not hold is refused at the instance.
-    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_absent")?)?)?;
+    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_absent"))?)?;
     assert_eq!(check, "instance");
     assert!(
         detail.contains("states grant grant_records_absent for connector fixture/records"),
@@ -1074,7 +1067,7 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
     let run = operator(&root)
         .arg("skill")
         .arg(method_ref(&skill_dir, "list"))
-        .args(["--authority", &stated("grant_records_read")?])
+        .args(["--run-authority", &stated("grant_records_read")])
         .arg("--receipt-dir")
         .arg(&receipt_dir)
         .arg("--json")
@@ -1107,7 +1100,7 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
         ])
         .output()?;
     assert_json(&confirm, 0)?;
-    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_read")?)?)?;
+    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_read"))?)?;
     assert_eq!(check, "instance");
     assert!(
         detail.contains("is selected; a run never chooses between them"),

@@ -164,9 +164,9 @@ pub enum TestReplayError {
 }
 
 /// The run's authority `fixture` states as `setup.authority`, in connector
-/// and package names as a host saves one, with each delegation's connector
+/// and package names as a host states one, with each delegation's connector
 /// resolved to the instance that stands for it at `skill_dir`, as the root's
-/// admission resolves a named authority. None when it states none.
+/// admission resolves any run's. None when it states none.
 fn stated_authority(
     fixture: &TestFixture,
     skill_dir: &Path,

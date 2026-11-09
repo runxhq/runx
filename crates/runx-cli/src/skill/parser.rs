@@ -53,17 +53,25 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
                 .to_owned(),
         );
     }
-    // Authority is given one way, by a saved authority the run names; with
-    // none, `--max-spend` gives the run an authority that only bounds it.
-    let (run_authority, authority) = match state.authority {
-        Some(name) => (
+    // A run's authority is the one its host states for this invocation, or
+    // a saved preset it names, and never both: either goes through the same
+    // admission once it's read. With neither, `--max-spend` gives the run an
+    // authority that only bounds it.
+    let (run_authority, authority) = match (state.run_authority, state.authority) {
+        (Some(_), Some(_)) => {
+            return Err(
+                "runx skill takes the authority a host states with --run-authority <json> or a saved one with --authority <name>, not both"
+                    .to_owned(),
+            );
+        }
+        (None, Some(name)) => (
             None,
             Some(NamedAuthority {
                 name,
                 max_spend_micro_usd: state.max_cost,
             }),
         ),
-        None => (limit_run(None, state.max_cost)?, None),
+        (stated, None) => (limit_run(stated, state.max_cost)?, None),
     };
     if action == SkillAction::Inspect
         && (state.expected_package_digest.is_some()
@@ -109,8 +117,8 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
 }
 
 /// `--max-spend <usd>`: the most the run, its child runs included, may spend.
-/// It sets the money limit of the authority the run names, or gives a run
-/// that names none an authority that only bounds it.
+/// It sets the money limit of the authority the run is given, or gives a run
+/// given none an authority that only bounds it.
 pub(super) fn limit_run(
     authority: Option<Box<runx_runtime::RunAuthority>>,
     max_spend_micro_usd: Option<u64>,
@@ -124,7 +132,7 @@ pub(super) fn limit_run(
         .is_some_and(|stated| stated != limit)
     {
         return Err(
-            "runx skill --max-spend and the saved authority's money limit differ; state the limit once"
+            "runx skill --max-spend and the authority's money limit differ; state the limit once"
                 .to_owned(),
         );
     }
@@ -199,6 +207,7 @@ struct SkillParseState {
     inputs: CliInputs,
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
+    run_authority: Option<Box<runx_runtime::RunAuthority>>,
     authority: Option<String>,
     max_cost: Option<u64>,
     context: Option<Box<CallerContext>>,
@@ -348,6 +357,19 @@ fn parse_skill_arg(
         "--act" => {
             index += 1;
             state.act = Some(parse_act(&string_arg(args, index)?)?);
+        }
+        value if value.starts_with("--run-authority=") => {
+            state.run_authority = Some(Box::new(crate::authority::parse_run_authority(
+                value.trim_start_matches("--run-authority="),
+                "runx skill --run-authority",
+            )?));
+        }
+        "--run-authority" => {
+            index += 1;
+            state.run_authority = Some(Box::new(crate::authority::parse_run_authority(
+                &string_arg(args, index)?,
+                "runx skill --run-authority",
+            )?));
         }
         value if value.starts_with("--authority=") => {
             state.authority = Some(value.trim_start_matches("--authority=").to_owned());
