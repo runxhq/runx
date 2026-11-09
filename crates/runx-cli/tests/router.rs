@@ -210,6 +210,7 @@ fn filesystem_paths_do_not_require_utf8() {
         route_args(vec!["mcp".into(), path.clone()]),
         RouterAction::RunMcp(McpPlan {
             run: None,
+            authority: None,
             refs: vec![MethodRef {
                 skill_path: path_buf.clone(),
                 method: None,
@@ -388,6 +389,7 @@ fn routes_mcp_serve_to_native_plan() {
         ]),
         RouterAction::RunMcp(McpPlan {
             run: None,
+            authority: None,
             refs: vec![
                 MethodRef {
                     skill_path: PathBuf::from("fixtures/skills/echo"),
@@ -424,6 +426,7 @@ fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_i
         plan(&["mcp", "fixtures/skills/echo", "--http-listen"]),
         RouterAction::RunMcp(McpPlan {
             run: None,
+            authority: None,
             refs: vec![bare_ref("fixtures/skills/echo")],
             receipt_dir: None,
             http_listen: Some("127.0.0.1:8080".to_owned()),
@@ -439,6 +442,7 @@ fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_i
         ]),
         RouterAction::RunMcp(McpPlan {
             run: None,
+            authority: None,
             refs: vec![bare_ref("fixtures/skills/echo")],
             receipt_dir: None,
             http_listen: Some("0.0.0.0:8080".to_owned()),
@@ -467,6 +471,7 @@ fn mcp_rejects_unknown_shapes_without_delegating() {
         plan(&["mcp", "--run", "rx_1", "--receipt-dir", "receipts"]),
         RouterAction::RunMcp(McpPlan {
             run: Some("rx_1".to_owned()),
+            authority: None,
             refs: Vec::new(),
             receipt_dir: Some(PathBuf::from("receipts")),
             http_listen: None,
@@ -560,6 +565,7 @@ fn routes_canonical_skill_run_to_native_plan() {
             input_document: None,
             act: None,
             run_authority: None,
+            authority: None,
             context: None,
             managed_agent: Default::default(),
         }))

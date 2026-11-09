@@ -19,6 +19,9 @@ pub struct McpPlan {
     /// The skills served, each `<ref>` or `<ref>#<method>`.
     pub refs: Vec<MethodRef>,
     pub run: Option<String>,
+    /// The saved authority every run the server's skill calls start holds
+    /// (`--authority`); with none, no run holds one.
+    pub authority: Option<String>,
     pub receipt_dir: Option<PathBuf>,
     /// When set, serve the governed MCP server over streamable HTTP at this
     /// address instead of over stdio.
@@ -31,6 +34,7 @@ pub struct McpPlan {
 pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
     let mut refs = Vec::new();
     let mut run = None;
+    let mut authority = None;
     let mut receipt_dir = None;
     let mut http_listen = None;
     let mut http_allow_non_loopback = false;
@@ -56,6 +60,13 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
             "--receipt-dir" => {
                 let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
                 receipt_dir = Some(PathBuf::from(value));
+                index = next_index;
+            }
+            "--authority" => {
+                let (value, next_index) = flag_value(args, index, flag, inline_value, "mcp")?;
+                if authority.replace(value).is_some() {
+                    return Err("runx mcp takes --authority once".to_owned());
+                }
                 index = next_index;
             }
             "--http-listen" => {
@@ -93,9 +104,15 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
         }
         _ => {}
     }
+    if run.is_some() && authority.is_some() {
+        return Err(
+            "runx mcp --run serves a run's turns under the authority the run started with, so it takes no --authority".to_owned(),
+        );
+    }
     Ok(McpPlan {
         refs,
         run,
+        authority,
         receipt_dir,
         http_listen,
         http_allow_non_loopback,
@@ -184,6 +201,13 @@ fn server_options(
             env!("CARGO_PKG_VERSION"),
         ));
     }
+    // A saved authority applies only where the server names it, and only in
+    // a workspace it lists; it's never assumed.
+    let run_authority = plan
+        .authority
+        .as_deref()
+        .map(|name| crate::authority::named_authority(name, workspace))
+        .transpose()?;
     let effects = crate::runtime::runtime_effect_registry().map_err(|error| error.to_string())?;
     // Each ref resolves as `runx skill` resolves it, so the server offers the
     // same skill a run would. A ref with `#method` offers that method under
@@ -206,6 +230,7 @@ fn server_options(
                 receipt_dir: plan.receipt_dir.clone(),
                 env: workspace.env().clone(),
                 effects: effects.clone(),
+                run_authority: run_authority.clone(),
             },
         )
         .map_err(|error| error.to_string())?;

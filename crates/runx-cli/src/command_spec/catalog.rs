@@ -138,6 +138,24 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &["-j, --json"],
     },
     CommandSpec {
+        name: "authority",
+        top_level_usage: &["runx authority save|list|show|remove ... [-j|--json]"],
+        usage: &[
+            "runx authority save <name> <file|-> [--workspace <path>...] [-j|--json]",
+            "runx authority list [-j|--json]",
+            "runx authority show <name> [-j|--json]",
+            "runx authority remove <name> [-j|--json]",
+        ],
+        notes: &[
+            "A saved authority is the run authority a person gives ahead of time, kept by name in the runx home for the workspaces it lists, by default the one it's saved in. `runx skill`, `runx skill inspect` and `runx mcp` apply one only where they name it with `--authority <name>`, and only in a workspace it lists, because a repository's .mcp.json can name one; nothing applies one unnamed. An explicit empty authority stays empty.",
+            "It speaks in connector and package names: each delegation names its `connector` and holds one or more `terms` of `verbs` over `bounds`, and the run resolves each connector to the instance that stands for it when it starts. `save` checks it resolves in each workspace it lists before saving it. A runx home that fell back to the workspace, with HOME and USERPROFILE unset, keeps none.",
+        ],
+        options: &[
+            "--workspace path  A workspace it's for; repeat for each",
+            "-j, --json",
+        ],
+    },
+    CommandSpec {
         name: "secret",
         top_level_usage: &["runx secret set|list|rm|read ... [-j|--json]"],
         usage: &[
@@ -240,7 +258,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "mcp",
         top_level_usage: &[],
         usage: &[
-            "runx mcp <skill-ref[#method]...> [--receipt-dir dir] [--http-listen [addr]] [--http-allow-non-loopback]",
+            "runx mcp <skill-ref[#method]...> [--authority name] [--receipt-dir dir] [--http-listen [addr]] [--http-allow-non-loopback]",
             "runx mcp --run <run-id> [--receipt-dir dir] [--http-listen [addr]] [--http-allow-non-loopback]",
         ],
         notes: &[
@@ -249,6 +267,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         options: &[
             "--run <run-id>  Serve this run's open turns",
+            "--authority name  Start every run a skill call opens under this saved authority (runx authority); with none, no run holds one",
             "--receipt-dir dir",
             "--http-listen [addr]",
             "--http-allow-non-loopback",
@@ -258,8 +277,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
-            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name | --run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name | --run-authority json] [-j] [--registry url] [--digest sha256]",
         ],
         notes: &[
             "#method names the method to run or inspect. A ref with none runs the package's default_method, or its only method. A package directory or a file in one is that package, never a registry name.",
@@ -268,6 +287,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "-i, --input name=value   Set an input, read by the type its method declares: a string as written, any other type as JSON; repeat for each input",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
+            "--authority name         Run under the authority saved as name (runx authority), which applies only in a workspace it lists",
             "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and money limit",
             "--max-spend usd           Bound the root run's operation quotes and moved USD/USDC amounts. Calls without a USD quote, or over what remains, are refused before dispatch (cost_limit_exceeded); an absent quote never means free",
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",

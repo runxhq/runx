@@ -98,6 +98,9 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunWorkspace(plan) => {
             runx_cli::workspace::run_native_workspace(plan, workspace)
         }
+        RouterAction::RunAuthority(plan) => {
+            runx_cli::authority::run_native_authority(plan, workspace)
+        }
         RouterAction::RunNotarize(plan) => runx_cli::notarize::run_native_notarize(plan, workspace),
         RouterAction::RunRegistry(plan) => runx_cli::registry::run_native_registry(plan, workspace),
         RouterAction::RunResume(plan) => {

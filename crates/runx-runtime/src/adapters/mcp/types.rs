@@ -24,6 +24,10 @@ pub struct McpServerExecutionOptions {
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub effects: RuntimeEffectRegistry,
+    /// The authority the server was started with, which every run its
+    /// skill calls start holds: a saved authority it named, never one it
+    /// assumed (authority.md).
+    pub run_authority: Option<crate::RunAuthority>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,6 +113,8 @@ pub struct McpServerSkillExecution {
     pub execution_closure_digest: String,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
+    /// The authority the server was started with.
+    pub run_authority: Option<crate::RunAuthority>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

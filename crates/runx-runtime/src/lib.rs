@@ -58,6 +58,7 @@ pub use process::detached::{
     ProcessError, SUPERVISOR_FLAG, list_processes, read_process, stop_process, supervise_from_args,
 };
 pub use time::now_iso8601;
+pub mod saved_authorities;
 pub mod tool_catalogs;
 pub mod workspace_ids;
 

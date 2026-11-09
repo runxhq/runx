@@ -51,9 +51,20 @@ pub struct SkillPlan {
     pub act: Option<runx_contracts::CallAct>,
     /// The trusted host's authority for the run (`--run-authority`).
     pub run_authority: Option<Box<runx_runtime::RunAuthority>>,
+    /// The saved authority the run names (`--authority`), which applies
+    /// once it's read for the workspace the run is in.
+    pub authority: Option<NamedAuthority>,
     /// The caller's context for the run (`--context`).
     pub context: Option<Box<CallerContext>>,
     pub managed_agent: ManagedAgentPolicy,
+}
+
+/// A saved authority a run names, and the money limit `--max-spend` sets on
+/// it.
+#[derive(Debug, PartialEq, Eq)]
+pub struct NamedAuthority {
+    pub name: String,
+    pub max_spend_micro_usd: Option<u64>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -85,7 +96,17 @@ pub(crate) fn resolve_skill_package(
 }
 
 // Function rationale: the top-level command path owns resolve/inspect/run/failure presentation in one explicit dispatch.
-pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv) -> ExitCode {
+pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &WorkspaceEnv) -> ExitCode {
+    // A saved authority applies only where the run names it, and only in a
+    // workspace it lists (authority.md).
+    if let Some(named) = plan.authority.take() {
+        match crate::authority::named_authority(&named.name, workspace).and_then(|authority| {
+            parser::limit_run(Some(Box::new(authority)), named.max_spend_micro_usd)
+        }) {
+            Ok(authority) => plan.run_authority = authority,
+            Err(error) => return write_skill_failure(&error, plan.json, "skill_error", 1, None),
+        }
+    }
     let cwd = workspace.cwd().to_path_buf();
     let env = workspace.env().clone();
     let artifacts = workspace.paths().artifacts();

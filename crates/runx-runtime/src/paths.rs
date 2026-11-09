@@ -124,6 +124,13 @@ impl RunxPaths {
         self.home.join("workspaces.json")
     }
 
+    /// The authorities a person saved, one file each by name, in their runx
+    /// home (authority.md).
+    #[must_use]
+    pub fn saved_authorities(&self) -> PathBuf {
+        self.home.join("authorities")
+    }
+
     /// The directories holding the skills the user writes, which take
     /// precedence over what runx added (core-shape §6.5): the invocation
     /// directory's and the workspace's `skills/`, then the roots configured

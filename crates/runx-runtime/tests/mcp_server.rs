@@ -878,6 +878,7 @@ fn mcp_server_execution_options(
         receipt_dir,
         env,
         effects: runx_runtime::RuntimeEffectRegistry::local()?,
+        run_authority: None,
     })
 }
 

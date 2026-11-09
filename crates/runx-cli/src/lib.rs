@@ -1,3 +1,4 @@
+pub mod authority;
 pub mod cli_args;
 pub mod cli_error;
 pub(crate) mod cli_io;

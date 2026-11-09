@@ -328,7 +328,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // call, is made only under a term the host states (D21).
     let needs_term = if is_private(&connector) {
         Some(format!(
-            "every {} call needs a term, and the run's authority states none for this instance; a host grants one with a delegation on it",
+            "every {} call needs a term, and the run's authority states none for this instance: save an authority with a delegation on it with runx authority save <name> <file>, and name it with --authority <name>",
             connector.name
         ))
     } else {
@@ -1018,7 +1018,7 @@ fn readiness(
                             AdmissionCheck::Delegation,
                             CheckOutcome::Fail,
                             format!(
-                                "every {} call needs a term, and the run's authority states none for this instance",
+                                "every {} call needs a term, and the run's authority states none for this instance: save an authority with a delegation on it with runx authority save <name> <file>, and name it with --authority <name>",
                                 connector.name
                             ),
                         );

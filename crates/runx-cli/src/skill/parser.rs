@@ -8,7 +8,7 @@ use runx_runtime::WorkspaceEnv;
 
 use super::inputs::{CliInputs, parse_input_arg, parse_input_document_arg};
 use super::method_ref::MethodRef;
-use super::{SkillAction, SkillPlan};
+use super::{NamedAuthority, SkillAction, SkillPlan};
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 
 pub fn parse_skill_plan(args: &[OsString]) -> Result<SkillPlan, String> {
@@ -53,7 +53,24 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
                 .to_owned(),
         );
     }
-    let run_authority = limit_run(state.run_authority, state.max_cost)?;
+    // A saved authority and a host's are two ways to give a run its
+    // authority, and a run takes one.
+    let (run_authority, authority) = match state.authority {
+        Some(_) if state.run_authority.is_some() => {
+            return Err(
+                "runx skill takes a saved authority with --authority <name> or a host's with --run-authority <json>, not both"
+                    .to_owned(),
+            );
+        }
+        Some(name) => (
+            None,
+            Some(NamedAuthority {
+                name,
+                max_spend_micro_usd: state.max_cost,
+            }),
+        ),
+        None => (limit_run(state.run_authority, state.max_cost)?, None),
+    };
     if action == SkillAction::Inspect
         && (state.expected_package_digest.is_some()
             || state.expected_execution_closure_digest.is_some())
@@ -91,6 +108,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         input_document: state.input_document,
         act: state.act,
         run_authority,
+        authority,
         context: state.context,
         managed_agent,
     })
@@ -99,7 +117,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
 /// `--max-spend <usd>`: the most the run, its child runs included, may spend.
 /// It sets the run authority's money limit, so a direct run gets an authority
 /// that only bounds it.
-fn limit_run(
+pub(super) fn limit_run(
     authority: Option<Box<runx_runtime::RunAuthority>>,
     max_spend_micro_usd: Option<u64>,
 ) -> Result<Option<Box<runx_runtime::RunAuthority>>, String> {
@@ -195,6 +213,7 @@ struct SkillParseState {
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
     run_authority: Option<Box<runx_runtime::RunAuthority>>,
+    authority: Option<String>,
     max_cost: Option<u64>,
     context: Option<Box<CallerContext>>,
     managed_agent: bool,
@@ -352,6 +371,13 @@ fn parse_skill_arg(
         "--run-authority" => {
             index += 1;
             state.run_authority = Some(parse_run_authority(&string_arg(args, index)?)?);
+        }
+        value if value.starts_with("--authority=") => {
+            state.authority = Some(value.trim_start_matches("--authority=").to_owned());
+        }
+        "--authority" => {
+            index += 1;
+            state.authority = Some(string_arg(args, index)?);
         }
         value if value.starts_with("--context=") => {
             state.context = Some(parse_context(value.trim_start_matches("--context="))?);

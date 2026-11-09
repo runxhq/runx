@@ -309,6 +309,16 @@ nobody. A host delegating to a different actor names it as the delegation's
 `principal_ref` and as the run's `actor_ref`, under the operator's
 `mandate_ref`, which the call's receipt cites.
 
+A person gives authority ahead of time by saving it: `runx authority save
+<name> <file>` keeps it in the runx home for the workspaces it lists, by
+workspace id, by default the one it's saved in, once it resolves in each.
+`runx skill`, `runx skill inspect` and `runx mcp` apply it only where they name
+it with `--authority <name>`, and only in a workspace it lists, because a
+repository's `.mcp.json` can name one; nothing applies one unnamed, and an
+explicit empty authority stays empty. A `private` call with no term refuses and
+says how to give one. A runx home that fell back to the workspace keeps none.
+`runx authority list`, `show <name>` and `remove <name>` manage them.
+
 A run's authority may set `max_concurrency`, the most calls the run, its steps
 and child runs included, may have executing at once: from 1 to the kernel's
 ceiling of 16, which applies when a host states none. A step that runs calls at

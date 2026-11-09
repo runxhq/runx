@@ -2,6 +2,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
+use crate::authority::AuthorityPlan;
 use crate::cli_args::{flag_value, os_arg, os_flag_value, split_flag};
 use crate::config::ConfigPlan;
 use crate::connector::ConnectorPlan;
@@ -22,6 +23,7 @@ use runx_runtime::registry::parse_registry_ref;
 pub enum RouterAction {
     Error(String),
     JsonError(JsonErrorPlan),
+    RunAuthority(AuthorityPlan),
     RunDoctor(DoctorPlan),
     RunExport(ExportPlan),
     RunList(ListPlan),
@@ -180,6 +182,14 @@ fn route_args_with_optional_workspace(
             &args,
             crate::connector::parse_connector_plan(&args),
             RouterAction::RunConnector,
+        );
+    }
+
+    if first_arg_is(&args, "authority") {
+        return route_parse(
+            &args,
+            crate::authority::parse_authority_plan(&args),
+            RouterAction::RunAuthority,
         );
     }
 

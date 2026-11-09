@@ -127,6 +127,7 @@ fn load_mcp_server_tool(
             execution_closure_digest,
             receipt_dir: execution.receipt_dir.clone(),
             env: execution.env.clone(),
+            run_authority: execution.run_authority.clone(),
         })),
     })
 }
@@ -182,7 +183,7 @@ pub(super) fn execute_mcp_server_skill(
     let request = crate::execution::orchestrator::SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
-        run_authority: None,
+        run_authority: execution.run_authority.clone(),
         act,
         skill_path: execution.skill_path,
         receipt_dir: execution.receipt_dir.clone(),
