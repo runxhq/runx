@@ -252,6 +252,10 @@ describe("native invocation and decoding", () => {
     // The same authority, its keys in another order, is the same saved authority.
     await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority: { max_child_depth: 2, actor_ref: runAuthority.actor_ref, grants: runAuthority.grants }, act, context });
     expect((await calls(capture))[2]!.args[2]).toBe(save!.args[2]);
+    // In another workspace sharing this home, it's saved under another name,
+    // so neither save replaces the workspaces the other lists.
+    await createRunxClient({ ...config, cwd: root }).skills.run({ skillPath: "/skill", receiptDir, runAuthority, act, context });
+    expect((await calls(capture))[4]!.args[2]).not.toBe(save!.args[2]);
   });
   it("projects inspection readiness under the host's stated grants, saved and named", async () => {
     const { root, config } = await setup();

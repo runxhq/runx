@@ -58,7 +58,7 @@ client saves it on stdin as a saved authority, `runx authority save
 host-<digest> -`, in `home` for the workspace `cwd` is, and names it with
 `--authority`, so `cwd` must be a workspace: a directory with `.git`,
 `pnpm-workspace.yaml`, `skills/` or `connectors/`. The same authority is saved
-once, under the name its content gives.
+once for each workspace, under the name that workspace and its content give.
 The resume packet passes to native unchanged; the client does not assign actors,
 answer approvals, retry a mutation or reinterpret a checkpoint.
 

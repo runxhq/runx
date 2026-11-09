@@ -40,10 +40,12 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   };
   // A host gives a run, or an inspection, its authority one way: saved in the
   // runx home for this workspace and named (authority.md). It's saved under
-  // the name its content gives, so the same authority is one saved authority.
+  // the name its workspace and content give, so the same authority in one
+  // workspace is one saved authority, and a save in another workspace sharing
+  // this home never replaces the workspaces it lists.
   const authorityArgs = async (authority: RunAuthority | undefined, options: InvocationOptions): Promise<string[]> => {
     if (!authority) return [];
-    const name = `host-${createHash("sha256").update(canonical(authority)).digest("hex").slice(0, 40)}`;
+    const name = `host-${createHash("sha256").update(canonical({ cwd: config.cwd, authority })).digest("hex").slice(0, 40)}`;
     parseJson(await execute(["authority", "save", name, "-", "--json"], options, payload(authority)), [0]);
     return ["--authority", name];
   };
