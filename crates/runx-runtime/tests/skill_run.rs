@@ -4441,7 +4441,12 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     let closure =
         runx_runtime::registry::materialize_publish_closure(&client, &registry.url, request)?;
 
-    let project = closure.project();
+    let project = std::path::Path::new(
+        closure
+            .env
+            .get(runx_runtime::RUNX_PROJECT_DIR_ENV)
+            .ok_or("the closure names its project")?,
+    );
     assert!(
         project
             .join("added-skills/acme/registry-child/1.0.0/SKILL.md")

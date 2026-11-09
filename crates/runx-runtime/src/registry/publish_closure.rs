@@ -52,18 +52,11 @@ pub enum PublishClosureError {
 /// The project a publish binds its closure in, held for as long as the
 /// publish runs.
 pub struct PublishClosure {
-    project: tempfile::TempDir,
+    /// Removed when the closure drops; `env` names it as the project.
+    _project: tempfile::TempDir,
     /// The environment the publish runs in: the publisher's, with this
     /// closure's project as its project.
     pub env: BTreeMap<String, String>,
-}
-
-impl PublishClosure {
-    /// The project directory the closure's skills are installed in.
-    #[must_use]
-    pub fn project(&self) -> &Path {
-        self.project.path()
-    }
 }
 
 /// Install, verified, every registry ref the package names from `client`'s
@@ -96,7 +89,10 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
             ..request
         },
     )?;
-    Ok(PublishClosure { project, env })
+    Ok(PublishClosure {
+        _project: project,
+        env,
+    })
 }
 
 /// Install, verified, every registry ref the package names that the project
