@@ -64,10 +64,6 @@ pub mod verdict;
 pub mod work_outcome;
 pub mod x402;
 
-pub use act::assignment::{
-    ActAssignment, ActAssignmentActor, ActAssignmentHost, ActAssignmentHostKind,
-    ActAssignmentIdempotency, ActAssignmentSchema,
-};
 pub use act::call::{CALL_ACT_TARGET_MAX, CALL_ACT_TEXT_MAX, CallAct};
 pub use act::{ActForm, Criterion, CriterionBinding, CriterionStatus, Intent};
 pub use admission::{

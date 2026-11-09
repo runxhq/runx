@@ -7,8 +7,8 @@ use serde_json as schema_json;
 use crate::StoreResult;
 use crate::schema::{NamedSchemas, RunxSchema};
 use crate::{
-    ActAssignment, AgentContextEnvelope, ApprovalDecisionPacket, ApprovalGate, Artifact,
-    Attestation, AuthorityDerivation, AuthoritySubsetProof, AuthorityTerm, CancelPurchaseRequest,
+    AgentContextEnvelope, ApprovalDecisionPacket, ApprovalGate, Artifact, Attestation,
+    AuthorityDerivation, AuthoritySubsetProof, AuthorityTerm, CancelPurchaseRequest,
     CancelPurchaseResult, CliHelp, CommandExecution, CommandPlan, ConnectorInstance,
     ConnectorManifest, ConversationObservation, ConversationPage, CredentialDeliveryObservation,
     DataComparison, DataDigest, DataValidation, Decision, DecisionObservation, DoctorReport,
@@ -150,7 +150,6 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<ProcessList>("process-list.schema.json"),
         public_packet_artifact::<RegistrySearchPacket>("registry-search.schema.json"),
         public_packet_artifact::<RegistryInspection>("registry-inspection.schema.json"),
-        schema_artifact::<ActAssignment>("act-assignment.schema.json"),
         schema_artifact::<Reference>("reference.schema.json"),
         public_packet_artifact::<AuthorityTerm>("authority-term.schema.json"),
         schema_artifact::<AuthoritySubsetProof>("authority-subset-proof.schema.json"),

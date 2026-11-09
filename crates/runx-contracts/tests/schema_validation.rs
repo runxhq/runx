@@ -8,26 +8,6 @@ const RESOLUTION_REQUEST_SCHEMA: &str =
     include_str!("../../../schemas/resolution-request.schema.json");
 const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
     FixtureSchemaMapping::new(
-        "fixtures/contracts/act-assignment/cli-no-trigger.json",
-        "/expected/envelope",
-        "act-assignment.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/act-assignment/github-trigger.json",
-        "/expected/envelope",
-        "act-assignment.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/act-assignment/host-normalization.json",
-        "/expected/envelope",
-        "act-assignment.schema.json",
-    ),
-    FixtureSchemaMapping::new(
-        "fixtures/contracts/act-assignment/system-empty-inputs.json",
-        "/expected/envelope",
-        "act-assignment.schema.json",
-    ),
-    FixtureSchemaMapping::new(
         "fixtures/contracts/credential-delivery/observation.json",
         "/expected",
         "credential-delivery-observation.schema.json",
@@ -110,7 +90,6 @@ fn contract_fixture_schema_mapping_has_only_declared_exemptions()
         .copied()
         .collect::<BTreeSet<_>>();
     for directory in [
-        "fixtures/contracts/act-assignment",
         "fixtures/contracts/run-spine",
         "fixtures/contracts/host-protocol",
     ] {

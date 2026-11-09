@@ -1050,65 +1050,6 @@ pub(super) fn authority_subset_proof_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn act_assignment_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.act_assignment.v1",
-        "skill": "skill:1",
-        "method": "local",
-        "requested_at": "2026-01-01T00:00:00Z",
-        "host": { "kind": "cli" },
-        "idempotency": {
-            "algorithm": "sha256",
-            "intent_key": "sha256:intent",
-            "content_digest": "sha256:content",
-        },
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["source_uri"] = json!("runx:signal:1");
-            v["input_overrides"] = json!({ "k": 1 });
-            v["host"] = json!({
-                "kind": "github_issue_comment",
-                "trigger_uri": "https://github.com/owner/repo/issues/1",
-                "scope_set": ["issues:write"],
-                "actor": { "actor_id": "u1", "display_name": "User" },
-            });
-            v["idempotency"] = json!({
-                "algorithm": "sha256",
-                "intent_key": "sha256:intent",
-                "trigger_key": "sha256:trigger",
-                "content_digest": "sha256:content",
-            });
-            v
-        }),
-        ("missing skill", drop_field(valid.clone(), "skill")),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "missing idempotency",
-            drop_field(valid.clone(), "idempotency"),
-        ),
-        ("empty skill", set_field(valid.clone(), "skill", json!(""))),
-        (
-            "empty method",
-            set_field(valid.clone(), "method", json!("")),
-        ),
-        (
-            "unknown host kind",
-            set_field(valid.clone(), "host", json!({ "kind": "carrier-pigeon" })),
-        ),
-        (
-            "malformed requested_at",
-            set_field(valid.clone(), "requested_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 fn drop_field(mut value: Value, field: &str) -> Value {
     remove_field(&mut value, field);
     value

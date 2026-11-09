@@ -1,4 +1,3 @@
-use runx_contracts::act::assignment::ActAssignment;
 use runx_contracts::agent_context::AgentContextEnvelope;
 use runx_contracts::artifact::Artifact;
 use runx_contracts::authority::{AuthoritySubsetProof, AuthorityTerm};
@@ -93,11 +92,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "resolution-request.schema.json",
             emitted: ResolutionRequest::json_schema(),
             corpus: resolution_request_corpus(),
-        },
-        Covered {
-            file_name: "act-assignment.schema.json",
-            emitted: ActAssignment::json_schema(),
-            corpus: act_assignment_corpus(),
         },
         Covered {
             file_name: "authority-subset-proof.schema.json",

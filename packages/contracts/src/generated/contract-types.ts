@@ -6,44 +6,6 @@ export type ActAddressContract = {
   readonly receipt_ref: ReferenceContract;
 };
 
-export type ActAssignmentContract = {
-  readonly host: ActAssignmentHostContract;
-  readonly idempotency: ActAssignmentIdempotencyContract;
-  readonly input_overrides?: {
-    readonly [key: string]: unknown;
-  };
-  readonly method: string;
-  readonly requested_at: string;
-  readonly schema: ActAssignmentSchemaContract;
-  readonly skill: string;
-  readonly source_uri?: string;
-};
-
-export type ActAssignmentActorContract = {
-  readonly actor_id?: string;
-  readonly display_name?: string;
-  readonly provider_identity?: string;
-  readonly role?: string;
-};
-
-export type ActAssignmentHostContract = {
-  readonly actor?: ActAssignmentActorContract;
-  readonly kind: ActAssignmentHostKindContract;
-  readonly scope_set?: readonly string[];
-  readonly trigger_uri?: string;
-};
-
-export type ActAssignmentHostKindContract = "cli" | "api" | "comment" | "system";
-
-export type ActAssignmentIdempotencyContract = {
-  readonly algorithm: string;
-  readonly content_digest: string;
-  readonly intent_key: string;
-  readonly trigger_key?: string;
-};
-
-export type ActAssignmentSchemaContract = "runx.act_assignment.v1";
-
 /** What kind of act a governed call is. */
 export type ActFormContract = "observation" | "reply" | "review";
 

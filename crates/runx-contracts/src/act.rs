@@ -1,5 +1,4 @@
 //! Act algebra: intents, the checks the runtime binds to an act, and act forms.
-pub mod assignment;
 pub mod call;
 
 use serde::{Deserialize, Serialize};

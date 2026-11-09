@@ -372,8 +372,6 @@ export { toolManifestV1Schema } from "./schemas/tool-manifest.js";
 
 export { packetLockV1Schema, packetLockEntrySchema } from "./schemas/packet-lock.js";
 
-export { actAssignmentV1Schema, validateActAssignmentContract } from "./schemas/act-assignment.js";
-
 export {
   referenceTypeSchema,
   signalTypeSchema,
@@ -472,7 +470,6 @@ export const runxContractSchemas = {
   fixture: runxSchemaArtifacts["fixture.schema.json"],
   toolManifest: runxSchemaArtifacts["tool-manifest.schema.json"],
   packetLock: runxSchemaArtifacts["packet-lock.schema.json"],
-  actAssignment: runxSchemaArtifacts["act-assignment.schema.json"],
   reference: runxSchemaArtifacts["reference.schema.json"],
   authoritySubsetProof: runxSchemaArtifacts["authority-subset-proof.schema.json"],
   signal: runxSchemaArtifacts["signal.schema.json"],

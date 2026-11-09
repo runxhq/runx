@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { type JsonSchema, validateContractSchema } from "./internal.js";
+
 import {
   agentContextEnvelopeSchema,
   turnInvocationSchema,
   approvalGateSchema,
-  actAssignmentV1Schema,
   credentialDeliveryObservationV1Schema,
   storeResultV1Schema,
   doctorV1Schema,
@@ -28,7 +29,6 @@ import {
   validateOutputContract,
   validateResolutionRequestContract,
   validateStoreResultContract,
-  validateActAssignmentContract,
   validateDoctorReportContract,
   validateReceiptContract,
   validateRegistryBindingContract,
@@ -72,7 +72,6 @@ describe("@runxhq/contracts", () => {
     expect(listV1Schema).toBe(runxContractSchemas.list);
     expect(fixtureV1Schema).toBe(runxContractSchemas.fixture);
     expect(packetLockV1Schema).toBe(runxContractSchemas.packetLock);
-    expect(actAssignmentV1Schema).toBe(runxContractSchemas.actAssignment);
   });
 
   it("keeps fixture lanes aligned with authoring plan", () => {
@@ -284,7 +283,6 @@ describe("@runxhq/contracts", () => {
     expect(registryBindingSchema).toBe(runxGeneratedSchemaArtifacts["registry-binding.schema.json"]);
     expect(registryBindingSchema.$id).toBe("https://schemas.runx.ai/runx/registry-binding/v1.json");
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
-    expect(runxGeneratedSchemaArtifacts["act-assignment.schema.json"]).toBe(runxContractSchemas.actAssignment);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
     expect(runxGeneratedSchemaArtifacts["operational-policy.schema.json"]).toBe(runxContractSchemas.operationalPolicy);
     expect(runxGeneratedSchemaArtifacts["operational-proposal.schema.json"]).toBe(runxContractSchemas.operationalProposal);
@@ -669,73 +667,14 @@ describe("@runxhq/contracts", () => {
     })).toThrow(/runx\/registry-binding\/v1\.json/);
   });
 
-  it("owns a generic act assignment envelope contract for host-neutral invocation", () => {
-    expect(runxContractSchemas.actAssignment.$id).toBe("https://schemas.runx.ai/runx/act-assignment/v1.json");
-
-    expect(validateActAssignmentContract({
-      schema: "runx.act_assignment.v1",
-      skill: "outreach",
-      method: "rerun",
-      source_uri: "github://sourcey/sourcey.com/issues/3",
-      requested_at: "2026-04-25T13:45:00Z",
-      host: {
-        kind: "comment",
-        trigger_uri: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
-        scope_set: ["docs.write", "thread:push"],
-        actor: {
-          actor_id: "auscaster",
-          display_name: "auscaster",
-          provider_identity: "github:auscaster",
-        },
-      },
-      input_overrides: {
-        objective: "Refresh the MCP-first docs preview.",
-        bind_current: true,
-      },
-      idempotency: {
-        algorithm: "sha256",
-        intent_key: "sha256:intent",
-        trigger_key: "sha256:trigger",
-        content_digest: "sha256:content",
-      },
-    })).toMatchObject({
-      skill: "outreach",
-      method: "rerun",
-      host: {
-        kind: "comment",
-      },
-      idempotency: {
-        algorithm: "sha256",
-      },
-    });
-  });
-
   it("routes public schema validation through Rust-generated artifacts", () => {
-    const rustAuthoritativeAssignment = {
-      schema: "runx.act_assignment.v1",
-      skill: "outreach",
-      method: "rerun",
-      requested_at: "2026-04-25T13:45:00Z",
-      host: {
-        kind: "api",
-        trigger_uri: "",
-        scope_set: [""],
-        actor: {
-          actor_id: "",
-        },
-      },
-      idempotency: {
-        algorithm: "sha256",
-        intent_key: "sha256:intent",
-        content_digest: "sha256:content",
-      },
-    };
-
-    expect(validateActAssignmentContract(rustAuthoritativeAssignment)).toMatchObject({
-      host: {
-        kind: "api",
-      },
-    });
+    // A schema naming a generated artifact's $id validates with the artifact,
+    // never with the copy it was handed.
+    const stale = { $id: runxContractSchemas.reference.$id, type: "string" } as JsonSchema;
+    const reference = { type: "receipt", uri: "runx:receipt:rx_1" };
+    expect(validateContractSchema(stale, reference, "reference")).toEqual(reference);
+    expect(() => validateContractSchema(stale, "runx:receipt:rx_1", "reference"))
+      .toThrow(/runx\/reference\/v1\.json/);
   });
 
   it("validates machine report payloads from Rust-generated contract schemas", () => {

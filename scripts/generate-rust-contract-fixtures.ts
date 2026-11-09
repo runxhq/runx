@@ -3,18 +3,10 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  canonicalJsonStringify,
-  sha256Prefixed,
-  validateActAssignmentContract,
-  type ActAssignmentActorContract,
-  type ActAssignmentContract,
-  type ActAssignmentHostContract,
-} from "@runxhq/contracts";
+import { sha256Prefixed } from "@runxhq/contracts";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const fixtureRoot = path.join(workspaceRoot, "fixtures", "contracts");
-const actAssignmentRoot = path.join(fixtureRoot, "act-assignment");
 
 interface ContractFixture {
   readonly name: string;
@@ -25,37 +17,9 @@ interface ContractFixture {
   readonly expected: unknown;
 }
 
-interface ActAssignmentFixtureInput {
-  readonly skill: string;
-  readonly method: string;
-  readonly source_uri?: string;
-  readonly requested_at: string;
-  readonly host: {
-    readonly kind: "cli" | "api" | "comment" | "system";
-    readonly trigger_uri?: string;
-    readonly scope_set?: readonly string[];
-    readonly actor?: {
-      readonly actor_id?: string;
-      readonly display_name?: string;
-      readonly role?: string;
-      readonly provider_identity?: string;
-    };
-  };
-  readonly input_overrides?: Readonly<Record<string, unknown>>;
-}
-
-interface ActAssignmentFixtureExpected {
-  readonly envelope: unknown;
-  readonly intent_key: string;
-  readonly trigger_key?: string;
-  readonly content_digest: string;
-}
-
-type JsonRecord = Readonly<Record<string, unknown>>;
 type HostFixtureKind = "event" | "resolution_request" | "resolution_response";
 type ContractFixtureKind = HostFixtureKind;
 type ContractScope =
-  | "act-assignment"
   | "host-protocol"
   | "purchase"
   | "paid-skill-price"
@@ -69,7 +33,6 @@ const check = process.argv.includes("--check");
 
 if (
   selectedScope !== undefined
-  && selectedScope !== "act-assignment"
   && selectedScope !== "host-protocol"
   && selectedScope !== "purchase"
   && selectedScope !== "paid-skill-price"
@@ -81,10 +44,6 @@ if (
   throw new Error(`unsupported contract fixture scope: ${selectedScope}`);
 }
 
-if (selectedScope === undefined || selectedScope === "act-assignment") {
-  const fixtures = buildActAssignmentFixtures();
-  await writeFixtures(fixtures, actAssignmentRoot);
-}
 if (selectedScope === undefined || selectedScope === "host-protocol") {
   const fixtures = buildHostProtocolFixtures();
   await writeFixtures(fixtures, path.join(fixtureRoot, "host-protocol"));
@@ -277,294 +236,6 @@ async function writeFixtures(fixtures: readonly ContractFixture[], directory: st
   }
 
   console.log(`${check ? "checked" : "generated"} ${fixtures.length} contract fixtures`);
-}
-
-function buildActAssignmentFixtures(): readonly ContractFixture[] {
-  return [
-    actAssignmentFixture(
-      "github-trigger",
-      "ASCII act assignment hashStable fixture. non-ASCII object keys are rejected until hash-stable-codepoint-cutover replaces localeCompare ordering.",
-      {
-        skill: "outreach",
-        method: "rerun",
-        source_uri: "github://sourcey/sourcey.com/issues/3",
-        requested_at: "2026-04-25T14:00:00Z",
-        host: {
-          kind: "comment",
-          trigger_uri: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
-          scope_set: ["docs.write", "thread:push"],
-          actor: {
-            actor_id: "auscaster",
-            display_name: "auscaster",
-            provider_identity: "github:auscaster",
-          },
-        },
-        input_overrides: {
-          build_context: "Keep the MCP surface legible.",
-          objective: "Refresh the docs preview.",
-        },
-      },
-    ),
-    actAssignmentFixture(
-      "cli-no-trigger",
-      "ASCII CLI fixture with no trigger key; documents the narrow hashStable scope before the non-ASCII codepoint cutover.",
-      {
-        skill: "docs.refresh",
-        method: "runx",
-        source_uri: "local://workspace",
-        requested_at: "2026-04-25T14:01:00Z",
-        host: {
-          kind: "cli",
-        },
-        input_overrides: {
-          objective: "Refresh docs",
-        },
-      },
-    ),
-    actAssignmentFixture(
-      "system-empty-inputs",
-      "ASCII system fixture whose content hash is computed over an empty object; localeCompare behavior is intentionally unchanged here.",
-      {
-        skill: "system.audit",
-        method: "system",
-        requested_at: "2026-04-25T14:02:00Z",
-        host: {
-          kind: "system",
-        },
-      },
-    ),
-    actAssignmentFixture(
-      "host-normalization",
-      "Documents buildActAssignment host normalization: empty trigger_uri, scope_set, and actor fields are omitted.",
-      {
-        skill: "host.normalize",
-        method: "runx",
-        requested_at: "2026-04-25T14:03:00Z",
-        host: {
-          kind: "api",
-          trigger_uri: "",
-          scope_set: [],
-          actor: {
-            actor_id: "",
-            display_name: "",
-            role: "",
-            provider_identity: "",
-          },
-        },
-      },
-    ),
-  ].sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function actAssignmentFixture(
-  name: string,
-  description: string,
-  input: ActAssignmentFixtureInput,
-): ContractFixture {
-  const tsOptions = {
-    skill: input.skill,
-    method: input.method,
-    sourceUri: input.source_uri,
-    requestedAt: input.requested_at,
-    hostKind: input.host.kind,
-    triggerUri: input.host.trigger_uri,
-    scopeSet: input.host.scope_set,
-    actor: input.host.actor,
-    inputOverrides: input.input_overrides,
-  };
-  const envelope = buildActAssignment(tsOptions);
-  return {
-    name,
-    scope: "act-assignment",
-    description,
-    input,
-    expected: {
-      envelope,
-      intent_key: deriveActAssignmentIntentKey({
-        skill: input.skill,
-        method: input.method,
-        sourceUri: input.source_uri,
-        inputOverrides: input.input_overrides,
-      }),
-      trigger_key: deriveActAssignmentTriggerKey({
-        hostKind: input.host.kind,
-        triggerUri: input.host.trigger_uri,
-      }),
-      content_digest: deriveActAssignmentContentDigest(input.input_overrides),
-    },
-  };
-}
-
-function buildActAssignment(options: {
-  readonly skill: string;
-  readonly method: string;
-  readonly sourceUri?: string;
-  readonly requestedAt?: string;
-  readonly hostKind?: ActAssignmentHostContract["kind"];
-  readonly triggerUri?: string;
-  readonly scopeSet?: readonly string[];
-  readonly actor?: ActAssignmentActorContract;
-  readonly inputOverrides?: JsonRecord;
-}): ActAssignmentContract {
-  const inputOverrides = normalizeActAssignmentRecord(options.inputOverrides);
-  const host = normalizeActAssignmentHost({
-    kind: options.hostKind ?? "cli",
-    trigger_uri: options.triggerUri,
-    scope_set: options.scopeSet,
-    actor: options.actor,
-  });
-  const sourceUri = normalizeNonEmptyString(options.sourceUri);
-  const requestedAt = normalizeNonEmptyString(options.requestedAt) ?? new Date().toISOString();
-
-  return validateActAssignmentContract(pruneUndefined({
-    schema: "runx.act_assignment.v1",
-    skill: options.skill,
-    method: options.method,
-    source_uri: sourceUri,
-    requested_at: requestedAt,
-    host,
-    input_overrides: inputOverrides,
-    idempotency: {
-      algorithm: "sha256",
-      intent_key: deriveActAssignmentIntentKey({
-        skill: options.skill,
-        method: options.method,
-        sourceUri,
-        inputOverrides,
-      }),
-      trigger_key: deriveActAssignmentTriggerKey({
-        hostKind: host.kind,
-        triggerUri: host.trigger_uri,
-      }),
-      content_digest: deriveActAssignmentContentDigest(inputOverrides),
-    },
-  }));
-}
-
-function deriveActAssignmentIntentKey(options: {
-  readonly skill: string;
-  readonly method: string;
-  readonly sourceUri?: string;
-  readonly inputOverrides?: JsonRecord;
-}): string {
-  return canonicalSha256({
-    skill: options.skill,
-    method: options.method,
-    source_uri: normalizeNonEmptyString(options.sourceUri),
-    input_overrides: normalizeActAssignmentRecord(options.inputOverrides),
-  });
-}
-
-function deriveActAssignmentTriggerKey(options: {
-  readonly hostKind: ActAssignmentHostContract["kind"];
-  readonly triggerUri?: string;
-}): string | undefined {
-  const triggerUri = normalizeNonEmptyString(options.triggerUri);
-  if (!triggerUri) {
-    return undefined;
-  }
-  return canonicalSha256({
-    host_kind: options.hostKind,
-    trigger_uri: triggerUri,
-  });
-}
-
-function deriveActAssignmentContentDigest(inputOverrides?: JsonRecord): string {
-  return canonicalSha256(normalizeActAssignmentRecord(inputOverrides) ?? {});
-}
-
-function normalizeActAssignmentRecord(value: unknown): JsonRecord | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const normalized = normalizeUnknown(value);
-  return isRecord(normalized) && Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
-function normalizeActAssignmentHost(value: {
-  readonly kind: ActAssignmentHostContract["kind"];
-  readonly trigger_uri?: string;
-  readonly scope_set?: readonly string[];
-  readonly actor?: ActAssignmentActorContract;
-}): ActAssignmentHostContract {
-  const actor = normalizeActAssignmentActor(value.actor);
-  const scopeSet = normalizeStringArray(value.scope_set);
-  return pruneUndefined({
-    kind: value.kind,
-    trigger_uri: normalizeNonEmptyString(value.trigger_uri),
-    scope_set: scopeSet.length > 0 ? scopeSet : undefined,
-    actor,
-  }) as ActAssignmentHostContract;
-}
-
-function normalizeActAssignmentActor(value: ActAssignmentActorContract | undefined): ActAssignmentActorContract | undefined {
-  if (!value) {
-    return undefined;
-  }
-  const actor = {
-    actor_id: normalizeNonEmptyString(value.actor_id),
-    display_name: normalizeNonEmptyString(value.display_name),
-    role: normalizeNonEmptyString(value.role),
-    provider_identity: normalizeNonEmptyString(value.provider_identity),
-  };
-  return Object.values(actor).some((entry) => typeof entry === "string" && entry.length > 0)
-    ? pruneUndefined(actor) as ActAssignmentActorContract
-    : undefined;
-}
-
-function normalizeStringArray(value: readonly string[] | undefined): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((entry) => normalizeNonEmptyString(entry))
-    .filter((entry): entry is string => typeof entry === "string");
-}
-
-function normalizeUnknown(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeUnknown(entry));
-  }
-  if (!isRecord(value)) {
-    return value;
-  }
-  const normalized: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (entry === undefined) {
-      continue;
-    }
-    const normalizedEntry = normalizeUnknown(entry);
-    if (normalizedEntry === undefined) {
-      continue;
-    }
-    normalized[key] = normalizedEntry;
-  }
-  return normalized;
-}
-
-function canonicalSha256(value: unknown): string {
-  return sha256Prefixed(canonicalJsonStringify(pruneUndefined(value)));
-}
-
-function normalizeNonEmptyString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function pruneUndefined<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((entry) => pruneUndefined(entry)) as T;
-  }
-  if (!isRecord(value)) {
-    return value;
-  }
-  const result: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (entry === undefined) {
-      continue;
-    }
-    result[key] = pruneUndefined(entry);
-  }
-  return result as T;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
