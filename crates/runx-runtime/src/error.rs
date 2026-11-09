@@ -507,10 +507,44 @@ impl RuntimeError {
                 accepted_schema,
             },
             error if error.is_fatal_step_fault() => error,
+            // Already a step's invalid configuration: scoped again, never
+            // wrapped in itself.
+            Self::InvalidRunStep { reason, .. } => Self::InvalidRunStep {
+                step_id: step_id.to_owned(),
+                reason,
+            },
             error => Self::InvalidRunStep {
                 step_id: step_id.to_owned(),
                 reason: error.to_string(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RuntimeError;
+
+    /// A step's invalid configuration names its step once, however many
+    /// layers scope it.
+    #[test]
+    fn a_step_error_scoped_again_is_never_wrapped_in_itself() {
+        let invalid = RuntimeError::InvalidRunStep {
+            step_id: "answer".to_owned(),
+            reason: "the turn requires fresh_context".to_owned(),
+        };
+        let scoped = invalid
+            .at_workflow_step("answer")
+            .at_workflow_step("answer");
+        let message = scoped.to_string();
+        assert_eq!(
+            message.matches("has invalid run configuration").count(),
+            1,
+            "{message}"
+        );
+        assert!(
+            message.ends_with(": the turn requires fresh_context"),
+            "{message}"
+        );
     }
 }
