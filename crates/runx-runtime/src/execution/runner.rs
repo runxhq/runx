@@ -42,7 +42,7 @@ pub mod turn;
 mod workflow_engine;
 
 pub use call_stops::CallCancel;
-pub(crate) use call_stops::{CallStop, CallStops};
+pub(crate) use call_stops::{CallStop, CallStops, CallWork};
 use workflow_engine::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
@@ -681,6 +681,11 @@ fn sealing_stop(
             Some(SealReason::WorkflowBlocked),
             StopKind::Blocked,
         ),
+        RuntimeError::Cancelled { step_id } => (
+            step_id.clone(),
+            Some(SealReason::Cancelled),
+            StopKind::Closed(RunOutcome::Killed),
+        ),
         RuntimeError::AuthorityDenied { step_id, .. } => (
             step_id.clone(),
             Some(SealReason::AuthorityDenied),
@@ -734,6 +739,9 @@ pub(crate) fn workflow_stop_ending(
             RunOutcome::Deferred,
             Some(SealReason::ResolutionPending),
         ),
+        RuntimeError::Cancelled { step_id } => {
+            (step_id, RunOutcome::Killed, Some(SealReason::Cancelled))
+        }
         RuntimeError::StepClosed {
             step_id,
             outcome,

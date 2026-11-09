@@ -210,6 +210,8 @@ pub enum SealReason {
     ManagedAgentRoundBudgetExhausted,
     /// The host driving the run closed it while it waited.
     HostClosed,
+    /// Its caller cancelled the call that ran it.
+    Cancelled,
 }
 
 impl SealReason {
@@ -232,6 +234,7 @@ impl SealReason {
             Self::ManagedAgentToolExecutionFailed => "managed_agent_tool_execution_failed",
             Self::ManagedAgentRoundBudgetExhausted => "managed_agent_round_budget_exhausted",
             Self::HostClosed => "host_closed",
+            Self::Cancelled => "cancelled",
         }
     }
 }

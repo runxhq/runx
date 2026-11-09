@@ -219,8 +219,9 @@ impl TurnSession {
     /// script's, at any depth of the run, while it executes. One that hasn't
     /// started, or only reads, settles `cancelled`, and a read in flight is
     /// stopped; an effect in flight settles as it actually ends, with the
-    /// cancel recorded beside it. It waits for nothing: whichever driver
-    /// records the call records the cancel.
+    /// cancel recorded beside it. A skill call's cancel reaches its child run
+    /// by the same rule, and the child seals killed. It waits for nothing:
+    /// whichever driver records the call records the cancel.
     pub fn cancel(&self, address: &str) -> Result<CallCancel, SkillRunError> {
         self.stops.cancel(address).ok_or_else(|| {
             invalid(format!(

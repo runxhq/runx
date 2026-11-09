@@ -37,7 +37,7 @@ use super::step_handlers::{
     StepRunRequest, output_error, run_step_with_inputs, run_step_with_loaded_skill_inputs,
 };
 use super::workflow_engine::AnsweringHost;
-use super::{CallStop, Runtime, StepRun};
+use super::{CallStop, CallWork, Runtime, StepRun};
 use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
 use crate::host::Host;
@@ -275,21 +275,28 @@ where
             held_by_effects,
             stop,
         } = admitted;
-        // A call its host cancelled before it started never runs. A read
-        // runs under its own stop, so a cancel ends it, and however it ended
-        // it settles cancelled; an effect runs to its end.
-        let ran = if !stop.start() {
+        // A call its host cancelled before it started never runs, nor one
+        // in a child run its caller's host cancelled. A read runs under its
+        // own stop and its callers', so a cancel ends it, and however it
+        // ended it settles cancelled. A skill call's child run runs under
+        // the call, and heeds its cancel. An effect runs to its end.
+        let ran = if !stop.start() || crate::interrupt::caller_cancelled() {
             Ran::Cancelled
         } else if let Some(working) = stop.working() {
-            let ran = crate::interrupt::while_working(working, || {
+            let ran = crate::interrupt::while_reading(Some(working), || {
                 self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)
             });
-            if stop.cancelled() {
+            if stop.cancelled() || crate::interrupt::caller_cancelled() {
                 Ran::Cancelled
             } else {
                 ran?
             }
+        } else if let Some(caller) = stop.caller() {
+            crate::interrupt::while_called(caller, || {
+                self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)
+            })?
         } else {
+            crate::interrupt::note_effect();
             self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?
         };
         Ok(ExecutedCall {
@@ -978,10 +985,11 @@ where
             stop,
         } = executed;
         // Released under the driver, so a cancel is recorded with the call
-        // or names no executing call.
-        let reads = stop.reads();
-        let cancelled = stop.release();
-        let ran = if cancelled && reads {
+        // or names no executing call. A call in a child run its caller's
+        // host cancelled is cancelled too.
+        let changed_nothing = stop.changed_nothing();
+        let cancelled = stop.release() || crate::interrupt::caller_cancelled();
+        let ran = if cancelled && changed_nothing {
             Ran::Cancelled
         } else {
             ran
@@ -1036,8 +1044,14 @@ where
     /// executing calls, so its host can cancel it until it's recorded.
     fn stop(&self, index: u32, step: &WorkflowStep) -> CallStop {
         let options = &self.scope.runtime.options;
-        let reads = super::only_reads(step, self.scope.workflow_dir, &options.env);
-        options.call_stops.register(self.call_address(index), reads)
+        let work = if super::only_reads(step, self.scope.workflow_dir, &options.env) {
+            CallWork::Reads
+        } else if matches!(step.kind, StepKind::Skill(_)) {
+            CallWork::RunsAChild
+        } else {
+            CallWork::Changes
+        };
+        options.call_stops.register(self.call_address(index), work)
     }
 
     /// Take a skill call further: run its child again, from the child's own
@@ -1060,14 +1074,25 @@ where
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        // Its child runs further under the driver; its host can cancel it
-        // meanwhile, and a skill's child run settles as it actually ends.
+        // Its child runs further under the driver, and under the call, so
+        // its host can cancel it meanwhile.
         let stop = self.stop(made.index, &step.step);
         stop.start();
-        let ran =
+        let mut run = || {
             self.scope
-                .run_call_step(&step, &made.target, Vec::new(), false, &mut answering)?;
-        let cancelled = stop.release();
+                .run_call_step(&step, &made.target, Vec::new(), false, &mut answering)
+        };
+        let ran = match stop.caller() {
+            Some(caller) => crate::interrupt::while_called(caller, run)?,
+            None => run()?,
+        };
+        let changed_nothing = stop.changed_nothing();
+        let cancelled = stop.release() || crate::interrupt::caller_cancelled();
+        let ran = if cancelled && changed_nothing {
+            Ran::Cancelled
+        } else {
+            ran
+        };
         let answers = answering.answers;
         self.concluded(made, call.outcome, ran, &answers, cancelled)
     }

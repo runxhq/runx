@@ -132,7 +132,7 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
         (
             McpTurnAction::Cancel,
             "call_cancel",
-            "Cancel one call the run is executing, a turn's or a script's, at any depth, by its address: <step>/<n> in its run, where a turn's step is its turn, and <path>#<step>/<n> in a child run. One that hasn't started, or only reads, settles cancelled; an effect in flight settles as it actually ends, with the cancel recorded beside it. It answers at once, while the call's own driver records it. A call that waits on a person is answered or declined, not cancelled.",
+            "Cancel one call the run is executing, a turn's or a script's, at any depth, by its address: <step>/<n> in its run, where a turn's step is its turn, and <path>#<step>/<n> in a child run. One that hasn't started, or only reads, settles cancelled; an effect in flight settles as it actually ends, with the cancel recorded beside it; a skill call's child run starts no further step and seals killed, and the call settles cancelled when the child committed no effect. It answers at once, while the call's own driver records it. A call that waits on a person is answered or declined, not cancelled.",
             fields(&[("call", string_schema())], &[]),
         ),
     ]

@@ -49,6 +49,10 @@ pub enum RuntimeError {
     UnsupportedRunStep { step_id: String, run_type: String },
     #[error("workflow step '{step_id}' is blocked: {reason}")]
     WorkflowBlocked { step_id: String, reason: String },
+    /// Its caller's host cancelled the call that ran this child run, which
+    /// stops where it stands, at `step_id`, and seals killed.
+    #[error("its caller cancelled the call that ran it, at step '{step_id}'")]
+    Cancelled { step_id: String },
     #[error("workflow step '{step_id}' is waiting for host resolution: {reason}")]
     ResolutionPending {
         step_id: String,
@@ -218,6 +222,7 @@ impl RuntimeError {
             source @ (Self::AuthorityDenied { .. }
             | Self::CostLimitExceeded { .. }
             | Self::WorkflowBlocked { .. }
+            | Self::Cancelled { .. }
             | Self::ResolutionPending { .. }
             | Self::ProviderReadbackPending { .. }) => source,
             source => Self::EngineFailure {
@@ -253,6 +258,7 @@ impl RuntimeError {
             | Self::StepFailed { .. }
             | Self::UnsupportedRunStep { .. }
             | Self::WorkflowBlocked { .. }
+            | Self::Cancelled { .. }
             | Self::ResolutionPending { .. }
             | Self::StepClosed { .. }
             | Self::ContextEdgeUnresolved(_)
@@ -421,6 +427,7 @@ impl RuntimeError {
             | Self::StepFailed { step_id, .. }
             | Self::UnsupportedRunStep { step_id, .. }
             | Self::WorkflowBlocked { step_id, .. }
+            | Self::Cancelled { step_id }
             | Self::ResolutionPending { step_id, .. }
             | Self::StepClosed { step_id, .. }
             | Self::AuthorityDenied { step_id, .. }
@@ -459,6 +466,9 @@ impl RuntimeError {
             Self::WorkflowBlocked { reason, .. } => Self::WorkflowBlocked {
                 step_id: step_id.to_owned(),
                 reason,
+            },
+            Self::Cancelled { .. } => Self::Cancelled {
+                step_id: step_id.to_owned(),
             },
             Self::ResolutionPending {
                 reason,

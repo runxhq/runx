@@ -8504,7 +8504,8 @@ export const runxSchemaArtifacts = {
           "managed_agent_empty_turn_budget_exhausted",
           "managed_agent_tool_execution_failed",
           "managed_agent_round_budget_exhausted",
-          "host_closed"
+          "host_closed",
+          "cancelled"
         ],
         "title": "SealReason",
         "type": "string"

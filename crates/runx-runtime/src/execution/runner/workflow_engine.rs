@@ -334,6 +334,18 @@ impl WorkflowExecution {
                 self.run_one_step(runtime, workflow_dir, workflow, &step_id, attempt, host)?;
                 Ok(false)
             }
+            // A child run cancelled by its caller's host ends killed even
+            // when no step is left: it never completes.
+            SequentialWorkflowPlan::Complete if crate::interrupt::caller_cancelled() => {
+                Err(RuntimeError::Cancelled {
+                    step_id: self
+                        .runs
+                        .last()
+                        .map(|run| run.step_id.clone())
+                        .or_else(|| workflow.steps.last().map(|step| step.id.clone()))
+                        .unwrap_or_default(),
+                })
+            }
             SequentialWorkflowPlan::Complete => Ok(self.complete_workflow()),
             SequentialWorkflowPlan::Blocked { step_id, reason } => {
                 Err(RuntimeError::WorkflowBlocked { step_id, reason })
@@ -380,6 +392,13 @@ impl WorkflowExecution {
             return Err(RuntimeError::Stopped {
                 run_id: runtime.options.run.run_id().to_owned(),
                 step_id: format!("step {step_id}"),
+            });
+        }
+        // A child run whose caller's host cancelled the call that ran it
+        // starts no further step.
+        if crate::interrupt::caller_cancelled() && !recording {
+            return Err(RuntimeError::Cancelled {
+                step_id: step_id.to_owned(),
             });
         }
         let plan = StepExecutionPlan { step_id, attempt };
@@ -463,6 +482,12 @@ impl WorkflowExecution {
             &mut answering,
         );
         let claimed = floor.is_ok() && super::reaches_world(&context.step.kind);
+        let reads = claimed
+            && super::only_reads(
+                context.step,
+                context.workflow_dir,
+                &context.runtime.options.env,
+            );
         let result = match floor {
             Err(error) => Err(error),
             Ok(admitted) => {
@@ -482,23 +507,48 @@ impl WorkflowExecution {
                         ),
                         &std::mem::take(&mut answering.answers),
                     )?;
+                    if !reads {
+                        crate::interrupt::note_effect();
+                    }
                 }
                 let mut admission_refs = admission_refs;
                 admission_refs.extend(admitted.reference()?);
                 let held_by_effects = admitted == super::floor::Admitted::Held;
-                self.execute_step_plan(
-                    StepPlanTarget {
-                        runtime: context.runtime,
-                        workflow_dir: context.workflow_dir,
-                        workflow: context.workflow,
-                        step: context.step,
-                        plan: context.plan,
-                    },
-                    &mut answering,
-                    loaded_skill,
-                    admission_refs,
-                    held_by_effects,
-                )
+                let target = StepPlanTarget {
+                    runtime: context.runtime,
+                    workflow_dir: context.workflow_dir,
+                    workflow: context.workflow,
+                    step: context.step,
+                    plan: context.plan,
+                };
+                // A read runs under the stops of the calls whose child run
+                // this is, so their cancel ends it, and it then ends the run
+                // where it stands.
+                if reads {
+                    let read = crate::interrupt::while_reading(None, || {
+                        self.execute_step_plan(
+                            target,
+                            &mut answering,
+                            loaded_skill,
+                            admission_refs,
+                            held_by_effects,
+                        )
+                    });
+                    if crate::interrupt::caller_cancelled() {
+                        return Err(RuntimeError::Cancelled {
+                            step_id: context.plan.step_id.to_owned(),
+                        });
+                    }
+                    read
+                } else {
+                    self.execute_step_plan(
+                        target,
+                        &mut answering,
+                        loaded_skill,
+                        admission_refs,
+                        held_by_effects,
+                    )
+                }
             }
         };
         let answers = answering.answers;
@@ -632,6 +682,15 @@ impl WorkflowExecution {
             let reason = run.receipt.seal.reason;
             let refusal = run.refusal.clone().map(Box::new);
             self.push_run(runtime, run, answers)?;
+            // A child run killed by its caller's cancel ends this run where it
+            // stands, by the same rule.
+            if outcome == runx_contracts::RunOutcome::Killed
+                && reason == Some(runx_contracts::SealReason::Cancelled)
+            {
+                return Err(RuntimeError::Cancelled {
+                    step_id: plan.step_id.to_owned(),
+                });
+            }
             if super::is_governed_step_closure(&outcome) {
                 return Err(RuntimeError::StepClosed {
                     step_id: plan.step_id.to_owned(),

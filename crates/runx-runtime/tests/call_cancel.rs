@@ -175,6 +175,12 @@ fn open_under(
     Ok((run_id, Arc::new(session)))
 }
 
+/// End the turn, so its run seals and writes its receipts.
+fn turn_complete(session: &TurnSession) -> TestResult {
+    session.complete(TURN, input(serde_json::json!({"answer": "done"}))?)?;
+    Ok(())
+}
+
 fn input(value: serde_json::Value) -> TestResult<JsonObject> {
     Ok(serde_json::from_value(value)?)
 }
@@ -261,9 +267,10 @@ fn a_turns_read_in_flight_settles_cancelled_and_its_stop_ends_it() -> TestResult
 }
 
 /// A script's call that hasn't started settles cancelled, and the script
-/// catches it; an effect in flight runs to its end and settles as it
-/// actually ended, with the cancel beside it. Both are cancelled through the
-/// turn's session, at the script's depth.
+/// catches it. A skill call in flight is reached in its child run: its effect
+/// runs to its end, and the child, which committed it, seals killed, so the
+/// call settles as the child actually ended, with the cancel beside it. Both
+/// are cancelled through the turn's session, at the script's depth.
 #[test]
 fn a_scripts_call_not_started_settles_cancelled_and_an_effect_in_flight_as_it_ends() -> TestResult {
     let temp = tempdir()?;
@@ -340,7 +347,7 @@ methods:
     };
     assert_eq!(
         serde_json::to_value(output)?,
-        serde_json::json!({"held": "fulfilled", "digest": "cancelled"})
+        serde_json::json!({"held": "rejected", "digest": "cancelled"})
     );
     let script = calls(root, &run_id, &format!("{run_id}/answer/0"))?;
     assert_eq!(
@@ -494,6 +501,121 @@ methods:
     assert_eq!(
         serde_json::to_value(output)?,
         serde_json::json!({"outcomes": ["held", "held", "cancelled", "cancelled"]})
+    );
+    Ok(())
+}
+
+/// A cancel reaches a skill call's child run by the same rule: held inside
+/// the first of its two effects, the first completes, the second never
+/// starts, and the child seals killed because its caller cancelled it. The
+/// child committed an effect, so the parent's call settles as the child
+/// actually ended, with the cancel beside it.
+#[test]
+fn a_cancel_reaches_a_skill_calls_child_run_which_seals_killed() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    let second = root.join("second-ran");
+    crate::support::write_test_skill_package(
+        &root.join("two"),
+        "---\nname: two\ndescription: Two effects, one after the other.\n---\n# Two\n\nDo both.\n",
+        &format!(
+            r#"minimum_runx: 0.12.0
+methods:
+  two:
+    steps:
+      - id: first
+        tool:
+          command: sh
+          args:
+            - -c
+            - 'printf x > "{on}" && read line < "{off}" && printf "{{\"first\":true}}\n"'
+        outputs:
+          first: {{type: boolean}}
+      - id: second
+        tool:
+          command: sh
+          args:
+            - -c
+            - ': > "{second}" && printf "{{\"second\":true}}\n"'
+        outputs:
+          second: {{type: boolean}}
+"#,
+            on = on.display(),
+            off = off.display(),
+            second = second.display(),
+        ),
+    )?;
+    let skill = asker(root, "          skills: [../two]\n")?;
+    let (run_id, session) = open(root, skill)?;
+    let calling = std::thread::spawn({
+        let session = Arc::clone(&session);
+        move || session.call(TURN, "skill__two", None, JsonObject::new())
+    });
+    // The child is inside its first effect.
+    started(&on)?;
+    assert_eq!(session.cancel("answer/0")?, CallCancel::SettlesAsItEnds);
+    release(&off)?;
+    let called = calling.join().map_err(|_| "the call panicked")??;
+    let TurnCallOutcome::Failed {
+        receipt_id: Some(receipt_id),
+        ..
+    } = &called.outcome
+    else {
+        return Err(format!("the call ended as its child did: {called:?}").into());
+    };
+    assert!(!second.exists(), "the second effect never started");
+    turn_complete(&session)?;
+    let child =
+        crate::support::read_test_signed_receipt(&root.join("receipts"), receipt_id.as_str())?;
+    assert_eq!(child.seal.outcome, runx_contracts::RunOutcome::Killed);
+    assert_eq!(
+        child.seal.reason,
+        Some(runx_contracts::SealReason::Cancelled)
+    );
+    assert_eq!(
+        calls(root, &run_id, &run_id)?,
+        [(0, "child", false), (0, "completed", true)],
+        "the call settled as its child ended, with the cancel beside it"
+    );
+    Ok(())
+}
+
+/// A skill call whose child run committed no effect settles cancelled: held
+/// inside a read, the cancel stops the read, and the child seals killed.
+#[test]
+fn a_cancelled_skill_call_whose_child_only_read_settles_cancelled() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    crate::support::write_test_skill_package(
+        &root.join("peek"),
+        "---\nname: peek\ndescription: Reads once it is released.\n---\n# Peek\n\nRead.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  peek:\n    steps:\n      - id: peek\n        operation: gate/gate.wait\n        inputs: {{started: \"{}\", release: \"{}\"}}\n",
+            on.display(),
+            off.display()
+        ),
+    )?;
+    let skill = asker(root, "          skills: [../peek]\n")?;
+    let (run_id, session) = open(root, skill)?;
+    let calling = std::thread::spawn({
+        let session = Arc::clone(&session);
+        move || session.call(TURN, "skill__peek", None, JsonObject::new())
+    });
+    started(&on)?;
+    assert_eq!(session.cancel("answer/0")?, CallCancel::SettlesAsItEnds);
+    // Nothing releases the read: the cancel stops it.
+    let called = calling.join().map_err(|_| "the call panicked")??;
+    assert_eq!(called.outcome, TurnCallOutcome::Cancelled, "{called:?}");
+    assert_eq!(
+        calls(root, &run_id, &run_id)?,
+        [(0, "child", false), (0, "cancelled", true)]
     );
     Ok(())
 }

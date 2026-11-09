@@ -261,8 +261,11 @@ calls go on, with how the call settles. One that hasn't started, or that only
 reads, settles `cancelled`, and a read in flight is stopped; an effect in
 flight runs to its end and settles as it actually ended, with the cancel
 recorded beside it, so the run's record never says an effect didn't happen
-when it did. A call that waits on a person isn't executing: it's answered, or
-declined. A completed call returns each packet
+when it did. A skill call's cancel reaches its child run by the same rule, at
+every depth: no later step starts, and the child seals `killed` with the
+reason `cancelled`. The call settles `cancelled` when its child committed no
+effect, and otherwise as its child actually ended, with the cancel beside it.
+A call that waits on a person isn't executing: it's answered, or declined. A completed call returns each packet
 output's project artifact reference under `artifacts`, by output name; where a
 tool's or skill's input is of a packet type, a call may pass a reference to any
 packet the project holds in place of the packet, one an earlier call returned

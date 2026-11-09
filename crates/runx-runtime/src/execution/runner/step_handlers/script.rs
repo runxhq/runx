@@ -285,8 +285,8 @@ where
             let scope = ledger.scope();
             // A call on its own thread still stops as the work it's part of
             // stops.
-            let stops = crate::interrupt::working_stops();
-            let stops = &stops;
+            let working = crate::interrupt::working();
+            let working = &working;
             // The calls dispatched at once are in flight before any of them
             // runs, so a cancel finds each where the scheduler put it; a
             // later one is dispatched as a place frees for it.
@@ -301,7 +301,7 @@ where
                         call.dispatch();
                         threads.spawn(move || {
                             let executed = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                                crate::interrupt::while_working_under(stops, || {
+                                crate::interrupt::while_working_under(working, || {
                                     scope.execute_call(&mut detached, call)
                                 })
                             }))

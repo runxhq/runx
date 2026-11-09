@@ -22,10 +22,41 @@ fn stop_asked() -> &'static Arc<AtomicBool> {
 }
 
 thread_local! {
-    /// The stops of the work this thread does, outermost first: the call its
-    /// host serves, and within it a call its host may cancel alone. Any one
-    /// set stops the work.
-    static CALL_STOPS: RefCell<Vec<Arc<AtomicBool>>> = const { RefCell::new(Vec::new()) };
+    /// What the work this thread does runs under.
+    static WORKING: RefCell<Working> = RefCell::new(Working::default());
+}
+
+/// What a thread's work runs under, outermost first: the stops any one of
+/// which stops it, the call its host serves and within it a call its host
+/// may cancel alone, and the calls whose child runs it is part of.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Working {
+    stops: Vec<Arc<AtomicBool>>,
+    callers: Vec<Arc<Caller>>,
+}
+
+/// A call whose work is a child run: whether its host cancelled it, which
+/// the child heeds at every depth, and whether anything in the child began
+/// an effect.
+#[derive(Debug)]
+pub(crate) struct Caller {
+    cancelled: Arc<AtomicBool>,
+    effected: AtomicBool,
+}
+
+impl Caller {
+    /// A call its host cancels through `cancelled`.
+    pub(crate) fn new(cancelled: Arc<AtomicBool>) -> Self {
+        Self {
+            cancelled,
+            effected: AtomicBool::new(false),
+        }
+    }
+
+    /// Whether anything its child run did began an effect.
+    pub(crate) fn effected(&self) -> bool {
+        self.effected.load(Ordering::Acquire)
+    }
 }
 
 /// Whether `SIGTERM` asked the process to stop.
@@ -39,31 +70,76 @@ pub fn was_stopped() -> bool {
 /// does any stop the work it's part of runs under, and the thread's next
 /// call starts clear.
 pub fn while_working<T>(stop: &Arc<AtomicBool>, work: impl FnOnce() -> T) -> T {
-    let mut stops = working_stops();
-    stops.push(Arc::clone(stop));
-    while_working_under(&stops, work)
+    let mut working = working();
+    working.stops.push(Arc::clone(stop));
+    while_working_under(&working, work)
 }
 
-/// The stops the work on this thread runs under, for a part of it handed to
+/// What the work on this thread runs under, for a part of it handed to
 /// another thread.
 #[must_use]
-pub(crate) fn working_stops() -> Vec<Arc<AtomicBool>> {
-    CALL_STOPS.with(|stops| stops.borrow().clone())
+pub(crate) fn working() -> Working {
+    WORKING.with(|working| working.borrow().clone())
 }
 
-/// Do `work`, a part of other work handed to this thread, under `stops`, the
-/// stops that work runs under.
-pub(crate) fn while_working_under<T>(stops: &[Arc<AtomicBool>], work: impl FnOnce() -> T) -> T {
-    /// Puts the thread's stops back as they were, however the work ends.
-    struct Restore(Vec<Arc<AtomicBool>>);
+/// Do `work`, a part of other work handed to this thread, under `working`,
+/// what that work runs under.
+pub(crate) fn while_working_under<T>(working: &Working, work: impl FnOnce() -> T) -> T {
+    /// Puts the thread's work back as it was, however the work ends.
+    struct Restore(Working);
     impl Drop for Restore {
         fn drop(&mut self) {
             let previous = std::mem::take(&mut self.0);
-            CALL_STOPS.with(|current| *current.borrow_mut() = previous);
+            WORKING.with(|current| *current.borrow_mut() = previous);
         }
     }
-    let _restore = Restore(CALL_STOPS.with(|current| current.replace(stops.to_vec())));
+    let _restore = Restore(WORKING.with(|current| current.replace(working.clone())));
     work()
+}
+
+/// Do `work` as the child run of `caller`, a call its host may cancel.
+pub(crate) fn while_called<T>(caller: &Arc<Caller>, work: impl FnOnce() -> T) -> T {
+    let mut working = working();
+    working.callers.push(Arc::clone(caller));
+    while_working_under(&working, work)
+}
+
+/// Do `work`, a read, so that a cancel of it through `stop`, or of any call
+/// whose child run it is part of, stops it.
+pub(crate) fn while_reading<T>(stop: Option<&Arc<AtomicBool>>, work: impl FnOnce() -> T) -> T {
+    let mut working = working();
+    let callers = working
+        .callers
+        .iter()
+        .map(|caller| Arc::clone(&caller.cancelled))
+        .collect::<Vec<_>>();
+    working
+        .stops
+        .extend(stop.cloned().into_iter().chain(callers));
+    while_working_under(&working, work)
+}
+
+/// Whether the host of a call whose child run this work is part of
+/// cancelled it, at any depth: the run starts no further step.
+#[must_use]
+pub(crate) fn caller_cancelled() -> bool {
+    WORKING.with(|working| {
+        working
+            .borrow()
+            .callers
+            .iter()
+            .any(|caller| caller.cancelled.load(Ordering::Acquire))
+    })
+}
+
+/// Say this work is beginning an effect: every call whose child run it is
+/// part of has committed one.
+pub(crate) fn note_effect() {
+    WORKING.with(|working| {
+        for caller in &working.borrow().callers {
+            caller.effected.store(true, Ordering::Release);
+        }
+    });
 }
 
 /// Whether the work on this thread should stop: the process was asked to,
@@ -71,9 +147,10 @@ pub(crate) fn while_working_under<T>(stops: &[Arc<AtomicBool>], work: impl FnOnc
 #[must_use]
 pub fn stop_requested() -> bool {
     was_stopped()
-        || CALL_STOPS.with(|stops| {
-            stops
+        || WORKING.with(|working| {
+            working
                 .borrow()
+                .stops
                 .iter()
                 .any(|stop| stop.load(Ordering::Acquire))
         })
@@ -218,7 +295,7 @@ mod tests {
     #[test]
     fn work_handed_to_another_thread_keeps_its_stops() {
         let served = Arc::new(AtomicBool::new(false));
-        let handed = while_working(&served, working_stops);
+        let handed = while_working(&served, working);
         let part = std::thread::spawn({
             let served = Arc::clone(&served);
             move || {

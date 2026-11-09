@@ -6,10 +6,14 @@
 //! it: a call that hasn't started, or one that only reads, settles
 //! `cancelled`, and its stop ends a read in flight; an effect in flight runs
 //! to its end and settles as it actually ended, with the cancel beside it.
+//! A cancel of a skill call in flight reaches its child run, which heeds it
+//! by the same rule at every depth and starts no further step.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
+use crate::interrupt::Caller;
 
 /// The executing calls of a run and the child runs below it, by address.
 #[derive(Debug, Default)]
@@ -17,13 +21,24 @@ pub(crate) struct CallStops(Mutex<BTreeMap<String, Executing>>);
 
 #[derive(Debug)]
 struct Executing {
-    /// It only reads, so a cancel settles it `cancelled` wherever it stands.
-    reads: bool,
+    work: CallWork,
     started: bool,
     cancelled: bool,
-    /// What a read's execution works under, so a cancel stops whatever in it
-    /// heeds a stop.
+    /// What a read's execution, or a skill call's child run, heeds: a read
+    /// stops, and a child run starts no further step.
     stop: Arc<AtomicBool>,
+}
+
+/// What a call's execution does, which says how a cancel in flight settles
+/// it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CallWork {
+    /// It only reads, so a cancel settles it `cancelled` wherever it stands.
+    Reads,
+    /// It may change something: in flight, it runs to its end.
+    Changes,
+    /// It runs a child run, which the cancel reaches.
+    RunsAChild,
 }
 
 /// How a cancel settles the call it names.
@@ -31,8 +46,10 @@ struct Executing {
 pub enum CallCancel {
     /// It hadn't started, or it only reads: it settles `cancelled`.
     Cancelled,
-    /// Its effect is in flight: it settles as it actually ends, with the
-    /// cancel recorded beside it.
+    /// It's in flight and may change something: it settles as it actually
+    /// ends, with the cancel recorded beside it. A skill call's child run
+    /// starts no further step, and the call settles `cancelled` if the child
+    /// committed no effect.
     SettlesAsItEnds,
 }
 
@@ -41,13 +58,14 @@ impl CallStops {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Register the call at `address` until its driver records it.
-    pub(crate) fn register(self: &Arc<Self>, address: String, reads: bool) -> CallStop {
+    /// Register the call at `address`, which does `work`, until its driver
+    /// records it.
+    pub(crate) fn register(self: &Arc<Self>, address: String, work: CallWork) -> CallStop {
         let stop = Arc::new(AtomicBool::new(false));
         self.executing().insert(
             address.clone(),
             Executing {
-                reads,
+                work,
                 started: false,
                 cancelled: false,
                 stop: Arc::clone(&stop),
@@ -56,8 +74,10 @@ impl CallStops {
         CallStop {
             stops: Arc::clone(self),
             address,
+            caller: (work == CallWork::RunsAChild)
+                .then(|| Arc::new(Caller::new(Arc::clone(&stop)))),
             stop,
-            reads,
+            work,
         }
     }
 
@@ -66,8 +86,10 @@ impl CallStops {
         let mut executing = self.executing();
         let call = executing.get_mut(address)?;
         call.cancelled = true;
-        if call.reads || !call.started {
+        if !call.started || call.work != CallWork::Changes {
             call.stop.store(true, Ordering::Release);
+        }
+        if !call.started || call.work == CallWork::Reads {
             Some(CallCancel::Cancelled)
         } else {
             Some(CallCancel::SettlesAsItEnds)
@@ -82,7 +104,9 @@ pub(crate) struct CallStop {
     stops: Arc<CallStops>,
     address: String,
     stop: Arc<AtomicBool>,
-    reads: bool,
+    work: CallWork,
+    /// A skill call's, which its child run runs under.
+    caller: Option<Arc<Caller>>,
 }
 
 impl CallStop {
@@ -104,7 +128,12 @@ impl CallStop {
     /// The stop the call's execution works under: its own when it only
     /// reads. An effect has none, so it runs to its end.
     pub(crate) fn working(&self) -> Option<&Arc<AtomicBool>> {
-        self.reads.then_some(&self.stop)
+        (self.work == CallWork::Reads).then_some(&self.stop)
+    }
+
+    /// The call a skill call's child run runs under.
+    pub(crate) fn caller(&self) -> Option<&Arc<Caller>> {
+        self.caller.as_ref()
     }
 
     /// Whether its host cancelled it, as far as it has got.
@@ -112,8 +141,17 @@ impl CallStop {
         self.stop.load(Ordering::Acquire)
     }
 
-    pub(crate) fn reads(&self) -> bool {
-        self.reads
+    /// Whether a cancel settles it `cancelled` however far it got: it only
+    /// reads, or it ran a child run that committed no effect.
+    pub(crate) fn changed_nothing(&self) -> bool {
+        match self.work {
+            CallWork::Reads => true,
+            CallWork::Changes => false,
+            CallWork::RunsAChild => self
+                .caller
+                .as_ref()
+                .is_some_and(|caller| !caller.effected()),
+        }
     }
 
     /// Release the call to record it, under its driver: whether its host
@@ -144,9 +182,9 @@ mod tests {
     #[test]
     fn a_cancel_settles_by_where_the_call_stands() {
         let stops = Arc::new(CallStops::default());
-        let queued = stops.register("batch/0".to_owned(), false);
-        let effect = stops.register("batch/1".to_owned(), false);
-        let read = stops.register("batch/2".to_owned(), true);
+        let queued = stops.register("batch/0".to_owned(), CallWork::Changes);
+        let effect = stops.register("batch/1".to_owned(), CallWork::Changes);
+        let read = stops.register("batch/2".to_owned(), CallWork::Reads);
         assert!(effect.start() && read.start());
         assert!(effect.start(), "a call starts once");
         assert_eq!(stops.cancel("batch/0"), Some(CallCancel::Cancelled));
@@ -170,8 +208,8 @@ mod tests {
     #[test]
     fn a_call_registered_again_is_not_released_by_its_earlier_place() {
         let stops = Arc::new(CallStops::default());
-        let earlier = stops.register("batch/0".to_owned(), false);
-        let again = stops.register("batch/0".to_owned(), false);
+        let earlier = stops.register("batch/0".to_owned(), CallWork::Changes);
+        let again = stops.register("batch/0".to_owned(), CallWork::Changes);
         drop(earlier);
         assert_eq!(stops.cancel("batch/0"), Some(CallCancel::Cancelled));
         assert!(again.release());
