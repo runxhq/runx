@@ -170,7 +170,8 @@ pub(crate) fn connector_requirements(
 }
 
 /// Every operation a workflow's steps name: an operation step's, each a
-/// per-run choice may take, and each an agent step's turn may call.
+/// per-run choice may take, and each an agent step's turn or a script step
+/// may call.
 fn named_operations(workflow: &Workflow) -> Vec<(String, OperationName)> {
     let mut named = Vec::new();
     for step in &workflow.steps {
@@ -185,8 +186,9 @@ fn named_operations(workflow: &Workflow) -> Vec<(String, OperationName)> {
                 );
             }
             // The step's parser admitted each as <connector>/<operation>.
-            crate::StepKind::Agent(agent) => {
-                named.extend(agent.allowance.operations.iter().filter_map(|allowed| {
+            crate::StepKind::Agent(crate::AgentTask { allowance, .. })
+            | crate::StepKind::Script(crate::ScriptStep { allowance, .. }) => {
+                named.extend(allowance.operations.iter().filter_map(|allowed| {
                     OperationName::new(allowed.operation.as_str())
                         .map(|operation| (allowed.requirement.as_str().to_owned(), operation))
                 }));

@@ -70,7 +70,16 @@ const DIGEST_THEN_CONFIRM: &str = r#"export default async function (ctx, { value
 "#;
 
 fn run(root: &Path, skill_dir: PathBuf) -> TestResult<RunResult> {
-    Ok(LocalOrchestrator::default().run_skill_with_binding(
+    run_on(LocalOrchestrator::default(), root, skill_dir)
+}
+
+/// Run `skill_dir` on `orchestrator`.
+fn run_on(
+    orchestrator: LocalOrchestrator,
+    root: &Path,
+    skill_dir: PathBuf,
+) -> TestResult<RunResult> {
+    Ok(orchestrator.run_skill_with_binding(
         &SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),
@@ -985,5 +994,89 @@ fn a_run_records_the_implementation_that_started_it() -> TestResult {
         "a workspace build names its worker"
     );
     assert_eq!(started, Some(current));
+    Ok(())
+}
+
+/// A connector, `measure`, whose `text.measure` reads the length of the text
+/// it's given, through a process.
+fn write_measure_connector(root: &Path) -> TestResult {
+    let tool = root.join("connectors/measure/tools/text/measure");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(
+        root.join("connectors/measure/connector.yaml"),
+        r#"schema: runx.connector.v1
+name: measure
+title: Measure
+description: Measures a text.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  text.measure:
+    description: Measure the text given.
+    verb: read
+    scopes: [text.read]
+    target:
+      template: "text"
+    input_schema:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: {type: string}
+    result_fields: [length]
+    implementation:
+      process:
+        tool: text.measure
+"#,
+    )?;
+    std::fs::write(
+        tool.join("manifest.json"),
+        r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "text.measure",
+  "version": "0.1.0",
+  "description": "Measure a text.",
+  "process": {"command": "sh", "args": ["./measure.sh", "{{text}}"]},
+  "inputs": {"text": {"type": "string", "description": "The text."}}
+}
+"#,
+    )?;
+    std::fs::write(
+        tool.join("measure.sh"),
+        "#!/bin/sh\nprintf '{\"length\":%s}\\n' \"${#1}\"\n",
+    )?;
+    Ok(())
+}
+
+/// A script's operation call reaches the connector its step's `calls`
+/// names, whose requirement the step's operations declare.
+#[test]
+fn a_scripts_operation_call_reaches_its_connector() -> TestResult {
+    let temp = tempdir()?;
+    write_measure_connector(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          operations: [measure/text.measure]\n        max_calls: 1\n        outputs:\n          measured: {type: object}\n",
+        r#"export default async function (ctx) {
+  return { measured: await ctx.operation("measure/text.measure", { text: "four" }) };
+}
+"#,
+    )?;
+    // Connector operations run on the kernel's local effects.
+    let orchestrator = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        env(temp.path()),
+    );
+    let sealed = run_on(orchestrator, temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert!(
+        serde_json::to_string(result)?.contains("\"length\":4"),
+        "the operation measured its text: {result:?}"
+    );
     Ok(())
 }
