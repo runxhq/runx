@@ -276,8 +276,13 @@ function workingFiles(root) {
   return [...new Set(listed.split("\n").filter(Boolean))].filter((file) => existsSync(path.join(root, file)));
 }
 
+// A lockfile is its package manager's: Cargo.lock, pnpm-lock.yaml,
+// package-lock.json, packets.lock.json and their kind. A name that only holds
+// the letters, such as a test's blocked-push.yaml, is a source like any other.
+const LOCKFILE = /(^|[.-])lock\.(json|ya?ml)$|\.lockb?$/;
+
 function workingSources(root) {
-  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !HISTORY_DOCS.test(file) && !GENERATED.test(file));
+  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !LOCKFILE.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !HISTORY_DOCS.test(file) && !GENERATED.test(file));
 }
 
 function readSource(root, file) {

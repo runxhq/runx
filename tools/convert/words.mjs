@@ -21,8 +21,9 @@ export function bareWord(token) {
   return undefined;
 }
 
-// `harness` before context, ref, spine or control is the run sense (§4.2).
-const RUN_SENSE = /^[ _-](context|ref|spine|control)/i;
+// `harness` before context, ref, spine or control is the run sense (§4.2):
+// the whole word, so a harness that refuses or a reference stays the test sense.
+const RUN_SENSE = /^[ _-](context|ref|spine|control)s?(?![A-Za-z])/i;
 
 /** The bare token's new form, in its case. */
 export function renamedBare(token, after) {
@@ -39,24 +40,39 @@ export function renamedBare(token, after) {
 // holds in (all when it says none), and what must sit just before or just
 // after the word on its line.
 export const STAYS = [
-  // runner: the machinery that executes runs (§4.2).
+  // runner: the machinery that executes runs (§4.2). The test runner's module
+  // is named at its path before and after the rename moves it, so the rename
+  // runs again over its own output.
   { word: "runner", why: "the execution runner module", before: /(execution|harness|test)(::|\/)$/ },
-  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(execution\.rs|execution\/harness\.rs)$/, before: /\bmod $/ },
-  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(lib\.rs|execution\/run_record\.rs|execution\/harness\/)/, after: /^::/ },
-  { word: "runner", why: "the test runner's module", file: /^crates\/runx-runtime\/src\/execution\/harness\.rs$/, before: /\buse $/, after: /^::/ },
+  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(execution\.rs|execution\/(harness|test)\.rs)$/, before: /\bmod $/ },
+  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(lib\.rs|execution\/run_record\.rs|execution\/(harness|test)\/)/, after: /^::/ },
+  { word: "runner", why: "the test runner's module", file: /^crates\/runx-runtime\/src\/execution\/(harness|test)\.rs$/, before: /\buse $/, after: /^::/ },
   { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(execution|lib)\.rs$/, before: /`$/, after: /^`/ },
   { word: "runner", why: "the execution runner", before: /\b(graph|kernel['’]s) $/ },
   { word: "runner", why: "the operational policy's runners", file: /^(crates\/runx-contracts\/src\/operational_policy(\.rs$|\/)|crates\/runx-contracts\/tests\/operational_policy\.rs$|crates\/runx-cli\/(src|tests)\/policy\.rs$|packages\/contracts\/src\/schemas\/operational-policy\.|fixtures\/operational-policy\/|skills\/policy-draft\/|tests\/policy-draft-validation\.test\.ts$)/ },
+  { word: "runner", why: "the operational policy's runners, in a corpus or test that holds one policy among others", file: /^(crates\/runx-contracts\/tests\/schema_wire_conformance\/corpora\.rs|packages\/contracts\/src\/index\.test\.ts)$/, before: /^\s*"?$/, after: /^"?: \[\{/ },
   { word: "runner", why: "the kernel fixture runner", file: /^(fixtures\/kernel\/|scripts\/generate-kernel-parity-fixtures\.ts$|tests\/kernel-parity-fixtures\.test\.ts$)/ },
   { word: "runner", why: "GitHub's runner", file: /^\.github\// },
   { word: "runner", why: "GitHub's runner", before: /(GitHub(['’]s)?|[Hh]osted|self-hosted|Actions|CI) $/ },
   { word: "runner", why: "a test runner", before: /\btest $/i },
+  { word: "runner", why: "the retired flag a test proves is refused", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /--$/ },
   // runner in Ausca: a shell variable, a GPU job runner, its sandbox's own
   // runner, and the buyer canary's driver beside GitHub's runner limit.
   { word: "runner", why: "a shell variable holding the command it runs", file: /^deploy\/(resource-release-common|worker-common)\.sh$/ },
   { word: "runner", why: "a GPU job runner", before: /\bGPU job $/ },
   { word: "runner", why: "the code-execution sandbox's own runner", file: /^docs\/plans\/code-execution\.md$/ },
   { word: "runner", why: "the buyer canary's own driver, and GitHub's runner limit", file: /^scripts\/buyer-canary(\.test)?\.mjs$/ },
+  // harness: a receipt's harness reference, whose words receipts keep (§4.6):
+  // its type, the runx:harness: references a run's receipts carry, and the
+  // fixtures and tests that hold them.
+  { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", before: /\bReferenceType::$/ },
+  { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", file: /^crates\/runx-contracts\/src\/reference\.rs$/ },
+  { word: "harness", why: "a runx:harness: reference a receipt carries, which receipts keep (§4.6)", before: /\brunx:$/, after: /^:/ },
+  { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", file: /^(fixtures\/contracts\/credential-delivery\/observation\.json|packages\/contracts\/src\/schemas\/credential-delivery\.test\.ts)$/, before: /\btype"?: ?"$/ },
+  // harness: the retired command a test names to prove native help dropped it.
+  { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
+  // harness: a fixture post's own words, which its approved payload digest binds.
+  { word: "harness", why: "a fixture post's own words, which its approved payload digest binds", file: /^skills\/moltbook\/tests\/publish-creates-and-reads-back-post\.yaml$/ },
   // harness: an agent's host, such as Claude Code or Codex (D23, D39).
   { word: "harness", why: "an agent's host", before: /\b(agent|coding) $/i },
   { word: "harness", why: "an agent's host", after: /^(['’]s own | probe)/ },
@@ -85,7 +101,7 @@ export function decisionsFor(rows, file, line, index, token) {
 
 // A file's own name keeps the word where its folder does: the engine's
 // module, the test runner, and the kernel fixture runner's folder.
-export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|harness\/runner\.rs$)|^fixtures\/kernel\/runner\//;
+export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|(harness|test)\/runner\.rs$)|^fixtures\/kernel\/runner\//;
 
 // Files a generator writes, regenerated after a rename and never edited.
 // Cloud's two API schema modules are scripts/generate-public-schemas.ts's.

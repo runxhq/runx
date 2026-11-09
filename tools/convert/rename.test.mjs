@@ -263,6 +263,40 @@ test("a bare word an applied migration stores is refused until its row names the
   assert.equal(read(renamed, "packages/db/migrations/0001_runs.sql"), migration);
 });
 
+test("a source whose name holds the letters of lock is renamed, and a lockfile is its package manager's", (t) => {
+  const lockfile = "packages:\n  harness: {}\n";
+  const root = tree(t, { "skills/github/tests/mixed-push-blocked.yaml": "# The harness refuses a mixed push.\nname: mixed-push-blocked\n", "pnpm-lock.yaml": lockfile });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "skills/github/tests/mixed-push-blocked.yaml"), "# The test refuses a mixed push.\nname: mixed-push-blocked\n");
+  assert.equal(read(root, "pnpm-lock.yaml"), lockfile);
+});
+
+test("a receipt's harness reference keeps its words: its type and its runx:harness: references", (t) => {
+  const reference = "pub enum ReferenceType {\n    Harness,\n}\n\nfn wire(kind: ReferenceType) -> &'static str {\n    match kind {\n        ReferenceType::Harness => \"harness\",\n    }\n}\n";
+  const seal = '// The harness seals its receipt.\nlet reference = Reference::with_uri(ReferenceType::Harness, "runx:harness:local-credential-provision");\n';
+  const root = tree(t, { "crates/runx-contracts/src/reference.rs": reference, "crates/runx-runtime/src/receipts/seal.rs": seal });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "crates/runx-contracts/src/reference.rs"), reference);
+  assert.equal(read(root, "crates/runx-runtime/src/receipts/seal.rs"), seal.replace("The harness seals", "The test seals"));
+});
+
+test("the test runner's module keeps its word where the rename moves it, so a second run changes nothing", (t) => {
+  const root = tree(t, {
+    "crates/runx-runtime/src/execution/harness.rs": "pub mod runner;\npub use runner::run_case;\n",
+    "crates/runx-runtime/src/execution/harness/runner.rs": "use super::runner::Case;\npub fn run_case() {}\n",
+  });
+  const first = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(first.status, 0, first.out);
+  assert.equal(read(root, "crates/runx-runtime/src/execution/test.rs"), "pub mod runner;\npub use runner::run_case;\n");
+  assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use super::runner::Case;\npub fn run_case() {}\n");
+  const again = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, /oss: 0 names in 0 files, 0 of them bare words, \d+ bare words kept, 0 paths moved/);
+  assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use super::runner::Case;\npub fn run_case() {}\n");
+});
+
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
   const generated = "type Purchase struct {\n\tRunner string `json:\"runner\"`\n}\n";
   const root = tree(t, {
