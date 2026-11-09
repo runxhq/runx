@@ -4,7 +4,6 @@ import {
   agentContextEnvelopeSchema,
   turnInvocationSchema,
   approvalGateSchema,
-  actResultEnvelopeSchema,
   actAssignmentV1Schema,
   credentialDeliveryObservationV1Schema,
   storeResultV1Schema,
@@ -26,7 +25,6 @@ import {
   runxContractSchemas,
   runxGeneratedSchemaArtifacts,
   toolManifestV1Schema,
-  validateActResultEnvelopeContract,
   validateAgentContextEnvelopeContract,
   validateOutputContract,
   validateResolutionRequestContract,
@@ -68,7 +66,6 @@ describe("@runxhq/contracts", () => {
     expect(approvalGateSchema).toBe(runxContractSchemas.approvalGate);
     expect(resolutionRequestSchema).toBe(runxContractSchemas.resolutionRequest);
     expect(resolutionResponseSchema).toBe(runxContractSchemas.resolutionResponse);
-    expect(actResultEnvelopeSchema).toBe(runxContractSchemas.actResultEnvelope);
     expect(credentialDeliveryObservationV1Schema).toBe(runxContractSchemas.credentialDeliveryObservation);
     expect(storeResultV1Schema).toBe(runxContractSchemas.storeResult);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
@@ -195,10 +192,8 @@ describe("@runxhq/contracts", () => {
   it("owns executor control protocol schemas and runtime validation", () => {
     expect(outputSchema.$id).toBe("https://schemas.runx.ai/runx/output/v1.json");
     expect(agentContextEnvelopeSchema.$id).toBe("https://schemas.runx.ai/runx/agent-context-envelope/v1.json");
-    expect(actResultEnvelopeSchema.$id).toBe("https://schemas.runx.ai/runx/act-result/v1.json");
     expect(runxGeneratedSchemaArtifacts["output.schema.json"].$id).toBe(outputSchema.$id);
     expect(runxGeneratedSchemaArtifacts["agent-context-envelope.schema.json"].$id).toBe(agentContextEnvelopeSchema.$id);
-    expect(runxGeneratedSchemaArtifacts["act-result.schema.json"].$id).toBe(actResultEnvelopeSchema.$id);
 
     expect(validateOutputContract({
       summary: { type: "string" },
@@ -277,29 +272,14 @@ describe("@runxhq/contracts", () => {
       },
     });
 
-    const resolutionRequest = validateResolutionRequestContract({
+    expect(validateResolutionRequestContract({
       id: "approval.demo",
       kind: "approval",
       gate: {
         id: "gate.demo",
         reason: "Needs human approval.",
       },
-    });
-
-    expect(validateActResultEnvelopeContract({
-      status: "needs_agent",
-      stdout: "",
-      stderr: "",
-      exitCode: null,
-      signal: null,
-      durationMs: 0,
-      request: resolutionRequest,
-    })).toMatchObject({
-      status: "needs_agent",
-      request: {
-        kind: "approval",
-      },
-    });
+    })).toMatchObject({ kind: "approval" });
   });
 
   it("owns generated auxiliary schemas", () => {

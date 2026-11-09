@@ -70,10 +70,6 @@ pub use act::assignment::{
     ActAssignmentIdempotency, ActAssignmentSchema,
 };
 pub use act::call::{CALL_ACT_TARGET_MAX, CALL_ACT_TEXT_MAX, CallAct};
-pub use act::result::{
-    ActResultEnvelope, ActResultNeedsAgentEnvelope, ActResultNeedsAgentStatus, ActResultNull,
-    ActResultSignal, ActResultTerminalEnvelope, ActResultTerminalStatus,
-};
 pub use act::{ActForm, Criterion, CriterionBinding, CriterionStatus, Intent};
 pub use admission::{
     AdmissionCheck, AdmissionReason, CheckOutcome, OperationAmount, OperationIntent, Readiness,

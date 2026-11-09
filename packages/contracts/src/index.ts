@@ -247,10 +247,8 @@ export { resumeDocumentSchema, validateResumeDocumentContract } from "./schemas/
 export {
   resolutionRequestSchema,
   resolutionResponseSchema,
-  actResultEnvelopeSchema,
   validateResolutionRequestContract,
   validateResolutionResponseContract,
-  validateActResultEnvelopeContract,
 } from "./schemas/resolution.js";
 
 export { registryBindingSchema, validateRegistryBindingContract } from "./schemas/registry.js";
@@ -473,7 +471,6 @@ export const runxContractSchemas = {
   approvalGate: runxSchemaArtifacts["approval-gate.schema.json"],
   resolutionRequest: runxSchemaArtifacts["resolution-request.schema.json"],
   resolutionResponse: runxSchemaArtifacts["resolution-response.schema.json"],
-  actResultEnvelope: runxSchemaArtifacts["act-result.schema.json"],
   credentialDeliveryObservation: runxSchemaArtifacts["credential-delivery-observation.schema.json"],
   storeResult: storeResultV1Schema,
   doctor: runxSchemaArtifacts["doctor.schema.json"],

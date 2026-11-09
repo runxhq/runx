@@ -1,5 +1,4 @@
 use runx_contracts::act::assignment::ActAssignment;
-use runx_contracts::act::result::ActResultEnvelope;
 use runx_contracts::agent_context::AgentContextEnvelope;
 use runx_contracts::artifact::Artifact;
 use runx_contracts::authority::{AuthoritySubsetProof, AuthorityTerm};
@@ -180,11 +179,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "run-event.schema.json",
             emitted: RunEventRecord::json_schema(),
             corpus: run_event_corpus(),
-        },
-        Covered {
-            file_name: "act-result.schema.json",
-            emitted: ActResultEnvelope::json_schema(),
-            corpus: act_result_corpus(),
         },
         Covered {
             file_name: "fixture.schema.json",

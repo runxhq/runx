@@ -1,6 +1,5 @@
 import { generatedSchema, validateContractSchema } from "../internal.js";
 import type {
-  ActResultEnvelopeContract,
   ResolutionRequestContract,
   ResolutionResponseContract,
 } from "../generated/contract-types.js";
@@ -12,8 +11,6 @@ export const resolutionRequestSchema = generatedSchema<ResolutionRequestContract
 export const resolutionResponseSchema = generatedSchema<ResolutionResponseContract>(
   "resolution-response.schema.json",
 );
-
-export const actResultEnvelopeSchema = generatedSchema<ActResultEnvelopeContract>("act-result.schema.json");
 
 export function validateResolutionRequestContract(
   value: unknown,
@@ -27,11 +24,4 @@ export function validateResolutionResponseContract(
   label = "resolution_response",
 ): ResolutionResponseContract {
   return validateContractSchema(resolutionResponseSchema, value, label) as ResolutionResponseContract;
-}
-
-export function validateActResultEnvelopeContract(
-  value: unknown,
-  label = "act_result",
-): ActResultEnvelopeContract {
-  return validateContractSchema(actResultEnvelopeSchema, value, label) as ActResultEnvelopeContract;
 }

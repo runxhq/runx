@@ -47,41 +47,6 @@ export type ActAssignmentSchemaContract = "runx.act_assignment.v1";
 /** What kind of act a governed call is. */
 export type ActFormContract = "observation" | "reply" | "review";
 
-export type ActResultEnvelopeContract = ActResultTerminalEnvelopeContract | ActResultNeedsAgentEnvelopeContract;
-
-export type ActResultNeedsAgentEnvelopeContract = {
-  readonly durationMs: number;
-  readonly errorMessage?: string;
-  readonly exitCode: null;
-  readonly metadata?: {
-    readonly [key: string]: unknown;
-  };
-  readonly request: ResolutionRequestContract;
-  readonly signal: null;
-  readonly status: ActResultNeedsAgentStatusContract;
-  readonly stderr: string;
-  readonly stdout: string;
-};
-
-export type ActResultNeedsAgentStatusContract = "needs_agent";
-
-export type ActResultSignalContract = "SIGABRT" | "SIGALRM" | "SIGBUS" | "SIGCHLD" | "SIGCONT" | "SIGFPE" | "SIGHUP" | "SIGILL" | "SIGINT" | "SIGIO" | "SIGIOT" | "SIGKILL" | "SIGPIPE" | "SIGPOLL" | "SIGPROF" | "SIGPWR" | "SIGQUIT" | "SIGSEGV" | "SIGSTKFLT" | "SIGSTOP" | "SIGSYS" | "SIGTERM" | "SIGTRAP" | "SIGTSTP" | "SIGTTIN" | "SIGTTOU" | "SIGUNUSED" | "SIGURG" | "SIGUSR1" | "SIGUSR2" | "SIGVTALRM" | "SIGWINCH" | "SIGXCPU" | "SIGXFSZ" | "SIGBREAK" | "SIGLOST" | "SIGINFO";
-
-export type ActResultTerminalEnvelopeContract = {
-  readonly durationMs: number;
-  readonly errorMessage?: string;
-  readonly exitCode: number | null;
-  readonly metadata?: {
-    readonly [key: string]: unknown;
-  };
-  readonly signal: ActResultSignalContract | null;
-  readonly status: ActResultTerminalStatusContract;
-  readonly stderr: string;
-  readonly stdout: string;
-};
-
-export type ActResultTerminalStatusContract = "sealed" | "failure";
-
 /** The checks admission runs, in order; each refuses before the next. */
 export type AdmissionCheckContract = "requirement" | "instance" | "capability" | "delegation" | "cost" | "approval" | "implementation" | "tolerance";
 
