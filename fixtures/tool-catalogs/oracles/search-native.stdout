@@ -10,9 +10,6 @@
       "source_label": "runx-runtime/filesystem",
       "namespace": "fs",
       "external_name": "read",
-      "required_scopes": [
-        "fs.read"
-      ],
       "tags": [
         "native",
         "runx"
@@ -27,9 +24,6 @@
       "source_label": "runx-runtime/filesystem",
       "namespace": "fs",
       "external_name": "read_bundle",
-      "required_scopes": [
-        "fs.read"
-      ],
       "tags": [
         "native",
         "runx"

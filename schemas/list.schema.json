@@ -17,27 +17,6 @@
             },
             "type": "array"
           },
-          "emits": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "packet": {
-                  "maxLength": 200,
-                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "title": "RunxListEmit",
-              "type": "object"
-            },
-            "type": "array"
-          },
           "fixtures": {
             "minimum": 0,
             "type": "integer"
@@ -76,14 +55,31 @@
           "name": {
             "type": "string"
           },
-          "path": {
-            "type": "string"
-          },
-          "scopes": {
+          "packets": {
+            "description": "The outputs it keeps as artifacts, each with its packet.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "description": "An output kept as an artifact, and its packet.",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "packet": {
+                  "maxLength": 200,
+                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "title": "RunxListOutputPacket",
+              "type": "object"
             },
             "type": "array"
+          },
+          "path": {
+            "type": "string"
           },
           "source": {
             "enum": [

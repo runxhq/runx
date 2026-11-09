@@ -1141,44 +1141,8 @@ export const runxSchemaArtifacts = {
                             "additionalProperties": false,
                             "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                             "properties": {
-                              "declaration": {
-                                "additionalProperties": false,
-                                "description": "Parser-owned projection of all execution requirements for one act.",
-                                "properties": {
-                                  "environment": {
-                                    "additionalProperties": false,
-                                    "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                                    "minProperties": 1,
-                                    "properties": {
-                                      "optional": {
-                                        "items": {
-                                          "type": "string"
-                                        },
-                                        "minItems": 1,
-                                        "type": "array"
-                                      },
-                                      "required": {
-                                        "items": {
-                                          "type": "string"
-                                        },
-                                        "minItems": 1,
-                                        "type": "array"
-                                      }
-                                    },
-                                    "type": "object"
-                                  },
-                                  "scopes": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                },
-                                "title": "ExecutionRequirements",
-                                "type": "object"
-                              },
                               "environment": {
+                                "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                                 "items": {
                                   "additionalProperties": false,
                                   "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -1226,7 +1190,6 @@ export const runxSchemaArtifacts = {
                               }
                             },
                             "required": [
-                              "declaration",
                               "execution_boundary"
                             ],
                             "title": "AgentExecutionRequirements",
@@ -2545,44 +2508,8 @@ export const runxSchemaArtifacts = {
             "additionalProperties": false,
             "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
             "properties": {
-              "declaration": {
-                "additionalProperties": false,
-                "description": "Parser-owned projection of all execution requirements for one act.",
-                "properties": {
-                  "environment": {
-                    "additionalProperties": false,
-                    "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                    "minProperties": 1,
-                    "properties": {
-                      "optional": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      },
-                      "required": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "scopes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  }
-                },
-                "title": "ExecutionRequirements",
-                "type": "object"
-              },
               "environment": {
+                "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                 "items": {
                   "additionalProperties": false,
                   "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -2630,7 +2557,6 @@ export const runxSchemaArtifacts = {
               }
             },
             "required": [
-              "declaration",
               "execution_boundary"
             ],
             "title": "AgentExecutionRequirements",
@@ -3332,44 +3258,8 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
         "properties": {
-          "declaration": {
-            "additionalProperties": false,
-            "description": "Parser-owned projection of all execution requirements for one act.",
-            "properties": {
-              "environment": {
-                "additionalProperties": false,
-                "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                "minProperties": 1,
-                "properties": {
-                  "optional": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  },
-                  "required": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  }
-                },
-                "type": "object"
-              },
-              "scopes": {
-                "items": {
-                  "type": "string"
-                },
-                "minItems": 1,
-                "type": "array"
-              }
-            },
-            "title": "ExecutionRequirements",
-            "type": "object"
-          },
           "environment": {
+            "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
             "items": {
               "additionalProperties": false,
               "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -3417,7 +3307,6 @@ export const runxSchemaArtifacts = {
           }
         },
         "required": [
-          "declaration",
           "execution_boundary"
         ],
         "title": "AgentExecutionRequirements",
@@ -16901,27 +16790,6 @@ export const runxSchemaArtifacts = {
               },
               "type": "array"
             },
-            "emits": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "packet": {
-                    "maxLength": 200,
-                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name"
-                ],
-                "title": "RunxListEmit",
-                "type": "object"
-              },
-              "type": "array"
-            },
             "fixtures": {
               "minimum": 0,
               "type": "integer"
@@ -16960,14 +16828,31 @@ export const runxSchemaArtifacts = {
             "name": {
               "type": "string"
             },
-            "path": {
-              "type": "string"
-            },
-            "scopes": {
+            "packets": {
+              "description": "The outputs it keeps as artifacts, each with its packet.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "description": "An output kept as an artifact, and its packet.",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "packet": {
+                    "maxLength": 200,
+                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "title": "RunxListOutputPacket",
+                "type": "object"
               },
               "type": "array"
+            },
+            "path": {
+              "type": "string"
             },
             "source": {
               "enum": [
@@ -27430,13 +27315,26 @@ export const runxSchemaArtifacts = {
                 "description": "The connector requirements of the skill, by key.",
                 "type": "object"
               },
-              "declared_result_packets": {
-                "additionalProperties": {
-                  "maxLength": 200,
-                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                  "type": "string"
+              "environment": {
+                "additionalProperties": false,
+                "description": "The environment variables the method reads, by name.",
+                "properties": {
+                  "optional": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "required": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
                 },
-                "description": "The packet each result output declares, by output name.",
+                "title": "EnvironmentRequirements",
                 "type": "object"
               },
               "input_schema": {
@@ -27501,41 +27399,13 @@ export const runxSchemaArtifacts = {
                 },
                 "type": "array"
               },
-              "requirements": {
-                "additionalProperties": false,
-                "description": "Parser-owned projection of all execution requirements for one act.",
-                "properties": {
-                  "environment": {
-                    "additionalProperties": false,
-                    "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                    "minProperties": 1,
-                    "properties": {
-                      "optional": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      },
-                      "required": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "scopes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  }
+              "packets": {
+                "additionalProperties": {
+                  "maxLength": 200,
+                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                  "type": "string"
                 },
-                "title": "ExecutionRequirements",
+                "description": "The packet each result output declares, by output name, the whole result's under the name of the output it is.",
                 "type": "object"
               },
               "schemas": {
@@ -27577,8 +27447,8 @@ export const runxSchemaArtifacts = {
               "schemas",
               "inputs",
               "outputs",
-              "declared_result_packets",
-              "requirements"
+              "packets",
+              "environment"
             ],
             "title": "MethodInspection",
             "type": "object"
@@ -27601,13 +27471,26 @@ export const runxSchemaArtifacts = {
                       "description": "The connector requirements of the skill, by key.",
                       "type": "object"
                     },
-                    "declared_result_packets": {
-                      "additionalProperties": {
-                        "maxLength": 200,
-                        "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                        "type": "string"
+                    "environment": {
+                      "additionalProperties": false,
+                      "description": "The environment variables the method reads, by name.",
+                      "properties": {
+                        "optional": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "required": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
                       },
-                      "description": "The packet each result output declares, by output name.",
+                      "title": "EnvironmentRequirements",
                       "type": "object"
                     },
                     "input_schema": {
@@ -27672,41 +27555,13 @@ export const runxSchemaArtifacts = {
                       },
                       "type": "array"
                     },
-                    "requirements": {
-                      "additionalProperties": false,
-                      "description": "Parser-owned projection of all execution requirements for one act.",
-                      "properties": {
-                        "environment": {
-                          "additionalProperties": false,
-                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                          "minProperties": 1,
-                          "properties": {
-                            "optional": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            },
-                            "required": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            }
-                          },
-                          "type": "object"
-                        },
-                        "scopes": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        }
+                    "packets": {
+                      "additionalProperties": {
+                        "maxLength": 200,
+                        "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                        "type": "string"
                       },
-                      "title": "ExecutionRequirements",
+                      "description": "The packet each result output declares, by output name, the whole result's under the name of the output it is.",
                       "type": "object"
                     },
                     "schemas": {
@@ -27748,8 +27603,8 @@ export const runxSchemaArtifacts = {
                     "schemas",
                     "inputs",
                     "outputs",
-                    "declared_result_packets",
-                    "requirements"
+                    "packets",
+                    "environment"
                   ],
                   "title": "MethodInspection",
                   "type": "object"
@@ -29129,44 +28984,8 @@ export const runxSchemaArtifacts = {
                     "additionalProperties": false,
                     "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                     "properties": {
-                      "declaration": {
-                        "additionalProperties": false,
-                        "description": "Parser-owned projection of all execution requirements for one act.",
-                        "properties": {
-                          "environment": {
-                            "additionalProperties": false,
-                            "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                            "minProperties": 1,
-                            "properties": {
-                              "optional": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "minItems": 1,
-                                "type": "array"
-                              },
-                              "required": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "minItems": 1,
-                                "type": "array"
-                              }
-                            },
-                            "type": "object"
-                          },
-                          "scopes": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "minItems": 1,
-                            "type": "array"
-                          }
-                        },
-                        "title": "ExecutionRequirements",
-                        "type": "object"
-                      },
                       "environment": {
+                        "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                         "items": {
                           "additionalProperties": false,
                           "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -29214,7 +29033,6 @@ export const runxSchemaArtifacts = {
                       }
                     },
                     "required": [
-                      "declaration",
                       "execution_boundary"
                     ],
                     "title": "AgentExecutionRequirements",
@@ -32865,44 +32683,8 @@ export const runxSchemaArtifacts = {
                               "additionalProperties": false,
                               "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                               "properties": {
-                                "declaration": {
-                                  "additionalProperties": false,
-                                  "description": "Parser-owned projection of all execution requirements for one act.",
-                                  "properties": {
-                                    "environment": {
-                                      "additionalProperties": false,
-                                      "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                                      "minProperties": 1,
-                                      "properties": {
-                                        "optional": {
-                                          "items": {
-                                            "type": "string"
-                                          },
-                                          "minItems": 1,
-                                          "type": "array"
-                                        },
-                                        "required": {
-                                          "items": {
-                                            "type": "string"
-                                          },
-                                          "minItems": 1,
-                                          "type": "array"
-                                        }
-                                      },
-                                      "type": "object"
-                                    },
-                                    "scopes": {
-                                      "items": {
-                                        "type": "string"
-                                      },
-                                      "minItems": 1,
-                                      "type": "array"
-                                    }
-                                  },
-                                  "title": "ExecutionRequirements",
-                                  "type": "object"
-                                },
                                 "environment": {
+                                  "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                                   "items": {
                                     "additionalProperties": false,
                                     "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -32950,7 +32732,6 @@ export const runxSchemaArtifacts = {
                                 }
                               },
                               "required": [
-                                "declaration",
                                 "execution_boundary"
                               ],
                               "title": "AgentExecutionRequirements",
@@ -36480,13 +36261,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "scopes": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
             "status": {
               "enum": [
                 "ok",
@@ -36504,8 +36278,7 @@ export const runxSchemaArtifacts = {
             "name",
             "kind",
             "path",
-            "status",
-            "scopes"
+            "status"
           ],
           "title": "SkillCatalogEntry",
           "type": "object"
@@ -36542,13 +36315,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "scopes": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
             "status": {
               "enum": [
                 "ok",
@@ -36566,8 +36332,7 @@ export const runxSchemaArtifacts = {
             "name",
             "kind",
             "path",
-            "status",
-            "scopes"
+            "status"
           ],
           "title": "SkillCatalogEntry",
           "type": "object"
@@ -37707,13 +37472,26 @@ export const runxSchemaArtifacts = {
             "description": "The connector requirements of the skill, by key.",
             "type": "object"
           },
-          "declared_result_packets": {
-            "additionalProperties": {
-              "maxLength": 200,
-              "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-              "type": "string"
+          "environment": {
+            "additionalProperties": false,
+            "description": "The environment variables the method reads, by name.",
+            "properties": {
+              "optional": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "required": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
             },
-            "description": "The packet each result output declares, by output name.",
+            "title": "EnvironmentRequirements",
             "type": "object"
           },
           "input_schema": {
@@ -37778,41 +37556,13 @@ export const runxSchemaArtifacts = {
             },
             "type": "array"
           },
-          "requirements": {
-            "additionalProperties": false,
-            "description": "Parser-owned projection of all execution requirements for one act.",
-            "properties": {
-              "environment": {
-                "additionalProperties": false,
-                "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                "minProperties": 1,
-                "properties": {
-                  "optional": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  },
-                  "required": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  }
-                },
-                "type": "object"
-              },
-              "scopes": {
-                "items": {
-                  "type": "string"
-                },
-                "minItems": 1,
-                "type": "array"
-              }
+          "packets": {
+            "additionalProperties": {
+              "maxLength": 200,
+              "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+              "type": "string"
             },
-            "title": "ExecutionRequirements",
+            "description": "The packet each result output declares, by output name, the whole result's under the name of the output it is.",
             "type": "object"
           },
           "schemas": {
@@ -37854,8 +37604,8 @@ export const runxSchemaArtifacts = {
           "schemas",
           "inputs",
           "outputs",
-          "declared_result_packets",
-          "requirements"
+          "packets",
+          "environment"
         ],
         "title": "MethodInspection",
         "type": "object"
@@ -37878,13 +37628,26 @@ export const runxSchemaArtifacts = {
                   "description": "The connector requirements of the skill, by key.",
                   "type": "object"
                 },
-                "declared_result_packets": {
-                  "additionalProperties": {
-                    "maxLength": 200,
-                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                    "type": "string"
+                "environment": {
+                  "additionalProperties": false,
+                  "description": "The environment variables the method reads, by name.",
+                  "properties": {
+                    "optional": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "required": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
                   },
-                  "description": "The packet each result output declares, by output name.",
+                  "title": "EnvironmentRequirements",
                   "type": "object"
                 },
                 "input_schema": {
@@ -37949,41 +37712,13 @@ export const runxSchemaArtifacts = {
                   },
                   "type": "array"
                 },
-                "requirements": {
-                  "additionalProperties": false,
-                  "description": "Parser-owned projection of all execution requirements for one act.",
-                  "properties": {
-                    "environment": {
-                      "additionalProperties": false,
-                      "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                      "minProperties": 1,
-                      "properties": {
-                        "optional": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        },
-                        "required": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "scopes": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 1,
-                      "type": "array"
-                    }
+                "packets": {
+                  "additionalProperties": {
+                    "maxLength": 200,
+                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                    "type": "string"
                   },
-                  "title": "ExecutionRequirements",
+                  "description": "The packet each result output declares, by output name, the whole result's under the name of the output it is.",
                   "type": "object"
                 },
                 "schemas": {
@@ -38025,8 +37760,8 @@ export const runxSchemaArtifacts = {
                 "schemas",
                 "inputs",
                 "outputs",
-                "declared_result_packets",
-                "requirements"
+                "packets",
+                "environment"
               ],
               "title": "MethodInspection",
               "type": "object"
@@ -40165,113 +39900,36 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/tool/manifest/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
+    "description": "A tool: a named process that declares its interface the way a method does.",
     "properties": {
-      "artifacts": {
-        "additionalProperties": false,
-        "description": "How a successful execution result is exposed to downstream graph context.",
-        "properties": {
-          "emits": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "named_emits": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "packet": {
-            "maxLength": 200,
-            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-            "type": "string"
-          },
-          "packets": {
-            "additionalProperties": {
-              "maxLength": 200,
-              "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "wrap_as": {
-            "type": "string"
-          }
-        },
-        "title": "ArtifactDeclaration",
-        "type": "object"
-      },
       "description": {
         "type": "string"
       },
-      "idempotency": {
-        "additionalProperties": false,
-        "properties": {
-          "key": {
-            "type": "string"
-          }
-        },
-        "title": "IdempotencyPolicy",
-        "type": "object"
-      },
       "inputs": {
         "additionalProperties": {
-          "additionalProperties": false,
-          "description": "One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics.",
-          "properties": {
-            "default": {},
-            "description": {
-              "type": "string"
-            },
-            "packet": {
-              "description": "Canonical packet contract for a JSON-valued input. The runtime resolves this identifier through the packet-schema catalog before inspection or execution; authors never duplicate the packet schema inline.",
-              "maxLength": 200,
-              "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-              "type": "string"
-            },
-            "required": {
-              "type": "boolean"
-            },
-            "schema": {
-              "additionalProperties": {},
-              "description": "Additional JSON Schema 2020-12 keywords for this input. The scalar `type`, description, and default above remain the canonical top-level declaration; this object owns nested shape, bounds, enums, examples, and composition without creating a second schema file.",
-              "type": "object"
-            },
-            "type": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "required"
-          ],
-          "title": "InputDefinition",
+          "additionalProperties": {},
           "type": "object"
         },
+        "description": "Each input is its JSON Schema, required unless it says `optional: true`, as a method's are.",
         "minProperties": 1,
         "type": "object"
       },
       "name": {
+        "description": "The catalog name a step's `tool:` uses.",
         "type": "string"
       },
-      "schema": {
-        "enum": [
-          "runx.tool.manifest.v1"
-        ],
-        "title": "ToolManifestSchema",
-        "type": "string"
-      },
-      "scopes": {
-        "items": {
-          "type": "string"
+      "outputs": {
+        "additionalProperties": {
+          "additionalProperties": {},
+          "type": "object"
         },
-        "minItems": 1,
-        "type": "array"
+        "description": "Each output is its JSON Schema, as a method's are. One with a `packet` is also kept as an artifact of that packet.",
+        "minProperties": 1,
+        "type": "object"
       },
-      "source": {
+      "process": {
         "additionalProperties": false,
-        "description": "A tool's executable: a trusted host process. runx controls its argv, cwd, environment and lifetime, but does not confine it.",
+        "description": "A tool's executable: a trusted host process, the same object as a step's process tool. runx controls its argv, cwd, environment and lifetime, but does not confine it.",
         "properties": {
           "args": {
             "items": {
@@ -40325,8 +39983,19 @@ export const runxSchemaArtifacts = {
         "required": [
           "command"
         ],
-        "title": "ToolSource",
+        "title": "ToolProcess",
         "type": "object"
+      },
+      "result_as": {
+        "description": "The output the whole result becomes, as a step's `result_as` is.",
+        "type": "string"
+      },
+      "schema": {
+        "enum": [
+          "runx.tool.manifest.v1"
+        ],
+        "title": "ToolManifestSchema",
+        "type": "string"
       },
       "version": {
         "type": "string"
@@ -40335,7 +40004,7 @@ export const runxSchemaArtifacts = {
     "required": [
       "schema",
       "name",
-      "source"
+      "process"
     ],
     "title": "ToolManifest",
     "type": "object",
@@ -41374,44 +41043,8 @@ export const runxSchemaArtifacts = {
                                   "additionalProperties": false,
                                   "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                                   "properties": {
-                                    "declaration": {
-                                      "additionalProperties": false,
-                                      "description": "Parser-owned projection of all execution requirements for one act.",
-                                      "properties": {
-                                        "environment": {
-                                          "additionalProperties": false,
-                                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                                          "minProperties": 1,
-                                          "properties": {
-                                            "optional": {
-                                              "items": {
-                                                "type": "string"
-                                              },
-                                              "minItems": 1,
-                                              "type": "array"
-                                            },
-                                            "required": {
-                                              "items": {
-                                                "type": "string"
-                                              },
-                                              "minItems": 1,
-                                              "type": "array"
-                                            }
-                                          },
-                                          "type": "object"
-                                        },
-                                        "scopes": {
-                                          "items": {
-                                            "type": "string"
-                                          },
-                                          "minItems": 1,
-                                          "type": "array"
-                                        }
-                                      },
-                                      "title": "ExecutionRequirements",
-                                      "type": "object"
-                                    },
                                     "environment": {
+                                      "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                                       "items": {
                                         "additionalProperties": false,
                                         "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -41459,7 +41092,6 @@ export const runxSchemaArtifacts = {
                                     }
                                   },
                                   "required": [
-                                    "declaration",
                                     "execution_boundary"
                                   ],
                                   "title": "AgentExecutionRequirements",
@@ -43654,44 +43286,8 @@ export const runxSchemaArtifacts = {
                                         "additionalProperties": false,
                                         "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                                         "properties": {
-                                          "declaration": {
-                                            "additionalProperties": false,
-                                            "description": "Parser-owned projection of all execution requirements for one act.",
-                                            "properties": {
-                                              "environment": {
-                                                "additionalProperties": false,
-                                                "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                                                "minProperties": 1,
-                                                "properties": {
-                                                  "optional": {
-                                                    "items": {
-                                                      "type": "string"
-                                                    },
-                                                    "minItems": 1,
-                                                    "type": "array"
-                                                  },
-                                                  "required": {
-                                                    "items": {
-                                                      "type": "string"
-                                                    },
-                                                    "minItems": 1,
-                                                    "type": "array"
-                                                  }
-                                                },
-                                                "type": "object"
-                                              },
-                                              "scopes": {
-                                                "items": {
-                                                  "type": "string"
-                                                },
-                                                "minItems": 1,
-                                                "type": "array"
-                                              }
-                                            },
-                                            "title": "ExecutionRequirements",
-                                            "type": "object"
-                                          },
                                           "environment": {
+                                            "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                                             "items": {
                                               "additionalProperties": false,
                                               "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -43739,7 +43335,6 @@ export const runxSchemaArtifacts = {
                                           }
                                         },
                                         "required": [
-                                          "declaration",
                                           "execution_boundary"
                                         ],
                                         "title": "AgentExecutionRequirements",
@@ -44910,44 +44505,8 @@ export const runxSchemaArtifacts = {
               "requirements": {
                 "additionalProperties": false,
                 "properties": {
-                  "declaration": {
-                    "additionalProperties": false,
-                    "description": "Parser-owned projection of all execution requirements for one act.",
-                    "properties": {
-                      "environment": {
-                        "additionalProperties": false,
-                        "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                        "minProperties": 1,
-                        "properties": {
-                          "optional": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "minItems": 1,
-                            "type": "array"
-                          },
-                          "required": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "minItems": 1,
-                            "type": "array"
-                          }
-                        },
-                        "type": "object"
-                      },
-                      "scopes": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "title": "ExecutionRequirements",
-                    "type": "object"
-                  },
                   "environment": {
+                    "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                     "items": {
                       "additionalProperties": false,
                       "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -44995,7 +44554,6 @@ export const runxSchemaArtifacts = {
                   }
                 },
                 "required": [
-                  "declaration",
                   "execution_boundary"
                 ],
                 "title": "AgentExecutionRequirements",

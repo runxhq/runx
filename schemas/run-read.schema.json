@@ -1864,44 +1864,8 @@
                             "additionalProperties": false,
                             "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                             "properties": {
-                              "declaration": {
-                                "additionalProperties": false,
-                                "description": "Parser-owned projection of all execution requirements for one act.",
-                                "properties": {
-                                  "environment": {
-                                    "additionalProperties": false,
-                                    "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                                    "minProperties": 1,
-                                    "properties": {
-                                      "optional": {
-                                        "items": {
-                                          "type": "string"
-                                        },
-                                        "minItems": 1,
-                                        "type": "array"
-                                      },
-                                      "required": {
-                                        "items": {
-                                          "type": "string"
-                                        },
-                                        "minItems": 1,
-                                        "type": "array"
-                                      }
-                                    },
-                                    "type": "object"
-                                  },
-                                  "scopes": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                },
-                                "title": "ExecutionRequirements",
-                                "type": "object"
-                              },
                               "environment": {
+                                "description": "Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value.",
                                 "items": {
                                   "additionalProperties": false,
                                   "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
@@ -1949,7 +1913,6 @@
                               }
                             },
                             "required": [
-                              "declaration",
                               "execution_boundary"
                             ],
                             "title": "AgentExecutionRequirements",

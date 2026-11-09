@@ -2,113 +2,36 @@
   "$id": "https://schemas.runx.ai/runx/tool/manifest/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "A tool: a named process that declares its interface the way a method does.",
   "properties": {
-    "artifacts": {
-      "additionalProperties": false,
-      "description": "How a successful execution result is exposed to downstream graph context.",
-      "properties": {
-        "emits": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "named_emits": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "packet": {
-          "maxLength": 200,
-          "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-          "type": "string"
-        },
-        "packets": {
-          "additionalProperties": {
-            "maxLength": 200,
-            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "wrap_as": {
-          "type": "string"
-        }
-      },
-      "title": "ArtifactDeclaration",
-      "type": "object"
-    },
     "description": {
       "type": "string"
     },
-    "idempotency": {
-      "additionalProperties": false,
-      "properties": {
-        "key": {
-          "type": "string"
-        }
-      },
-      "title": "IdempotencyPolicy",
-      "type": "object"
-    },
     "inputs": {
       "additionalProperties": {
-        "additionalProperties": false,
-        "description": "One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics.",
-        "properties": {
-          "default": {},
-          "description": {
-            "type": "string"
-          },
-          "packet": {
-            "description": "Canonical packet contract for a JSON-valued input. The runtime resolves this identifier through the packet-schema catalog before inspection or execution; authors never duplicate the packet schema inline.",
-            "maxLength": 200,
-            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-            "type": "string"
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "schema": {
-            "additionalProperties": {},
-            "description": "Additional JSON Schema 2020-12 keywords for this input. The scalar `type`, description, and default above remain the canonical top-level declaration; this object owns nested shape, bounds, enums, examples, and composition without creating a second schema file.",
-            "type": "object"
-          },
-          "type": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "required"
-        ],
-        "title": "InputDefinition",
+        "additionalProperties": {},
         "type": "object"
       },
+      "description": "Each input is its JSON Schema, required unless it says `optional: true`, as a method's are.",
       "minProperties": 1,
       "type": "object"
     },
     "name": {
+      "description": "The catalog name a step's `tool:` uses.",
       "type": "string"
     },
-    "schema": {
-      "enum": [
-        "runx.tool.manifest.v1"
-      ],
-      "title": "ToolManifestSchema",
-      "type": "string"
-    },
-    "scopes": {
-      "items": {
-        "type": "string"
+    "outputs": {
+      "additionalProperties": {
+        "additionalProperties": {},
+        "type": "object"
       },
-      "minItems": 1,
-      "type": "array"
+      "description": "Each output is its JSON Schema, as a method's are. One with a `packet` is also kept as an artifact of that packet.",
+      "minProperties": 1,
+      "type": "object"
     },
-    "source": {
+    "process": {
       "additionalProperties": false,
-      "description": "A tool's executable: a trusted host process. runx controls its argv, cwd, environment and lifetime, but does not confine it.",
+      "description": "A tool's executable: a trusted host process, the same object as a step's process tool. runx controls its argv, cwd, environment and lifetime, but does not confine it.",
       "properties": {
         "args": {
           "items": {
@@ -162,8 +85,19 @@
       "required": [
         "command"
       ],
-      "title": "ToolSource",
+      "title": "ToolProcess",
       "type": "object"
+    },
+    "result_as": {
+      "description": "The output the whole result becomes, as a step's `result_as` is.",
+      "type": "string"
+    },
+    "schema": {
+      "enum": [
+        "runx.tool.manifest.v1"
+      ],
+      "title": "ToolManifestSchema",
+      "type": "string"
     },
     "version": {
       "type": "string"
@@ -172,7 +106,7 @@
   "required": [
     "schema",
     "name",
-    "source"
+    "process"
   ],
   "title": "ToolManifest",
   "type": "object",

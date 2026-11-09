@@ -130,7 +130,7 @@ export type AgentContextProfilesContract = {
 };
 
 export type AgentExecutionRequirementsContract = {
-  readonly declaration: ExecutionRequirementsContract;
+  /** Each variable the act declares, whether it's required, and whether it's available: the declaration itself, by name, never by value. */
   readonly environment?: readonly EnvironmentRequirementStatusContract[];
   readonly execution_boundary: ExecutionBoundaryObservationContract;
 };
@@ -197,19 +197,6 @@ export type ArtifactContract = {
   readonly size_bytes: number;
   readonly source_refs?: readonly ReferenceContract[];
   readonly summary?: string;
-};
-
-/** How a successful execution result is exposed to downstream graph context. */
-export type ArtifactDeclarationContract = {
-  readonly emits?: readonly string[];
-  readonly named_emits?: {
-    readonly [key: string]: string;
-  };
-  readonly packet?: string;
-  readonly packets?: {
-    readonly [key: string]: string;
-  };
-  readonly wrap_as?: string;
 };
 
 /** The runtime's artifact space: one bounded value stored under the runx account the runtime is signed in as, keyed by the call's idempotency key and confirmed by reading its reference back. */
@@ -1064,16 +1051,6 @@ export type ExecutionLocationContract = {
   readonly tool_roots?: readonly string[];
 };
 
-/** Parser-owned projection of all execution requirements for one act. */
-export type ExecutionRequirementsContract = {
-  /** Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration. */
-  readonly environment?: {
-    readonly optional?: readonly string[];
-    readonly required?: readonly string[];
-  };
-  readonly scopes?: readonly string[];
-};
-
 export type ExternalJobCheckpointContract = {
   readonly [key: string]: unknown;
 };
@@ -1574,10 +1551,6 @@ export type HttpRequestContract = {
 
 export type IdempotencyKeyFormatContract = "runx" | "uuid";
 
-export type IdempotencyPolicyContract = {
-  readonly key?: string;
-};
-
 /** What one operation does, written as a single-key map: `{http: ...}`, `{mcp: ...}`, `{process: ...}`, `{web: {}}`, `{store: {}}` or `{artifact: {}}`. The local placement runs every kind; the hosted placement runs `http`. */
 export type ImplementationContract = {
   readonly http: HttpImplementationContract;
@@ -1591,20 +1564,6 @@ export type ImplementationContract = {
   readonly store: StoreImplementationContract;
 } | {
   readonly artifact: ArtifactImplementationContract;
-};
-
-/** One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics. */
-export type InputDefinitionContract = {
-  readonly default?: unknown;
-  readonly description?: string;
-  /** Canonical packet contract for a JSON-valued input. The runtime resolves this identifier through the packet-schema catalog before inspection or execution; authors never duplicate the packet schema inline. */
-  readonly packet?: string;
-  readonly required: boolean;
-  /** Additional JSON Schema 2020-12 keywords for this input. The scalar `type`, description, and default above remain the canonical top-level declaration; this object owns nested shape, bounds, enums, examples, and composition without creating a second schema file. */
-  readonly schema?: {
-    readonly [key: string]: unknown;
-  };
-  readonly type: string;
 };
 
 export type InspectedInputContract = {
@@ -1880,10 +1839,8 @@ export type MethodInspectionContract = {
   readonly connectors?: {
     readonly [key: string]: unknown;
   };
-  /** The packet each result output declares, by output name. */
-  readonly declared_result_packets: {
-    readonly [key: string]: string;
-  };
+  /** The environment variables the method reads, by name. */
+  readonly environment: EnvironmentRequirementsContract;
   /** Its inputs as one JSON schema, with the method's examples. */
   readonly input_schema: {
     readonly [key: string]: unknown;
@@ -1891,7 +1848,10 @@ export type MethodInspectionContract = {
   readonly inputs: readonly InspectedInputContract[];
   readonly name: string;
   readonly outputs: readonly InspectedOutputContract[];
-  readonly requirements: ExecutionRequirementsContract;
+  /** The packet each result output declares, by output name, the whole result's under the name of the output it is. */
+  readonly packets: {
+    readonly [key: string]: string;
+  };
   /** Its derived input and output schemas and their digests. */
   readonly schemas: MethodSchemasContract;
 };
@@ -3355,23 +3315,18 @@ export type RunStateContract = "running" | "paused" | "sealed";
 
 export type RuntimeSealPendingContract = "pending_parent_receipt";
 
-export type RunxListEmitContract = {
-  readonly name: string;
-  readonly packet?: string;
-};
-
 export type RunxListItemContract = {
   /** A skill's description, from the frontmatter of its own `SKILL.md`. */
   readonly description?: string;
   readonly diagnostics?: readonly string[];
-  readonly emits?: readonly RunxListEmitContract[];
   readonly fixtures?: number;
   readonly kind: RunxListItemKindContract;
   /** A skill's methods, each with its purpose when its `run.yaml` states one. */
   readonly methods?: readonly CatalogMethodContract[];
   readonly name: string;
+  /** The outputs it keeps as artifacts, each with its packet. */
+  readonly packets?: readonly RunxListOutputPacketContract[];
   readonly path: string;
-  readonly scopes?: readonly string[];
   readonly source: RunxListSourceContract;
   readonly status: RunxListStatusContract;
   readonly steps?: number;
@@ -3381,6 +3336,12 @@ export type RunxListItemContract = {
 };
 
 export type RunxListItemKindContract = "tool" | "skill" | "packet";
+
+/** An output kept as an artifact, and its packet. */
+export type RunxListOutputPacketContract = {
+  readonly name: string;
+  readonly packet?: string;
+};
 
 export type RunxListReportContract = {
   readonly items: readonly RunxListItemContract[];
@@ -3610,7 +3571,6 @@ export type SkillCatalogEntryContract = {
   readonly kind: RunxListItemKindContract;
   readonly name: string;
   readonly path: string;
-  readonly scopes: readonly string[];
   readonly status: RunxListStatusContract;
   readonly test_cases?: number;
 };
@@ -4117,24 +4077,34 @@ export type TerminalSizeContract = {
 
 export type ToolCommandInputModeContract = "args" | "stdin" | "none";
 
+/** A tool: a named process that declares its interface the way a method does. */
 export type ToolManifestContract = {
-  readonly artifacts?: ArtifactDeclarationContract;
   readonly description?: string;
-  readonly idempotency?: IdempotencyPolicyContract;
+  /** Each input is its JSON Schema, required unless it says `optional: true`, as a method's are. */
   readonly inputs?: {
-    readonly [key: string]: InputDefinitionContract;
+    readonly [key: string]: {
+      readonly [key: string]: unknown;
+    };
   };
+  /** The catalog name a step's `tool:` uses. */
   readonly name: string;
+  /** Each output is its JSON Schema, as a method's are. One with a `packet` is also kept as an artifact of that packet. */
+  readonly outputs?: {
+    readonly [key: string]: {
+      readonly [key: string]: unknown;
+    };
+  };
+  readonly process: ToolProcessContract;
+  /** The output the whole result becomes, as a step's `result_as` is. */
+  readonly result_as?: string;
   readonly schema: ToolManifestSchemaContract;
-  readonly scopes?: readonly string[];
-  readonly source: ToolSourceContract;
   readonly version?: string;
 };
 
 export type ToolManifestSchemaContract = "runx.tool.manifest.v1";
 
-/** A tool's executable: a trusted host process. runx controls its argv, cwd, environment and lifetime, but does not confine it. */
-export type ToolSourceContract = {
+/** A tool's executable: a trusted host process, the same object as a step's process tool. runx controls its argv, cwd, environment and lifetime, but does not confine it. */
+export type ToolProcessContract = {
   readonly args?: readonly string[];
   readonly command: string;
   readonly cwd?: string;

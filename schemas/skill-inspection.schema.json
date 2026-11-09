@@ -328,13 +328,26 @@
           "description": "The connector requirements of the skill, by key.",
           "type": "object"
         },
-        "declared_result_packets": {
-          "additionalProperties": {
-            "maxLength": 200,
-            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-            "type": "string"
+        "environment": {
+          "additionalProperties": false,
+          "description": "The environment variables the method reads, by name.",
+          "properties": {
+            "optional": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "required": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
           },
-          "description": "The packet each result output declares, by output name.",
+          "title": "EnvironmentRequirements",
           "type": "object"
         },
         "input_schema": {
@@ -399,41 +412,13 @@
           },
           "type": "array"
         },
-        "requirements": {
-          "additionalProperties": false,
-          "description": "Parser-owned projection of all execution requirements for one act.",
-          "properties": {
-            "environment": {
-              "additionalProperties": false,
-              "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-              "minProperties": 1,
-              "properties": {
-                "optional": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "type": "array"
-                },
-                "required": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "type": "array"
-                }
-              },
-              "type": "object"
-            },
-            "scopes": {
-              "items": {
-                "type": "string"
-              },
-              "minItems": 1,
-              "type": "array"
-            }
+        "packets": {
+          "additionalProperties": {
+            "maxLength": 200,
+            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+            "type": "string"
           },
-          "title": "ExecutionRequirements",
+          "description": "The packet each result output declares, by output name, the whole result's under the name of the output it is.",
           "type": "object"
         },
         "schemas": {
@@ -475,8 +460,8 @@
         "schemas",
         "inputs",
         "outputs",
-        "declared_result_packets",
-        "requirements"
+        "packets",
+        "environment"
       ],
       "title": "MethodInspection",
       "type": "object"
@@ -499,13 +484,26 @@
                 "description": "The connector requirements of the skill, by key.",
                 "type": "object"
               },
-              "declared_result_packets": {
-                "additionalProperties": {
-                  "maxLength": 200,
-                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                  "type": "string"
+              "environment": {
+                "additionalProperties": false,
+                "description": "The environment variables the method reads, by name.",
+                "properties": {
+                  "optional": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "required": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
                 },
-                "description": "The packet each result output declares, by output name.",
+                "title": "EnvironmentRequirements",
                 "type": "object"
               },
               "input_schema": {
@@ -570,41 +568,13 @@
                 },
                 "type": "array"
               },
-              "requirements": {
-                "additionalProperties": false,
-                "description": "Parser-owned projection of all execution requirements for one act.",
-                "properties": {
-                  "environment": {
-                    "additionalProperties": false,
-                    "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                    "minProperties": 1,
-                    "properties": {
-                      "optional": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      },
-                      "required": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "scopes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  }
+              "packets": {
+                "additionalProperties": {
+                  "maxLength": 200,
+                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                  "type": "string"
                 },
-                "title": "ExecutionRequirements",
+                "description": "The packet each result output declares, by output name, the whole result's under the name of the output it is.",
                 "type": "object"
               },
               "schemas": {
@@ -646,8 +616,8 @@
               "schemas",
               "inputs",
               "outputs",
-              "declared_result_packets",
-              "requirements"
+              "packets",
+              "environment"
             ],
             "title": "MethodInspection",
             "type": "object"

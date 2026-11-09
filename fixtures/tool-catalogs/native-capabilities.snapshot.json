@@ -5,9 +5,6 @@
     {
       "id": "artifact.admit",
       "source": "runx-runtime/local-artifacts",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -20,9 +17,6 @@
     {
       "id": "artifact.open",
       "source": "runx-runtime/project-artifacts",
-      "scopes": [
-        "artifact.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -35,9 +29,6 @@
     {
       "id": "artifact.read",
       "source": "runx-runtime/local-artifacts",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -50,9 +41,6 @@
     {
       "id": "artifact.store",
       "source": "runx-runtime/project-artifacts",
-      "scopes": [
-        "artifact.write"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -65,9 +53,6 @@
     {
       "id": "cli.capture_help",
       "source": "runx-runtime/cli",
-      "scopes": [
-        "cli.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -80,9 +65,6 @@
     {
       "id": "command.execute",
       "source": "runx-runtime/command",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -95,7 +77,6 @@
     {
       "id": "command.plan",
       "source": "runx-runtime/command",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -108,9 +89,6 @@
     {
       "id": "control.capture_run_context",
       "source": "runx-runtime/control",
-      "scopes": [
-        "runx:control:read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -123,7 +101,6 @@
     {
       "id": "control.observed_at",
       "source": "runx-runtime/control",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": null,
@@ -132,7 +109,6 @@
     {
       "id": "control.prepare_handoff",
       "source": "runx-runtime/control",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -145,7 +121,6 @@
     {
       "id": "data.compare",
       "source": "runx-runtime/data",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -158,7 +133,6 @@
     {
       "id": "data.digest",
       "source": "runx-runtime/data",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -171,7 +145,6 @@
     {
       "id": "data.minor_units",
       "source": "runx-runtime/data",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": null,
@@ -180,7 +153,6 @@
     {
       "id": "data.validate",
       "source": "runx-runtime/data",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -193,9 +165,6 @@
     {
       "id": "evidence.index_sources",
       "source": "runx-runtime/evidence",
-      "scopes": [
-        "runx:evidence:read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": null,
@@ -204,9 +173,6 @@
     {
       "id": "evidence.verify_artifact",
       "source": "runx-runtime/evidence",
-      "scopes": [
-        "runx:evidence:read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": null,
@@ -215,10 +181,6 @@
     {
       "id": "fs.apply_bundle",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.delete",
-        "fs.write"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -231,9 +193,6 @@
     {
       "id": "fs.edit",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.write"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -246,9 +205,6 @@
     {
       "id": "fs.inverse",
       "source": "runx-runtime/fs",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -261,9 +217,6 @@
     {
       "id": "fs.list",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -276,9 +229,6 @@
     {
       "id": "fs.read",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -291,9 +241,6 @@
     {
       "id": "fs.read_bundle",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -306,9 +253,6 @@
     {
       "id": "fs.search",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -321,9 +265,6 @@
     {
       "id": "fs.write",
       "source": "runx-runtime/filesystem",
-      "scopes": [
-        "fs.write"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -336,7 +277,6 @@
     {
       "id": "git.blob_digest",
       "source": "runx-runtime/git",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -349,9 +289,6 @@
     {
       "id": "git.current_branch",
       "source": "runx-runtime/git",
-      "scopes": [
-        "git.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -364,9 +301,6 @@
     {
       "id": "git.diff",
       "source": "runx-runtime/git",
-      "scopes": [
-        "git.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -379,9 +313,6 @@
     {
       "id": "git.diff_name_only",
       "source": "runx-runtime/git",
-      "scopes": [
-        "git.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -394,9 +325,6 @@
     {
       "id": "git.log",
       "source": "runx-runtime/git",
-      "scopes": [
-        "git.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -409,9 +337,6 @@
     {
       "id": "git.show",
       "source": "runx-runtime/git",
-      "scopes": [
-        "git.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -424,9 +349,6 @@
     {
       "id": "git.status",
       "source": "runx-runtime/git",
-      "scopes": [
-        "git.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -439,7 +361,6 @@
     {
       "id": "policy.lint",
       "source": "runx-core/policy",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -452,9 +373,6 @@
     {
       "id": "process.list",
       "source": "runx-runtime/process",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -467,9 +385,6 @@
     {
       "id": "process.read",
       "source": "runx-runtime/process",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -482,9 +397,6 @@
     {
       "id": "process.resize",
       "source": "runx-runtime/process",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -497,9 +409,6 @@
     {
       "id": "process.start",
       "source": "runx-runtime/process",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -512,9 +421,6 @@
     {
       "id": "process.stop",
       "source": "runx-runtime/process",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -527,9 +433,6 @@
     {
       "id": "process.write",
       "source": "runx-runtime/process",
-      "scopes": [
-        "process.exec"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -542,7 +445,6 @@
     {
       "id": "receipt.attest",
       "source": "runx-runtime/receipts",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -555,9 +457,6 @@
     {
       "id": "receipt.prove",
       "source": "runx-runtime/receipts",
-      "scopes": [
-        "receipt.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -570,9 +469,6 @@
     {
       "id": "receipt.query",
       "source": "runx-runtime/receipts",
-      "scopes": [
-        "receipt.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -585,9 +481,6 @@
     {
       "id": "receipt.read",
       "source": "runx-runtime/receipts",
-      "scopes": [
-        "receipt.claim.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -600,9 +493,6 @@
     {
       "id": "registry.inspect",
       "source": "runx-runtime/registry",
-      "scopes": [
-        "registry.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -615,9 +505,6 @@
     {
       "id": "registry.search",
       "source": "runx-runtime/registry",
-      "scopes": [
-        "registry.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -630,9 +517,6 @@
     {
       "id": "run.list",
       "source": "runx-runtime/runs",
-      "scopes": [
-        "run.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -645,11 +529,6 @@
     {
       "id": "runx.skill.apply",
       "source": "runx-runtime/authoring",
-      "scopes": [
-        "fs.delete",
-        "fs.write",
-        "registry.read"
-      ],
       "effect": "mutate",
       "approval": "none",
       "artifacts": {
@@ -662,7 +541,6 @@
     {
       "id": "runx.skill.bind",
       "source": "runx-runtime/authoring",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -675,9 +553,6 @@
     {
       "id": "runx.skill.inspect",
       "source": "runx-runtime/authoring",
-      "scopes": [
-        "fs.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -690,7 +565,6 @@
     {
       "id": "runx.skill.plan",
       "source": "runx-runtime/authoring",
-      "scopes": [],
       "effect": "read",
       "approval": "none",
       "artifacts": {
@@ -703,10 +577,6 @@
     {
       "id": "runx.skill.validate",
       "source": "runx-runtime/authoring",
-      "scopes": [
-        "fs.read",
-        "registry.read"
-      ],
       "effect": "read",
       "approval": "none",
       "artifacts": {

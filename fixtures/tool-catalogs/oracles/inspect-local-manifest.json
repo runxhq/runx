@@ -10,9 +10,6 @@
         "description": "Message to echo."
       }
     },
-    "scopes": [
-      "fixture.local_echo"
-    ],
     "runtime": {
       "command": "node",
       "args": [

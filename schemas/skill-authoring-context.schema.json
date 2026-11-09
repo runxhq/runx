@@ -45,13 +45,6 @@
             "minLength": 1,
             "type": "string"
           },
-          "scopes": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
           "status": {
             "enum": [
               "ok",
@@ -69,8 +62,7 @@
           "name",
           "kind",
           "path",
-          "status",
-          "scopes"
+          "status"
         ],
         "title": "SkillCatalogEntry",
         "type": "object"
@@ -107,13 +99,6 @@
             "minLength": 1,
             "type": "string"
           },
-          "scopes": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
           "status": {
             "enum": [
               "ok",
@@ -131,8 +116,7 @@
           "name",
           "kind",
           "path",
-          "status",
-          "scopes"
+          "status"
         ],
         "title": "SkillCatalogEntry",
         "type": "object"
