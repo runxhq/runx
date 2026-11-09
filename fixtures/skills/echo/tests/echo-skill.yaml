@@ -8,8 +8,8 @@ expect:
       message: hello from test
   receipt:
     schema: runx.receipt.v1
-    body_digest: sha256:e75f7614aaeb20b7d5eef97777a0c04db214faf1fab699f9fc0cd7f8f6122dc0
-    receipt_digest: sha256:95dbd95b3cf0e704ec173919543785cfa4f9915ead948199f3efd225a6b4b916
+    body_digest: sha256:44ad5c6d204fa110e5847eea89a2d5b8b40f0b9cc0383d4e5e71df83d2763464
+    receipt_digest: sha256:ff31b0b96d518578928c0d0520769dd637d6dba8e5cd042f6b376c3d5f4570e8
     subject_uri: runx:run:test-echo-skill
     state: sealed
     outcome: completed

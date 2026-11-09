@@ -2894,7 +2894,7 @@ export type RunxListSourceContract = "local" | "workspace" | "dependencies" | "b
 
 export type RunxListStatusContract = "ok" | "invalid";
 
-/** Whether a host may offer a skill to a person or an agent. An internal skill, such as a graph stage, runs only as part of the skill that owns it. */
+/** Whether a host may offer a skill to a person or an agent. An internal skill, such as a workflow stage, runs only as part of the skill that owns it. */
 export type RunxListVisibilityContract = "public" | "internal";
 
 /** A process runx supervises apart from any driver: started by one call, and read, written and stopped by later ones until it exits. It belongs to the actor whose run started it. */
@@ -3587,8 +3587,8 @@ export type SubjectContract = {
   readonly ref: ReferenceContract;
 };
 
-/** What a receipt seals: one step's attempt, or the whole graph a run ran. */
-export type SubjectKindContract = "step" | "graph";
+/** What a receipt seals: one step's attempt, or the whole workflow a run ran. */
+export type SubjectKindContract = "step" | "workflow";
 
 /** A terminal's size, in character cells. */
 export type TerminalSizeContract = {

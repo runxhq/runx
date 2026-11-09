@@ -8373,7 +8373,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "RunxListVisibility": {
-        "description": "Whether a host may offer a skill to a person or an agent. An internal skill, such as a graph stage, runs only as part of the skill that owns it.",
+        "description": "Whether a host may offer a skill to a person or an agent. An internal skill, such as a workflow stage, runs only as part of the skill that owns it.",
         "enum": [
           "public",
           "internal"
@@ -10106,10 +10106,10 @@ export const runxSchemaArtifacts = {
         "type": "object"
       },
       "SubjectKind": {
-        "description": "What a receipt seals: one step's attempt, or the whole graph a run ran.",
+        "description": "What a receipt seals: one step's attempt, or the whole workflow a run ran.",
         "enum": [
           "step",
-          "graph"
+          "workflow"
         ],
         "title": "SubjectKind",
         "type": "string"
