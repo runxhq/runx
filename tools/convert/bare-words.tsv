@@ -54,3 +54,4 @@ cloud	apps/web/src/components/skills/SkillOverview.astro	runner	methodName	(\.ma
 cloud	apps/web/src/components/skills/SkillOverview.astro	Runner	Method			Method here is only the HTML's text and an aria label: renamed as written (read)
 cloud	apps/web/src/components/skills/SkillSetup.astro	runner	method			method here is only an attribute's text: renamed as written (read)
 cloud	apps/web/src/pages/x/[publisher]/[name].astro	harness	test			test here is only a comment: renamed as written (read)
+oss	docs/developer-issue-inbox.md	harness	run	\ban open $	^$	the run sense: an open harness context, which the inbox's source events attach to
