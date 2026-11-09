@@ -137,14 +137,18 @@ function writeTable(rows) {
   writeFileSync(TABLE, `${[COLUMNS.join("\t"), ...ordered.map((row) => COLUMNS.map((column) => row[column] ?? "").join("\t"))].join("\n")}\n`);
 }
 
-// What a bare word becomes in one file, or at one site in it, decided by
-// reading it: where its rename would land on a name its code file already
-// holds, and where it takes another name in context. Each row names one exact
-// token, what it becomes, and why; `before` and `after`, when given, are the
-// patterns a stay's are. A stay in words.mjs still keeps the word first.
+// What a word becomes in one file, at one site in it, or wherever its context
+// matches, decided by reading it: a bare word where its rename would land on a
+// name its code file already holds or takes another name in context, and any
+// other word the table can't rename everywhere, such as a field named with an
+// English word or a flag's spelling. Each row names one exact token, its file
+// or `*` for every file, what it becomes, and why; `before` and `after`, when
+// given, are the patterns a stay's are. A stay in words.mjs still keeps a bare
+// word first, and a word the table renames is the table's alone.
 const BARE_WORDS = new URL("./bare-words.tsv", import.meta.url);
-// The sources that bind names: code, unlike prose and data.
-const CODE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|sql|rb|py|sh|go|mk)$|(^|\/)Makefile$/;
+// The sources that bind names: code, a stylesheet's classes among them,
+// unlike prose and data.
+const CODE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|css|scss|sql|rb|py|sh|go|mk)$|(^|\/)Makefile$/;
 const BARE_COLUMNS = ["repo", "file", "word", "becomes", "before", "after", "why"];
 const NAME = new RegExp(`^(?:${TOKEN.source})$`);
 
@@ -155,8 +159,8 @@ function readDecisions(repo) {
     const row = Object.fromEntries(line.split("\t").map((value, column) => [BARE_COLUMNS[column], value]));
     const where = `bare-words.tsv line ${index + 2}`;
     if (!row.repo || !row.file || !row.why) throw new Error(`${where} needs a repo, a file and a reason`);
-    if (bareWord(row.word ?? "") === undefined) throw new Error(`${where}: ${row.word} isn't a bare runner or harness`);
-    if (!NAME.test(row.becomes ?? "") || bareWord(row.becomes) !== undefined) throw new Error(`${where}: ${row.word} becomes a new name, and a word that keeps its own is a stay, in words.mjs`);
+    if (!NAME.test(row.word ?? "")) throw new Error(`${where}: ${row.word} isn't one name`);
+    if (!NAME.test(row.becomes ?? "") || row.becomes === row.word || bareWord(row.becomes) !== undefined) throw new Error(`${where}: ${row.word} becomes a new name, and a word that keeps its own is a stay, in words.mjs`);
     return { ...row, before: row.before ? new RegExp(row.before) : undefined, after: row.after ? new RegExp(row.after) : undefined };
   });
   return rows.filter((row) => row.repo === repo);
@@ -228,6 +232,12 @@ const PINNED = {
     { file: "spec/spec.md", block: '"id": "sha256:4ecdfe15d00f7ce518117d505270e4657e6868212a4d756a95249f01f0df8f6a"', why: "the canonical graph receipt, whose id and digest cover its bytes" },
   ],
 };
+
+/** The names a SQL text gives, its comments and string values aside. */
+function sqlNames(text) {
+  const code = text.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'/g, " ");
+  return new Set(code.match(TOKEN) ?? []);
+}
 
 /** Each fenced code block in a Markdown text: the span between its fences. */
 function fencedBlocks(text) {
@@ -462,6 +472,13 @@ function apply(repo, root, write, list, showStays) {
   // such as "tests", is only English, and data names no binding. Nothing is
   // written until every refusal has passed.
   const decisions = readDecisions(repo);
+  const both = [...new Set(decisions.filter((row) => renames.has(row.word)).map((row) => row.word))];
+  if (both.length > 0) {
+    process.stdout.write(`refused ${repo}: ${both.length} words are renamed by identifiers.tsv and decided by bare-words.tsv; one of them decides each: ${both.join(", ")}\n`);
+    return 1;
+  }
+  const rowWords = new Set(decisions.filter((row) => bareWord(row.word) === undefined).map((row) => row.word));
+  const bareRenamed = new Set();
   let bare = 0;
   const stays = [];
   const decided = [];
@@ -497,9 +514,18 @@ function apply(repo, root, write, list, showStays) {
             edits.push({ at, from: token, to });
             return to;
           }
-          if (bareWord(token) === undefined) return token;
           const site = `${file}:${number + 1}`;
           const shown = line.trim().slice(0, 140);
+          if (bareWord(token) === undefined) {
+            if (!rowWords.has(token)) return token;
+            const rows = decisionsFor(decisions, file, line, index, token);
+            if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
+            if (rows.length === 0) return token;
+            count += 1;
+            decided.push(`${site}\t${rows[0].why}\t${token} -> ${rows[0].becomes}\t${shown}`);
+            edits.push({ at, from: token, to: rows[0].becomes });
+            return rows[0].becomes;
+          }
           const stay = stayFor(file, line, index, token);
           if (stay) {
             stays.push(`${site}\t${stay.why}\t${shown}`);
@@ -507,6 +533,7 @@ function apply(repo, root, write, list, showStays) {
           }
           count += 1;
           bare += 1;
+          bareRenamed.add(token.toLowerCase());
           const rows = decisionsFor(decisions, file, line, index, token);
           if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
           if (rows.length > 0) {
@@ -531,8 +558,25 @@ function apply(repo, root, write, list, showStays) {
     landings.push(...sites.map((site) => ({ file, ...site })));
   }
   if (conflicts.length > 0) {
-    process.stdout.write(`refused ${repo}: ${conflicts.length} bare words are decided by more than one row of bare-words.tsv; a site takes one\n`);
+    process.stdout.write(`refused ${repo}: ${conflicts.length} words are decided by more than one row of bare-words.tsv; a site takes one\n`);
     for (const conflict of conflicts) process.stdout.write(`  ${conflict}\n`);
+    return 1;
+  }
+  // A bare word an applied migration names, as a column, table, index or
+  // constraint, is stored: renaming it in code and SQL moves what reads it off
+  // the stored name, so its row's note starts "stored" and names the migration
+  // that renames the stored copy, as a table rename's does.
+  const storedBare = new Map();
+  for (const file of workingFiles(root).filter((file) => HISTORY.test(file) && file.endsWith(".sql"))) {
+    for (const name of sqlNames(readFileSync(path.join(root, file), "utf8"))) {
+      const word = name.toLowerCase();
+      if (bareWord(word) === undefined || !bareRenamed.has(word) || notes.get(word)?.startsWith("stored")) continue;
+      if (!storedBare.has(word)) storedBare.set(word, file);
+    }
+  }
+  if (storedBare.size > 0) {
+    process.stdout.write(`refused ${repo}: ${storedBare.size} renamed bare words are stored, because an applied migration names them; each one's row note starts "stored" and names the migration that renames the stored copy\n`);
+    for (const [word, file] of storedBare) process.stdout.write(`  ${word}   (${file})\n`);
     return 1;
   }
   // A name that's also a file or folder moves with it: a bench, a module and
@@ -611,7 +655,7 @@ function apply(repo, root, write, list, showStays) {
     for (const stay of stays) process.stdout.write(`stays\t${stay}\n`);
     for (const site of decided) process.stdout.write(`decided\t${site}\n`);
   }
-  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${bare} of them bare words, ${stays.length} bare words kept, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}${decided.length ? `; ${decided.length} bare words as bare-words.tsv decides` : ""}\n`);
+  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${bare} of them bare words, ${stays.length} bare words kept, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}${decided.length ? `; ${decided.length} words as bare-words.tsv decides` : ""}\n`);
   return 0;
 }
 

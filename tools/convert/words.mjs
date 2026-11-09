@@ -73,14 +73,14 @@ export function stayFor(file, line, index, token) {
 
 /**
  * The rows of bare-words.tsv that decide this occurrence: each names one
- * exact token in one file, at every site in it or only where its `before`
- * and `after` match, as a stay's do. More than one is a conflict for the
- * caller to refuse.
+ * exact token in one file, or in every file when its file is `*`, at every
+ * site or only where its `before` and `after` match, as a stay's do. More
+ * than one is a conflict for the caller to refuse.
  */
 export function decisionsFor(rows, file, line, index, token) {
   const before = line.slice(0, index);
   const after = line.slice(index + token.length);
-  return rows.filter((row) => row.file === file && row.word === token && (!row.before || row.before.test(before)) && (!row.after || row.after.test(after)));
+  return rows.filter((row) => (row.file === file || row.file === "*") && row.word === token && (!row.before || row.before.test(before)) && (!row.after || row.after.test(after)));
 }
 
 // A file's own name keeps the word where its folder does: the engine's
@@ -92,8 +92,10 @@ export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.r
 export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json|packages\/api\/src\/generated\/(public-protocol-schemas|purchase-schemas)\.ts)$|\.gen\.go$|^contracts\/generated\//;
 
 // The sources a rename reads, and the guard with it: code, data and prose
-// by extension, Go among them, and Makefiles by name.
-export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)Makefile$/;
+// by extension, Go and stylesheets among them, and Makefiles by name. A
+// stylesheet's class and id names are names like any other, so a class an
+// element takes renames in the rules that style it.
+export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|css|scss|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)Makefile$/;
 
 // What can't truthfully change (§4.6), in its text or its path: history
 // documents; Ausca's catalog history, content-addressed immutable purchase

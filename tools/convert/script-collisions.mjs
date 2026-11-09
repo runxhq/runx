@@ -1,5 +1,7 @@
 // Which renamed bare words collide in TypeScript, JavaScript and Astro, read
-// from the TypeScript AST and its binder (TypeScript 7's API). A renamed site
+// from the TypeScript AST and its binder through TypeScript 7.0.2's unstable
+// API (`typescript/unstable/sync` and `typescript/unstable/ast`), which the
+// workspace pins as a root devDependency. A renamed site
 // collides when it makes a duplicate binding in one scope, a declaration that
 // shadows a binding of the new name or is shadowed by one, a duplicate key in
 // one object literal, type, interface, enum or class, or a reference that now

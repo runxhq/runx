@@ -238,6 +238,31 @@ test("a row decides one exact token in its file, at every site or only where its
   assert.deepEqual(decided("src/other.ts", "harness"), []);
 });
 
+test("a row in every file decides a word only where its context matches, as a flag's spelling", () => {
+  const rows = [{ file: "*", word: "max-cost", becomes: "max-spend", before: /--$/ }];
+  const decided = (file, line) => decisionsFor(rows, file, line, line.indexOf("max-cost"), "max-cost").map((row) => row.becomes);
+  assert.deepEqual(decided("docs/cli.md", "runx skill . --max-cost 5"), ["max-spend"]);
+  assert.deepEqual(decided("crates/cli/src/parser.rs", '"--max-cost" => {'), ["max-spend"]);
+  assert.deepEqual(decided("docs/cli.md", "the max-cost of a run"), []);
+});
+
+test("a bare word an applied migration stores is refused until its row names the migration that renames it", (t) => {
+  const migration = "create table runs (\n  id text primary key,\n  runner text not null -- the run's runner\n);\n";
+  const code = 'export const query = "select runner from runs";\n';
+  const refused = tree(t, { "db/migrations/0001_runs.sql": migration, "src/runs.ts": code });
+  const out = run(RENAME, "apply", "oss", refused, "--write");
+  assert.equal(out.status, 1, out.out);
+  assert.match(out.out, /^refused oss: 1 renamed bare words are stored, because an applied migration names them/m);
+  assert.match(out.out, /^  runner   \(db\/migrations\/0001_runs\.sql\)$/m);
+  assert.equal(read(refused, "src/runs.ts"), code);
+  // Cloud's runner row names 0091_run_methods.sql, which renames runs.runner.
+  const renamed = tree(t, { ...cloudPin, "packages/db/migrations/0001_runs.sql": migration, "packages/api/src/runs.ts": code });
+  const applied = run(RENAME, "apply", "cloud", renamed, "--write");
+  assert.equal(applied.status, 0, applied.out);
+  assert.equal(read(renamed, "packages/api/src/runs.ts"), 'export const query = "select method from runs";\n');
+  assert.equal(read(renamed, "packages/db/migrations/0001_runs.sql"), migration);
+});
+
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
   const generated = "type Purchase struct {\n\tRunner string `json:\"runner\"`\n}\n";
   const root = tree(t, {
@@ -354,6 +379,24 @@ test("Cloud's copy of the CLI release it adopted keeps its text and its paths", 
   assert.equal(status, 0, out);
   for (const [file, text] of Object.entries(release)) assert.equal(read(root, file), text, file);
   assert.equal(read(root, "apps/web/src/lib/release.ts"), "// The run-context schema ships with the release.\n");
+});
+
+test("a stylesheet's class renames with the element that takes it, and a class renamed onto one it styles is refused", (t) => {
+  const root = tree(t, {
+    ...cloudPin,
+    "apps/web/src/components/Step.astro": '<span class="step-runner">Step</span>\n',
+    "apps/web/src/styles/skill.css": ".step-runner { color: red; }\n.step-runner:hover { color: blue; }\n",
+  });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "apps/web/src/components/Step.astro"), '<span class="step-method">Step</span>\n');
+  assert.equal(read(root, "apps/web/src/styles/skill.css"), ".step-method { color: red; }\n.step-method:hover { color: blue; }\n");
+  const sheet = ".runner { margin: 0; }\n.method { margin: 1px; }\n";
+  const clash = tree(t, { ...cloudPin, "apps/web/src/styles/plain.css": sheet });
+  const refused = run(RENAME, "apply", "cloud", clash, "--write");
+  assert.equal(refused.status, 1, refused.out);
+  assert.match(refused.out, /^  apps\/web\/src\/styles\/plain\.css:1\trunner -> method\tits file already holds method\t/m);
+  assert.equal(read(clash, "apps/web/src/styles/plain.css"), sheet);
 });
 
 test("Ausca's catalog keys are pinned, so retained history decodes, while the code around them renames", (t) => {
