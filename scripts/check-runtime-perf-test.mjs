@@ -7,84 +7,85 @@ import { fileURLToPath } from "node:url";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tempRoot = mkdtempSync(path.join(tmpdir(), "runx-perf-test-"));
+let qualityFixtures = 0;
 
 try {
-  const baselinePath = path.join(tempRoot, "baseline.json");
-  const passingPath = path.join(tempRoot, "candidate-pass.json");
-  const failingPath = path.join(tempRoot, "candidate-fail.json");
-  const missingEvidencePath = path.join(tempRoot, "candidate-missing-evidence.json");
-  const qualityPassingPath = path.join(tempRoot, "quality-pass.json");
-  const qualityFailingPath = path.join(tempRoot, "quality-fail.json");
-
-  writeFixture(baselinePath, {
-    throughput: 100,
-    mean_ns: 10_000_000,
-    p95_ns: 11_000_000,
-    p99_ns: 12_000_000,
-    spawn_count: 1,
+  // `check`: a Criterion workload is judged by its mean, a request workload
+  // by its p99 from individual timings, and a bound that doesn't apply to a
+  // workload's kind fails it.
+  const baselinePath = report("baseline", {
+    workflow_planning: criterion({ throughput: 100, mean_ns: 10_000_000 }),
+    native_cli_launch: requests({ p99_ns: 12_000_000 }),
   });
-  writeFixture(passingPath, {
-    throughput: 210,
-    mean_ns: 4_700_000,
-    p95_ns: 5_000_000,
-    p99_ns: 12_100_000,
-    spawn_count: 1,
+  const passingPath = report("candidate-pass", {
+    workflow_planning: criterion({ throughput: 210, mean_ns: 4_700_000 }),
+    native_cli_launch: requests({ p99_ns: 12_100_000 }),
   });
-  writeFixture(failingPath, {
-    throughput: 90,
-    mean_ns: 11_000_000,
-    p95_ns: 15_000_000,
-    p99_ns: 20_000_000,
-    spawn_count: 3,
+  const failingPath = report("candidate-fail", {
+    workflow_planning: criterion({ throughput: 90, mean_ns: 11_000_000 }),
+    native_cli_launch: requests({ p99_ns: 20_000_000, spawn_count: 3 }),
   });
-  writeFixture(missingEvidencePath, {
-    throughput: 210,
-    mean_ns: 4_700_000,
-    spawn_count: 1,
+  const missingTailPath = report("candidate-missing-tail", {
+    native_cli_launch: requests({ p99_ns: undefined }),
+  });
+  const batchPercentilePath = report("candidate-batch-percentile", {
+    workflow_planning: { ...criterion({ throughput: 210, mean_ns: 4_700_000 }), p99_ns: 5_000_000 },
+  });
+  const failedRequestsPath = report("candidate-failed-requests", {
+    native_cli_launch: requests({ p99_ns: 12_000_000, errors: 1, timeouts: 1 }),
   });
 
-  const pass = runCheck(baselinePath, passingPath);
-  if (pass.status !== 0) {
-    process.stderr.write(pass.stderr || pass.stdout);
-    throw new Error("runtime perf test rejected the passing candidate fixture");
-  }
+  expectPass(runMeanCheck(baselinePath, passingPath), "a Criterion mean within its bound");
+  expectFail(runMeanCheck(baselinePath, failingPath), "a Criterion mean past its bound");
+  expectPass(runRequestCheck(baselinePath, passingPath), "a request p99 within its bound");
+  expectFail(runRequestCheck(baselinePath, failingPath), "a request p99 past its bound");
+  expectFail(runRequestCheck(baselinePath, missingTailPath), "a request workload with no measured p99");
+  expectFail(runMeanCheck(baselinePath, batchPercentilePath), "a percentile of Criterion's batch averages", "batch averages");
+  expectFail(runRequestCheck(baselinePath, failedRequestsPath), "a request workload whose requests failed", "1 failed and 1 timed-out");
+  expectFail(
+    runChecks(baselinePath, passingPath, "workflow_planning", ["--max-p99-regression", "1.10"]),
+    "a p99 bound on a Criterion workload",
+    "never request percentiles",
+  );
+  expectFail(
+    runChecks(baselinePath, passingPath, "native_cli_launch", ["--min-throughput-ratio", "1.00"]),
+    "a throughput bound on a request workload",
+    "held arrival rate",
+  );
+  expectFail(
+    runChecks(baselinePath, passingPath, "workflow_planning", ["--max-growth-exponent", "1.10"]),
+    "a growth bound with no measured scale points",
+  );
 
-  const fail = runCheck(baselinePath, failingPath);
-  if (fail.status === 0) {
-    process.stderr.write(fail.stdout);
-    throw new Error("runtime perf test accepted the intentionally bad candidate fixture");
-  }
+  // `verify-quality`: every journey's work budget, each from its own
+  // measurement, and every timing honest about what it is.
+  expectPass(runQualityVerification(quality({})), "release-quality evidence with every journey in budget");
 
-  const missingEvidence = runCheck(baselinePath, missingEvidencePath);
-  if (missingEvidence.status === 0) {
-    throw new Error("runtime perf test accepted a candidate missing measured tail evidence");
-  }
+  const withoutMemory = journeys();
+  delete withoutMemory["5"];
+  expectFail(
+    runQualityVerification(quality({ journeys: withoutMemory })),
+    "a journey with no measurement",
+    "journey_5",
+  );
 
-  const missingGrowth = runGrowthCheck(baselinePath, passingPath);
-  if (missingGrowth.status === 0) {
-    throw new Error("runtime perf test accepted a growth gate without measured scale evidence");
-  }
+  const growingWrites = journeys();
+  growingWrites["2"].store_writes_per_call["1000"] = 3;
+  expectFail(
+    runQualityVerification(quality({ journeys: growingWrites })),
+    "store writes that grow with the run",
+    "journey_2.constant_store_writes_per_call",
+  );
 
-  writeQualityFixture(qualityPassingPath, {});
-  const qualityPass = runQualityVerification(qualityPassingPath);
-  if (qualityPass.status !== 0) {
-    process.stderr.write(qualityPass.stderr || qualityPass.stdout);
-    throw new Error("runtime perf test rejected valid release-quality evidence");
-  }
+  expectFail(
+    runQualityVerification(quality({ nativeExtra: { p99_ns: 1_500_000 } })),
+    "a percentile of Criterion's batch averages",
+    "measurement.native_capability_dispatch",
+  );
 
-  writeQualityFixture(qualityFailingPath, {
-    sessionSpawnCount: 2,
-    worktreeDirty: true,
-  });
-  const qualityFail = runQualityVerification(qualityFailingPath);
-  if (qualityFail.status === 0) {
-    throw new Error("runtime perf test accepted invalid release-quality evidence");
-  }
-  for (const expectedDiagnostic of ["worktree_clean", "session_spawn_count"]) {
-    if (!qualityFail.stdout.includes(expectedDiagnostic)) {
-      throw new Error(`runtime quality failure did not name ${expectedDiagnostic}`);
-    }
-  }
+  const qualityFail = runQualityVerification(quality({ sessionSpawnCount: 2, worktreeDirty: true }));
+  expectFail(qualityFail, "invalid release-quality evidence", "worktree_clean");
+  expectFail(qualityFail, "invalid release-quality evidence", "session_spawn_count");
 
   assertReleaseProbeInvariant();
   assertArchitectureWorkloads();
@@ -94,29 +95,38 @@ try {
   rmSync(tempRoot, { recursive: true, force: true });
 }
 
-function runGrowthCheck(baselinePath, candidatePath) {
-  return spawnSync(
-    "node",
-    [
-      "scripts/runtime-throughput.mjs",
-      "check",
-      "--baseline",
-      baselinePath,
-      "--candidate",
-      candidatePath,
-      "--workloads",
-      "workflow_planning",
-      "--max-growth-exponent",
-      "1.10",
-    ],
-    {
-      cwd: workspaceRoot,
-      encoding: "utf8",
-    },
-  );
+function expectPass(result, what) {
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr || result.stdout);
+    throw new Error(`runtime perf test refused ${what}`);
+  }
 }
 
-function runCheck(baselinePath, candidatePath) {
+function expectFail(result, what, named) {
+  if (result.status === 0) {
+    process.stderr.write(result.stdout);
+    throw new Error(`runtime perf test accepted ${what}`);
+  }
+  if (named && !`${result.stdout}${result.stderr}`.includes(named)) {
+    process.stderr.write(result.stdout);
+    throw new Error(`runtime perf test refused ${what} without naming ${named}`);
+  }
+}
+
+function runMeanCheck(baselinePath, candidatePath) {
+  return runChecks(baselinePath, candidatePath, "workflow_planning", ["--min-throughput-ratio", "2.00"]);
+}
+
+function runRequestCheck(baselinePath, candidatePath) {
+  return runChecks(baselinePath, candidatePath, "native_cli_launch", [
+    "--max-spawn-count",
+    "1",
+    "--max-p99-regression",
+    "1.10",
+  ]);
+}
+
+function runChecks(baselinePath, candidatePath, workload, bounds) {
   return spawnSync(
     "node",
     [
@@ -127,13 +137,8 @@ function runCheck(baselinePath, candidatePath) {
       "--candidate",
       candidatePath,
       "--workloads",
-      "workflow_planning",
-      "--min-throughput-ratio",
-      "2.00",
-      "--max-spawn-count",
-      "1",
-      "--max-p99-regression",
-      "1.10",
+      workload,
+      ...bounds,
     ],
     {
       cwd: workspaceRoot,
@@ -160,31 +165,110 @@ function runQualityVerification(candidatePath) {
   );
 }
 
-function writeFixture(filePath, metric) {
+/** A Criterion workload as a capture reports it: its mean and the mean's interval. */
+function criterion({ throughput, mean_ns }) {
+  return {
+    source: "criterion",
+    unit: "iterations_per_second",
+    mean_ns,
+    mean_lower_ns: mean_ns * 0.98,
+    mean_upper_ns: mean_ns * 1.02,
+    confidence_level: 0.95,
+    throughput,
+    sample_count: 20,
+  };
+}
+
+/** A request workload as a capture reports it: each request timed on its own. */
+function requests({ p99_ns, spawn_count = 1, errors = 0, timeouts = 0 }) {
+  const metric = {
+    source: "requests",
+    unit: "nanoseconds",
+    arrival_per_second: 10,
+    requests: 20,
+    completed: 20 - errors - timeouts,
+    errors,
+    timeouts,
+    mean_ns: 3_000_000,
+    p50_ns: 3_000_000,
+    p95_ns: 3_100_000,
+    p99_ns,
+    spawn_count,
+  };
+  if (p99_ns === undefined) {
+    delete metric.p99_ns;
+  }
+  return metric;
+}
+
+function report(name, workloads) {
+  const filePath = path.join(tempRoot, `${name}.json`);
   writeFileSync(
     filePath,
     `${JSON.stringify({
       schema: "runx.oss_runtime_throughput.v1",
       captured_at: "2026-05-27T00:00:00.000Z",
       command: "perf:test-check",
-      workloads: {
-        workflow_planning: {
-          source: "fixture",
-          unit: "iterations_per_second",
-          ...metric,
-        },
-      },
+      workloads,
     }, null, 2)}\n`,
   );
+  return filePath;
 }
 
-function writeQualityFixture(
-  filePath,
-  {
-    sessionSpawnCount = 1,
-    worktreeDirty = false,
-  },
-) {
+/** Every journey's structural measurements, each within its work budget. */
+function journeys() {
+  return {
+    1: {
+      processes_started: 1,
+      network_requests: 0,
+      verifications_per_identity: 1,
+      packages_read: { 1: 1, 10: 1, 100: 1, 1000: 1 },
+    },
+    2: {
+      store_writes_per_call: { 10: 2, 100: 2, 1000: 2 },
+      context_reserializations_per_call: 0,
+      transactions_spanning_provider_calls: 0,
+    },
+    3: {
+      settle_reads_per_call: { 1: 4, 1000: 4 },
+      results_delayed_by_slow_read: 0,
+      peak_concurrency: 8,
+      max_concurrency: 8,
+    },
+    4: {
+      run_read_rows_with_nothing_new: { 10: 1, 100: 1, 1000: 1 },
+      recovery_reads_per_stream: 1,
+    },
+    5: {
+      index_rows_visited: { 100: 40, 10000: 40, 100000: 40 },
+      index_rows_its_budget_can_show: 40,
+      search_pages_per_stream: 1,
+      search_history_rows_read: 0,
+    },
+    6: {
+      queries_per_page: { 10: 1, 100: 1, 1000: 1 },
+      package_bodies_read: 0,
+    },
+    7: {
+      copies_per_byte: { "1KiB": 2, "64MiB": 2 },
+      page_bytes_read_beyond_range: 0,
+    },
+    8: {
+      context_reads_unused: 0,
+      repeated_reads: { previous: 3, current: 3 },
+      model_calls: { previous: 5, current: 4 },
+    },
+  };
+}
+
+function quality({
+  sessionSpawnCount = 1,
+  worktreeDirty = false,
+  journeys: measured = journeys(),
+  nativeExtra = {},
+}) {
+  qualityFixtures += 1;
+  const filePath = path.join(tempRoot, `quality-${qualityFixtures}.json`);
   writeFileSync(
     filePath,
     `${JSON.stringify({
@@ -192,17 +276,17 @@ function writeQualityFixture(
       source_commit: "quality-fixture-commit",
       worktree_dirty: worktreeDirty,
       workloads: {
-        native_capability_dispatch: {
-          sample_count: 10,
-        },
+        native_capability_dispatch: { ...criterion({ throughput: 900, mean_ns: 1_100_000 }), ...nativeExtra },
         pure_module_session_reuse: {
-          sample_count: 10,
+          ...criterion({ throughput: 3_400, mean_ns: 290_000 }),
           spawn_count: sessionSpawnCount,
           peak_in_flight: 1,
         },
       },
+      journeys: measured,
     }, null, 2)}\n`,
   );
+  return filePath;
 }
 
 function assertReleaseProbeInvariant() {

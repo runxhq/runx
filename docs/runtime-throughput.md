@@ -13,11 +13,17 @@ Capture the local baseline before hot-path changes:
 pnpm perf:runtime:capture -- --output .scafld/perf/oss-runtime-throughput-baseline.json
 ```
 
-The capture script runs the Rust Criterion benches and records a JSON document
-using schema `runx.oss_runtime_throughput.v1`. The JSON stores workload
-throughput in iterations per second, per-sample p95/p99 latency, sample count,
-the release build/toolchain, hardware identity, the source commit, and a digest
-of the exact dirty or clean source tree that produced the result. A dirty-tree
+The capture script runs the Rust Criterion benches and the process probes and
+records a JSON document using schema `runx.oss_runtime_throughput.v1`. A
+Criterion workload is a CPU benchmark, recorded as Criterion reports it: the
+mean per iteration, the mean's confidence interval, its throughput in iterations
+per second and its sample count. Criterion's samples are batch averages, so no
+percentile is ever taken from them. A request workload is timed request by
+request at a held arrival rate, and records its p50, p95 and p99 from those
+individual timings, with how many requests completed, failed and timed out. The
+JSON also stores the release build/toolchain, hardware identity, the source
+commit, each journey's structural measurements, and a digest of the exact dirty
+or clean source tree that produced the result. A dirty-tree
 capture is therefore explicit and still content-bound; it is never presented as
 evidence for the unmodified commit alone.
 
@@ -98,8 +104,15 @@ they measure process launch overhead rather than Criterion benches:
 - `native_cli_launch`
 - `cli_file_input`
 
-These rows include `spawn_count`. The native launch gate requires
-`spawn_count <= 1` and no p99 regression above the declared budget.
+They're request workloads. Each request is due at a held arrival rate, 10 a
+second unless `--arrival-rate` says otherwise, one at a time, and its latency
+runs from when it was due to when it ended. A request that runs past its slot
+delays the next, and the next one's latency counts that wait, so a stall shows
+in every request it holds up instead of averaging away. Failed and timed-out
+requests are counted, and a request workload with any is refused. These rows
+record `spawn_count` 1, since the probe launches one process per request. The
+native launch gate requires `spawn_count <= 1` and no p99 regression above the
+declared budget.
 Deterministic JavaScript owns a runtime-scoped bounded worker pool with a fresh
 engine context per invocation. The pool ceiling is four processes. Each process
 has a 160 MiB working-set ceiling, so the explicit aggregate JavaScript
@@ -155,8 +168,8 @@ or a JavaScript anchor.
 
 The 2x gate applies to deterministic workflow planning state-machine overhead. Production context-to-module execution has a no-regression gate;
 receipt canonicalization and store maintenance use a 1.75x throughput gate
-plus a measured growth-shape budget. Session gates track spawn count and p99
-regression. Runx does not emit allocation metrics until the test has a real
+plus a measured growth-shape budget. Session gates track spawn count and peak
+leases. Runx does not emit allocation metrics until the test has a real
 production-path allocator observation; an invented zero is not evidence. The
 growth-exponent gate applies only where the test captures explicit small and
 large scale points: receipt-store append/index, artifact continuation, and
@@ -167,8 +180,9 @@ is dominated by external models, remote APIs, user subprocess work, package
 manager startup, or operating-system process startup.
 
 New production-path workloads compare repeat captures against
-`.scafld/perf/oss-runtime-production-path-baseline.json`, require at least 85%
-of baseline throughput, and permit at most 25% p99 variance. Provider finality
+`.scafld/perf/oss-runtime-production-path-baseline.json` and require at least
+85% of baseline throughput; a request workload among them permits at most 25%
+p99 variance. Provider finality
 requires zero child-process spawns, and native artifact work holds no worker
 session at all; the canonical CLI input path permits one CLI process. The wider tolerance reflects real durable
 filesystem and process variance; it does not excuse removing attempt
@@ -194,12 +208,24 @@ Later phases compare against the Phase 1 baseline:
 
 ```bash
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads workflow_planning --min-throughput-ratio 2.00
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads workflow_context_to_module --min-throughput-ratio 1.00 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads workflow_context_to_module --min-throughput-ratio 1.00
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads receipt_canonicalization,workflow_receipt_sealing --min-throughput-ratio 1.50
 ```
 
-The check command exits non-zero when any requested workload misses its declared
-throughput ratio.
+The check command exits non-zero when any requested workload misses a bound
+it was given. A Criterion workload is bounded by its mean, through
+`--min-throughput-ratio`, and by `--max-growth-exponent` where it has scale
+points. A request workload is bounded by `--max-p99-regression` and
+`--max-spawn-count`. A bound that doesn't apply to a workload's kind fails that
+workload, so a check never passes because a figure is absent.
+
+`verify-quality` also holds each of performance.md's eight journeys to the
+work budget its row states, from the structural measurements the capture's
+`journeys` holds for it: store writes per call, settlement cost at call 1,000,
+queries per page, bytes copied, and the rest. These are checked apart from
+timing, since they hold at any speed. A journey with no measurement fails, and
+so does any budget whose measurement is missing. No probe measures a journey's
+work yet, so the gate fails every journey until its owner adds one.
 
 The S-tier final gate captures all runtime-owned workloads into
 `.scafld/perf/oss-runtime-s-tier-final.json` and compares them against
@@ -207,22 +233,23 @@ The S-tier final gate captures all runtime-owned workloads into
 
 ```bash
 pnpm perf:runtime:capture -- --output .scafld/perf/oss-runtime-s-tier-final.json --workloads workflow_planning,native_capability_dispatch,workflow_context_to_module,pure_module_cold_start,pure_module_session_reuse,pure_module_large_input,provider_effect_finality,artifact_admission,artifact_page_continuation,twitter_archive_selection,receipt_canonicalization,workflow_receipt_sealing,receipt_store_append,receipt_store_index,native_cli_launch,cli_file_input
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads workflow_planning --min-throughput-ratio 2.00 --max-p99-regression 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_capability_dispatch,workflow_context_to_module --min-throughput-ratio 1.00 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads workflow_planning --min-throughput-ratio 2.00
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_capability_dispatch,workflow_context_to_module --min-throughput-ratio 1.00
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_canonicalization,workflow_receipt_sealing --min-throughput-ratio 1.75
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_store_append,receipt_store_index --min-throughput-ratio 1.75 --max-growth-exponent 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads provider_effect_finality --min-throughput-ratio 0.85 --max-p99-regression 1.25 --max-spawn-count 0
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_admission --min-throughput-ratio 0.85 --max-p99-regression 1.25
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_page_continuation,twitter_archive_selection --min-throughput-ratio 0.85 --max-growth-exponent 1.10 --max-p99-regression 1.25
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads provider_effect_finality --min-throughput-ratio 0.85 --max-spawn-count 0
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_admission --min-throughput-ratio 0.85
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_page_continuation,twitter_archive_selection --min-throughput-ratio 0.85 --max-growth-exponent 1.10
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_cli_launch --max-spawn-count 1 --max-p99-regression 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads cli_file_input --min-throughput-ratio 0.85 --max-p99-regression 1.25 --max-spawn-count 1
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads cli_file_input --max-p99-regression 1.25 --max-spawn-count 1
 ```
 
 ## Evidence ownership
 
 Generated performance reports are the sole owner of measured values, hardware,
-toolchain, source commit, tree digest, sample count, p50/p95/p99, throughput,
-growth, and process metrics. This document defines workloads and gates; it does
+toolchain, source commit, tree digest, sample count, each Criterion mean and
+its interval, each request workload's percentiles and counts, throughput,
+growth, process metrics and journey measurements. This document defines workloads and gates; it does
 not copy generated numbers into a second surface that can silently drift after
 the next capture. Release notes and articles may quote a named, digest-bound
 report, but must not present those figures as current after its source digest

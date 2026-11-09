@@ -26,6 +26,11 @@ const criterionRoot = path.join(cargoTargetDir, "criterion");
 const runtimeResourceMetricsPath = path.join(cargoTargetDir, "runtime-resource-metrics.json");
 const nativeCliWarmupCount = 3;
 const nativeCliSampleCount = 20;
+// A request workload's arrivals are held at this rate, one request at a time,
+// whatever each takes; a request that runs past its slot delays the next, and
+// the next one's latency counts that wait.
+const defaultArrivalPerSecond = 10;
+const requestTimeoutMs = 10_000;
 let cachedNativeCliProbe;
 const runtimeBench = {
   package: "runx-runtime",
@@ -185,7 +190,7 @@ try {
       process.exitCode = 1;
     }
   } else {
-    throw new Error("Usage: runtime-throughput.mjs <list|capture|check|verify-quality> [--output path] [--baseline path] [--candidate path] [--expected-source-commit sha] [--workloads a,b] [--min-throughput-ratio n] [--max-growth-exponent n] [--max-spawn-count n] [--max-p99-regression n]");
+    throw new Error("Usage: runtime-throughput.mjs <list|capture|check|verify-quality> [--output path] [--baseline path] [--candidate path] [--expected-source-commit sha] [--workloads a,b] [--min-throughput-ratio n] [--max-growth-exponent n] [--max-spawn-count n] [--max-p99-regression n] [--arrival-rate n]");
   }
 } catch (error) {
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -201,11 +206,11 @@ function capture(workloads, options) {
   const metrics = {};
   for (const workload of requested) {
     if (workload === "native_cli_launch") {
-      metrics[workload] = measureNativeCliLaunch();
+      metrics[workload] = measureNativeCliLaunch(options);
       continue;
     }
     if (workload === "cli_file_input") {
-      metrics[workload] = measureCliFileInput();
+      metrics[workload] = measureCliFileInput(options);
       continue;
     }
     const metric = criterionMetrics[workload];
@@ -229,6 +234,12 @@ function capture(workloads, options) {
     },
     hardware: hardwareIdentity(),
     workloads: metrics,
+    // Each journey's structural measurements, from the probes that count
+    // them. A journey no probe measures is absent, and the quality gate
+    // fails it.
+    journeys: existsSync(runtimeResourceMetricsPath)
+      ? readJson(runtimeResourceMetricsPath).journeys ?? {}
+      : {},
   };
 }
 
@@ -444,16 +455,16 @@ function readCriterionMetrics(requested) {
     if (typeof meanNs !== "number" || !Number.isFinite(meanNs) || meanNs <= 0) {
       continue;
     }
-    const sample = criterionSampleMetrics(estimatesPath);
+    const interval = estimates.mean.confidence_interval ?? {};
     rawMetrics[workload] = {
       source: "criterion",
       unit: "iterations_per_second",
       mean_ns: meanNs,
-      p50_ns: sample.p50_ns,
-      p95_ns: sample.p95_ns,
-      p99_ns: sample.p99_ns,
+      mean_lower_ns: interval.lower_bound,
+      mean_upper_ns: interval.upper_bound,
+      confidence_level: interval.confidence_level,
       throughput: 1_000_000_000 / meanNs,
-      sample_count: sample.sample_count,
+      sample_count: criterionSampleCount(estimatesPath),
       ...(resourceMetrics[workload] ?? {}),
     };
   }
@@ -497,23 +508,15 @@ function measuredGrowthExponent(metrics, scaling) {
   return Math.log(large / small) / Math.log(scaling.largeSize / scaling.smallSize);
 }
 
-function criterionSampleMetrics(estimatesPath) {
+// How many samples Criterion took. Each sample is a batch's average, so a
+// sample is never read as one request's latency.
+function criterionSampleCount(estimatesPath) {
   const samplePath = path.join(path.dirname(estimatesPath), "sample.json");
   const sample = readJson(samplePath);
   if (!Array.isArray(sample.iters) || !Array.isArray(sample.times) || sample.iters.length !== sample.times.length) {
     throw new Error(`criterion sample is invalid at ${samplePath}`);
   }
-  const perIteration = sample.times.map((time, index) => time / sample.iters[index]);
-  if (perIteration.length === 0 || perIteration.some((value) => !Number.isFinite(value) || value <= 0)) {
-    throw new Error(`criterion sample has invalid iteration timings at ${samplePath}`);
-  }
-  const sorted = [...perIteration].sort((left, right) => left - right);
-  return {
-    p50_ns: percentile(sorted, 0.50),
-    p95_ns: percentile(sorted, 0.95),
-    p99_ns: percentile(sorted, 0.99),
-    sample_count: perIteration.length,
-  };
+  return sample.times.length;
 }
 
 function sleepSync(milliseconds) {
@@ -540,23 +543,11 @@ function workloadNameFromEstimatePath(estimatesPath) {
   return segments[0] ?? "";
 }
 
-function measureNativeCliLaunch() {
-  const probe = nativeCliProbe();
-  for (let index = 0; index < nativeCliWarmupCount; index += 1) {
-    runNativeCliProbe(probe);
-  }
-  const samples = [];
-  for (let index = 0; index < nativeCliSampleCount; index += 1) {
-    const started = performance.now();
-    runNativeCliProbe(probe);
-    samples.push((performance.now() - started) * 1_000_000);
-  }
-  return metricFromSamples("native_cli", samples, {
-    spawn_count: 1,
-  });
+function measureNativeCliLaunch(options) {
+  return measureRequests(nativeCliProbe(), options, { spawn_count: 1 });
 }
 
-function measureCliFileInput() {
+function measureCliFileInput(options) {
   const root = mkdtempSync(path.join(tmpdir(), "runx-cli-file-input-"));
   try {
     const skill = path.join(root, "skills", "cli-file-input-performance");
@@ -612,18 +603,7 @@ methods:
       cwd: root,
       env: { RUNX_CWD: root },
     };
-    for (let index = 0; index < nativeCliWarmupCount; index += 1) {
-      runNativeCliProbe(probe);
-    }
-    const samples = [];
-    for (let index = 0; index < nativeCliSampleCount; index += 1) {
-      const started = performance.now();
-      runNativeCliProbe(probe);
-      samples.push((performance.now() - started) * 1_000_000);
-    }
-    return metricFromSamples("native_cli_file_input", samples, {
-      spawn_count: 1,
-    });
+    return measureRequests(probe, options, { spawn_count: 1 });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -663,32 +643,71 @@ function nativeCliProbe() {
   return cachedNativeCliProbe;
 }
 
+// How one request ended: it completed, failed, or ran past its timeout.
 function runNativeCliProbe(probe) {
   const result = spawnSync(probe.command, probe.args, {
     cwd: probe.cwd ?? repoRoot,
     env: probe.env ? { ...process.env, ...probe.env } : process.env,
     stdio: "ignore",
+    timeout: requestTimeoutMs,
   });
-  if (result.status !== 0) {
-    throw new Error(`native CLI launch probe failed with exit ${result.status ?? "signal"}`);
+  if (result.error?.code === "ETIMEDOUT") {
+    return "timeout";
   }
+  return result.status === 0 ? "completed" : "error";
 }
 
-function metricFromSamples(source, samples, counters) {
-  const sorted = [...samples].sort((left, right) => left - right);
-  const meanNs = samples.reduce((sum, value) => sum + value, 0) / samples.length;
-  const p95Ns = percentile(sorted, 0.95);
-  const p99Ns = percentile(sorted, 0.99);
-  return {
-    source,
-    unit: "iterations_per_second",
-    mean_ns: meanNs,
-    p50_ns: percentile(sorted, 0.50),
-    p95_ns: p95Ns,
-    p99_ns: p99Ns,
-    throughput: 1_000_000_000 / meanNs,
-    sample_count: samples.length,
+// Each request timed on its own, at a held arrival rate, one at a time: the
+// i-th request is due at start + i / rate, and its latency runs from when it
+// was due to when it ended, so a stall shows in every request it delays.
+// Errors and timeouts are counted, and percentiles come from the completed
+// requests' own timings.
+function measureRequests(probe, options, counters) {
+  for (let index = 0; index < nativeCliWarmupCount; index += 1) {
+    runNativeCliProbe(probe);
+  }
+  const arrivalPerSecond = Number(options.arrivalRate ?? defaultArrivalPerSecond);
+  const intervalMs = 1_000 / arrivalPerSecond;
+  const latencies = [];
+  let errors = 0;
+  let timeouts = 0;
+  const start = performance.now();
+  for (let index = 0; index < nativeCliSampleCount; index += 1) {
+    const due = start + index * intervalMs;
+    const wait = due - performance.now();
+    if (wait > 0) {
+      sleepSync(wait);
+    }
+    const outcome = runNativeCliProbe(probe);
+    const latencyNs = (performance.now() - due) * 1_000_000;
+    if (outcome === "completed") {
+      latencies.push(latencyNs);
+    } else if (outcome === "timeout") {
+      timeouts += 1;
+    } else {
+      errors += 1;
+    }
+  }
+  return requestMetric(latencies, {
+    arrival_per_second: arrivalPerSecond,
+    requests: nativeCliSampleCount,
+    errors,
+    timeouts,
     ...counters,
+  });
+}
+
+function requestMetric(latencies, counts) {
+  const sorted = [...latencies].sort((left, right) => left - right);
+  return {
+    source: "requests",
+    unit: "nanoseconds",
+    completed: latencies.length,
+    mean_ns: latencies.reduce((sum, value) => sum + value, 0) / Math.max(1, latencies.length),
+    p50_ns: percentile(sorted, 0.50),
+    p95_ns: percentile(sorted, 0.95),
+    p99_ns: percentile(sorted, 0.99),
+    ...counts,
   };
 }
 
@@ -703,8 +722,14 @@ function percentile(sorted, percentileValue) {
   return sorted[index];
 }
 
+// Each workload is judged by what it measures. A Criterion workload is a CPU
+// benchmark: its mean, over batches, against the baseline's, and its growth
+// across scale points. A request workload is individual timings at a held
+// arrival rate: its p99 against the baseline's, with every request completed.
+// A bound that doesn't apply to a workload's kind fails it, so nothing passes
+// by having no figure to compare.
 function compareReports(baseline, current, workloads, options) {
-  const minRatio = Number(options.minThroughputRatio ?? 1);
+  const minRatio = options.minThroughputRatio;
   const maxGrowthExponent =
     options.maxGrowthExponent === undefined ? undefined : Number(options.maxGrowthExponent);
   const maxSpawnCount =
@@ -721,11 +746,20 @@ function compareReports(baseline, current, workloads, options) {
         reason: "missing baseline or current metric",
       };
     }
-    const ratio = currentMetric.throughput / baseMetric.throughput;
+    const refused = measurementRefusals(workload, currentMetric);
+    const requests = currentMetric.source === "requests";
+    if (requests && minRatio !== undefined) {
+      refused.push("a request workload runs at a held arrival rate, so it has no throughput to compare: bound its p99");
+    }
+    if (!requests && maxP99Regression !== undefined) {
+      refused.push("a Criterion workload's figures are batch means, never request percentiles: bound its mean with --min-throughput-ratio");
+    }
+    const ratio = requests ? undefined : currentMetric.throughput / baseMetric.throughput;
+    const effectiveMinRatio = requests ? undefined : Number(minRatio ?? 1);
     const exponent = currentMetric.growth_exponent;
     const hasGrowthMetric = typeof exponent === "number";
-    const p99Ratio = metricRatio(currentMetric.p99_ns, baseMetric.p99_ns);
-    const ratioPassed = Number.isFinite(ratio) && ratio >= minRatio;
+    const p99Ratio = requests ? metricRatio(currentMetric.p99_ns, baseMetric.p99_ns) : undefined;
+    const ratioPassed = requests || (Number.isFinite(ratio) && ratio >= effectiveMinRatio);
     const exponentPassed =
       maxGrowthExponent === undefined
       || (hasGrowthMetric && exponent <= maxGrowthExponent);
@@ -734,12 +768,17 @@ function compareReports(baseline, current, workloads, options) {
       || (typeof currentMetric.spawn_count === "number" && currentMetric.spawn_count <= maxSpawnCount);
     const p99Passed =
       maxP99Regression === undefined
+      || !requests
       || (Number.isFinite(p99Ratio) && p99Ratio <= maxP99Regression);
+    const passed = refused.length === 0 && ratioPassed && exponentPassed && spawnPassed && p99Passed;
     return {
       workload,
-      status: ratioPassed && exponentPassed && spawnPassed && p99Passed ? "passed" : "failed",
-      throughput_ratio: ratio,
-      min_throughput_ratio: minRatio,
+      status: passed ? "passed" : "failed",
+      ...(refused.length === 0 ? {} : { refused }),
+      ...(requests ? {} : {
+        throughput_ratio: ratio,
+        min_throughput_ratio: effectiveMinRatio,
+      }),
       ...(maxGrowthExponent === undefined || !hasGrowthMetric ? {} : {
         growth_exponent: exponent,
         max_growth_exponent: maxGrowthExponent,
@@ -748,7 +787,7 @@ function compareReports(baseline, current, workloads, options) {
         spawn_count: currentMetric.spawn_count,
         max_spawn_count: maxSpawnCount,
       }),
-      ...(maxP99Regression === undefined ? {} : {
+      ...(maxP99Regression === undefined || !requests ? {} : {
         p99_regression: p99Ratio,
         max_p99_regression: maxP99Regression,
       }),
@@ -756,9 +795,176 @@ function compareReports(baseline, current, workloads, options) {
   });
 }
 
+// Why a workload's figures can't be read as what they claim. A Criterion
+// workload carries its mean and interval, and a percentile on one is a batch
+// average posing as a request's latency. A request workload carries
+// individual timings at a held arrival rate, every request completed.
+function measurementRefusals(workload, metric) {
+  const refused = [];
+  if (metric?.source === "criterion") {
+    for (const field of ["p50_ns", "p95_ns", "p99_ns"]) {
+      if (field in metric) {
+        refused.push(`${workload}'s ${field} is a percentile of Criterion's batch averages, not of individual requests`);
+      }
+    }
+    for (const field of ["mean_ns", "mean_lower_ns", "mean_upper_ns"]) {
+      if (!(typeof metric[field] === "number" && Number.isFinite(metric[field]))) {
+        refused.push(`${workload} has no ${field}: a Criterion workload reports its mean and the mean's interval`);
+      }
+    }
+  } else if (metric?.source === "requests") {
+    for (const field of ["arrival_per_second", "requests", "completed", "errors", "timeouts", "p50_ns", "p99_ns"]) {
+      if (!(typeof metric[field] === "number" && Number.isFinite(metric[field]))) {
+        refused.push(`${workload} has no ${field}: a request workload is timed request by request at a held arrival rate`);
+      }
+    }
+    if (metric.errors > 0 || metric.timeouts > 0) {
+      refused.push(`${workload} had ${metric.errors} failed and ${metric.timeouts} timed-out requests of ${metric.requests}`);
+    }
+  } else {
+    refused.push(`${workload} doesn't say how it was measured: its source is criterion or requests`);
+  }
+  return refused;
+}
+
+// performance.md's eight journeys, each with the work budget its row states,
+// as the structural measurements a capture's `journeys` holds for it. These
+// hold at any speed, so they're checked apart from timing. A journey with no
+// measurement fails, and so does any budget whose measurement is missing.
+function journeyBudgets() {
+  return [
+    {
+      journey: 1,
+      name: "Cold start",
+      budgets: [
+        { id: "one_process", says: "One process.", holds: (m) => exactly(m.processes_started, 1) },
+        { id: "no_network", says: "No network.", holds: (m) => exactly(m.network_requests, 0) },
+        { id: "verified_once_per_identity", says: "Package material resolved and verified once per identity.", holds: (m) => atMost(m.verifications_per_identity, 1) },
+        { id: "readiness_ignores_untouched_packages", says: "Readiness doesn't grow with packages it doesn't touch, from one skill to 1,000 packages.", holds: (m) => flatAcross(m.packages_read, ["1", "10", "100", "1000"]) },
+      ],
+    },
+    {
+      journey: 2,
+      name: "Warm execution",
+      budgets: [
+        { id: "constant_store_writes_per_call", says: "A constant number of store writes per call, at 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.store_writes_per_call, ["10", "100", "1000"]) },
+        { id: "no_context_reserialization", says: "No whole-context clone or re-serialization per call.", holds: (m) => exactly(m.context_reserializations_per_call, 0) },
+        { id: "no_transaction_spans_a_provider_call", says: "No transaction spans a provider call.", holds: (m) => exactly(m.transactions_spanning_provider_calls, 0) },
+      ],
+    },
+    {
+      journey: 3,
+      name: "Composition",
+      budgets: [
+        { id: "settlement_flat_at_call_1000", says: "Settling a call costs the same at call 1,000 as at call 1: no replay in normal running.", holds: (m) => flatAcross(m.settle_reads_per_call, ["1", "1000"]) },
+        { id: "slow_read_delays_no_other_call", says: "A slow provider read never delays another call recording its result.", holds: (m) => exactly(m.results_delayed_by_slow_read, 0) },
+        { id: "concurrency_within_the_runs", says: "Nested concurrency never exceeds the run's max_concurrency.", holds: (m) => atMost(m.peak_concurrency, m.max_concurrency) },
+      ],
+    },
+    {
+      journey: 4,
+      name: "Long runs",
+      budgets: [
+        { id: "run_read_costs_what_moved", says: "A run read costs what moved since its cursor, not the tree's size: with nothing new, the same at 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.run_read_rows_with_nothing_new, ["10", "100", "1000"]) },
+        { id: "recovery_reads_each_stream_once", says: "Recovery reads each stream once.", holds: (m) => exactly(m.recovery_reads_per_stream, 1) },
+      ],
+    },
+    {
+      journey: 5,
+      name: "Memory",
+      budgets: [
+        { id: "index_reads_what_it_shows", says: "The index reads only the pages its budget can show, counted in rows visited from the query plan.", holds: (m) => withinAt(m.index_rows_visited, m.index_rows_its_budget_can_show, ["100", "10000", "100000"]) },
+        { id: "search_one_page_per_stream", says: "Search reads one page per stream.", holds: (m) => exactly(m.search_pages_per_stream, 1) },
+        { id: "search_current_entries_only", says: "Search reads current entries only.", holds: (m) => exactly(m.search_history_rows_read, 0) },
+      ],
+    },
+    {
+      journey: 6,
+      name: "The registry",
+      budgets: [
+        { id: "one_query_per_page", says: "One query per page, never one per listing, at 10, 100 and 1,000 listings.", holds: (m) => everyAt(m.queries_per_page, ["10", "100", "1000"], (value) => exactly(value, 1)) },
+        { id: "no_package_body_per_listing", says: "No package body read for a listing.", holds: (m) => exactly(m.package_bodies_read, 0) },
+      ],
+    },
+    {
+      journey: 7,
+      name: "Artifacts",
+      budgets: [
+        { id: "bounded_byte_copies", says: "Each byte copied a bounded number of times, the same from 1 KiB to 64 MiB.", holds: (m) => flatAcross(m.copies_per_byte, ["1KiB", "64MiB"]) },
+        { id: "page_read_touches_its_range", says: "A page read touches only its range.", holds: (m) => exactly(m.page_bytes_read_beyond_range, 0) },
+      ],
+    },
+    {
+      journey: 8,
+      name: "Agent work",
+      budgets: [
+        { id: "context_reads_what_the_turn_uses", says: "Context preparation reads what the turn can use.", holds: (m) => exactly(m.context_reads_unused, 0) },
+        { id: "repeated_reads_no_more_than_before", says: "Repeated reads counted against the task's previous run.", holds: (m) => atMost(m.repeated_reads?.current, m.repeated_reads?.previous) },
+        { id: "model_calls_no_more_than_before", says: "Model calls counted against the task's previous run.", holds: (m) => atMost(m.model_calls?.current, m.model_calls?.previous) },
+      ],
+    },
+  ];
+}
+
+function isCount(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function exactly(value, expected) {
+  return isCount(value) && value === expected;
+}
+
+function atMost(value, bound) {
+  return isCount(value) && isCount(bound) && value <= bound;
+}
+
+// The same measured count at every size the row names.
+function flatAcross(bySize, sizes) {
+  return sizes.every((size) => isCount(bySize?.[size]))
+    && sizes.every((size) => bySize[size] === bySize[sizes[0]]);
+}
+
+function everyAt(bySize, sizes, holds) {
+  return sizes.every((size) => holds(bySize?.[size]));
+}
+
+function withinAt(bySize, bound, sizes) {
+  return everyAt(bySize, sizes, (value) => atMost(value, bound));
+}
+
+function journeyChecks(report) {
+  const measured = report?.journeys ?? {};
+  return journeyBudgets().flatMap(({ journey, name, budgets }) => {
+    const measurement = measured[String(journey)];
+    if (!measurement || typeof measurement !== "object") {
+      return [{
+        id: `journey_${journey}`,
+        status: "failed",
+        journey,
+        name,
+        reason: "no measurement: a journey with none never passes",
+      }];
+    }
+    return budgets.map(({ id, says, holds }) => ({
+      id: `journey_${journey}.${id}`,
+      status: holds(measurement) ? "passed" : "failed",
+      journey,
+      says,
+    }));
+  });
+}
+
 function runtimeQualityChecks(report, expectedSourceCommit) {
   const native = report?.workloads?.native_capability_dispatch;
   const session = report?.workloads?.pure_module_session_reuse;
+  const measurements = Object.entries(report?.workloads ?? {}).map(([workload, metric]) => {
+    const refused = measurementRefusals(workload, metric);
+    return {
+      id: `measurement.${workload}`,
+      status: refused.length === 0 ? "passed" : "failed",
+      ...(refused.length === 0 ? {} : { refused }),
+    };
+  });
   return [
     qualityCheck("schema", report?.schema, { expected: schema }),
     qualityCheck("source_commit", report?.source_commit, { expected: expectedSourceCommit }),
@@ -767,6 +973,8 @@ function runtimeQualityChecks(report, expectedSourceCommit) {
     qualityCheck("session_sample_count", session?.sample_count, { minimum: 10 }),
     qualityCheck("session_spawn_count", session?.spawn_count, { expected: 1 }),
     qualityCheck("session_peak_in_flight", session?.peak_in_flight, { expected: 1 }),
+    ...measurements,
+    ...journeyChecks(report),
   ];
 }
 
@@ -836,6 +1044,8 @@ function parseArgs(argv) {
       parsed.warmUpTime = Number(requiredValue(argv, ++index, arg));
     } else if (arg === "--measurement-time") {
       parsed.measurementTime = Number(requiredValue(argv, ++index, arg));
+    } else if (arg === "--arrival-rate") {
+      parsed.arrivalRate = Number(requiredValue(argv, ++index, arg));
     } else {
       throw new Error(`unknown argument '${arg}'`);
     }
