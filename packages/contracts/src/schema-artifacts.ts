@@ -4827,13 +4827,14 @@ export const runxSchemaArtifacts = {
                       "type": "array"
                     },
                     "packages": {
-                      "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+                      "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. A package is listed once.",
                       "items": {
                         "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
                         "type": "string"
                       },
                       "minItems": 1,
-                      "type": "array"
+                      "type": "array",
+                      "uniqueItems": true
                     },
                     "scopes": {
                       "description": "Provider grant scopes.",
@@ -5900,13 +5901,14 @@ export const runxSchemaArtifacts = {
             "type": "array"
           },
           "packages": {
-            "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+            "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. A package is listed once.",
             "items": {
               "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
               "type": "string"
             },
             "minItems": 1,
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "scopes": {
             "description": "Provider grant scopes.",
@@ -24495,13 +24497,14 @@ export const runxSchemaArtifacts = {
                                 "type": "array"
                               },
                               "packages": {
-                                "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+                                "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. A package is listed once.",
                                 "items": {
                                   "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
                                   "type": "string"
                                 },
                                 "minItems": 1,
-                                "type": "array"
+                                "type": "array",
+                                "uniqueItems": true
                               },
                               "scopes": {
                                 "description": "Provider grant scopes.",
@@ -25621,13 +25624,14 @@ export const runxSchemaArtifacts = {
                       "type": "array"
                     },
                     "packages": {
-                      "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain.",
+                      "description": "The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. A package is listed once.",
                       "items": {
                         "pattern": "^(([a-z0-9][a-z0-9-]*|\\*)/([a-z0-9][a-z0-9-]*|\\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\\*))$",
                         "type": "string"
                       },
                       "minItems": 1,
-                      "type": "array"
+                      "type": "array",
+                      "uniqueItems": true
                     },
                     "scopes": {
                       "description": "Provider grant scopes.",

@@ -97,8 +97,14 @@ pub struct AuthorityBounds {
     pub uses: Option<AuthorityUseLimit>,
     /// The packages every call's chain must be covered by, in any order
     /// (D31). An absent bound covers nothing, as every bound does, so a
-    /// delegation states its own and an execution term names its chain.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// delegation states its own and an execution term names its chain. A
+    /// package is listed once.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "crate::schema::deserialize_unique_items"
+    )]
+    #[runx_schema(unique_items)]
     pub packages: Vec<PackagePattern>,
 }
 
@@ -469,7 +475,13 @@ mod tests {
             serde_json::from_value::<super::AuthorityTerm>(term)
         };
         let none = serde_json::json!({});
-        assert!(term(none.clone(), serde_json::json!(["acme/counter", "project:*"])).is_ok());
+        assert!(
+            term(
+                none.clone(),
+                serde_json::json!(["acme/counter", "project:*"])
+            )
+            .is_ok()
+        );
         assert!(
             term(
                 serde_json::json!({"resource_family": "connector"}),
@@ -483,7 +495,10 @@ mod tests {
             "a package named twice is refused"
         );
         let schema = super::AuthorityTerm::json_schema();
-        assert!(schema["properties"].get("resource_family").is_none(), "{schema}");
+        assert!(
+            schema["properties"].get("resource_family").is_none(),
+            "{schema}"
+        );
         assert_eq!(
             schema["properties"]["bounds"]["properties"]["packages"]["uniqueItems"],
             serde_json::json!(true),

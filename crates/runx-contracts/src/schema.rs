@@ -56,6 +56,53 @@ where
     }
 }
 
+/// Deserialize a list whose items never repeat, refusing one listed twice.
+/// Wire as `#[serde(deserialize_with = "crate::schema::deserialize_unique_items")]`
+/// beside `#[runx_schema(unique_items)]`, so the schema says `uniqueItems`.
+pub fn deserialize_unique_items<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + PartialEq + Serialize,
+{
+    let items = Vec::<T>::deserialize(deserializer)?;
+    refuse_repeats::<T, D::Error>(&items)?;
+    Ok(items)
+}
+
+/// [`deserialize_unique_items`] for an optional list.
+pub fn deserialize_some_unique_items<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + PartialEq + Serialize,
+{
+    let items = Option::<Vec<T>>::deserialize(deserializer)?;
+    if let Some(items) = &items {
+        refuse_repeats::<T, D::Error>(items)?;
+    }
+    Ok(items)
+}
+
+fn refuse_repeats<T: PartialEq + Serialize, E: de::Error>(items: &[T]) -> Result<(), E> {
+    for (index, item) in items.iter().enumerate() {
+        if items[..index].contains(item) {
+            let named = serde_json::to_string(item).unwrap_or_default();
+            return Err(E::custom(format!(
+                "{named} is listed twice; each item is listed once"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// `schema` saying its items never repeat, for a field marked
+/// `#[runx_schema(unique_items)]`.
+pub fn unique_items(mut schema: Value) -> Value {
+    if let Value::Object(object) = &mut schema {
+        object.insert("uniqueItems".to_owned(), Value::Bool(true));
+    }
+    schema
+}
+
 /// A type that can emit its own JSON Schema document.
 pub trait RunxSchema {
     /// The inlined JSON Schema for this type: the one wire form Rust writes,
@@ -1062,7 +1109,16 @@ mod tests {
             );
         }
         let read = |value: serde_json::Value| serde_json::from_value::<Listed>(value);
-        assert!(read(serde_json::json!({"names": ["a", "b"], "maybe": ["a"], "plain": null})).is_ok());
+        let listed = read(serde_json::json!({"names": ["a", "b"], "maybe": ["a"], "plain": null}))
+            .map_err(|error| error.to_string());
+        assert_eq!(
+            listed.map(|listed| (listed.names, listed.maybe, listed.plain)),
+            Ok((
+                vec!["a".to_owned(), "b".to_owned()],
+                Some(vec!["a".to_owned()]),
+                None
+            ))
+        );
         assert!(read(serde_json::json!({"names": ["a", "a"], "plain": null})).is_err());
         assert!(read(serde_json::json!({"maybe": ["b", "b"], "plain": null})).is_err());
         assert!(read(serde_json::json!({"plain": ["c", "c"]})).is_ok());

@@ -14,6 +14,10 @@
 //! (externally-tagged), internally-tagged (`#[serde(tag = "...")]`), and
 //! `#[serde(untagged)]` representations (each rendered as an `anyOf` of variant
 //! subschemas). Multi-field tuple variants are not modeled.
+//!
+//! One field attribute: `#[runx_schema(unique_items)]` on a list whose items
+//! never repeat, which its `#[serde(deserialize_with)]` refuses and its schema
+//! says with `uniqueItems`.
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -308,6 +312,7 @@ fn struct_field_properties(
             None => apply_rename_all(&ident.to_string(), rename_all),
         };
         let (inner_ty, optional) = unwrap_option(&field.ty);
+        let unique = field_unique_items(field)?;
         let field_default = serde_default(&field.attrs);
         let has_skip = serde_skip_serializing_if(&field.attrs);
         // An `Option<T>` is OMITTABLE (not required, plain inner schema) when it
@@ -320,6 +325,11 @@ fn struct_field_properties(
         let nullable = optional && !omittable;
         let inner_schema = quote! {
             <#inner_ty as ::runx_contracts::schema::RunxSchema>::#method()
+        };
+        let inner_schema = if unique {
+            quote! { ::runx_contracts::schema::unique_items(#inner_schema) }
+        } else {
+            inner_schema
         };
         // Decoding takes a field omitted at its default written out as well.
         let property_schema = if nullable {
@@ -658,6 +668,35 @@ fn runx_identity(attrs: &[syn::Attribute]) -> syn::Result<Option<Identity>> {
         }
     }
     Ok(None)
+}
+
+/// Whether a field carries `#[runx_schema(unique_items)]`: its items never
+/// repeat. Decoding is what refuses a repeat, so the field must name the
+/// `deserialize_with` that does, or the schema would promise what decoding
+/// doesn't keep.
+fn field_unique_items(field: &syn::Field) -> syn::Result<bool> {
+    let mut unique = false;
+    for attr in &field.attrs {
+        if !attr.path().is_ident("runx_schema") {
+            continue;
+        }
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("unique_items") {
+                unique = true;
+                Ok(())
+            } else {
+                Err(meta.error("unsupported runx_schema field attribute"))
+            }
+        })?;
+    }
+    if unique && serde_string_value(&field.attrs, "deserialize_with")?.is_none() {
+        return Err(syn::Error::new_spanned(
+            field,
+            "#[runx_schema(unique_items)] needs a #[serde(deserialize_with)] that refuses a repeated item, \
+             such as runx_contracts::schema::deserialize_unique_items",
+        ));
+    }
+    Ok(unique)
 }
 
 fn serde_rename_all(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {

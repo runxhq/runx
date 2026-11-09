@@ -70,7 +70,12 @@ pub struct RunAuthority {
     /// The packages every call's chain must be covered by, on whichever
     /// instance the call resolves (D31): a plain narrowing of its
     /// capability. Absent, any package may call; an empty list covers none.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A package is listed once.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "runx_contracts::schema::deserialize_some_unique_items"
+    )]
     pub packages: Option<Vec<runx_contracts::PackagePattern>>,
 }
 
@@ -262,7 +267,10 @@ mod tests {
         let delegation = memory.delegations.first().ok_or("one delegation")?;
         assert_eq!(delegation.connector.as_str(), "private");
         assert_eq!(delegation.terms.len(), 2);
-        assert!(delegation.principal_ref.is_none(), "a plain narrowing names nobody");
+        assert!(
+            delegation.principal_ref.is_none(),
+            "a plain narrowing names nobody"
+        );
         assert!(
             delegation.resource_ref.is_none(),
             "root admission resolves the instance"

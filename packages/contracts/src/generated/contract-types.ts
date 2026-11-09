@@ -289,7 +289,7 @@ export type AuthorityApprovalContract = {
 export type AuthorityBoundsContract = {
   /** Connector operations, as `<connector>/<operation>` or `<connector>/*`. */
   readonly operations?: readonly string[];
-  /** The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. */
+  /** The packages every call's chain must be covered by, in any order (D31). An absent bound covers nothing, as every bound does, so a delegation states its own and an execution term names its chain. A package is listed once. */
   readonly packages?: readonly string[];
   /** Provider grant scopes. */
   readonly scopes?: readonly string[];
