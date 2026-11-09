@@ -50,7 +50,7 @@ async function request(operation, id, args, label, responses) {
   const response = await fetch(rendered.url, {
     method: rendered.method, headers: { ...rendered.headers, authorization: `Bearer ${key}` },
     ...(rendered.body === undefined ? {} : { body: rendered.body }),
-    redirect: "error", signal: AbortSignal.timeout(20_000),
+    redirect: "error",
   });
   const body = await response.json();
   if (!response.ok) return { ok: false, status: response.status, code: typeof body.error?.code === "string" ? body.error.code : "provider_refused" };
