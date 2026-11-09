@@ -228,19 +228,13 @@ const PINNED = {
       why: "the lease cipher's key-derivation label: stored ciphertext opens only under these bytes",
     },
     // Receipts keep their words (§4.6), and OSS's schemas/receipt.schema.json still writes `harness`.
-    { file: "spec/spec.md", literal: '"uri": "runx:run:harness-graph/first#default"', why: "the canonical step receipt's subject: content-addressed bytes (§4.6)" },
-    { file: "spec/spec.md", literal: '"uri": "runx:run:harness-stated#post"', why: "the canonical governed call receipt's subject: content-addressed bytes" },
-    { file: "spec/spec.md", literal: '"uri": "runx:provider_ack:harness-sha256:e99502936df0730d12c15a5e0406da43bb6e3400ec8ee4d16a16dae7cc0be95b"', why: "a governed call receipt's verification ref: content-addressed bytes" },
-    { file: "spec/spec.md", literal: '"uri": "runx:harness:provider-readback:sha256:e99502936df0730d12c15a5e0406da43bb6e3400ec8ee4d16a16dae7cc0be95b"', why: "a governed call receipt's verification ref: content-addressed bytes" },
-    { file: "spec/spec.md", literal: '"uri": "runx:run:harness-graph",', why: "the canonical graph receipt's subject: content-addressed bytes" },
-    { file: "spec/spec.md", literal: '"label": "hello-graph"', why: "the canonical graph receipt's subject label: content-addressed bytes" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'ref_type: "harness"', why: "a receipt subject's ref type: 0.12's receipt schema still writes harness" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'type: "harness",', why: "a receipt ref's type, the same wire value" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: "runx:harness:poisoned-secret-locator", why: "that ref's uri, and the secret the test proves is scrubbed from it" },
-    // spec.md's three canonical receipts, each named by its own id: the id and digest cover every byte.
-    { file: "spec/spec.md", block: '"id": "sha256:133fa57fec05b7d488717736317f8c52484b913dc45efc0b74728ecb84b8f0f4"', why: "the canonical step receipt, whose id and digest cover its bytes (§4.6)" },
-    { file: "spec/spec.md", block: '"id": "sha256:1cf7174123f48dc4598c7653af483c89845157250864d88f910f25b656b5f30f"', why: "the canonical governed call receipt, whose id and digest cover its bytes" },
-    { file: "spec/spec.md", block: '"id": "sha256:4ecdfe15d00f7ce518117d505270e4657e6868212a4d756a95249f01f0df8f6a"', why: "the canonical graph receipt, whose id and digest cover its bytes" },
+    // spec.md's canonical receipts are OSS's fixtures/contracts/canonical-receipts, made by its
+    // generator. Only the governed call's carries an old word, its runx:harness: readback, so it
+    // alone is pinned, by its own id: the id and digest cover every byte.
+    { file: "spec/spec.md", block: '"id": "sha256:5659e76269eb6d8d43c09b3de141d448c6d0be2a94b48ee671eedc3db681c8a5"', why: "the canonical governed call receipt, whose id and digest cover its bytes, its runx:harness: readback among them (§4.6)" },
   ],
 };
 
