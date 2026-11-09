@@ -8,8 +8,6 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -42,9 +40,15 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
         skill.join("SKILL.md"),
         "---\nname: slow\ndescription: Performs one effect, slowly.\n---\n# slow\n\nRun it.\n",
     )?;
+    // The step performs its effect, says so, and holds until the test has
+    // tried a second driver.
+    let reached = crate::support::rendezvous::Pipe::new(root.join("reached"))?;
+    let gate = crate::support::rendezvous::Pipe::new(root.join("gate"))?;
     let script = format!(
-        "echo performed >> '{}'; sleep 3; printf '{{\"done\":true}}'",
-        effects.display()
+        "echo performed >> '{}'; echo reached > '{}'; read go < '{}'; printf '{{\"done\":true}}'",
+        effects.display(),
+        reached.path().display(),
+        gate.path().display()
     );
     fs::write(
         skill.join("run.yaml"),
@@ -59,12 +63,8 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    let deadline = Instant::now() + Duration::from_secs(20);
-    while !effects.exists() {
-        if Instant::now() > deadline {
-            return Err("the run never reached its effect".into());
-        }
-        thread::sleep(Duration::from_millis(30));
+    if reached.reached(original.id())?.is_none() {
+        return Err("the run exited before it reached its effect".into());
     }
 
     let (_, listing) = json(runx(root).args(["history", "--json"]))?;
@@ -104,6 +104,7 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
     let refusal = String::from_utf8_lossy(&refused.stdout);
     assert!(refusal.contains("driven"), "{refusal}");
 
+    gate.release(original.id())?;
     let finished = original.wait_with_output()?;
     let sealed: serde_json::Value = serde_json::from_slice(&finished.stdout)?;
     assert!(finished.status.success(), "{sealed}");

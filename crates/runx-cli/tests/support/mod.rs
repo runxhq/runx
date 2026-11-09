@@ -10,6 +10,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const FIXTURE_SIGNING_SEED: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
 
+#[cfg(unix)]
+pub mod rendezvous;
+
 /// The methods of the package at `skill` (relative to the repository root),
 /// each with the description its `run.yaml` gives it.
 pub fn method_descriptions(
