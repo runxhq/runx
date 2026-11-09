@@ -314,6 +314,20 @@ test("Go's build refuses a rename onto a name its scope already declares", (t) =
   assert.equal(read(root, "demo.go"), code);
 });
 
+test("Go's renamed module building and vetting clean decides it when the original can't build, as when its regenerated client already says the new name", (t) => {
+  const client = 'package demo\n\ntype Client struct{}\n\nfunc (Client) Method() string { return "m" }\n';
+  const code = "package demo\n\nfunc Name(c Client) string {\n\tm := c.Method()\n\treturn c.Runner() + m\n}\n";
+  const root = tree(t, { "go.mod": "module demo\n\ngo 1.22\n", "client.go": client, "demo.go": code });
+  const { status, out } = runInCache(t, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "demo.go"), code.replace("Runner", "Method"));
+  // With both failing, nothing compares, and the rename is refused.
+  const broken = tree(t, { "go.mod": "module demo\n\ngo 1.22\n", "client.go": client, "demo.go": code.replace("+ m\n", "+ m + missing\n") });
+  const refused = runInCache(t, "apply", "oss", broken, "--write");
+  assert.equal(refused.status, 1, refused.out);
+  assert.match(refused.out, /the original module doesn't build and vet clean, and neither does the renamed one/);
+});
+
 test("graph is a workflow in prose and in code, and the module it names moves; another graph, code spans, link targets and other paths keep it", (t) => {
   const doc = "# Graphs\n\nCompose skills into a graph. Graphs stay small.\nSteps go through the graph runner.\nThe Rust crate graph is enforced.\nRun `runx list graphs` and read [the guide](docs/graph.md).\n\n```yaml\ngraph: demo\n```\n";
   const code = "pub struct Method {\n    pub graph: Graph,\n}\n";

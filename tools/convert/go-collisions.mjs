@@ -2,7 +2,10 @@
 // in a scratch copy, through `go build ./...` and `go vet ./...`, beside the
 // same two runs over the original module. A renamed site collides when an
 // error or a vet finding the original doesn't have sits at it, and a new one
-// no renamed site carries is refused where it is. A file no package builds
+// no renamed site carries is refused where it is. An original that doesn't
+// build compares against nothing, unless the renamed module builds and vets
+// clean: then no finding sits at any renamed site, whatever the original
+// held, as when a regenerated client already says the new name. A file no package builds
 // is left to the file-level refusal. The runs are offline (GOPROXY=off), so a
 // module's toolchain and dependencies come from the local module cache.
 
@@ -75,10 +78,10 @@ export function checkGo({ root, files, edited, writes, moves, cache }) {
       const base = side === "base" ? root : tree;
       const found = [...diagnostics(build.stderr, cwd, base).map((d) => ({ ...d, kind: "build" })), ...diagnostics(vet.stderr, cwd, base).map((d) => ({ ...d, kind: "vet" }))];
       const listed = go(["list", "-e", "-f", "{{$d := .Dir}}{{range .GoFiles}}{{$d}}/{{.}}\n{{end}}{{range .TestGoFiles}}{{$d}}/{{.}}\n{{end}}{{range .XTestGoFiles}}{{$d}}/{{.}}\n{{end}}", "./..."], cwd);
-      runs[side] = { found, failed: side === "base" && (build.status !== 0 || vet.status !== 0), built: new Set(listed.stdout.split("\n").filter(Boolean)) };
+      runs[side] = { found, failed: build.status !== 0 || vet.status !== 0, built: new Set(listed.stdout.split("\n").filter(Boolean)) };
     }
-    if (runs.base.failed) {
-      for (const file of members) verdicts.set(file, { unread: "the original module doesn't build and vet clean, so nothing compares against it" });
+    if (runs.base.failed && runs.renamed.failed) {
+      for (const file of members) verdicts.set(file, { unread: "the original module doesn't build and vet clean, and neither does the renamed one, so nothing compares against it" });
       continue;
     }
     // A finding, by its kind and where it sits in the original.
