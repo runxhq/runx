@@ -6,8 +6,8 @@ use runx_contracts::Reference;
 use runx_parser::WorkflowStep;
 
 use super::super::workflow::{
-    LoadedStepSkill, materialize_step_act_with_index, materialize_step_context_entries_with_index,
-    materialize_step_invocation_inputs_with_index,
+    LoadedStepSkill, materialize_ask_reason_with_index, materialize_step_act_with_index,
+    materialize_step_context_entries_with_index, materialize_step_invocation_inputs_with_index,
     materialize_step_invocation_provenance_with_index,
 };
 use super::super::workflow_index::PriorRunIndex;
@@ -58,15 +58,31 @@ where
     provenance.extend_from_slice(request.runtime.inherited_provenance(&request.step.id));
     let context_entries =
         materialize_step_context_entries_with_index(request.step, prior_run_index)?;
-    run_step_with_loaded_skill_inputs(request, inputs, child_act, provenance, context_entries)
+    let ask_reason = materialize_ask_reason_with_index(request.step, prior_run_index)?;
+    run_step_with_loaded_skill_inputs(
+        request,
+        StepValues {
+            inputs,
+            child_act,
+            provenance,
+            context_entries,
+            ask_reason,
+        },
+    )
 }
 
-fn run_step_with_loaded_skill_inputs<A>(
-    request: LoadedStepExecutionRequest<'_, A>,
+/// What a step runs with, each read where its inputs are.
+struct StepValues {
     inputs: runx_contracts::JsonObject,
     child_act: Option<runx_contracts::CallAct>,
     provenance: Vec<runx_contracts::ProvenanceEntry>,
     context_entries: Vec<runx_contracts::ContextEntry>,
+    ask_reason: Option<String>,
+}
+
+fn run_step_with_loaded_skill_inputs<A>(
+    request: LoadedStepExecutionRequest<'_, A>,
+    values: StepValues,
 ) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
@@ -82,6 +98,13 @@ where
         held_by_effects,
         host,
     } = request;
+    let StepValues {
+        inputs,
+        child_act,
+        provenance,
+        context_entries,
+        ask_reason,
+    } = values;
     let request = StepRunRequest {
         runtime,
         workflow_dir,
@@ -95,6 +118,7 @@ where
         held_by_effects,
         host,
         context_entries,
+        ask_reason,
     };
     match loaded_skill {
         Some(skill) => super::step_handlers::run_step_with_loaded_skill_inputs(request, skill),

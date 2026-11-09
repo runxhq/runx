@@ -1699,6 +1699,53 @@ fn runx_mcp_reads_memory_under_the_authority_it_names() -> TestResult {
     Ok(())
 }
 
+// A write's approval shows the exact change it decides: its reason can be
+// bound from an earlier step's output.
+
+#[test]
+fn a_writes_approval_reason_bound_from_an_earlier_step_is_what_its_gate_shows() -> TestResult {
+    let project = Project::new("runx-store-bound-approval")?;
+    project.skill(
+        "keeper",
+        r#"minimum_runx: 0.12.0
+methods:
+  keep:
+    steps:
+      - id: change
+        tool: {module: change.mjs, export: change}
+        outputs:
+          reason: {type: string}
+      - id: keep
+        operation: store/events.append
+        idempotency_key: keep-1
+        approval: {reason: $steps.change.reason, type: words_keep}
+        inputs: {stream: words, key: k, expected_version: 0, type: words.kept, data: {}}
+"#,
+    )?;
+    project.write(
+        "skills/keeper/change.mjs",
+        "export const change = () => ({ reason: \"Keep these exact words: I write in Australian English.\" });\n",
+    )?;
+    let waiting = json(&project.run("skills/keeper#keep", &[], None)?, 2)?;
+    assert_eq!(waiting["status"], "needs_approval", "{waiting}");
+    let mut reasons = Vec::new();
+    for request in waiting["requests"].as_array().into_iter().flatten() {
+        let path = request["artifact"]["path"]
+            .as_str()
+            .ok_or("a request is kept as an artifact")?;
+        let request: Value = serde_json::from_slice(&std::fs::read(path)?)?;
+        reasons.push(request["gate"]["reason"].clone());
+    }
+    assert_eq!(
+        reasons,
+        vec![json!(
+            "Keep these exact words: I write in Australian English."
+        )],
+        "{waiting}"
+    );
+    Ok(())
+}
+
 // Nobody can publish under `project`.
 
 #[test]

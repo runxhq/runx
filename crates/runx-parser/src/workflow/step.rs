@@ -15,8 +15,8 @@ use super::helpers::{
 };
 use super::tool::validate_tool_target;
 use super::types::{
-    AgentTask, AskGate, OperationStepTarget, SkillTarget, StepAct, StepKind, WorkflowStep,
-    WorkflowWhen,
+    AgentTask, AskGate, AskReason, OperationStepTarget, SkillTarget, StepAct, StepKind,
+    WorkflowStep, WorkflowWhen,
 };
 use crate::ValidationError;
 use crate::skill::OutputArtifacts;
@@ -285,23 +285,16 @@ fn validate_kind(
                     "{qualified}.{key} is not a field of an ask."
                 )));
             }
-            // The reason is the text a person reads; the values they need
-            // to decide are the ask's inputs, shown beside it.
-            let reason = non_empty(ask.get("reason"), &format!("{qualified}.reason"))?;
-            if reason.starts_with('$') && !reason.starts_with("$$") {
-                return Err(validation_error(format!(
-                    "{qualified}.reason is text, not a reference; bind the values a person needs in the ask's inputs."
-                )));
-            }
             Ok(StepKind::Ask(AskGate {
                 gate: gate_id(
                     non_empty(ask.get("gate"), &format!("{qualified}.gate"))?,
                     &format!("{qualified}.gate"),
                 )?,
-                reason: reason
-                    .strip_prefix('$')
-                    .filter(|rest| rest.starts_with('$'))
-                    .map_or(reason.clone(), str::to_owned),
+                reason: ask_reason(
+                    ask.get("reason"),
+                    previous_step_ids,
+                    &format!("{qualified}.reason"),
+                )?,
                 gate_type: optional_non_empty_string(
                     ask.get("type"),
                     &format!("{qualified}.type"),
@@ -309,6 +302,33 @@ fn validate_kind(
             }))
         }
         _ => skill_target(&non_empty(value, &qualified)?, &qualified).map(StepKind::Skill),
+    }
+}
+
+/// What a person reads at an ask: its text, a literal that begins with `$`
+/// written `$$`, or a field of an earlier step's output, `$steps.<id>.<path>`,
+/// so the gate shows the exact change it decides. The values a person needs
+/// beside it are the ask's inputs.
+fn ask_reason(
+    value: Option<&JsonValue>,
+    previous_step_ids: &BTreeSet<String>,
+    field: &str,
+) -> Result<AskReason, ValidationError> {
+    let reason = non_empty(value, field)?;
+    if let Some(literal) = reason
+        .strip_prefix('$')
+        .filter(|rest| rest.starts_with('$'))
+    {
+        return Ok(AskReason::Text(literal.to_owned()));
+    }
+    if !reason.starts_with('$') {
+        return Ok(AskReason::Text(reason));
+    }
+    match parse_operand(&JsonValue::String(reason), previous_step_ids, field)? {
+        Operand::Reference(Source::Step { step, path }) => Ok(AskReason::Step { step, path }),
+        _ => Err(validation_error(format!(
+            "{field} is text, or reads an earlier step's output: write $steps.<id>.<field>, and bind the values a person needs in the ask's inputs."
+        ))),
     }
 }
 

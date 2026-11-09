@@ -922,6 +922,32 @@ fn bind_earlier_steps(
     Ok(values)
 }
 
+/// An ask's reason bound from an earlier step's output, as that output reads:
+/// text, so the gate shows the exact change it decides. None for an ask whose
+/// reason is its own text, and for every other step.
+pub(crate) fn materialize_ask_reason_with_index(
+    step: &WorkflowStep,
+    prior_run_index: &PriorRunIndex<'_>,
+) -> Result<Option<String>, RuntimeError> {
+    let StepKind::Ask(runx_parser::AskGate {
+        reason: runx_parser::AskReason::Step { step: from, path },
+        ..
+    }) = &step.kind
+    else {
+        return Ok(None);
+    };
+    match prior_run_index.output(&step.id, "ask.reason", from, path)? {
+        JsonValue::String(reason) if !reason.trim().is_empty() => Ok(Some(reason)),
+        _ => Err(RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: format!(
+                "ask.reason reads $steps.{from}.{}, which isn't text",
+                path.join(".")
+            ),
+        }),
+    }
+}
+
 /// The context entries an agent step's turn is given from earlier steps: each
 /// output its `context.entries` names, a list of `runx.context_entry.v1`
 /// values, in the order the step names them. Each keeps its own labels.

@@ -413,5 +413,8 @@ run; an absent optional input is nothing, not `null`, so give an input a
 read and compared the same way, and the step may not run unless every one
 holds: the run fails there instead.
 
-An ask's `reason` is the text a person reads; the values they need to decide
-belong in its `inputs`, which are shown beside it.
+An ask's `reason` is the text a person reads: written in place, or a field of
+an earlier step's output, `reason: $steps.change.reason`, so the gate shows the
+exact change it decides. An operation's `approval` binds its `reason` the same
+way. The values a person needs to decide belong in the ask's `inputs`, which
+are shown beside it.

@@ -20,7 +20,7 @@ use runx_contracts::{
     TurnReadPage, TurnStatus, TurnTarget, TurnTool, TurnView,
 };
 use runx_parser::{
-    AgentTask, AskGate, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
+    AgentTask, AskGate, AskReason, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
     SkillTarget, StepKind, ToolTarget, WorkflowStep,
 };
 
@@ -884,8 +884,10 @@ where
             held_by_effects,
             host,
             // A turn's call is a tool, operation or skill, never an agent
-            // step, so it reads no earlier steps' context entries.
+            // step, so it reads no earlier steps' context entries, and an ask
+            // it makes states its own reason.
             context_entries: Vec::new(),
+            ask_reason: None,
         };
         let result = match target {
             TurnTarget::Skill {
@@ -1010,11 +1012,13 @@ where
                 let questions = super::step_handlers::ask_questions(&input["questions"])?;
                 StepKind::Ask(AskGate {
                     gate: step_id.clone(),
-                    reason: questions
-                        .iter()
-                        .map(|question| question.prompt.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" "),
+                    reason: AskReason::Text(
+                        questions
+                            .iter()
+                            .map(|question| question.prompt.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     gate_type: Some(super::step_handlers::QUESTIONS_GATE.to_owned()),
                 })
             }
@@ -1029,7 +1033,7 @@ where
                 }
                 StepKind::Ask(AskGate {
                     gate: step_id.clone(),
-                    reason: reason.to_owned(),
+                    reason: AskReason::Text(reason.to_owned()),
                     gate_type: None,
                 })
             }

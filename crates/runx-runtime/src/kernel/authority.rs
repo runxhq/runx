@@ -222,7 +222,7 @@ mod tests {
             id: "step".to_owned(),
             kind: runx_parser::StepKind::Ask(runx_parser::AskGate {
                 gate: "step".to_owned(),
-                reason: "narrow".to_owned(),
+                reason: runx_parser::AskReason::Text("narrow".to_owned()),
                 gate_type: None,
             }),
             artifacts: None,

@@ -1624,6 +1624,78 @@ fn an_agent_step_refuses_an_earlier_output_that_isnt_context_entries()
     Ok(())
 }
 
+/// A package whose `change` step says what a gate decides, and whose `gate`
+/// step shows that as its reason.
+fn write_bound_reason_skill(
+    root: &Path,
+    gate: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("bound-reason");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: bound-reason\ndescription: A gate that shows the exact change it decides.\n---\n# Bound reason\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        format!(
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: change\n        tool: {{module: change.mjs, export: change}}\n        outputs:\n          reason: {{type: string}}\n{gate}"
+        ),
+    )?;
+    fs::write(
+        skill_dir.join("change.mjs"),
+        "export const change = () => ({ reason: \"Keep these exact words as the person's: I write in Australian English.\" });\n",
+    )?;
+    Ok(skill_dir)
+}
+
+/// The reason of the one approval `skill_dir`'s run waits on.
+fn waiting_reason(root: &Path, skill_dir: PathBuf) -> Result<String, Box<dyn std::error::Error>> {
+    let pending = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(root.join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env: path_env(),
+        cwd: root.to_path_buf(),
+        managed_agent: Default::default(),
+    })?;
+    let output = object(&pending.output, "pending result")?;
+    assert_eq!(
+        string_field(output, "status"),
+        Some("needs_approval"),
+        "{output:?}"
+    );
+    let requests = array_field(output, "requests").ok_or("missing requests")?;
+    let [request] = requests.as_slice() else {
+        return Err(format!("one request: {requests:?}").into());
+    };
+    let gate = object_field(object(request, "the request")?, "gate").ok_or("a request's gate")?;
+    Ok(string_field(gate, "reason")
+        .ok_or("a gate's reason")?
+        .to_owned())
+}
+
+#[test]
+fn an_asks_reason_bound_from_an_earlier_step_is_what_its_gate_shows()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_bound_reason_skill(
+        temp.path(),
+        "      - id: confirm\n        ask: {gate: words.keep, reason: $steps.change.reason, type: person_words}\n        inputs: {quote: I write in Australian English.}\n",
+    )?;
+    assert_eq!(
+        waiting_reason(temp.path(), skill_dir)?,
+        "Keep these exact words as the person's: I write in Australian English."
+    );
+    Ok(())
+}
+
 /// A package at `root/skill` whose one step echoes `$run.workspace_id`.
 fn write_workspace_id_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("skill");

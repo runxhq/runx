@@ -17,7 +17,7 @@ use runx_contracts::{
     Receipt, Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
 };
 use runx_core::state_machine::StepAdmissionWitness;
-use runx_parser::{AskGate, OutputArtifacts, StepKind, ToolTarget, WorkflowStep};
+use runx_parser::{AskGate, AskReason, OutputArtifacts, StepKind, ToolTarget, WorkflowStep};
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
@@ -117,6 +117,9 @@ pub(super) struct StepRunRequest<'a, A> {
     /// The context entries an agent step's `context.entries` reads from
     /// earlier steps, resolved where its inputs are.
     pub(super) context_entries: Vec<ContextEntry>,
+    /// An ask's reason bound from an earlier step's output, as that output
+    /// reads, resolved where its inputs are.
+    pub(super) ask_reason: Option<String>,
 }
 
 struct StepHandlerCtx<'a, A> {
@@ -133,6 +136,7 @@ struct StepHandlerCtx<'a, A> {
     authority: Option<StepAuthorityContext>,
     loaded_skill: Option<LoadedStepSkill>,
     context_entries: Vec<ContextEntry>,
+    ask_reason: Option<String>,
 }
 
 struct RegularSkillSeal<'a, A> {
@@ -201,6 +205,7 @@ where
         held_by_effects,
         host,
         context_entries,
+        ask_reason,
     } = request;
     // An operation call is admitted against the packages it calls from.
     let chain = if step.operation().is_some() {
@@ -238,6 +243,7 @@ where
         authority,
         loaded_skill,
         context_entries,
+        ask_reason,
     })
 }
 
@@ -858,6 +864,7 @@ where
         attempt,
         inputs,
         child_act: _,
+        ask_reason: _,
         provenance,
         host: _,
         authority,
@@ -1010,6 +1017,7 @@ where
         attempt,
         inputs,
         child_act: _,
+        ask_reason: _,
         provenance,
         host,
         authority: _,
@@ -1171,6 +1179,7 @@ where
         attempt,
         inputs,
         child_act: _,
+        ask_reason: _,
         provenance: _,
         admission_refs,
         host: _,
@@ -1619,18 +1628,29 @@ where
         attempt,
         inputs,
         host,
+        ask_reason,
         ..
     } = request;
     if ask.gate_type.as_deref() == Some(QUESTIONS_GATE) {
         return run_question_step(runtime, workflow_name, step, ask, attempt, &inputs, host);
     }
-    let mut gate = approval_gate(ask, &inputs);
+    let reason = match (&ask.reason, ask_reason) {
+        (AskReason::Text(text), _) => text.clone(),
+        (AskReason::Step { .. }, Some(bound)) => bound,
+        (AskReason::Step { .. }, None) => {
+            return Err(RuntimeError::EngineInvariant {
+                context: "running an ask",
+                message: format!("{}'s bound reason was never read", step.id),
+            });
+        }
+    };
+    let mut gate = approval_gate(ask, &reason, &inputs);
     // What the person approves is the reason they are asked.
     crate::approval::carry_payload(
         &mut gate,
         JsonValue::Object(JsonObject::from([(
             "reason".to_owned(),
-            JsonValue::String(ask.reason.clone()),
+            JsonValue::String(reason),
         )])),
         &crate::paths::RunxPaths::resolve(&runtime.options.env, workflow_dir).artifacts(),
         runtime.options.run.run_id(),
@@ -1856,12 +1876,12 @@ fn completed_approval_resolution(
     Ok(resolution)
 }
 
-/// The gate an ask step presents: its declared gate and reason, with the
-/// step's inputs as the summary shown beside them.
-pub(super) fn approval_gate(ask: &AskGate, inputs: &JsonObject) -> ApprovalGate {
+/// The gate an ask step presents: its declared gate and its reason as it
+/// reads now, with the step's inputs as the summary shown beside them.
+pub(super) fn approval_gate(ask: &AskGate, reason: &str, inputs: &JsonObject) -> ApprovalGate {
     ApprovalGate {
         id: ask.gate.clone().into(),
-        reason: ask.reason.clone().into(),
+        reason: reason.to_owned().into(),
         gate_type: ask.gate_type.clone(),
         summary: (!inputs.is_empty()).then(|| inputs.clone()),
         payload: None,

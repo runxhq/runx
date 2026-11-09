@@ -415,22 +415,64 @@ methods:
     }
 
     #[test]
-    fn an_ask_reason_is_text_and_its_values_are_its_inputs() -> Result<(), String> {
-        let message = validate_err(
-            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: approve\n        ask: {gate: approve.send, reason: $input.title}\n",
-        )?;
-        assert!(
-            message.contains("reason is text, not a reference"),
-            "{message}"
-        );
-        let workflow = validate_yaml(
-            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: approve\n        ask: {gate: approve.send, reason: $$5 to send}\n        inputs: {title: $input.title}\n",
-        )?;
-        let crate::StepKind::Ask(ask) = &workflow.steps[0].kind else {
+    fn an_ask_reason_is_text_or_an_earlier_steps_output() -> Result<(), String> {
+        let ask = |reason: &str| {
+            format!(
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: change\n        tool: {{module: change.mjs, export: change}}\n        outputs:\n          reason: {{type: string}}\n      - id: approve\n        ask: {{gate: approve.send, reason: {reason}}}\n        inputs: {{title: $input.title}}\n"
+            )
+        };
+        // Bound from an earlier step's output, so the gate shows the exact
+        // change it decides.
+        let workflow = validate_yaml(&ask("$steps.change.reason"))?;
+        let crate::StepKind::Ask(gate) = &workflow.steps[1].kind else {
             return Err("an ask step".to_owned());
         };
-        assert_eq!(ask.reason, "$5 to send");
-        assert_eq!(workflow.steps[0].bindings.len(), 1);
+        assert_eq!(
+            gate.reason,
+            crate::AskReason::Step {
+                step: "change".to_owned(),
+                path: vec!["reason".to_owned()],
+            }
+        );
+        assert_eq!(workflow.steps[1].reads(), vec!["change"]);
+
+        // Text, and a literal that begins with $.
+        for (reason, text) in [("Send it?", "Send it?"), ("$$5 to send", "$5 to send")] {
+            let workflow = validate_yaml(&ask(reason))?;
+            let crate::StepKind::Ask(gate) = &workflow.steps[1].kind else {
+                return Err("an ask step".to_owned());
+            };
+            assert_eq!(gate.reason, crate::AskReason::Text(text.to_owned()));
+            assert_eq!(workflow.steps[1].bindings.len(), 1);
+        }
+
+        // Never the caller's input, a later step, or a whole result.
+        for (reason, refusal) in [
+            ("$input.title", "reads an earlier step's output"),
+            ("$steps.later.reason", "later"),
+            ("$steps.change", "reads one field"),
+        ] {
+            let message = validate_err(&ask(reason))?;
+            assert!(message.contains(refusal), "{reason}: {message}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn an_operations_approval_reason_is_bound_from_an_earlier_steps_output() -> Result<(), String> {
+        let workflow = validate_yaml(
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: change\n        tool: {module: change.mjs, export: change}\n        outputs:\n          reason: {type: string}\n      - id: send\n        operation: example/message.send\n        idempotency_key: send-1\n        approval: {reason: $steps.change.reason, type: message_send}\n        inputs: {text: hello}\n",
+        )?;
+        assert_eq!(
+            workflow.steps[1].bindings,
+            vec![crate::Binding {
+                at: vec!["approval".to_owned(), "reason".to_owned()],
+                source: crate::Source::Step {
+                    step: "change".to_owned(),
+                    path: vec!["reason".to_owned()],
+                },
+            }]
+        );
         Ok(())
     }
 

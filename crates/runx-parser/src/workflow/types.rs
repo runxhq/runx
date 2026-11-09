@@ -169,9 +169,20 @@ pub struct ProcessTool {
 #[serde(deny_unknown_fields)]
 pub struct AskGate {
     pub gate: String,
-    pub reason: String,
+    pub reason: AskReason,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub gate_type: Option<String>,
+}
+
+/// What a person reads at an ask: its text, or a field of an earlier step's
+/// output, read when the ask runs, so a gate shows the exact change it
+/// decides. Text is written as a string, and a bound reason as the step and
+/// path it reads.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum AskReason {
+    Text(String),
+    Step { step: String, path: Vec<String> },
 }
 
 /// A child skill run: the skill, as the step's reference names it, and the
@@ -259,14 +270,21 @@ impl WorkflowStep {
     }
 
     /// The earlier steps whose results this step's values read, in order and
-    /// once each. Its condition is not among them: a condition selects the
-    /// step, it is not its input.
+    /// once each, an ask's bound reason among them. Its condition is not among
+    /// them: a condition selects the step, it is not its input.
     #[must_use]
     pub fn reads(&self) -> Vec<&str> {
         let mut steps = Vec::new();
         let entries = match &self.kind {
             StepKind::Agent(task) => task.context_entries.as_slice(),
             _ => &[],
+        };
+        let reason = match &self.kind {
+            StepKind::Ask(AskGate {
+                reason: AskReason::Step { step, .. },
+                ..
+            }) => Some(step.as_str()),
+            _ => None,
         };
         for step in self
             .bindings
@@ -275,6 +293,7 @@ impl WorkflowStep {
             .map(|binding| &binding.source)
             .chain(entries)
             .filter_map(Source::step)
+            .chain(reason)
         {
             if !steps.contains(&step) {
                 steps.push(step);

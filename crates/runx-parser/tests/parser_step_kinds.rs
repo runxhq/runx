@@ -1,5 +1,5 @@
 use runx_parser::{
-    AgentTask, AskGate, InputMode, Source, StepKind, ToolTarget, ValidateSkillMode,
+    AgentTask, AskGate, AskReason, InputMode, Source, StepKind, ToolTarget, ValidateSkillMode,
     ValidateSkillOptions, parse_method_manifest_yaml, parse_skill_markdown,
     validate_method_manifest, validate_skill, validate_skill_with_options,
 };
@@ -303,7 +303,7 @@ fn an_ask_step_yields_the_approval_decision_packet() -> Result<(), String> {
         step.kind,
         StepKind::Ask(AskGate {
             gate: "release.publish".to_owned(),
-            reason: "Approve this exact release.".to_owned(),
+            reason: AskReason::Text("Approve this exact release.".to_owned()),
             gate_type: Some("release".to_owned()),
         })
     );
