@@ -47,9 +47,8 @@ interface StepDeclaration {
   readonly id: string;
   readonly outputs?: JsonObject;
   readonly artifacts?: {
-    readonly packet?: string;
+    readonly result_as?: string;
     readonly packets?: Readonly<Record<string, string>>;
-    readonly wrap_as?: string;
   };
 }
 
@@ -219,13 +218,13 @@ async function readDeclarations(): Promise<
         const artifacts = step.artifacts;
         if (!artifacts) continue;
         for (const packet of Object.values(artifacts.packets ?? {})) declared.ids.add(packet);
-        if (artifacts.packet) {
-          declared.ids.add(artifacts.packet);
+        const resultPacket = artifacts.result_as === undefined ? undefined : artifacts.packets?.[artifacts.result_as];
+        if (resultPacket) {
           // The `result_as` output is the packet itself; the step's other
           // outputs are its fields.
           declared.wrapped.push({
-            packet: artifacts.packet,
-            outputs: Object.keys(step.outputs ?? {}).filter((output) => output !== artifacts.wrap_as),
+            packet: resultPacket,
+            outputs: Object.keys(step.outputs ?? {}).filter((output) => output !== artifacts.result_as),
             at: `${relative}#${methodName}.${step.id}`,
           });
         }
