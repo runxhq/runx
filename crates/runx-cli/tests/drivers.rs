@@ -40,15 +40,17 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
         skill.join("SKILL.md"),
         "---\nname: slow\ndescription: Performs one effect, slowly.\n---\n# slow\n\nRun it.\n",
     )?;
-    // The step performs its effect, says so, and holds until the test has
-    // tried a second driver.
+    // The step's first execution performs its effect, says so, and holds
+    // until the test has tried a second driver; an execution after it only
+    // performs the effect, so a second driver that ran the step again would
+    // finish, not hang, and leave two effects.
     let reached = crate::support::rendezvous::Pipe::new(root.join("reached"))?;
     let gate = crate::support::rendezvous::Pipe::new(root.join("gate"))?;
     let script = format!(
-        "echo performed >> '{}'; echo reached > '{}'; read go < '{}'; printf '{{\"done\":true}}'",
-        effects.display(),
-        reached.path().display(),
-        gate.path().display()
+        "if [ -s '{effects}' ]; then echo performed >> '{effects}'; else echo performed >> '{effects}'; echo reached > '{reached}'; read go < '{gate}'; fi; printf '{{\"done\":true}}'",
+        effects = effects.display(),
+        reached = reached.path().display(),
+        gate = gate.path().display()
     );
     fs::write(
         skill.join("run.yaml"),
