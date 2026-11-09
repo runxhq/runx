@@ -119,7 +119,6 @@ static QUERY: TypedNativeCapability<ReceiptQueryInput, ReceiptQueryOutput> =
             id: "receipt.query",
             source: "runx-runtime/receipts",
             summary: "Query native receipt history with bounded detail and optional tree proof.",
-            scopes: &["receipt.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {
@@ -137,7 +136,6 @@ static PROVE: TypedNativeCapability<ReceiptProofInput, ReceiptProofOutput> =
             id: "receipt.prove",
             source: "runx-runtime/receipts",
             summary: "Resolve exact receipts, verify each child tree, and return redacted proof.",
-            scopes: &["receipt.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {
@@ -155,7 +153,6 @@ static READ: TypedNativeCapability<ReceiptReadInput, ReceiptReadOutput> =
             id: "receipt.read",
             source: "runx-runtime/receipts",
             summary: "Read a receipt's exact retained declared claim after native proof and signed digest verification.",
-            scopes: &["receipt.claim.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {

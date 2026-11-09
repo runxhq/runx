@@ -85,7 +85,6 @@ static STORE: TypedNativeCapability<StoreInput, ProjectArtifact> = TypedNativeCa
         id: "artifact.store",
         source: "runx-runtime/project-artifacts",
         summary: "Retain one canonical JSON result in this project's immutable artifact store under the native run identity.",
-        scopes: &["artifact.write"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -104,7 +103,6 @@ static OPEN: TypedNativeCapability<OpenInput, LocalArtifact> = TypedNativeCapabi
         id: "artifact.open",
         source: "runx-runtime/project-artifacts",
         summary: "Verify a retained project artifact and admit its immutable bytes for existing bounded page reads.",
-        scopes: &["artifact.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {

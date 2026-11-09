@@ -214,7 +214,6 @@ static CURRENT_BRANCH: TypedNativeCapability<GitInput, GitBranch> = TypedNativeC
         id: "git.current_branch",
         source: "runx-runtime/git",
         summary: "Read the current branch or detached HEAD through native process supervision.",
-        scopes: &["git.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -231,7 +230,6 @@ static STATUS: TypedNativeCapability<GitInput, GitStatus> = TypedNativeCapabilit
         id: "git.status",
         source: "runx-runtime/git",
         summary: "Read bounded porcelain working-tree status without hooks, pagers, or locks.",
-        scopes: &["git.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -248,7 +246,6 @@ static DIFF: TypedNativeCapability<GitDiffInput, GitDiff> = TypedNativeCapabilit
         id: "git.diff_name_only",
         source: "runx-runtime/git",
         summary: "List changed paths against one verified Git commit without external drivers.",
-        scopes: &["git.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -266,7 +263,6 @@ static BLOB_DIGEST: TypedNativeCapability<GitBlobDigestInput, GitBlobDigestOutpu
             id: "git.blob_digest",
             source: "runx-runtime/git",
             summary: "Compute the canonical Git blob SHA-1 for exact UTF-8 contents.",
-            scopes: &[],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {
@@ -283,7 +279,6 @@ static LOG: TypedNativeCapability<GitLogInput, GitLog> = TypedNativeCapability::
         id: "git.log",
         source: "runx-runtime/git",
         summary: "List commits with their authors, dates, subjects and changed files.",
-        scopes: &["git.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -300,7 +295,6 @@ static SHOW: TypedNativeCapability<GitShowInput, GitShow> = TypedNativeCapabilit
         id: "git.show",
         source: "runx-runtime/git",
         summary: "Show one commit with its patch, or one file as it was at a revision.",
-        scopes: &["git.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -317,7 +311,6 @@ static PATCH: TypedNativeCapability<GitPatchInput, GitPatch> = TypedNativeCapabi
         id: "git.diff",
         source: "runx-runtime/git",
         summary: "Show the patch between two revisions, or between a revision and the working tree.",
-        scopes: &["git.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {

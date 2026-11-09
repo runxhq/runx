@@ -109,7 +109,6 @@ static ADMIT: TypedNativeCapability<ArtifactAdmitInput, ArtifactAdmitOutput> =
             id: "artifact.admit",
             source: "runx-runtime/local-artifacts",
             summary: "Bind one contained local file to an immutable opaque artifact reference.",
-            scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {
@@ -127,7 +126,6 @@ static READ: TypedNativeCapability<ArtifactReadInput, ArtifactReadOutput> =
             id: "artifact.read",
             source: "runx-runtime/local-artifacts",
             summary: "Read one exact bounded page from a previously admitted local artifact.",
-            scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {

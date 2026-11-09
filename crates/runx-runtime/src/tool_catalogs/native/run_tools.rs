@@ -86,7 +86,6 @@ static LIST: TypedNativeCapability<RunListInput, RunListOutput> = TypedNativeCap
         id: "run.list",
         source: "runx-runtime/runs",
         summary: "List the workspace's runs, most recent first, with what each waits on or sealed.",
-        scopes: &["run.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {

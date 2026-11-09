@@ -56,7 +56,6 @@ fn capability_snapshot_is_sorted_and_pins_the_catalog() {
         for field in [
             "id",
             "source",
-            "scopes",
             "effect",
             "approval",
             "artifacts",

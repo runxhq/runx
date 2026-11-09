@@ -100,7 +100,6 @@ static PLAN: TypedNativeCapability<CommandInput, CommandPlanOutput> = TypedNativ
         id: "command.plan",
         source: "runx-runtime/command",
         summary: "Normalize and digest one exact argv command without executing it.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -118,7 +117,6 @@ static EXECUTE: TypedNativeCapability<CommandInput, CommandExecutionOutput> =
             id: "command.execute",
             source: "runx-runtime/command",
             summary: "Execute exact argv under runtime-owned process supervision.",
-            scopes: &["process.exec"],
             effect: CapabilityEffect::Mutate,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {

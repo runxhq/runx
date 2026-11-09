@@ -51,7 +51,6 @@ static ATTEST: TypedNativeCapability<AttestationInput, AttestationOutput> =
             id: "receipt.attest",
             source: "runx-runtime/receipts",
             summary: "Validate and digest one bounded off-runtime action attestation for sealing.",
-            scopes: &[],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {

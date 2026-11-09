@@ -325,7 +325,6 @@ pub(super) static INVERSE: TypedNativeCapability<FileInverseInput, FileInverseBu
             id: INVERSE_TOOL,
             source: "runx-runtime/fs",
             summary: "The bundle that undoes a run's edit calls: what each file held before them, bound to what it holds after them, for fs.apply_bundle to apply whole.",
-            scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {

@@ -83,7 +83,6 @@ static PREPARE: TypedNativeCapability<HandoffInput, HandoffOutput> = TypedNative
         id: TOOL,
         source: "runx-runtime/control",
         summary: "Validate and normalize a provider-neutral workflow handoff without performing network I/O.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {

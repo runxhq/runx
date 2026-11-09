@@ -363,7 +363,6 @@ static SEARCH_CAPABILITY: TypedNativeCapability<SearchInput, RegistrySearchPacke
             id: SEARCH,
             source: "runx-runtime/registry",
             summary: "Search the registry and the project for skills and connectors: each hit's ref, kind, publisher, trust tier, summary, methods with their purposes, and whether the registry or the project holds it.",
-            scopes: &["registry.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {
@@ -381,7 +380,6 @@ static INSPECT_CAPABILITY: TypedNativeCapability<InspectInput, RegistryInspectio
             id: INSPECT,
             source: "runx-runtime/registry",
             summary: "Inspect a skill or connector without adding it to the project: a skill's methods with their inputs, effects, connectors and readiness; a connector's operations, approvals and readiness.",
-            scopes: &["registry.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {

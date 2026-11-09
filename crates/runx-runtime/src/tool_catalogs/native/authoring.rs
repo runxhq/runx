@@ -24,7 +24,6 @@ static INSPECT: TypedNativeCapability<InspectInput, AuthoringInspectOutput> =
             id: "runx.skill.inspect",
             source: "runx-runtime/authoring",
             summary: "Inspect one package and its catalog without spawning a subprocess.",
-            scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {
@@ -43,7 +42,6 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
         summary: "Validate and safely test an existing or inline skill package.",
         // The candidate's test reads the registry children its closure
         // names from the registry the operator selects.
-        scopes: &["fs.read", "registry.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -60,7 +58,6 @@ static PLAN: TypedNativeCapability<PlanInput, PlanOutput> = TypedNativeCapabilit
         id: PLAN_TOOL,
         source: "runx-runtime/authoring",
         summary: "Validate and digest-bind one skill architecture decision.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -77,7 +74,6 @@ static BIND: TypedNativeCapability<BindInput, BindOutput> = TypedNativeCapabilit
         id: BIND_TOOL,
         source: "runx-runtime/authoring",
         summary: "Bind one closed content draft to its native architecture plan.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -95,7 +91,6 @@ static APPLY: TypedNativeCapability<ApplyInput, ApplyOutput> = TypedNativeCapabi
         source: "runx-runtime/authoring",
         summary: "Transactionally apply one validated, bounded skill change bundle.",
         // Applying validates the candidate first, test included.
-        scopes: &["fs.write", "fs.delete", "registry.read"],
         effect: CapabilityEffect::Mutate,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {

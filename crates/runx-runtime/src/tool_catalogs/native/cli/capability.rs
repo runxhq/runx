@@ -60,7 +60,6 @@ static CAPTURE_HELP: TypedNativeCapability<CaptureHelpInput, CliHelp> = TypedNat
         id: "cli.capture_help",
         source: "runx-runtime/cli",
         summary: "Capture bounded CLI help through exact argv in a contained directory.",
-        scopes: &["cli.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {

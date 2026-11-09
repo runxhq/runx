@@ -73,7 +73,6 @@ pub struct CapabilityDefinition {
     pub id: &'static str,
     pub source: &'static str,
     pub summary: &'static str,
-    pub scopes: &'static [&'static str],
     pub effect: CapabilityEffect,
     pub approval: CapabilityApproval,
     pub artifacts: CapabilityArtifacts,

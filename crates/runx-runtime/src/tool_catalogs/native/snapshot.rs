@@ -17,7 +17,6 @@ pub struct NativeCapabilitySnapshot {
 struct SnapshotCapability {
     id: &'static str,
     source: &'static str,
-    scopes: Vec<&'static str>,
     effect: &'static str,
     approval: &'static str,
     artifacts: Option<SnapshotArtifacts>,
@@ -39,12 +38,9 @@ pub fn native_capability_snapshot() -> NativeCapabilitySnapshot {
     let mut capabilities = core_capabilities()
         .map(|capability| {
             let definition = capability.definition();
-            let mut scopes = definition.scopes.to_vec();
-            scopes.sort_unstable();
             SnapshotCapability {
                 id: definition.id,
                 source: definition.source,
-                scopes,
                 effect: match definition.effect {
                     CapabilityEffect::Read => "read",
                     CapabilityEffect::Mutate => "mutate",

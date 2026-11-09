@@ -36,7 +36,6 @@ static OBSERVED_AT: TypedNativeCapability<ObservedAtInput, ObservedAtOutput> =
             id: "control.observed_at",
             source: "runx-runtime/control",
             summary: "Return this invocation's already-admitted observation time, without reading a clock.",
-            scopes: &[],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::None,
@@ -185,7 +184,6 @@ static DIGEST: TypedNativeCapability<DigestInput, DigestOutput> = TypedNativeCap
         id: "data.digest",
         source: "runx-runtime/data",
         summary: "Compute a stable SHA-256 digest over canonical JSON or exact UTF-8 text.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -202,7 +200,6 @@ static COMPARE: TypedNativeCapability<CompareInput, CompareOutput> = TypedNative
         id: "data.compare",
         source: "runx-runtime/data",
         summary: "Compare two resolved JSON values without copying them into output.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -220,7 +217,6 @@ static RUN_CONTEXT: TypedNativeCapability<RunContextInput, RunContextOutput> =
             id: "control.capture_run_context",
             source: "runx-runtime/control",
             summary: "Capture supplied test, signal, and decision packets as explicit context.",
-            scopes: &["runx:control:read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {
@@ -237,7 +233,6 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
         id: "data.validate",
         source: "runx-runtime/data",
         summary: "Validate up to 128 JSON values against a self-contained JSON Schema 2020-12; formats are annotations, external retrieval is disabled.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -268,7 +263,6 @@ static MINOR_UNITS: TypedNativeCapability<MinorUnitsInput, MinorUnitsOutput> =
             id: "data.minor_units",
             source: "runx-runtime/data",
             summary: "Convert an exact decimal amount to whole smallest units at the caller's bound scale, with no rounding.",
-            scopes: &[],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::None,

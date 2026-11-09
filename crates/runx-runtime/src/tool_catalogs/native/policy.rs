@@ -38,7 +38,6 @@ static LINT: TypedNativeCapability<PolicyLintInput, PolicyLintOutput> = TypedNat
         id: "policy.lint",
         source: "runx-core/policy",
         summary: "Parse and lint one operational policy through the canonical policy engine.",
-        scopes: &[],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {

@@ -362,7 +362,6 @@ static READ: TypedNativeCapability<FileReadInput, FileRead> = TypedNativeCapabil
         id: "fs.read",
         source: "runx-runtime/filesystem",
         summary: "Read lines of one UTF-8 file of up to eight MiB through native workspace and symlink containment: from start_line, at most line_count lines within max_bytes, with the file's total lines and whole-file digest.",
-        scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -380,7 +379,6 @@ static READ_BUNDLE: TypedNativeCapability<FileReadBundleInput, FileReadBundle> =
             id: "fs.read_bundle",
             source: "runx-runtime/filesystem",
             summary: "Read a bounded set of UTF-8 files through one native containment boundary.",
-            scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {
@@ -397,7 +395,6 @@ static WRITE: TypedNativeCapability<FileWriteInput, FileWrite> = TypedNativeCapa
         id: "fs.write",
         source: "runx-runtime/filesystem",
         summary: "Write one bounded UTF-8 file through transactional workspace containment.",
-        scopes: &["fs.write"],
         effect: CapabilityEffect::Mutate,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -415,7 +412,6 @@ static EDIT: TypedNativeCapability<FileEditInput, FileEdit> = TypedNativeCapabil
         id: "fs.edit",
         source: "runx-runtime/filesystem",
         summary: "Replace exact text in one UTF-8 file, bound to the content it was read as.",
-        scopes: &["fs.write"],
         effect: CapabilityEffect::Mutate,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -434,7 +430,6 @@ static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundle> =
             id: "fs.apply_bundle",
             source: "runx-runtime/filesystem",
             summary: "Apply bounded text writes and deletions transactionally inside one workspace root.",
-            scopes: &["fs.write", "fs.delete"],
             effect: CapabilityEffect::Mutate,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Wrapped {
@@ -452,7 +447,6 @@ static LIST: TypedNativeCapability<FileListInput, FileList> = TypedNativeCapabil
         id: "fs.list",
         source: "runx-runtime/filesystem",
         summary: "List entries under a directory to a bounded depth, honouring the project's ignore files.",
-        scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
@@ -469,7 +463,6 @@ static SEARCH: TypedNativeCapability<FileSearchInput, FileSearch> = TypedNativeC
         id: "fs.search",
         source: "runx-runtime/filesystem",
         summary: "Search text files for a literal or regular expression, honouring the project's ignore files.",
-        scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {

@@ -38,7 +38,6 @@ mod tests {
             id: "deploy.inspect",
             source: "mock-deploy",
             summary: "Inspect a deployment through the mock effect boundary.",
-            scopes: &["deploy.read"],
             effect: crate::CapabilityEffect::Read,
             approval: crate::CapabilityApproval::None,
             artifacts: crate::CapabilityArtifacts::Named {
@@ -63,7 +62,6 @@ mod tests {
             id: "fs.read",
             source: "mock-deploy",
             summary: "Invalid collision fixture.",
-            scopes: &[],
             effect: crate::CapabilityEffect::Read,
             approval: crate::CapabilityApproval::None,
             artifacts: crate::CapabilityArtifacts::None,
