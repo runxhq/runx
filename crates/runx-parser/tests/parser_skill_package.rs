@@ -355,6 +355,38 @@ fn skill_package_owns_operator_reference_markdown() {
 }
 
 #[test]
+fn eval_queries_is_a_list_of_query_and_should_trigger() {
+    let with_queries = |queries: &str| {
+        validate_skill_package(package([
+            ("SKILL.md", manual("triggered")),
+            ("eval_queries.json", queries.to_owned()),
+        ]))
+    };
+    let validated = with_queries(
+        r#"[{"query": "Fetch this page.", "should_trigger": true}, {"query": "Search the web.", "should_trigger": false}]"#,
+    )
+    .expect("well-formed trigger queries validate");
+    assert!(validated.consumed_files.contains("eval_queries.json"));
+
+    for malformed in [
+        "{}",
+        "[]",
+        r#"["Fetch this page."]"#,
+        r#"[{"query": "", "should_trigger": true}]"#,
+        r#"[{"query": "Fetch this page.", "should_trigger": "yes"}]"#,
+        r#"[{"query": "Fetch this page."}]"#,
+        r#"[{"query": "Fetch this page.", "should_trigger": true, "skill": "web-fetch"}]"#,
+    ] {
+        let error = with_queries(malformed).expect_err(malformed);
+        assert_eq!(
+            error.to_string(),
+            "eval_queries.json: is a list of { query, should_trigger }",
+            "{malformed}"
+        );
+    }
+}
+
+#[test]
 fn skill_package_qualifies_nested_package_errors() {
     let source = package([
         ("SKILL.md", manual("operator")),

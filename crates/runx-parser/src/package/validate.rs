@@ -105,8 +105,9 @@ pub fn validate_skill_package(
 }
 
 /// The Agent Skills evaluation files: `evals/evals.json`, naming this skill
-/// and holding its evals, and `eval_queries.json`. They evaluate a package;
-/// they are never a requirement of its format.
+/// and holding its evals, and `eval_queries.json`, the queries a host should
+/// or should not select this skill for. They evaluate a package; they are
+/// never a requirement of its format.
 fn validate_eval_files(
     source: &SkillPackageSource,
     skill: &str,
@@ -119,22 +120,54 @@ fn validate_eval_files(
         let value = serde_json::from_str::<JsonValue>(text_file(path, contents)?)
             .map_err(|error| SkillPackageError::invalid(path, format!("is not JSON: {error}")))?;
         if path == "evals/evals.json" {
-            let JsonValue::Object(evals) = &value else {
-                return Err(SkillPackageError::invalid(path, "is an object"));
-            };
-            if evals.get("skill_name").and_then(JsonValue::as_str) != Some(skill) {
-                return Err(SkillPackageError::invalid(
-                    path,
-                    format!("skill_name is the package's name, {skill}"),
-                ));
-            }
-            if !matches!(evals.get("evals"), Some(JsonValue::Array(_))) {
-                return Err(SkillPackageError::invalid(path, "evals is a list"));
-            }
+            validate_evals(path, &value, skill)?;
+        } else {
+            validate_eval_queries(path, &value)?;
         }
         files.insert(path.to_owned());
     }
     Ok(files)
+}
+
+fn validate_evals(path: &str, value: &JsonValue, skill: &str) -> Result<(), SkillPackageError> {
+    let JsonValue::Object(evals) = value else {
+        return Err(SkillPackageError::invalid(path, "is an object"));
+    };
+    if evals.get("skill_name").and_then(JsonValue::as_str) != Some(skill) {
+        return Err(SkillPackageError::invalid(
+            path,
+            format!("skill_name is the package's name, {skill}"),
+        ));
+    }
+    if !matches!(evals.get("evals"), Some(JsonValue::Array(_))) {
+        return Err(SkillPackageError::invalid(path, "evals is a list"));
+    }
+    Ok(())
+}
+
+/// Each trigger query is exactly a non-empty `query` and a boolean
+/// `should_trigger`, and the file holds at least one.
+fn validate_eval_queries(path: &str, value: &JsonValue) -> Result<(), SkillPackageError> {
+    let is_query = |entry: &JsonValue| {
+        entry.as_object().is_some_and(|entry| {
+            entry.len() == 2
+                && entry
+                    .get("query")
+                    .and_then(JsonValue::as_str)
+                    .is_some_and(|query| !query.trim().is_empty())
+                && entry
+                    .get("should_trigger")
+                    .and_then(JsonValue::as_bool)
+                    .is_some()
+        })
+    };
+    match value {
+        JsonValue::Array(queries) if !queries.is_empty() && queries.iter().all(is_query) => Ok(()),
+        _ => Err(SkillPackageError::invalid(
+            path,
+            "is a list of { query, should_trigger }",
+        )),
+    }
 }
 
 fn package_digest(files: &BTreeMap<String, Vec<u8>>) -> String {
