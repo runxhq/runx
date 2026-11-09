@@ -68,3 +68,11 @@ oss	README.md	graph	workflow	^A $	^ is what unfolds\.	the README's tagline is pr
 oss	packages/cli/package.json	graphs	workflows	\btools, $		the CLI package's description is prose, and docs/api-surface.md is generated from it
 oss	crates/runx-cli/Cargo.toml	graphs	workflows	\btools, $		the CLI crate's description is prose
 oss	packages/sdk-python/pyproject.toml	graphs	workflows	\btools, and $		the Python SDK's description is prose
+cloud	packages/api/src/payments/skills/purchases.ts	holds	leases	^\s*$	^: holds\.map\(	PurchaseRead's leases, the key the purchase read writes
+cloud	packages/api/src/payments/skills/bazaar.ts	holds	leases	^\s*$	^: \{ type: "array"	PurchaseRead's leases, in the Bazaar declaration bazaar.test holds to OSS's purchase-read schema
+cloud	packages/api/src/payments/skills/purchases.test.ts	holds	leases	^\s*$	^: \[\{	PurchaseRead's leases, in the read the test expects
+cloud	packages/api/src/openapi-runtime-schemas.ts	holds	leases	^\s*$	^: \{$	PurchaseClaimed's leases: a claim returns the purchase's leases
+cloud	packages/api/src/openapi-runtime-schemas.ts	holds	leases	\brequired: \["status", "$	^"\]	PurchaseClaimed's required leases
+cloud	packages/api/src/runs/routes.ts	holds	leases	^\s*$	^: holds\.map\(	PurchaseClaimed's leases, the claim route's answer
+cloud	packages/api/src/payments/skills/run-routes.test.ts	holds	leases	^\s*$	^: \[\{	PurchaseClaimed's leases, in the claim the test expects
+ausca	Makefile	harness	test			both uses: the comment's "every harness case" is every test case, and the command is 0.12's runx test <package-dir> --json
