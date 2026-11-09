@@ -129,5 +129,5 @@ path = "tests/integration.rs"
 
 [[bench]]
 name = "workflow_throughput"
-test = false
+harness = false
 required-features = ["agent"]

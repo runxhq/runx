@@ -37,7 +37,7 @@ path = "src/lib.rs"
 
 [[bench]]
 name = "receipt_canonicalization"
-test = false
+harness = false
 
 [[test]]
 name = "integration"
