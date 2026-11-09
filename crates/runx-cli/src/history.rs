@@ -404,13 +404,15 @@ mod tests {
     }
 
     fn tempfile_dir() -> Result<PathBuf, io::Error> {
+        static NEXT_TEST_DIR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
-            "runx-cli-history-{}-{}",
+            "runx-cli-history-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(|error| io::Error::other(error.to_string()))?
-                .as_nanos()
+                .as_nanos(),
+            NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         fs::create_dir_all(&path)?;
         Ok(path)

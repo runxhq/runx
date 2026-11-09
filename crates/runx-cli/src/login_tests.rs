@@ -318,13 +318,15 @@ fn home_paths(home: &std::path::Path) -> runx_runtime::RunxPaths {
 }
 
 fn tempfile_dir() -> Result<std::path::PathBuf, std::io::Error> {
+    static NEXT_TEST_DIR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
-        "runx-cli-login-{}-{}",
+        "runx-cli-login-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos()
+            .as_nanos(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     fs::create_dir_all(&path)?;
     Ok(path)

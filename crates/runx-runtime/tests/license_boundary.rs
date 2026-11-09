@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
@@ -139,10 +140,14 @@ fn repo_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+/// A directory no other test in this process shares: the sequence tells
+/// this process's calls apart, the time a process that reuses its id.
 fn unique_temp_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    let sequence = NEXT.fetch_add(1, Ordering::Relaxed);
     Ok(std::env::temp_dir().join(format!(
-        "runx-license-boundary-{}-{nanos}",
+        "runx-license-boundary-{}-{nanos}-{sequence}",
         std::process::id()
     )))
 }

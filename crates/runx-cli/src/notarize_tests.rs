@@ -319,13 +319,15 @@ fn stringify(error: impl std::fmt::Display) -> String {
 }
 
 fn tempfile_dir() -> Result<std::path::PathBuf, std::io::Error> {
+    static NEXT_TEST_DIR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
-        "runx-cli-notarize-{}-{}",
+        "runx-cli-notarize-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos()
+            .as_nanos(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&path)?;
     Ok(path)

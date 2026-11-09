@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use crate::support::isolated_runx_command_with_inherited_cwd;
 
@@ -1114,8 +1114,7 @@ struct TestTempDir {
 
 impl TestTempDir {
     fn new(prefix: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-        let path = std::env::temp_dir().join(format!("{prefix}-{}-{nanos}", std::process::id()));
+        let path = crate::support::temp_root(prefix);
         fs::create_dir_all(&path)?;
         Ok(Self { path })
     }
