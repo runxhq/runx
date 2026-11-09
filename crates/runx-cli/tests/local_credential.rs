@@ -337,7 +337,7 @@ fn inline_workflow_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn
     );
     assert!(
         !output.status.success(),
-        "timed-out inline graph unexpectedly succeeded: {stderr}\n{stdout}"
+        "timed-out inline workflow unexpectedly succeeded: {stderr}\n{stdout}"
     );
     Ok(())
 }
