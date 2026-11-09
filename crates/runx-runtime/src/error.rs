@@ -88,7 +88,9 @@ pub enum RuntimeError {
     #[error("workflow step '{step_id}' failed planning: {reason}")]
     WorkflowPlanningFailed { step_id: String, reason: String },
     #[cfg(feature = "agent")]
-    #[error("managed agent resolution '{request_id}' failed in workflow step '{step_id}': {source}")]
+    #[error(
+        "managed agent resolution '{request_id}' failed in workflow step '{step_id}': {source}"
+    )]
     ManagedAgentResolution {
         step_id: String,
         request_id: String,

@@ -2602,7 +2602,10 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     )?;
     drop(database);
 
-    let receipt_id = result.receipt_ids.first().ok_or("missing workflow receipt")?;
+    let receipt_id = result
+        .receipt_ids
+        .first()
+        .ok_or("missing workflow receipt")?;
     let receipt_path = LocalReceiptStore::new(&receipt_dir).receipt_path(receipt_id)?;
     fs::write(receipt_path, b"{}")?;
     let error = run_skill(request)
