@@ -33,7 +33,7 @@ test("the guard fails on runner as a method and harness as a test, and passes th
     run.stdout,
     "crates/runx-runtime/src/skill.rs:1\trunner\trunner\tfn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n" +
       "skills/demo/SKILL.md:1\tharness\tharness\tRun the harness before you publish.\n" +
-      "stale: 1 uses of runner as a method, 1 of harness as a test or run and 0 of graph as a workflow in prose, in 2 files\n",
+      "stale: 1 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose and 0 of a key the format removes, in 2 files\n",
   );
 });
 
@@ -47,7 +47,7 @@ test("the guard fails on graph as a workflow in prose, and passes another graph,
   assert.equal(
     run.stdout,
     "README.md:1\tgraph\tgraph\tCompose skills into a graph.\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run and 1 of graph as a workflow in prose, in 1 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose and 0 of a key the format removes, in 1 files\n",
   );
 });
 
@@ -58,6 +58,32 @@ test("the guard counts graph in a message a person reads, and not a wire value o
   assert.equal(
     run.stdout,
     'crates/runx-runtime/src/error.rs:1\tgraph\tgraph\tpub const FAILED: &str = "graph step failed";\n' +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run and 1 of graph as a workflow in prose, in 1 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose and 0 of a key the format removes, in 1 files\n",
   );
+});
+
+test("the guard fails on a key the format removes where it's written as one, and passes another sense of its spelling", (t) => {
+  const root = tree(t, {
+    "skills/demo/run.yaml":
+      "minimum_runx: 0.12.0\nmethods:\n  run:\n    inputs:\n      message: {type: string, required: true}\n    steps:\n      - id: read\n        tool: demo.read\n        outputs:\n          expected_result: {type: object}\n      - id: send\n        operation: demo/send\n        expected_result: {sent: true}\n",
+    "connectors/demo/connector.yaml": "name: demo\noperations:\n  send:\n    result_fields: [sent]\n",
+    "tools/demo/read/manifest.json": '{"schema": "runx.tool.manifest.v1", "name": "demo.read", "source": {"command": "node"}, "scopes": []}\n',
+    "skills/demo/tests/reads.yaml": "name: reads\nmethod: run\ninputs:\n  criteria:\n    - {id: fit, required: true}\nexpect:\n  status: sealed\n",
+    "docs/demo.md": "Declare `context_skills` on a step.\n\n```yaml\nmethods:\n  run:\n    steps:\n      - id: a\n        tool: demo.read\n        artifacts: {wrap_as: result}\n```\n\nA connector's `result_fields` name what it returns.\n",
+    "crates/runx-parser/tests/refusals.rs": 'const OLD: &str = "minimum_runx: 0.12.0\\nmethods:\\n  run:\\n    steps:\\n      - id: a\\n        tool: demo.read\\n        scopes: [fs.read]\\n";\nfn operation_name() {}\n',
+  });
+  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  assert.equal(run.status, 1);
+  const flagged = run.stdout.split("\n").filter((line) => line.includes("\tkey\t")).map((line) => line.split("\t").slice(0, 3).join(" "));
+  assert.deepEqual(flagged, [
+    "crates/runx-parser/tests/refusals.rs:1 key scopes",
+    "docs/demo.md:1 key context_skills",
+    "docs/demo.md:9 key artifacts",
+    "docs/demo.md:9 key wrap_as",
+    "skills/demo/run.yaml:5 key required",
+    "skills/demo/run.yaml:13 key expected_result",
+    "tools/demo/read/manifest.json:1 key source",
+    "tools/demo/read/manifest.json:1 key scopes",
+  ]);
+  assert.match(run.stdout, /and 8 of a key the format removes, in 4 files\n$/);
 });

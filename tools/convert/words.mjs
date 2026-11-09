@@ -45,23 +45,40 @@ export const STRINGS = /\.(rs|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|py)$/;
  * is data, and a comment is no one's output, so none of them is prose.
  */
 export function codeProse(text, file) {
+  const spans = [];
+  for (const { pieces, template } of stringLiterals(text, file)) {
+    if (template) {
+      // A template literal's text, outside its ${...} expressions: prose
+      // when the whole literal reads as words.
+      if (/\s/.test(pieces.map(([a, b]) => text.slice(a, b)).join("x").trim())) spans.push(...pieces);
+      continue;
+    }
+    const [[from, to]] = pieces;
+    const body = text.slice(from, to);
+    if (!/\s/.test(body.trim()) || isDocument(body)) continue;
+    // Placeholders name code: {name}, {name:?}, {0} and Python's {name!r}.
+    let at = from;
+    for (const m of body.matchAll(/\{[A-Za-z_0-9][^{}]*\}/g)) {
+      spans.push([at, from + m.index]);
+      at = from + m.index + m[0].length;
+    }
+    spans.push([at, to]);
+  }
+  return spans;
+}
+
+/**
+ * Each string literal in a code file, outside its comments: its text, or a
+ * template literal's text pieces between its ${...} expressions.
+ */
+export function stringLiterals(text, file) {
   const ext = file.slice(file.lastIndexOf("."));
   const rust = ext === ".rs";
   const py = ext === ".py";
   const go = ext === ".go";
   const js = /^\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(ext);
-  const spans = [];
-  const keep = (from, to) => {
-    const body = text.slice(from, to);
-    if (!/\s/.test(body.trim()) || isDocument(body)) return;
-    // Placeholders name code: {name}, {name:?}, {0} and Python's {name!r}.
-    let at = from;
-    for (const m of text.slice(from, to).matchAll(/\{[A-Za-z_0-9][^{}]*\}/g)) {
-      spans.push([at, from + m.index]);
-      at = from + m.index + m[0].length;
-    }
-    spans.push([at, to]);
-  };
+  const literals = [];
+  const keep = (from, to) => literals.push({ pieces: [[from, to]], template: false });
   let i = 0;
   while (i < text.length) {
     const c = text[i];
@@ -93,8 +110,7 @@ export function codeProse(text, file) {
       continue;
     }
     if (c === "`" && js) {
-      // A template literal's text, outside its ${...} expressions: prose
-      // when the whole literal reads as words.
+      // A template literal's text, in pieces between its ${...} expressions.
       let j = i + 1;
       let from = j;
       const pieces = [];
@@ -111,7 +127,7 @@ export function codeProse(text, file) {
         j += 1;
       }
       pieces.push([from, j]);
-      if (/\s/.test(pieces.map(([a, b]) => text.slice(a, b)).join("x").trim())) spans.push(...pieces);
+      literals.push({ pieces, template: true });
       i = j + 1;
       continue;
     }
@@ -128,7 +144,7 @@ export function codeProse(text, file) {
     }
     i += 1;
   }
-  return spans;
+  return literals;
 }
 
 /** Whether a string literal's text is a document: a line of it starts as YAML, front matter, a list item or a heading. */

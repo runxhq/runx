@@ -2,8 +2,9 @@
 // The stale-name guard for 0.12's retired senses (plan §4.2, §6.1, §6.5):
 // `runner` meaning a skill's method, which is `method` now, `harness` meaning
 // a scripted test or a run, which are `test` and `run`, and, in prose, `graph`
-// meaning a method's steps, which is `workflow`. It fails on
-// any use of either word outside what may keep it, which the rename reads
+// meaning a method's steps, which is `workflow`, and every key the format
+// contract removes, as removed-keys.mjs reads them. It fails on any use of
+// a retired word outside what may keep it, which the rename reads
 // too: a name identifiers.tsv decides stays, such as `$RUNNER_OS`, and a bare
 // word one of words.mjs's stays keeps. History documents and signed data
 // can't truthfully change (§4.6), so they aren't read, and generated files
@@ -14,7 +15,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, STRINGS, bareWord, codeProse, inPath, markdownCode, stayFor } from "./words.mjs";
+import { removedKeys } from "./removed-keys.mjs";
+import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, STRINGS, bareWord, codeProse, fencedBlocks, inPath, markdownCode, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records and vendored copies.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -45,7 +47,7 @@ function main([root, ...rest]) {
   }
   const list = rest.includes("--list");
   const names = decided("oss");
-  const found = { runner: 0, harness: 0, graph: 0 };
+  const found = { runner: 0, harness: 0, graph: 0, key: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
@@ -56,8 +58,17 @@ function main([root, ...rest]) {
     const strings = STRINGS.test(file) ? codeProse(text, file) : undefined;
     const inProse = (at, token) =>
       code !== undefined ? !code.some(([from, to]) => at >= from && at < to) : strings !== undefined && strings.some(([from, to]) => at >= from && at < to) && !inPath(text, at, token);
+    const lines = text.split("\n");
+    const lineOf = (at) => text.slice(0, at).split("\n").length;
+    const literals = (code) => stringLiterals(code, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);
+    for (const removed of removedKeys(file, text, { fences: fencedBlocks, strings: literals })) {
+      const line = lineOf(removed.at);
+      found.key += 1;
+      byFile.set(file, (byFile.get(file) ?? 0) + 1);
+      if (list) process.stdout.write(`${file}:${line}\tkey\t${removed.key}\t${removed.row}\t${(lines[line - 1] ?? "").trim().slice(0, 120)}\n`);
+    }
     let lineStart = 0;
-    text.split("\n").forEach((line, index) => {
+    lines.forEach((line, index) => {
       const start = lineStart;
       lineStart += line.length + 1;
       for (const match of line.matchAll(TOKEN)) {
@@ -74,8 +85,8 @@ function main([root, ...rest]) {
       }
     });
   }
-  const total = found.runner + found.harness + found.graph;
-  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run and ${found.graph} of graph as a workflow in prose, in ${byFile.size} files\n`);
+  const total = found.runner + found.harness + found.graph + found.key;
+  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose and ${found.key} of a key the format removes, in ${byFile.size} files\n`);
   return total === 0 ? 0 : 1;
 }
 
