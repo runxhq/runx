@@ -89,6 +89,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         refusal: None,
         admission_witness: StepAdmissionWitness::local_runtime("read", receipt.id.as_str()),
         settlement: None,
+        labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     };
     log.record_step(&step, &[])?;
     Ok(Fixture {

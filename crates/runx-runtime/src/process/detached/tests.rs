@@ -97,6 +97,7 @@ fn a_start_no_supervisor_confirmed_is_settled_by_its_lock_and_sent_again_to_the_
         run_id: "run".to_owned(),
         key: "run#start@1".to_owned(),
         actor: None,
+        given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     };
     let again = processes.start(Start {
         call: &call,
@@ -370,6 +371,7 @@ mod supervised {
             run_id: "test-run".to_owned(),
             key: key.to_owned(),
             actor: None,
+            given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         };
         let followed = processes
             .follow(super::Start {

@@ -2343,7 +2343,7 @@ methods:
 }
 
 #[test]
-fn a_remote_turns_read_of_a_local_only_artifact_is_refused() -> TestResult {
+fn a_remote_turns_call_whose_result_is_local_only_is_refused() -> TestResult {
     let temp = tempdir()?;
     std::fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
     std::fs::write(temp.path().join("shared.txt"), "shared with the model")?;
@@ -2357,19 +2357,15 @@ methods:
     inputs:
       question: {type: string}
     steps:
-      - id: kept
-        tool: artifact.admit
-        inputs: {path: kept.txt, media_type: text/plain, labels: {sharing: local_only}}
       - id: shared
         tool: artifact.admit
         inputs: {path: shared.txt, media_type: text/plain}
       - id: answer
         agent: answer
         calls:
-          tools: [artifact.read]
+          tools: [artifact.admit, artifact.read]
         inputs:
           question: $input.question
-          kept: $steps.kept.artifact.ref
           shared: $steps.shared.artifact.ref
         outputs:
           answer: {type: string}
@@ -2377,33 +2373,44 @@ methods:
     )?;
     let paused = Paused::start(temp.path(), parent, TURN)?;
     let turn = paused.open()?;
-    let read = |name: &str| -> TestResult<TurnCallResult> {
-        let reference = turn.read(TURN, &format!("input:{name}"), 0, None)?.text;
-        Ok(turn.call(
-            TURN,
-            "artifact_read",
-            None,
-            input(serde_json::json!({"ref": reference, "encoding": "utf8"}))?,
-        )?)
-    };
 
     // This turn's host may run its model anywhere: no managed agent works it.
-    let kept = read("kept")?;
+    // What it admits as local_only is refused to it, reference and all.
+    let kept = turn.call(
+        TURN,
+        "artifact_admit",
+        None,
+        input(serde_json::json!({
+            "path": "kept.txt",
+            "media_type": "text/plain",
+            "labels": {"sharing": "local_only"}
+        }))?,
+    )?;
     assert!(
         matches!(&kept.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("local_only")),
         "{kept:?}"
     );
-    assert!(
-        !format!("{kept:?}").contains("kept on this machine"),
-        "{kept:?}"
-    );
     // The record says the same however the turn is read again.
-    let status = format!("{:?}", turn.status(TURN)?);
-    assert!(!status.contains("kept on this machine"), "{status}");
     let page = turn.read(TURN, &format!("call:{}", kept.index), 0, None)?;
-    assert!(!page.text.contains("kept on this machine"), "{}", page.text);
+    assert!(!page.text.contains("runx:local-artifact:"), "{}", page.text);
+    let refused = turn
+        .status(TURN)?
+        .calls
+        .into_iter()
+        .find(|call| call.index == kept.index)
+        .ok_or("the turn lists the call")?;
+    assert!(
+        matches!(refused.outcome, TurnCallOutcome::Refused { .. }),
+        "{refused:?}"
+    );
     // What the configured model may see is given.
-    let shared = read("shared")?;
+    let reference = turn.read(TURN, "input:shared", 0, None)?.text;
+    let shared = turn.call(
+        TURN,
+        "artifact_read",
+        None,
+        input(serde_json::json!({"ref": reference, "encoding": "utf8"}))?,
+    )?;
     assert!(completed(&shared), "{shared:?}");
     assert!(
         format!("{shared:?}").contains("shared with the model"),

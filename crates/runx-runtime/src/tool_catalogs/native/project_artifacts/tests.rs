@@ -64,7 +64,13 @@ fn store_inputs(
         &env,
         &LocalArtifactService::default(),
         Reach::Inputs,
-        Some(&ToolCall::new("artifact-run", "store", 1, None)),
+        Some(&ToolCall::new(
+            "artifact-run",
+            "store",
+            1,
+            None,
+            ArtifactLabels::CONFIGURED_MODEL,
+        )),
     )?
     .deserialize_into()
     .map_err(Into::into)
@@ -151,7 +157,7 @@ fn project_artifact_ports_require_identity_and_reach_inputs_before_io()
     let project = workspace.path().join("not-created");
     let env = environment(workspace.path(), &project);
     let snapshots = LocalArtifactService::default();
-    let identity = ToolCall::new("run", "store", 1, None);
+    let identity = ToolCall::new("run", "store", 1, None, ArtifactLabels::CONFIGURED_MODEL);
     assert!(
         call(
             "artifact.store",
@@ -359,13 +365,27 @@ fn what_is_stored_from_a_local_only_artifact_is_local_only_and_opens_so()
     // A value made from nothing local_only is the configured model's.
     let shared = store(workspace.path(), project.path(), serde_json::json!({"n":1}))?;
     assert_eq!(shared.labels, ArtifactLabels::CONFIGURED_MODEL);
-    // A default, not a wall: a label the step gives is the one kept.
-    let relabelled = store_inputs(
+    // A local_only label is the person's to set: a step may narrow what it
+    // stores, and is refused widening it.
+    let widened = store_inputs(
         workspace.path(),
         project.path(),
         serde_json::json!({"value":{"from":source},"labels":{"sharing":"configured_model"}}),
+    );
+    let refusal = widened
+        .err()
+        .ok_or("widening a local_only label is refused")?;
+    assert!(
+        refusal.to_string().contains("local_only")
+            && refusal.to_string().contains("configured_model"),
+        "{refusal}"
+    );
+    let narrowed = store_inputs(
+        workspace.path(),
+        project.path(),
+        serde_json::json!({"value":{"n":2},"labels":{"sharing":"local_only"}}),
     )?;
-    assert_eq!(relabelled.labels, ArtifactLabels::CONFIGURED_MODEL);
+    assert_eq!(narrowed.labels, ArtifactLabels::LOCAL_ONLY);
     // Opening keeps the label, and so does every later read of the snapshot,
     // in a fresh service too.
     let opened: Artifact = call(

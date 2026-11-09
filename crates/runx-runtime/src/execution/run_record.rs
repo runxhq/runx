@@ -197,6 +197,9 @@ struct RecordedStep {
     artifact_outputs: BTreeSet<String>,
     outcome: StepOutcome,
     admission_witness: StepAdmissionWitness,
+    /// Where what the step made may be shared, as it ran: a resumed run reads
+    /// it here and never derives it again from what holds now.
+    labels: runx_contracts::ArtifactLabels,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1045,6 +1048,7 @@ impl RunLog {
             artifact_outputs: step.artifact_outputs.clone(),
             outcome: step.outcome.clone(),
             admission_witness: step.admission_witness.clone(),
+            labels: step.labels,
         })?;
         let receipt = Blob::json(&step.receipt)?;
         let nested = step
@@ -1278,6 +1282,7 @@ impl RunLog {
                     artifact_outputs: step.artifact_outputs.clone(),
                     outcome: step.outcome.clone(),
                     admission_witness: step.admission_witness.clone(),
+                    labels: step.labels,
                 })?;
                 let receipt = Blob::json(&step.receipt)?;
                 let nested = step
@@ -2009,6 +2014,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
         refusal: None,
         admission_witness: record.admission_witness,
         settlement: None,
+        labels: record.labels,
     })
 }
 

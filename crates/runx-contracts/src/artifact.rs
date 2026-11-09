@@ -58,7 +58,7 @@ impl ArtifactLabels {
     }
 
     /// The labels of what is made from `value`: derived from every artifact
-    /// in it, at any depth. A value with none is `configured_model`.
+    /// label in it, at any depth. A value with none is `configured_model`.
     #[must_use]
     pub fn of_value(value: &JsonValue) -> Self {
         let mut found = Vec::new();
@@ -72,15 +72,20 @@ impl ArtifactLabels {
     }
 }
 
-/// Every `runx.artifact.v1` descriptor's labels in `value`. An object that
-/// names the schema but isn't an artifact adds none.
+/// Every sharing label `value` states through an object that names
+/// `runx.artifact.v1`, read on its own, so a `local_only` label counts whether
+/// or not the rest of the object is an artifact: the label fails closed.
 fn collect_labels(value: &JsonValue, found: &mut Vec<ArtifactLabels>) {
     match value {
         JsonValue::Object(object) => {
             if object.get("schema").and_then(JsonValue::as_str) == Some(ARTIFACT_SCHEMA)
-                && let Ok(artifact) = value.clone().deserialize_into::<Artifact>()
+                && let Some(sharing) = object
+                    .get("labels")
+                    .and_then(JsonValue::as_object)
+                    .and_then(|labels| labels.get("sharing"))
+                && let Ok(sharing) = sharing.clone().deserialize_into::<ContextSharing>()
             {
-                found.push(artifact.labels);
+                found.push(ArtifactLabels { sharing });
             }
             for nested in object.values() {
                 collect_labels(nested, found);
@@ -220,9 +225,20 @@ mod tests {
             !labels(serde_json::json!({"report": [artifact("configured_model")]}))?.is_local_only()
         );
         assert!(!labels(serde_json::json!({"text": "local_only"}))?.is_local_only());
-        // An object that only names the schema isn't an artifact.
+        // An object that names the schema and says local_only is local_only,
+        // whether or not the rest of it is an artifact: the label fails closed.
         assert!(
-            !labels(serde_json::json!({"schema": "runx.artifact.v1", "labels": {"sharing": "local_only"}}))?
+            labels(serde_json::json!({"schema": "runx.artifact.v1", "labels": {"sharing": "local_only"}}))?
+                .is_local_only()
+        );
+        assert!(
+            labels(serde_json::json!({"note": [{"schema": "runx.artifact.v1", "ref": "", "labels": {"sharing": "local_only"}}]}))?
+                .is_local_only()
+        );
+        // Saying the schema alone, or configured_model, isn't local_only.
+        assert!(!labels(serde_json::json!({"schema": "runx.artifact.v1"}))?.is_local_only());
+        assert!(
+            !labels(serde_json::json!({"schema": "runx.artifact.v1", "labels": {"sharing": "configured_model"}}))?
                 .is_local_only()
         );
         Ok(())

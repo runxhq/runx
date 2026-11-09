@@ -74,6 +74,16 @@ impl LocalArtifactService {
         Ok(self.store.resolve(reference)?.descriptor.clone())
     }
 
+    /// The labels `value` carries: those of every artifact in it, and of every
+    /// snapshot of this run it names. What a step or a call is given, and
+    /// what it makes, is labelled by this one derivation.
+    pub(crate) fn labels_of(&self, value: &JsonValue) -> ArtifactLabels {
+        ArtifactLabels::derived_from([
+            &ArtifactLabels::of_value(value),
+            &self.labels_named_in(value),
+        ])
+    }
+
     /// The labels of what's read from the snapshots `value` names by
     /// reference, at any depth: a page of a `local_only` snapshot is
     /// `local_only`. A string that names no snapshot of this run adds none.

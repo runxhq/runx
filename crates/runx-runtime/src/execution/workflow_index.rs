@@ -170,6 +170,14 @@ impl<'a> PriorRunIndex<'a> {
         })
     }
 
+    /// Where what `from_step` made may be shared, as it recorded it.
+    pub(crate) fn labels(&self, from_step: &str) -> runx_contracts::ArtifactLabels {
+        self.run(from_step)
+            .map_or(runx_contracts::ArtifactLabels::CONFIGURED_MODEL, |run| {
+                run.labels
+            })
+    }
+
     pub(crate) fn provenance(
         &self,
         to_step: &str,

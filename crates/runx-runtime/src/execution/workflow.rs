@@ -949,9 +949,37 @@ pub(crate) fn materialize_ask_reason_with_index(
     }
 }
 
+/// Where the earlier steps' outputs a step binds may be shared: those its
+/// inputs, its act and its ask's reason read. Its context entries carry their
+/// own labels, which their sources' labels mark below.
+pub(crate) fn bound_step_labels(
+    step: &WorkflowStep,
+    prior_run_index: &PriorRunIndex<'_>,
+) -> runx_contracts::ArtifactLabels {
+    let mut bound = step
+        .bindings
+        .iter()
+        .chain(step.act.iter().flat_map(|act| act.bindings.iter()))
+        .filter_map(|binding| match &binding.source {
+            Source::Step { step: from, .. } => Some(prior_run_index.labels(from)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if let StepKind::Ask(runx_parser::AskGate {
+        reason: runx_parser::AskReason::Step { step: from, .. },
+        ..
+    }) = &step.kind
+    {
+        bound.push(prior_run_index.labels(from));
+    }
+    runx_contracts::ArtifactLabels::derived_from(&bound)
+}
+
 /// The context entries an agent step's turn is given from earlier steps: each
 /// output its `context.entries` names, a list of `runx.context_entry.v1`
-/// values, in the order the step names them. Each keeps its own labels.
+/// values, in the order the step names them. Each keeps its own labels, and
+/// an entry an output labelled `local_only` holds is `local_only`, whatever
+/// it says.
 pub(crate) fn materialize_step_context_entries_with_index(
     step: &WorkflowStep,
     prior_run_index: &PriorRunIndex<'_>,
@@ -965,7 +993,7 @@ pub(crate) fn materialize_step_context_entries_with_index(
             continue;
         };
         let value = prior_run_index.output(&step.id, "context.entries", from, path)?;
-        let listed = value
+        let mut listed = value
             .deserialize_into::<Vec<runx_contracts::ContextEntry>>()
             .map_err(|error| RuntimeError::StepFailed {
                 step_id: step.id.clone(),
@@ -974,6 +1002,11 @@ pub(crate) fn materialize_step_context_entries_with_index(
                     source.reference()
                 ),
             })?;
+        if prior_run_index.labels(from).is_local_only() {
+            for entry in &mut listed {
+                entry.labels.sharing = runx_contracts::ContextSharing::LocalOnly;
+            }
+        }
         entries.extend(listed);
     }
     Ok(entries)

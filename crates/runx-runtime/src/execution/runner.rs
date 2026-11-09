@@ -570,6 +570,11 @@ pub struct StepRun {
     /// What settles the effect this step consumed, committed with the step
     /// itself when the run records it.
     pub settlement: Option<crate::effects::Settlement>,
+    /// Where what the step made may be shared: the labels of everything it
+    /// was given or read, so a value it passes on or derives keeps them. A
+    /// handler states what it read beyond its inputs, such as its calls'
+    /// results; the runtime adds what the step was given and what it made.
+    pub labels: runx_contracts::ArtifactLabels,
 }
 
 impl StepRun {
@@ -1282,6 +1287,12 @@ pub(crate) fn workflow_run_result_artifacts(run: &WorkflowRun) -> BTreeSet<Strin
         .collect()
 }
 
+/// Where what a workflow made may be shared: labelled by every step it ran,
+/// so a skill step's result keeps whatever its child read.
+pub(crate) fn workflow_run_labels(run: &WorkflowRun) -> runx_contracts::ArtifactLabels {
+    runx_contracts::ArtifactLabels::derived_from(run.steps.iter().map(|step| &step.labels))
+}
+
 pub(crate) fn workflow_run_ephemeral_result(run: &WorkflowRun) -> JsonValue {
     let runs = run
         .steps
@@ -1936,6 +1947,7 @@ mod tests {
             admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
             receipt,
             settlement: None,
+            labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
     }
 

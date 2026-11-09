@@ -1520,8 +1520,10 @@ fn write_local_only_skill(
 
 /// A script's call that reads what's labelled `local_only` is withheld from
 /// it as it is from a turn, when the run's host can't say its model runs on
-/// this machine: the call settles as refused, and the script, and the turn
-/// after it, never see what it read.
+/// this machine: the call settles as refused, and the script never sees what
+/// it read. What the script makes is labelled by the `local_only` reference
+/// it was given, so the turn after it is refused before it's asked, and never
+/// sees it either.
 #[test]
 fn a_scripts_read_of_a_local_only_artifact_on_a_remote_host_settles_as_refused() -> TestResult {
     let temp = tempdir()?;
@@ -1539,13 +1541,19 @@ fn a_scripts_read_of_a_local_only_artifact_on_a_remote_host_settles_as_refused()
 "#,
         "          text: $steps.prepare.text\n",
     )?;
-    let paused = run(temp.path(), skill_dir)?;
-    assert_eq!(requests(&paused)?, ["answer"], "{:?}", paused.output);
-    let rendered = serde_json::to_string(&paused.output)?;
+    let refused = run(temp.path(), skill_dir)?;
+    assert!(requests(&refused)?.is_empty(), "{:?}", refused.output);
+    let rendered = serde_json::to_string(&refused.output)?;
     assert!(!rendered.contains(KEPT), "{rendered}");
     assert!(
         rendered.contains(
             "refused: call 0 reads what's labelled local_only, and this step's host can't say its model runs on this machine"
+        ),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(
+            "what it is given is labelled local_only, and its host can't say its model runs on this machine"
         ),
         "{rendered}"
     );

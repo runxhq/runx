@@ -52,10 +52,25 @@ fn store(invocation: &NativeInvocation<'_, StoreInput>) -> Result<Artifact, Runt
             "value exceeds the native artifact value byte ceiling; persist bounded parts",
         ));
     }
-    let labels = invocation
-        .inputs
-        .labels
-        .unwrap_or_else(|| ArtifactLabels::of_value(&invocation.inputs.value));
+    // What it stores is labelled by everything the step was given. A
+    // `local_only` label is the person's to set: a step may narrow it, and
+    // is refused widening it.
+    let given = ArtifactLabels::derived_from([
+        &call.given,
+        &invocation
+            .local_artifacts
+            .labels_of(&invocation.inputs.value),
+    ]);
+    let labels = match invocation.inputs.labels {
+        None => given,
+        Some(stated) if given.is_local_only() && !stated.is_local_only() => {
+            return Err(invalid_input(
+                TOOL,
+                "what it stores is labelled local_only, and a step may narrow a label but never widen it: labels.sharing configured_model would widen local_only",
+            ));
+        }
+        Some(stated) => stated,
+    };
     let paths = crate::paths::RunxPaths::resolve(invocation.env, invocation.skill_directory);
     crate::services::persist_json_bytes(
         &paths.artifacts(),
@@ -102,7 +117,7 @@ static STORE: TypedNativeCapability<StoreInput, Artifact> = TypedNativeCapabilit
             },
             CapabilityField {
                 name: "labels",
-                description: "Where the stored value may be shared. Defaults to local_only when any artifact in the value is local_only, and otherwise configured_model.",
+                description: "Where the stored value may be shared. Defaults to local_only when anything its step was given or has read is local_only, and otherwise configured_model. A step may narrow it, never widen it.",
             },
         ],
     },

@@ -60,6 +60,8 @@ struct RegularSkillStepOutput {
     projection: StepOutputProjection,
     ephemeral_contract: JsonObject,
     receipt_lineage: StepReceiptLineage,
+    /// What the step read beyond its inputs: a skill step, its child run.
+    read: ArtifactLabels,
 }
 
 #[derive(Default)]
@@ -122,6 +124,9 @@ pub(super) struct StepRunRequest<'a, A> {
     /// An ask's reason bound from an earlier step's output, as that output
     /// reads, resolved where its inputs are.
     pub(super) ask_reason: Option<String>,
+    /// Where what the step is given may be shared: its inputs, the artifacts
+    /// they name, and the earlier steps' outputs it binds.
+    pub(super) given: ArtifactLabels,
 }
 
 struct StepHandlerCtx<'a, A> {
@@ -139,6 +144,7 @@ struct StepHandlerCtx<'a, A> {
     loaded_skill: Option<LoadedStepSkill>,
     context_entries: Vec<ContextEntry>,
     ask_reason: Option<String>,
+    given: ArtifactLabels,
 }
 
 struct RegularSkillSeal<'a, A> {
@@ -208,6 +214,7 @@ where
         host,
         context_entries,
         ask_reason,
+        given,
     } = request;
     // An operation call is admitted against the packages it calls from.
     let chain = if step.operation().is_some() {
@@ -232,7 +239,7 @@ where
     let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
     let authority =
         prepare_effect_execution(effect_request, authority, host, &runtime.options.effects)?;
-    run_registered_step(StepHandlerCtx {
+    let mut run = run_registered_step(StepHandlerCtx {
         runtime,
         workflow_dir,
         workflow_name,
@@ -247,7 +254,18 @@ where
         loaded_skill,
         context_entries,
         ask_reason,
-    })
+        given,
+    })?;
+    // What the step made is labelled by everything it was given, everything
+    // it read, and what it made, in every step kind alike.
+    run.labels = ArtifactLabels::derived_from([
+        &given,
+        &run.labels,
+        &runtime
+            .local_artifacts
+            .labels_of(&JsonValue::Object(run.contract.clone())),
+    ]);
+    Ok(run)
 }
 
 // A child skill always runs its method's workflow, nested under this step, with
@@ -456,6 +474,7 @@ where
         )?;
     }
     let refusal = run.refusal.clone();
+    let read = super::workflow_run_labels(&run);
     let receipt_lineage = StepReceiptLineage::from_workflow(run);
     seal_regular_skill_step(
         RegularSkillSeal {
@@ -475,6 +494,7 @@ where
             projection,
             ephemeral_contract,
             receipt_lineage,
+            read,
         },
     )
 }
@@ -733,6 +753,7 @@ where
         projection,
         ephemeral_contract,
         receipt_lineage: StepReceiptLineage::default(),
+        read: ArtifactLabels::CONFIGURED_MODEL,
     })
 }
 
@@ -750,6 +771,7 @@ where
         projection,
         ephemeral_contract,
         receipt_lineage,
+        read,
     } = regular;
     let effect_claim = contract_output_claim(&projection);
     let seal_authority = context
@@ -817,6 +839,7 @@ where
         refusal: context.refusal,
         admission_witness,
         settlement,
+        labels: read,
     })
 }
 
@@ -901,6 +924,7 @@ where
         loaded_skill: _,
         admission_refs,
         context_entries: _,
+        given: _,
     } = request;
     let executable = match &step.kind {
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
@@ -964,6 +988,8 @@ struct TurnStepSeal<'a> {
     contract_checks: ContractChecks,
     /// The turn's completed calls, in order.
     calls: Vec<&'a StepRun>,
+    /// Where the context entries the turn was given may be shared.
+    context: ArtifactLabels,
 }
 
 fn seal_turn_step<A>(
@@ -980,7 +1006,18 @@ fn seal_turn_step<A>(
         extra_artifacts,
         contract_checks,
         calls,
+        context,
     } = request;
+    // The answer is made from what the turn was given and what its calls
+    // returned.
+    let read = ArtifactLabels::derived_from(
+        calls
+            .iter()
+            .map(|call| call.labels)
+            .chain([context])
+            .collect::<Vec<_>>()
+            .iter(),
+    );
     let outcome = agent_answer_outcome_value(step, &response.payload)?;
     // The turn's receipt names each call the agent made, in order.
     let lineage = StepReceiptLineage::of_turn(&calls);
@@ -1030,6 +1067,7 @@ fn seal_turn_step<A>(
         refusal: None,
         admission_witness,
         settlement: None,
+        labels: read,
     })
 }
 
@@ -1054,6 +1092,7 @@ where
         loaded_skill: _,
         admission_refs: _,
         context_entries,
+        given,
     } = request;
     let StepKind::Agent(agent) = &step.kind else {
         return Err(RuntimeError::StepFailed {
@@ -1103,12 +1142,13 @@ where
     // A `local_only` entry never reaches a model that may run elsewhere: a
     // turn whose host can't say its model runs here is given none.
     if !host.reads_local_only() {
-        // Nor is a `local_only` artifact. An input isn't dropped, since the
-        // act would then ask something else: the step is refused.
-        if ArtifactLabels::of_value(&JsonValue::Object(invocation.inputs.clone())).is_local_only() {
+        // Nor is what's labelled `local_only`: an artifact among its inputs,
+        // or an earlier step's output made from one. An input isn't dropped,
+        // since the act would then ask something else: the step is refused.
+        if given.is_local_only() {
             return Err(RuntimeError::StepFailed {
                 step_id: step.id.clone(),
-                reason: "a local_only artifact is among its inputs, and its host can't say its model runs on this machine".to_owned(),
+                reason: "what it is given is labelled local_only, and its host can't say its model runs on this machine".to_owned(),
             });
         }
         let shareable = |entry: &ContextEntry| {
@@ -1117,6 +1157,18 @@ where
         invocation.current_context.retain(shareable);
         invocation.historical_context.retain(shareable);
     }
+    // Where the entries the turn is given may be shared, as each says.
+    let context = ArtifactLabels::derived_from(
+        invocation
+            .current_context
+            .iter()
+            .chain(&invocation.historical_context)
+            .map(|entry| ArtifactLabels {
+                sharing: entry.labels.sharing,
+            })
+            .collect::<Vec<_>>()
+            .iter(),
+    );
     let request_id = runtime.options.run.address(&step.id);
     // The act's instructions are the manual its run admitted.
     let package = runtime.options.package(&invocation.skill_directory)?;
@@ -1141,6 +1193,7 @@ where
             effects: step.effects,
             reach: step.reach,
             reads_local_only: host.reads_local_only(),
+            given: ArtifactLabels::derived_from([&given, &context]),
         },
         &request,
     )?;
@@ -1193,6 +1246,7 @@ where
             extra_artifacts: None,
             contract_checks,
             calls: turn.ledger().completed()?,
+            context,
         },
     )
 }
@@ -1226,6 +1280,7 @@ where
         authority,
         loaded_skill: _,
         context_entries: _,
+        given,
     } = request;
     let tool = step
         .catalog_tool()
@@ -1238,6 +1293,7 @@ where
         &step.id,
         attempt,
         runtime.options.run_authority.as_ref(),
+        given,
     );
     // A catalog tool resolves before it runs.
     crate::tool_catalogs::dispatch::inspect_catalog_tool(
@@ -1418,6 +1474,7 @@ where
         refusal: None,
         admission_witness,
         settlement,
+        labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
 }
 
@@ -1740,6 +1797,7 @@ where
         refusal: None,
         admission_witness,
         settlement: None,
+        labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
 }
 
@@ -1893,6 +1951,7 @@ where
         refusal: None,
         admission_witness,
         settlement: None,
+        labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
 }
 
@@ -2087,6 +2146,7 @@ where
         refusal: None,
         admission_witness,
         settlement: None,
+        labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
 }
 

@@ -235,6 +235,9 @@ pub(super) struct TurnScope<'a, A> {
     /// Whether the step's host says its model runs on this machine, so the
     /// turn may be given a `local_only` result.
     pub(super) reads_local_only: bool,
+    /// Where what the step was given may be shared: its inputs, and a
+    /// turn's context entries. Each call the step makes carries it.
+    pub(super) given: ArtifactLabels,
 }
 
 impl<A> Clone for TurnScope<'_, A> {
@@ -341,6 +344,7 @@ where
             // it makes states its own reason.
             context_entries: Vec::new(),
             ask_reason: None,
+            given: call.given,
         };
         let result = match target {
             CallTarget::Skill {
@@ -489,6 +493,10 @@ struct CallStep {
     act: Option<CallAct>,
     /// The inputs the call gave by reference.
     fed: Vec<Fed>,
+    /// Where what the call is given may be shared: what its step was given
+    /// and has read so far, and its input as it was made, before a reference
+    /// is read in place of its packet.
+    given: ArtifactLabels,
 }
 
 /// An input given by reference to a packet the project holds: the artifact
@@ -1401,8 +1409,8 @@ where
     /// A completed call's output as project artifacts of its run: one per
     /// packet output, holding the packet's data, and one for the rest. Each
     /// is content-addressed, so a host reads the call's outcome from the
-    /// run's record alone. Each is `local_only` when any artifact the call
-    /// was given or names is, or any artifact in it or named in it is.
+    /// run's record alone. Each carries the call step's labels: everything
+    /// it was given or read, and what it made.
     fn output_artifacts(
         &self,
         made: &Made,
@@ -1413,12 +1421,6 @@ where
         let artifacts =
             crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
         let label = call_step_id(self.scope.step_id, made.index);
-        let snapshots = &self.scope.runtime.local_artifacts;
-        let input = JsonValue::Object(made.input.clone());
-        let given = ArtifactLabels::derived_from([
-            &ArtifactLabels::of_value(&input),
-            &snapshots.labels_named_in(&input),
-        ]);
         let persist = |label: &str, value: &JsonValue| {
             crate::services::persist_json_artifact(
                 &artifacts,
@@ -1426,11 +1428,7 @@ where
                 "calls",
                 label,
                 value,
-                ArtifactLabels::derived_from([
-                    &given,
-                    &ArtifactLabels::of_value(value),
-                    &snapshots.labels_named_in(value),
-                ]),
+                run.labels,
             )
             .map_err(|message| RuntimeError::effect_state("persisting a call's output", message))
         };
@@ -1680,8 +1678,36 @@ where
             effects: self.scope.effects,
             reach: self.scope.reach,
         };
+        // A call is made from what its step was given and has read so far,
+        // as well as from its own input: a step may copy into a call anything
+        // it holds. A result the step was withheld it never read.
+        let recorded = self.recorded().map_err(|error| error.to_string())?;
+        let read = recorded
+            .iter()
+            .filter(|call| !self.withholds(&call.outcome, &call.outputs))
+            .filter_map(|call| match &call.outcome {
+                CallOutcome::Completed(run) => Some(run.labels),
+                CallOutcome::Read(artifact) => Some(artifact.labels),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let given = ArtifactLabels::derived_from(
+            read.iter().chain([
+                &self.scope.given,
+                &self
+                    .scope
+                    .runtime
+                    .local_artifacts
+                    .labels_of(&JsonValue::Object(input.clone())),
+            ]),
+        );
         let fed = self.admit_references(&mut step, target)?;
-        Ok(CallStep { step, act, fed })
+        Ok(CallStep {
+            step,
+            act,
+            fed,
+            given,
+        })
     }
 
     /// Admit the inputs a call gives by reference. An input of a packet type

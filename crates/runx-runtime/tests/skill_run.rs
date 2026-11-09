@@ -1662,7 +1662,7 @@ fn a_turn_whose_host_may_run_its_model_elsewhere_is_refused_a_local_only_artifac
     assert_ne!(string_field(output, "status"), Some("needs_agent"));
     let rendered = serde_json::to_string(&result.output)?;
     assert!(
-        rendered.contains("a local_only artifact is among its inputs"),
+        rendered.contains("what it is given is labelled local_only"),
         "{rendered}"
     );
     // No turn is asked, so the host is given nothing of the artifact.
@@ -1689,6 +1689,105 @@ fn a_turn_is_given_an_artifact_its_configured_model_may_see()
         "{rendered}"
     );
     Ok(())
+}
+
+/// A skill that admits `kept.txt` as `local_only`, reads it with a tool step,
+/// runs `middle`, then gives its agent step what `answer_inputs` binds.
+fn write_local_only_page_skill(
+    root: &Path,
+    middle: &str,
+    answer_inputs: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    fs::write(root.join("kept.txt"), "kept on this machine")?;
+    let skill_dir = root.join("local-page");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: local-page\ndescription: An answer from admitted notes.\n---\n# Local page\n\n## Agent task: answer\n\nAnswer from the notes.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        format!(
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: kept\n        tool: artifact.admit\n        inputs: {{path: kept.txt, media_type: text/plain, labels: {{sharing: local_only}}}}\n      - id: read\n        tool: artifact.read\n        inputs: {{ref: $steps.kept.artifact.ref, encoding: utf8}}\n{middle}      - id: answer\n        agent: answer\n        inputs:\n{answer_inputs}        outputs:\n          answer: {{type: string}}\n"
+        ),
+    )?;
+    Ok(skill_dir)
+}
+
+/// That the run was refused before its turn, with nothing of the notes in it.
+fn refused_before_the_turn(result: &RunResult) -> Result<(), Box<dyn std::error::Error>> {
+    let output = object(&result.output, "local page result")?;
+    let rendered = serde_json::to_string(&result.output)?;
+    assert_ne!(
+        string_field(output, "status"),
+        Some("needs_agent"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("labelled local_only"), "{rendered}");
+    assert!(
+        array_field(output, "requests").is_none_or(|requests| requests.is_empty()),
+        "{rendered}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_page_a_tool_step_read_of_a_local_only_artifact_is_refused_to_a_remote_turn()
+-> Result<(), Box<dyn std::error::Error>> {
+    // The page the read step made, and the reference the admission made: each
+    // is labelled by the step that made it.
+    for answer_inputs in [
+        "          page: $steps.read.artifact_page\n",
+        "          kept: $steps.kept.artifact.ref\n",
+    ] {
+        let temp = tempdir()?;
+        let skill_dir = write_local_only_page_skill(temp.path(), "", answer_inputs)?;
+
+        // No managed agent works this run, so its host may run its model
+        // anywhere.
+        let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+        refused_before_the_turn(&result)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn a_local_only_page_an_intermediate_step_copies_is_still_refused_to_a_remote_turn()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_local_only_page_skill(
+        temp.path(),
+        "      - id: copy\n        tool: {module: copy.mjs, export: copy}\n        inputs:\n          page: $steps.read.artifact_page\n        outputs:\n          text: {type: string}\n",
+        "          text: $steps.copy.text\n",
+    )?;
+    fs::write(
+        skill_dir.join("copy.mjs"),
+        "export const copy = ({ page }) => ({ text: page.data });\n",
+    )?;
+
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    refused_before_the_turn(&result)
+}
+
+#[test]
+fn a_local_only_page_given_to_a_script_that_returns_its_text_is_refused_to_a_remote_turn()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_local_only_page_skill(
+        temp.path(),
+        "      - id: prepare\n        script: {module: prepare.mjs}\n        inputs:\n          page: $steps.read.artifact_page\n        max_calls: 1\n        outputs:\n          text: {type: string}\n",
+        "          text: $steps.prepare.text\n",
+    )?;
+    fs::write(
+        skill_dir.join("prepare.mjs"),
+        "export default async function (ctx, { page }) {\n  return { text: page.data };\n}\n",
+    )?;
+
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    refused_before_the_turn(&result)
 }
 
 #[test]

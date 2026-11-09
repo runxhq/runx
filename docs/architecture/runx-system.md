@@ -206,16 +206,22 @@ artifact's descriptor is a locator and digest, not authority or proof of who
 produced its contents.
 
 An artifact carries its sharing label, `labels.sharing`, in a context entry's
-own words: `local_only` or `configured_model`. What `artifact.store` retains
-from a value with any `local_only` artifact in it is `local_only` unless the
-step says otherwise, and so is what a turn's call makes when the call was given
-one; `artifact.open` keeps the label it opens. That's a default and not a wall.
-A `local_only` artifact reaches a turn only where a `local_only` context entry
-can: runx's managed agent at a loopback endpoint. An agent step given one on any
-other host is refused, never given the step without it. So is a call the turn
-makes whose result is labelled `local_only`: one given or naming a `local_only`
-artifact, such as `artifact.read` of one, or whose result carries one. The turn
-sees the refusal and the label, never what the call read. Custom project roots follow RunxPaths;
+own words: `local_only` or `configured_model`. An object that names
+`runx.artifact.v1` and says `local_only` counts as `local_only` whether or not
+the rest of it parses. A step's recorded output carries the labels of
+everything it was given or read: its inputs, the artifacts and snapshots they
+name, the earlier steps' outputs it binds, and its calls' results, so what a
+step passes on or derives keeps them, and a resumed run reads them as they
+were recorded. What `artifact.store` retains takes them unless the step says
+otherwise, and `artifact.open` keeps the label it opens. That's a default and
+not a wall. A `local_only` value reaches a turn only where a `local_only`
+context entry can: runx's managed agent at a loopback endpoint. An agent step
+given one on any other host is refused, never given the step without it, and a
+context entry an output labelled `local_only` holds is `local_only` whatever
+it says. So is a call the turn makes whose result is labelled `local_only`:
+one given or naming a `local_only` artifact, such as `artifact.read` of one,
+or whose result carries one. The turn sees the refusal and the label, never
+what the call read. Custom project roots follow RunxPaths;
 foreign roots, stale sizes, file symlinks and digest mismatches are refused.
 Large workflows retain bounded immutable parts and a compact cursor, rather
 than pass a growing completed-history array to the next turn. The host owns

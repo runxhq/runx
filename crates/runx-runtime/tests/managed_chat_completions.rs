@@ -837,6 +837,220 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
 }
 
 #[test]
+fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
+    let skill_dir = temp.path().join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nRead the page, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: kept\n        tool: artifact.admit\n        inputs: {path: kept.txt, media_type: text/plain, labels: {sharing: local_only}}\n      - id: read\n        tool: artifact.read\n        inputs: {ref: $steps.kept.artifact.ref, encoding: utf8}\n      - id: proof\n        agent: proof\n        inputs:\n          page: $steps.read.artifact_page\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-page","type":"function","function":{"name":"turn_read","arguments":"{\"locator\":\"input:page\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let sent = serde_json::to_string(&finish_server(server)?)?;
+    assert!(sent.contains("kept on this machine"), "{sent}");
+    Ok(())
+}
+
+#[test]
+fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to_a_remote_turn()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
+    let skill_dir = temp.path().join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nKeep the notes, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: kept\n        tool: artifact.admit\n        inputs: {path: kept.txt, media_type: text/plain, labels: {sharing: local_only}}\n      - id: read\n        tool: artifact.read\n        inputs: {ref: $steps.kept.artifact.ref, encoding: utf8}\n      - id: proof\n        agent: proof\n        calls:\n          tools: [artifact.store]\n        inputs:\n          page: $steps.read.artifact_page\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    // The model reads the page, stores its text, stores it again saying it
+    // may go to any configured model, then finishes.
+    let tool_call = |id: &str, name: &str, arguments: Value| json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":id,"type":"function","function":{"name":name,"arguments":arguments.to_string()}}]}}]});
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                tool_call("call-page", "turn_read", json!({"locator": "input:page"})),
+                tool_call(
+                    "call-store",
+                    "artifact_store",
+                    json!({"value": {"notes": "kept on this machine"}}),
+                ),
+                tool_call(
+                    "call-widen",
+                    "artifact_store",
+                    json!({"value": {"notes": "kept on this machine"}, "labels": {"sharing": "configured_model"}}),
+                ),
+                tool_call("call-final", "turn_complete", json!({"status": "done"})),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let request = |skill_path: std::path::PathBuf,
+                   inputs: BTreeMap<String, JsonValue>,
+                   env,
+                   managed_agent| {
+        SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs,
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent,
+        }
+    };
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &request(
+            skill_dir,
+            BTreeMap::new(),
+            env.clone(),
+            ManagedAgentPolicy::inline(5)?,
+        ),
+        None,
+        None,
+        None,
+    )?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let sent = finish_server(server)?;
+    // The call's result as the model read it, in the request after it.
+    let result = |request: &Value| -> Result<Value, Box<dyn std::error::Error>> {
+        let content = request["messages"]
+            .as_array()
+            .and_then(|messages| messages.last())
+            .and_then(|message| message["content"].as_str())
+            .ok_or("the request carries no call result")?;
+        Ok(serde_json::from_str(content)?)
+    };
+    let stored = result(&sent[2])?;
+    let artifact = stored["outcome"]["output"]["artifact"]["data"].clone();
+    assert_eq!(artifact["labels"]["sharing"], "local_only", "{stored}");
+    let widened = result(&sent[3])?;
+    assert_ne!(widened["outcome"]["status"], "completed", "{widened}");
+    assert!(
+        widened
+            .to_string()
+            .contains("labels.sharing configured_model would widen local_only"),
+        "{widened}"
+    );
+
+    // A later run's turn, on a host that can't say its model runs on this
+    // machine, bound to the artifact the first stored.
+    let later = temp.path().join("later");
+    fs::create_dir_all(&later)?;
+    fs::write(
+        later.join("SKILL.md"),
+        "---\nname: later\ndescription: Answers from kept notes.\n---\n# Later\n\n## Agent task: answer\n\nAnswer from the notes.\n",
+    )?;
+    fs::write(
+        later.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      notes: {type: object}\n    steps:\n      - id: answer\n        agent: answer\n        inputs:\n          notes: $input.notes\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let mut remote = BTreeMap::from([(
+        "RUNX_HOME".to_owned(),
+        temp.path().join("home").to_string_lossy().into_owned(),
+    )]);
+    crate::support::insert_test_signing_env(&mut remote);
+    let refused = LocalOrchestrator::default().run_skill_with_binding(
+        &request(
+            later,
+            BTreeMap::from([("notes".to_owned(), serde_json::from_value(artifact)?)]),
+            remote,
+            ManagedAgentPolicy::default(),
+        ),
+        None,
+        None,
+        None,
+    )?;
+    let rendered = serde_json::to_string(&refused.output)?;
+    assert!(!rendered.contains("needs_agent"), "{rendered}");
+    assert!(
+        rendered.contains(
+            "what it is given is labelled local_only, and its host can't say its model runs on this machine"
+        ),
+        "{rendered}"
+    );
+    Ok(())
+}
+
+#[test]
 fn a_managed_turn_that_fails_still_names_the_calls_it_made()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

@@ -6,8 +6,9 @@ use runx_contracts::Reference;
 use runx_parser::WorkflowStep;
 
 use super::super::workflow::{
-    LoadedStepSkill, materialize_ask_reason_with_index, materialize_step_act_with_index,
-    materialize_step_context_entries_with_index, materialize_step_invocation_inputs_with_index,
+    LoadedStepSkill, bound_step_labels, materialize_ask_reason_with_index,
+    materialize_step_act_with_index, materialize_step_context_entries_with_index,
+    materialize_step_invocation_inputs_with_index,
     materialize_step_invocation_provenance_with_index,
 };
 use super::super::workflow_index::PriorRunIndex;
@@ -59,6 +60,15 @@ where
     let context_entries =
         materialize_step_context_entries_with_index(request.step, prior_run_index)?;
     let ask_reason = materialize_ask_reason_with_index(request.step, prior_run_index)?;
+    // What the step is given: its inputs, the artifacts they name, and the
+    // earlier steps' outputs it binds, each as that step labelled it.
+    let given = runx_contracts::ArtifactLabels::derived_from([
+        &request
+            .runtime
+            .local_artifacts
+            .labels_of(&runx_contracts::JsonValue::Object(inputs.clone())),
+        &bound_step_labels(request.step, prior_run_index),
+    ]);
     run_step_with_loaded_skill_inputs(
         request,
         StepValues {
@@ -67,6 +77,7 @@ where
             provenance,
             context_entries,
             ask_reason,
+            given,
         },
     )
 }
@@ -78,6 +89,7 @@ struct StepValues {
     provenance: Vec<runx_contracts::ProvenanceEntry>,
     context_entries: Vec<runx_contracts::ContextEntry>,
     ask_reason: Option<String>,
+    given: runx_contracts::ArtifactLabels,
 }
 
 fn run_step_with_loaded_skill_inputs<A>(
@@ -104,6 +116,7 @@ where
         provenance,
         context_entries,
         ask_reason,
+        given,
     } = values;
     let request = StepRunRequest {
         runtime,
@@ -119,6 +132,7 @@ where
         host,
         context_entries,
         ask_reason,
+        given,
     };
     match loaded_skill {
         Some(skill) => super::step_handlers::run_step_with_loaded_skill_inputs(request, skill),

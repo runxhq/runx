@@ -16,7 +16,7 @@ use runx_contracts::javascript_worker::{
     ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptReference,
     ScriptRejection, ScriptSettlement,
 };
-use runx_contracts::{CallTarget, JsonObject, JsonValue, TurnCallOutcome};
+use runx_contracts::{ArtifactLabels, CallTarget, JsonObject, JsonValue, TurnCallOutcome};
 use runx_parser::ScriptStep;
 
 use super::super::super::run_record::{CallOutcome, RecordedCall};
@@ -56,6 +56,7 @@ where
         // A script reads only its inputs and its calls' results.
         context_entries: _,
         ask_reason: _,
+        given,
     } = request;
     // A script runs the modules its run admitted.
     let package = runtime.options.package(workflow_dir)?;
@@ -73,6 +74,7 @@ where
         effects: step.effects,
         reach: step.reach,
         reads_local_only: host.reads_local_only(),
+        given,
     });
     // The script passes from the beginning against its record once per drive
     // of the step, and from there stays live: each call's settlement goes on
@@ -233,8 +235,16 @@ where
         }
     };
     drop(live);
-    let calls = ledger
-        .recorded()?
+    let recorded = ledger.recorded()?;
+    // What the script made is made from what its calls returned and what it
+    // read.
+    let read =
+        ArtifactLabels::derived_from(recorded.iter().filter_map(|call| match &call.outcome {
+            CallOutcome::Completed(run) => Some(&run.labels),
+            CallOutcome::Read(artifact) => Some(&artifact.labels),
+            _ => None,
+        }));
+    let calls = recorded
         .iter()
         .filter_map(|call| match &call.outcome {
             CallOutcome::Completed(run) => Some(run.as_ref()),
@@ -279,6 +289,7 @@ where
             ephemeral_contract,
             // The step's receipt names each call the script made, in order.
             receipt_lineage: StepReceiptLineage::of_turn(&calls),
+            read,
         },
     )
 }

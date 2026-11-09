@@ -23,16 +23,20 @@ pub(crate) struct ToolCall {
     /// The run authority's actor; none for an operator's run, or for one
     /// whose authority only bounds it.
     pub(crate) actor: Option<String>,
+    /// Where what the call is given may be shared: its inputs, the artifacts
+    /// they name, and the earlier outputs they bind.
+    pub(crate) given: runx_contracts::ArtifactLabels,
 }
 
 impl ToolCall {
     /// The call `step_id`'s `attempt` makes in run `run_id`, for the actor
-    /// `authority` names.
+    /// `authority` names, given what `given` labels.
     pub(crate) fn new(
         run_id: &str,
         step_id: &str,
         attempt: u32,
         authority: Option<&crate::RunAuthority>,
+        given: runx_contracts::ArtifactLabels,
     ) -> Self {
         Self {
             run_id: run_id.to_owned(),
@@ -40,6 +44,7 @@ impl ToolCall {
             actor: authority
                 .and_then(|authority| authority.actor_ref.as_ref())
                 .map(|actor| actor.uri.as_str().to_owned()),
+            given,
         }
     }
 }
