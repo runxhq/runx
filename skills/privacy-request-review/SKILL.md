@@ -53,8 +53,7 @@ null, `persistence` with the committed stream version, and both input digests.
 
 Inputs are `request_packet`, `requestor_proof`, `policy`, and the request's
 place in this skill's own `requests` stream, which only it writes: its `key`,
-`expected_version` and `idempotency_key`. `persistence.aggregate_id` reports
-that key, as the published packet names it.
+`expected_version` and `idempotency_key`. `persistence.key` reports that key.
 
 ## Trust and continuation
 

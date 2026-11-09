@@ -53,7 +53,7 @@ export function finalizeVerdict(inputs) {
   }
   return {subject_request_verdict:{
     schema:"runx/privacy-request-review.verdict.v1",...inputs.verdict_draft.verdict,
-    persistence:{append_status:"committed",aggregate_id:appended.key,after_version:event.version},
+    persistence:{append_status:"committed",key:appended.key,after_version:event.version},
     request_digest:inputs.request_digest,policy_digest:inputs.policy_digest,downstream_effect_performed:false,
   }};
 }

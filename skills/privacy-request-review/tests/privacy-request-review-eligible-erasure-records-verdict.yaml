@@ -61,7 +61,7 @@ expect:
               required: false
             persistence:
               append_status: committed
-              aggregate_id: subject:alice:dsr-001
+              key: subject:alice:dsr-001
               after_version: 1
             downstream_effect_performed: false
   receipt:

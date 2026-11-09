@@ -198,7 +198,7 @@
       "type": "object",
       "required": [
         "append_status",
-        "aggregate_id",
+        "key",
         "after_version"
       ],
       "additionalProperties": false,
@@ -206,7 +206,7 @@
         "append_status": {
           "const": "committed"
         },
-        "aggregate_id": {
+        "key": {
           "type": "string",
           "minLength": 1,
           "maxLength": 500
