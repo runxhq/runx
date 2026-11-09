@@ -20,43 +20,6 @@ use serde_json::{Map, Value, json};
 
 pub use runx_contracts_derive::RunxSchema;
 
-/// Deserialize a boolean field that MUST be `true`, failing closed otherwise.
-///
-/// The single forcing primitive shared by every proposal-only / human-gated
-/// authority block (e.g. `OperationalProposalAuthority::proposal_only`): a
-/// proposal can never claim an authority it was not granted, so the wire value
-/// is rejected unless it is exactly `true`. Wire as
-/// `#[serde(deserialize_with = "crate::schema::deserialize_true_bool")]`.
-pub fn deserialize_true_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value = bool::deserialize(deserializer)?;
-    if value {
-        Ok(true)
-    } else {
-        Err(de::Error::custom("value must be true"))
-    }
-}
-
-/// Deserialize a boolean field that MUST be `false`, failing closed otherwise.
-///
-/// The forcing primitive's mirror: the granted-authority flags on a
-/// proposal-only block must be exactly `false` so a reviewable handoff can never
-/// deserialize into a self-granted consequence. Wire as
-/// `#[serde(deserialize_with = "crate::schema::deserialize_false_bool")]`.
-pub fn deserialize_false_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value = bool::deserialize(deserializer)?;
-    if value {
-        Err(de::Error::custom("value must be false"))
-    } else {
-        Ok(false)
-    }
-}
-
 /// Deserialize a list whose items never repeat, refusing one listed twice.
 /// Wire as `#[serde(deserialize_with = "crate::schema::deserialize_unique_items")]`
 /// beside `#[runx_schema(unique_items)]`, so the schema says `uniqueItems`.

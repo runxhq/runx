@@ -1810,79 +1810,8 @@ export type OperationalPolicyValidationFindingContract = {
   readonly path: string;
 };
 
-export type OperationalProposalContract = {
-  readonly allowed_next_actions?: readonly string[];
-  readonly artifact_refs?: readonly ReferenceContract[];
-  readonly authority: OperationalProposalAuthorityContract;
-  readonly caveats?: readonly string[];
-  readonly confidence: number;
-  readonly decision_summary: string;
-  readonly evidence_refs?: readonly ReferenceContract[];
-  readonly extensions?: {
-    readonly [key: string]: unknown;
-  };
-  readonly final_outcome?: OperationalProposalOutcomeContract;
-  readonly human_gates?: readonly OperationalProposalHumanGateContract[];
-  readonly hydrated_context_ref: ReferenceContract;
-  readonly idempotency: OperationalProposalIdempotencyContract;
-  readonly missing_context?: readonly string[];
-  readonly owner_route_id: string;
-  readonly proposal_id: string;
-  readonly proposal_kind: string;
-  readonly public_summary: string;
-  readonly publication_refs?: readonly ReferenceLinkContract[];
-  readonly rationale: string;
-  readonly receipt_refs?: readonly ReferenceContract[];
-  readonly recommended_actions?: readonly OperationalProposalRecommendedActionContract[];
-  readonly redaction_status: OperationalProposalRedactionStatusContract;
-  readonly result_refs?: readonly ReferenceLinkContract[];
-  readonly risks?: readonly string[];
-  readonly schema: OperationalProposalSchemaContract;
-  readonly source_event_id: string;
-  readonly source_ref: ReferenceContract;
-  readonly source_thread_ref?: ReferenceContract;
-  readonly story_refs?: readonly ReferenceContract[];
-};
-
-export type OperationalProposalAuthorityContract = {
-  readonly final_decision_authority_granted: false;
-  readonly mutation_authority_granted: false;
-  readonly notes?: readonly string[];
-  readonly proposal_only: true;
-  readonly publication_authority_granted: false;
-};
-
-export type OperationalProposalHumanGateContract = {
-  readonly decision: string;
-  readonly gate_id: string;
-  readonly gate_kind: string;
-  readonly reason: string;
-  readonly required: boolean;
-};
-
-export type OperationalProposalIdempotencyContract = {
-  readonly digest: string;
-  readonly key: string;
-};
-
-export type OperationalProposalOutcomeContract = {
-  readonly observed: boolean;
-  readonly observed_at?: string;
-  readonly refs?: readonly ReferenceContract[];
-  readonly status: string;
-  readonly summary: string;
-};
-
-export type OperationalProposalRecommendedActionContract = {
-  readonly action_intent: string;
-  readonly mutating: boolean;
-  readonly summary: string;
-  readonly target_refs?: readonly ReferenceContract[];
-};
-
+/** How far a source packet's content was redacted before it crossed into the packet. */
 export type OperationalProposalRedactionStatusContract = "unredacted" | "redacted" | "summary_only" | "blocked";
-
-export type OperationalProposalSchemaContract = "runx.operational_proposal.v1";
 
 /** An exact amount an operation moves, in the provider's smallest unit. */
 export type OperationAmountContract = {
@@ -2742,11 +2671,6 @@ export type ReferenceDeclarationContract = {
   readonly kind: ExternalReferenceKindContract;
   /** A regular expression the whole locator matches. */
   readonly locator: string;
-};
-
-export type ReferenceLinkContract = {
-  readonly ref: ReferenceContract;
-  readonly role: string;
 };
 
 /** What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind. */

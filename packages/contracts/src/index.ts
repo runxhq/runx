@@ -354,11 +354,6 @@ export {
   validateOperationalPolicyContract,
 } from "./schemas/operational-policy.js";
 
-export {
-  operationalProposalSchema,
-  validateOperationalProposalContract,
-} from "./schemas/operational-proposal.js";
-
 export { toolManifestV1Schema } from "./schemas/tool-manifest.js";
 
 export {
@@ -453,7 +448,6 @@ export const runxContractSchemas = {
   decision: runxSchemaArtifacts["decision.schema.json"],
   artifact: runxSchemaArtifacts["artifact.schema.json"],
   operationalPolicy: runxSchemaArtifacts["operational-policy.schema.json"],
-  operationalProposal: runxSchemaArtifacts["operational-proposal.schema.json"],
   externalJobContinuation: externalJobContinuationV1Schema,
   externalJobSchedule: externalJobScheduleV1Schema,
   externalJobScheduleIntent: externalJobScheduleIntentV1Schema,

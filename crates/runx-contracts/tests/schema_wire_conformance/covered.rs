@@ -9,7 +9,6 @@ use runx_contracts::host_protocol::{
 };
 use runx_contracts::list::RunxListReport;
 use runx_contracts::operational_policy::OperationalPolicy;
-use runx_contracts::operational_proposal::OperationalProposal;
 use runx_contracts::orchestrator_handoff::{
     OrchestratorExecutionContext, OrchestratorHandoffContext,
 };
@@ -92,11 +91,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "operational-policy.schema.json",
             emitted: OperationalPolicy::json_schema(),
             corpus: operational_policy_corpus(),
-        },
-        Covered {
-            file_name: "operational-proposal.schema.json",
-            emitted: OperationalProposal::json_schema(),
-            corpus: operational_proposal_corpus(),
         },
         Covered {
             file_name: "orchestrator-execution-context.schema.json",

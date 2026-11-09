@@ -29,7 +29,6 @@ import {
   validateReceiptContract,
   validateRunxListReportContract,
   validateOperationalPolicyContract,
-  validateOperationalProposalContract,
   validateReferenceContract,
   proofKindSchema,
 } from "./index.js";
@@ -265,7 +264,6 @@ describe("@runxhq/contracts", () => {
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
     expect(runxGeneratedSchemaArtifacts["operational-policy.schema.json"]).toBe(runxContractSchemas.operationalPolicy);
-    expect(runxGeneratedSchemaArtifacts["operational-proposal.schema.json"]).toBe(runxContractSchemas.operationalProposal);
   });
 
   it("owns operational policy for issue intake and source-thread routing", () => {
@@ -328,136 +326,6 @@ describe("@runxhq/contracts", () => {
         auto_merge: false,
       },
     });
-  });
-
-  it("owns the generic operational proposal contract", () => {
-    expect(runxContractSchemas.operationalProposal.$id)
-      .toBe("https://schemas.runx.ai/runx/operational-proposal/v1.json");
-
-    const proposal = validateOperationalProposalContract({
-      schema: "runx.operational_proposal.v1",
-      proposal_id: "proposal_123",
-      proposal_kind: "escalation",
-      source_event_id: "slack_event_123",
-      idempotency: {
-        key: "operational-proposal:slack_event_123:tracking-to-change:api-owner",
-        digest: "sha256:proposal-123-source-action-target",
-      },
-      source_ref: {
-        type: "thread",
-        uri: "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
-      },
-      source_thread_ref: {
-        type: "thread",
-        uri: "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
-      },
-      hydrated_context_ref: {
-        type: "artifact",
-        uri: "runx:artifact:hydrated_context_123",
-      },
-      redaction_status: "redacted",
-      decision_summary: "The issue needs a governed fix.",
-      rationale: "The source thread contains reproducible failure evidence and a target repo route.",
-      recommended_actions: [{
-        action_intent: "tracking-to-change",
-        summary: "Build a guarded fix in the owning repository.",
-        mutating: true,
-        target_refs: [{
-          type: "repository",
-          uri: "github://example/api",
-        }],
-      }],
-      evidence_refs: [{
-        type: "artifact",
-        uri: "runx:artifact:public_evidence_123",
-      }],
-      artifact_refs: [{
-        type: "artifact",
-        uri: "runx:artifact:plan_123",
-      }],
-      receipt_refs: [{
-        type: "receipt",
-        uri: "runx:receipt:receipt_123",
-      }],
-      story_refs: [{
-        type: "surface",
-        uri: "runx:story:story_123",
-      }],
-      result_refs: [{
-        role: "tracking_item",
-        ref: {
-          type: "tracking_item",
-          uri: "github://example/api/issues/123",
-          provider: "github",
-          locator: "example/api#123",
-        },
-      }, {
-        role: "change_request",
-        ref: {
-          type: "change_request",
-          uri: "github://example/api/pulls/124",
-          provider: "github",
-          locator: "example/api#124",
-        },
-      }],
-      publication_refs: [{
-        role: "source_thread_update",
-        ref: {
-          type: "thread",
-          uri: "slack://team/T123/channel/CBUGS/thread/1710000000.000100",
-          provider: "slack",
-          locator: "T123/CBUGS/1710000000.000100",
-        },
-      }],
-      owner_route_id: "api-owner",
-      confidence: 0.86,
-      risks: ["Target repo tests may reveal a broader contract issue."],
-      caveats: ["Customer send is not authorized by this proposal."],
-      missing_context: [],
-      authority: {
-        proposal_only: true,
-        mutation_authority_granted: false,
-        publication_authority_granted: false,
-        final_decision_authority_granted: false,
-        notes: ["A human must approve merge and any customer-facing send."],
-      },
-      human_gates: [{
-        gate_id: "gate_merge_review",
-        gate_kind: "final_change_approval",
-        required: true,
-        decision: "Review and approve the final change if the fix is correct.",
-        reason: "Mutating target repo work requires a human final-change gate.",
-      }],
-      allowed_next_actions: ["tracking-to-change", "manual-review"],
-      final_outcome: {
-        observed: true,
-        status: "merged",
-        summary: "The governed change request was merged and verified.",
-        observed_at: "2026-05-28T00:00:00Z",
-        refs: [{
-          type: "change_request",
-          uri: "github://example/api/pulls/124",
-        }],
-      },
-      public_summary: "Escalation proposal prepared with tracking item and change request links.",
-    });
-
-    expect(proposal).toMatchObject({
-      proposal_kind: "escalation",
-      owner_route_id: "api-owner",
-      authority: {
-        proposal_only: true,
-        mutation_authority_granted: false,
-      },
-    });
-
-    expect(() => validateOperationalProposalContract({
-      ...proposal,
-      authority: {
-        ...proposal.authority,
-        mutation_authority_granted: true,
-      },
-    })).toThrow();
   });
 
   it("validates a governed call's receipt", () => {

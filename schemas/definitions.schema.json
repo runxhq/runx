@@ -4585,160 +4585,8 @@
       "title": "OperationalPolicyValidationFinding",
       "type": "object"
     },
-    "OperationalProposalAuthority": {
-      "additionalProperties": false,
-      "properties": {
-        "final_decision_authority_granted": {
-          "const": false,
-          "type": "boolean"
-        },
-        "mutation_authority_granted": {
-          "const": false,
-          "type": "boolean"
-        },
-        "notes": {
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "proposal_only": {
-          "const": true,
-          "type": "boolean"
-        },
-        "publication_authority_granted": {
-          "const": false,
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "proposal_only",
-        "mutation_authority_granted",
-        "publication_authority_granted",
-        "final_decision_authority_granted"
-      ],
-      "title": "OperationalProposalAuthority",
-      "type": "object"
-    },
-    "OperationalProposalHumanGate": {
-      "additionalProperties": false,
-      "properties": {
-        "decision": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "gate_id": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "gate_kind": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "reason": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "required": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "gate_id",
-        "gate_kind",
-        "required",
-        "decision",
-        "reason"
-      ],
-      "title": "OperationalProposalHumanGate",
-      "type": "object"
-    },
-    "OperationalProposalIdempotency": {
-      "additionalProperties": false,
-      "properties": {
-        "digest": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "key": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "digest"
-      ],
-      "title": "OperationalProposalIdempotency",
-      "type": "object"
-    },
-    "OperationalProposalOutcome": {
-      "additionalProperties": false,
-      "properties": {
-        "observed": {
-          "type": "boolean"
-        },
-        "observed_at": {
-          "minLength": 1,
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-          "type": "string"
-        },
-        "refs": {
-          "items": {
-            "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "status": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "summary": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "observed",
-        "status",
-        "summary"
-      ],
-      "title": "OperationalProposalOutcome",
-      "type": "object"
-    },
-    "OperationalProposalRecommendedAction": {
-      "additionalProperties": false,
-      "properties": {
-        "action_intent": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "mutating": {
-          "type": "boolean"
-        },
-        "summary": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "target_refs": {
-          "items": {
-            "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-          },
-          "minItems": 1,
-          "type": "array"
-        }
-      },
-      "required": [
-        "action_intent",
-        "summary",
-        "mutating"
-      ],
-      "title": "OperationalProposalRecommendedAction",
-      "type": "object"
-    },
     "OperationalProposalRedactionStatus": {
+      "description": "How far a source packet's content was redacted before it crossed into the packet.",
       "enum": [
         "unredacted",
         "redacted",
@@ -4746,13 +4594,6 @@
         "blocked"
       ],
       "title": "OperationalProposalRedactionStatus",
-      "type": "string"
-    },
-    "OperationalProposalSchema": {
-      "enum": [
-        "runx.operational_proposal.v1"
-      ],
-      "title": "OperationalProposalSchema",
       "type": "string"
     },
     "OrchestratorHandoffBinding": {
@@ -6514,24 +6355,6 @@
         "locator"
       ],
       "title": "ReferenceDeclaration",
-      "type": "object"
-    },
-    "ReferenceLink": {
-      "additionalProperties": false,
-      "properties": {
-        "ref": {
-          "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-        },
-        "role": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "role",
-        "ref"
-      ],
-      "title": "ReferenceLink",
       "type": "object"
     },
     "ReferenceType": {

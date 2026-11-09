@@ -16,7 +16,7 @@ use crate::{
     ExternalJobStageRequest, ExternalJobStageResult, FileApplyBundle, FileEdit, FileInverseBundle,
     FileList, FileRead, FileReadBundle, FileSearch, FileWrite, GetPurchaseRequest,
     GetPurchaseResult, GitBlobDigest, GitBranch, GitDiff, GitLog, GitPatch, GitShow, GitStatus,
-    LocalArtifact, LocalArtifactPage, OfferVersionBinding, OperationalPolicy, OperationalProposal,
+    LocalArtifact, LocalArtifactPage, OfferVersionBinding, OperationalPolicy,
     OrchestratorExecutionContext, OrchestratorHandoffContext, Output, PaidSkillListing, PolicyLint,
     ProcessList, ProcessOutput, ProviderOperationPacket, Purchase, PurchaseClaim, PurchaseRead,
     Question, QuotePurchaseRequest, QuotePurchaseResult, Readiness, Receipt, ReceiptProof,
@@ -151,7 +151,6 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<Receipt>("receipt.schema.json"),
         schema_artifact::<Artifact>("artifact.schema.json"),
         public_packet_artifact::<OperationalPolicy>("operational-policy.schema.json"),
-        schema_artifact::<OperationalProposal>("operational-proposal.schema.json"),
         public_packet_artifact::<OrchestratorExecutionContext>(
             "orchestrator-execution-context.schema.json",
         ),

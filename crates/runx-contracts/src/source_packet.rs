@@ -11,11 +11,22 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::operational_proposal::OperationalProposalRedactionStatus;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{ContentDigest, JsonObject, Reference};
 
 pub const SOURCE_PACKET_SCHEMA: &str = "runx.source_packet.v1";
+
+/// How far a source packet's content was redacted before it crossed into
+/// the packet.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationalProposalRedactionStatus {
+    /// Private source evidence which has not crossed an outward sharing boundary.
+    Unredacted,
+    Redacted,
+    SummaryOnly,
+    Blocked,
+}
 
 /// How far a source's arrival is vouched for.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

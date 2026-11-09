@@ -184,14 +184,6 @@ impl Reference {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ReferenceLink {
-    pub role: NonEmptyString,
-    #[serde(rename = "ref")]
-    pub reference: Reference,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
 pub struct ActAddress {
     pub receipt_ref: Reference,
     pub act_id: NonEmptyString,

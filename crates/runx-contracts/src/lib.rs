@@ -28,7 +28,6 @@ pub mod list;
 pub mod maturity;
 pub mod native_packets;
 pub mod operational_policy;
-pub mod operational_proposal;
 pub mod orchestrator_handoff;
 pub mod output;
 pub mod packet_id;
@@ -170,12 +169,6 @@ pub use operational_policy::{
     lint_operational_policy_contract, project_operational_policy_readback,
     validate_operational_policy_contract,
 };
-pub use operational_proposal::{
-    OPERATIONAL_PROPOSAL_SCHEMA, OperationalProposal, OperationalProposalAuthority,
-    OperationalProposalHumanGate, OperationalProposalIdempotency, OperationalProposalOutcome,
-    OperationalProposalRecommendedAction, OperationalProposalRedactionStatus,
-    OperationalProposalSchema,
-};
 pub use orchestrator_handoff::{
     OrchestratorExecutionContext, OrchestratorHandoffBinding, OrchestratorHandoffContext,
     OrchestratorHandoffDelivery, OrchestratorHandoffIdempotency, OrchestratorReceiptExpectations,
@@ -223,8 +216,7 @@ pub use receipt::{
     ReceiptSignature, RunOutcome, Seal, SealReason, SignatureAlgorithm, Subject, SubjectKind,
 };
 pub use reference::{
-    ActAddress, ExternalReferenceKind, ProofKind, Reference, ReferenceLink, ReferenceType,
-    RunxPrincipalId,
+    ActAddress, ExternalReferenceKind, ProofKind, Reference, ReferenceType, RunxPrincipalId,
 };
 pub use registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX,
@@ -276,7 +268,8 @@ pub use skill_authoring::{
     SkillValidationVerdict,
 };
 pub use source_packet::{
-    SOURCE_PACKET_SCHEMA, SignalAuthenticity, SignalTrustLevel, SourcePacket, SourcePacketSchema,
+    OperationalProposalRedactionStatus, SOURCE_PACKET_SCHEMA, SignalAuthenticity, SignalTrustLevel,
+    SourcePacket, SourcePacketSchema,
 };
 pub use tools::{
     RuntimeCommand, ToolCommandInputMode, ToolInput, ToolManifest, ToolManifestSchema, ToolProcess,
