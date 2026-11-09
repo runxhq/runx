@@ -554,6 +554,18 @@ impl Fixture {
         run_authority: Option<&crate::RunAuthority>,
         held_by_effects: bool,
     ) -> Result<EffectAdmission, RuntimeEffectError> {
+        self.admit_from(step, inputs, run_authority, held_by_effects, &[])
+    }
+
+    /// [`Self::admit_held`], for a call made from the packages of `chain`.
+    fn admit_from(
+        &self,
+        step: &str,
+        inputs: &JsonObject,
+        run_authority: Option<&crate::RunAuthority>,
+        held_by_effects: bool,
+        chain: &[crate::identity::ChainLink],
+    ) -> Result<EffectAdmission, RuntimeEffectError> {
         let step = &self.steps[step];
         self.effect
             .admit(EffectStepRequest {
@@ -565,7 +577,7 @@ impl Fixture {
                 run_id: self.run_id,
                 run_authority,
                 held_by_effects,
-                chain: &[],
+                chain,
             })
             .map(|admission| admission.expect("an operation step is owned by the effect"))
     }
@@ -1015,6 +1027,80 @@ fn a_runs_packages_refuse_a_call_made_from_no_package() {
     assert!(
         refused.to_string().contains("made from no package"),
         "{refused}"
+    );
+}
+
+/// A run's `packages` narrows whichever instance a call resolves, one taken
+/// from an environment variable included, refusing before any attempt and
+/// naming the package it doesn't cover (D31, the 0state-a3 probe's table).
+#[test]
+fn a_runs_packages_bound_an_instance_taken_from_the_environment() {
+    let mut fixture = Fixture::new(&["channel.post.read"]);
+    fixture
+        .env
+        .insert("FORGE_TOKEN".to_owned(), "forge-token".to_owned());
+    let inputs: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"repository": "acme/app", "numbers": [1]}
+    }))
+    .unwrap();
+    let link = |package: &str| crate::identity::ChainLink {
+        package: runx_contracts::PackagePattern::new(package).unwrap(),
+        owner: package.to_owned(),
+        root: std::path::PathBuf::from("/packages").join(package),
+        digest: format!("sha256:{}", "0".repeat(64)),
+    };
+    let chain = [link("project:work"), link("community-pub/forge-pusher")];
+    let bounded = |packages: &[&str]| crate::RunAuthority {
+        packages: Some(
+            packages
+                .iter()
+                .map(|package| runx_contracts::PackagePattern::new(*package).unwrap())
+                .collect(),
+        ),
+        ..crate::RunAuthority::default()
+    };
+    let refused = fixture
+        .admit_from(
+            "issues",
+            &inputs,
+            Some(&bounded(&["project:work"])),
+            false,
+            &chain,
+        )
+        .unwrap_err();
+    assert!(
+        refused.to_string().contains("community-pub/forge-pusher"),
+        "{refused}"
+    );
+    assert_eq!(fixture.provider.calls(), 0);
+    for covering in [
+        &["project:work", "community-pub/forge-pusher"][..],
+        &["project:*", "community-pub/*"],
+    ] {
+        let admission = fixture
+            .admit_from("issues", &inputs, Some(&bounded(covering)), false, &chain)
+            .expect("the chain is covered");
+        let context = admission.context::<OperationAdmission>().unwrap();
+        assert!(matches!(
+            context.admitted.instance.authority,
+            runx_contracts::InstanceAuthority::Environment { .. }
+        ));
+        let term = context.admitted.admission.execution_term.as_ref().unwrap();
+        assert_eq!(
+            term.bounds
+                .packages
+                .iter()
+                .map(runx_contracts::PackagePattern::as_str)
+                .collect::<Vec<_>>(),
+            ["community-pub/forge-pusher", "project:work"],
+            "the execution term names the chain"
+        );
+    }
+    assert!(
+        fixture
+            .admit_from("issues", &inputs, Some(&bounded(&[])), false, &chain)
+            .is_err(),
+        "an empty list covers nothing"
     );
 }
 
