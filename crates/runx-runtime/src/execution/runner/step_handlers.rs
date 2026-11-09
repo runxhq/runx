@@ -1112,6 +1112,7 @@ where
             agent,
             effects: step.effects,
             reach: step.reach,
+            reads_local_only: host.reads_local_only(),
         },
         &request,
     )?;

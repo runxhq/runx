@@ -273,6 +273,11 @@ fn reference(namespace: &str, manifest: &[u8]) -> String {
     )
 }
 
+/// Whether `text` is a snapshot reference by its grammar.
+pub(super) fn is_reference(text: &str) -> bool {
+    reference_name(text).is_ok()
+}
+
 fn reference_name(reference: &str) -> Result<&str, WorkspaceFileError> {
     let name = reference
         .strip_prefix(REFERENCE_PREFIX)

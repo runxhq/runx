@@ -745,6 +745,98 @@ fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact()
 }
 
 #[test]
+fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
+    let skill_dir = temp.path().join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nRead the admitted notes, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: kept\n        tool: artifact.admit\n        inputs: {path: kept.txt, media_type: text/plain, labels: {sharing: local_only}}\n      - id: proof\n        agent: proof\n        calls:\n          tools: [artifact.read]\n        inputs:\n          kept: $steps.kept.artifact.ref\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    // The model reads the artifact's reference from its act, reads the
+    // artifact by it, then finishes.
+    let server = std::thread::spawn(move || -> io::Result<Vec<Value>> {
+        let tool_call = |id: &str, name: &str, arguments: Value| json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":id,"type":"function","function":{"name":name,"arguments":arguments.to_string()}}]}}]});
+        let mut requests = Vec::new();
+        for turn in 0..3 {
+            let (mut stream, _) = listener.accept()?;
+            let request = read_request(&mut stream)?;
+            let response = match turn {
+                0 => tool_call("call-input", "turn_read", json!({"locator": "input:kept"})),
+                1 => {
+                    let sent = request.to_string();
+                    let start = sent
+                        .find("runx:local-artifact:sha256:")
+                        .ok_or_else(|| io::Error::other("the act names no artifact"))?;
+                    let reference = &sent[start..start + "runx:local-artifact:sha256:".len() + 64];
+                    tool_call(
+                        "call-read",
+                        "artifact_read",
+                        json!({"ref": reference, "encoding": "utf8"}),
+                    )
+                }
+                _ => tool_call("call-final", "turn_complete", json!({"status": "done"})),
+            };
+            requests.push(request);
+            let body = response.to_string();
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )?;
+        }
+        Ok(requests)
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(4)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let sent = serde_json::to_string(&finish_server(server)?)?;
+    assert!(sent.contains("kept on this machine"), "{sent}");
+    Ok(())
+}
+
+#[test]
 fn a_managed_turn_that_fails_still_names_the_calls_it_made()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

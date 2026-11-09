@@ -212,7 +212,10 @@ step says otherwise, and so is what a turn's call makes when the call was given
 one; `artifact.open` keeps the label it opens. That's a default and not a wall.
 A `local_only` artifact reaches a turn only where a `local_only` context entry
 can: runx's managed agent at a loopback endpoint. An agent step given one on any
-other host is refused, never given the step without it. Custom project roots follow RunxPaths;
+other host is refused, never given the step without it. So is a call the turn
+makes whose result is labelled `local_only`: one given or naming a `local_only`
+artifact, such as `artifact.read` of one, or whose result carries one. The turn
+sees the refusal and the label, never what the call read. Custom project roots follow RunxPaths;
 foreign roots, stale sizes, file symlinks and digest mismatches are refused.
 Large workflows retain bounded immutable parts and a compact cursor, rather
 than pass a growing completed-history array to the next turn. The host owns

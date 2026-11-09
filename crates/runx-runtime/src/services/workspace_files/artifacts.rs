@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine as _;
-use runx_contracts::{Artifact, ArtifactLabels, Digest};
+use runx_contracts::{Artifact, ArtifactLabels, Digest, JsonValue};
 
 use super::{WorkspaceFile, WorkspaceFileError};
 
@@ -71,6 +71,36 @@ impl LocalArtifactService {
     /// reopens or readmits the original source file.
     pub(crate) fn descriptor(&self, reference: &str) -> Result<Artifact, WorkspaceFileError> {
         Ok(self.store.resolve(reference)?.descriptor.clone())
+    }
+
+    /// The labels of what's read from the snapshots `value` names by
+    /// reference, at any depth: a page of a `local_only` snapshot is
+    /// `local_only`. A string that names no snapshot of this run adds none.
+    pub(crate) fn labels_named_in(&self, value: &JsonValue) -> ArtifactLabels {
+        let mut found = Vec::new();
+        self.collect_named(value, &mut found);
+        ArtifactLabels::derived_from(&found)
+    }
+
+    fn collect_named(&self, value: &JsonValue, found: &mut Vec<ArtifactLabels>) {
+        match value {
+            JsonValue::String(text) if storage::is_reference(text) => {
+                if let Ok(snapshot) = self.store.resolve(text) {
+                    found.push(snapshot.descriptor.labels);
+                }
+            }
+            JsonValue::Object(object) => {
+                for nested in object.values() {
+                    self.collect_named(nested, found);
+                }
+            }
+            JsonValue::Array(items) => {
+                for nested in items {
+                    self.collect_named(nested, found);
+                }
+            }
+            _ => {}
+        }
     }
 
     pub(crate) fn admit(

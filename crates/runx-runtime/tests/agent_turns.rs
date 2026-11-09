@@ -2308,6 +2308,76 @@ methods:
 }
 
 #[test]
+fn a_remote_turns_read_of_a_local_only_artifact_is_refused() -> TestResult {
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
+    std::fs::write(temp.path().join("shared.txt"), "shared with the model")?;
+    let parent = temp.path().join("local-reader");
+    crate::support::write_test_skill_package(
+        &parent,
+        "---\nname: local-reader\ndescription: Reads admitted notes in a turn.\n---\n# Local reader\n\n## Agent task: answer\n\nRead the admitted notes.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    inputs:
+      question: {type: string}
+    steps:
+      - id: kept
+        tool: artifact.admit
+        inputs: {path: kept.txt, media_type: text/plain, labels: {sharing: local_only}}
+      - id: shared
+        tool: artifact.admit
+        inputs: {path: shared.txt, media_type: text/plain}
+      - id: answer
+        agent: answer
+        calls:
+          tools: [artifact.read]
+        inputs:
+          question: $input.question
+          kept: $steps.kept.artifact.ref
+          shared: $steps.shared.artifact.ref
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    let paused = Paused::start(temp.path(), parent, TURN)?;
+    let turn = paused.open()?;
+    let read = |name: &str| -> TestResult<TurnCallResult> {
+        let reference = turn.read(TURN, &format!("input:{name}"), 0, None)?.text;
+        Ok(turn.call(
+            TURN,
+            "artifact_read",
+            None,
+            input(serde_json::json!({"ref": reference, "encoding": "utf8"}))?,
+        )?)
+    };
+
+    // This turn's host may run its model anywhere: no managed agent works it.
+    let kept = read("kept")?;
+    assert!(
+        matches!(&kept.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("local_only")),
+        "{kept:?}"
+    );
+    assert!(
+        !format!("{kept:?}").contains("kept on this machine"),
+        "{kept:?}"
+    );
+    // The record says the same however the turn is read again.
+    let status = format!("{:?}", turn.status(TURN)?);
+    assert!(!status.contains("kept on this machine"), "{status}");
+    let page = turn.read(TURN, &format!("call:{}", kept.index), 0, None)?;
+    assert!(!page.text.contains("kept on this machine"), "{}", page.text);
+    // What the configured model may see is given.
+    let shared = read("shared")?;
+    assert!(completed(&shared), "{shared:?}");
+    assert!(
+        format!("{shared:?}").contains("shared with the model"),
+        "{shared:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn a_project_artifact_packet_input_receives_the_descriptor_instead_of_its_content() -> TestResult {
     let temp = tempdir()?;
     let child = temp.path().join("artifact-child");

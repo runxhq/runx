@@ -227,6 +227,9 @@ pub(super) struct TurnScope<'a, A> {
     /// runs under.
     pub(super) effects: Option<runx_contracts::Effects>,
     pub(super) reach: Option<runx_contracts::Reach>,
+    /// Whether the step's host says its model runs on this machine, so the
+    /// turn may be given a `local_only` result.
+    pub(super) reads_local_only: bool,
 }
 
 /// The open turn of one agent step: where it runs, the act it answers, and
@@ -756,7 +759,7 @@ where
     /// packet output, holding the packet's data, and one for the rest. Each
     /// is content-addressed, so a host reads the call's outcome from the
     /// run's record alone. Each is `local_only` when any artifact the call
-    /// was given is, or any artifact in it is.
+    /// was given or names is, or any artifact in it or named in it is.
     fn output_artifacts(
         &self,
         made: &Made,
@@ -766,7 +769,12 @@ where
         let artifacts =
             crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
         let label = call_step_id(self.scope.step_id, made.index);
-        let given = ArtifactLabels::of_value(&JsonValue::Object(made.input.clone()));
+        let snapshots = &self.scope.runtime.local_artifacts;
+        let input = JsonValue::Object(made.input.clone());
+        let given = ArtifactLabels::derived_from([
+            &ArtifactLabels::of_value(&input),
+            &snapshots.labels_named_in(&input),
+        ]);
         let persist = |label: &str, value: &JsonValue| {
             crate::services::persist_json_artifact(
                 &artifacts,
@@ -774,7 +782,11 @@ where
                 "calls",
                 label,
                 value,
-                ArtifactLabels::derived_from([&given, &ArtifactLabels::of_value(value)]),
+                ArtifactLabels::derived_from([
+                    &given,
+                    &ArtifactLabels::of_value(value),
+                    &snapshots.labels_named_in(value),
+                ]),
             )
             .map_err(|message| RuntimeError::effect_state("persisting a call's output", message))
         };
@@ -801,7 +813,10 @@ where
     }
 
     /// How a call stands, as its agent reads it. A skill call waits on what
-    /// its child run waits on.
+    /// its child run waits on. A `local_only` result reaches a turn only where
+    /// a `local_only` context entry can: one whose host says its model runs
+    /// on this machine. Elsewhere the call is refused, and the turn never
+    /// sees what it read.
     fn result(
         &self,
         made: &Made,
@@ -809,6 +824,20 @@ where
         outputs: &[RunCallOutput],
     ) -> Result<TurnCallResult, RuntimeError> {
         let outcome = match outcome {
+            CallOutcome::Completed(run)
+                if run.outcome.succeeded()
+                    && !self.scope.reads_local_only
+                    && outputs
+                        .iter()
+                        .any(|part| part.artifact.labels.is_local_only()) =>
+            {
+                TurnCallOutcome::Refused {
+                    reason: reason(format!(
+                        "call {} reads what's labelled local_only, and this turn's host can't say its model runs on this machine",
+                        made.index
+                    )),
+                }
+            }
             CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
                 output: run.contract.clone(),
                 receipt_id: run.receipt.id.to_string().into(),
