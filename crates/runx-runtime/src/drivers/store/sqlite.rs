@@ -19,7 +19,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, 
 use super::migration::{self, OldAddress, OldEvent};
 use super::model::{self, Appended, EventRecord, KeyState, Listed, Matched, Writer};
 use super::request::{Append, Key, ListKeys, ReadEvents, SearchKeys};
-use super::{Backend, Holding, StoreError, Streams, append_in};
+use super::{Backend, Kind, StoreError, Streams, append_in};
 
 /// "RUNS": a `store` file, distinct from the kernel store's "RUNK".
 const STORE_APPLICATION_ID: i64 = 0x5255_4e53;
@@ -89,11 +89,11 @@ const EVENT_COLUMNS: &str =
 
 pub(super) struct Sqlite {
     connection: Connection,
-    holding: Holding,
+    kind: Kind,
 }
 
 impl Sqlite {
-    pub(super) fn open(path: &Path, holding: Holding) -> Result<Self, StoreError> {
+    pub(super) fn open(path: &Path, kind: Kind) -> Result<Self, StoreError> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|error| {
                 StoreError::unavailable(format!("creating {}: {error}", parent.display()))
@@ -106,18 +106,15 @@ impl Sqlite {
         connection
             .busy_timeout(BUSY_TIMEOUT)
             .map_err(|error| database("setting the busy timeout", &error))?;
-        let mut store = Self {
-            connection,
-            holding,
-        };
+        let mut store = Self { connection, kind };
         store.ensure_schema()?;
         Ok(store)
     }
 
     fn application_id(&self) -> i64 {
-        match self.holding {
-            Holding::Store => STORE_APPLICATION_ID,
-            Holding::Private => PRIVATE_APPLICATION_ID,
+        match self.kind {
+            Kind::Store => STORE_APPLICATION_ID,
+            Kind::Private => PRIVATE_APPLICATION_ID,
         }
     }
 
@@ -131,9 +128,9 @@ impl Sqlite {
         let user_version = pragma(&self.connection, "user_version")?;
         let own = self.application_id();
         let foreign = || {
-            StoreError::invalid(match self.holding {
-                Holding::Store => "the file is not a runx store; name a new file or a store",
-                Holding::Private => "the file is not a private store; name a new file or one",
+            StoreError::invalid(match self.kind {
+                Kind::Store => "the file is not a runx store; name a new file or a store",
+                Kind::Private => "the file is not a private store; name a new file or one",
             })
         };
         match (application_id, user_version) {
@@ -163,12 +160,12 @@ impl Sqlite {
         self.connection
             .pragma_update(None, "journal_mode", "WAL")
             .map_err(|error| database("enabling the write-ahead log", &error))?;
-        let holding = self.holding;
+        let kind = self.kind;
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| database("starting the schema", &error))?;
-        create(&transaction, holding)?;
+        create(&transaction, kind)?;
         transaction
             .pragma_update(None, "application_id", own)
             .map_err(|error| database("marking the store", &error))?;
@@ -190,7 +187,7 @@ impl Sqlite {
         }
         let (events, chains) = version_2(&transaction)?;
         let migrated = migration::migrate(events, &chains)?;
-        create(&transaction, Holding::Store)?;
+        create(&transaction, Kind::Store)?;
         for key in migrated {
             let at = Key {
                 stream: &key.stream,
@@ -262,11 +259,11 @@ fn version_2(
     Ok((events, chains))
 }
 
-fn create(transaction: &Transaction<'_>, holding: Holding) -> Result<(), StoreError> {
+fn create(transaction: &Transaction<'_>, kind: Kind) -> Result<(), StoreError> {
     transaction
         .execute_batch(SCHEMA)
         .map_err(|error| database("creating the schema", &error))?;
-    if holding == Holding::Private {
+    if kind == Kind::Private {
         transaction
             .execute_batch(SEARCH_SCHEMA)
             .map_err(|error| database("creating the search index", &error))?;
@@ -302,12 +299,12 @@ impl Backend for Sqlite {
     }
 
     fn append(&mut self, request: &Append<'_>, committed_at: &str) -> Result<Appended, StoreError> {
-        let holding = self.holding;
+        let kind = self.kind;
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| database("starting the append", &error))?;
-        let mut streams = SqliteStreams(transaction, holding);
+        let mut streams = SqliteStreams(transaction, kind);
         let appended = append_in(&mut streams, request, committed_at)?;
         // SQLite either commits or reports that it did not.
         streams
@@ -398,7 +395,7 @@ impl Backend for Sqlite {
     }
 
     fn search(&mut self, request: &SearchKeys<'_>) -> Result<(Vec<Matched>, bool), StoreError> {
-        if self.holding != Holding::Private {
+        if self.kind != Kind::Private {
             return Err(StoreError::invalid("only private's streams are searched"));
         }
         let Some(query) = model::quoted_query(request.query) else {
@@ -462,7 +459,7 @@ impl Backend for Sqlite {
     }
 }
 
-struct SqliteStreams<'a>(Transaction<'a>, Holding);
+struct SqliteStreams<'a>(Transaction<'a>, Kind);
 
 impl Streams for SqliteStreams<'_> {
     fn state(&mut self, at: Key<'_>) -> Result<KeyState, StoreError> {
@@ -485,7 +482,7 @@ impl Streams for SqliteStreams<'_> {
     ) -> Result<(), StoreError> {
         insert_event(&self.0, at, record)?;
         upsert_key(&self.0, at, record, state)?;
-        if self.1 == Holding::Private {
+        if self.1 == Kind::Private {
             // The key's entry is its newest event: an append replaces it.
             let rowid: i64 = self
                 .0

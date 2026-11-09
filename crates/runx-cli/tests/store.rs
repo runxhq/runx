@@ -853,7 +853,7 @@ fn term_for(value: &Value, operation: &str) -> Option<Value> {
 }
 
 #[test]
-fn a_run_authority_holding_packages_parses() -> TestResult {
+fn a_run_authority_naming_packages_parses() -> TestResult {
     let project = Project::new("runx-store-packages-parse")?;
     project.skill("own", COUNTER)?;
     let ran = json(

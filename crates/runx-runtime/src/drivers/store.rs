@@ -143,14 +143,14 @@ impl std::fmt::Display for StoreError {
 /// Which of the runtime's two connectors an instance serves: they share the
 /// driver and the tables, and each keeps its own file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Holding {
+pub(crate) enum Kind {
     /// A package's ordinary state, in the workspace.
     Store,
     /// The person's own data, in the runx home, searchable.
     Private,
 }
 
-impl Holding {
+impl Kind {
     fn of(connector: &str) -> Self {
         if connector == PRIVATE {
             Self::Private
@@ -171,21 +171,21 @@ enum Location {
 
 impl Location {
     fn of(
-        holding: Holding,
+        kind: Kind,
         parameters: &JsonObject,
         env: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, StoreError> {
         // The admitted environment always names the workspace.
         let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
         let Some(url) = parameters.get("url") else {
-            return match holding {
-                Holding::Store => Ok(Self::Sqlite(paths.workspace_store())),
+            return match kind {
+                Kind::Store => Ok(Self::Sqlite(paths.workspace_store())),
                 // A home that fell back to the workspace counts for nothing
                 // (D30): a repository could ship it.
-                Holding::Private if paths.home_fell_back() => Err(StoreError::invalid(
+                Kind::Private if paths.home_fell_back() => Err(StoreError::invalid(
                     "private keeps the person's own data in their runx home, and with HOME and USERPROFILE unset the home fell back to the workspace, which a repository can ship; set HOME, or RUNX_HOME",
                 )),
-                Holding::Private => Ok(Self::Sqlite(paths.private_store())),
+                Kind::Private => Ok(Self::Sqlite(paths.private_store())),
             };
         };
         let url = url
@@ -205,7 +205,7 @@ impl Location {
             ));
         }
         let scheme = parsed.scheme();
-        if holding == Holding::Private && scheme != "sqlite" {
+        if kind == Kind::Private && scheme != "sqlite" {
             return Err(cannot_search(scheme));
         }
         match scheme {
@@ -236,8 +236,8 @@ fn cannot_search(scheme: &str) -> StoreError {
 ///
 /// Returns why the instance can't be configured.
 pub(crate) fn configurable(connector: &str, parameters: &JsonObject) -> Result<(), String> {
-    let holding = Holding::of(connector);
-    if holding == Holding::Store {
+    let kind = Kind::of(connector);
+    if kind == Kind::Store {
         return Ok(());
     }
     let Some(url) = parameters.get("url").and_then(JsonValue::as_str) else {
@@ -341,16 +341,16 @@ fn proposed(
 }
 
 fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
-    let holding = Holding::of(call.connector);
+    let kind = Kind::of(call.connector);
     let password = call
         .credential
         .and_then(|secret| secret.field("password").ok());
-    match Location::of(holding, call.parameters, call.env)? {
+    match Location::of(kind, call.parameters, call.env)? {
         Location::Sqlite(path) => {
             if password.is_some() {
                 return Err(StoreError::invalid("a sqlite store takes no password"));
             }
-            Ok(Box::new(sqlite::Sqlite::open(&path, holding)?))
+            Ok(Box::new(sqlite::Sqlite::open(&path, kind)?))
         }
         #[cfg(feature = "store")]
         Location::Postgres(url) => Ok(Box::new(postgres::Postgres::connect(&url, password)?)),
@@ -406,7 +406,7 @@ impl Store<'_> {
                 model::listed_result(name, list.stream, &keys, has_more)
             }
             Request::Search(search) => {
-                if Holding::of(self.call.connector) != Holding::Private {
+                if Kind::of(self.call.connector) != Kind::Private {
                     return Err(StoreError::invalid(
                         "keys.search searches private's streams only",
                     ));
