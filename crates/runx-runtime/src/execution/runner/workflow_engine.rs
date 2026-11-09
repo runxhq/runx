@@ -431,10 +431,6 @@ impl WorkflowExecution {
             None
         };
         let log = &context.runtime.options.run;
-        // What the step appends while it runs, a claim or a call, becomes the
-        // run's latest event, so a hold it still waits on is recorded again
-        // after it.
-        let read_at = log.last_version();
         let held = match &resumed_hold {
             Some(Hold::Request(held)) => Some(held),
             _ => None,
@@ -513,7 +509,10 @@ impl WorkflowExecution {
                 request,
                 child,
             }) => {
-                let still_waiting = log.last_version() == read_at
+                // What the step appended while it ran, a claim or a script's
+                // call, may be the run's latest event now, so a hold it still
+                // waits on is recorded again after it.
+                let still_waiting = log.stands_waiting()?
                     && match (&child, &resumed_hold) {
                         (Some(child), Some(Hold::Child(held))) => child == held,
                         (None, Some(Hold::Request(held))) => {

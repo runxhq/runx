@@ -1336,9 +1336,20 @@ impl RunLog {
         }
     }
 
-    /// The version of the run's stream this driver last read or wrote.
-    pub(crate) fn last_version(&self) -> u64 {
-        *self.version()
+    /// Whether the run's latest standing event still holds it where a step
+    /// waits: a hold on a request or a child, or a turn's call, which leaves
+    /// its run paused at the turn. A claim or a script's call doesn't.
+    pub(crate) fn stands_waiting(&self) -> Result<bool, RunRecordError> {
+        Ok(
+            match standing_event(&self.0.store, &self.0.run_id)?.map(|latest| latest.event) {
+                Some(RunEvent::Suspended(suspended)) => matches!(
+                    suspended.hold,
+                    HoldEvent::Request { .. } | HoldEvent::Child { .. }
+                ),
+                Some(RunEvent::Call(call)) => call.turn.is_some(),
+                _ => false,
+            },
+        )
     }
 
     fn version(&self) -> std::sync::MutexGuard<'_, u64> {
