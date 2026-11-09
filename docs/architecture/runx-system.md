@@ -87,7 +87,7 @@ perform HTTP, filesystem, subprocess, credential, packet, or receipt mechanics
 that Runx already owns.
 
 The current skill's complete manual is digest-bound into the acting context and
-resume envelope. Declared `context_skills` contribute bounded catalog summaries
+resume envelope. Declared `context.skills` contribute bounded catalog summaries
 until invoked; the invoked skill then supplies its own complete manual. A chain
 must neither hide the target instructions nor preload and duplicate every
 manual.
@@ -249,7 +249,7 @@ a new trait, or an extra hot-path dispatch.
 ## Effect and finality boundary
 
 A local `host_browser` connector session declares its identity probe using the
-same `process` binding as an operation (`tool` and `runtime_scopes`, without a
+same `process` binding as an operation (`tool` and `requires`, without a
 mutation readback). The installed, digest-checked tool receives
 `{operation: "session", parameters: <instance parameters>}` and returns the
 rendered account as `{id, login}`. Connector parameters select the intended
@@ -263,7 +263,7 @@ attestation. It adds no browser lifecycle, secret export or effect ledger.
 
 The native test uses the same confirmation path. A fixture explicitly
 declares its `setup.sessions`, per-connector `setup.parameters` and exact
-`caller.process_calls`; it never borrows a live browser or saved account.
+`providers.processes`; it never borrows a live browser or saved account.
 
 The registered native capability owns the effect classification, admission,
 approval policy, execution boundary, and finality preparation. Workflow, skill,

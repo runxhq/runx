@@ -286,23 +286,25 @@ When the work needs executable steps, typed inputs and outputs, authority,
 artifacts, or test cases, the package also carries a `run.yaml`:
 
 ```yaml
-skill: hello-world
 version: "0.1.1"
+minimum_runx: 0.12.0
+
+catalog:
+  visibility: public
 
 methods:
   default:
-    default: true
     inputs:
       message:
         type: string
-        required: true
+        description: Message to print from the example skill.
     steps:
       - id: default
-        tool: { command: node, args: [run.mjs] }
+        tool: {command: node, args: [run.mjs]}
         inputs:
           message: $input.message
         outputs:
-          message: string
+          message: {type: string}
 ```
 
 This is the execution shape of [`examples/hello-world`](examples/hello-world).
@@ -318,7 +320,7 @@ Its checked-in package also includes the command and test case.
 Runx binds the manual and execution closure by digest. An acting agent receives
 the invoked skill's full manual; declared adjacent skills contribute bounded
 summaries until invoked. A workflow can also supply a skill as explicit
-`context_skills` on an agent step—for example, a writing rubric. Context informs
+`context.skills` on an agent step—for example, a writing rubric. Context informs
 judgment; permission comes from admission.
 
 ## Workflows make acts composable

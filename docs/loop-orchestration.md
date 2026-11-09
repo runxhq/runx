@@ -12,7 +12,7 @@ runx should make those loops safe and verifiable without becoming the loop host.
 - A **loop** lives outside the trusted kernel. It owns scheduling, durable loop
   state, wakeups, projections, and stop policy.
 - A **turn** is one governed runx skill or workflow run. It has explicit inputs,
-  authority, the skill's declared `tools:`, optional `context_skills`, bounded model/tool
+  authority, the calls its agent step declares, optional `context.skills`, bounded model/tool
   rounds, approval gates, and one sealed receipt.
 - A **handoff** is a receipt-backed artifact or tool-shaped result asking
   another agent, loop, or system to continue.
@@ -77,10 +77,10 @@ Required gates:
   turn.
 - **Authority budget:** spend/effect limits are consumed across linked turns;
   the next prompt cannot mint fresh authority.
-- **Context budget:** `context_skills` and prior receipt summaries are capped,
+- **Context budget:** `context.skills` and prior receipt summaries are capped,
   digest-bound, and marked untrusted.
-- **Tool admission:** every model-selected tool must appear in the skill's `tools:`
-  and pass normal runx tool-ref admission.
+- **Tool admission:** every model-selected tool must appear in its agent step's
+  `calls.tools` and pass normal runx tool-ref admission.
 - **Side-effect review:** side-effecting tools may pause for human or policy
   review before execution.
 - **Idempotency:** every turn has a stable loop id, turn id, and idempotency key.
@@ -130,7 +130,7 @@ projection operation.
 
 The canonical OSS example is `examples/loop-orchestration`: a local fixture
 loop that submits bounded runx runs, prints each receipt id and next-turn
-reason, demonstrates `context_skills`, includes a refusal path, and runs
+reason, demonstrates `context.skills`, includes a refusal path, and runs
 without provider keys.
 
 Run it from the OSS workspace:

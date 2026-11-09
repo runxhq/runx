@@ -163,7 +163,7 @@ Long-running agent workflows are loops over governed turns, not resident kernel
 loops. The loop host lives in an app, hosted service, local script, or external
 orchestrator. It owns scheduling, durable loop state, wakeups, projections, and
 stop policy. Each loop step is one skill or workflow run with explicit inputs,
-authority, the tools and skills its limits declare, optional `context_skills`,
+authority, the calls its agent steps declare, optional `context.skills`,
 bounded model/tool rounds, approval gates, and one sealed receipt.
 
 Handoffs are receipt-backed artifacts or tool-shaped results. Prior receipts and

@@ -193,7 +193,7 @@ live-provider smoke tests are separate and opt-in. CLI journeys prove that Runx
 can drive a representative composite flow, but must not duplicate the skill's
 full scenario matrix.
 
-Native HTTP scenarios declare `caller.http_exchanges`. Each exchange binds a
+Native HTTP scenarios declare `providers.http`. Each exchange binds a
 response to the exact method, final URL, and explicit absent, structural JSON, or exact UTF-8 text body, so a
 matched GET reads and a matched POST, PUT, PATCH, or DELETE proves a mutation
 without reaching the network. Use `{text: "..."}` for an exact form, XML, or other text request body. Fixture URLs are canonicalized like native final
