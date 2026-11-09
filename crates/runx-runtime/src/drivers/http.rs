@@ -133,16 +133,25 @@ impl Driver for Http<'_> {
                             Err(error) => return Err(not_sent(error.to_string())),
                         };
                         let mut repeated = Vec::with_capacity(items.len());
+                        // A provider that refused the caller would refuse the
+                        // rest too, so they stay unstarted.
+                        let mut halted = false;
                         for item in items.iter().enumerate() {
                             let value = if let Some(pages) = &request.pages {
-                                self.pages(
-                                    request,
-                                    pages,
-                                    Some(item),
-                                    earlier,
-                                    &mut page_budget,
-                                    &mut evidence,
-                                )?
+                                if halted {
+                                    pages::unstarted()
+                                } else {
+                                    let settled = self.item_pages(
+                                        request,
+                                        pages,
+                                        item,
+                                        earlier,
+                                        &mut page_budget,
+                                        &mut evidence,
+                                    );
+                                    halted = settled.halted;
+                                    settled.value
+                                }
                             } else {
                                 let response = self.send(request, Some(item), earlier, None)?;
                                 let value = self.answered(&response)?;
@@ -153,14 +162,9 @@ impl Driver for Http<'_> {
                         }
                         JsonValue::Array(repeated)
                     }
-                    (None, Some(pages)) => self.pages(
-                        request,
-                        pages,
-                        None,
-                        earlier,
-                        &mut page_budget,
-                        &mut evidence,
-                    )?,
+                    (None, Some(pages)) => {
+                        self.pages(request, pages, earlier, &mut page_budget, &mut evidence)?
+                    }
                     (None, None) => {
                         let response = self.send(request, None, earlier, None)?;
                         let value = self.answered(&response)?;

@@ -1,4 +1,5 @@
-//! One bounded native page loop, with independent cursors for repeated items.
+//! One bounded native page loop, with independent cursors for repeated items,
+//! each of which settles on its own.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
@@ -36,18 +37,84 @@ impl PageBudget {
     }
 }
 
+/// How one repeated item of a paged read settled. A provider that refuses the
+/// caller (a rate limit, a credential it doesn't accept, a billing hold)
+/// halts the read: every later item stays unstarted, never "no matches".
+pub(super) struct SettledItem {
+    pub(super) value: JsonValue,
+    pub(super) halted: bool,
+}
+
 impl Http<'_> {
     /// Preserve whole pages and the exact next cursor. A spent shared budget
     /// leaves later items explicitly unstarted, rather than claiming no matches.
+    /// A read that isn't repeated fails as a whole.
     pub(super) fn pages(
+        &self,
+        request: &HttpRequest,
+        pages: &HttpPages,
+        responses: Option<&BTreeMap<String, JsonObject>>,
+        budget: &mut PageBudget,
+        evidence: &mut Vec<String>,
+    ) -> Result<JsonValue, Unperformed> {
+        let mut read = PageRead::default();
+        let read_all = self.read_pages(request, pages, None, responses, budget, &mut read);
+        evidence.append(&mut read.evidence);
+        read_all?;
+        Ok(JsonValue::Object(JsonObject::from([
+            ("items".to_owned(), JsonValue::Array(read.items)),
+            ("next".to_owned(), read.cursor.unwrap_or(JsonValue::Null)),
+        ])))
+    }
+
+    /// One item of a repeated paged read, settled: its pages, whether it
+    /// started and read to the end, and the error that stopped it, so one
+    /// item's failure is that item's and the rest go on.
+    pub(super) fn item_pages(
+        &self,
+        request: &HttpRequest,
+        pages: &HttpPages,
+        item: (usize, &JsonValue),
+        responses: Option<&BTreeMap<String, JsonObject>>,
+        budget: &mut PageBudget,
+        evidence: &mut Vec<String>,
+    ) -> SettledItem {
+        let mut read = PageRead::default();
+        let failed = self
+            .read_pages(request, pages, Some(item), responses, budget, &mut read)
+            .err();
+        evidence.append(&mut read.evidence);
+        let complete = failed.is_none() && read.started && read.cursor.is_none();
+        let mut output = JsonObject::from([
+            ("complete".to_owned(), JsonValue::Bool(complete)),
+            ("items".to_owned(), JsonValue::Array(read.items)),
+            ("next".to_owned(), read.cursor.unwrap_or(JsonValue::Null)),
+            ("started".to_owned(), JsonValue::Bool(read.started)),
+        ]);
+        let halted = matches!(failed, Some(Unperformed::Halted { .. }));
+        // Every settled item has the same fields, so a step can bind each.
+        output.insert(
+            "error".to_owned(),
+            failed.map_or(JsonValue::Null, item_error),
+        );
+        SettledItem {
+            value: JsonValue::Object(output),
+            halted,
+        }
+    }
+
+    /// Read pages into `read` until the end, the budget or a failure. What
+    /// was read before a failure stays in `read`, and its cursor is the page
+    /// that failed, where a further read starts.
+    fn read_pages(
         &self,
         request: &HttpRequest,
         pages: &HttpPages,
         item: Option<(usize, &JsonValue)>,
         responses: Option<&BTreeMap<String, JsonObject>>,
         budget: &mut PageBudget,
-        evidence: &mut Vec<String>,
-    ) -> Result<JsonValue, Unperformed> {
+        read: &mut PageRead,
+    ) -> Result<(), Unperformed> {
         let limit = match pages
             .limit
             .as_ref()
@@ -67,15 +134,12 @@ impl Http<'_> {
             }
             Some(Err(error)) => return Err(super::not_sent(error.to_string())),
         };
-        let mut items = Vec::new();
-        let mut cursor = None::<JsonValue>;
         let mut cursors = BTreeSet::new();
-        let mut started = false;
         while !budget.exhausted() {
-            let response = self.send(request, item, responses, cursor.as_ref())?;
+            let response = self.send(request, item, responses, read.cursor.as_ref())?;
+            read.started = true;
             let page = self.answered(&response)?;
-            evidence.push(response.body_digest.clone());
-            started = true;
+            read.evidence.push(response.body_digest.clone());
             budget.pages += 1;
             budget.bytes = budget.bytes.saturating_add(response.body.len());
             let found = match at_path(&page, pages.items.as_str()) {
@@ -83,10 +147,7 @@ impl Http<'_> {
                 Some(JsonValue::Array(found)) => found.clone(),
                 Some(_) => return Err(invalid_page("page items are not an array")),
             };
-            let empty = found.is_empty();
-            budget.items = budget.items.saturating_add(found.len());
-            items.extend(found);
-            cursor = match at_path(&page, pages.next.cursor.as_str()) {
+            let next = match at_path(&page, pages.next.cursor.as_str()) {
                 None | Some(JsonValue::Null) => None,
                 Some(JsonValue::String(value)) if value.is_empty() => None,
                 Some(
@@ -94,7 +155,7 @@ impl Http<'_> {
                 ) => Some(value.clone()),
                 Some(_) => return Err(invalid_page("page cursor is not a scalar")),
             };
-            if let Some(next) = &cursor {
+            if let Some(next) = &next {
                 let identity = match pages.next.location {
                     HttpPageCursorLocation::Query => super::scalar_string(next)
                         .ok_or_else(|| invalid_page("page cursor cannot be encoded"))?,
@@ -105,27 +166,66 @@ impl Http<'_> {
                     return Err(invalid_page("the provider repeated a page cursor"));
                 }
             }
-            if cursor.is_none() || empty || limit.is_some_and(|limit| items.len() >= limit) {
+            // The page is read: its items are kept and the cursor moves past it.
+            let empty = found.is_empty();
+            budget.items = budget.items.saturating_add(found.len());
+            read.items.extend(found);
+            read.cursor = next;
+            if read.cursor.is_none()
+                || empty
+                || limit.is_some_and(|limit| read.items.len() >= limit)
+            {
                 break;
             }
         }
-        let mut output = JsonObject::from([
-            ("items".to_owned(), JsonValue::Array(items)),
-            ("next".to_owned(), cursor.clone().unwrap_or(JsonValue::Null)),
-        ]);
-        // A repeated request may exhaust the shared budget before this item.
-        // Keep the established nonrepeated pager wire shape unchanged.
-        if item.is_some() {
-            output.extend([
-                (
-                    "complete".to_owned(),
-                    JsonValue::Bool(started && cursor.is_none()),
-                ),
-                ("started".to_owned(), JsonValue::Bool(started)),
-            ]);
-        }
-        Ok(JsonValue::Object(output))
+        Ok(())
     }
+}
+
+/// What a paged read gathered: its items in order, the cursor a further read
+/// starts from, whether any request for it went out, and the digest of each
+/// page it read.
+#[derive(Default)]
+struct PageRead {
+    items: Vec<JsonValue>,
+    cursor: Option<JsonValue>,
+    started: bool,
+    evidence: Vec<String>,
+}
+
+/// The error a settled item reports: what stopped it, and when the provider
+/// said it would take requests again.
+fn item_error(failure: Unperformed) -> JsonValue {
+    let (code, message, retry_at) = match failure {
+        Unperformed::Halted {
+            code,
+            reason,
+            retry_at,
+            ..
+        } => (code, reason, retry_at),
+        Unperformed::NotSent { code, reason }
+        | Unperformed::Refused { code, reason, .. }
+        | Unperformed::MaybeSent { code, reason } => (code, reason, None),
+    };
+    let mut error = JsonObject::from([
+        ("code".to_owned(), JsonValue::String(code.to_owned())),
+        ("message".to_owned(), JsonValue::String(message)),
+    ]);
+    if let Some(retry_at) = retry_at {
+        error.insert("retry_at".to_owned(), JsonValue::String(retry_at));
+    }
+    JsonValue::Object(error)
+}
+
+/// An item a halted read never reached: not started, so never "no matches".
+pub(super) fn unstarted() -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("complete".to_owned(), JsonValue::Bool(false)),
+        ("error".to_owned(), JsonValue::Null),
+        ("items".to_owned(), JsonValue::Array(Vec::new())),
+        ("next".to_owned(), JsonValue::Null),
+        ("started".to_owned(), JsonValue::Bool(false)),
+    ]))
 }
 
 fn invalid_page(reason: &str) -> Unperformed {

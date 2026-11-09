@@ -1570,7 +1570,7 @@ export type HttpPageCursorContract = {
 /** The request location of a provider's page cursor. Body cursors retain the provider's scalar JSON type; query cursors are serialized as URL parameters. */
 export type HttpPageCursorLocationContract = "query" | "body";
 
-/** A read answered in pages. The request is sent again with the cursor each page names until a page names none, a page holds no items, or the items gathered reach `limit`. The pages decode to `{items, next}`: every page's items in order, and the cursor a further read would start from, or null once the read reached the end. Repeated requests additionally return `started` and `complete` for each item: an exhausted shared budget can leave later items unstarted, which must never be interpreted as no matches. */
+/** A read answered in pages. The request is sent again with the cursor each page names until a page names none, a page holds no items, or the items gathered reach `limit`. The pages decode to `{items, next}`: every page's items in order, and the cursor a further read would start from, or null once the read reached the end. Repeated requests additionally return `started` and `complete` for each item: an exhausted shared budget can leave later items unstarted, which must never be interpreted as no matches. Each item settles on its own, with `error` null unless it failed: one that fails reports its `error`, keeping what it read and the cursor it stopped at, and the rest go on, unless the provider refused the caller, as a rate limit does, which leaves the rest unstarted. */
 export type HttpPagesContract = {
   /** Where a decoded page holds its items. */
   readonly items: string;

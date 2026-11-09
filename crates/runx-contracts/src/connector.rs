@@ -1234,7 +1234,11 @@ impl HttpRequest {
 /// items in order, and the cursor a further read would start from, or null
 /// once the read reached the end. Repeated requests additionally return
 /// `started` and `complete` for each item: an exhausted shared budget can leave
-/// later items unstarted, which must never be interpreted as no matches.
+/// later items unstarted, which must never be interpreted as no matches. Each
+/// item settles on its own, with `error` null unless it failed: one that fails
+/// reports its `error`, keeping what it read and the cursor it stopped at, and
+/// the rest go on, unless the provider refused the caller, as a rate limit
+/// does, which leaves the rest unstarted.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HttpPages {
