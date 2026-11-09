@@ -68,6 +68,10 @@ oss	README.md	graph	workflow	^A $	^ is what unfolds\.	the README's tagline is pr
 oss	packages/cli/package.json	graphs	workflows	\btools, $		the CLI package's description is prose, and docs/api-surface.md is generated from it
 oss	crates/runx-cli/Cargo.toml	graphs	workflows	\btools, $		the CLI crate's description is prose
 oss	packages/sdk-python/pyproject.toml	graphs	workflows	\btools, and $		the Python SDK's description is prose
+oss	crates/runx-contracts/src/skill_authoring.rs	Graph	Workflow	^\s+$	^,$	skill authoring's execution lane is a method's fixed steps, a workflow; its wire value follows the variant, and no reader stores it
+oss	skills/skill-build/SKILL.md	graph	workflow	`manual`, `$	^`, `agent`	skill-build names the execution lanes by their wire values
+oss	skills/skill-build/tests/composes-in-workflow.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
+oss	skills/skill-build/tests/skill-build-designs-bounded-package.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
 cloud	packages/api/src/payments/skills/purchases.ts	holds	leases	^\s*$	^: holds\.map\(	PurchaseRead's leases, the key the purchase read writes
 cloud	packages/api/src/payments/skills/bazaar.ts	holds	leases	^\s*$	^: \{ type: "array"	PurchaseRead's leases, in the Bazaar declaration bazaar.test holds to OSS's purchase-read schema
 cloud	packages/api/src/payments/skills/purchases.test.ts	holds	leases	^\s*$	^: \[\{	PurchaseRead's leases, in the read the test expects
