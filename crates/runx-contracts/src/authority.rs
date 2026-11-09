@@ -80,7 +80,7 @@ pub struct AuthorityBounds {
     /// Connector operations, as `<connector>/<operation>` or `<connector>/*`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operations: Vec<NonEmptyString>,
-    /// Provider grant scopes.
+    /// Grant scopes, in an operation's `scopes` vocabulary, such as `repo.read`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<NonEmptyString>,
     /// Provider targets: exact values, `<prefix>*`, or `*`.

@@ -1715,7 +1715,7 @@ export const runxSchemaArtifacts = {
             "uniqueItems": true
           },
           "scopes": {
-            "description": "Provider grant scopes.",
+            "description": "Grant scopes, in an operation's `scopes` vocabulary, such as `repo.read`.",
             "items": {
               "minLength": 1,
               "type": "string"
