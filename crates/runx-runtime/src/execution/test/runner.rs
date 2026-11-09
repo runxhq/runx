@@ -96,6 +96,7 @@ impl TestOptions {
             effect_gate: None,
             packages: None,
             chain: Vec::new(),
+            workspace: None,
         })
     }
 }
@@ -711,6 +712,7 @@ where
         &inputs,
         fixture.host.act.as_ref(),
         &run_id,
+        None,
     )?;
     let mut options = options.runtime(&run_id, fixture, &target.skill_dir)?;
     // The run holds its method's effects and reach, as any run of it does.

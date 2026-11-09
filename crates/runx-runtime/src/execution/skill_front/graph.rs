@@ -315,7 +315,13 @@ impl BoundRun {
                 &self.method.name,
                 inputs,
             )),
-            None => bind_run_inputs(self.method.graph.clone(), inputs, act, run_id),
+            None => bind_run_inputs(
+                self.method.graph.clone(),
+                inputs,
+                act,
+                run_id,
+                Some(self.workspace.paths()),
+            ),
         }
     }
 
@@ -352,6 +358,7 @@ impl BoundRun {
             effect_gate,
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
+            workspace: Some(self.workspace.paths().clone()),
         };
         let local_artifacts = crate::services::LocalArtifactService::for_run(
             &options.run.store().project_dir(),

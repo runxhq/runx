@@ -59,6 +59,7 @@ pub use process::detached::{
 };
 pub use time::now_iso8601;
 pub mod tool_catalogs;
+pub mod workspace_ids;
 
 pub use execution::orchestrator;
 pub use execution::run_record;

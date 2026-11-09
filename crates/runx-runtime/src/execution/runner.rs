@@ -200,6 +200,10 @@ pub struct RuntimeOptions {
     /// child step reached its package. Empty for a root run, whose package is
     /// the one its steps run from.
     pub(crate) chain: Vec<crate::identity::ChainLink>,
+    /// The workspace the run runs in, whose id `$run.workspace_id` reads; a
+    /// child run runs in its parent's. None for a runtime no workspace's run
+    /// made, as a test replay.
+    pub(crate) workspace: Option<crate::paths::RunxPaths>,
 }
 
 /// The gate a session's calls take where they reach the world: a read shares
@@ -349,6 +353,7 @@ impl RuntimeOptions {
             effect_gate: None,
             packages: None,
             chain: Vec::new(),
+            workspace: None,
         }
     }
 

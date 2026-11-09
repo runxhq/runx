@@ -41,6 +41,7 @@ pub struct RunxPaths {
     project: PathBuf,
     receipts: Option<PathBuf>,
     home_fell_back: bool,
+    workspace_found: bool,
 }
 
 impl RunxPaths {
@@ -59,6 +60,9 @@ impl RunxPaths {
             },
             |path| lexical_normalize(&cwd.join(path)),
         );
+        // runx names the workspace it resolved in RUNX_CWD for what it
+        // runs, so a workspace is one its markers make, wherever it was named.
+        let workspace_found = find_workspace(&workspace).is_some();
         let within = |path: &Path| lexical_normalize(&workspace.join(path));
         let home_fell_back =
             env_path(env, RUNX_HOME_ENV).is_none() && rooted_user_home(env).is_none();
@@ -74,6 +78,7 @@ impl RunxPaths {
             project,
             receipts,
             home_fell_back,
+            workspace_found,
         }
     }
 
@@ -101,6 +106,22 @@ impl RunxPaths {
     #[must_use]
     pub fn workspace(&self) -> &Path {
         &self.workspace
+    }
+
+    /// Whether runx runs in a workspace: a directory with `.git`,
+    /// `pnpm-workspace.yaml`, `skills/` or `connectors/`, or inside one.
+    /// Elsewhere runx uses the directory it was invoked from, which has no
+    /// workspace id.
+    #[must_use]
+    pub fn workspace_found(&self) -> bool {
+        self.workspace_found
+    }
+
+    /// The workspace ids this runx home minted, keyed by canonical path
+    /// (memory.md).
+    #[must_use]
+    pub fn workspace_ids(&self) -> PathBuf {
+        self.home.join("workspaces.json")
     }
 
     /// The directories holding the skills the user writes, which take

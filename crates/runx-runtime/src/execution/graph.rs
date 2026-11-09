@@ -208,8 +208,10 @@ pub(crate) fn bind_run_inputs(
     workflow_inputs: &JsonObject,
     act: Option<&CallAct>,
     run_id: &str,
+    workspace: Option<&crate::paths::RunxPaths>,
 ) -> Result<Workflow, RuntimeError> {
     let run_input = JsonValue::Object(workflow_inputs.clone());
+    let workspace_id = run_workspace_id(&graph, workspace)?;
     let run_act = act
         .map(JsonValue::from_serialize)
         .transpose()
@@ -226,6 +228,7 @@ pub(crate) fn bind_run_inputs(
                 .cloned(),
         ),
         Source::RunId => Some(Some(JsonValue::String(run_id.to_owned()))),
+        Source::WorkspaceId => Some(Some(workspace_id.clone())),
         Source::Step { .. } => None,
     };
     for step in &mut graph.steps {
@@ -252,13 +255,52 @@ pub(crate) fn bind_run_inputs(
             }
         }
         if let Some(when) = &mut step.when {
-            bind_operand(&mut when.value, &run_input);
+            bind_operand(&mut when.value, &run_input, &workspace_id);
         }
         for condition in &mut step.guard {
-            bind_operand(&mut condition.value, &run_input);
+            bind_operand(&mut condition.value, &run_input, &workspace_id);
         }
     }
     Ok(graph)
+}
+
+/// The id of the workspace the run runs in, as `$run.workspace_id` reads it:
+/// minted in the runx home the first time it's read there, and `null` where
+/// there's no workspace. Read only when a step reads it, so a run that never
+/// does mints nothing. A run with no runx paths, as a test's fixture graph
+/// has, has no workspace.
+fn run_workspace_id(
+    graph: &Workflow,
+    workspace: Option<&crate::paths::RunxPaths>,
+) -> Result<JsonValue, RuntimeError> {
+    let reads = |source: &Source| matches!(source, Source::WorkspaceId);
+    let operand_reads =
+        |operand: &Operand| matches!(operand, Operand::Reference(Source::WorkspaceId));
+    let Some(reader) = graph.steps.iter().find(|step| {
+        step.bindings
+            .iter()
+            .chain(step.act.iter().flat_map(|act| &act.bindings))
+            .any(|binding| reads(&binding.source))
+            || step
+                .when
+                .as_ref()
+                .is_some_and(|when| operand_reads(&when.value))
+            || step
+                .guard
+                .iter()
+                .any(|condition| operand_reads(&condition.value))
+    }) else {
+        return Ok(JsonValue::Null);
+    };
+    let Some(paths) = workspace else {
+        return Ok(JsonValue::Null);
+    };
+    crate::workspace_ids::workspace_id(paths, &crate::time::now_iso8601())
+        .map(|id| id.map_or(JsonValue::Null, JsonValue::String))
+        .map_err(|error| RuntimeError::StepFailed {
+            step_id: reader.id.clone(),
+            reason: format!("it reads $run.workspace_id, and {error}"),
+        })
 }
 
 /// Place every binding `invoked` resolves, last first so a list item left out
@@ -320,11 +362,17 @@ fn move_up_past(at: &mut [String], list: &[String], removed: usize) {
 
 /// Bind the input field a condition or a guard reads. An absent field is not
 /// `null`: it stays unbound, resolves to nothing, and decides nothing.
-fn bind_operand(operand: &mut Operand, run_input: &JsonValue) {
-    if let Operand::Reference(Source::Input { path }) = operand
-        && let Some(value) = value_at(run_input, path)
-    {
-        *operand = Operand::Literal(value.clone());
+fn bind_operand(operand: &mut Operand, run_input: &JsonValue, workspace_id: &JsonValue) {
+    match operand {
+        Operand::Reference(Source::Input { path }) => {
+            if let Some(value) = value_at(run_input, path) {
+                *operand = Operand::Literal(value.clone());
+            }
+        }
+        Operand::Reference(Source::WorkspaceId) => {
+            *operand = Operand::Literal(workspace_id.clone());
+        }
+        _ => {}
     }
 }
 
@@ -913,7 +961,7 @@ pub(crate) fn materialize_step_invocation_provenance_with_index(
             Source::Step { step: from, path } => {
                 Some(prior_run_index.provenance(&step.id, &binding_label(binding), from, path))
             }
-            Source::Input { .. } | Source::Act { .. } | Source::RunId => None,
+            Source::Input { .. } | Source::Act { .. } | Source::RunId | Source::WorkspaceId => None,
         })
         .collect()
 }
@@ -1060,6 +1108,7 @@ methods:
             })),
             None,
             "run",
+            None,
         )
         .map_err(|error| error.to_string())?;
         let consume = &bound.steps[1];
@@ -1096,6 +1145,7 @@ methods:
             &object(serde_json::json!({"payload": "text"})),
             None,
             "run",
+            None,
         )
         .err()
         .ok_or("a whole input that is not an object binds nothing")?;
@@ -1109,6 +1159,7 @@ methods:
             &object(serde_json::json!({"first": 1, "third": 3})),
             None,
             "run",
+            None,
         )
         .map_err(|error| error.to_string())?;
         assert_eq!(
@@ -1123,7 +1174,7 @@ methods:
         let mixed = graph(
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: discover\n        tool: {module: discover.mjs}\n        outputs: {id: {type: string}}\n      - id: take\n        tool: {module: take.mjs}\n        inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
         )?;
-        let bound = bind_run_inputs(mixed, &JsonObject::new(), None, "run")
+        let bound = bind_run_inputs(mixed, &JsonObject::new(), None, "run", None)
             .map_err(|error| error.to_string())?;
         let take = &bound.steps[1];
         assert_eq!(
@@ -1159,7 +1210,7 @@ methods:
 "#;
         let inputs = object(serde_json::json!({"seconds": 3600}));
         let key = |run_id: &str| -> Result<Option<JsonValue>, String> {
-            let bound = bind_run_inputs(graph(source)?, &inputs, None, run_id)
+            let bound = bind_run_inputs(graph(source)?, &inputs, None, run_id, None)
                 .map_err(|error| error.to_string())?;
             assert!(
                 bound.steps[0].bindings.is_empty(),
@@ -1186,6 +1237,7 @@ methods:
             &object(serde_json::json!({"mode": "apply", "label": "$steps.produce.value"})),
             None,
             "run",
+            None,
         )
         .map_err(|error| error.to_string())?;
         assert_eq!(

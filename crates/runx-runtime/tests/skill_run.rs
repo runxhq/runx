@@ -1624,6 +1624,146 @@ fn an_agent_step_refuses_an_earlier_output_that_isnt_context_entries()
     Ok(())
 }
 
+/// A package at `root/skill` whose one step echoes `$run.workspace_id`.
+fn write_workspace_id_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: workspace-echo\ndescription: Echo the run's workspace id.\n---\n# Workspace echo\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: echo\n        tool: {module: echo.mjs, export: echo}\n        inputs: {workspace: $run.workspace_id}\n        outputs:\n          workspace: {}\n",
+    )?;
+    fs::write(
+        skill_dir.join("echo.mjs"),
+        "export const echo = ({ workspace }) => ({ workspace });\n",
+    )?;
+    Ok(skill_dir)
+}
+
+/// Run the workspace echo from `cwd` under `env`, returning the run's output.
+fn run_workspace_echo(
+    root: &Path,
+    cwd: &Path,
+    env: BTreeMap<String, String>,
+) -> Result<JsonValue, Box<dyn std::error::Error>> {
+    let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: write_workspace_id_skill(root)?,
+        receipt_dir: Some(root.join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: cwd.to_path_buf(),
+        managed_agent: Default::default(),
+    })?;
+    Ok(result.output)
+}
+
+fn echoed_workspace(output: &JsonValue) -> Option<&JsonValue> {
+    output
+        .as_object()
+        .and_then(|output| output.get("result"))
+        .and_then(JsonValue::as_object)
+        .and_then(|result| result.get("workspace"))
+}
+
+#[test]
+fn a_run_reads_the_id_its_workspace_was_minted_in_the_runx_home()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let workspace = temp.path().join("workspace");
+    fs::create_dir_all(workspace.join(".git"))?;
+    let home = temp.path().join("home");
+    let mut env = path_env();
+    env.insert("RUNX_HOME".to_owned(), home.display().to_string());
+
+    let first = run_workspace_echo(&workspace, &workspace, env.clone())?;
+    let minted = echoed_workspace(&first)
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| format!("no workspace id: {first:?}"))?
+        .to_owned();
+    assert!(minted.starts_with("ws_"), "{minted}");
+    // A later run there reads the same id, which only the home holds.
+    let second = run_workspace_echo(&workspace, &workspace, env)?;
+    assert_eq!(
+        echoed_workspace(&second).and_then(JsonValue::as_str),
+        Some(minted.as_str())
+    );
+    assert!(home.join("workspaces.json").is_file());
+    assert!(!workspace.join(".runx/workspaces.json").exists());
+    Ok(())
+}
+
+#[test]
+fn a_run_where_there_is_no_workspace_reads_a_null_workspace_id()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let plain = temp.path().join("plain");
+    fs::create_dir_all(&plain)?;
+    let mut env = path_env();
+    env.insert(
+        "RUNX_HOME".to_owned(),
+        temp.path().join("home").display().to_string(),
+    );
+
+    let output = run_workspace_echo(temp.path(), &plain, env)?;
+    assert_eq!(
+        echoed_workspace(&output),
+        Some(&JsonValue::Null),
+        "{output:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_run_whose_runx_home_fell_back_refuses_to_read_a_workspace_id()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let workspace = temp.path().join("workspace");
+    fs::create_dir_all(workspace.join(".git"))?;
+
+    // No RUNX_HOME and no HOME: the home is the workspace's own `.runx`,
+    // which a repository could ship. So the run is made without the test
+    // helper, which names a home.
+    let mut env = path_env();
+    crate::support::insert_test_signing_env(&mut env);
+    let refused = match LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: write_workspace_id_skill(&workspace)?,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: workspace.clone(),
+            managed_agent: Default::default(),
+        },
+        None,
+        None,
+        None,
+    ) {
+        Ok(result) => serde_json::to_string(&result.output)?,
+        Err(error) => error.to_string(),
+    };
+    assert!(
+        refused.contains("reads $run.workspace_id, and the runx home fell back to the workspace"),
+        "{refused}"
+    );
+    assert!(!workspace.join(".runx/workspaces.json").exists());
+    Ok(())
+}
+
 #[test]
 fn workflow_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn std::error::Error>>
 {

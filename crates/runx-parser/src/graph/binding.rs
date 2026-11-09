@@ -11,6 +11,9 @@
 //! - `$run.id`: the run's own id, read only by an operation step's
 //!   `idempotency_key`, so a write keyed on it happens once per run. Domain
 //!   values never read the run's identity.
+//! - `$run.workspace_id`: the id of the workspace the run runs in, minted in
+//!   the runx home and never read from the workspace, or `null` where there's
+//!   no workspace (memory.md).
 //!
 //! Paths are dotted; a numeric segment indexes a list. A literal string that
 //! begins with `$` is written `$$`, everywhere a value is written, including
@@ -38,6 +41,8 @@ pub enum Source {
     Act { path: Vec<String> },
     /// The run's own id.
     RunId,
+    /// The id of the workspace the run runs in.
+    WorkspaceId,
 }
 
 impl Source {
@@ -46,7 +51,7 @@ impl Source {
     pub fn step(&self) -> Option<&str> {
         match self {
             Self::Step { step, .. } => Some(step),
-            Self::Input { .. } | Self::Act { .. } | Self::RunId => None,
+            Self::Input { .. } | Self::Act { .. } | Self::RunId | Self::WorkspaceId => None,
         }
     }
 
@@ -58,6 +63,7 @@ impl Source {
             Self::Step { step, path } => (format!("$steps.{step}"), path),
             Self::Act { path } => ("$run.act".to_owned(), path),
             Self::RunId => return "$run.id".to_owned(),
+            Self::WorkspaceId => return "$run.workspace_id".to_owned(),
         };
         std::iter::once(head)
             .chain(path.iter().cloned())
@@ -147,6 +153,7 @@ pub(crate) fn parse_operand(
             !path.is_empty()
         }
         Source::RunId => false,
+        Source::WorkspaceId => true,
     };
     source
         .filter(field_of)
@@ -357,11 +364,12 @@ fn reference(
         "$input" => Ok(Some(Source::Input { path: rest })),
         "$run" => match rest.split_first() {
             Some((id, [])) if id == "id" => Ok(Some(Source::RunId)),
+            Some((id, [])) if id == "workspace_id" => Ok(Some(Source::WorkspaceId)),
             Some((act, path)) if act == "act" => Ok(Some(Source::Act {
                 path: path.to_vec(),
             })),
             _ => Err(validation_error(format!(
-                "{field} reference {text:?} reads the run: write $run.id, or $run.act.<field> in an act:."
+                "{field} reference {text:?} reads the run: write $run.id, $run.workspace_id, or $run.act.<field> in an act:."
             ))),
         },
         "$steps" => {
@@ -381,7 +389,7 @@ fn reference(
             }))
         }
         _ => Err(validation_error(format!(
-            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path>, $run.act.<field> in an act:, or $run.id in an idempotency_key, and a literal that begins with $ as $$."
+            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path>, $run.workspace_id, $run.act.<field> in an act:, or $run.id in an idempotency_key, and a literal that begins with $ as $$."
         ))),
     }
 }
