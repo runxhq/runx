@@ -187,7 +187,6 @@ function serve(defaultPublisher) {
         : {}),
       method_names: [],
       trust_tier: "community",
-      required_scopes: [],
       tags: [],
       publisher: { kind: "organization", id: `pub_${publisher}`, handle: publisher },
       install_command: posixCommand(["runx", "registry", "install", reference]),
@@ -227,7 +226,7 @@ function serve(defaultPublisher) {
       .map((record) => ({
         ...pick(record, [
           "skill_id", "name", "description", "version", "digest", "method_names",
-          "profile_digest", "required_scopes", "tags", "trust_tier", "install_command", "run_command",
+          "profile_digest", "tags", "trust_tier", "install_command", "run_command",
         ]),
         profile_mode: record.profile_document === undefined ? "portable" : "profiled",
       }));
@@ -296,7 +295,7 @@ function serve(defaultPublisher) {
 const DETAIL_FIELDS = [
   "skill_id", "name", "description", "version", "digest", "signed_manifest", "markdown",
   "profile_digest", "package_files", "bundle_digest", "method_names", "trust_tier",
-  "required_scopes", "tags", "publisher", "install_command", "run_command",
+  "tags", "publisher", "install_command", "run_command",
 ];
 
 const ACQUISITION_FIELDS = [

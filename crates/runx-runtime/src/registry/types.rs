@@ -111,7 +111,6 @@ pub struct RegistrySearchResult {
     pub profile_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_trust_tier: Option<TrustTier>,
-    pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
     pub trust_tier: TrustTier,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -152,16 +151,11 @@ pub struct RegistrySkillVersion {
     #[serde(default)]
     pub maturity: MaturityTier,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub catalog_kind: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub catalog_audience: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog_visibility: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_metadata: Option<RegistrySourceMetadata>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attestations: Vec<RegistryAttestation>,
-    pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test_cases: Vec<super::RegistryTestCaseMetadata>,
@@ -211,7 +205,6 @@ pub struct RegistrySkillDetail {
     pub paid_listing: Option<PaidSkillListing>,
     pub method_names: Vec<String>,
     pub trust_tier: TrustTier,
-    pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
     pub publisher: RegistryPublisher,
     #[serde(skip_serializing_if = "Option::is_none")]

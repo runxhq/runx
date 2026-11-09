@@ -421,7 +421,6 @@ fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
             .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default(),
         "trust_tier": publication.trust_tier,
-        "required_scopes": [],
         "tags": [],
         "publisher": {
             "kind": "organization",
@@ -897,7 +896,6 @@ fn search_skills(state: &State, query: &BTreeMap<String, String>) -> Result<Vec<
                 "profile_mode": if record["profile_document"].is_string() { "profiled" } else { "portable" },
                 "method_names": record["method_names"],
                 "profile_digest": record["profile_digest"],
-                "required_scopes": record["required_scopes"],
                 "tags": record["tags"],
                 "trust_tier": record["trust_tier"],
                 "install_command": record["install_command"],
@@ -954,7 +952,6 @@ fn detail(record: &Value) -> Value {
             "paid_listing",
             "method_names",
             "trust_tier",
-            "required_scopes",
             "tags",
             "publisher",
             "install_command",
