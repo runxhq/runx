@@ -358,3 +358,132 @@ methods:
     assert_eq!(std::fs::read_dir(&barrier)?.count(), 3);
     Ok(())
 }
+
+/// A script package of one step, `prepare`, whose run.yaml step is `step`
+/// and whose module is `script`.
+fn write_one_step(root: &Path, step: &str, script: &str) -> TestResult<PathBuf> {
+    let skill_dir = root.join("script-one");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: script-one\ndescription: One script step.\n---\n# Script one\n\nRun it.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: prepare\n        script: {{module: prepare.mjs}}\n{step}"
+        ),
+    )?;
+    std::fs::write(skill_dir.join("prepare.mjs"), script)?;
+    Ok(skill_dir)
+}
+
+/// After Promise.all rejects, its siblings keep running: the one that
+/// succeeds is still made and recorded, and the script catches the
+/// rejection with its reason.
+#[test]
+fn a_rejected_sibling_leaves_the_others_running_and_settled() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          tools: [data.digest]\n        max_calls: 2\n        concurrency: 2\n        outputs:\n          caught: {type: string}\n",
+        r#"export default async function (ctx, { value }) {
+  try {
+    await Promise.all([
+      ctx.tool("fs.read", { path: "secret.txt" }),
+      ctx.tool("data.digest", { value: "sibling", encoding: "utf8_text" }),
+    ]);
+    return { caught: "nothing" };
+  } catch (rejected) {
+    return { caught: rejected.reason };
+  }
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        object(output.get("result").ok_or("no result")?)?.get("caught"),
+        Some(&JsonValue::String("refused".to_owned()))
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [(0, "refused"), (1, "claimed"), (1, "completed")]
+    );
+    Ok(())
+}
+
+/// Host-enforced termination never reaches the script: past max_calls the
+/// step fails, and the script's catch never runs.
+#[test]
+fn termination_never_reaches_a_scripts_catch() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          tools: [data.digest]\n        max_calls: 2\n        outputs:\n          caught: {type: string}\n",
+        r#"export default async function (ctx, { value }) {
+  try {
+    for (;;) await ctx.tool("data.digest", { value: "again", encoding: "utf8_text" });
+  } catch (stopped) {
+    return { caught: JSON.stringify(stopped) };
+  }
+}
+"#,
+    )?;
+    let ended = run(temp.path(), skill_dir)?;
+    let output = object(&ended.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert!(
+        result.get("caught").is_none(),
+        "the catch returned: {output:?}"
+    );
+    assert!(
+        text(result, "message").is_some_and(|message| message.contains("max_calls of 2")),
+        "{output:?}"
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    // Two calls ran; the third was never made.
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [
+            (0, "claimed"),
+            (0, "completed"),
+            (1, "claimed"),
+            (1, "completed")
+        ]
+    );
+    Ok(())
+}
+
+/// Under `effects: none` a write is refused at admission at any depth: the
+/// script's own and one its child skill makes, and nothing is written.
+#[test]
+fn effects_none_refuses_a_write_at_any_depth() -> TestResult {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("writer-child"),
+        "---\nname: writer-child\ndescription: Writes a file.\n---\n# Writer child\n\nWrite it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        tool: fs.write\n        inputs: {path: child.txt, contents: written}\n",
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        effects: none\n        calls:\n          tools: [fs.write]\n          skills: [../writer-child]\n        max_calls: 2\n        outputs:\n          own: {type: string}\n          child: {type: string}\n",
+        r#"export default async function (ctx) {
+  const reason = (call) => call.then(() => "ran", (rejected) => rejected.reason);
+  return {
+    own: await reason(ctx.tool("fs.write", { path: "own.txt", contents: "written" })),
+    child: await reason(ctx.skill("../writer-child", {})),
+  };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(text(result, "own"), Some("refused"), "{result:?}");
+    assert_ne!(text(result, "child"), Some("ran"), "{result:?}");
+    assert!(!temp.path().join("own.txt").exists());
+    assert!(!temp.path().join("child.txt").exists());
+    assert!(!temp.path().join("writer-child/child.txt").exists());
+    Ok(())
+}
