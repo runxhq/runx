@@ -240,6 +240,9 @@ export const STAYS = [
   { word: "harness", why: "a runx:harness: reference a receipt carries, which receipts keep (§4.6)", before: /\brunx:$/, after: /^:/ },
   { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", file: /^(fixtures\/contracts\/credential-delivery\/observation\.json|packages\/contracts\/src\/schemas\/credential-delivery\.test\.ts)$/, before: /\btype"?: ?"$/ },
   // harness: the retired command a test names to prove native help dropped it.
+  // Cargo's own key in a [[bench]] or [[test]] table, the only tables that
+  // take it: whether libtest's harness runs the target.
+  { word: "harness", why: "Cargo's harness key, which says whether libtest runs a bench or test target", file: /(^|\/)Cargo\.toml$/, before: /^\s*$/, after: /^\s*=/ },
   { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
   // harness: a fixture post's own words, which its approved payload digest binds.
   { word: "harness", why: "a fixture post's own words, which its approved payload digest binds", file: /^skills\/moltbook\/tests\/publish-creates-and-reads-back-post\.yaml$/ },
