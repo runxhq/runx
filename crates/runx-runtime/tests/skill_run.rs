@@ -4596,14 +4596,41 @@ fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn st
         skill.join("run.yaml"),
         "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: write\n        tool: {command: sh, args: [./run.sh]}\n        outputs: {done: {type: boolean}}\n",
     )?;
+    // The step's first execution records itself, says so on a named pipe,
+    // and waits on a gate the test opens once the second driver has tried;
+    // an execution after it only records itself, so a second driver that ran
+    // the step again would finish, not hang, and leave two records.
     let marker = root.path().join("executed");
+    let (reached, gate) = (root.path().join("reached"), root.path().join("gate"));
+    for pipe in [&reached, &gate] {
+        let made = std::process::Command::new("mkfifo").arg(pipe).status()?;
+        assert!(made.success(), "mkfifo {}", pipe.display());
+    }
     fs::write(
         skill.join("run.sh"),
         format!(
-            "echo executed >> '{}'\nsleep 2\nprintf '%s\\n' '{{\"done\":true}}'\n",
-            marker.display()
+            "if [ -s '{marker}' ]; then echo executed >> '{marker}'; else echo executed >> '{marker}'; echo reached > '{reached}'; read go < '{gate}'; fi\nprintf '%s\\n' '{{\"done\":true}}'\n",
+            marker = marker.display(),
+            reached = reached.display(),
+            gate = gate.display()
         ),
     )?;
+    // Both ends of each pipe, opened without waiting on the step.
+    let both_ends = |pipe: &std::path::Path| -> std::io::Result<(fs::File, fs::File)> {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let nonblocking = rustix::fs::OFlags::NONBLOCK;
+        let reader = fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(nonblocking.bits() as i32)
+            .open(pipe)?;
+        rustix::fs::fcntl_setfl(&reader, rustix::fs::fcntl_getfl(&reader)? - nonblocking)?;
+        let writer = fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(nonblocking.bits() as i32)
+            .open(pipe)?;
+        Ok((reader, writer))
+    };
+    let (reached_reader, ours) = both_ends(&reached)?;
     let request = with_test_signing_env(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -4619,20 +4646,24 @@ fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn st
         managed_agent: Default::default(),
     });
     let first_request = request.clone();
+    // The first driver holds the test's own write end of the pipe until it
+    // returns, so a driver that returned before its step said so leaves the
+    // read below at the pipe's end.
     let first = std::thread::spawn(move || {
+        let _ours_until_it_returns = ours;
         LocalOrchestrator::default()
             .run_skill_with_binding(&first_request, None, None, None)
             .map(|result| result.succeeded())
             .map_err(|error| error.to_string())
     });
-    let started = std::time::Instant::now();
-    while !marker.exists() {
-        if started.elapsed() > std::time::Duration::from_secs(10) {
-            return Err("the first driver never reached its command".into());
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    let mut line = String::new();
+    std::io::BufRead::read_line(&mut std::io::BufReader::new(&reached_reader), &mut line)?;
+    if line.is_empty() {
+        return Err("the first driver never reached its command".into());
     }
     let second = LocalOrchestrator::default().run_skill_with_binding(&request, None, None, None);
+    let (_gate_reader, mut gate_writer) = both_ends(&gate)?;
+    std::io::Write::write_all(&mut gate_writer, b"go\n")?;
     let first = first.join().map_err(|_| "the first driver panicked")?;
 
     assert_eq!(first, Ok(true));
