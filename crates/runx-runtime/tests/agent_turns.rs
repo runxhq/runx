@@ -287,6 +287,7 @@ fn statuses(status: &TurnStatus) -> Vec<&'static str> {
             TurnCallOutcome::Failed { .. } => "failed",
             TurnCallOutcome::Refused { .. } => "refused",
             TurnCallOutcome::Pending { .. } => "pending",
+            TurnCallOutcome::Cancelled => "cancelled",
         })
         .collect()
 }

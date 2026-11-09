@@ -209,7 +209,7 @@ once.
 tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves
 the same tools beside its skills, over the runs its own skill calls open. A ref
 with `#method` offers that method under the skill's name; a ref without one
-offers its default method and each other method only a connection can work. The tools are fixed and take a turn's address: `turn_list` shows
+offers its default method and each other method only a connection can work. The tools are fixed and, but for `call_cancel`, take a turn's address: `turn_list` shows
 everything the run waits on, each open turn as a line, `turn_status` reads a
 turn, `turn_read` reads what a locator of it names, `turn_call` makes a call in
 it and `turn_complete` ends it. `turn_status` gives the act's instructions and
@@ -252,7 +252,17 @@ operation that reads, shares it; anything else, a tool runx runs as a process
 included, holds it alone, inside a child run too. So effects never overlap and
 reads never wait on each other, and the run's record, by `call_id`, is what a
 host reads back, whatever order the calls finished in. `turn_status`,
-`turn_read`, `turn_list` and `turn_complete` wait until no call is executing. A completed call returns each packet
+`turn_read`, `turn_list` and `turn_complete` wait until no call is executing.
+`call_cancel {call}` cancels one call while it executes, a turn's or a
+script's, at any depth of the run, by its address: `<step>/<n>` in its run, as
+`answer/0` is a turn's first call, and below the root the child run's place
+first, as in `answer/0#prepare/1`. It answers at once, while the run's other
+calls go on, with how the call settles. One that hasn't started, or that only
+reads, settles `cancelled`, and a read in flight is stopped; an effect in
+flight runs to its end and settles as it actually ended, with the cancel
+recorded beside it, so the run's record never says an effect didn't happen
+when it did. A call that waits on a person isn't executing: it's answered, or
+declined. A completed call returns each packet
 output's project artifact reference under `artifacts`, by output name; where a
 tool's or skill's input is of a packet type, a call may pass a reference to any
 packet the project holds in place of the packet, one an earlier call returned

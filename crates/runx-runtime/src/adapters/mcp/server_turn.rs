@@ -3,6 +3,8 @@
 //! each taking a turn's address, so a turn a call opens mid-session is
 //! reachable in every client; a turn's own tools arrive with its status, and
 //! its act's context as an index each entry of which `turn_read` reads.
+//! `call_cancel` takes a call's address instead, a turn's call or a
+//! script's, and cancels it while it executes.
 //! `runx mcp --run` serves
 //! one run's turns; a skill server serves the same tools over the runs its own
 //! skill calls opened, so a turn one of them opened is worked on the same
@@ -42,7 +44,7 @@ impl McpServerOptions {
             })
             .unwrap_or_default();
         let instructions = format!(
-            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema, the tools it offers, and its context as an index, each entry with a locator that turn_read reads it by. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
+            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema, the tools it offers, and its context as an index, each entry with a locator that turn_read reads it by. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. Cancel one call while it executes with call_cancel and its address. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
             session.run_id()
         );
         Self {
@@ -126,6 +128,12 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
                     ),
                 ],
             ),
+        ),
+        (
+            McpTurnAction::Cancel,
+            "call_cancel",
+            "Cancel one call the run is executing, a turn's or a script's, at any depth, by its address: <step>/<n> in its run, where a turn's step is its turn, and <path>#<step>/<n> in a child run. One that hasn't started, or only reads, settles cancelled; an effect in flight settles as it actually ends, with the cancel recorded beside it. It answers at once, while the call's own driver records it. A call that waits on a person is answered or declined, not cancelled.",
+            fields(&[("call", string_schema())], &[]),
         ),
     ]
     .into_iter()
@@ -230,6 +238,23 @@ pub(super) fn execute_mcp_turn_tool(
                 })
                 .map_err(|error| error.to_string())
         }),
+        McpTurnAction::Cancel => text(&arguments, "call").and_then(|call| {
+            session
+                .cancel(call)
+                .map(|cancel| {
+                    structured(
+                        &Cancelled {
+                            call: call.to_owned(),
+                            settles: match cancel {
+                                crate::CallCancel::Cancelled => "cancelled",
+                                crate::CallCancel::SettlesAsItEnds => "as_it_ends",
+                            },
+                        },
+                        false,
+                    )
+                })
+                .map_err(|error| error.to_string())
+        }),
         McpTurnAction::Complete => text(&arguments, "turn").and_then(|turn| {
             let ended = match (arguments.get("output"), arguments.get("failure")) {
                 (Some(_), None) => {
@@ -280,6 +305,14 @@ pub(super) fn execute_mcp_turn_tool(
         structured_content: None,
         is_error: true,
     })
+}
+
+/// What `call_cancel` returns: the call, and how it settles, `cancelled` or
+/// `as_it_ends`.
+#[derive(Serialize)]
+struct Cancelled {
+    call: String,
+    settles: &'static str,
 }
 
 /// What `turn_list` returns: each open turn as a line, its act read by

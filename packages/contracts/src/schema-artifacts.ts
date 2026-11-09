@@ -7730,6 +7730,20 @@ export const runxSchemaArtifacts = {
               "run_id"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Its host cancelled it before it started, or while it only read: nothing it did is in effect.",
+            "properties": {
+              "status": {
+                "const": "cancelled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
           }
         ],
         "description": "How a call stood when this event recorded it.",
@@ -7921,6 +7935,11 @@ export const runxSchemaArtifacts = {
                 "description": "The id its host pinned on the call.",
                 "minLength": 1,
                 "type": "string"
+              },
+              "cancelled": {
+                "const": true,
+                "description": "Its host cancelled it. `outcome` is how it settled: `cancelled` when it hadn't started or only read, and otherwise as its effect actually ended.",
+                "type": "boolean"
               },
               "index": {
                 "minimum": 0,
@@ -10408,6 +10427,20 @@ export const runxSchemaArtifacts = {
             "required": [
               "status",
               "waiting"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Its host cancelled it before it started, or while it only read: nothing it did is in effect. An effect its host cancels in flight settles as it actually ends.",
+            "properties": {
+              "status": {
+                "const": "cancelled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
             ],
             "type": "object"
           }

@@ -184,6 +184,7 @@ impl BoundRun {
             run_authority,
             prepared.as_ref(),
             host.gate.clone(),
+            host.stops.clone(),
         )?;
         let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
@@ -334,6 +335,7 @@ impl BoundRun {
         run_authority: Option<RunAuthority>,
         prepared: Option<&PreparedContext>,
         effect_gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
+        call_stops: Option<std::sync::Arc<crate::execution::runner::CallStops>>,
     ) -> Result<Runtime<ExecutableAdapter>, RuntimeError> {
         let mut env = self.workspace.skill_env_for_skill(&self.skill_dir);
         PreparedContext::apply(prepared, &mut env)?;
@@ -356,6 +358,7 @@ impl BoundRun {
             effects: self.effects.clone(),
             run: log.clone(),
             effect_gate,
+            call_stops: call_stops.unwrap_or_default(),
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
             reads: crate::execution::runner::RunReads::default(),
@@ -615,6 +618,9 @@ pub(super) struct RunHost {
     /// The gate the run's calls take where they reach the world, when its
     /// session executes calls concurrently.
     gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
+    /// The stops of the calls its session executes, through which the
+    /// session's host cancels one.
+    stops: Option<std::sync::Arc<crate::execution::runner::CallStops>>,
     #[cfg(feature = "agent")]
     managed: Option<std::rc::Rc<crate::adapters::managed_agent::ManagedAgent>>,
 }
@@ -629,6 +635,7 @@ impl RunHost {
             acted: None,
             in_flight: std::collections::BTreeSet::new(),
             gate: None,
+            stops: None,
             #[cfg(feature = "agent")]
             managed: None,
         }
@@ -649,14 +656,17 @@ impl RunHost {
     }
 
     /// Work the run as a session whose calls execute concurrently: `gate` is
-    /// what they take where they reach the world, and `in_flight` the calls
-    /// executing apart from this pass.
+    /// what they take where they reach the world, `stops` where each is
+    /// registered while it executes so the session's host can cancel it, and
+    /// `in_flight` the calls executing apart from this pass.
     pub(super) fn in_session(
         mut self,
         gate: std::sync::Arc<crate::execution::runner::EffectGate>,
+        stops: std::sync::Arc<crate::execution::runner::CallStops>,
         in_flight: std::collections::BTreeSet<(String, u32)>,
     ) -> Self {
         self.gate = Some(gate);
+        self.stops = Some(stops);
         self.in_flight = in_flight;
         self
     }

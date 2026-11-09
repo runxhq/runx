@@ -2656,6 +2656,8 @@ export type RunCallOutcomeContract = {
 } | {
   readonly run_id: string;
   readonly status: "child";
+} | {
+  readonly status: "cancelled";
 };
 
 /** A project artifact holding part of a call's output. */
@@ -2714,6 +2716,8 @@ export type RunEventFactContract = {
   readonly attempt: number;
   /** The id its host pinned on the call. */
   readonly call_id?: string;
+  /** Its host cancelled it. `outcome` is how it settled: `cancelled` when it hadn't started or only read, and otherwise as its effect actually ended. */
+  readonly cancelled?: true;
   readonly index: number;
   readonly input_digest: string;
   readonly kind: "call";
@@ -3656,6 +3660,8 @@ export type TurnCallOutcomeContract = {
 } | {
   readonly status: "pending";
   readonly waiting: readonly ResolutionRequestContract[];
+} | {
+  readonly status: "cancelled";
 };
 
 /** One call an agent made in its turn, and how it ended. */

@@ -83,7 +83,8 @@ impl NamedRuns {
     }
 }
 
-/// The fixed tools a turn session serves; each takes a turn's address.
+/// The fixed tools a turn session serves; each takes a turn's address, but
+/// a cancel, which takes a call's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum McpTurnAction {
     List,
@@ -91,6 +92,7 @@ pub enum McpTurnAction {
     Read,
     Call,
     Complete,
+    Cancel,
 }
 
 impl PartialEq for McpTurnTool {

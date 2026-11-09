@@ -108,7 +108,8 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
    - A skill whose agent makes governed calls runs on an MCP connection, because
      each call must be admitted and recorded. `runx mcp <skill-ref...>` serves it
      as a tool, and its open turns are worked on that connection with `turn_list`,
-     `turn_status`, `turn_read`, `turn_call` and `turn_complete`. `runx export`
+     `turn_status`, `turn_read`, `turn_call` and `turn_complete`, and
+     `call_cancel` cancels one call while it executes. `runx export`
      registers this server as `runx-local`, and an exported skill says which way
      it runs. `runx mcp --run <run-id>` is for a host that opens its own connection
      to one paused run.

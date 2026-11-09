@@ -510,7 +510,8 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             "turn_status",
             "turn_read",
             "turn_call",
-            "turn_complete"
+            "turn_complete",
+            "call_cancel"
         ],
         "the tool set is fixed; a turn's own tools come with its status"
     );

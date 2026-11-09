@@ -68,6 +68,7 @@ pub mod workspace_ids;
 pub use execution::orchestrator;
 pub use execution::run_record;
 pub use execution::runner;
+pub use execution::runner::CallCancel;
 pub use execution::runner::turn::Turn;
 pub use execution::skill_front;
 pub use execution::skill_front::TurnSession;

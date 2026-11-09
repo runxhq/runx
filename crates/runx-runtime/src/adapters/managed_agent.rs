@@ -270,7 +270,9 @@ impl ToolExecutor for TurnCalls<'_> {
         let is_error = match &result.outcome {
             TurnCallOutcome::Pending { .. } => return Ok(ToolOutcome::Paused),
             TurnCallOutcome::Completed { .. } => false,
-            TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. } => true,
+            TurnCallOutcome::Failed { .. }
+            | TurnCallOutcome::Refused { .. }
+            | TurnCallOutcome::Cancelled => true,
         };
         if result.target == TurnTarget::Load && !is_error {
             self.refresh()?;
@@ -493,6 +495,7 @@ fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
         TurnCallOutcome::Pending { waiting } => {
             ("pending", format!("waits on {} request(s)", waiting.len()))
         }
+        TurnCallOutcome::Cancelled => ("cancelled", "its host cancelled it".to_owned()),
     };
     let total = result.chars().count();
     let start = result.chars().take(CALL_START_CHARS).collect::<String>();

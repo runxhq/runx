@@ -398,7 +398,10 @@ where
 fn settled(outcome: &CallOutcome) -> bool {
     matches!(
         outcome,
-        CallOutcome::Completed(_) | CallOutcome::Refused(_) | CallOutcome::Failed(_)
+        CallOutcome::Completed(_)
+            | CallOutcome::Refused(_)
+            | CallOutcome::Failed(_)
+            | CallOutcome::Cancelled
     )
 }
 
@@ -427,6 +430,10 @@ where
         CallOutcome::Completed(run) => rejected(ScriptRejection::Failed, output_error(run)),
         CallOutcome::Failed(reason) => rejected(ScriptRejection::Failed, reason.clone()),
         CallOutcome::Refused(reason) => rejected(ScriptRejection::Refused, reason.clone()),
+        CallOutcome::Cancelled => rejected(
+            ScriptRejection::Cancelled,
+            "its host cancelled the call before it settled".to_owned(),
+        ),
         CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
             return Err(RuntimeError::EngineInvariant {
                 context: "replaying a script",
@@ -441,6 +448,7 @@ fn rejected(reason: ScriptRejection, message: String) -> ScriptCallOutcome {
         ScriptRejection::Refused => "refused",
         ScriptRejection::Failed => "failed",
         ScriptRejection::Declined => "declined",
+        ScriptRejection::Cancelled => "cancelled",
     };
     ScriptCallOutcome::Rejected {
         reason,

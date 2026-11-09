@@ -295,6 +295,7 @@ fn project(
                 CallOutcomeEvent::Child { run_id } => RunCallOutcome::Child {
                     run_id: run_id.into(),
                 },
+                CallOutcomeEvent::Cancelled => RunCallOutcome::Cancelled,
             };
             RunEventFact::Call {
                 step_id: call.step_id.into(),
@@ -306,6 +307,7 @@ fn project(
                 call_id: call.call_id.map(Into::into),
                 standing: call.standing.map(Box::new),
                 outcome: Box::new(outcome),
+                cancelled: call.cancelled,
             }
         }
         RunEvent::Sealed(sealed) => RunEventFact::Sealed {

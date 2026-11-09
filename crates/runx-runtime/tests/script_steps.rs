@@ -121,6 +121,7 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<(u32, &'static str)>
                     RunCallOutcome::Pending { .. } => "pending",
                     RunCallOutcome::Claimed { .. } => "claimed",
                     RunCallOutcome::Child { .. } => "child",
+                    RunCallOutcome::Cancelled => "cancelled",
                 },
             )),
             _ => None,

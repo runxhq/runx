@@ -261,6 +261,9 @@ struct CallEvent {
     /// The answers the call consumed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     answers: Vec<AnswerEvent>,
+    /// Its host cancelled it; its outcome is how it settled.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    cancelled: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -305,6 +308,9 @@ enum CallOutcomeEvent {
     /// The call runs a child skill as `run_id`, and waits on what that run
     /// waits on.
     Child { run_id: String },
+    /// Its host cancelled it before it started, or while it only read:
+    /// nothing it did is in effect.
+    Cancelled,
 }
 
 /// An answer a step consumed, bound to the request it answered.
@@ -409,6 +415,8 @@ pub(crate) struct RecordedCall {
     /// The place of the call's latest event among its step's call events, so
     /// its calls read back in the order they settled.
     pub order: u64,
+    /// Its host cancelled it; its outcome is how it settled.
+    pub cancelled: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -422,6 +430,8 @@ pub(crate) enum CallOutcome {
     Claimed(PendingRequest),
     /// Runs a child skill as this run, and waits on what it waits on.
     Child(String),
+    /// Its host cancelled it before it started, or while it only read.
+    Cancelled,
 }
 
 /// What a call records: its turn, if a turn made it, its place in its step,
@@ -440,6 +450,8 @@ pub(crate) struct CallRecord<'a> {
     /// The standing approval that admitted it on the approval floor.
     pub standing: Option<&'a StandingApproval>,
     pub answers: &'a [Answer],
+    /// Its host cancelled it; `outcome` is how it settled.
+    pub cancelled: bool,
 }
 
 /// How a run began.
@@ -1205,6 +1217,7 @@ impl RunLog {
             CallOutcome::Child(run_id) => CallOutcomeEvent::Child {
                 run_id: run_id.clone(),
             },
+            CallOutcome::Cancelled => CallOutcomeEvent::Cancelled,
         };
         let values = call
             .answers
@@ -1232,6 +1245,7 @@ impl RunLog {
                     human: answer.human,
                 })
                 .collect(),
+            cancelled: call.cancelled,
         };
         blobs.extend(values);
         self.append_settling(RunEvent::Call(Box::new(event)), blobs, settlement)
@@ -1737,6 +1751,7 @@ fn recorded_call(
             CallOutcomeEvent::Completed { outputs, .. } => outputs.clone(),
             _ => Vec::new(),
         },
+        cancelled: call.cancelled,
     })
 }
 
@@ -1779,6 +1794,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             digest: digest.clone(),
         }),
         CallOutcomeEvent::Child { run_id } => CallOutcome::Child(run_id.clone()),
+        CallOutcomeEvent::Cancelled => CallOutcome::Cancelled,
     })
 }
 
@@ -1874,7 +1890,10 @@ fn collect_waiting(
                 push_waiting(waiting, request);
             }
             CallOutcome::Child(child) => collect_waiting(store, &child, waiting)?,
-            CallOutcome::Completed(_) | CallOutcome::Refused(_) | CallOutcome::Failed(_) => {}
+            CallOutcome::Completed(_)
+            | CallOutcome::Refused(_)
+            | CallOutcome::Failed(_)
+            | CallOutcome::Cancelled => {}
         }
     }
     Ok(())

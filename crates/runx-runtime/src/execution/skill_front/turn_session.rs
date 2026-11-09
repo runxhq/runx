@@ -10,8 +10,10 @@
 //! session's other admitted calls, and is recorded under it again. Where a
 //! call reaches the world it takes the session's effect gate: a read shares
 //! it and a change holds it alone, inside a child run too, so effects never
-//! overlap and reads never wait on each other. Every other action waits
-//! until no call is executing, so it reads the run as its calls left it.
+//! overlap and reads never wait on each other. A cancel acts on one call
+//! while it executes, through the stops the run's calls register at any
+//! depth, and waits for nothing. Every other action waits until no call is
+//! executing, so it reads the run as its calls left it.
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -22,8 +24,8 @@ use super::workflow::{RunHost, TurnAct, TurnActed, TurnAction};
 use super::{BoundRun, SkillRunError, invalid};
 use crate::RuntimeError;
 use crate::execution::orchestrator::RunResult;
-use crate::execution::runner::EffectGate;
 use crate::execution::runner::turn::Admission;
+use crate::execution::runner::{CallCancel, CallStops, EffectGate};
 
 pub struct TurnSession {
     run: BoundRun,
@@ -35,6 +37,9 @@ pub struct TurnSession {
     /// Signalled whenever a call's execution ends.
     settled: Condvar,
     gate: Arc<EffectGate>,
+    /// Where each call the session's run executes is registered, at any
+    /// depth, so its host can cancel it alone.
+    stops: Arc<CallStops>,
 }
 
 impl std::fmt::Debug for TurnSession {
@@ -56,6 +61,7 @@ impl TurnSession {
             in_flight: Mutex::new(BTreeSet::new()),
             settled: Condvar::new(),
             gate: Arc::new(EffectGate::default()),
+            stops: Arc::new(CallStops::default()),
         };
         let turn = session
             .waiting()?
@@ -209,6 +215,21 @@ impl TurnSession {
             .1)
     }
 
+    /// Cancel the call at `address`, `<step>/<n>` in its run, a turn's or a
+    /// script's, at any depth of the run, while it executes. One that hasn't
+    /// started, or only reads, settles `cancelled`, and a read in flight is
+    /// stopped; an effect in flight settles as it actually ends, with the
+    /// cancel recorded beside it. It waits for nothing: whichever driver
+    /// records the call records the cancel.
+    pub fn cancel(&self, address: &str) -> Result<CallCancel, SkillRunError> {
+        self.stops.cancel(address).ok_or_else(|| {
+            invalid(format!(
+                "run {} is executing no call {address}; a call that waits on a person is answered, or declined",
+                self.run_id()
+            ))
+        })
+    }
+
     /// Execute an admitted call apart from the driver.
     fn execute(
         &self,
@@ -219,7 +240,11 @@ impl TurnSession {
             turn: turn.to_owned(),
             action: TurnAction::Execute(Box::new(admitted)),
         })
-        .in_session(Arc::clone(&self.gate), self.in_flight_now());
+        .in_session(
+            Arc::clone(&self.gate),
+            Arc::clone(&self.stops),
+            self.in_flight_now(),
+        );
         self.run.advance(&mut host)?;
         match host.acted() {
             Some(TurnActed::Executed(executed)) => Ok(*executed),
@@ -243,7 +268,11 @@ impl TurnSession {
             turn: turn.to_owned(),
             action,
         })
-        .in_session(Arc::clone(&self.gate), self.in_flight_now());
+        .in_session(
+            Arc::clone(&self.gate),
+            Arc::clone(&self.stops),
+            self.in_flight_now(),
+        );
         let result = self.run.advance(&mut host)?;
         let acted = host
             .acted()
@@ -517,6 +546,7 @@ mod tests {
             outputs: &[],
             standing: None,
             answers: &[],
+            cancelled: false,
         })?;
         Ok((run_id, log))
     }

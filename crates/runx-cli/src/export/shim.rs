@@ -5,12 +5,13 @@ use runx_runtime::export::{RunxExportMethod, RunxExportMode, RunxExportSkill};
 use super::{GeneratedFile, MCP_SERVER_NAME, MCP_SERVER_REF_MARKER, Target, display_path};
 
 /// What a skill server offers for working the turns its own calls opened.
-const TURN_TOOLS: [&str; 5] = [
+const TURN_TOOLS: [&str; 6] = [
     "turn_list",
     "turn_status",
     "turn_read",
     "turn_call",
     "turn_complete",
+    "call_cancel",
 ];
 
 pub(super) fn plan_files(
@@ -164,6 +165,7 @@ If it reports that the run needs agent work, work the run's open turns on the sa
 - `turn_read` reads the locators it returns.
 - `turn_call` makes an offered call. Give it a stable `call_id`, so an exact retry returns the recorded call.
 - `turn_complete` ends the turn with its output, or with `failure` if it cannot be done.
+- `call_cancel` cancels one call while it executes, by its address, when the person no longer wants it.
 
 Relay human questions and approval requests to the person; never answer them yourself. Do not substitute a summary for calls that never happened. When the run seals, surface the outcome, receipt id, result and artifact refs; a sealed blocked or failed run is not success.
 

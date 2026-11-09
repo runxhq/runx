@@ -34,12 +34,15 @@ use crate::receipts::{
 
 mod admission;
 mod bounded;
+mod call_stops;
 mod dispatch;
 pub(crate) mod floor;
 mod step_handlers;
 pub mod turn;
 mod workflow_engine;
 
+pub use call_stops::CallCancel;
+pub(crate) use call_stops::{CallStop, CallStops};
 use workflow_engine::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
@@ -54,6 +57,25 @@ pub(crate) fn reaches_world(kind: &runx_parser::StepKind) -> bool {
         kind,
         StepKind::Operation(_) | StepKind::Tool(ToolTarget::Catalog(_) | ToolTarget::Process(_))
     )
+}
+
+/// Whether `step` with its inputs only reads: a native tool that changes
+/// nothing, or a connector operation its connector declares a read and that
+/// costs nothing. Anything else may change something, a skill's child run
+/// and a process included.
+pub(crate) fn only_reads(
+    step: &runx_parser::WorkflowStep,
+    workflow_dir: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    use runx_parser::{StepKind, ToolTarget};
+    match &step.kind {
+        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
+        StepKind::Operation(target) => {
+            crate::kernel::operation::operation_reads(target, &step.inputs, env, workflow_dir)
+        }
+        _ => false,
+    }
 }
 
 /// The request a claimed step that never settled waits on. One that can be
@@ -194,6 +216,10 @@ pub struct RuntimeOptions {
     /// The gate a session's calls take where they reach the world, when the
     /// run is worked as a session whose calls run concurrently.
     pub(crate) effect_gate: Option<std::sync::Arc<EffectGate>>,
+    /// The stops of the calls the run and its child runs are executing, by
+    /// address, through which their host cancels one: its session's, when
+    /// it's worked as one.
+    pub(crate) call_stops: std::sync::Arc<CallStops>,
     /// The packages a bound run admitted, which it executes; none for a
     /// runtime no binding made (a test replay reads packages as they are).
     pub(crate) packages: Option<crate::skill_package::AdmittedPackages>,
@@ -447,6 +473,7 @@ impl RuntimeOptions {
             effects: RuntimeEffectRegistry::default(),
             run,
             effect_gate: None,
+            call_stops: std::sync::Arc::default(),
             packages: None,
             chain: Vec::new(),
             reads: RunReads::default(),

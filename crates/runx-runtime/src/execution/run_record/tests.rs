@@ -539,6 +539,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             outputs: &[],
             standing: None,
             answers: &[],
+            cancelled: false,
         })
         .unwrap();
     }
@@ -575,6 +576,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         outputs: &[],
         standing: None,
         answers: &[],
+        cancelled: false,
     })
     .unwrap();
     let calls = log.calls("answer", 1).unwrap();
@@ -600,6 +602,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         outputs: &[],
         standing: None,
         answers: &[],
+        cancelled: false,
     })
     .unwrap();
     assert!(matches!(
@@ -653,6 +656,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             outputs: &[],
             standing: None,
             answers: &[],
+            cancelled: false,
         })
         .unwrap();
     log.record_call(&CallRecord {
@@ -671,6 +675,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         outputs: &[],
         standing: None,
         answers: &[],
+        cancelled: false,
     })
     .unwrap();
 

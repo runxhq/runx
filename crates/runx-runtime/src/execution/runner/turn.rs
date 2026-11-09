@@ -37,7 +37,7 @@ use super::step_handlers::{
     StepRunRequest, output_error, run_step_with_inputs, run_step_with_loaded_skill_inputs,
 };
 use super::workflow_engine::AnsweringHost;
-use super::{Runtime, StepRun};
+use super::{CallStop, Runtime, StepRun};
 use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
 use crate::host::Host;
@@ -273,13 +273,31 @@ where
             claim,
             admitted_by,
             held_by_effects,
+            stop,
         } = admitted;
-        let ran = self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?;
+        // A call its host cancelled before it started never runs. A read
+        // runs under its own stop, so a cancel ends it, and however it ended
+        // it settles cancelled; an effect runs to its end.
+        let ran = if !stop.start() {
+            Ran::Cancelled
+        } else if let Some(working) = stop.working() {
+            let ran = crate::interrupt::while_working(working, || {
+                self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)
+            });
+            if stop.cancelled() {
+                Ran::Cancelled
+            } else {
+                ran?
+            }
+        } else {
+            self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?
+        };
         Ok(ExecutedCall {
             made,
             claim,
             ran,
             answers: std::mem::take(&mut host.answers),
+            stop,
         })
     }
 
@@ -433,6 +451,8 @@ struct Made {
     input: JsonObject,
     /// The standing approval that admitted it on the floor, if one did.
     standing: Option<runx_contracts::StandingApproval>,
+    /// Its host cancelled it, which every later record of it keeps.
+    cancelled: bool,
 }
 
 impl Made {
@@ -443,6 +463,7 @@ impl Made {
             target: call.target.clone(),
             input: call.input.clone(),
             standing: call.standing.clone(),
+            cancelled: call.cancelled,
         }
     }
 }
@@ -481,6 +502,8 @@ pub struct AdmittedCall {
     admitted_by: Vec<Reference>,
     /// The floor holds its write under `effects: ask`.
     held_by_effects: bool,
+    /// Its place among the run's executing calls, until it's recorded.
+    stop: CallStop,
 }
 
 impl AdmittedCall {
@@ -498,6 +521,7 @@ pub struct ExecutedCall {
     ran: Ran,
     /// The answers its execution consumed.
     answers: Vec<Answer>,
+    stop: CallStop,
 }
 
 /// How a call's step went.
@@ -507,6 +531,8 @@ enum Ran {
     Waiting(Box<ResolutionRequest>),
     /// The step's effect may have happened and is not confirmed.
     Unconfirmed,
+    /// Its host cancelled it before it started, or while it only read.
+    Cancelled,
 }
 
 impl<'a, A> OpenTurn<'a, A>
@@ -659,9 +685,10 @@ where
                 CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
                     Some(call.index)
                 }
-                CallOutcome::Completed(_) | CallOutcome::Refused(_) | CallOutcome::Failed(_) => {
-                    None
-                }
+                CallOutcome::Completed(_)
+                | CallOutcome::Refused(_)
+                | CallOutcome::Failed(_)
+                | CallOutcome::Cancelled => None,
             }))
     }
 
@@ -764,6 +791,7 @@ where
                 target,
                 input,
                 standing: None,
+                cancelled: false,
             },
         )
     }
@@ -803,7 +831,6 @@ where
     }
 
     /// Call `index`'s address in its run: `<step>/<index>`.
-    #[cfg(feature = "crash-points")]
     fn call_address(&self, index: u32) -> String {
         self.scope
             .runtime
@@ -900,21 +927,24 @@ where
                         let answers = host.answers.clone();
                         settled(self, made, pending, &answers)
                     }
-                    Ran::Unconfirmed => Err(RuntimeError::EngineInvariant {
+                    Ran::Unconfirmed | Ran::Cancelled => Err(RuntimeError::EngineInvariant {
                         context: "running a turn call",
-                        message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
+                        message: "a call that ran at once, unclaimed, has no effect to leave unconfirmed and was never its host's to cancel".to_owned(),
                     }),
                 };
             }
         };
         let authorized = std::mem::take(&mut host.answers);
         self.record(&made, claim.clone(), &authorized)?;
+        // From here until it's recorded, its host can cancel it.
+        let stop = self.stop(made.index, &call.step);
         Ok(Admission::Admitted(Box::new(AdmittedCall {
             made,
             call,
             claim,
             admitted_by,
             held_by_effects,
+            stop,
         })))
     }
 
@@ -939,18 +969,69 @@ where
             claim,
             ran,
             answers,
+            stop,
         } = executed;
+        // Released under the driver, so a cancel is recorded with the call
+        // or names no executing call.
+        let reads = stop.reads();
+        let cancelled = stop.release();
+        let ran = if cancelled && reads {
+            Ran::Cancelled
+        } else {
+            ran
+        };
+        self.concluded(made, claim, ran, &answers, cancelled)
+    }
+
+    /// Record what call `made`, claimed as `claim`, came to. A cancel its
+    /// host made while it ran is recorded with it, even where it still waits.
+    fn concluded(
+        &mut self,
+        made: Made,
+        claim: CallOutcome,
+        ran: Ran,
+        answers: &[Answer],
+        cancelled: bool,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let newly = cancelled && !made.cancelled;
+        let made = Made {
+            cancelled: made.cancelled || cancelled,
+            ..made
+        };
         match (ran, claim) {
-            (Ran::Settled(outcome), _) => self.settled(made, outcome, &answers),
+            (Ran::Cancelled, _) => self.settled(made, CallOutcome::Cancelled, answers),
+            (Ran::Settled(outcome), _) => self.settled(made, outcome, answers),
             (Ran::Waiting(_) | Ran::Unconfirmed, claim @ CallOutcome::Child(_)) => {
-                self.result(&made, &claim, &[])
+                self.still(made, claim, newly)
             }
             (Ran::Waiting(request), _) => {
                 let pending = CallOutcome::Pending(pending_request(&request)?);
-                self.settled(made, pending, &answers)
+                self.settled(made, pending, answers)
             }
-            (Ran::Unconfirmed, claim) => self.result(&made, &claim, &[]),
+            (Ran::Unconfirmed, claim) => self.still(made, claim, newly),
         }
+    }
+
+    /// A call that still stands as `claim`: recorded again only to keep a
+    /// cancel its host just made.
+    fn still(
+        &mut self,
+        made: Made,
+        claim: CallOutcome,
+        newly: bool,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        if newly {
+            return self.settled(made, claim, &[]);
+        }
+        self.result(&made, &claim, &[])
+    }
+
+    /// Register call `index`, which runs as `step`, among the run's
+    /// executing calls, so its host can cancel it until it's recorded.
+    fn stop(&self, index: u32, step: &WorkflowStep) -> CallStop {
+        let options = &self.scope.runtime.options;
+        let reads = super::only_reads(step, self.scope.workflow_dir, &options.env);
+        options.call_stops.register(self.call_address(index), reads)
     }
 
     /// Take a skill call further: run its child again, from the child's own
@@ -973,16 +1054,16 @@ where
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        match self
-            .scope
-            .run_call_step(&step, &made.target, Vec::new(), false, &mut answering)?
-        {
-            Ran::Settled(outcome) => {
-                let answers = answering.answers;
-                self.settled(made, outcome, &answers)
-            }
-            Ran::Waiting(_) | Ran::Unconfirmed => self.result(&made, &call.outcome, &call.outputs),
-        }
+        // Its child runs further under the driver; its host can cancel it
+        // meanwhile, and a skill's child run settles as it actually ends.
+        let stop = self.stop(made.index, &step.step);
+        stop.start();
+        let ran =
+            self.scope
+                .run_call_step(&step, &made.target, Vec::new(), false, &mut answering)?;
+        let cancelled = stop.release();
+        let answers = answering.answers;
+        self.concluded(made, call.outcome, ran, &answers, cancelled)
     }
 
     /// A driver asked to stop admits no further call; the turn stays where
@@ -1057,6 +1138,7 @@ where
             outputs: &outputs,
             standing: made.standing.as_ref(),
             answers,
+            cancelled: made.cancelled,
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.
@@ -1074,6 +1156,7 @@ where
             outcome,
             outputs: outputs.clone(),
             order,
+            cancelled: made.cancelled,
         };
         match calls.iter_mut().find(|known| known.index == call.index) {
             Some(known) => *known = call,
@@ -1202,6 +1285,7 @@ where
                     .map(resolution_request)
                     .collect::<Result<_, _>>()?,
             },
+            CallOutcome::Cancelled => TurnCallOutcome::Cancelled,
         };
         Ok(TurnCallResult {
             index: made.index,
@@ -1863,6 +1947,7 @@ where
             target,
             input,
             standing: None,
+            cancelled: false,
         };
         self.ledger
             .admit_made(&mut AnsweringHost::new(host, None), made)

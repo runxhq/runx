@@ -320,29 +320,77 @@ pub(crate) fn operation_write(
     env: &BTreeMap<String, String>,
     workflow_dir: &Path,
 ) -> Option<OperationWrite> {
-    let call = OperationCall::decode(inputs).ok()?;
-    let scope = ConnectorScope::of_operation(
-        target,
-        workflow_dir,
-        &crate::paths::RunxPaths::resolve(env, workflow_dir),
-    )
-    .ok()?;
-    let (connector, operation) = admission::requirement(target, &call, &scope).ok()?;
-    let (_, declared, _) = connector.operation(operation.as_str())?;
-    (declared.access() == OperationAccess::Mutate).then(|| OperationWrite {
-        connector: connector.name.as_str().to_owned(),
-        operation: operation.as_str().to_owned(),
-        approved: call.approval.is_some()
-            || declared.approval == runx_contracts::connector::ApprovalFloor::Required,
-        store: matches!(declared.implementation, Some(Implementation::Store(_))),
-        persons_words: admission::is_private(&connector)
-            && operation.as_str() == "events.append"
-            && call
+    let declared = Declared::of(target, inputs, env, workflow_dir)?;
+    let operation = declared.operation()?;
+    (operation.access() == OperationAccess::Mutate).then(|| OperationWrite {
+        connector: declared.connector.name.as_str().to_owned(),
+        operation: declared.name.as_str().to_owned(),
+        approved: declared.call.approval.is_some()
+            || operation.approval == runx_contracts::connector::ApprovalFloor::Required,
+        store: matches!(operation.implementation, Some(Implementation::Store(_))),
+        persons_words: admission::is_private(&declared.connector)
+            && declared.name.as_str() == "events.append"
+            && declared
+                .call
                 .inputs
                 .get("stream")
                 .and_then(JsonValue::as_str)
                 .is_some_and(|stream| stream.starts_with(PERSONS_WORDS)),
     })
+}
+
+/// Whether the operation step `target` with `inputs` only reads: its
+/// connector declares a read, and it costs nothing, since a paid read spends.
+pub(crate) fn operation_reads(
+    target: &runx_parser::OperationStepTarget,
+    inputs: &JsonObject,
+    env: &BTreeMap<String, String>,
+    workflow_dir: &Path,
+) -> bool {
+    Declared::of(target, inputs, env, workflow_dir)
+        .as_ref()
+        .and_then(Declared::operation)
+        .is_some_and(|operation| {
+            operation.access() == OperationAccess::Read && !operation.is_metered()
+        })
+}
+
+/// The operation an operation step calls, as its connector declares it.
+struct Declared {
+    call: OperationCall,
+    connector: Arc<crate::kernel::connectors::LoadedConnector>,
+    name: runx_contracts::connector::OperationName,
+}
+
+impl Declared {
+    /// What the step `target` with `inputs` calls; none for a call that
+    /// resolves to no operation, which admission refuses with its reason.
+    fn of(
+        target: &runx_parser::OperationStepTarget,
+        inputs: &JsonObject,
+        env: &BTreeMap<String, String>,
+        workflow_dir: &Path,
+    ) -> Option<Self> {
+        let call = OperationCall::decode(inputs).ok()?;
+        let scope = ConnectorScope::of_operation(
+            target,
+            workflow_dir,
+            &crate::paths::RunxPaths::resolve(env, workflow_dir),
+        )
+        .ok()?;
+        let (connector, name) = admission::requirement(target, &call, &scope).ok()?;
+        Some(Self {
+            call,
+            connector,
+            name,
+        })
+    }
+
+    fn operation(&self) -> Option<&runx_contracts::connector::ConnectorOperation> {
+        self.connector
+            .operation(self.name.as_str())
+            .map(|(_, operation, _)| operation)
+    }
 }
 
 /// Whether a call that may have reached its provider can be sent again.

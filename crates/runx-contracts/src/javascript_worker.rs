@@ -180,6 +180,8 @@ pub enum ScriptRejection {
     Failed,
     /// A person declined its approval.
     Declined,
+    /// Its host cancelled it before it settled.
+    Cancelled,
 }
 
 /// A call a script made, at its position in the step.

@@ -660,6 +660,10 @@ pub enum TurnCallOutcome {
     /// is unconfirmed, or what the child run it started waits on, including
     /// that run's open turns. The call settles when those are answered.
     Pending { waiting: Vec<ResolutionRequest> },
+    /// Its host cancelled it before it started, or while it only read:
+    /// nothing it did is in effect. An effect its host cancels in flight
+    /// settles as it actually ends.
+    Cancelled,
 }
 
 /// One call an open turn offers its agent: an allowance entry, named for

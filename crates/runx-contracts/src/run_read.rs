@@ -160,6 +160,11 @@ pub enum RunEventFact {
         #[serde(skip_serializing_if = "Option::is_none")]
         standing: Option<Box<crate::StandingApproval>>,
         outcome: Box<RunCallOutcome>,
+        /// Its host cancelled it. `outcome` is how it settled: `cancelled`
+        /// when it hadn't started or only read, and otherwise as its effect
+        /// actually ended.
+        #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+        cancelled: bool,
     },
     Sealed {
         outcome: RunOutcome,
@@ -241,6 +246,9 @@ pub enum RunCallOutcome {
     Child {
         run_id: NonEmptyString,
     },
+    /// Its host cancelled it before it started, or while it only read:
+    /// nothing it did is in effect.
+    Cancelled,
 }
 
 /// A project artifact holding part of a call's output.
