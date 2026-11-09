@@ -296,6 +296,7 @@ fn project(
                     run_id: run_id.into(),
                 },
                 CallOutcomeEvent::Cancelled => RunCallOutcome::Cancelled,
+                CallOutcomeEvent::Waited { at } => RunCallOutcome::Waited { at },
             };
             RunEventFact::Call {
                 step_id: call.step_id.into(),

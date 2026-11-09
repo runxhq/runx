@@ -235,6 +235,10 @@ fn check_lane(
     request: &ResolutionRequest,
 ) -> Result<(), SkillRunError> {
     match request {
+        // A wait is runx's own, as a bounded retry is: nobody answers it.
+        ResolutionRequest::Wait { until, .. } => Err(invalid(format!(
+            "{address} is a wait, which takes no answer: a resume at or after {until}, in milliseconds since the epoch, settles it"
+        ))),
         ResolutionRequest::Approval { .. }
         | ResolutionRequest::Retry { .. }
         | ResolutionRequest::Purchase { .. }

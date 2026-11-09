@@ -345,13 +345,14 @@ fn take_calls(ledger: &Shared) -> Vec<ScriptCall> {
     std::mem::take(&mut ledger.borrow_mut().calls)
 }
 
-/// `ctx`: `skill`, `tool`, `operation` and `now`, frozen.
+/// `ctx`: `skill`, `tool`, `operation`, `now` and `wait`, frozen.
 fn script_context(ledger: &Shared, context: &mut Context) -> Result<JsValue, EngineError> {
-    let functions: [(&str, usize, CallFn); 4] = [
+    let functions: [(&str, usize, CallFn); 5] = [
         ("skill", 2, skill),
         ("tool", 2, tool),
         ("operation", 3, operation),
         ("now", 0, now),
+        ("wait", 1, wait),
     ];
     let mut built = Vec::with_capacity(functions.len());
     for (name, length, function) in functions {
@@ -468,6 +469,30 @@ fn now(
     // Milliseconds since the epoch stay well inside a double's exact range.
     #[allow(clippy::cast_precision_loss)]
     Ok(JsValue::from(millis as f64))
+}
+
+/// `ctx.wait({ until })`: a call the kernel settles once its run is driven
+/// at or after `until`, in the milliseconds `ctx.now()` reads. It resolves
+/// to the time it settled.
+fn wait(
+    _this: &JsValue,
+    arguments: &[JsValue],
+    ledger: &Shared,
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let until = match arguments.get_or_undefined(0).as_object() {
+        Some(options) => options.get(js_string!("until"), context)?.as_number(),
+        None => None,
+    }
+    // A time is a whole number of milliseconds a double holds exactly.
+    .filter(|until| until.fract() == 0.0 && until.abs() <= 9_007_199_254_740_991.0)
+    .ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("ctx.wait takes { until }, a time in milliseconds since the epoch")
+    })?;
+    #[allow(clippy::cast_possible_truncation)]
+    let until = until as i64;
+    call(ledger, ScriptCallTarget::Wait { until }, context)
 }
 
 /// Take the next position for `target`, and hand the script a promise only

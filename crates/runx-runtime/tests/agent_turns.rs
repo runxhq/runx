@@ -309,7 +309,8 @@ fn request_id(request: &ResolutionRequest) -> &str {
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
-        | ResolutionRequest::Purchase { id, .. } => id.as_str(),
+        | ResolutionRequest::Purchase { id, .. }
+        | ResolutionRequest::Wait { id, .. } => id.as_str(),
     }
 }
 

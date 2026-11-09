@@ -209,6 +209,7 @@ fn calls(root: &Path, run_id: &str, stream: &str) -> TestResult<Vec<(u32, &'stat
                     RunCallOutcome::Claimed { .. } => "claimed",
                     RunCallOutcome::Child { .. } => "child",
                     RunCallOutcome::Cancelled => "cancelled",
+                    RunCallOutcome::Waited { .. } => "waited",
                 },
                 cancelled,
             )),

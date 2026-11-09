@@ -21,7 +21,7 @@ use runx_parser::ScriptStep;
 
 use super::super::super::run_record::{CallOutcome, RecordedCall};
 use super::super::bounded::run_bounded;
-use super::super::turn::{Admission, CallLedger, TurnScope};
+use super::super::turn::{Admission, CallLedger, TurnScope, resolution_request};
 use super::{
     RegularSkillSeal, RegularSkillStepOutput, StepHandlerCtx, StepReceiptLineage,
     build_ephemeral_step_output, build_step_output_projection, output_error,
@@ -77,11 +77,8 @@ where
     // The script passes from the beginning against its record once per drive
     // of the step, and from there stays live: each call's settlement goes on
     // from where the script stands.
-    // Calls that wait on a person or a child, by position. A waiting call
-    // never stops the others: the step holds only once none can go further.
-    let mut waiting = further_open_calls(&mut ledger, host)?;
-    // What a `ctx.now()` past the record reads: the run's clock, as each
-    // pass or settlement reaches the script.
+    // What a `ctx.now()` past the record reads, and what a wait is due by:
+    // the run's clock, as each pass or settlement reaches the script.
     let now = || {
         runtime
             .options
@@ -92,6 +89,10 @@ where
                 reason: "the run's clock reads no time for ctx.now()".to_owned(),
             })
     };
+    // Calls that wait on a person, a child or a time, by position. A waiting
+    // call never stops the others: the step holds only once none can go
+    // further. A wait this drive reaches at or after its `until` settles.
+    let mut waiting = further_open_calls(&mut ledger, host, now()?)?;
     let mut settled = settlements(&ledger, ledger.recorded()?)?;
     settled.extend(clock_reads(ledger.clock()?));
     let (mut live, mut passed) =
@@ -128,18 +129,31 @@ where
                 ledger.record_clock(position, millis)?;
             }
         }
-        let recorded = ledger.recorded()?;
         // Only a call this report holds can be new: every earlier one was made
         // before the script was given its settlement.
-        let new = passed
-            .calls
-            .iter()
-            .filter(|call| {
-                !matches!(call.target, ScriptCallTarget::Now { .. })
-                    && at(recorded, call.position).is_none()
-            })
-            .cloned()
-            .collect::<Vec<_>>();
+        let new = {
+            let recorded = ledger.recorded()?;
+            passed
+                .calls
+                .iter()
+                .filter(|call| {
+                    !matches!(call.target, ScriptCallTarget::Now { .. })
+                        && at(recorded, call.position).is_none()
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        // A wait is the ledger's own: a request the run waits on until a
+        // later drive, at or after its `until`, settles it.
+        let (waits, new): (Vec<_>, Vec<_>) = new
+            .into_iter()
+            .partition(|call| matches!(call.target, ScriptCallTarget::Wait { .. }));
+        for call in &waits {
+            if let ScriptCallTarget::Wait { until } = call.target {
+                waiting.push((call.position, vec![ledger.wait(call.position, until)?]));
+            }
+        }
+        let recorded = ledger.recorded()?;
         calls += passed
             .calls
             .iter()
@@ -166,7 +180,7 @@ where
                 break Ok(output);
             }
             ScriptEnding::Waiting => {
-                if new.is_empty() {
+                if new.is_empty() && waits.is_empty() {
                     if let Some((position, requests)) = waiting.into_iter().next() {
                         return Err(waiting_on(&step.id, position, requests));
                     }
@@ -365,6 +379,7 @@ where
 fn further_open_calls<A>(
     ledger: &mut CallLedger<'_, A>,
     host: &mut dyn Host,
+    now: i64,
 ) -> Result<Vec<Waiting>, RuntimeError>
 where
     A: SkillAdapter,
@@ -373,13 +388,26 @@ where
         .recorded()?
         .iter()
         .filter(|call| !settled(&call.outcome))
-        .map(|call| call.index)
+        .map(|call| (call.index, call.target.clone(), call.outcome.clone()))
         .collect::<Vec<_>>();
     let mut waiting = Vec::new();
-    for index in open {
-        if let TurnCallOutcome::Pending { waiting: requests } = ledger.further(host, index)?.outcome
-        {
-            waiting.push((index, requests));
+    for (index, target, outcome) in open {
+        match (target, outcome) {
+            // A wait settles once the run is driven at or after its until,
+            // at the time this drive reads; before then it waits as it did.
+            (CallTarget::Wait { until }, _) if now >= until => {
+                ledger.settle_wait(index, until, now)?;
+            }
+            (CallTarget::Wait { .. }, CallOutcome::Pending(request)) => {
+                waiting.push((index, vec![resolution_request(&request)?]));
+            }
+            _ => {
+                if let TurnCallOutcome::Pending { waiting: requests } =
+                    ledger.further(host, index)?.outcome
+                {
+                    waiting.push((index, requests));
+                }
+            }
         }
     }
     Ok(waiting)
@@ -453,6 +481,7 @@ fn settled(outcome: &CallOutcome) -> bool {
             | CallOutcome::Refused(_)
             | CallOutcome::Failed(_)
             | CallOutcome::Cancelled
+            | CallOutcome::Waited(_)
     )
 }
 
@@ -485,6 +514,10 @@ where
             ScriptRejection::Cancelled,
             "its host cancelled the call before it settled".to_owned(),
         ),
+        // A wait returns the time it settled.
+        CallOutcome::Waited(at) => ScriptCallOutcome::Resolved {
+            value: serde_json::Value::from(*at),
+        },
         CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
             return Err(RuntimeError::EngineInvariant {
                 context: "replaying a script",
@@ -626,6 +659,7 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObje
                 object(&serde_json::to_value(input).map_err(|error| error.to_string())?)?,
             )
         }
+        ScriptCallTarget::Wait { until } => (CallTarget::Wait { until: *until }, JsonObject::new()),
         ScriptCallTarget::Now { .. } => return Ok(None),
     }))
 }

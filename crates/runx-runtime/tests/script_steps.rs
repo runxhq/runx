@@ -122,6 +122,7 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<(u32, &'static str)>
                     RunCallOutcome::Claimed { .. } => "claimed",
                     RunCallOutcome::Child { .. } => "child",
                     RunCallOutcome::Cancelled => "cancelled",
+                    RunCallOutcome::Waited { .. } => "waited",
                 },
             )),
             _ => None,
@@ -583,6 +584,124 @@ fn ctx_now_is_recorded_at_its_position_and_replays_the_same() -> TestResult {
         serde_json::to_value(result)?,
         serde_json::json!({"first": recorded, "second": second}),
         "the script read the recorded time again, and the new one"
+    );
+    Ok(())
+}
+
+/// The time each wait the stream of run `run_id` settled settled at, by its
+/// position.
+fn waited(root: &Path, run_id: &str) -> TestResult<Vec<(u32, i64)>> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    Ok(read
+        .events
+        .into_iter()
+        .filter(|record| record.stream.as_str() == run_id)
+        .filter_map(|record| match record.event {
+            RunEventFact::Call { index, outcome, .. } => match *outcome {
+                RunCallOutcome::Waited { at } => Some((index, at)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect())
+}
+
+/// What `result` waits on, each request as its host reads it.
+fn waits(result: &RunResult) -> TestResult<Vec<runx_contracts::ResolutionRequest>> {
+    Ok(result
+        .pending_requests
+        .iter()
+        .map(|request| serde_json::from_value(serde_json::to_value(request)?))
+        .collect::<Result<_, _>>()?)
+}
+
+const WAIT_STEP: &str = "        calls:\n          tools: [data.digest]\n        max_calls: 1\n        outputs:\n          now: {type: number}\n          at: {type: number}\n";
+
+/// A wait is a pending request the run waits on, runx's own: it takes no
+/// answer, and a resume at or after its `until` settles it, at the time the
+/// kernel records, which is what the wait returns.
+#[test]
+fn a_wait_keeps_the_run_waiting_until_a_resume_at_or_after_it_settles_it() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        WAIT_STEP,
+        r#"export default async function (ctx) {
+  const now = ctx.now();
+  const at = await ctx.wait({ until: now });
+  return { now, at };
+}
+"#,
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let [(0, now)] = clock_reads(temp.path(), &run_id)?[..] else {
+        return Err("the script read the clock once".into());
+    };
+    assert_eq!(
+        waits(&started)?,
+        [runx_contracts::ResolutionRequest::Wait {
+            id: "prepare/1".into(),
+            until: now,
+        }]
+    );
+    let refused = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {"prepare/1": true}}),
+    )
+    .err()
+    .ok_or("an answer to a wait is refused")?;
+    assert!(refused.to_string().contains("takes no answer"), "{refused}");
+
+    // A resume with nothing to answer, at or after the wait's until.
+    let sealed = resume(temp.path(), &run_id, serde_json::json!({}))?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let [(1, at)] = waited(temp.path(), &run_id)?[..] else {
+        return Err("the wait settled once, at its position".into());
+    };
+    assert!(at >= now, "it settled at or after its until");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        serde_json::to_value(result)?,
+        serde_json::json!({"now": now, "at": at}),
+        "the wait returned the time the kernel recorded"
+    );
+    Ok(())
+}
+
+/// A resume before a wait's `until` settles nothing and reports the same
+/// wait again.
+#[test]
+fn a_resume_before_a_waits_until_reports_it_again() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        WAIT_STEP,
+        r#"export default async function (ctx) {
+  const now = ctx.now();
+  const at = await ctx.wait({ until: now + 3600000 });
+  return { now, at };
+}
+"#,
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let waiting = waits(&started)?;
+    assert!(
+        matches!(&waiting[..], [runx_contracts::ResolutionRequest::Wait { id, .. }] if id.as_str() == "prepare/1"),
+        "{waiting:?}"
+    );
+    let again = resume(temp.path(), &run_id, serde_json::json!({}))?;
+    assert_eq!(waits(&again)?, waiting, "the same wait, reported again");
+    assert!(
+        waited(temp.path(), &run_id)?.is_empty(),
+        "nothing settled it"
     );
     Ok(())
 }

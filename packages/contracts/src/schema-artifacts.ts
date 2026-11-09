@@ -2152,9 +2152,27 @@ export const runxSchemaArtifacts = {
               "kind"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A script waits until `until`, in milliseconds since the epoch, the time `ctx.now()` reads. It's runx's own, and no turn is offered it.",
+            "properties": {
+              "kind": {
+                "const": "wait",
+                "type": "string"
+              },
+              "until": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "until"
+            ],
+            "type": "object"
           }
         ],
-        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists.",
+        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, and `wait`.",
         "title": "CallTarget"
       },
       "CatalogHit": {
@@ -7845,6 +7863,24 @@ export const runxSchemaArtifacts = {
               "status"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A script's wait settled at `at`, in milliseconds since the epoch, which is what the wait returns to the script.",
+            "properties": {
+              "at": {
+                "type": "integer"
+              },
+              "status": {
+                "const": "waited",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "at"
+            ],
+            "type": "object"
           }
         ],
         "description": "How a call stood when this event recorded it.",
@@ -13406,6 +13442,29 @@ export const runxSchemaArtifacts = {
           "kind",
           "id",
           "purchase"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "A script's call waits until `until`, in milliseconds since the epoch. Like a bounded retry it's runx's own and takes no answer: whoever resumes the run at or after `until` settles it, and a resume before then settles nothing and reports it again.",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "const": "wait",
+            "type": "string"
+          },
+          "until": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "until"
         ],
         "type": "object"
       }

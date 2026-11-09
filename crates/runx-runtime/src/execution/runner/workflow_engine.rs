@@ -87,7 +87,8 @@ impl Host for AnsweringHost<'_> {
             | runx_contracts::ResolutionRequest::Approval { id, .. }
             | runx_contracts::ResolutionRequest::Turn { id, .. }
             | runx_contracts::ResolutionRequest::Retry { id, .. }
-            | runx_contracts::ResolutionRequest::Purchase { id, .. } => id.to_string(),
+            | runx_contracts::ResolutionRequest::Purchase { id, .. }
+            | runx_contracts::ResolutionRequest::Wait { id, .. } => id.to_string(),
         };
         if self
             .held

@@ -847,9 +847,27 @@
             "kind"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A script waits until `until`, in milliseconds since the epoch, the time `ctx.now()` reads. It's runx's own, and no turn is offered it.",
+          "properties": {
+            "kind": {
+              "const": "wait",
+              "type": "string"
+            },
+            "until": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "until"
+          ],
+          "type": "object"
         }
       ],
-      "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists.",
+      "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, and `wait`.",
       "title": "CallTarget"
     },
     "CatalogHit": {
@@ -6538,6 +6556,24 @@
           },
           "required": [
             "status"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A script's wait settled at `at`, in milliseconds since the epoch, which is what the wait returns to the script.",
+          "properties": {
+            "at": {
+              "type": "integer"
+            },
+            "status": {
+              "const": "waited",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "at"
           ],
           "type": "object"
         }

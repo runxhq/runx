@@ -178,6 +178,15 @@ request the run waits on, and is refused. An agent's answer is checked by the
 step that uses it and recorded when used, so one its step refuses is never the
 run's.
 
+A script's `ctx.wait({until})` is a request of the kind `wait`, `{kind: wait,
+id, until}`, with `id` the call's address and `until` in milliseconds since
+the epoch. Like a bounded retry it's runx's own and takes no answer, so an
+entry naming it is refused: a resume at or after `until`, even one with no
+entries (`{}`), settles it at the time runx records, which is what the wait
+returns, and a resume before then settles nothing and reports the same wait
+again. A run waiting only on waits lists every one, so a host can wake it at
+the earliest `until`.
+
 Only entries under `approvals` carry host-attested human approval provenance.
 The local CLI cannot authenticate a person from JSON: by placing a decision
 there, the host asserts that a human approved the exact pending gate. An agent

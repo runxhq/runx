@@ -129,6 +129,29 @@
         "purchase"
       ],
       "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "description": "A script's call waits until `until`, in milliseconds since the epoch. Like a bounded retry it's runx's own and takes no answer: whoever resumes the run at or after `until` settles it, and a resume before then settles nothing and reports it again.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "wait",
+          "type": "string"
+        },
+        "until": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "until"
+      ],
+      "type": "object"
     }
   ],
   "title": "ResolutionRequest",

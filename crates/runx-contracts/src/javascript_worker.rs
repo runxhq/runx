@@ -214,6 +214,9 @@ pub enum ScriptCallTarget {
     },
     /// `ctx.now()`, and what it read.
     Now { millis: i64 },
+    /// `ctx.wait({ until })`, in the milliseconds `ctx.now()` reads. It
+    /// resolves to the time it settled.
+    Wait { until: i64 },
 }
 
 /// How a pass ended.

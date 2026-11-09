@@ -544,6 +544,18 @@ pub struct ExecutedCall {
     stop: CallStop,
 }
 
+/// A script's wait at position `index`, as its ledger records it.
+fn waiting(index: u32, until: i64) -> Made {
+    Made {
+        index,
+        call_id: None,
+        target: CallTarget::Wait { until },
+        input: JsonObject::new(),
+        standing: None,
+        cancelled: false,
+    }
+}
+
 /// How a call's step went.
 enum Ran {
     Settled(CallOutcome),
@@ -668,6 +680,35 @@ where
         Ok(self.record.get_or_init(|| StepRecord { calls, clock }))
     }
 
+    /// Record the script's wait at position `index` until `until`: a request
+    /// the run waits on, runx's own, until a drive at or after `until`
+    /// settles it. The request's id is the call's address.
+    pub(super) fn wait(
+        &mut self,
+        index: u32,
+        until: i64,
+    ) -> Result<ResolutionRequest, RuntimeError> {
+        let request = ResolutionRequest::Wait {
+            id: self.call_address(index).into(),
+            until,
+        };
+        let pending = CallOutcome::Pending(pending_request(&request)?);
+        self.record(&waiting(index, until), pending, &[])?;
+        Ok(request)
+    }
+
+    /// Settle the script's wait at position `index` at `at`, in
+    /// milliseconds since the epoch: what the wait returns.
+    pub(super) fn settle_wait(
+        &mut self,
+        index: u32,
+        until: i64,
+        at: i64,
+    ) -> Result<(), RuntimeError> {
+        self.record(&waiting(index, until), CallOutcome::Waited(at), &[])
+            .map(drop)
+    }
+
     /// Record what the step's script read of the clock at position `index`.
     pub(super) fn record_clock(&mut self, index: u32, millis: i64) -> Result<(), RuntimeError> {
         self.step_record()?;
@@ -733,7 +774,8 @@ where
                 CallOutcome::Completed(_)
                 | CallOutcome::Refused(_)
                 | CallOutcome::Failed(_)
-                | CallOutcome::Cancelled => None,
+                | CallOutcome::Cancelled
+                | CallOutcome::Waited(_) => None,
             }))
     }
 
@@ -759,6 +801,8 @@ where
                 CallTarget::Skill { .. } => self.loaded_offers(target)?,
                 CallTarget::Ask => allowance.asks,
                 CallTarget::Load => allowance.rules().next().is_some(),
+                // A script's wait is its ledger's own, never admitted.
+                CallTarget::Wait { .. } => false,
             };
         if !allowed {
             return Ok(Some(format!(
@@ -948,6 +992,13 @@ where
             }
             CallTarget::Skill { .. } => {
                 CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
+            }
+            CallTarget::Wait { .. } => {
+                return Err(RuntimeError::EngineInvariant {
+                    context: "admitting a call",
+                    message: "a wait is its script's ledger's to record, never a call to run"
+                        .to_owned(),
+                });
             }
             // A call that reaches nothing holds no claim: it runs now, under
             // the driver.
@@ -1349,6 +1400,12 @@ where
                     .collect::<Result<_, _>>()?,
             },
             CallOutcome::Cancelled => TurnCallOutcome::Cancelled,
+            CallOutcome::Waited(_) => {
+                return Err(RuntimeError::EngineInvariant {
+                    context: "reading a turn's call",
+                    message: "a turn's call never waits".to_owned(),
+                });
+            }
         };
         Ok(TurnCallResult {
             index: made.index,
@@ -1439,6 +1496,7 @@ where
                 };
                 StepKind::Skill(target)
             }
+            CallTarget::Wait { .. } => return Err("a wait runs as no step".to_owned()),
             CallTarget::Load => StepKind::Load(LoadStep {
                 target: load_target(input)?,
                 rules: self.scope.allowance.rules().copied().collect(),
@@ -1626,9 +1684,10 @@ where
             )
             .map(|loaded| ("method", loaded.method.inputs))
             .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
-            CallTarget::Operation { .. } | CallTarget::Ask | CallTarget::Load => {
-                Ok(("call", BTreeMap::new()))
-            }
+            CallTarget::Operation { .. }
+            | CallTarget::Ask
+            | CallTarget::Load
+            | CallTarget::Wait { .. } => Ok(("call", BTreeMap::new())),
         }
     }
 
@@ -2070,6 +2129,7 @@ fn label(target: &CallTarget) -> String {
         CallTarget::Skill { skill, .. } => format!("skill {skill}"),
         CallTarget::Ask => "ask".to_owned(),
         CallTarget::Load => "load".to_owned(),
+        CallTarget::Wait { .. } => "wait".to_owned(),
     }
 }
 
@@ -2399,7 +2459,8 @@ fn pending_request(request: &ResolutionRequest) -> Result<PendingRequest, Runtim
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
-        | ResolutionRequest::Purchase { id, .. } => id.to_string(),
+        | ResolutionRequest::Purchase { id, .. }
+        | ResolutionRequest::Wait { id, .. } => id.to_string(),
     };
     Ok(PendingRequest {
         id,

@@ -240,8 +240,13 @@ impl BoundRun {
                 Hold::Retry { .. } | Hold::Claimed(_) => {}
                 // Nothing new to continue with: the run still waits on what
                 // only a host can answer. A run that waits on nothing, a child
-                // that sealed before its parent step was recorded, goes on.
-                Hold::Request(_) | Hold::Child(_) if host.is_idle() && !waiting.is_empty() => {
+                // that sealed before its parent step was recorded, goes on,
+                // and so does one with a wait that's due, which is runx's own.
+                Hold::Request(_) | Hold::Child(_)
+                    if host.is_idle()
+                        && !waiting.is_empty()
+                        && !waiting.iter().any(is_due_wait) =>
+                {
                     return self.paused(&log);
                 }
                 Hold::Request(_) | Hold::Child(_) => {}
@@ -933,6 +938,18 @@ fn is_due(due_at: Option<&str>) -> bool {
     }
 }
 
+/// Whether `request` is a script's wait the clock has reached.
+fn is_due_wait(request: &PendingRequest) -> bool {
+    let request = serde_json::to_value(&request.value).and_then(serde_json::from_value);
+    match (
+        request,
+        crate::execution::runner::RunClock::System.now_millis(),
+    ) {
+        (Ok(ResolutionRequest::Wait { until, .. }), Some(now)) => now >= until,
+        _ => false,
+    }
+}
+
 fn is_turn(request: &PendingRequest) -> bool {
     request
         .value
@@ -947,7 +964,8 @@ fn resolution_request_id(request: &ResolutionRequest) -> &str {
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
-        | ResolutionRequest::Purchase { id, .. } => id.as_str(),
+        | ResolutionRequest::Purchase { id, .. }
+        | ResolutionRequest::Wait { id, .. } => id.as_str(),
     }
 }
 

@@ -930,7 +930,8 @@ impl Host for FixtureHost<'_> {
             // a case tests the method it sells from its own source.
             ResolutionRequest::Input { id, .. }
             | ResolutionRequest::Retry { id, .. }
-            | ResolutionRequest::Purchase { id, .. } => {
+            | ResolutionRequest::Purchase { id, .. }
+            | ResolutionRequest::Wait { id, .. } => {
                 self.unanswered.push(id.to_string());
                 Ok(None)
             }

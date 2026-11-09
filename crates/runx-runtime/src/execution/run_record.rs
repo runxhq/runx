@@ -325,6 +325,8 @@ enum CallOutcomeEvent {
     /// Its host cancelled it before it started, or while it only read:
     /// nothing it did is in effect.
     Cancelled,
+    /// A script's wait settled at `at`, in milliseconds since the epoch.
+    Waited { at: i64 },
 }
 
 /// An answer a step consumed, bound to the request it answered.
@@ -446,6 +448,8 @@ pub(crate) enum CallOutcome {
     Child(String),
     /// Its host cancelled it before it started, or while it only read.
     Cancelled,
+    /// A script's wait settled at this time, in milliseconds since the epoch.
+    Waited(i64),
 }
 
 /// What a call records: its turn, if a turn made it, its place in its step,
@@ -1269,6 +1273,7 @@ impl RunLog {
                 run_id: run_id.clone(),
             },
             CallOutcome::Cancelled => CallOutcomeEvent::Cancelled,
+            CallOutcome::Waited(at) => CallOutcomeEvent::Waited { at: *at },
         };
         let values = call
             .answers
@@ -1567,7 +1572,8 @@ fn request_blob(request: &ResolutionRequest) -> Result<(String, Blob, String), R
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
-        | ResolutionRequest::Purchase { id, .. } => id.to_string(),
+        | ResolutionRequest::Purchase { id, .. }
+        | ResolutionRequest::Wait { id, .. } => id.to_string(),
     };
     Ok((id, Blob::new(bytes)?, digest))
 }
@@ -1863,6 +1869,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
         }),
         CallOutcomeEvent::Child { run_id } => CallOutcome::Child(run_id.clone()),
         CallOutcomeEvent::Cancelled => CallOutcome::Cancelled,
+        CallOutcomeEvent::Waited { at } => CallOutcome::Waited(*at),
     })
 }
 
@@ -1961,7 +1968,8 @@ fn collect_waiting(
             CallOutcome::Completed(_)
             | CallOutcome::Refused(_)
             | CallOutcome::Failed(_)
-            | CallOutcome::Cancelled => {}
+            | CallOutcome::Cancelled
+            | CallOutcome::Waited(_) => {}
         }
     }
     Ok(())

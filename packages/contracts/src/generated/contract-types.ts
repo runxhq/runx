@@ -349,7 +349,7 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
-/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists. */
+/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, and `wait`. */
 export type CallTargetContract = {
   readonly kind: "tool";
   readonly tool: string;
@@ -366,6 +366,9 @@ export type CallTargetContract = {
   readonly kind: "ask";
 } | {
   readonly kind: "load";
+} | {
+  readonly kind: "wait";
+  readonly until: number;
 };
 
 /** One package `registry.search` found. */
@@ -2623,6 +2626,10 @@ export type ResolutionRequestContract = {
   readonly id: string;
   readonly kind: "purchase";
   readonly purchase: PurchaseRequestContract;
+} | {
+  readonly id: string;
+  readonly kind: "wait";
+  readonly until: number;
 };
 
 export type ResolutionResponseContract = {
@@ -2677,6 +2684,9 @@ export type RunCallOutcomeContract = {
   readonly status: "child";
 } | {
   readonly status: "cancelled";
+} | {
+  readonly at: number;
+  readonly status: "waited";
 };
 
 /** A project artifact holding part of a call's output. */

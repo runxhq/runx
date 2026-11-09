@@ -44,6 +44,7 @@ fn targets(passed: &Passed) -> Vec<(u32, String)> {
                 ScriptCallTarget::Tool { name, .. } => format!("tool {name}"),
                 ScriptCallTarget::Operation { operation, .. } => format!("operation {operation}"),
                 ScriptCallTarget::Now { millis } => format!("now {millis}"),
+                ScriptCallTarget::Wait { until } => format!("wait {until}"),
             };
             (call.position, named)
         })

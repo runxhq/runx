@@ -258,6 +258,11 @@ pub enum RunCallOutcome {
     /// Its host cancelled it before it started, or while it only read:
     /// nothing it did is in effect.
     Cancelled,
+    /// A script's wait settled at `at`, in milliseconds since the epoch,
+    /// which is what the wait returns to the script.
+    Waited {
+        at: i64,
+    },
 }
 
 /// A project artifact holding part of a call's output.

@@ -113,6 +113,11 @@ pub enum ResolutionRequest {
         id: NonEmptyString,
         purchase: Box<PurchaseRequest>,
     },
+    /// A script's call waits until `until`, in milliseconds since the epoch.
+    /// Like a bounded retry it's runx's own and takes no answer: whoever
+    /// resumes the run at or after `until` settles it, and a resume before
+    /// then settles nothing and reports it again.
+    Wait { id: NonEmptyString, until: i64 },
 }
 
 /// What a person decides when a call reaches a paid method: one
@@ -474,7 +479,8 @@ pub struct AllowedOperation {
 /// What a call names, a turn's or a script's, as its step's ledger admits
 /// and records it. A turn is offered a tool, an operation or a skill its
 /// allowance lists, and `ask` and `load` where its step allows them; a script
-/// is offered a tool, an operation or a skill its step's `calls` lists.
+/// is offered a tool, an operation or a skill its step's `calls` lists, and
+/// `wait`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CallTarget {
@@ -500,6 +506,11 @@ pub enum CallTarget {
     /// catalog rule admits, whose methods or operations the turn offers from
     /// then on.
     Load,
+    /// A script waits until `until`, in milliseconds since the epoch, the
+    /// time `ctx.now()` reads. It's runx's own, and no turn is offered it.
+    Wait {
+        until: i64,
+    },
 }
 
 /// The exact package and execution closure a load bound for one method.
