@@ -89,9 +89,10 @@ A reusable provider operation keeps governance, transport, and proof separate:
    Runx resolves the unique active grant and Connect renders only the
    connector's declared request. Agent prose may choose or author inputs but may
    not stand in for transport.
-4. Bind readback to the expected resource identity. Hosted operations may
-   declare `expected_result` fields that must match exactly and `result_fields`
-   that form the complete provider result allowed into the receipt. Secret-
+4. Bind readback to the expected resource identity. An operation step's
+   `result` may declare `equals` fields that must match exactly, and `required`
+   and `optional` fields that form the complete provider result allowed into the
+   receipt. Secret-
    adjacent operations must use this projection so undeclared result material
    cannot cross into skill output.
 5. Record provider acknowledgement separately from finality. An accepted
@@ -359,14 +360,11 @@ The catalog and package gates block structurally invalid or unusable packages:
 
 - unresolved or cyclic default closures;
 - agent-authored work with no declared artifact packet;
-- no cold-selection proof against at least two real nearby public skills;
-- no standalone journey through the actual advertised default method;
-- no composed journey that names reused evidence and work that must not repeat;
 - a missing product archetype review.
 
-The native semantic report owns the operator-readiness facts. The native
-execution closure separately owns resolved package, method, tool, and edge
-truth; reviewers compare capability metadata with that closure rather than
+A package's evals, `evals/evals.json` and `eval_queries.json`, are evaluation
+files, not a format requirement, and they decide nothing at publish. The native
+execution closure owns resolved package, method, tool, and edge truth; reviewers compare capability metadata with that closure rather than
 reimplementing effect classification in TypeScript or package code. Provider
 evidence remains graded: deterministic replay is `test`, live-provider
 evidence is `live`, and supplied agent answers never upgrade either. Test execution strips ambient Runx grants,

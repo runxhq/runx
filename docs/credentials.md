@@ -472,9 +472,9 @@ any other, and admission reads the grant's status, binding, principal and
 scopes from Connect again for every call. Provider tokens never enter `.env`,
 skill inputs, command arguments, or receipts.
 
-An operation step may declare `expected_result` to require exact top-level
-resource identity fields and `result_fields` to allow only named provider
-result fields into the receipt. This is mandatory for secret-adjacent
+An operation step may declare a `result`: its `equals` requires exact top-level
+resource identity fields, and its `required` and `optional` fields are the only
+provider result fields allowed into the receipt. This is mandatory for secret-adjacent
 operations and useful whenever provider evidence must bind to one exact
 repository, message, post, charge, or other resource.
 

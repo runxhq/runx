@@ -66,8 +66,9 @@ that was revoked, rebound or is now held by another principal no longer admits
 the call. No provider token or credential body crosses into the skill, and
 granted scopes come only from grant evidence, never from the skill.
 
-An operation step can also require exact `expected_result` identity fields
-and project only declared `result_fields` before the result enters a receipt.
+An operation step's `result` can also require exact identity fields with
+`equals`, and project only its declared `required` and `optional` fields before
+the result enters a receipt.
 This prevents a correctly scoped call from being mistaken for the wrong
 resource and keeps undeclared secret-adjacent material out of skill output.
 

@@ -139,12 +139,12 @@ release. Callers that need plan-only behavior select the named `plan` method;
 unqualified invocation follows the advertised default. Publication and deployment remain separate
 operator decisions.
 
-Registry package admission requires an executable cold-selection
-journey with at least two real public confusors, a standalone journey through
-the actual default method, and a composed journey that reuses named prior
-evidence without repeating completed work. The native semantic report owns
-only those operator-readiness facts. The separate native execution closure is
-the source of truth for resolved methods, tools, package bindings, and
+A public package carries its evals: `eval_queries.json`, with requests for at
+least two real nearby public skills that must not trigger it, and
+`evals/evals.json`, with a direct-use eval through the actual default method and
+a chain-use eval that reuses named prior evidence without repeating completed
+work. They are evaluation files, not a format requirement, and they decide
+nothing at publish. The native execution closure is the source of truth for resolved methods, tools, package bindings, and
 unresolved edges; authoring and review compare catalog promises with that
 closure instead of guessing effects from method or tool names. Internal rails
 and test fixtures remain executable through explicit identities but are

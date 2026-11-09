@@ -73,22 +73,22 @@ that object merely because the CLI can read it.
 For one large immutable JSON-array export, declare a paged worker:
 
 ```yaml
-scopes: [fs.read]
 tool:
   module: archive-selection.mjs
   export: selectPage
-  pages:
-    path_from: archive_file
-    path_scope_from: archive_base
+  paged_input:
+    path: archive_file
+    path_scope: archive_base
     media_type: application/json
     framing: json_array
     page_bytes: 524288
 ```
 
-The runtime removes the path and scope fields before module invocation, admits
+The runtime removes the path and scope inputs before module invocation, admits
 the contained file to an immutable snapshot, and calls the export repeatedly.
-The step must declare `fs.read`. Native admission preserves the caller's bounds:
-agent-bound runs refuse secret files and Runx state, including symlink aliases.
+The run's `reach` bounds the read, and native admission preserves the caller's
+bounds: agent-bound runs refuse secret files and Runx state, including symlink
+aliases.
 Each call receives `runx_page` with `artifact_uri`, media type, whole digest,
 source byte count, page index, exact offsets, range digest, `eof`, complete
 encoded records, and the prior continuation `state`. An intermediate result may
@@ -102,28 +102,24 @@ private artifact path. For example, after a GitHub `commits.compare` step:
 ```yaml
 - id: files
   tool: artifact.store
-  scopes: [artifact.write]
   inputs: {value: $steps.compare.provider_operation.result.comparison.files}
 - id: open
   tool: artifact.open
-  scopes: [artifact.read]
   inputs: {artifact: $steps.files.project_artifact}
 - id: select
-  scopes: [fs.read]
   inputs: {files_source: $steps.open.local_artifact.artifact_uri}
   tool:
     module: review.mjs
-    pages: {artifact_from: files_source, framing: json_array, page_bytes: 524288}
+    paged_input: {artifact: files_source, framing: json_array, page_bytes: 524288}
 ```
 
-`artifact_from` names an input containing the opaque URI from `artifact.admit`
-or `artifact.open` in this logical run. Its media type and bytes are already bound;
-do not also declare `path_from`, `path_scope_from` or `media_type`. The adapter
-looks up that immutable snapshot and uses the same bounded page loop. It never
-opens a caller-supplied URI as a path. Unknown references and references from a
-different logical run or project refuse.
-This has the same `fs.read` requirement as `artifact.read`; `artifact.open`
-retains its separate operator, scope, root and descriptor checks.
+`artifact` names an input containing the opaque URI from `artifact.admit` or
+`artifact.open` in this logical run. Its media type and bytes are already bound,
+so don't also declare `path`, `path_scope` or `media_type`. The adapter looks up
+that immutable snapshot and uses the same bounded page loop. It never opens a
+caller-supplied URI as a path. Unknown references and references from a
+different logical run or project refuse. `artifact.open` keeps its own operator,
+root and descriptor checks.
 
 The admitted snapshot survives process exit and pause/resume within the same
 logical run, including moving its project state to another path. Continue with
@@ -157,8 +153,10 @@ runtime's hashing and page loop in package JavaScript.
 
 ## Managed-agent tools
 
-An `agent` step may call only the tools its skill lists in `tools:`; each runs
-under the scopes it declares. Before the model runs, Runx resolves every name
+An `agent` step's turn may call only what its step's `calls` names: `tools`,
+`operations` as `<connector>/<operation>`, and `skills` with `#method`. Naming a
+call grants nothing, because each call is still admitted under the run's
+`effects` and `reach`. Before the model runs, Runx resolves every tool name
 through the same native-and-local catalog used for execution. The model receives
 the catalog description and exact input schema, including required fields, typed
 defaults, and `additionalProperties: false`; Runx does not substitute a
@@ -171,13 +169,10 @@ manifests retain the subprocess ABI below. The owning `SKILL.md` and any
 declared context-skill manuals provide operating judgment; tool schemas provide
 mechanics, not duplicate instructions.
 
-Provider calls need an explicit method `operations: [requirement/operation]`
-list. Each entry must belong to the package's connector requirements. An omitted
-or empty list offers and admits no direct provider calls in that method's agent
-turns. Connector requirements describe workflow dependencies and the validation
-ceiling; they do not grant agent permissions. Static `operation` steps retain
-their declared behavior, and every provider call retains its existing grant,
-scope, credential, approval and readback requirements.
+A turn calls a provider operation only when its step's `calls.operations` names
+it. With none named, the turn is offered and admitted no direct provider calls.
+Static `operation` steps keep their declared behavior, and every provider call
+keeps its grant, credential, approval and readback requirements.
 
 Bundled local tools use
 `tools/<namespace>/<tool>/manifest.json`; the dotted manifest name must match
