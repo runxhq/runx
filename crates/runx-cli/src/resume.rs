@@ -90,7 +90,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
                 receipt_dir = Some(PathBuf::from(value.trim_start_matches("--receipt-dir=")));
                 index += 1;
             }
-            "--receipt-dir" | "-R" => {
+            "--receipt-dir" => {
                 index += 1;
                 receipt_dir = Some(PathBuf::from(
                     args.get(index)

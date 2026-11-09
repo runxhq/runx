@@ -254,7 +254,7 @@ fn parse_skill_arg(
         value if value.starts_with("--receipt-dir=") => {
             state.receipt_dir = Some(PathBuf::from(value.trim_start_matches("--receipt-dir=")));
         }
-        "--receipt-dir" | "-R" => {
+        "--receipt-dir" => {
             index += 1;
             state.receipt_dir = Some(PathBuf::from(path_arg(args, index, &token)?));
         }
@@ -540,11 +540,34 @@ mod tests {
     }
 
     #[test]
-    fn short_human_flags_parse_for_skill_runs() -> Result<(), String> {
-        let args = ["skill", "-i", "claim=abc", "-R", "receipts", "-j"]
+    fn the_receipt_dir_has_no_short_flag() -> Result<(), String> {
+        // 0.12 drops -R: a receipt directory is named by --receipt-dir alone.
+        let args = ["skill", "-R", "receipts"]
             .into_iter()
             .map(std::ffi::OsString::from)
             .collect::<Vec<_>>();
+        let mut state = SkillParseState::default();
+        let error = super::parse_skill_arg(&args, 1, &mut state)
+            .err()
+            .ok_or("-R was read as a flag")?;
+        assert!(error.contains("unknown runx skill flag -R"), "{error}");
+        assert!(state.receipt_dir.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn short_human_flags_parse_for_skill_runs() -> Result<(), String> {
+        let args = [
+            "skill",
+            "-i",
+            "claim=abc",
+            "--receipt-dir",
+            "receipts",
+            "-j",
+        ]
+        .into_iter()
+        .map(std::ffi::OsString::from)
+        .collect::<Vec<_>>();
         let mut state = SkillParseState::default();
         let mut index = 1;
         while index < args.len() {

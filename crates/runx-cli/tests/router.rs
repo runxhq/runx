@@ -41,7 +41,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help,
@@ -49,7 +49,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
+        "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -139,7 +139,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help("skill"),
@@ -272,7 +272,7 @@ fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>>
     );
     assert_help_line(
         &help("list"),
-        "runx list [tools|skills|packets] [--ok-only|--invalid-only] [-j|--json]",
+        "runx list [tools|skills|packets] [--only valid|invalid] [-j|--json]",
     );
     assert_help_line(
         &help("login"),
@@ -464,7 +464,7 @@ fn mcp_rejects_unknown_shapes_without_delegating() {
         RouterAction::Error(message) if message.contains("not both")
     ));
     assert_eq!(
-        plan(&["mcp", "--run", "rx_1", "-R", "receipts"]),
+        plan(&["mcp", "--run", "rx_1", "--receipt-dir", "receipts"]),
         RouterAction::RunMcp(McpPlan {
             run: Some("rx_1".to_owned()),
             refs: Vec::new(),
@@ -736,7 +736,14 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
         })
     );
     assert_eq!(
-        plan(&["resume", "run_123", "answers.json", "-R", "receipts", "-j",]),
+        plan(&[
+            "resume",
+            "run_123",
+            "answers.json",
+            "--receipt-dir",
+            "receipts",
+            "-j",
+        ]),
         RouterAction::RunResume(ResumePlan {
             run_id: "run_123".to_owned(),
             answers_path: PathBuf::from("answers.json"),
@@ -749,13 +756,25 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
         })
     );
     assert_eq!(
-        plan(&["list", "packets", "--ok-only", "--json"]),
+        plan(&["list", "packets", "--only", "valid", "--json"]),
         RouterAction::RunList(ListPlan {
             kind: ListKind::Packets,
-            filter: FilterMode::OkOnly,
+            filter: FilterMode::Valid,
             json: true,
         })
     );
+    assert_eq!(
+        plan(&["list", "skills", "--only=invalid"]),
+        RouterAction::RunList(ListPlan {
+            kind: ListKind::Skills,
+            filter: FilterMode::Invalid,
+            json: false,
+        })
+    );
+    assert!(matches!(
+        plan(&["list", "--only", "ok"]),
+        RouterAction::Error(message) if message.contains("valid or invalid")
+    ));
     // A repository or a skills/ directory marks a project; nothing is
     // initialized to mark one.
     assert_eq!(

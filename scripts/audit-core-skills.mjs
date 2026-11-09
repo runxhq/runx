@@ -227,7 +227,7 @@ function markdownCells(line) {
 }
 
 function readNativeCatalog(runx, selected) {
-  const output = runJson(runx, ["list", "skills", "--ok-only", "--json"]);
+  const output = runJson(runx, ["list", "skills", "--only", "valid", "--json"]);
   if (output.schema !== "runx.list.v1" || !Array.isArray(output.items)) {
     throw new Error("native skill catalog returned an unsupported envelope");
   }

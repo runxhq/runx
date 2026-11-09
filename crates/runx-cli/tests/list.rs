@@ -18,7 +18,7 @@ fn list_discovers_nested_repo_skills() -> Result<(), Box<dyn std::error::Error>>
 
     let output = isolated_runx_command_with_inherited_cwd("list-nested")
         .current_dir(&root)
-        .args(["list", "skills", "--ok-only", "--json"])
+        .args(["list", "skills", "--only", "valid", "--json"])
         .output()?;
 
     assert!(
@@ -70,7 +70,7 @@ fn list_marks_a_workflow_stage_internal_with_its_own_description()
 
     let output = isolated_runx_command_with_inherited_cwd("list-workflow-stage")
         .current_dir(&root)
-        .args(["list", "skills", "--ok-only", "--json"])
+        .args(["list", "skills", "--only", "valid", "--json"])
         .output()?;
 
     assert!(

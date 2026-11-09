@@ -90,8 +90,8 @@ fn requested_kind(kind: ListKind) -> RunxListRequestedKind {
 fn item_visible_for_filter(item: &RunxListItem, filter: FilterMode) -> bool {
     match filter {
         FilterMode::All => true,
-        FilterMode::OkOnly => item.status == RunxListStatus::Ok,
-        FilterMode::InvalidOnly => item.status == RunxListStatus::Invalid,
+        FilterMode::Valid => item.status == RunxListStatus::Ok,
+        FilterMode::Invalid => item.status == RunxListStatus::Invalid,
     }
 }
 
@@ -172,7 +172,7 @@ mod tests {
         let output = run_list_command(
             &ListPlan {
                 kind: ListKind::Packets,
-                filter: FilterMode::OkOnly,
+                filter: FilterMode::Valid,
                 json: true,
             },
             &std::collections::BTreeMap::new(),
@@ -219,7 +219,7 @@ mod tests {
         let output = run_list_command(
             &ListPlan {
                 kind: ListKind::Tools,
-                filter: FilterMode::OkOnly,
+                filter: FilterMode::Valid,
                 json: true,
             },
             &std::collections::BTreeMap::new(),

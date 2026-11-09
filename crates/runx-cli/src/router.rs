@@ -101,8 +101,8 @@ pub struct ListPlan {
 pub enum FilterMode {
     #[default]
     All,
-    OkOnly,
-    InvalidOnly,
+    Valid,
+    Invalid,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -504,23 +504,37 @@ fn parse_list_plan(args: &[OsString]) -> Result<ListPlan, String> {
         }
 
         let (flag, inline_value) = split_flag(token);
+        if flag == "--only" {
+            let value = match inline_value {
+                Some(value) => value,
+                None => {
+                    index += 1;
+                    os_arg(args, index, "list")?
+                }
+            };
+            let requested = match value {
+                "valid" => FilterMode::Valid,
+                "invalid" => FilterMode::Invalid,
+                other => {
+                    return Err(format!(
+                        "runx list --only takes valid or invalid, not {other}"
+                    ));
+                }
+            };
+            if filter != FilterMode::All && filter != requested {
+                return Err("runx list takes one --only, valid or invalid".to_owned());
+            }
+            filter = requested;
+            index += 1;
+            continue;
+        }
         if inline_value.is_some() {
             return Err(format!("{flag} does not take a value"));
         }
-        let requested = match flag {
-            "--json" | "-j" => {
-                json = true;
-                index += 1;
-                continue;
-            }
-            "--ok-only" => FilterMode::OkOnly,
-            "--invalid-only" => FilterMode::InvalidOnly,
+        match flag {
+            "--json" | "-j" => json = true,
             _ => return Err(format!("unknown list flag {flag}")),
-        };
-        if filter != FilterMode::All && filter != requested {
-            return Err("runx list accepts either --ok-only or --invalid-only".to_owned());
         }
-        filter = requested;
         index += 1;
     }
 

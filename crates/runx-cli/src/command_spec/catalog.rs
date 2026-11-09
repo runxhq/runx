@@ -77,7 +77,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "resume",
         top_level_usage: &[],
         usage: &[
-            "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
+            "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
         ],
         notes: &[
             crate::resume::ANSWER_DOCUMENT_EXAMPLE,
@@ -85,7 +85,6 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             crate::resume::APPROVAL_DOCUMENT_GUIDANCE,
         ],
         options: &[
-            "-R, --receipt-dir dir",
             "--receipt-dir dir",
             "--drive  Explicitly allow an in-process model loop for this continuation",
             "--drive-rounds n  Bound each managed act to 1-32 rounds (default 4)",
@@ -99,9 +98,9 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "list",
         top_level_usage: &[],
-        usage: &["runx list [tools|skills|packets] [--ok-only|--invalid-only] [-j|--json]"],
+        usage: &["runx list [tools|skills|packets] [--only valid|invalid] [-j|--json]"],
         notes: &[],
-        options: &["--ok-only", "--invalid-only", "-j, --json"],
+        options: &["--only valid|invalid", "-j, --json"],
     },
     CommandSpec {
         name: "login",
@@ -228,8 +227,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "mcp",
         top_level_usage: &[],
         usage: &[
-            "runx mcp <skill-ref[#method]...> [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
-            "runx mcp --run <run-id> [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
+            "runx mcp <skill-ref[#method]...> [--receipt-dir dir] [--http-listen [addr]] [--http-allow-non-loopback]",
+            "runx mcp --run <run-id> [--receipt-dir dir] [--http-listen [addr]] [--http-allow-non-loopback]",
         ],
         notes: &[
             "The governed MCP server. Each skill is a tool: a ref with #method offers that method under the skill's name, and a ref without one offers its default method and each other method that makes calls. A skill call that pauses for agent work is worked on the same connection through turn_list, turn_status, turn_read, turn_call and turn_complete, naming its run. The server works only the runs its own calls opened.",
@@ -237,7 +236,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         options: &[
             "--run <run-id>  Serve this run's open turns",
-            "-R, --receipt-dir dir",
+            "--receipt-dir dir",
             "--http-listen [addr]",
             "--http-allow-non-loopback",
         ],
@@ -246,7 +245,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
             "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
         ],
         notes: &[
@@ -262,7 +261,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--drive          Explicitly allow an in-process model loop for this run",
             "--drive-rounds n Bound each managed act to 1-32 rounds (default 4)",
-            "-R, --receipt-dir dir    Write receipts under dir",
+            "--receipt-dir dir    Write receipts under dir",
             "-j, --json               Print machine-readable output",
             "--diagnostics            Show everything: the complete prepared context before the run, and its trace and intermediate context inline",
             "--registry url           The hosted registry a registry ref is fetched from",

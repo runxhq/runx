@@ -317,7 +317,7 @@ fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> Tes
     }
 
     let list = command(&root)
-        .args(["list", "skills", "--ok-only", "--json"])
+        .args(["list", "skills", "--only", "valid", "--json"])
         .output()?;
     let list = assert_json(&list, 0)?;
     let listed = list["items"]
