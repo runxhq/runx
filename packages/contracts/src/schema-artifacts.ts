@@ -7994,6 +7994,10 @@ export const runxSchemaArtifacts = {
           {
             "additionalProperties": false,
             "properties": {
+              "implementation": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
+                "description": "What started it: the source-tree digest each of its binaries reports. Absent for a run an earlier runx started."
+              },
               "kind": {
                 "const": "started",
                 "type": "string"
@@ -8391,6 +8395,27 @@ export const runxSchemaArtifacts = {
         ],
         "description": "Where a suspended step waits.",
         "title": "RunHold"
+      },
+      "RunImplementation": {
+        "additionalProperties": false,
+        "description": "What a run was started by: the digest of the sources each binary was built from, which each reports, so a build of other sources neither resumes the run nor reuses what it did.",
+        "properties": {
+          "runtime": {
+            "description": "The runtime's: the runx binary that drove it.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "worker": {
+            "description": "The JavaScript worker's it runs scripts and workers with; absent for a runtime built without the worker's sources to hand.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "runtime"
+        ],
+        "title": "RunImplementation",
+        "type": "object"
       },
       "RunListEntry": {
         "additionalProperties": false,

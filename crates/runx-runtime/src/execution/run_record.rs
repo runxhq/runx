@@ -133,6 +133,11 @@ pub(crate) struct Started {
     /// registry sells: the kernel buys it rather than run it (S10).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purchase: Option<String>,
+    /// What started it: the source-tree digest each of its binaries reports.
+    /// A resume under another is refused. Absent for a run an earlier runx
+    /// started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<runx_contracts::RunImplementation>,
     pub created_at: String,
 }
 
@@ -934,6 +939,7 @@ impl RunLog {
             driver: started.driver,
             prepared: started.prepared.cloned(),
             purchase: started.purchase.map(str::to_owned),
+            implementation: Some(crate::implementation::current()),
             created_at: started.created_at.to_owned(),
         };
         let mut blobs = vec![inputs];

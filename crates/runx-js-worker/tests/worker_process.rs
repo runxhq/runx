@@ -40,7 +40,9 @@ fn packaged_worker_performs_the_versioned_handshake_and_invocation()
     assert_eq!(
         ready,
         Some(WorkerResponse::Ready {
-            protocol_version: PROTOCOL_VERSION
+            protocol_version: PROTOCOL_VERSION,
+            // The worker reports the sources it was built from.
+            source_digest: env!("RUNX_JS_WORKER_SOURCE_DIGEST").to_owned(),
         })
     );
 

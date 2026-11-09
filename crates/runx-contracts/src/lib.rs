@@ -225,8 +225,8 @@ pub use resume::{
     StandingCommands, StandingEdits, StandingOperations,
 };
 pub use run_read::{
-    RunCallOutcome, RunCallOutput, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead,
-    RunReadSchema, RunReadSummary, RunState, WaitedRequest,
+    RunCallOutcome, RunCallOutput, RunDriver, RunEventFact, RunEventRecord, RunHold,
+    RunImplementation, RunRead, RunReadSchema, RunReadSummary, RunState, WaitedRequest,
 };
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,

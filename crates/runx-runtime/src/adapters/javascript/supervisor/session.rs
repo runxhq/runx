@@ -130,8 +130,19 @@ impl WorkerSession {
             })?;
         let ready = ready.map_err(|message| session.failure_with_stderr(message))?;
         match ready {
-            WorkerResponse::Ready { protocol_version } if protocol_version == PROTOCOL_VERSION => {
-                Ok(session)
+            // A worker built from other sources than the one this runtime
+            // was built beside would run a run's scripts as another
+            // implementation than the one its record names.
+            WorkerResponse::Ready {
+                protocol_version,
+                source_digest,
+            } if protocol_version == PROTOCOL_VERSION => {
+                match crate::implementation::expected_worker() {
+                    Some(expected) if expected != source_digest => Err(worker_error(format!(
+                        "the JavaScript worker was built from other sources ({source_digest}) than this runx expects ({expected}); build them together"
+                    ))),
+                    _ => Ok(session),
+                }
             }
             response => Err(worker_error(format!(
                 "deterministic JavaScript worker handshake failed: {response:?}"

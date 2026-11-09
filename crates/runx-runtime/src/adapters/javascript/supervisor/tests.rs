@@ -302,7 +302,11 @@ fn a_worker_blocked_on_its_pipe_is_discarded_as_unresponsive()
     use runx_contracts::javascript_worker::{PROTOCOL_VERSION, WorkerFate};
 
     let temp = tempfile::tempdir()?;
-    let ready = format!(r#"{{"type":"ready","protocol_version":{PROTOCOL_VERSION}}}"#);
+    // It greets as the worker this runx was built beside.
+    let ready = format!(
+        r#"{{"type":"ready","protocol_version":{PROTOCOL_VERSION},"source_digest":"{}"}}"#,
+        env!("RUNX_JS_WORKER_SOURCE_DIGEST")
+    );
     let length = u32::try_from(ready.len())?.to_be_bytes();
     let prefix = length
         .iter()

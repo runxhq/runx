@@ -477,6 +477,14 @@ fn continuation_identity<'a>(
     if started.execution_closure_digest != execution_closure_digest {
         return Err(refuse("execution closure"));
     }
+    if let Some(reason) = crate::implementation::refusal(
+        started.implementation.as_ref(),
+        &crate::implementation::current(),
+    ) {
+        return Err(invalid(format!(
+            "run identity cannot replace its original implementation: {reason}"
+        )));
+    }
     let request_inputs = request
         .inputs
         .iter()

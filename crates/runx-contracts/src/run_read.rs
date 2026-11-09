@@ -122,6 +122,10 @@ pub enum RunEventFact {
     Started {
         skill: NonEmptyString,
         method: NonEmptyString,
+        /// What started it: the source-tree digest each of its binaries
+        /// reports. Absent for a run an earlier runx started.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        implementation: Option<RunImplementation>,
     },
     ChildStarted {
         parent: NonEmptyString,
@@ -218,6 +222,20 @@ pub enum RunHold {
     },
     /// On what the child run it started waits on.
     Child { run_id: NonEmptyString },
+}
+
+/// What a run was started by: the digest of the sources each binary was
+/// built from, which each reports, so a build of other sources neither
+/// resumes the run nor reuses what it did.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunImplementation {
+    /// The runtime's: the runx binary that drove it.
+    pub runtime: NonEmptyString,
+    /// The JavaScript worker's it runs scripts and workers with; absent for
+    /// a runtime built without the worker's sources to hand.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker: Option<NonEmptyString>,
 }
 
 /// How a call stood when this event recorded it.

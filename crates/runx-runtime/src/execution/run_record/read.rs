@@ -208,6 +208,7 @@ fn project(
         RunEvent::Started(started) => RunEventFact::Started {
             skill: started.skill.into(),
             method: started.method.into(),
+            implementation: started.implementation,
         },
         RunEvent::ChildStarted(started) => RunEventFact::ChildStarted {
             parent: started.parent.into(),

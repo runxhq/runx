@@ -124,6 +124,9 @@ signal-hook = { version = "0.4.5", default-features = false }
 process-wrap = { version = "=10.0.1", default-features = false, features = ["std", "tokio1", "job-object"] }
 win32job = "2.0.3"
 
+[build-dependencies]
+sha2.workspace = true
+
 [dev-dependencies]
 criterion = "0.8.2"
 proptest = { version = "1.11.0", default-features = false, features = ["std"] }

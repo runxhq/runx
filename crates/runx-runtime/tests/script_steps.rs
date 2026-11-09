@@ -954,3 +954,36 @@ fn a_scripts_call_that_runs_javascript_never_waits_on_the_scripts_worker() -> Te
     assert_eq!(result.get("length").and_then(JsonValue::as_u64), Some(4));
     Ok(())
 }
+
+/// A run records the implementation that started it: the digest of the
+/// sources the runtime and the worker beside it were built from, which a
+/// resume must match.
+#[test]
+fn a_run_records_the_implementation_that_started_it() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          tools: [data.digest]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+        "export default async function () {\n  return { done: true };\n}\n",
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&sealed.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let read = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), &run_id, None)?;
+    let started = read
+        .events
+        .into_iter()
+        .find_map(|record| match record.event {
+            RunEventFact::Started { implementation, .. } => Some(implementation),
+            _ => None,
+        })
+        .ok_or("the run started")?;
+    let current = runx_runtime::implementation::current();
+    assert!(
+        current.worker.is_some(),
+        "a workspace build names its worker"
+    );
+    assert_eq!(started, Some(current));
+    Ok(())
+}

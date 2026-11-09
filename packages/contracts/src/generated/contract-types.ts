@@ -2729,6 +2729,8 @@ export type RunContextContract = {
 export type RunDriverContract = "attached" | "managed";
 
 export type RunEventFactContract = {
+  /** What started it: the source-tree digest each of its binaries reports. Absent for a run an earlier runx started. */
+  readonly implementation?: RunImplementationContract;
   readonly kind: "started";
   readonly method: string;
   readonly skill: string;
@@ -2815,6 +2817,14 @@ export type RunHoldContract = {
 } | {
   readonly kind: "child";
   readonly run_id: string;
+};
+
+/** What a run was started by: the digest of the sources each binary was built from, which each reports, so a build of other sources neither resumes the run nor reuses what it did. */
+export type RunImplementationContract = {
+  /** The runtime's: the runx binary that drove it. */
+  readonly runtime: string;
+  /** The JavaScript worker's it runs scripts and workers with; absent for a runtime built without the worker's sources to hand. */
+  readonly worker?: string;
 };
 
 /** What `run.list` returns: the workspace's top-level runs, most recently advanced first, and those whose record this runx can't read. */
