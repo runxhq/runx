@@ -1,0 +1,22 @@
+[
+  {"query": "Post 'deploy done' in #releases.", "should_trigger": false},
+  {"query": "Reply in that Slack thread that we're on it.", "should_trigger": false},
+  {"query": "Review this Slack thread with the client and prepare a reply.", "should_trigger": false},
+  {"query": "Create a Slack channel for the launch team.", "should_trigger": false},
+  {"query": "Invite Sam to the #design channel.", "should_trigger": false},
+  {"query": "Set up a Slack app with a slash command.", "should_trigger": false},
+  {"query": "Search my email for the invoice from Fernway.", "should_trigger": false},
+  {"query": "From these collected Slack and email observations, decide what deserves my attention.", "should_trigger": false},
+  {"query": "Export our entire Slack workspace history.", "should_trigger": false},
+  {"query": "Delete my last message in #general.", "should_trigger": false},
+  {"query": "Find the Slack messages about release readiness.", "should_trigger": true},
+  {"query": "Search #ops in Slack for anything mentioning the payments outage this week.", "should_trigger": true},
+  {"query": "Read the Slack thread at slack://acme/C024BE91L/1730000000.000100.", "should_trigger": true},
+  {"query": "What does this Slack link point to? https://acme.slack.com/archives/C024BE91L/p1730000000000100", "should_trigger": true},
+  {"query": "Show me the screenshot attached to that Slack thread.", "should_trigger": true},
+  {"query": "Find Slack messages from U123ABC that mention the launch date.", "should_trigger": true},
+  {"query": "Which Slack messages mention me from the last day?", "should_trigger": true},
+  {"query": "Pull the full thread for the incident discussion in #incidents so I can triage it.", "should_trigger": true},
+  {"query": "Search Slack with the expression 'in:#releases after:2026-11-01 blocker'.", "should_trigger": true},
+  {"query": "Get the next page of that Slack search.", "should_trigger": true}
+]

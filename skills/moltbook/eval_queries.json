@@ -1,0 +1,22 @@
+[
+  {"query": "Post this thread to our X account.", "should_trigger": false},
+  {"query": "Find a Reddit thread where I could reply from my account.", "should_trigger": false},
+  {"query": "Send this update to the #community Slack channel.", "should_trigger": false},
+  {"query": "Research what developers are saying about agent frameworks and give me a sourced packet.", "should_trigger": false},
+  {"query": "Write a decision brief on whether we should invest in community marketing.", "should_trigger": false},
+  {"query": "Create a Moltbook account for our company.", "should_trigger": false},
+  {"query": "Upvote our last Moltbook post from five different accounts.", "should_trigger": false},
+  {"query": "Schedule ten Moltbook posts for next week to boost our visibility.", "should_trigger": false},
+  {"query": "What is Moltbook?", "should_trigger": false},
+  {"query": "Write one generic hype post about our launch that we can paste into every community.", "should_trigger": false},
+  {"query": "Scan Moltbook for credible opportunities relevant to Runx builders.", "should_trigger": true},
+  {"query": "Check the newest posts in the m/agents submolt and tell me if there's one conversation worth joining.", "should_trigger": true},
+  {"query": "Is there anything on Moltbook right now where we could genuinely help? Cite the posts.", "should_trigger": true},
+  {"query": "Turn the opportunity from that scan into a post-ready draft for the submolt, within Moltbook's limits.", "should_trigger": true},
+  {"query": "Publish the approved Moltbook post and confirm it's live.", "should_trigger": true},
+  {"query": "Here's a Moltbook feed snapshot I captured yesterday. Find at most one worthwhile opportunity in it.", "should_trigger": true},
+  {"query": "Draft a Moltbook post from this accepted outline, and don't add anything the scan didn't support.", "should_trigger": true},
+  {"query": "Find one credible thread on Moltbook that fits our objective of helping agent developers with receipts.", "should_trigger": true},
+  {"query": "Look through Moltbook's latest posts for a real conversation we can add something useful to, not just to be visible.", "should_trigger": true},
+  {"query": "Post the drafted piece to m/builders once I approve it, and read it back.", "should_trigger": true}
+]

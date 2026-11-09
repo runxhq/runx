@@ -1,0 +1,22 @@
+[
+  {"query": "Read the National Weather Service forecast for 38.8894, -77.0352.", "should_trigger": false},
+  {"query": "Fetch the NWS forecast for gridpoint LWX 97,71.", "should_trigger": false},
+  {"query": "Fetch https://open-meteo.com/en/docs and give me the page text.", "should_trigger": false},
+  {"query": "Move my outdoor meeting if it's going to rain.", "should_trigger": false},
+  {"query": "Show me last year's average temperature in Berlin.", "should_trigger": false},
+  {"query": "Is Open-Meteo free for commercial use?", "should_trigger": false},
+  {"query": "Explain what an AQI number means.", "should_trigger": false},
+  {"query": "Build a weather widget for our website.", "should_trigger": false},
+  {"query": "What time is it in Tokyo right now?", "should_trigger": false},
+  {"query": "Track this hurricane's path over the next week.", "should_trigger": false},
+  {"query": "Fetch a three-day Open-Meteo forecast for Shanghai.", "should_trigger": true},
+  {"query": "What's the weather going to be in Lisbon this week?", "should_trigger": true},
+  {"query": "Check the air quality in Delhi today.", "should_trigger": true},
+  {"query": "Find the coordinates for Springfield. I mean the one in Illinois.", "should_trigger": true},
+  {"query": "Get the forecast for -33.8688, 151.2093.", "should_trigger": true},
+  {"query": "What's the air quality at 52.52, 13.405 over the next couple of days?", "should_trigger": true},
+  {"query": "What's the weather in Paris? If there's more than one Paris, tell me rather than guessing.", "should_trigger": true},
+  {"query": "Read the forecast for Shanghai, China.", "should_trigger": true},
+  {"query": "Give me the current conditions and daily forecast for Nairobi.", "should_trigger": true},
+  {"query": "Look up Cape Town and get its forecast.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Post this review comment on PR #554.", "should_trigger": false},
+  {"query": "Triage issue 241 and draft a response to the reporter.", "should_trigger": false},
+  {"query": "Run the test suite on PR #554's branch and tell me whether it passes.", "should_trigger": false},
+  {"query": "Merge PR #554 once it's approved.", "should_trigger": false},
+  {"query": "Review my uncommitted local changes before I commit.", "should_trigger": false},
+  {"query": "Implement the changes requested in issue 33 and open a PR.", "should_trigger": false},
+  {"query": "Write the description for my pull request.", "should_trigger": false},
+  {"query": "List the open pull requests in acme/api.", "should_trigger": false},
+  {"query": "Review this architecture proposal doc.", "should_trigger": false},
+  {"query": "Approve PR #554 on GitHub.", "should_trigger": false},
+  {"query": "Review runxhq/runx#554 for concrete code defects.", "should_trigger": true},
+  {"query": "Look over PR 88 in acme/api and give me changed-line findings on correctness and security.", "should_trigger": true},
+  {"query": "Review this pull request at head 3f2a9c1 only, and stop if the branch has moved.", "should_trigger": true},
+  {"query": "Can you code-review the open PR #12 in our repo? Focus on src/ and skip the docs changes.", "should_trigger": true},
+  {"query": "Give me an unsent review of acme/web pull 340: regressions, risky migrations, anything operationally dangerous.", "should_trigger": true},
+  {"query": "Review only the files under crates/runtime in PR #901.", "should_trigger": true},
+  {"query": "We already captured that PR's snapshot. Review the config changes from it without reading GitHub again.", "should_trigger": true},
+  {"query": "Is PR #77 safe to merge? Review the diff and the surrounding source, and tell me what you couldn't check.", "should_trigger": true},
+  {"query": "Find bugs in the changes in this pull request: https://github.com/acme/api/pull/415", "should_trigger": true},
+  {"query": "Review the patch in PR #23 and cite the file and line for each problem.", "should_trigger": true}
+]

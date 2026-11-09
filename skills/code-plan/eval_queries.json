@@ -1,0 +1,22 @@
+[
+  {"query": "This bug report is a mess. Figure out what the reporter wants and draft a reply to them.", "should_trigger": false},
+  {"query": "Before we design this, check whether the repo or the catalog already has something that does it.", "should_trigger": false},
+  {"query": "Split this work between Ana, Ben and the QA contractor, with acceptance checks for each of them.", "should_trigger": false},
+  {"query": "Create a new runx skill that wraps the Linear API.", "should_trigger": false},
+  {"query": "Implement step 2 of the plan now.", "should_trigger": false},
+  {"query": "Take issue #12 and ship it as a pull request.", "should_trigger": false},
+  {"query": "Write a design doc explaining why we chose Postgres.", "should_trigger": false},
+  {"query": "Estimate how many story points this epic is.", "should_trigger": false},
+  {"query": "Make a Gantt chart for the marketing launch.", "should_trigger": false},
+  {"query": "What's the plan for today? Go through my calendar.", "should_trigger": false},
+  {"query": "Turn this bounded issue intake into a dependency-safe work plan.", "should_trigger": true},
+  {"query": "Before we touch anything, plan the auth refactor across the API, the web client and the CLI, with ordered phases.", "should_trigger": true},
+  {"query": "Here's the change set from intake. Compile it into an execution plan without rewriting its success criteria.", "should_trigger": true},
+  {"query": "Break this objective into steps at the mutation and review boundaries, and say which steps can run in parallel.", "should_trigger": true},
+  {"query": "Plan the work to add a new connector skill package to the catalog. Don't implement it.", "should_trigger": true},
+  {"query": "We need to split billing out into its own service. Give me a phased plan with validation commands for each change.", "should_trigger": true},
+  {"query": "What order should these four changes land in so nothing breaks? Make a plan with dependencies and mutation flags.", "should_trigger": true},
+  {"query": "Draft a runx execution plan for upgrading the database driver everywhere, and block on anything that needs a decision first.", "should_trigger": true},
+  {"query": "Plan this cross-repo change and name the exact skill each step would use.", "should_trigger": true},
+  {"query": "I want a plan, not code: move our logging to structured JSON across the monorepo.", "should_trigger": true}
+]

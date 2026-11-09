@@ -1,0 +1,22 @@
+[
+  {"query": "Draft a maintainer reply to issue 442 without changing any code.", "should_trigger": false},
+  {"query": "Review open PR #554 for defects.", "should_trigger": false},
+  {"query": "Read issue 442 and its comments.", "should_trigger": false},
+  {"query": "Label issue 442 as needs-repro.", "should_trigger": false},
+  {"query": "This issue is too vague to start on. Turn it into a bounded request with open questions.", "should_trigger": false},
+  {"query": "Fix the typo in CONTRIBUTING.md.", "should_trigger": false},
+  {"query": "Merge PR #60 into main.", "should_trigger": false},
+  {"query": "Tag and publish version 3.1.0 of the package.", "should_trigger": false},
+  {"query": "Write unit tests for src/parser.ts.", "should_trigger": false},
+  {"query": "Squash my last three commits into one.", "should_trigger": false},
+  {"query": "Fix issue 442 in this checkout, run the tests, and stop before opening a PR unless I say so.", "should_trigger": true},
+  {"query": "Implement runxhq/runx#318 and open a pull request with the exact commit once the checks pass.", "should_trigger": true},
+  {"query": "Take https://github.com/acme/api/issues/77, make the fix following the repo's contributing rules, and publish the PR.", "should_trigger": true},
+  {"query": "Work issue #12 end to end: read it, change the code, run the focused tests, and verify the commit before publishing.", "should_trigger": true},
+  {"query": "I already fixed issue 442 locally. Verify the checkout and HEAD, then open the PR for it.", "should_trigger": true},
+  {"query": "Implement the issue we already pulled down, without reading it from GitHub again.", "should_trigger": true},
+  {"query": "The PR for issue 55 failed partway through publishing. Recover it and confirm the pull request exists on GitHub.", "should_trigger": true},
+  {"query": "Resolve acme/web issue 903 and keep the change local. I'll review it before anything goes to GitHub.", "should_trigger": true},
+  {"query": "Pick up issue 21 in this repo, implement it under our scafld process, and finalize before the PR.", "should_trigger": true},
+  {"query": "Turn GitHub issue 64 into a checked change and a pull request carrying that commit.", "should_trigger": true}
+]

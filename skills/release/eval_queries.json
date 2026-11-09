@@ -1,0 +1,22 @@
+[
+  {"query": "Read the latest issues in acme/api.", "should_trigger": false},
+  {"query": "Fix issue 77 and open a pull request.", "should_trigger": false},
+  {"query": "Write a release process for our new project from scratch.", "should_trigger": false},
+  {"query": "Write the changelog for 1.2.3.", "should_trigger": false},
+  {"query": "Bump the version in package.json to 1.2.3.", "should_trigger": false},
+  {"query": "Set up semantic-release in our CI.", "should_trigger": false},
+  {"query": "Draft the release notes in our voice from these validated facts.", "should_trigger": false},
+  {"query": "Roll back the production database migration.", "should_trigger": false},
+  {"query": "What's the difference between a semver major and minor version?", "should_trigger": false},
+  {"query": "Write a postmortem for the release that broke production.", "should_trigger": false},
+  {"query": "Release version 1.2.3 through our project's release profile and verify it.", "should_trigger": true},
+  {"query": "Prepare the 2.0.0 release and give me the release brief before anything is published.", "should_trigger": true},
+  {"query": "Publish 0.9.1 using the commands in our release profile, with my approval on the exact plan.", "should_trigger": true},
+  {"query": "Ship the next patch release and verify it independently, not just from the exit code.", "should_trigger": true},
+  {"query": "Run the release preparation step for 3.4.0 and show me what would be published.", "should_trigger": true},
+  {"query": "The release paused at publish approval. Resume the same run and finish it.", "should_trigger": true},
+  {"query": "Cut release 1.5.0 of the CLI with our versioned release profile, then run the verify command.", "should_trigger": true},
+  {"query": "Approve and run the publish plan for v2.1.0, and refuse it if the commands changed since approval.", "should_trigger": true},
+  {"query": "Do a governed release of our npm package at 4.2.0, using the profile the project already has.", "should_trigger": true},
+  {"query": "Release this package and give me a receipt chain showing what was approved, run and verified.", "should_trigger": true}
+]

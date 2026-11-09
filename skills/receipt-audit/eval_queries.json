@@ -1,0 +1,22 @@
+[
+  {"query": "Across the last 50 receipts, which scopes in this grant were never recorded, and can we narrow it?", "should_trigger": false},
+  {"query": "Find all the receipts for the deploy skill that failed in the last week.", "should_trigger": false},
+  {"query": "Sign a receipt binding our manual deploy to its CI log URL.", "should_trigger": false},
+  {"query": "Why did this run fail? Diagnose it from its receipt and propose a fix.", "should_trigger": false},
+  {"query": "Show me the outcome of every run in this workspace.", "should_trigger": false},
+  {"query": "Audit our expense receipts from the conference trip.", "should_trigger": false},
+  {"query": "Scan this repository for leaked API keys.", "should_trigger": false},
+  {"query": "Verify the signature on this PDF.", "should_trigger": false},
+  {"query": "Tighten our operational policy so nothing can push to main without approval.", "should_trigger": false},
+  {"query": "Explain how runx receipts are signed.", "should_trigger": false},
+  {"query": "Audit this sealed Runx receipt for authority over-reach and approval inconsistency.", "should_trigger": true},
+  {"query": "Check receipt rx_7Hq2 against this grant baseline and tell me whether it used anything outside it.", "should_trigger": true},
+  {"query": "Did this run record an approval where the skill declared one was required? Audit its receipt.", "should_trigger": true},
+  {"query": "Look at this receipt and flag any exposed secret material in what was recorded.", "should_trigger": true},
+  {"query": "Were there refusals in this run that the summary doesn't mention? Audit the receipt.", "should_trigger": true},
+  {"query": "Using the ledger packet we already pulled, audit this run's recorded authority against the scopes we granted.", "should_trigger": true},
+  {"query": "Give me a governance review of receipt rx_01JA, with the findings, their limits, and what evidence would settle them.", "should_trigger": true},
+  {"query": "Is this receipt clean? Compare its recorded authority with the granted scopes repo:read and issues:write.", "should_trigger": true},
+  {"query": "Audit the payment run's receipt for anything that went past its grant or skipped approval.", "should_trigger": true},
+  {"query": "Review this one receipt for over-reach, and say what you couldn't observe.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Charge this customer's saved card $120.", "should_trigger": false},
+  {"query": "Pay for this x402 resource from my own wallet.", "should_trigger": false},
+  {"query": "The customer opened a chargeback. Prepare our evidence response.", "should_trigger": false},
+  {"query": "Ask Amazon for a refund on my order.", "should_trigger": false},
+  {"query": "Write our refund policy page.", "should_trigger": false},
+  {"query": "How long does a Stripe refund take to reach the card?", "should_trigger": false},
+  {"query": "Give the customer store credit instead of a refund.", "should_trigger": false},
+  {"query": "Stripe keeps failing, so refund this Stripe payment through PayPal instead.", "should_trigger": false},
+  {"query": "Pay this supplier invoice.", "should_trigger": false},
+  {"query": "Add a refund button to our admin dashboard.", "should_trigger": false},
+  {"query": "Refund this settled charge.", "should_trigger": true},
+  {"query": "Refund one dollar of the original Northstar collection.", "should_trigger": true},
+  {"query": "Give the customer back the full $120 on Stripe PaymentIntent pi_3NxT2.", "should_trigger": true},
+  {"query": "Refund 25.00 EUR of PayPal capture 2GG279541U471931P on our merchant account.", "should_trigger": true},
+  {"query": "Reverse this x402 payment we settled through Coinbase CDP.", "should_trigger": true},
+  {"query": "A customer was charged twice. Refund the second Stripe payment and confirm it succeeded.", "should_trigger": true},
+  {"query": "Partially refund order 8841: 15 USD back on the original payment.", "should_trigger": true},
+  {"query": "Refund this payment with my approval first, and only call it done once Stripe confirms.", "should_trigger": true},
+  {"query": "The refund we started may not have gone through. Check it without refunding twice.", "should_trigger": true},
+  {"query": "Issue a refund on the original PayPal capture for the cancelled workshop ticket.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Draft a tighter runx operational policy from this governance brief.", "should_trigger": false},
+  {"query": "Audit this one sealed receipt for over-reach, approval problems or leaked secrets.", "should_trigger": false},
+  {"query": "Remove repo:write from the bot's grant now.", "should_trigger": false},
+  {"query": "Review the IAM policy on our AWS role and tell me which permissions go unused.", "should_trigger": false},
+  {"query": "What does least privilege mean in security?", "should_trigger": false},
+  {"query": "Pull the receipts for runs of the deploy skill since Monday.", "should_trigger": false},
+  {"query": "Show me which runs failed this week.", "should_trigger": false},
+  {"query": "Set up branch protection on main.", "should_trigger": false},
+  {"query": "Rotate the API keys for our Stripe connector.", "should_trigger": false},
+  {"query": "Lock down the file permissions on the server's SSH directory.", "should_trigger": false},
+  {"query": "Review this grant against its recent verified receipts, and tell me which scopes were never recorded.", "should_trigger": true},
+  {"query": "Is the github-issue-triage skill's grant broader than it needs to be? Compare it with the receipts we have.", "should_trigger": true},
+  {"query": "Which of this actor's scopes show up in signed receipts, and which don't?", "should_trigger": true},
+  {"query": "We want to narrow the deploy bot's grant. What usage and policy evidence would we need first?", "should_trigger": true},
+  {"query": "Using the ledger packet from receipt-query, compare the recorded authority with the grant baseline.", "should_trigger": true},
+  {"query": "Review the authority this skill's grant gives against these exact receipt ids, without changing the grant.", "should_trigger": true},
+  {"query": "repo:write is in the grant, but I don't think we use it. Check the receipts and tell me what that would and wouldn't prove.", "should_trigger": true},
+  {"query": "Review the grant without treating replayed authority labels as native proof.", "should_trigger": true},
+  {"query": "Give me a least-privilege review of this connector grant from the last 30 receipts.", "should_trigger": true},
+  {"query": "Which permissions in this grant are backed by recorded receipts, and what should the reviewer do next?", "should_trigger": true}
+]

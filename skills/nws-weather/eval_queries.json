@@ -1,0 +1,22 @@
+[
+  {"query": "What's the forecast for Paris this weekend?", "should_trigger": false},
+  {"query": "Check the air quality in Delhi right now.", "should_trigger": false},
+  {"query": "Find the coordinates for Springfield, Illinois.", "should_trigger": false},
+  {"query": "Get the NWS forecast for London.", "should_trigger": false},
+  {"query": "Text me if it's going to rain tomorrow.", "should_trigger": false},
+  {"query": "Should we cancel Saturday's outdoor event?", "should_trigger": false},
+  {"query": "Show me historical rainfall for Seattle in 2020.", "should_trigger": false},
+  {"query": "Explain how hurricanes form.", "should_trigger": false},
+  {"query": "Write code that calls the weather.gov API.", "should_trigger": false},
+  {"query": "Are there any severe weather alerts for Miami right now?", "should_trigger": false},
+  {"query": "Read the NWS forecast for 38.8894, -77.0352.", "should_trigger": true},
+  {"query": "Fetch the National Weather Service forecast for gridpoint LWX 97,71.", "should_trigger": true},
+  {"query": "What's the National Weather Service saying for the next few days at 40.7128, -74.0060?", "should_trigger": true},
+  {"query": "Find the NWS gridpoint for latitude 47.6062, longitude -122.3321.", "should_trigger": true},
+  {"query": "Get the official NWS forecast for these coordinates in Denver: 39.7392, -104.9903.", "should_trigger": true},
+  {"query": "Pull the weather.gov forecast for the point 29.7604, -95.3698 so the planner can use it.", "should_trigger": true},
+  {"query": "Which NWS office and grid cover 33.4484, -112.0740, and what's the forecast there?", "should_trigger": true},
+  {"query": "We saved the grid SEW 124,67 earlier. Read its forecast again.", "should_trigger": true},
+  {"query": "Read the US National Weather Service forecast for our event site at 36.1699, -115.1398.", "should_trigger": true},
+  {"query": "Get the NWS forecast periods, with units and update times, for 41.8781, -87.6298.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Audit receipt rx_7Hq2 for authority over-reach.", "should_trigger": false},
+  {"query": "Give me run outcomes, paused runs and test coverage across the workspace catalog.", "should_trigger": false},
+  {"query": "Find every run that spent more than $100 in total.", "should_trigger": false},
+  {"query": "Is this grant broader than its receipts show?", "should_trigger": false},
+  {"query": "Show me my Stripe receipts for October.", "should_trigger": false},
+  {"query": "Sign a receipt for the deploy I ran by hand.", "should_trigger": false},
+  {"query": "Diagnose why the run behind receipt rx_7Hq2 failed.", "should_trigger": false},
+  {"query": "Email the receipt for my purchase to my accountant.", "should_trigger": false},
+  {"query": "Delete receipts older than 90 days.", "should_trigger": false},
+  {"query": "Explain what's in a runx receipt.", "should_trigger": false},
+  {"query": "Which spend runs completed for the ops principal in this ledger slice?", "should_trigger": true},
+  {"query": "Fetch receipts rx_01JA and rx_01JB and verify them.", "should_trigger": true},
+  {"query": "List the failed runs of web-fetch from the last 24 hours, with their verification status.", "should_trigger": true},
+  {"query": "Pull the receipts for the deploy-bot principal between 1 and 7 November.", "should_trigger": true},
+  {"query": "Get the full redacted detail for receipt rx_7Hq2, including its authority and lineage.", "should_trigger": true},
+  {"query": "Verify the receipt tree for rx_9Kc4 and tell me whether the proof passes.", "should_trigger": true},
+  {"query": "Find all the successful runs of the charge skill this week, so I can hand them to an auditor.", "should_trigger": true},
+  {"query": "Read these three receipts and return the evidence packet for review.", "should_trigger": true},
+  {"query": "How many receipts match skill github-issue-triage with outcome failure since Monday?", "should_trigger": true},
+  {"query": "Give me the signed run evidence for yesterday's release, by receipt id.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Just refund the customer instead of fighting the dispute.", "should_trigger": false},
+  {"query": "Collect the remaining balance from this customer's saved card on Stripe.", "should_trigger": false},
+  {"query": "How do I lower our chargeback rate?", "should_trigger": false},
+  {"query": "Write an internal policy for how we handle chargebacks.", "should_trigger": false},
+  {"query": "File a dispute with my bank about a charge on my credit card.", "should_trigger": false},
+  {"query": "Contest this PayPal dispute for order 8841.", "should_trigger": false},
+  {"query": "A customer emailed, angry about a charge they don't recognise. Draft a reply from our help docs.", "should_trigger": false},
+  {"query": "Chart all the disputes we lost this quarter.", "should_trigger": false},
+  {"query": "Accept this dispute and close it without sending a response.", "should_trigger": false},
+  {"query": "Explain how the Stripe dispute timeline works.", "should_trigger": false},
+  {"query": "Respond to this Stripe dispute with the delivery evidence, and submit it after my approval.", "should_trigger": true},
+  {"query": "We got chargeback du_1PqR8 claiming the product never arrived. Prepare our evidence response.", "should_trigger": true},
+  {"query": "Draft a response to dispute du_3NxT2, but don't submit it yet. I want to review it first.", "should_trigger": true},
+  {"query": "Read the disputed charge and the case, and tell me what evidence we're missing to fight it.", "should_trigger": true},
+  {"query": "The prepared dispute response is ready. File it with the bank and confirm Stripe recorded it.", "should_trigger": true},
+  {"query": "A customer says they didn't authorise this payment and opened a dispute. Build our case from the order and login records.", "should_trigger": true},
+  {"query": "Fight this chargeback. Here are the tracking number and the signed delivery confirmation.", "should_trigger": true},
+  {"query": "Read the Stripe dispute and its original charge for case du_9XkL4, so the next step can use them.", "should_trigger": true},
+  {"query": "Using the dispute and charge packets we already read, prepare the response without fetching them again.", "should_trigger": true},
+  {"query": "There's a new dispute on our Stripe account for 'product not as described'. Put together a specific response before the deadline.", "should_trigger": true}
+]

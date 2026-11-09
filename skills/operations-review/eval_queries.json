@@ -1,0 +1,22 @@
+[
+  {"query": "From my collected inbox and chat observations, decide what deserves a private brief today.", "should_trigger": false},
+  {"query": "Divide this backlog between the three engineers, with scope limits and acceptance checks.", "should_trigger": false},
+  {"query": "Run the release for version 2.3.0 and verify it.", "should_trigger": false},
+  {"query": "Restart the production API server now.", "should_trigger": false},
+  {"query": "List which runs are paused and which skills have no tests.", "should_trigger": false},
+  {"query": "Deploy the main branch to staging.", "should_trigger": false},
+  {"query": "Write a weekly status report for my manager.", "should_trigger": false},
+  {"query": "Set up Grafana alerts for our API latency.", "should_trigger": false},
+  {"query": "Audit this receipt for unrecorded refusals.", "should_trigger": false},
+  {"query": "Plan the refactor of the payments module in phases.", "should_trigger": false},
+  {"query": "Inspect this workspace snapshot and tell me the next safe operational action.", "should_trigger": true},
+  {"query": "Here's the state of our account. What needs attention, what can be checked read-only, and what needs approval?", "should_trigger": true},
+  {"query": "Review the remaining invoice-payment gap and choose the next bounded step.", "should_trigger": true},
+  {"query": "We're about to rotate the production database credentials. Review that action: its consequence, the approval it needs, blockers, and how we'd prove it worked.", "should_trigger": true},
+  {"query": "Act as the ops desk for this project: rank the findings and route each one to the governed lane that should handle it.", "should_trigger": true},
+  {"query": "After last night's deploy, review these receipts and the projection and tell me whether it actually succeeded.", "should_trigger": true},
+  {"query": "Read the product projection for our workspace and give me an operations review.", "should_trigger": true},
+  {"query": "What's the most useful next thing to do on this project, and which existing skill or command should do it?", "should_trigger": true},
+  {"query": "Prepare approval text for the risky step in this operations snapshot, and say what evidence would prove success.", "should_trigger": true},
+  {"query": "Triage the risks in this account snapshot and tell me which actions are safe to run without sign-off.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Write a decision-ready memo for the leadership team on whether to adopt Kubernetes.", "should_trigger": false},
+  {"query": "Before I design this, check our repo and the runx catalog for anything that already does it.", "should_trigger": false},
+  {"query": "Fetch https://modelcontextprotocol.io/specification and give me the text.", "should_trigger": false},
+  {"query": "Search the web for 'x402 facilitator' and give me candidate links.", "should_trigger": false},
+  {"query": "Turn this research into a cited newsletter article for our customers.", "should_trigger": false},
+  {"query": "Give me a daily summary of AI news.", "should_trigger": false},
+  {"query": "Browse around and tell me anything interesting about Rust.", "should_trigger": false},
+  {"query": "Write a literature review of 50 papers on transformer efficiency.", "should_trigger": false},
+  {"query": "What's the capital of Australia?", "should_trigger": false},
+  {"query": "Route this question to the right owner using our knowledge catalog.", "should_trigger": false},
+  {"query": "Research whether we should support Bun in our CLI, and give me a source-backed packet with the posture to take.", "should_trigger": true},
+  {"query": "Which of these three open issues is most worth tackling? Research it from the issue threads and our docs.", "should_trigger": true},
+  {"query": "Is this proposal grounded? Check its claims against these URLs and tell me what the evidence supports.", "should_trigger": true},
+  {"query": "What changed in the MCP spec over the last two months? Give me a few well-supported findings, cited.", "should_trigger": true},
+  {"query": "Research this architecture question from docs/architecture.md and crates/runtime/README.md.", "should_trigger": true},
+  {"query": "Which claims can our launch page safely make about receipts? Research it from the spec and the code.", "should_trigger": true},
+  {"query": "Answer this from the source packets I'm supplying, separating evidence from inference: does x402 v2 require a facilitator?", "should_trigger": true},
+  {"query": "Find out whether the Agent Skills format supports nested skills, and cite the pages you read.", "should_trigger": true},
+  {"query": "Do a bounded research pass on how competitors price agent hosting, enough to decide whether to compete on price.", "should_trigger": true},
+  {"query": "Research this question from the bounded local sources and return a source-backed packet.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Show me which runs failed this week and which ones are still paused.", "should_trigger": false},
+  {"query": "Assess whether this skill package is ready to publish.", "should_trigger": false},
+  {"query": "Audit this receipt for authority it used beyond what was granted.", "should_trigger": false},
+  {"query": "Fetch the receipts for yesterday's web-fetch runs.", "should_trigger": false},
+  {"query": "Re-run the failed skill with the same inputs.", "should_trigger": false},
+  {"query": "Fix the skill's run.yaml so the step passes, and add a test for it.", "should_trigger": false},
+  {"query": "Why does my Python script throw a KeyError on line 40?", "should_trigger": false},
+  {"query": "My GitHub Actions build is failing. Read the log and fix it.", "should_trigger": false},
+  {"query": "My Kubernetes pod keeps crashing with OOMKilled.", "should_trigger": false},
+  {"query": "Write a postmortem for yesterday's outage.", "should_trigger": false},
+  {"query": "Diagnose why this skill run failed and propose the smallest fix.", "should_trigger": true},
+  {"query": "Receipt rx_01J9QK7 came back failed at step 4. Work out the root cause, not just the symptom.", "should_trigger": true},
+  {"query": "My runx graph keeps getting a scope denial on the publish step. What's wrong, and what's the minimal change?", "should_trigger": true},
+  {"query": "This skill run finished, but the output looks wrong. Look at its receipt and tell me what happened.", "should_trigger": true},
+  {"query": "Here's the output from the failing test case. Diagnose it and suggest one bounded improvement.", "should_trigger": true},
+  {"query": "Explain this failed invocation from its input-contract error.", "should_trigger": true},
+  {"query": "The extract step's output didn't match the schema the next step expected. Trace back to where it went wrong.", "should_trigger": true},
+  {"query": "Why did my runx run fail? Here's the receipt id and the error summary. Don't run it again.", "should_trigger": true},
+  {"query": "Is this receipt's failure an input error, a tool failure or a scope denial? Propose the fix.", "should_trigger": true},
+  {"query": "I already have the receipt detail from receipt-query. Diagnose the failure from that evidence.", "should_trigger": true}
+]

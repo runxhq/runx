@@ -1,0 +1,22 @@
+[
+  {"query": "Research whether we should adopt passkeys and give me a source-backed recommendation.", "should_trigger": false},
+  {"query": "Fetch https://fidoalliance.org/passkeys and give me the text.", "should_trigger": false},
+  {"query": "Write a decision memo on passkey adoption.", "should_trigger": false},
+  {"query": "Search my repository for TODO comments.", "should_trigger": false},
+  {"query": "Search Slack for messages about the launch.", "should_trigger": false},
+  {"query": "Search X for posts mentioning runx.", "should_trigger": false},
+  {"query": "Search our CRM for contacts at Acme.", "should_trigger": false},
+  {"query": "Find files named config.yaml in this project.", "should_trigger": false},
+  {"query": "Which queries do we rank for in Search Console?", "should_trigger": false},
+  {"query": "What's the best search engine for privacy?", "should_trigger": false},
+  {"query": "Find a bounded set of sources about x402 facilitators, without fetching the pages.", "should_trigger": true},
+  {"query": "Search the web for official documentation on the Agent Skills eval_queries format.", "should_trigger": true},
+  {"query": "Look for announcements about MCP authorization from the last month, preferring first-party sources.", "should_trigger": true},
+  {"query": "Search for 'pnpm lockfile v9 format' and give me the top 10 candidates.", "should_trigger": true},
+  {"query": "Find candidate sources on passkey adoption rates, restricted to fidoalliance.org and w3.org.", "should_trigger": true},
+  {"query": "What sources are out there on SQLite WAL mode performance? Just give me the links and snippets to choose from.", "should_trigger": true},
+  {"query": "Run one Exa search for 'Stripe MPP Link spend request' and show the results with the reported cost.", "should_trigger": true},
+  {"query": "Search the web for the latest NWS API changes so I can pick which pages to read.", "should_trigger": true},
+  {"query": "Find up to 20 fresh web results on EU AI Act enforcement dates.", "should_trigger": true},
+  {"query": "Search for original research on LLM tool-calling reliability published since 2025.", "should_trigger": true}
+]

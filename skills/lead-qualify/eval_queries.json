@@ -1,0 +1,22 @@
+[
+  {"query": "Look up Basalt Labs' headcount and industry in Apollo.", "should_trigger": false},
+  {"query": "Draft a cold email to this qualified lead.", "should_trigger": false},
+  {"query": "Decide whether this contact needs re-permission before our next campaign.", "should_trigger": false},
+  {"query": "Write an ideal customer profile for a developer-tools startup.", "should_trigger": false},
+  {"query": "Give every lead in this CSV a generic lead score from 1 to 100.", "should_trigger": false},
+  {"query": "Propose CRM updates from today's sales call.", "should_trigger": false},
+  {"query": "Predict which of our open deals will close this quarter.", "should_trigger": false},
+  {"query": "Explain the BANT and MEDDIC qualification frameworks.", "should_trigger": false},
+  {"query": "Which signup cohort retained best last quarter?", "should_trigger": false},
+  {"query": "Find more companies that look like our best customer.", "should_trigger": false},
+  {"query": "Does this already known lead fit our ICP? I'm not asking to contact them.", "should_trigger": true},
+  {"query": "Qualify this lead against our ICP: B2B SaaS, 50 to 500 employees, based in the EU, with an in-house engineering team.", "should_trigger": true},
+  {"query": "Assess Basalt Labs against these mandatory and optional criteria, using the enrichment packet we have.", "should_trigger": true},
+  {"query": "Is this prospect a good fit? Mark each criterion met, not met or unknown, and cite the facts behind each one.", "should_trigger": true},
+  {"query": "Here's the enrichment for Dana at Fernway and our ICP. Are they qualified, and are they cleared to contact?", "should_trigger": true},
+  {"query": "Check this lead against our ideal customer profile, but don't invent facts we don't have.", "should_trigger": true},
+  {"query": "Our ICP requires a company that has raised Series A or later. Does this one qualify on the facts we have?", "should_trigger": true},
+  {"query": "Check this lead's commercial fit and tell me what evidence we'd need for the criteria that are still unknown.", "should_trigger": true},
+  {"query": "Qualify these lead facts against the ICP below, and keep contact eligibility separate from fit.", "should_trigger": true},
+  {"query": "Is Lumen Labs worth pursuing, given our ICP criteria? Use only the enriched facts.", "should_trigger": true}
+]

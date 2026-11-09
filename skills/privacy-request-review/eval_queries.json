@@ -1,0 +1,22 @@
+[
+  {"query": "Remove the personal data from this support transcript before we share it with the vendor.", "should_trigger": false},
+  {"query": "Triage this customer's question about their account and draft a reply.", "should_trigger": false},
+  {"query": "Delete this user's rows from the production database.", "should_trigger": false},
+  {"query": "Export all of this customer's data to a zip file and email it to them.", "should_trigger": false},
+  {"query": "Write our website's privacy policy.", "should_trigger": false},
+  {"query": "Is our company GDPR compliant overall?", "should_trigger": false},
+  {"query": "Should this contact be suppressed before our next campaign?", "should_trigger": false},
+  {"query": "Explain the difference between GDPR and CCPA.", "should_trigger": false},
+  {"query": "Verify this person's identity with a selfie and an ID check.", "should_trigger": false},
+  {"query": "Draft a reply telling the customer we received their deletion request.", "should_trigger": false},
+  {"query": "Judge this erasure request against policy and record the verdict before any downstream action.", "should_trigger": true},
+  {"query": "A customer wants a copy of all their data. Check the export request against our privacy policy and record the decision.", "should_trigger": true},
+  {"query": "Is this GDPR deletion request in policy? Our identity provider verified the requestor; here's the request packet and our policy bounds.", "should_trigger": true},
+  {"query": "Review this data subject access request: is the requested scope within what our policy allows for exports?", "should_trigger": true},
+  {"query": "Decide whether we can honour this right-to-erasure request for billing and marketing data, and record the verdict.", "should_trigger": true},
+  {"query": "This deletion request names a lawful basis and a verified identity. Judge it and give me the handoff for the erasure run.", "should_trigger": true},
+  {"query": "Check this export request against our trusted identity providers and allowed data classes, and refuse it with reasons if it doesn't fit.", "should_trigger": true},
+  {"query": "Record a durable verdict on this privacy request, so repeated runs can't record it twice.", "should_trigger": true},
+  {"query": "A user asked us to erase their account data. Before anyone deletes anything, judge the request against policy.", "should_trigger": true},
+  {"query": "Here's a DSAR for analytics and support data. Is every requested data class inside our scope bounds?", "should_trigger": true}
+]

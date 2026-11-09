@@ -1,0 +1,22 @@
+[
+  {"query": "From these 20 inbox and chat observations, decide which deserve my attention today.", "should_trigger": false},
+  {"query": "Turn this noisy feature request into a bounded change set with acceptance criteria.", "should_trigger": false},
+  {"query": "Investigate GitHub issue #210 in the repo and draft a response to it.", "should_trigger": false},
+  {"query": "Review the diff in this pull request and tell me whether the change is correct.", "should_trigger": false},
+  {"query": "Send my reply in that Slack thread now.", "should_trigger": false},
+  {"query": "Pull the last week of messages from #support in Slack.", "should_trigger": false},
+  {"query": "Triage this customer's question against our product docs and route it to a specialist if it needs one.", "should_trigger": false},
+  {"query": "Update our CRM from what the prospect said on this call.", "should_trigger": false},
+  {"query": "Summarise the minutes from this meeting transcript.", "should_trigger": false},
+  {"query": "Write a polite email declining a meeting invitation.", "should_trigger": false},
+  {"query": "Review this email conversation with the customer and prepare the next response.", "should_trigger": true},
+  {"query": "Here's the Slack thread with the client. Draft a reply, but don't send it.", "should_trigger": true},
+  {"query": "Read this support thread and tell me whether the customer is actually asking for a code change. If so, quote the exact request.", "should_trigger": true},
+  {"query": "What's the next useful action on this conversation? It might only need a follow-up task.", "should_trigger": true},
+  {"query": "Go through this chat thread and decide: reply, follow-up, coding request, or nothing to do.", "should_trigger": true},
+  {"query": "Prepare an unsent follow-up for this partner email thread. It's gone quiet for two weeks.", "should_trigger": true},
+  {"query": "This thread looks truncated. Review it and tell me what's missing before you'd draft anything.", "should_trigger": true},
+  {"query": "Review the conversation in this source packet and propose its reply on the routes we configured.", "should_trigger": true},
+  {"query": "Did anyone in this email exchange ask us to build something? If so, flag it for engineering intake.", "should_trigger": true},
+  {"query": "Draft my reply to this thread with the vendor, keeping to what the messages actually say.", "should_trigger": true}
+]

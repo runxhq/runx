@@ -1,0 +1,22 @@
+[
+  {"query": "Build a voice guide for our brand from these approved emails.", "should_trigger": false},
+  {"query": "Write the onboarding copy in my style from these facts.", "should_trigger": false},
+  {"query": "Design a new landing page for our app.", "should_trigger": false},
+  {"query": "Copy the look of Stripe's website exactly for our homepage.", "should_trigger": false},
+  {"query": "What does my taste in music say about my personality?", "should_trigger": false},
+  {"query": "Pick a colour palette for our brand.", "should_trigger": false},
+  {"query": "Review this design for accessibility issues.", "should_trigger": false},
+  {"query": "Recommend five movies like Arrival.", "should_trigger": false},
+  {"query": "Buy the chair I liked from that store.", "should_trigger": false},
+  {"query": "Is this new logo better than the old one?", "should_trigger": false},
+  {"query": "Build a product-UI taste profile from these likes and dislikes.", "should_trigger": true},
+  {"query": "Here are ten landing pages I love and five I can't stand. Work out my taste so the design agents stop guessing.", "should_trigger": true},
+  {"query": "Capture our team's taste in illustration style from these approved and rejected examples, for the marketing site.", "should_trigger": true},
+  {"query": "I keep rejecting the same kinds of layouts. Turn these examples and my notes into a taste profile for dashboard design.", "should_trigger": true},
+  {"query": "Make a taste packet for our newsletter's typography and imagery from what we've picked in the past.", "should_trigger": true},
+  {"query": "What does my taste in product photography look like, going by these examples? Note any tensions rather than flattening them.", "should_trigger": true},
+  {"query": "From these favourite apps and my explicit dislikes, build a style profile the UI agents can share.", "should_trigger": true},
+  {"query": "Profile what our audience tends to choose in onboarding screens, from these past test winners and losers.", "should_trigger": true},
+  {"query": "Turn these moodboard picks and the things I said I hate into a scoped taste profile for our mobile app.", "should_trigger": true},
+  {"query": "Build a curation taste profile for our playlist from these liked and skipped tracks.", "should_trigger": true}
+]

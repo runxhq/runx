@@ -1,0 +1,22 @@
+[
+  {"query": "Audit receipt rx_7Hq2 for over-reach against its grant.", "should_trigger": false},
+  {"query": "Fetch and verify receipts rx_01JA and rx_01JB.", "should_trigger": false},
+  {"query": "Why did this particular run fail? Diagnose it from its receipt.", "should_trigger": false},
+  {"query": "Review this grant against its receipts to see whether we can narrow it.", "should_trigger": false},
+  {"query": "Assess whether this skill is ready for operators to install.", "should_trigger": false},
+  {"query": "Show me my shell command history.", "should_trigger": false},
+  {"query": "Show the GitHub Actions run history for main.", "should_trigger": false},
+  {"query": "Write tests for the skills that don't have any.", "should_trigger": false},
+  {"query": "Graph our CI build times over the last quarter.", "should_trigger": false},
+  {"query": "What's in the git log for the last week?", "should_trigger": false},
+  {"query": "Summarize recent Runx outcomes and catalog test coverage for this project.", "should_trigger": true},
+  {"query": "How did our runx runs go this week? Failures, blocked runs, anything paused?", "should_trigger": true},
+  {"query": "Which skills in our catalog have no fixtures or inline test cases?", "should_trigger": true},
+  {"query": "What are our most frequently run skills over the last 30 days, and how often do they fail?", "should_trigger": true},
+  {"query": "List the paused runs in this workspace.", "should_trigger": true},
+  {"query": "Give me a run history report as of 1 November, without counting anything after that.", "should_trigger": true},
+  {"query": "Are there governance follow-ups I should look at from recent runs?", "should_trigger": true},
+  {"query": "Show me the failure rate for the web-fetch skill over the past week.", "should_trigger": true},
+  {"query": "Report on our runx activity for the last month: outcomes by skill, and gaps in catalog test coverage.", "should_trigger": true},
+  {"query": "Which runs failed or were blocked yesterday?", "should_trigger": true}
+]

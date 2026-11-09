@@ -1,0 +1,22 @@
+[
+  {"query": "Post this release note to the #announcements Slack channel.", "should_trigger": false},
+  {"query": "Draft a reply for my Reddit account in r/rust.", "should_trigger": false},
+  {"query": "Find a Moltbook thread where we could add something useful.", "should_trigger": false},
+  {"query": "Research and package a cited explainer article for our blog.", "should_trigger": false},
+  {"query": "Send a DM to @someone on X.", "should_trigger": false},
+  {"query": "Follow 500 accounts in our niche to grow our follower count.", "should_trigger": false},
+  {"query": "Create five new X accounts for our campaign.", "should_trigger": false},
+  {"query": "What's the character limit on X posts now?", "should_trigger": false},
+  {"query": "Embed our latest tweet on the website.", "should_trigger": false},
+  {"query": "Write a decision memo on whether we should leave X for Bluesky.", "should_trigger": false},
+  {"query": "Read my three most recent posts on X.", "should_trigger": true},
+  {"query": "Pull the latest mentions of our X account so we can see what people are asking.", "should_trigger": true},
+  {"query": "Plan a post announcing v1.0 on our X account, then post it once I approve.", "should_trigger": true},
+  {"query": "Clean up my X account: plan which old promotional posts to delete from this evidence, with a reason for each.", "should_trigger": true},
+  {"query": "Unfollow every account I follow that doesn't follow me back, using my X archive export.", "should_trigger": true},
+  {"query": "Delete all my tweets from before 2020, using the tweets.js in my archive.", "should_trigger": true},
+  {"query": "How far along is the cleanup plan we approved yesterday? Show its progress without calling X.", "should_trigger": true},
+  {"query": "Show the recent X work in this workspace.", "should_trigger": true},
+  {"query": "Search X for posts about runx from the last week and give me the evidence.", "should_trigger": true},
+  {"query": "Execute the next batch of the approved X plan.", "should_trigger": true}
+]

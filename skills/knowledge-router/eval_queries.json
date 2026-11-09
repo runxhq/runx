@@ -1,0 +1,22 @@
+[
+  {"query": "Research how other API platforms handle key scopes and give me a source-backed packet.", "should_trigger": false},
+  {"query": "Produce a decision-ready brief on whether we should adopt SSO, with sources.", "should_trigger": false},
+  {"query": "Before we build this, check the repo and the catalog for existing tools that already do it.", "should_trigger": false},
+  {"query": "Answer this for me: how do API key scopes work in our product?", "should_trigger": false},
+  {"query": "Kick off follow-up work across sales, support and billing for this customer complaint.", "should_trigger": false},
+  {"query": "Split this question among the support team, with acceptance checks for each person.", "should_trigger": false},
+  {"query": "Build a search index over our docs folder.", "should_trigger": false},
+  {"query": "Draw an org chart of who owns which product area.", "should_trigger": false},
+  {"query": "Search the web for the best knowledge base software.", "should_trigger": false},
+  {"query": "Triage this customer request against our product docs and draft a reply.", "should_trigger": false},
+  {"query": "Route this question to the validated knowledge source, owner, and next skill.", "should_trigger": true},
+  {"query": "Who owns the answer to 'how do API key scopes work', and which source in our catalog should we read? Here's the catalog.", "should_trigger": true},
+  {"query": "A customer asked about SSO pricing. Using this source catalog, tell me where the evidence lives and who should answer.", "should_trigger": true},
+  {"query": "Route this incoming source event to the right owner and follow-up skill from our knowledge catalog.", "should_trigger": true},
+  {"query": "Don't answer this question. Just tell me which of our documented sources and which team it belongs to.", "should_trigger": true},
+  {"query": "Which skill should handle this question next, and who's the escalation if the docs don't cover it? Pick only from the catalog.", "should_trigger": true},
+  {"query": "Map this support question to the sources, owner and escalation path in the supplied catalog.", "should_trigger": true},
+  {"query": "Given our catalog of docs, owners and skills, where should someone look to answer 'why did the billing webhook retry three times'?", "should_trigger": true},
+  {"query": "Find the right source and owner in this catalog for a question about data retention, and suggest the follow-up skill.", "should_trigger": true},
+  {"query": "Route this engineering question through the knowledge catalog: which runbook, which team, and what comes next.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Pay this x402 paywall for the API response with my wallet.", "should_trigger": false},
+  {"query": "Buy the report at that URL with my Link authorization, up to $5.", "should_trigger": false},
+  {"query": "Refund the customer's Stripe payment from yesterday, the full $120.", "should_trigger": false},
+  {"query": "Reverse the PayPal capture for order 8841 and give the buyer their money back.", "should_trigger": false},
+  {"query": "Pay this supplier invoice from the PDF they emailed.", "should_trigger": false},
+  {"query": "A customer opened a chargeback on Stripe. Prepare our evidence and file the response.", "should_trigger": false},
+  {"query": "Is this $4,000 software purchase within our procurement policy?", "should_trigger": false},
+  {"query": "Add Stripe Checkout to our Next.js app.", "should_trigger": false},
+  {"query": "Write a webhook handler for Stripe payment_intent.succeeded events.", "should_trigger": false},
+  {"query": "What fees does PayPal charge per transaction in Australia?", "should_trigger": false},
+  {"query": "Collect the Northstar invoice on our Stripe merchant account using the customer's saved payment method.", "should_trigger": true},
+  {"query": "The buyer approved the PayPal order. Capture it.", "should_trigger": true},
+  {"query": "Settle this buyer's x402 payment for my report endpoint against the quote we gave them.", "should_trigger": true},
+  {"query": "Quote what a buyer has to pay in x402 for /v1/reports/launch at $1.25.", "should_trigger": true},
+  {"query": "Create a PayPal checkout order for 49 USD so the customer can approve it.", "should_trigger": true},
+  {"query": "Charge customer cus_123 $120 on Stripe for the March retainer, with my approval before it goes through.", "should_trigger": true},
+  {"query": "I'm the seller here. Take the payment for order 8841, and only release the download once it's confirmed.", "should_trigger": true},
+  {"query": "Capture PayPal order 5O190127TN364715T for 75.00 EUR on our merchant account and confirm it completed.", "should_trigger": true},
+  {"query": "Collect this payment on Stripe, and don't call it done until Stripe itself says it succeeded for the full amount.", "should_trigger": true},
+  {"query": "Set up a PayPal order for the workshop ticket and give me the link the buyer needs to approve it.", "should_trigger": true}
+]

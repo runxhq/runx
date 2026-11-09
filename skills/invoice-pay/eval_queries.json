@@ -1,0 +1,22 @@
+[
+  {"query": "Pay for this API call behind an x402 paywall.", "should_trigger": false},
+  {"query": "Extract the vendor, amount and due date from this invoice into JSON.", "should_trigger": false},
+  {"query": "Is this invoice allowed under our procurement policy before we spend anything?", "should_trigger": false},
+  {"query": "Collect payment on the invoice we sent our customer.", "should_trigger": false},
+  {"query": "Refund the payment we received for invoice 2041.", "should_trigger": false},
+  {"query": "Generate an invoice for the consulting work I did in October.", "should_trigger": false},
+  {"query": "Mark invoice 2041 as paid in Xero.", "should_trigger": false},
+  {"query": "Is this invoice a scam? It came from an address I don't recognise.", "should_trigger": false},
+  {"query": "Pay my credit card bill from my bank account.", "should_trigger": false},
+  {"query": "Set up recurring monthly payments to our hosting provider.", "should_trigger": false},
+  {"query": "Pay this invoice file.", "should_trigger": true},
+  {"query": "Pay invoice INV-2041 to Northwind, 250.00 USD at their payment URL, using my x402 wallet.", "should_trigger": true},
+  {"query": "Read invoices/acme-oct.txt and pay it with the Link spend request I approved.", "should_trigger": true},
+  {"query": "Pay this supplier's invoice from my EVM wallet, and make sure the amount matches the invoice exactly.", "should_trigger": true},
+  {"query": "We owe Fernway 1,200 USD on invoice 1188. Pay it under our parent payment mandate and confirm it went through.", "should_trigger": true},
+  {"query": "Pay the invoice in docs/billing/inv-77.md, and take the amount and currency from the document itself.", "should_trigger": true},
+  {"query": "Use my approved Stripe Link spend request to pay invoice 3301.", "should_trigger": true},
+  {"query": "Pay this vendor invoice, and don't let the amount drift from what the invoice says.", "should_trigger": true},
+  {"query": "The payment for invoice 2041 came back uncertain. Resume the original payment and check it, without paying a second time.", "should_trigger": true},
+  {"query": "Pay this x402 invoice from our agent's held EVM wallet, with my approval before any money moves.", "should_trigger": true}
+]

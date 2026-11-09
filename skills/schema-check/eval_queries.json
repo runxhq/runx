@@ -1,0 +1,22 @@
+[
+  {"query": "Extract the fields from this document into my JSON schema.", "should_trigger": false},
+  {"query": "Inspect this skill package and tell me whether it's ready to publish.", "should_trigger": false},
+  {"query": "Write a JSON Schema for this payload.", "should_trigger": false},
+  {"query": "Generate TypeScript types from our OpenAPI spec.", "should_trigger": false},
+  {"query": "Publish the new schema to our schema registry.", "should_trigger": false},
+  {"query": "Will our mobile app still parse the new API response?", "should_trigger": false},
+  {"query": "Convert this JSON Schema to a Protobuf definition.", "should_trigger": false},
+  {"query": "Check this YAML file's syntax.", "should_trigger": false},
+  {"query": "Design the database schema for a blog.", "should_trigger": false},
+  {"query": "Is this GraphQL schema change breaking?", "should_trigger": false},
+  {"query": "Check whether this proposed contract change breaks existing callers before the schema is published.", "should_trigger": true},
+  {"query": "Here are the current and proposed order schemas plus ten real payloads. Will any payload that passes today fail tomorrow?", "should_trigger": true},
+  {"query": "Is making customer.email required a breaking change for the samples we have?", "should_trigger": true},
+  {"query": "Compare v1 and v2 of our webhook JSON Schema and tell me which paths reject things v1 accepted.", "should_trigger": true},
+  {"query": "Validate these production payloads against the proposed schema and give me a compatibility verdict under our policy.", "should_trigger": true},
+  {"query": "We're widening amount from integer to number and adding an optional field. Is it still compatible for existing inputs?", "should_trigger": true},
+  {"query": "Gate publication of this new event schema: only propose publishing if our compatibility policy passes.", "should_trigger": true},
+  {"query": "Run a schema compatibility check where the required fields id and created_at must stay declared.", "should_trigger": true},
+  {"query": "Which sample payloads fail the proposed contract, and at which paths?", "should_trigger": true},
+  {"query": "Before we ship the API contract change, check acceptance from the current schema to the proposed one with these real examples.", "should_trigger": true}
+]

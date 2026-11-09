@@ -1,0 +1,22 @@
+[
+  {"query": "Just give me the source-backed evidence packet on Bun support. No memo.", "should_trigger": false},
+  {"query": "Write a short update for the team from these facts.", "should_trigger": false},
+  {"query": "Turn this research into a public blog post for developers.", "should_trigger": false},
+  {"query": "Give me a daily recap of trending AI repos.", "should_trigger": false},
+  {"query": "Write a literature review of everything ever published on RAG.", "should_trigger": false},
+  {"query": "Summarise this article for me.", "should_trigger": false},
+  {"query": "Write a business plan for my coffee shop.", "should_trigger": false},
+  {"query": "Search for recent articles about OpenTelemetry adoption.", "should_trigger": false},
+  {"query": "Check our repo for existing tracing code before we design anything.", "should_trigger": false},
+  {"query": "Make a slide deck about our Q3 results.", "should_trigger": false},
+  {"query": "Produce a decision-ready brief from these bounded sources on whether we should move off Heroku.", "should_trigger": true},
+  {"query": "Write me a memo on whether to adopt OpenTelemetry: the answer, the evidence, what's uncertain, and what we should do next.", "should_trigger": true},
+  {"query": "Turn this completed research packet into a decision memo for the team, without researching again.", "should_trigger": true},
+  {"query": "Give me a fresh ecosystem brief on agent payment protocols, and check that every source is current as of today.", "should_trigger": true},
+  {"query": "We need to decide between Postgres and DynamoDB for the event store. Brief me from these docs in the repo.", "should_trigger": true},
+  {"query": "Should we build our own vector store or use pgvector? I want a reader-ready brief with the alternatives and open questions.", "should_trigger": true},
+  {"query": "Produce an operator brief on the trust implications of letting agents hold wallets, from the sources I've linked.", "should_trigger": true},
+  {"query": "Brief me on whether the EU AI Act affects our product, leading with the decision and what it means for us.", "should_trigger": true},
+  {"query": "Write a decision brief from docs/rfcs/ on whether to split the runtime crate.", "should_trigger": true},
+  {"query": "Is now the right time to bet on WebAssembly components for our plugins? Give me a decision memo backed by sources.", "should_trigger": true}
+]

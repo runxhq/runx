@@ -1,0 +1,22 @@
+[
+  {"query": "Collect payment from our customer's saved card on Stripe.", "should_trigger": false},
+  {"query": "Pay this supplier invoice file from the invoices folder.", "should_trigger": false},
+  {"query": "Refund the buyer for this x402 purchase.", "should_trigger": false},
+  {"query": "Quote what a buyer has to pay for my x402 resource.", "should_trigger": false},
+  {"query": "Is this purchase within our spend policy?", "should_trigger": false},
+  {"query": "Send 50 USDC to this wallet address.", "should_trigger": false},
+  {"query": "Set up a crypto wallet on Base for our agent.", "should_trigger": false},
+  {"query": "What's the current USDC to AUD exchange rate?", "should_trigger": false},
+  {"query": "Add x402 payments to our API server.", "should_trigger": false},
+  {"query": "Pay my rent through my bank.", "should_trigger": false},
+  {"query": "Pay this exact x402 resource.", "should_trigger": true},
+  {"query": "This API returned 402 Payment Required. Pay it from my wallet, up to 0.50 USDC, and give me the response.", "should_trigger": true},
+  {"query": "Buy the report at https://seller.example/v1/reports/launch with my x402 wallet on Base.", "should_trigger": true},
+  {"query": "Use my approved Link spend request to pay this Stripe MPP charge.", "should_trigger": true},
+  {"query": "Ask Link for a one-time authorization to spend $20 at this merchant URL.", "should_trigger": true},
+  {"query": "Did the x402 payment we made earlier go through? Read it back once and get the resource.", "should_trigger": true},
+  {"query": "Pay for this endpoint once now. I'll read the result back later myself.", "should_trigger": true},
+  {"query": "As the buyer, pay this merchant resource within the mandate's maximum of 2 USDC.", "should_trigger": true},
+  {"query": "Buy access to this paid dataset URL via x402, and only call it done when the chain confirms and the resource returns 2xx.", "should_trigger": true},
+  {"query": "Pay for this paywalled article with my agent's wallet, and don't go over the price it quoted.", "should_trigger": true}
+]

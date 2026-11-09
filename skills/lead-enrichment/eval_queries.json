@@ -1,0 +1,22 @@
+[
+  {"query": "Does Basalt Labs fit our ICP? Assess them against these criteria.", "should_trigger": false},
+  {"query": "Write a first-contact email to Dana at Fernway.", "should_trigger": false},
+  {"query": "Find me 50 fintech companies with 100 to 500 employees.", "should_trigger": false},
+  {"query": "Find the personal phone number and home address of this CEO.", "should_trigger": false},
+  {"query": "Propose CRM updates from this call transcript.", "should_trigger": false},
+  {"query": "Can we email this contact? Check their consent history first.", "should_trigger": false},
+  {"query": "Search the web for recent news about Lumen Labs.", "should_trigger": false},
+  {"query": "Guess the email format at acme.io and generate addresses for the whole team.", "should_trigger": false},
+  {"query": "What does Apollo charge for API credits?", "should_trigger": false},
+  {"query": "Merge these two duplicate contact records in HubSpot.", "should_trigger": false},
+  {"query": "Enrich this identified company for the requested professional facts.", "should_trigger": true},
+  {"query": "Look up acme.io in Apollo: industry, employee count and country.", "should_trigger": true},
+  {"query": "Get the work email, title and LinkedIn profile for Dana Ortiz at fernway.com through our Apollo account.", "should_trigger": true},
+  {"query": "Who is linkedin.com/in/jsmith-data? Enrich them with their name, title and work email.", "should_trigger": true},
+  {"query": "Here are notes we already collected on Basalt Labs from their site and a press release. Normalize them into lead facts, with no Apollo call.", "should_trigger": true},
+  {"query": "Enrich this lead, and tell me which fields Apollo couldn't find and where the sources conflict.", "should_trigger": true},
+  {"query": "What's the headcount and industry for the company at https://lumenlabs.com?", "should_trigger": true},
+  {"query": "Enrich priya@lumenlabs.com with their title and LinkedIn, and keep the match confidence and provenance.", "should_trigger": true},
+  {"query": "Fill in the company facts for this prospect from what we've already gathered, keeping each fact's source and freshness, without spending Apollo credits.", "should_trigger": true},
+  {"query": "Look up this person by their Apollo id and return their current title and work email.", "should_trigger": true}
+]

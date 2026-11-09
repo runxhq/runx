@@ -1,0 +1,22 @@
+[
+  {"query": "Search the web for the latest x402 news.", "should_trigger": false},
+  {"query": "Read these five articles and tell me which approach is best.", "should_trigger": false},
+  {"query": "From this page text I already have, extract the price and plan names into my JSON schema.", "should_trigger": false},
+  {"query": "Fetch my private Notion page using my login cookie.", "should_trigger": false},
+  {"query": "Load http://localhost:3000/admin and tell me what's there.", "should_trigger": false},
+  {"query": "Archive this page's raw HTML so we can retrieve it later.", "should_trigger": false},
+  {"query": "Submit this form to https://example.com/contact.", "should_trigger": false},
+  {"query": "Write a Python scraper for this site.", "should_trigger": false},
+  {"query": "Monitor this page and alert me when it changes.", "should_trigger": false},
+  {"query": "Crawl the whole docs site and index it.", "should_trigger": false},
+  {"query": "Fetch RFC 9110 from https://www.rfc-editor.org/rfc/rfc9110 and return the text with provenance.", "should_trigger": true},
+  {"query": "Read https://docs.stripe.com/api/refunds and give me the page text.", "should_trigger": true},
+  {"query": "Grab the links from https://example.com/changelog.", "should_trigger": true},
+  {"query": "Fetch this JSON document, https://api.github.com/repos/runxhq/runx, and keep the digest.", "should_trigger": true},
+  {"query": "Pull the title and metadata from https://news.ycombinator.com/item?id=123.", "should_trigger": true},
+  {"query": "Fetch https://acme.dev/pricing, but only allow acme.dev, including on any redirects.", "should_trigger": true},
+  {"query": "What does this page actually say? https://blog.example.com/post/launch. I want it backed by a digest.", "should_trigger": true},
+  {"query": "Read this one article for me and record where it redirected: https://bit.ly/3xYz", "should_trigger": true},
+  {"query": "Fetch the public README at https://raw.githubusercontent.com/acme/app/main/README.md.", "should_trigger": true},
+  {"query": "Get the text of https://modelcontextprotocol.io/specification so the next step can cite it without fetching again.", "should_trigger": true}
+]

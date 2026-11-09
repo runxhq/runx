@@ -1,0 +1,22 @@
+[
+  {"query": "This skill run failed. Find the root cause from its receipt.", "should_trigger": false},
+  {"query": "Fix the problems you found and update the package.", "should_trigger": false},
+  {"query": "Adopt this upstream skill into skills/pdf.", "should_trigger": false},
+  {"query": "Review my pull request for bugs.", "should_trigger": false},
+  {"query": "Write a performance review for my teammate.", "should_trigger": false},
+  {"query": "Show me test coverage across all the skills in our catalog.", "should_trigger": false},
+  {"query": "Install the reviewed skill into our workspace.", "should_trigger": false},
+  {"query": "Audit this receipt for authority over-reach.", "should_trigger": false},
+  {"query": "Write a review of this restaurant for Google Maps.", "should_trigger": false},
+  {"query": "Run the support-triage skill on this customer email.", "should_trigger": false},
+  {"query": "Review the support-triage skill for capability, trust and operator readiness.", "should_trigger": true},
+  {"query": "Should we install this skill? Inspect skills/web-fetch, run its safe tests and give me a verdict.", "should_trigger": true},
+  {"query": "Is skills/charge ready to publish? Check what it actually does against what it claims.", "should_trigger": true},
+  {"query": "Assess this third-party skill package before we decide whether to adopt it.", "should_trigger": true},
+  {"query": "We already have the native test evidence for this skill. Assess it without running anything again.", "should_trigger": true},
+  {"query": "Does our lead-qualify skill actually help an operator, or does it just pass its tests?", "should_trigger": true},
+  {"query": "Give me a trust review of the authority skills/github asks for, and whether that fits its job.", "should_trigger": true},
+  {"query": "Decide whether to improve, reject or keep the moltbook skill, from an inspection of the package.", "should_trigger": true},
+  {"query": "Evaluate this local skill's default inputs and deliverable against its description.", "should_trigger": true},
+  {"query": "Review packages/skills/translator before we put it in front of users.", "should_trigger": true}
+]

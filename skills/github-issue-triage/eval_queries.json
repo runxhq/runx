@@ -1,0 +1,22 @@
+[
+  {"query": "Turn the text of this issue into a bounded engineering change set with acceptance criteria.", "should_trigger": false},
+  {"query": "Fix issue 241 and open the PR.", "should_trigger": false},
+  {"query": "Close issue 241 and label it wontfix.", "should_trigger": false},
+  {"query": "List all the open issues in runxhq/runx.", "should_trigger": false},
+  {"query": "Review the diff in PR #554.", "should_trigger": false},
+  {"query": "Triage this customer email against our help docs and draft a reply.", "should_trigger": false},
+  {"query": "Review this email thread with a customer and prepare my reply.", "should_trigger": false},
+  {"query": "Write an issue template for bug reports.", "should_trigger": false},
+  {"query": "Set up priority labels in our GitHub repo.", "should_trigger": false},
+  {"query": "How do I get contributors to write better bug reports?", "should_trigger": false},
+  {"query": "Triage issue 241 in runxhq/runx and draft the next helpful maintainer response.", "should_trigger": true},
+  {"query": "Here are snapshots of our 30 open issues. Which one deserves attention first?", "should_trigger": true},
+  {"query": "Read acme/api#88 and tell me how we should respond: needs a repro, a duplicate, or a real bug?", "should_trigger": true},
+  {"query": "Draft a reply to the reporter on issue 512 explaining what we need from them, but don't post it.", "should_trigger": true},
+  {"query": "Post the accepted triage reply on issue 241 and confirm it shows up.", "should_trigger": true},
+  {"query": "I already have the issue snapshot. Draft the maintainer's next action from it without reading GitHub again.", "should_trigger": true},
+  {"query": "Someone opened a long, angry issue about the CLI install. Give me a short profile of it and a calm, useful reply.", "should_trigger": true},
+  {"query": "What's the right posture on issue 73 in our repo, and what follow-up should we plan?", "should_trigger": true},
+  {"query": "Go through this issue queue and pick the thread that most needs a maintainer today.", "should_trigger": true},
+  {"query": "Triage the newest issue in acme/web and draft a response grounded in the thread.", "should_trigger": true}
+]

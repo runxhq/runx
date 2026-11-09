@@ -1,0 +1,22 @@
+[
+  {"query": "Read our saved PostHog funnel and find the activation drop-off.", "should_trigger": false},
+  {"query": "Research industry benchmarks for SaaS trial conversion, with sources.", "should_trigger": false},
+  {"query": "Write a SQL query that finds duplicate users.", "should_trigger": false},
+  {"query": "Run this ad hoc SELECT against production for me.", "should_trigger": false},
+  {"query": "Add an index to the orders table.", "should_trigger": false},
+  {"query": "Delete the test accounts from the users table.", "should_trigger": false},
+  {"query": "Design a star schema for our warehouse.", "should_trigger": false},
+  {"query": "How many GA4 sessions did we get from paid search?", "should_trigger": false},
+  {"query": "Optimize this slow Postgres query.", "should_trigger": false},
+  {"query": "Install the Snowflake driver for SQLAlchemy.", "should_trigger": false},
+  {"query": "Which campaigns produced qualified trials since 2026-10-01?", "should_trigger": true},
+  {"query": "How did support resolution time change last month? Use the declared reads on our analytics database.", "should_trigger": true},
+  {"query": "Where does activation stall for October signups? Pick the right declared query and explain the rows.", "should_trigger": true},
+  {"query": "Plan which declared query would answer 'top accounts by usage this quarter', without running it.", "should_trigger": true},
+  {"query": "Answer from the production replica: how many orders shipped late last week, by region?", "should_trigger": true},
+  {"query": "Using our query catalog, what were weekly active accounts for the last eight weeks?", "should_trigger": true},
+  {"query": "Run the right declared read for customers who churned in Q3, and tell me what the rows actually show.", "should_trigger": true},
+  {"query": "If none of our declared queries can answer 'revenue by referral partner', tell me what's missing.", "should_trigger": true},
+  {"query": "From the warehouse source, which plans have the highest refund rate this year? Cap it at 50 rows.", "should_trigger": true},
+  {"query": "Against this supplied query catalog, which read and parameters fit the question 'trial conversions by channel since September'?", "should_trigger": true}
+]

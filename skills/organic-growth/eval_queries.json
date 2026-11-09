@@ -1,0 +1,22 @@
+[
+  {"query": "Show me clicks and impressions by query for last month.", "should_trigger": false},
+  {"query": "Give me a GA4 realtime count of active users.", "should_trigger": false},
+  {"query": "Submit our sitemap to Google.", "should_trigger": false},
+  {"query": "Write ten SEO blog posts targeting 'agent governance'.", "should_trigger": false},
+  {"query": "Guarantee we rank first on Google for our brand name.", "should_trigger": false},
+  {"query": "Add schema.org markup to our product page template.", "should_trigger": false},
+  {"query": "Analyze our signup funnel and retention from this product event data.", "should_trigger": false},
+  {"query": "Search the web for our top competitors' blog posts.", "should_trigger": false},
+  {"query": "Buy backlinks from high-authority sites.", "should_trigger": false},
+  {"query": "What is answer engine optimization?", "should_trigger": false},
+  {"query": "Prioritize SEO and answer-engine growth work for example.com from our search, analytics and site evidence.", "should_trigger": true},
+  {"query": "What should we improve on our site to get more organic traffic? Start from https://acme.dev, and use Search Console if it's connected.", "should_trigger": true},
+  {"query": "Turn this Search Console export and GA4 report into a ranked list of SEO actions, with how to measure each one.", "should_trigger": true},
+  {"query": "Our docs pages aren't showing up in AI answers. What would make them more citeable, based on the evidence?", "should_trigger": true},
+  {"query": "Give me an organic growth brief for our pricing and comparison pages, separating what the data shows from what you infer.", "should_trigger": true},
+  {"query": "We've already pulled search, analytics and page evidence. Analyze it into an SEO plan without collecting anything again.", "should_trigger": true},
+  {"query": "Which landing pages should we fix first for organic conversions, ranked by impact, confidence and effort?", "should_trigger": true},
+  {"query": "Review our public site for technical search health and content gaps, and give me a measurement plan.", "should_trigger": true},
+  {"query": "How can we grow organic signups from the blog? Use the analytics and search data we have, and don't promise rankings.", "should_trigger": true},
+  {"query": "Build an evidence-bound SEO brief for the new product section, with prioritized actions.", "should_trigger": true}
+]

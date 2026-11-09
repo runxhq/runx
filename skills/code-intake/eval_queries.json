@@ -1,0 +1,22 @@
+[
+  {"query": "Compile this bounded change set into a dependency-ordered execution plan with phases.", "should_trigger": false},
+  {"query": "Plan the multi-step migration from REST to gRPC across these three services before we start.", "should_trigger": false},
+  {"query": "Read GitHub issue #482 in our repo, investigate it, and draft a response on the issue.", "should_trigger": false},
+  {"query": "Implement issue #91 and open a pull request for it.", "should_trigger": false},
+  {"query": "Review the open pull request #57 and give me line-by-line findings.", "should_trigger": false},
+  {"query": "Triage this customer's billing question against our help docs and draft a support reply.", "should_trigger": false},
+  {"query": "Fix the typo in the README heading.", "should_trigger": false},
+  {"query": "Rename the getUser function to fetchUser across the codebase.", "should_trigger": false},
+  {"query": "Explain what this stack trace means.", "should_trigger": false},
+  {"query": "Write a bug report template for our repository.", "should_trigger": false},
+  {"query": "Turn this noisy README bug report into a bounded request.", "should_trigger": true},
+  {"query": "A customer wrote three paragraphs about the export being 'broken'. Work out what they actually want changed, and draft a reply.", "should_trigger": true},
+  {"query": "Here's a rambling feature request from Slack. Pull out the outcome, affected surfaces, constraints and success criteria.", "should_trigger": true},
+  {"query": "Should this request be a plain fix, a planned change, or just a reply? Read it and recommend the next step.", "should_trigger": true},
+  {"query": "Scope this engineering ask before anyone starts on it: what's in, what's missing, and what do we need to ask?", "should_trigger": true},
+  {"query": "Bound this request and give me an unsent reply to the reporter: \"the dashboard is slow and the numbers look off sometimes\".", "should_trigger": true},
+  {"query": "Take this support escalation about login loops and turn it into a change set we can hand to planning.", "should_trigger": true},
+  {"query": "What is this person actually asking us to build? Their message is below. Don't implement anything.", "should_trigger": true},
+  {"query": "Turn this vague request from our CTO into something concrete, with acceptance criteria and open questions.", "should_trigger": true},
+  {"query": "Intake this report, and keep its original thread context with it so we can trace it later.", "should_trigger": true}
+]

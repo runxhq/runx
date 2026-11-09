@@ -1,0 +1,22 @@
+[
+  {"query": "Audit this receipt for over-reach.", "should_trigger": false},
+  {"query": "Find the receipts for yesterday's runs.", "should_trigger": false},
+  {"query": "Prove that the refund actually happened at Stripe.", "should_trigger": false},
+  {"query": "Generate a PDF receipt for this customer's purchase.", "should_trigger": false},
+  {"query": "Sign this PDF contract with my digital signature.", "should_trigger": false},
+  {"query": "GPG-sign my last git commit.", "should_trigger": false},
+  {"query": "Refund this Stripe payment.", "should_trigger": false},
+  {"query": "Make a receipt that shows the payment went through, even though we can't confirm it.", "should_trigger": false},
+  {"query": "Summarize this week's run outcomes.", "should_trigger": false},
+  {"query": "Notarize this document.", "should_trigger": false},
+  {"query": "Seal an auditable attestation for this manual provider refund, without claiming Runx verified the refund itself.", "should_trigger": true},
+  {"query": "I changed the DNS record by hand in the Cloudflare console. Record a signed claim with the change ID as evidence.", "should_trigger": true},
+  {"query": "Sign a receipt saying the security team approved the exception, citing the approval ticket and its digest.", "should_trigger": true},
+  {"query": "We deployed before the adapter existed. Attest to that deploy with the commit SHA and the CI log locator.", "should_trigger": true},
+  {"query": "Create a signed receipt for the database migration I ran outside runx, so later runs can cite it.", "should_trigger": true},
+  {"query": "Record that the CFO approved the budget increase, with the approval email's locator and SHA-256, for downstream reliance only.", "should_trigger": true},
+  {"query": "Bind the claim 'payout batch 14 was sent manually' to the bank reference and its digest in a signed receipt.", "should_trigger": true},
+  {"query": "Make an attestation receipt for the manual console change, scoped to use by the reconciliation run.", "should_trigger": true},
+  {"query": "Write a signed Runx attestation of what I did outside the runtime, naming me as the principal.", "should_trigger": true},
+  {"query": "Attest that the vendor contract was signed offline, pointing at its document store locator.", "should_trigger": true}
+]

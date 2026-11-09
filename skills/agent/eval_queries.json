@@ -1,0 +1,22 @@
+[
+  {"query": "Build me an agent that triages my GitHub issues every morning.", "should_trigger": false},
+  {"query": "What agent framework should I use for a customer support bot, LangGraph or the OpenAI Agents SDK?", "should_trigger": false},
+  {"query": "Review the code in src/support_agent.py and tell me what's wrong with it.", "should_trigger": false},
+  {"query": "Ask the agent to summarise the README.", "should_trigger": false},
+  {"query": "Write a system prompt for a friendly sales agent persona.", "should_trigger": false},
+  {"query": "Why does my agent loop forever when the lookup tool returns an empty list?", "should_trigger": false},
+  {"query": "Explain what an AI agent is in two sentences.", "should_trigger": false},
+  {"query": "Set a custom user agent string on the requests in src/support_agent.py.", "should_trigger": false},
+  {"query": "Add retry with exponential backoff to the lookup function.", "should_trigger": false},
+  {"query": "Rename the cfg parameter to config everywhere in this repo.", "should_trigger": false},
+  {"query": "Work this turn through runx: read the notes in the workspace and ask me which one to summarise.", "should_trigger": true},
+  {"query": "Use runx to look through this workspace, and ask me before you change anything.", "should_trigger": true},
+  {"query": "Open a runx read session and list what's in this project.", "should_trigger": true},
+  {"query": "Through runx, add an install section to README.md, and wait for my approval before it's written.", "should_trigger": true},
+  {"query": "Make the fix to src/support_agent.py with runx's write method, so each edit is approved and recorded.", "should_trigger": true},
+  {"query": "Answer this as a runx turn: which files mention retries? Ask me if anything is unclear.", "should_trigger": true},
+  {"query": "Do this as a governed turn, with every file read admitted, recorded and receipted: tell me what the support agent does.", "should_trigger": true},
+  {"query": "I need an auditable session: search the repo for TODOs, and end with a receipted summary of what you did.", "should_trigger": true},
+  {"query": "Fix the typo in README.md, but every edit has to wait for my approval and land in a receipt.", "should_trigger": true},
+  {"query": "Read the release note and tell me the codename, with each call admitted and sealed into a receipt.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Create a brand-new runx skill for summarising Linear tickets.", "should_trigger": false},
+  {"query": "Assess this third-party skill and tell me whether we should install it.", "should_trigger": false},
+  {"query": "Install the community PDF skill from the registry.", "should_trigger": false},
+  {"query": "Publish our adopted skill to the runx registry.", "should_trigger": false},
+  {"query": "Fork this GitHub repo into our org.", "should_trigger": false},
+  {"query": "Copy these files from vendor/ into skills/.", "should_trigger": false},
+  {"query": "Write a Claude Code skill that formats my commit messages.", "should_trigger": false},
+  {"query": "Why did the adopted skill's run fail?", "should_trigger": false},
+  {"query": "Send our fixes back to the upstream skill's repository.", "should_trigger": false},
+  {"query": "What licence is this third-party skill under?", "should_trigger": false},
+  {"query": "Adopt this captured upstream skill for useful local use.", "should_trigger": true},
+  {"query": "I copied a third-party SKILL.md and its scripts into vendor/pdf-skill/. Turn it into a validated runx package under skills/pdf.", "should_trigger": true},
+  {"query": "Bring the community changelog-writer skill into our repo as a runx package, keeping its licence and templates.", "should_trigger": true},
+  {"query": "Adapt this Agent Skills package we downloaded into a governed runx skill for our release-notes job.", "should_trigger": true},
+  {"query": "We already captured the upstream skill's files. Adopt them into skills/notion-export without reading them again.", "should_trigger": true},
+  {"query": "Convert this third-party skill into a local runx package, and tell me if it's redundant or can't be governed rather than forcing it.", "should_trigger": true},
+  {"query": "Port the upstream SKILL.md at third_party/csv-cleaner/SKILL.md into a runx package that does our CSV cleanup job.", "should_trigger": true},
+  {"query": "Make this open-source agent skill usable in runx, with its required resources, at skills/sitemap-audit.", "should_trigger": true},
+  {"query": "Adopt the captured skill into our repo. The job is triaging Sentry alerts, and the destination is skills/sentry-triage.", "should_trigger": true},
+  {"query": "Take this upstream skill and wrap it as a validated local runx package, leaving the original files untouched.", "should_trigger": true}
+]

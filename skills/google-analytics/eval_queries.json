@@ -1,0 +1,22 @@
+[
+  {"query": "Which queries are losing clicks in Search Console this month?", "should_trigger": false},
+  {"query": "Is https://example.com/pricing indexed by Google?", "should_trigger": false},
+  {"query": "Build an SEO growth brief with prioritized actions from our search and analytics evidence.", "should_trigger": false},
+  {"query": "Analyze our signup-to-activation funnel and retention cohorts from this event data.", "should_trigger": false},
+  {"query": "Add the GA4 tracking snippet to our Next.js layout.", "should_trigger": false},
+  {"query": "Set up a conversion event in GA4 for form submissions.", "should_trigger": false},
+  {"query": "Explain the difference between Universal Analytics and GA4.", "should_trigger": false},
+  {"query": "Create a Looker Studio dashboard for our marketing team.", "should_trigger": false},
+  {"query": "Read my Plausible analytics for last week.", "should_trigger": false},
+  {"query": "Run our declared weekly revenue query against the warehouse and explain the rows.", "should_trigger": false},
+  {"query": "Show which organic landing pages produced engaged sessions and conversions in this GA4 property.", "should_trigger": true},
+  {"query": "How many active users are on the site right now? We just shipped the new pricing page.", "should_trigger": true},
+  {"query": "List the GA4 properties I can access.", "should_trigger": true},
+  {"query": "What dimensions and metrics can I use in property 312345678 before I build a report?", "should_trigger": true},
+  {"query": "Pull sessions and conversions by source/medium for the last 28 days from GA4.", "should_trigger": true},
+  {"query": "Did the campaign launch move traffic? Give me a GA4 realtime pulse for the last 30 minutes.", "should_trigger": true},
+  {"query": "Compare GA4 revenue by country for October against September.", "should_trigger": true},
+  {"query": "We exported this GA4 report through a trusted import. Normalize it and keep the measurement caveats.", "should_trigger": true},
+  {"query": "What were our total engaged sessions last week, with no breakdown?", "should_trigger": true},
+  {"query": "Get the top 20 pages by views in Google Analytics for Q3, with the caveats I should know before acting on it.", "should_trigger": true}
+]

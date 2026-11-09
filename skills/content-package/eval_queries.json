@@ -1,0 +1,22 @@
+[
+  {"query": "Ghostwrite a personal reflection post in my voice from my own notes. No research or citations needed.", "should_trigger": false},
+  {"query": "Give me a decision-ready research brief on whether we should adopt Postgres 17.", "should_trigger": false},
+  {"query": "Publish the approved draft to our X account.", "should_trigger": false},
+  {"query": "Build our brand voice guide from these approved and rejected examples.", "should_trigger": false},
+  {"query": "Fetch this URL and give me its text.", "should_trigger": false},
+  {"query": "Proofread this article for typos.", "should_trigger": false},
+  {"query": "Write a haiku about autumn.", "should_trigger": false},
+  {"query": "Summarise this PDF in one paragraph for me.", "should_trigger": false},
+  {"query": "Create an editorial calendar for next quarter.", "should_trigger": false},
+  {"query": "Make a slide deck from these meeting notes.", "should_trigger": false},
+  {"query": "Turn this governed evidence into a citation-bound draft and channel package.", "should_trigger": true},
+  {"query": "Write a newsletter explainer on the pricing change for our customers, researched from these three URLs, with citations.", "should_trigger": true},
+  {"query": "Package this completed research packet into a blog article for developers, ready to hand off for publication.", "should_trigger": true},
+  {"query": "Prepare an article for the engineering blog about what we learned from the outage, using these docs in the repo as sources.", "should_trigger": true},
+  {"query": "I need a researched update for our changelog channel with every claim cited. Here's the objective and the audience.", "should_trigger": true},
+  {"query": "From these source packets, make a reader-facing draft for LinkedIn and a handoff for the publishing target, but don't publish it.", "should_trigger": true},
+  {"query": "Research and write a short explainer for small-business owners on what x402 is, citing the sources you read.", "should_trigger": true},
+  {"query": "Take the finished research packet on EU AI Act timelines and prepare it as newsletter content.", "should_trigger": true},
+  {"query": "Prepare a cited piece for our docs readers on how receipts work, from the files in docs/ and our spec URL.", "should_trigger": true},
+  {"query": "Draft and package a customer-facing update about the API deprecation, based only on the evidence I supply.", "should_trigger": true}
+]

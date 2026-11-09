@@ -1,0 +1,22 @@
+[
+  {"query": "Judge this customer's erasure request against our privacy policy.", "should_trigger": false},
+  {"query": "Extract the customer name, email and order id from this ticket into JSON.", "should_trigger": false},
+  {"query": "Delete this user's personal data from our database.", "should_trigger": false},
+  {"query": "Anonymise this dataset so it's guaranteed to be GDPR-anonymous.", "should_trigger": false},
+  {"query": "Find out whose phone number this is.", "should_trigger": false},
+  {"query": "Send the scrubbed transcript to the #vendors channel.", "should_trigger": false},
+  {"query": "Encrypt this file before I upload it.", "should_trigger": false},
+  {"query": "Write a regex that masks credit card numbers in our logs.", "should_trigger": false},
+  {"query": "Blur the faces in these photos.", "should_trigger": false},
+  {"query": "What counts as personal data under GDPR?", "should_trigger": false},
+  {"query": "Remove names, emails and phone numbers from this support text before it crosses a trust boundary.", "should_trigger": true},
+  {"query": "Scrub the personal data from this log excerpt before I paste it into a vendor ticket.", "should_trigger": true},
+  {"query": "Tokenize the customer names and account numbers in this transcript so we can share it with the analytics team.", "should_trigger": true},
+  {"query": "Redact anything personal from this prompt before it goes to the external model.", "should_trigger": true},
+  {"query": "Only remove the email addresses from this export, and leave everything else.", "should_trigger": true},
+  {"query": "We already reviewed the detections. Apply redaction to these exact selections and scan what's left.", "should_trigger": true},
+  {"query": "Is this support material safe to send to our contractor? Strip the PII and tell me if it needs review.", "should_trigger": true},
+  {"query": "Remove card numbers, dates of birth and postal addresses from this document before it leaves the team.", "should_trigger": true},
+  {"query": "Block this content from leaving if it contains any government ID numbers.", "should_trigger": true},
+  {"query": "Remove the patient identifiers from this case summary before it goes into a training set, using our custom class list.", "should_trigger": true}
+]

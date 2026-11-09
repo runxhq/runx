@@ -1,0 +1,22 @@
+[
+  {"query": "Prioritize SEO work to grow sign-ups from search.", "should_trigger": false},
+  {"query": "Run our declared weekly active users query against the warehouse and interpret the rows.", "should_trigger": false},
+  {"query": "Pull GA4 sessions by source for the last 28 days.", "should_trigger": false},
+  {"query": "Add PostHog event tracking to the signup button.", "should_trigger": false},
+  {"query": "Create a new funnel insight in PostHog.", "should_trigger": false},
+  {"query": "Build a retention dashboard in Metabase.", "should_trigger": false},
+  {"query": "Run an A/B test on the onboarding checklist.", "should_trigger": false},
+  {"query": "Explain what a cohort retention chart shows.", "should_trigger": false},
+  {"query": "Does this account fit our ICP?", "should_trigger": false},
+  {"query": "Write a SQL query for daily active users.", "should_trigger": false},
+  {"query": "Find the activation drop-off in our onboarding funnel, and propose a measurement action from this evidence.", "should_trigger": true},
+  {"query": "Where are new accounts dropping out between signup and their first project? Use our saved PostHog funnel.", "should_trigger": true},
+  {"query": "Compare this month's week-4 retention with last month's from the saved PostHog insights, and don't claim lift you can't show.", "should_trigger": true},
+  {"query": "Read saved PostHog insight 48213 and tell me what the funnel says.", "should_trigger": true},
+  {"query": "Here are the funnel counts from our warehouse export. Calculate the step conversion rates and tell me what's worth investigating.", "should_trigger": true},
+  {"query": "Which step of the checkout funnel loses the most users, and is our instrumentation good enough to trust that?", "should_trigger": true},
+  {"query": "Review our activation and retention evidence and recommend one product change to consider.", "should_trigger": true},
+  {"query": "We already retained the PostHog insight packets. Analyze current against baseline without reading PostHog again.", "should_trigger": true},
+  {"query": "Is retention for the March signup cohort mature enough to compare with February's?", "should_trigger": true},
+  {"query": "Find our saved PostHog insights about onboarding and explain where people stall.", "should_trigger": true}
+]

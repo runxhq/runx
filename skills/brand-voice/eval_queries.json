@@ -1,0 +1,22 @@
+[
+  {"query": "Build a profile of my personal taste from the designs I like and the ones I hate, so agents stop picking styles I dislike.", "should_trigger": false},
+  {"query": "Write the homepage hero copy in our brand voice.", "should_trigger": false},
+  {"query": "Draft three LinkedIn posts announcing our launch from this approved evidence.", "should_trigger": false},
+  {"query": "Package this research into a citation-bound blog draft for the newsletter.", "should_trigger": false},
+  {"query": "Come up with a new positioning strategy for us against our three main competitors.", "should_trigger": false},
+  {"query": "Is this ad copy legally safe to run in the EU?", "should_trigger": false},
+  {"query": "Design a logo and a colour palette for our brand.", "should_trigger": false},
+  {"query": "Give me ten adjectives that describe a premium coffee brand.", "should_trigger": false},
+  {"query": "Fix the grammar in this paragraph.", "should_trigger": false},
+  {"query": "Translate our About page into Spanish.", "should_trigger": false},
+  {"query": "Build a voice packet for our homepage from these approved and rejected examples.", "should_trigger": true},
+  {"query": "Here are five emails we liked and two we didn't. Work out how our brand sounds so other agents can write in it.", "should_trigger": true},
+  {"query": "Turn our approved launch posts into a reusable voice guide: tone, vocabulary, cadence and which claims are safe to make.", "should_trigger": true},
+  {"query": "We keep getting off-brand copy from different writers. Derive one shared brand voice from our real examples.", "should_trigger": true},
+  {"query": "What does our support voice sound like? Use these approved replies and the operator notes, and tell me what to avoid.", "should_trigger": true},
+  {"query": "Model how our brand should sound on LinkedIn versus the docs site, based on these labelled samples.", "should_trigger": true},
+  {"query": "From these approved product pages, sort our claims into safe, needs proof, and off limits.", "should_trigger": true},
+  {"query": "Make a brand voice context from this source material so the downstream writing agents have something to follow.", "should_trigger": true},
+  {"query": "Capture the voice of our newsletter for a developer audience from these approved issues and the rejected drafts.", "should_trigger": true},
+  {"query": "I need a voice guide for the Nimbus campaign built only from the examples I'm pasting, with every rule traced to a source.", "should_trigger": true}
+]

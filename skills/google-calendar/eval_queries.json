@@ -1,0 +1,22 @@
+[
+  {"query": "Book a 30-minute meeting with Sam on Thursday at 2pm.", "should_trigger": false},
+  {"query": "Decline the 4pm meeting invite on my calendar.", "should_trigger": false},
+  {"query": "Find a time that works for all five of us next week and send the invite.", "should_trigger": false},
+  {"query": "From these collected mail, chat and calendar observations, decide what needs my attention today.", "should_trigger": false},
+  {"query": "How many active users does our site have right now?", "should_trigger": false},
+  {"query": "What day of the week is 25 December 2026?", "should_trigger": false},
+  {"query": "Convert 3pm Sydney time to New York time.", "should_trigger": false},
+  {"query": "Read my Outlook calendar for tomorrow.", "should_trigger": false},
+  {"query": "Write a Python script that creates events with the Google Calendar API.", "should_trigger": false},
+  {"query": "Message the team on Slack that I'll be late to standup.", "should_trigger": false},
+  {"query": "Read the next day of events on my selected Google Calendar.", "should_trigger": true},
+  {"query": "Am I free between 2 and 4pm tomorrow? Check the busy times on my primary Google Calendar.", "should_trigger": true},
+  {"query": "What's on my work calendar next week, Monday to Friday, Sydney time?", "should_trigger": true},
+  {"query": "Check whether my calendar is free during the next day. I only need availability, not event titles.", "should_trigger": true},
+  {"query": "Continue with the next page of this quarter's calendar events.", "should_trigger": true},
+  {"query": "Combine these three calendar pages into one window and tell me if anything is missing.", "should_trigger": true},
+  {"query": "Prepare the brief for this scheduled occurrence from the upcoming window of my calendar.", "should_trigger": true},
+  {"query": "List my Google Calendar events from 4 to 11 October, including recurring ones.", "should_trigger": true},
+  {"query": "Read the busy intervals on the team@acme.com calendar for Thursday.", "should_trigger": true},
+  {"query": "Normalize these calendar events we already pulled, without calling Google again.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Post this result to the #ops Slack channel.", "should_trigger": false},
+  {"query": "Package this research into a channel-ready draft and a publication handoff.", "should_trigger": false},
+  {"query": "Build an n8n workflow that emails me new signups.", "should_trigger": false},
+  {"query": "Set up a Zapier zap that copies Gmail attachments to Drive.", "should_trigger": false},
+  {"query": "Receive incoming Stripe webhooks and store them.", "should_trigger": false},
+  {"query": "Send this payload to our Make.com scenario.", "should_trigger": false},
+  {"query": "Write an Express endpoint that accepts webhooks.", "should_trigger": false},
+  {"query": "Deliver this JSON to our internal API at https://api.acme.dev/ingest.", "should_trigger": false},
+  {"query": "What's the difference between n8n and Zapier?", "should_trigger": false},
+  {"query": "Debug why my Zapier zap isn't firing.", "should_trigger": false},
+  {"query": "Hand this governed Runx payload to the configured n8n workflow.", "should_trigger": true},
+  {"query": "Send this run's result to our Zapier Catch Hook once I approve it.", "should_trigger": true},
+  {"query": "Deliver the approved payload to https://acme.app.n8n.cloud/webhook/lead-intake and record the acknowledgement.", "should_trigger": true},
+  {"query": "Check the handoff context for this run without sending anything.", "should_trigger": true},
+  {"query": "Pass this governed work to the Zapier Catch Hook that updates our sheet, exactly once.", "should_trigger": true},
+  {"query": "Validate this execution context for the n8n handoff in CI, with no network call.", "should_trigger": true},
+  {"query": "Trigger our n8n workflow with this runx payload after approval, and keep the receiver's answer in the receipt.", "should_trigger": true},
+  {"query": "Hand this payload to my n8n workflow.", "should_trigger": true},
+  {"query": "Push this runx result to the Zapier Catch Hook so the downstream notifications fire.", "should_trigger": true},
+  {"query": "Preflight the Zapier handoff for this receipt before we send it for real.", "should_trigger": true}
+]

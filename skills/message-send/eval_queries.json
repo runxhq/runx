@@ -1,0 +1,22 @@
+[
+  {"query": "Read this Slack thread and draft a reply I can review.", "should_trigger": false},
+  {"query": "Search Slack for what the team said about the outage yesterday.", "should_trigger": false},
+  {"query": "Deliver this payload to our Zapier Catch Hook.", "should_trigger": false},
+  {"query": "Email this update to our customer list.", "should_trigger": false},
+  {"query": "Post this announcement to our X account.", "should_trigger": false},
+  {"query": "Comment on this Reddit thread from my account.", "should_trigger": false},
+  {"query": "Write a Slack bot that posts standup reminders every morning.", "should_trigger": false},
+  {"query": "Set my Slack status to 'in a meeting'.", "should_trigger": false},
+  {"query": "Draft the release announcement for 0.8.2.", "should_trigger": false},
+  {"query": "Create a new Slack channel for the launch team.", "should_trigger": false},
+  {"query": "Notify the #releases Slack channel that release 0.8.2 is live.", "should_trigger": true},
+  {"query": "Reply in this Slack thread with 'Fixed in 1.4.1, thanks for the report', after I approve it.", "should_trigger": true},
+  {"query": "Post the approved launch announcement to #general and confirm it actually appeared.", "should_trigger": true},
+  {"query": "Plan a post to slack://acme/C024BE91L with this text, but don't post it yet.", "should_trigger": true},
+  {"query": "Prepare the exact reply for this Slack thread and stop before delivery.", "should_trigger": true},
+  {"query": "Deliver the reply we planned for that thread.", "should_trigger": true},
+  {"query": "The Slack post may or may not have gone through. Check whether it's there without sending it again.", "should_trigger": true},
+  {"query": "Send the on-call update to #incidents on behalf of the platform team.", "should_trigger": true},
+  {"query": "Post this planned message exactly as approved, with this idempotency key.", "should_trigger": true},
+  {"query": "Let the #support channel know the outage is resolved, once I sign off on the wording.", "should_trigger": true}
+]

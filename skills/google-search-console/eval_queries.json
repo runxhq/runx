@@ -1,0 +1,22 @@
+[
+  {"query": "Which landing pages produced the most conversions in GA4?", "should_trigger": false},
+  {"query": "Turn our search, analytics and market evidence into an SEO growth plan with a measurement plan.", "should_trigger": false},
+  {"query": "Write meta descriptions for our ten top pages.", "should_trigger": false},
+  {"query": "Generate a sitemap.xml for our Next.js site.", "should_trigger": false},
+  {"query": "Verify our domain ownership in Search Console with a DNS TXT record.", "should_trigger": false},
+  {"query": "What are the best SEO practices for 2026?", "should_trigger": false},
+  {"query": "Check our robots.txt for problems.", "should_trigger": false},
+  {"query": "Track our keyword rankings on Bing.", "should_trigger": false},
+  {"query": "Search the web for articles about the latest Core Web Vitals changes.", "should_trigger": false},
+  {"query": "Remove this URL from Google's index right away.", "should_trigger": false},
+  {"query": "Show page-level Google Search performance for this verified site and date range.", "should_trigger": true},
+  {"query": "Which queries lost the most clicks in Search Console over the last 28 days?", "should_trigger": true},
+  {"query": "Is https://example.com/blog/launch indexed? Inspect the URL in Search Console.", "should_trigger": true},
+  {"query": "List the Search Console properties I have access to.", "should_trigger": true},
+  {"query": "What sitemaps are submitted for sc-domain:example.com?", "should_trigger": true},
+  {"query": "Plan a sitemap submission for https://example.com/sitemap.xml so I can review it first.", "should_trigger": true},
+  {"query": "Submit the planned sitemap and confirm Google has it.", "should_trigger": true},
+  {"query": "Can we use the Indexing API to get our new product pages indexed faster?", "should_trigger": true},
+  {"query": "Give me CTR and average position by page for our docs site in October, web search only.", "should_trigger": true},
+  {"query": "We have an exported Search Console performance file from a trusted import. Normalize it.", "should_trigger": true}
+]

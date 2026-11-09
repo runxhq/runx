@@ -1,0 +1,22 @@
+[
+  {"query": "Pay this x402 resource with my wallet.", "should_trigger": false},
+  {"query": "Pay this approved invoice from Northwind.", "should_trigger": false},
+  {"query": "Add Northwind to our approved payee list.", "should_trigger": false},
+  {"query": "Write a procurement policy for our startup.", "should_trigger": false},
+  {"query": "Which vendor is cheapest for cloud GPUs?", "should_trigger": false},
+  {"query": "How much have we spent on SaaS tools this year?", "should_trigger": false},
+  {"query": "Collect payment from our customer.", "should_trigger": false},
+  {"query": "Tighten our runx operational policy so releases need a human gate.", "should_trigger": false},
+  {"query": "Negotiate a discount with this vendor.", "should_trigger": false},
+  {"query": "Review whether this grant is broader than its receipts show.", "should_trigger": false},
+  {"query": "Decide whether this procurement request is allowed under the procurement policy before any money moves.", "should_trigger": true},
+  {"query": "Can we buy the $2,400 Figma licence from this payee under our procurement policy?", "should_trigger": true},
+  {"query": "Check this purchase request against the approved payee list, the currency, the remaining budget and the per-request cap.", "should_trigger": true},
+  {"query": "Is a 900 USD order from Northwind within policy, or does it need human review for going over the approval threshold?", "should_trigger": true},
+  {"query": "Before the agent pays for this API plan, gate it against our procurement policy.", "should_trigger": true},
+  {"query": "Here's the procurement policy and the request. Approved, refused, or does it need a human?", "should_trigger": true},
+  {"query": "We have 1,500 AUD left in the tools budget. Does this 1,800 AUD request get refused?", "should_trigger": true},
+  {"query": "Pre-check this vendor purchase: is the payee approved, and is it under the cap?", "should_trigger": true},
+  {"query": "Decide whether this procurement request passes policy, and give me a sealed decision I can carry into the payment.", "should_trigger": true},
+  {"query": "Does this zero-cost software procurement still pass our policy rules?", "should_trigger": true}
+]

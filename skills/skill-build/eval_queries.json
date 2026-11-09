@@ -1,0 +1,22 @@
+[
+  {"query": "Adopt this third-party SKILL.md we downloaded into a local runx package.", "should_trigger": false},
+  {"query": "Review the support-triage skill for trust and operator readiness.", "should_trigger": false},
+  {"query": "Diagnose why this skill run failed from its receipt, without changing anything.", "should_trigger": false},
+  {"query": "Write a Claude Code slash command that formats my commit messages.", "should_trigger": false},
+  {"query": "Run the web-fetch skill on https://example.com.", "should_trigger": false},
+  {"query": "Which skills in our catalog have no tests?", "should_trigger": false},
+  {"query": "Write unit tests for our React components.", "should_trigger": false},
+  {"query": "Build a Discord bot in Node.js.", "should_trigger": false},
+  {"query": "Plan a multi-repo refactor of the auth layer.", "should_trigger": false},
+  {"query": "Publish the new skill to the registry.", "should_trigger": false},
+  {"query": "Create a bounded decision-note skill without package-local runtime code.", "should_trigger": true},
+  {"query": "Build a new runx skill that summarises a Linear issue and drafts a reply.", "should_trigger": true},
+  {"query": "Design the architecture for a runx skill that reads Notion pages, but don't write any files yet.", "should_trigger": true},
+  {"query": "Add test coverage to our web-fetch skill package, and replay it before writing.", "should_trigger": true},
+  {"query": "This receipt shows the extract skill failing on empty input. Improve the package so it handles that case.", "should_trigger": true},
+  {"query": "Update the cold-outreach skill to accept a reply-to address, validated before it's written.", "should_trigger": true},
+  {"query": "Make a runx skill package that checks for broken links on our docs site.", "should_trigger": true},
+  {"query": "Add a test case to skills/support-triage for a request with no product evidence.", "should_trigger": true},
+  {"query": "Split our sbom skill's run.yaml into separate methods, and make sure its tests still replay.", "should_trigger": true},
+  {"query": "Help me author a new runx skill for posting Discord announcements, starting with where it fits in the catalog.", "should_trigger": true}
+]

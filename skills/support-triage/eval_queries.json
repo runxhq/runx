@@ -1,0 +1,22 @@
+[
+  {"query": "Triage GitHub issue 241 and draft a maintainer response.", "should_trigger": false},
+  {"query": "Send the approved reply to the customer in the Slack thread.", "should_trigger": false},
+  {"query": "This customer is asking for a new export format. Turn it into a bounded engineering change set.", "should_trigger": false},
+  {"query": "This customer asked us to delete their data. Judge the request against our privacy policy.", "should_trigger": false},
+  {"query": "Write a help centre article about domain verification.", "should_trigger": false},
+  {"query": "Set up Zendesk triggers to auto-assign billing tickets.", "should_trigger": false},
+  {"query": "What's our average first-response time this month?", "should_trigger": false},
+  {"query": "Refund this customer's last payment.", "should_trigger": false},
+  {"query": "Write a canned response template for password resets.", "should_trigger": false},
+  {"query": "The customer opened a chargeback. Prepare our dispute evidence.", "should_trigger": false},
+  {"query": "Triage this customer domain-verification question using the supplied product guide, and draft a supported reply.", "should_trigger": true},
+  {"query": "A customer says their password reset email never arrives. Here's the thread and our help docs. What's the next step?", "should_trigger": true},
+  {"query": "How urgent is this support ticket, which team should take it, and can we answer it from the docs?", "should_trigger": true},
+  {"query": "Draft a reply to this customer from our billing FAQ, citing the parts you used. Don't send it.", "should_trigger": true},
+  {"query": "This request doesn't match anything in our docs. Triage it and route it to the right specialist.", "should_trigger": true},
+  {"query": "Here's a help-desk thread about SSO setup and the relevant admin guide. Triage it.", "should_trigger": true},
+  {"query": "Is there enough documented product evidence to answer this customer, or should we ask them for more?", "should_trigger": true},
+  {"query": "Triage this inbound chat from a customer whose export keeps failing, using these account observations.", "should_trigger": true},
+  {"query": "Work out what this customer is actually trying to do and prepare a grounded reply, keeping their words and our docs separate.", "should_trigger": true},
+  {"query": "Triage the support request below. We have no docs for it yet, so don't invent an answer.", "should_trigger": true}
+]

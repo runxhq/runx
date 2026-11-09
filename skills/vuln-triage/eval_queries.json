@@ -1,0 +1,22 @@
+[
+  {"query": "Scan our package-lock.json against OSV for known vulnerabilities.", "should_trigger": false},
+  {"query": "Generate a CycloneDX SBOM for our release.", "should_trigger": false},
+  {"query": "Upgrade the vulnerable packages and open a PR.", "should_trigger": false},
+  {"query": "Publish the security advisory to GitHub.", "should_trigger": false},
+  {"query": "Run a penetration test on our staging API.", "should_trigger": false},
+  {"query": "Scan our code for SQL injection.", "should_trigger": false},
+  {"query": "Explain what CVSS scores mean.", "should_trigger": false},
+  {"query": "Is our server patched against the latest OpenSSL bug?", "should_trigger": false},
+  {"query": "Set up Snyk in our CI pipeline.", "should_trigger": false},
+  {"query": "Triage this security issue someone opened on GitHub and draft a maintainer reply.", "should_trigger": false},
+  {"query": "Triage these exact dependency findings and tell me what to fix first.", "should_trigger": true},
+  {"query": "Here's the cve-audit packet for our API. Which findings actually deserve attention, and what's the remediation?", "should_trigger": true},
+  {"query": "We have 14 OSV matches. Prioritize them, and be clear about which exposure is known and which isn't.", "should_trigger": true},
+  {"query": "Is the lodash advisory in these findings worth an emergency release, or can it wait?", "should_trigger": true},
+  {"query": "Draft a security advisory from this validated triage packet. Don't publish it.", "should_trigger": true},
+  {"query": "Turn these Dependabot findings into a remediation plan. The dependency, exact version and advisory id are all here.", "should_trigger": true},
+  {"query": "The audit only covered part of the lockfile. Triage what we have without pretending the coverage is complete.", "should_trigger": true},
+  {"query": "Which of these vulnerable packages should we upgrade, and to which version, going by the advisories?", "should_trigger": true},
+  {"query": "Assess these exact-version vulnerability findings for exposure and priority before the release review.", "should_trigger": true},
+  {"query": "Write the unsent advisory wording for the fixed vulnerability in our triage packet.", "should_trigger": true}
+]

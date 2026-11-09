@@ -1,0 +1,22 @@
+[
+  {"query": "Send the re-permission email to this contact through our mail provider.", "should_trigger": false},
+  {"query": "Update this contact's CRM record from the call transcript where they said they changed jobs.", "should_trigger": false},
+  {"query": "Unsubscribe this address in Mailchimp directly.", "should_trigger": false},
+  {"query": "Write the copy for a re-permission email asking people to stay subscribed.", "should_trigger": false},
+  {"query": "Draft a cold email to this new prospect.", "should_trigger": false},
+  {"query": "This person asked us to erase all their data. Judge the request against our privacy policy.", "should_trigger": false},
+  {"query": "Is our newsletter signup form GDPR compliant?", "should_trigger": false},
+  {"query": "Build a segment of everyone who opened last month's campaign.", "should_trigger": false},
+  {"query": "Explain the difference between single and double opt-in.", "should_trigger": false},
+  {"query": "Remove the duplicate contacts from this CSV.", "should_trigger": false},
+  {"query": "Decide whether this contact needs re-permission or suppression before the campaign.", "should_trigger": true},
+  {"query": "This subscriber hasn't engaged in 14 months. Under our 12-month decay policy, should they move to re-permission?", "should_trigger": true},
+  {"query": "We got a hard bounce for jo@example.com. Check the evidence and record a suppression if our policy allows it.", "should_trigger": true},
+  {"query": "Before Tuesday's newsletter, review this contact's consent and engagement evidence and tell me if they're still eligible.", "should_trigger": true},
+  {"query": "This contact unsubscribed last week but our ledger still says subscribed. What should their consent state be?", "should_trigger": true},
+  {"query": "Review the bounce, engagement and consent evidence for this address and record the right consent transition.", "should_trigger": true},
+  {"query": "Is it safe to keep emailing this person? Here's their last engagement date, their consent record and the policy threshold.", "should_trigger": true},
+  {"query": "Move this stale contact to re-permission in the consent ledger after my approval, and verify the event was recorded.", "should_trigger": true},
+  {"query": "Check this contact against our consent policy: subscribed, engaged recently, no bounces. Does anything need to change?", "should_trigger": true},
+  {"query": "Our consent ledger and the engagement data disagree for this contact. Work out the consent decision or hold it for human review.", "should_trigger": true}
+]

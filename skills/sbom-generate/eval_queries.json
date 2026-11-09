@@ -1,0 +1,22 @@
+[
+  {"query": "Check our lockfile's packages against OSV for known vulnerabilities.", "should_trigger": false},
+  {"query": "Pull the invoice fields out of this document into my JSON schema.", "should_trigger": false},
+  {"query": "Decide which of these vulnerabilities we need to fix first.", "should_trigger": false},
+  {"query": "Generate an SBOM from our Docker image.", "should_trigger": false},
+  {"query": "Make an SBOM from requirements.txt.", "should_trigger": false},
+  {"query": "Is it legal for us to ship GPL code in our product?", "should_trigger": false},
+  {"query": "Install the dependencies from package-lock.json.", "should_trigger": false},
+  {"query": "Update every dependency to its latest version.", "should_trigger": false},
+  {"query": "Generate a lockfile for this project.", "should_trigger": false},
+  {"query": "Write a bill of materials for my bookshelf build.", "should_trigger": false},
+  {"query": "Generate an SBOM from this repository's lockfile.", "should_trigger": true},
+  {"query": "Make a CycloneDX SBOM from our Cargo.lock.", "should_trigger": true},
+  {"query": "Build a CycloneDX document from pnpm-lock.yaml and save it as sbom.cdx.json.", "should_trigger": true},
+  {"query": "We need a software bill of materials for the release. Use package-lock.json.", "should_trigger": true},
+  {"query": "Which of our locked npm packages have no license declared? Generate the SBOM and show me the missing license evidence.", "should_trigger": true},
+  {"query": "Give me just the dependency inventory from this lockfile, so the audit can reuse it.", "should_trigger": true},
+  {"query": "Here's lockfile text I already downloaded. Turn it into an inventory without fetching anything.", "should_trigger": true},
+  {"query": "Render a CycloneDX SBOM from the inventory packet we already have.", "should_trigger": true},
+  {"query": "Generate an SBOM of production dependencies only from our npm v3 lockfile.", "should_trigger": true},
+  {"query": "Produce an SBOM for apps/api/package-lock.json and tell me which components are unresolved.", "should_trigger": true}
+]

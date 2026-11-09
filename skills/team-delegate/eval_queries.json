@@ -1,0 +1,22 @@
+[
+  {"query": "Compile this change set into a dependency-ordered execution plan with phases.", "should_trigger": false},
+  {"query": "Review this workspace snapshot and tell me the next safe operational action.", "should_trigger": false},
+  {"query": "Run the researcher's assignment now.", "should_trigger": false},
+  {"query": "Hire a contractor to write our docs.", "should_trigger": false},
+  {"query": "Set up a Jira board for the team's sprint.", "should_trigger": false},
+  {"query": "Write performance goals for each person on my team.", "should_trigger": false},
+  {"query": "Schedule a meeting with the whole team on Friday.", "should_trigger": false},
+  {"query": "Who on my team has been the most productive this quarter?", "should_trigger": false},
+  {"query": "Just write the documentation page yourself. There's no need to split it up.", "should_trigger": false},
+  {"query": "Which team owns the answer to this question, according to our knowledge catalog?", "should_trigger": false},
+  {"query": "Divide this bounded documentation task between the supplied researcher and writer.", "should_trigger": true},
+  {"query": "Split the launch prep across our research, writing and review members, with acceptance checks for each.", "should_trigger": true},
+  {"query": "Here's the roster and the evidence we've gathered. Who should do what for the pricing page refresh?", "should_trigger": true},
+  {"query": "Assign the security review, the fix and the advisory draft to the right team members, within each member's scope ceiling.", "should_trigger": true},
+  {"query": "Delegate this competitor analysis between the analyst and the editor, carrying the relevant sources into each assignment.", "should_trigger": true},
+  {"query": "We have three agents with different skills. Give each an exact assignment for the onboarding audit, and say how we'll check their results.", "should_trigger": true},
+  {"query": "Break this objective into member assignments from our roster, and don't invent anyone who isn't on it.", "should_trigger": true},
+  {"query": "Who on the team should take the research, and who the drafting, for this grant application? Use the evidence I've attached.", "should_trigger": true},
+  {"query": "Divide this incident follow-up between the engineer and the writer on our roster, with verification checks.", "should_trigger": true},
+  {"query": "Turn this objective into team assignments with source context and scope limits for each member.", "should_trigger": true}
+]

@@ -1,0 +1,22 @@
+[
+  {"query": "Find this lead's company size, role and recent funding, with a source for each fact.", "should_trigger": false},
+  {"query": "Does this company fit our ICP? Assess them against the criteria below.", "should_trigger": false},
+  {"query": "Send the approved intro email to Priya now.", "should_trigger": false},
+  {"query": "Turn this validated evidence into a blog post and a LinkedIn version of it.", "should_trigger": false},
+  {"query": "This contact hasn't opened anything in a year. Should they be suppressed or re-permissioned before the next campaign?", "should_trigger": false},
+  {"query": "The prospect replied asking about pricing. Read the thread and prepare my reply.", "should_trigger": false},
+  {"query": "Write a five-email cold sequence for our whole prospect list.", "should_trigger": false},
+  {"query": "Scrape LinkedIn for 200 marketing managers' email addresses.", "should_trigger": false},
+  {"query": "Write a thank-you note to a customer who just renewed.", "should_trigger": false},
+  {"query": "What's a good open rate for cold email in B2B SaaS?", "should_trigger": false},
+  {"query": "Draft a first-contact email to Priya Shah at Lumen Labs from the research we already have on them.", "should_trigger": true},
+  {"query": "Write one cold email for this prospect using our brand voice packet, and hold it if they're on the suppression list.", "should_trigger": true},
+  {"query": "Prepare a short, relevant intro email to the head of data at Fernway, based on the facts below. Don't send it.", "should_trigger": true},
+  {"query": "We have a researched prospect and our approved offer facts. Write the first outreach email, with one simple ask.", "should_trigger": true},
+  {"query": "Can you write a cold email to this lead that doesn't read like generic sales copy? Here's what we know about their recent launch.", "should_trigger": true},
+  {"query": "Prepare first contact for this prospect, but check the contact policy and suppression state before writing anything.", "should_trigger": true},
+  {"query": "Draft a plain-text cold email with a truthful subject line and our exact opt-out footer, for the prospect in this research packet.", "should_trigger": true},
+  {"query": "write an outreach email to the CTO at Basalt, the angle is their new public API, and use our taste profile", "should_trigger": true},
+  {"query": "Is there a worthwhile angle for cold emailing this company? If the evidence supports one, draft the email; if not, tell me what's missing.", "should_trigger": true},
+  {"query": "Prepare a first-touch email from the known facts and the recipient policy, and keep delivery off.", "should_trigger": true}
+]

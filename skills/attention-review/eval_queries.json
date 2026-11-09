@@ -1,0 +1,22 @@
+[
+  {"query": "Draft a reply to this customer email thread, and flag whether any of it is really a coding request.", "should_trigger": false},
+  {"query": "Review this one Slack conversation with a client and prepare a follow-up I can send.", "should_trigger": false},
+  {"query": "Give me the operations view of the project: open risks, what's blocked, and which governed actions need my approval.", "should_trigger": false},
+  {"query": "Check the state of our workspace and route the failing deploy to the right skill.", "should_trigger": false},
+  {"query": "Send me the morning briefing on Slack now.", "should_trigger": false},
+  {"query": "Search Slack for messages about the launch from this week.", "should_trigger": false},
+  {"query": "What's on my calendar tomorrow afternoon?", "should_trigger": false},
+  {"query": "Set a reminder to check my inbox again in two hours.", "should_trigger": false},
+  {"query": "Write a Python script that sorts my email into folders by sender.", "should_trigger": false},
+  {"query": "Summarise this long email thread in three bullet points.", "should_trigger": false},
+  {"query": "Here are today's inbox and chat observations. Which of them actually need my attention, and is a private update warranted?", "should_trigger": true},
+  {"query": "Go through these 14 collected mail and Slack items and rank what matters: high, medium or low.", "should_trigger": true},
+  {"query": "Decide whether anything in this batch of personal observations is worth briefing me on, or whether it's an idle day.", "should_trigger": true},
+  {"query": "triage my collected notifications, what's worth my attention and when should we check again?", "should_trigger": true},
+  {"query": "Given these observations and the current state of each action, tell me which ones are still open and belong in my private brief.", "should_trigger": true},
+  {"query": "I've pulled a page of mailbox, calendar and GitHub evidence. Pick what deserves attention and propose when to check next.", "should_trigger": true},
+  {"query": "Review these new observations against my stated preferences and recommend whether I should get a private briefing.", "should_trigger": true},
+  {"query": "Which of these collected threads should I deal with first? Use the observations already gathered and don't fetch anything new.", "should_trigger": true},
+  {"query": "For the open items in these observations, propose work through the configured routes, and suggest when to look again.", "should_trigger": true},
+  {"query": "I don't think anything urgent came in overnight. Check these observations and tell me if it's idle or if something needs a brief.", "should_trigger": true}
+]

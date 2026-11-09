@@ -1,0 +1,22 @@
+[
+  {"query": "Review the contract the other side sent us and tell me which clauses are risky.", "should_trigger": false},
+  {"query": "Is a non-compete clause enforceable in California?", "should_trigger": false},
+  {"query": "Email the signed contract to the client.", "should_trigger": false},
+  {"query": "Write a friendly cover email to go with the proposal.", "should_trigger": false},
+  {"query": "Write me a contract from scratch for selling my car.", "should_trigger": false},
+  {"query": "Create a new contract template for our agency's standard terms.", "should_trigger": false},
+  {"query": "Send this agreement out for e-signature on DocuSign.", "should_trigger": false},
+  {"query": "Summarise the key terms of this lease.", "should_trigger": false},
+  {"query": "Draft a runx operational policy for which repositories our agents may work on.", "should_trigger": false},
+  {"query": "Compare these two versions of the MSA and show me what changed.", "should_trigger": false},
+  {"query": "Draft this services agreement from the approved template with every required term bound.", "should_trigger": true},
+  {"query": "Fill our v3 NDA template for Acme Pty Ltd and Bluegum Studio, effective 1 December, and show me any clause that differs from the template.", "should_trigger": true},
+  {"query": "Generate the consulting contract from template msa-2.1 with these parties and a $12,000 fee, keeping every clause faithful to the template.", "should_trigger": true},
+  {"query": "We need a contractor agreement from our standard template. The parties and terms are below; flag any deviation with its reason.", "should_trigger": true},
+  {"query": "Draft the SOW from our versioned template, and stop if any required term is missing.", "should_trigger": true},
+  {"query": "Assemble the licence agreement from template LIC-4 with these terms, and hold the send until I approve it.", "should_trigger": true},
+  {"query": "Use our approved freelance contract template to draft one for Sam Lee at $95 an hour, net 30.", "should_trigger": true},
+  {"query": "Draft the renewal contract from the template, but make the termination notice 60 days and record that as a declared deviation.", "should_trigger": true},
+  {"query": "Draft this contract from template v2.0 with these parties, and keep a record of which template version and terms went into it.", "should_trigger": true},
+  {"query": "Make a draft of our standard reseller agreement for these two companies, reconciled clause by clause against the template.", "should_trigger": true}
+]

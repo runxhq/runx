@@ -1,0 +1,22 @@
+[
+  {"query": "The site is down right now. What's the next safe operational action?", "should_trigger": false},
+  {"query": "Cut hotfix release 2.3.1 and verify it shipped.", "should_trigger": false},
+  {"query": "Pull the error logs from Datadog for the last hour.", "should_trigger": false},
+  {"query": "Post the incident update to #status in Slack.", "should_trigger": false},
+  {"query": "Write our incident response runbook.", "should_trigger": false},
+  {"query": "Page the on-call engineer.", "should_trigger": false},
+  {"query": "Assign the corrective actions to people on the team, with acceptance checks.", "should_trigger": false},
+  {"query": "Why did this runx skill run fail? Here's the receipt.", "should_trigger": false},
+  {"query": "Publish the postmortem to our status page.", "should_trigger": false},
+  {"query": "Explain what a blameless postmortem is.", "should_trigger": false},
+  {"query": "Produce the postmortem for this resolved incident from the collected fragments.", "should_trigger": true},
+  {"query": "Write up yesterday's API outage from these Slack excerpts, alerts and timeline notes, citing each source.", "should_trigger": true},
+  {"query": "Draft an incident report for INC-2291: what happened, the impact, the timeline and what's still unknown.", "should_trigger": true},
+  {"query": "We think the cause was a bad config push, but we're not sure. Draft the postmortem and keep that as a hypothesis unless the evidence proves it.", "should_trigger": true},
+  {"query": "Turn these incident fragments into a postmortem with corrective actions and owners.", "should_trigger": true},
+  {"query": "I need an interim incident write-up from what we've collected so far. Don't publish it.", "should_trigger": true},
+  {"query": "Build a source-cited timeline and root-cause assessment for the checkout failure from these log excerpts and chat messages.", "should_trigger": true},
+  {"query": "Write the post-incident review for the database failover, quoting the fragments for every timeline entry.", "should_trigger": true},
+  {"query": "Draft our postmortem for the 3 November outage from the attached notes, and list the open questions.", "should_trigger": true},
+  {"query": "Turn this incident into a blameless postmortem the team can read, with every claim traced to the evidence I'm giving you.", "should_trigger": true}
+]

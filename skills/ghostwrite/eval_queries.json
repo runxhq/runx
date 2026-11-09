@@ -1,0 +1,22 @@
+[
+  {"query": "Build a brand voice packet from our approved and rejected homepage copy.", "should_trigger": false},
+  {"query": "Research our competitors' pricing from these URLs and turn it into a cited blog article.", "should_trigger": false},
+  {"query": "Research the state of passkey adoption and give me a source-backed packet.", "should_trigger": false},
+  {"query": "Post this approved thread to our X account now.", "should_trigger": false},
+  {"query": "Send this update to the #team channel on Slack.", "should_trigger": false},
+  {"query": "Draft a first-contact email to this prospect from our research.", "should_trigger": false},
+  {"query": "Write a short story about a robot who learns to paint.", "should_trigger": false},
+  {"query": "Fix the grammar in my essay.", "should_trigger": false},
+  {"query": "Give me 20 tagline ideas for our product.", "should_trigger": false},
+  {"query": "Translate this blog post into French.", "should_trigger": false},
+  {"query": "Write a short update using the facts I already supplied.", "should_trigger": true},
+  {"query": "Ghostwrite an operator brief from this evidence pack and objective.", "should_trigger": true},
+  {"query": "Draft the release notes for 2.4 in our voice, from these validated changelog facts.", "should_trigger": true},
+  {"query": "Turn this research packet into a maintainer update for our contributors, and don't add anything the evidence doesn't support.", "should_trigger": true},
+  {"query": "Write a LinkedIn post as me from these approved facts, using my brand voice packet.", "should_trigger": true},
+  {"query": "Package this verified draft as a newsletter payload, ready for whoever sends it.", "should_trigger": true},
+  {"query": "Prepare the handoff for this packaged post: the target is our company X account. Say who delivers it and whether it needs approval.", "should_trigger": true},
+  {"query": "Write a trust report for customers from this incident evidence. Lead with what they need to do, not how we found out.", "should_trigger": true},
+  {"query": "Using only these facts and my objective, draft a two-paragraph announcement for the team.", "should_trigger": true},
+  {"query": "Check this draft's claims against the evidence we admitted, and hold back anything it can't support.", "should_trigger": true}
+]

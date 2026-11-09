@@ -1,0 +1,22 @@
+[
+  {"query": "Post this thread to my X account.", "should_trigger": false},
+  {"query": "Write a blog post in my voice from these validated facts.", "should_trigger": false},
+  {"query": "Upvote our launch post from all five of our accounts.", "should_trigger": false},
+  {"query": "Post our product link in 20 subreddits today.", "should_trigger": false},
+  {"query": "Make a new Reddit account so I can get around my ban in r/startups.", "should_trigger": false},
+  {"query": "Scan Moltbook for a conversation worth joining.", "should_trigger": false},
+  {"query": "Scrape every comment in r/wallstreetbets into a CSV.", "should_trigger": false},
+  {"query": "What's the best subreddit for learning Rust?", "should_trigger": false},
+  {"query": "Write a Reddit bot in Python with PRAW.", "should_trigger": false},
+  {"query": "Post this update to the #community Slack channel.", "should_trigger": false},
+  {"query": "Find a useful conversation on r/selfhosted for my account and draft a reply. Don't post it.", "should_trigger": true},
+  {"query": "Read my Reddit account u/quietbuilder and draft an answer to the newest question in r/rust.", "should_trigger": true},
+  {"query": "Post this exact approved comment from my Reddit account, and confirm it's there.", "should_trigger": true},
+  {"query": "Why did my Reddit post get no traction? Diagnose what happened to it.", "should_trigger": true},
+  {"query": "Draft a Reddit post for r/homelab in my account's voice about the backup setup I actually run.", "should_trigger": true},
+  {"query": "List the Reddit accounts I've configured.", "should_trigger": true},
+  {"query": "Set up my second Reddit account with its voice settings.", "should_trigger": true},
+  {"query": "Upvote this one comment from my account. It answered my question.", "should_trigger": true},
+  {"query": "My Reddit session in the browser seems to be logged out. Help me recover it.", "should_trigger": true},
+  {"query": "Look for threads on r/devops where my experience with on-call rotations would genuinely help, and draft one reply.", "should_trigger": true}
+]

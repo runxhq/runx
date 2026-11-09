@@ -1,0 +1,22 @@
+[
+  {"query": "Look up this lead's company, role and headcount, with provenance for each fact.", "should_trigger": false},
+  {"query": "Assess this prospect against our ICP criteria.", "should_trigger": false},
+  {"query": "Write the new deal stage straight into Salesforce.", "should_trigger": false},
+  {"query": "Summarise this sales call in five bullet points.", "should_trigger": false},
+  {"query": "Transcribe this call recording.", "should_trigger": false},
+  {"query": "Draft a follow-up email to the prospect based on the call.", "should_trigger": false},
+  {"query": "Which CRM should a ten-person startup use?", "should_trigger": false},
+  {"query": "Export all our HubSpot contacts to a CSV.", "should_trigger": false},
+  {"query": "Extract the attendee names and meeting dates from this transcript into this JSON schema, with a quote for each.", "should_trigger": false},
+  {"query": "Write a SQL query that finds deals with no activity in 30 days.", "should_trigger": false},
+  {"query": "Reconcile this call transcript against the CRM records and propose the field updates.", "should_trigger": true},
+  {"query": "After today's discovery call, what should change on the Acme deal in HubSpot? Here's the transcript and the current record.", "should_trigger": true},
+  {"query": "The prospect said on the call that their budget moved to Q2. Propose the CRM updates, each backed by a quote.", "should_trigger": true},
+  {"query": "Compare this sales call transcript with our current Salesforce opportunity fields and suggest only the allowed changes.", "should_trigger": true},
+  {"query": "Propose CRM changes from this transcript, only for fields in our allowlist, and don't write anything.", "should_trigger": true},
+  {"query": "Our pipeline data is stale after these calls. Draft the record updates with a verbatim quote for each one.", "should_trigger": true},
+  {"query": "From this transcript, should we clear the next-step date on the opportunity? Propose it if the call supports it.", "should_trigger": true},
+  {"query": "Turn this call transcript into a reviewable set of CRM field updates for the account owner to approve.", "should_trigger": true},
+  {"query": "Here are the contact and deal records and the call transcript. What changed, field by field?", "should_trigger": true},
+  {"query": "Did anything in this renewal call change the deal stage or the close date? Reconcile it against the record.", "should_trigger": true}
+]

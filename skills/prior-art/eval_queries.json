@@ -1,0 +1,22 @@
+[
+  {"query": "Research how other open source projects design plugin systems, with external sources.", "should_trigger": false},
+  {"query": "Route this question through our knowledge catalog to the right owner and source.", "should_trigger": false},
+  {"query": "Fetch the Kubernetes docs page on CronJobs.", "should_trigger": false},
+  {"query": "Create the new PDF extraction skill now.", "should_trigger": false},
+  {"query": "Plan the implementation of the rate limiter in phases.", "should_trigger": false},
+  {"query": "Search the web for existing rate-limiting libraries for Rust.", "should_trigger": false},
+  {"query": "Grep the whole repo for every console.log call.", "should_trigger": false},
+  {"query": "Do a patent prior-art search for our compression algorithm.", "should_trigger": false},
+  {"query": "Write the design doc for the new feature.", "should_trigger": false},
+  {"query": "Explain how this function works.", "should_trigger": false},
+  {"query": "Inspect prior art for this design before I create anything new.", "should_trigger": true},
+  {"query": "Before we write a new retry helper, check whether this repo already has one we should reuse.", "should_trigger": true},
+  {"query": "Is there an existing runx skill in the catalog that already does PDF extraction, or should we build one?", "should_trigger": true},
+  {"query": "Look at the repo's conventions and existing packages, and tell me whether to reuse, amend or build new for this feature.", "should_trigger": true},
+  {"query": "What does our codebase already have for rate limiting? Cite the files and recommend what to do.", "should_trigger": true},
+  {"query": "Check the project's existing specs and plans for anything that constrains this connector design.", "should_trigger": true},
+  {"query": "Before I draft the new skill, ground me in what's already in the catalog and the adjacent skill manifests.", "should_trigger": true},
+  {"query": "Review these source paths for prior art on our config loader, and give me a recommendation.", "should_trigger": true},
+  {"query": "Should we stop and reuse something instead of writing a new CLI flag parser? Inspect what's here.", "should_trigger": true},
+  {"query": "Find the existing patterns in this repo for background jobs, so the design follows them.", "should_trigger": true}
+]

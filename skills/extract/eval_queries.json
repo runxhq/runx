@@ -1,0 +1,22 @@
+[
+  {"query": "Fetch https://example.com/pricing and give me the page content.", "should_trigger": false},
+  {"query": "Check whether this new API response schema is backward compatible with the current one.", "should_trigger": false},
+  {"query": "Write a JSON Schema for our user object.", "should_trigger": false},
+  {"query": "Convert this CSV file to JSON.", "should_trigger": false},
+  {"query": "OCR this scanned receipt image and read me the total.", "should_trigger": false},
+  {"query": "Strip the personal data out of this support log before we share it.", "should_trigger": false},
+  {"query": "Propose CRM field updates from this call transcript.", "should_trigger": false},
+  {"query": "Summarise this article in three sentences.", "should_trigger": false},
+  {"query": "Write a regex that pulls email addresses out of a log file.", "should_trigger": false},
+  {"query": "Generate TypeScript types from this JSON sample.", "should_trigger": false},
+  {"query": "Extract the invoice id, customer and total from this captured document to the supplied JSON schema.", "should_trigger": true},
+  {"query": "Pull the applicant's name, email and requested start date out of this form text into this schema, with a quote for each field.", "should_trigger": true},
+  {"query": "From docs/contracts/acme.md, extract the parties, effective date and fee as JSON that matches schema.json.", "should_trigger": true},
+  {"query": "Turn this captured job post into JSON with title, salary range and location, and show where each value came from.", "should_trigger": true},
+  {"query": "I've got the page markdown from web-fetch. Extract the product specs to my schema.", "should_trigger": true},
+  {"query": "Read notes/meeting.txt in the workspace and extract the action items as a JSON array matching this schema.", "should_trigger": true},
+  {"query": "Extract every author and publication year from this research text into the schema below. Mark missing fields rather than guessing.", "should_trigger": true},
+  {"query": "Give me a typed JSON handoff of the shipping address and order lines from this email body.", "should_trigger": true},
+  {"query": "Pull the key facts out of this HTML capture into output that validates against my JSON Schema, with quotes.", "should_trigger": true},
+  {"query": "Using this JSON Schema, extract the vendor, amount and due date from the invoice text and validate the result.", "should_trigger": true}
+]

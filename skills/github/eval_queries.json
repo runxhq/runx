@@ -1,0 +1,22 @@
+[
+  {"query": "Investigate issue #241 and draft a high-signal response for the reporter.", "should_trigger": false},
+  {"query": "Review PR #57's changes and give me source-line findings.", "should_trigger": false},
+  {"query": "Implement issue #91 and open the pull request.", "should_trigger": false},
+  {"query": "Turn this rambling bug report into a bounded change set.", "should_trigger": false},
+  {"query": "Cut the 1.4.0 release and verify it shipped.", "should_trigger": false},
+  {"query": "Create a new GitHub repository called acme-tools.", "should_trigger": false},
+  {"query": "Set up a GitHub Actions workflow that runs our tests on every push.", "should_trigger": false},
+  {"query": "Resolve the merge conflict in src/app.ts.", "should_trigger": false},
+  {"query": "Rebase my branch onto main and force-push it.", "should_trigger": false},
+  {"query": "What's the difference between a GitHub issue and a discussion?", "should_trigger": false},
+  {"query": "What changed in runxhq/runx since 8am yesterday, Sydney time?", "should_trigger": true},
+  {"query": "Read issue 241 in runxhq/runx.", "should_trigger": true},
+  {"query": "List the open issues labelled triage in acme/web.", "should_trigger": true},
+  {"query": "Show me the comments on PR #88 in acme/api.", "should_trigger": true},
+  {"query": "Label issue 241 in runxhq/runx as triage, and confirm the label stuck.", "should_trigger": true},
+  {"query": "Open an issue in acme/web titled \"Login button misaligned on mobile\", labelled bug.", "should_trigger": true},
+  {"query": "Post this exact comment on pull request #57 in acme/api.", "should_trigger": true},
+  {"query": "Close issues 12, 15 and 19 in acme/docs, and read each one back to confirm.", "should_trigger": true},
+  {"query": "Plan a sync of the open pull requests in acme/api without touching GitHub.", "should_trigger": true},
+  {"query": "Give me this week's activity in our repo, the issues and PRs that moved, so I can write a summary.", "should_trigger": true}
+]
