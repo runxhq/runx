@@ -7,10 +7,11 @@
 //! stopped short ends when its process does, never on time.
 
 use std::fs::{self, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 
 /// A named pipe a script writes or reads.
@@ -37,11 +38,22 @@ impl Pipe {
     /// The line the script writes to the pipe; none when the process `pid`
     /// exits before it writes one.
     pub fn reached(&self, pid: u32) -> io::Result<Option<String>> {
+        self.watch(pid)?.line()
+    }
+
+    /// The pipe's read end, for a script that writes it a line on getting
+    /// somewhere and may hold it open for the rest of its life.
+    pub fn watch(&self, pid: u32) -> io::Result<Watched> {
         let (reader, writer) = self.both_ends()?;
-        hold_until_exited(pid, writer);
-        let mut line = String::new();
-        BufReader::new(reader).read_line(&mut line)?;
-        Ok((!line.is_empty()).then_some(line))
+        let ours = Arc::new(Mutex::new(Some(writer)));
+        when_exited(pid, {
+            let ours = Arc::clone(&ours);
+            move || drop(take(&ours))
+        });
+        Ok(Watched {
+            reader: BufReader::new(reader),
+            ours,
+        })
     }
 
     /// Let a script waiting on this gate, or yet to reach it, go on by
@@ -49,7 +61,7 @@ impl Pipe {
     pub fn release(&self, pid: u32) -> io::Result<()> {
         let (reader, mut writer) = self.both_ends()?;
         writer.write_all(b"go\n")?;
-        hold_until_exited(pid, (reader, writer));
+        when_exited(pid, move || drop((reader, writer)));
         Ok(())
     }
 
@@ -70,11 +82,43 @@ impl Pipe {
     }
 }
 
-/// Keep `held` open until the process `pid` exits.
-fn hold_until_exited<T: Send + 'static>(pid: u32, held: T) {
+/// A pipe's read end. Until [`Watched::rest`], the test also holds a write
+/// end, until the watched process exits, so a script's open of the pipe
+/// never waits and a script that stopped short leaves no read waiting.
+pub struct Watched {
+    reader: BufReader<fs::File>,
+    ours: Arc<Mutex<Option<fs::File>>>,
+}
+
+impl Watched {
+    /// The next line the script writes; none when the watched process exits
+    /// before it writes one.
+    pub fn line(&mut self) -> io::Result<Option<String>> {
+        let mut line = String::new();
+        self.reader.read_line(&mut line)?;
+        Ok((!line.is_empty()).then_some(line))
+    }
+
+    /// The rest of what the pipe is written, once every process holding it
+    /// open has closed it, as a process does when it dies. The test lets its
+    /// own write end go first.
+    pub fn rest(mut self) -> io::Result<String> {
+        drop(take(&self.ours));
+        let mut rest = String::new();
+        self.reader.read_to_string(&mut rest)?;
+        Ok(rest)
+    }
+}
+
+fn take(slot: &Mutex<Option<fs::File>>) -> Option<fs::File> {
+    slot.lock().unwrap_or_else(PoisonError::into_inner).take()
+}
+
+/// Do `then` once the process `pid` exits.
+fn when_exited(pid: u32, then: impl FnOnce() + Send + 'static) {
     thread::spawn(move || {
         exited(pid);
-        drop(held);
+        then();
     });
 }
 

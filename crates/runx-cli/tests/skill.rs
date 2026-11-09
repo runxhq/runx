@@ -2,8 +2,6 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-#[cfg(unix)]
-use std::time::{Duration, Instant};
 
 use serde_json::json;
 
@@ -1014,6 +1012,13 @@ fn native_skill_json_parse_failure_uses_failure_envelope() -> Result<(), Box<dyn
     Ok(())
 }
 
+/// A terminal interrupt kills the step's whole process group. A subshell the
+/// step backgrounds holds a named pipe open for its life, so the pipe closes
+/// when it dies. Once runx has exited, the test opens the gate the subshell
+/// waits on, so one that survived says so and exits, and one the interrupt
+/// killed can't, since runx killed it before exiting. Every path ends with
+/// the pipe closed.
+#[cfg(unix)]
 #[test]
 fn terminal_interrupt_exits_130_and_kills_the_active_skill_context()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -1031,16 +1036,16 @@ minimum_runx: 0.12.0
 methods:
   default:
     inputs:
-      started_path:
+      life_path:
         type: string
-      sentinel_path:
+      gate_path:
         type: string
     steps:
       - id: default
-        tool: {command: sh, args: [./run.sh, "{{started_path}}", "{{sentinel_path}}"], timeout_seconds: 30}
+        tool: {command: sh, args: [./run.sh, "{{life_path}}", "{{gate_path}}"]}
         inputs:
-          started_path: $input.started_path
-          sentinel_path: $input.sentinel_path
+          life_path: $input.life_path
+          gate_path: $input.gate_path
         outputs:
           completed: {type: boolean}
 "#,
@@ -1049,22 +1054,21 @@ methods:
         skill_dir.join("run.sh"),
         r#"#!/bin/sh
 set -eu
-started_path=$1
-sentinel_path=$2
+life=$1
+gate=$2
 (
-  printf started > "$started_path"
-  sleep 1
-  printf survived > "$sentinel_path"
+  exec 3> "$life"
+  echo started >&3
+  read go < "$gate"
+  echo survived >&3
 ) &
-sleep 30
+wait
 "#,
     )?;
-    let started_path = root.join("started");
-    let sentinel_path = root.join("survived");
-    fs::write(&started_path, "")?;
-    fs::write(&sentinel_path, "")?;
-    let started_input = format!("started_path={}", started_path.display());
-    let sentinel_input = format!("sentinel_path={}", sentinel_path.display());
+    let life = crate::support::rendezvous::Pipe::new(root.join("life"))?;
+    let gate = crate::support::rendezvous::Pipe::new(root.join("gate"))?;
+    let life_input = format!("life_path={}", life.path().display());
+    let gate_input = format!("gate_path={}", gate.path().display());
     let mut child = runx_command()
         .current_dir(&root)
         .env("RUNX_CWD", &root)
@@ -1072,39 +1076,41 @@ sleep 30
             "skill",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--input",
-            &started_input,
+            &life_input,
             "--input",
-            &sentinel_input,
+            &gate_input,
             "--json",
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()?;
 
-    let started_wait = Instant::now();
-    while fs::read_to_string(&started_path).unwrap_or_default() != "started" {
-        if started_wait.elapsed() >= Duration::from_secs(5) {
-            let _killed = child.kill();
-            return Err("skill child never reached its active context".into());
-        }
-        std::thread::sleep(Duration::from_millis(10));
+    let mut subshell = life.watch(child.id())?;
+    if subshell.line()?.is_none() {
+        return Err("skill child never reached its active context".into());
     }
-    let (status, _elapsed) = interrupt_child_and_wait(&mut child)?;
+    let status = interrupt_child_and_wait(&mut child)?;
     assert_eq!(
         status.code(),
         Some(130),
         "runx exited from signal {:?}",
         std::os::unix::process::ExitStatusExt::signal(&status)
     );
-    std::thread::sleep(Duration::from_millis(1_250));
+    gate.release(child.id())?;
     assert_eq!(
-        fs::read_to_string(&sentinel_path).unwrap_or_default(),
+        subshell.rest()?,
         "",
         "active skill context survived the terminal interrupt"
     );
     Ok(())
 }
 
+/// The interrupt kills the active JavaScript worker itself, rather than
+/// leaving it to the two-second watchdog, which ends runx and nothing it
+/// started. The worker here blocks on its protocol pipe without answering,
+/// holding a named pipe open for its life; once runx has exited, the test
+/// opens the gate the worker waits on, so a worker that survived says so and
+/// exits. Every path ends with the pipe closed.
 #[cfg(unix)]
 #[test]
 fn terminal_interrupt_kills_the_active_javascript_worker_before_the_watchdog()
@@ -1133,15 +1139,23 @@ methods:
         skill_dir.join("main.mjs"),
         "export default function run() { return { completed: true }; }\n",
     )?;
-
-    // `wc` blocks on the worker protocol pipe without producing a response.
-    // The worker path is its exact location on the inherited PATH.
-    let wc = crate::support::find_program("wc").ok_or("wc executable is unavailable")?;
+    let life = crate::support::rendezvous::Pipe::new(root.join("life"))?;
+    let gate = crate::support::rendezvous::Pipe::new(root.join("gate"))?;
+    let worker = root.join("worker.sh");
+    fs::write(
+        &worker,
+        format!(
+            "#!/bin/sh\nexec 3> '{}'\necho started >&3\nread go < '{}'\necho survived >&3\n",
+            life.path().display(),
+            gate.path().display()
+        ),
+    )?;
+    fs::set_permissions(&worker, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
 
     let mut child = runx_command()
         .current_dir(&root)
         .env("RUNX_CWD", &root)
-        .env("RUNX_JS_WORKER_PATH", wc)
+        .env("RUNX_JS_WORKER_PATH", &worker)
         .args([
             "skill",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
@@ -1151,68 +1165,36 @@ methods:
         .stderr(Stdio::null())
         .spawn()?;
 
-    let child_started_at = Instant::now();
-    loop {
-        let process_table = Command::new("ps").args(["-axo", "ppid=,pid="]).output()?;
-        let runx_pid = child.id();
-        let worker_exists = String::from_utf8(process_table.stdout)?
-            .lines()
-            .filter_map(|line| {
-                let mut fields = line.split_whitespace();
-                Some((
-                    fields.next()?.parse::<u32>().ok()?,
-                    fields.next()?.parse::<u32>().ok()?,
-                ))
-            })
-            .any(|(parent_pid, _process_id)| parent_pid == runx_pid);
-        if worker_exists {
-            break;
-        }
-        if let Some(status) = child.try_wait()? {
-            return Err(format!(
-                "runx exited before the JavaScript worker reached its handshake: {status}"
-            )
-            .into());
-        }
-        if child_started_at.elapsed() >= Duration::from_secs(5) {
-            let _killed = child.kill();
-            return Err("the JavaScript worker did not reach its blocking handshake".into());
-        }
-        std::thread::sleep(Duration::from_millis(10));
+    let mut started = life.watch(child.id())?;
+    if started.line()?.is_none() {
+        return Err("runx exited before the JavaScript worker started".into());
     }
-    std::thread::sleep(Duration::from_millis(50));
-    let (status, elapsed) = interrupt_child_and_wait(&mut child)?;
+    let status = interrupt_child_and_wait(&mut child)?;
     assert_eq!(
         status.code(),
         Some(130),
         "runx exited from signal {:?}",
         std::os::unix::process::ExitStatusExt::signal(&status)
     );
-    assert!(
-        elapsed < Duration::from_millis(1_500),
-        "JavaScript context survived until the two-second interrupt watchdog"
+    gate.release(child.id())?;
+    assert_eq!(
+        started.rest()?,
+        "",
+        "the JavaScript worker survived the terminal interrupt"
     );
     Ok(())
 }
 
+/// Interrupt runx as a terminal does and wait for it to exit, which it does
+/// by its own path or by its interrupt watchdog.
 #[cfg(unix)]
 fn interrupt_child_and_wait(
     child: &mut std::process::Child,
-) -> Result<(std::process::ExitStatus, Duration), Box<dyn std::error::Error>> {
+) -> Result<std::process::ExitStatus, Box<dyn std::error::Error>> {
     let child_pid = i32::try_from(child.id())?;
     let child_pid = rustix::process::Pid::from_raw(child_pid).ok_or("invalid runx child pid")?;
-    let interrupted_at = Instant::now();
     rustix::process::kill_process(child_pid, rustix::process::Signal::INT)?;
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok((status, interrupted_at.elapsed()));
-        }
-        if interrupted_at.elapsed() >= Duration::from_secs(5) {
-            let _killed = child.kill();
-            return Err("runx did not exit promptly after SIGINT".into());
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    Ok(child.wait()?)
 }
 
 fn runx_command() -> Command {
