@@ -118,8 +118,12 @@ impl ExecutionWorkflowIndex {
     }
 }
 
+/// The runs a step reads, found by step id through the run's own positions,
+/// which the run keeps as each step settles. A call borrows them and builds
+/// nothing, so reading context costs the same at call 1,000 as at call 1.
 pub(crate) struct PriorRunIndex<'a> {
-    runs: BTreeMap<&'a str, &'a StepRun>,
+    runs: &'a [StepRun],
+    positions: &'a BTreeMap<String, usize>,
 }
 
 impl<'a> PriorRunIndex<'a> {
@@ -129,16 +133,16 @@ impl<'a> PriorRunIndex<'a> {
         positions: &'a BTreeMap<String, usize>,
     ) -> Self {
         Self {
-            runs: positions
-                .iter()
-                .filter_map(|(step_id, index)| {
-                    prior_runs
-                        .get(*index)
-                        .map(|run| (step_id.as_str(), run))
-                        .filter(|(_, run)| run.step_id == *step_id)
-                })
-                .collect(),
+            runs: prior_runs,
+            positions,
         }
+    }
+
+    fn run(&self, step_id: &str) -> Option<&'a StepRun> {
+        self.positions
+            .get(step_id)
+            .and_then(|index| self.runs.get(*index))
+            .filter(|run| run.step_id == step_id)
     }
 
     pub(crate) fn output(
@@ -148,7 +152,7 @@ impl<'a> PriorRunIndex<'a> {
         from_step: &str,
         path: &[String],
     ) -> Result<JsonValue, RuntimeError> {
-        let Some(run) = self.runs.get(from_step) else {
+        let Some(run) = self.run(from_step) else {
             return Err(RuntimeError::WorkflowBlocked {
                 step_id: from_step.to_owned(),
                 reason: "the step it reads has not run".to_owned(),
@@ -180,8 +184,7 @@ impl<'a> PriorRunIndex<'a> {
             path.join(".")
         };
         let run = self
-            .runs
-            .get(from_step)
+            .run(from_step)
             .ok_or_else(|| RuntimeError::WorkflowBlocked {
                 step_id: from_step.to_owned(),
                 reason: "context source step has not run".to_owned(),

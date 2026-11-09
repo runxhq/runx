@@ -674,6 +674,7 @@ impl RunLog {
 
     /// Rebuild the run from its stream; `None` when it has not started.
     pub(crate) fn load(&self) -> Result<Option<RunRecord>, RunRecordError> {
+        crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
         let version = events.last().map_or(0, |event| event.version);
         *self.version() = version;
@@ -691,6 +692,7 @@ impl RunLog {
         step_id: &str,
         attempt: u32,
     ) -> Result<Vec<RecordedCall>, RunRecordError> {
+        crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
         if self.0.strict && events.last().map_or(0, |event| event.version) != *self.version() {
             return Err(RunRecordError::Contended {

@@ -530,6 +530,7 @@ async fn send_reqwest(
         if let Some(body) = &request.body {
             builder = builder.body(body.clone());
         }
+        crate::work_counts::count(crate::work_counts::Work::NetworkRequest);
         let response = builder
             .send()
             .await

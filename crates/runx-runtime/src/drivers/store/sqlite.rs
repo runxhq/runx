@@ -146,6 +146,7 @@ impl Sqlite {
             .pragma_update(None, "journal_mode", "WAL")
             .map_err(|error| database("enabling the write-ahead log", &error))?;
         let kind = self.kind;
+        let _open = crate::work_counts::OpenTransaction::begin();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -199,6 +200,7 @@ impl Backend for Sqlite {
 
     fn append(&mut self, request: &Append<'_>, committed_at: &str) -> Result<Appended, StoreError> {
         let kind = self.kind;
+        let _open = crate::work_counts::OpenTransaction::begin();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)

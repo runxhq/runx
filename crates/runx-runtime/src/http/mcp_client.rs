@@ -73,6 +73,7 @@ impl StreamableHttpClient for BoundedMcpClient {
         auth_header: Option<String>,
         custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<()> {
+        crate::work_counts::count(crate::work_counts::Work::NetworkRequest);
         self.client
             .delete_session(uri, session_id, auth_header, custom_headers)
             .await
@@ -86,6 +87,7 @@ impl StreamableHttpClient for BoundedMcpClient {
         auth_header: Option<String>,
         custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<BoxedSseResponse> {
+        crate::work_counts::count(crate::work_counts::Work::NetworkRequest);
         self.client
             .get_stream_with_max_sse_event_size(
                 uri,
@@ -107,6 +109,7 @@ impl StreamableHttpClient for BoundedMcpClient {
         custom_headers: HashMap<HeaderName, HeaderValue>,
         max_sse_event_size: usize,
     ) -> Result<BoxedSseResponse> {
+        crate::work_counts::count(crate::work_counts::Work::NetworkRequest);
         self.client
             .get_stream_with_max_sse_event_size(
                 uri,
@@ -143,6 +146,7 @@ impl BoundedMcpClient {
         if let Some(session_id) = session_id {
             request = request.header(SESSION_HEADER, session_id.as_ref());
         }
+        crate::work_counts::count(crate::work_counts::Work::NetworkRequest);
         let response = request.json(&message).send().await?;
         let status = response.status();
         if matches!(

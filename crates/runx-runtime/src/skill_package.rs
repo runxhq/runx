@@ -210,6 +210,7 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
     let mut source = SkillPackageSource::default();
     let mut totals = PackageTotals::default();
     collect_package_source(&package_root, &package_root, &mut source, &mut totals)?;
+    crate::work_counts::count(crate::work_counts::Work::PackageRead);
     let mut package = validated_package(source)?;
     let profile_path = selected_profile_path(&package_root, &directory)?
         .filter(|path| package.manifest_at(path).is_some());
@@ -231,12 +232,32 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
 fn validated_package(
     source: SkillPackageSource,
 ) -> Result<runx_parser::ValidatedSkillPackage, runx_parser::SkillPackageError> {
-    use sha2::{Digest, Sha256};
     use std::sync::{Mutex, OnceLock};
 
     const RETAINED: usize = 64;
     static VALIDATED: OnceLock<Mutex<BTreeMap<[u8; 32], runx_parser::ValidatedSkillPackage>>> =
         OnceLock::new();
+
+    let key = source_identity(&source);
+    let cache = VALIDATED.get_or_init(Mutex::default);
+    if let Some(validated) = cache.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
+        return Ok(validated);
+    }
+    crate::work_counts::package_verified(key);
+    let validated = validate_skill_package(source)?;
+    if let Ok(mut cache) = cache.lock() {
+        if cache.len() >= RETAINED {
+            cache.clear();
+        }
+        cache.insert(key, validated.clone());
+    }
+    Ok(validated)
+}
+
+/// A package source's identity: the digest of every path and its bytes, and
+/// every link, so any changed byte is another source.
+pub(crate) fn source_identity(source: &SkillPackageSource) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
 
     let mut hasher = Sha256::new();
     for (path, bytes) in &source.files {
@@ -249,19 +270,7 @@ fn validated_package(
         hasher.update((link.len() as u64).to_le_bytes());
         hasher.update(link.as_bytes());
     }
-    let key: [u8; 32] = hasher.finalize().into();
-    let cache = VALIDATED.get_or_init(Mutex::default);
-    if let Some(validated) = cache.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
-        return Ok(validated);
-    }
-    let validated = validate_skill_package(source)?;
-    if let Ok(mut cache) = cache.lock() {
-        if cache.len() >= RETAINED {
-            cache.clear();
-        }
-        cache.insert(key, validated.clone());
-    }
-    Ok(validated)
+    hasher.finalize().into()
 }
 
 /// A connector's tool package as it ships: every regular file below `dir`,

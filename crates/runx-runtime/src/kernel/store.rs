@@ -324,6 +324,7 @@ impl KernelStore {
         }
         let committed_at = crate::time::now_iso8601();
         let mut connection = self.lock();
+        let _open = crate::work_counts::OpenTransaction::begin();
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|source| self.database("starting a batch", source))?;
@@ -394,6 +395,7 @@ impl KernelStore {
         transaction
             .commit()
             .map_err(|source| self.database("committing a batch", source))?;
+        crate::work_counts::count(crate::work_counts::Work::StoreWrite);
         Ok(versions)
     }
 

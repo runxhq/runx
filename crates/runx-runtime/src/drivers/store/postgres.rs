@@ -88,6 +88,7 @@ impl Postgres {
     }
 
     fn ensure_schema(&mut self) -> Result<(), StoreError> {
+        let _open = crate::work_counts::OpenTransaction::begin();
         let mut transaction = self
             .client
             .transaction()
@@ -158,6 +159,7 @@ impl Backend for Postgres {
     }
 
     fn append(&mut self, request: &Append<'_>, committed_at: &str) -> Result<Appended, StoreError> {
+        let _open = crate::work_counts::OpenTransaction::begin();
         let mut transaction = self
             .client
             .transaction()

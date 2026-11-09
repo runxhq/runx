@@ -53,3 +53,99 @@ fn a_process_tool_is_one_spawn() -> TestResult {
     assert_eq!(counts["process_spawns"], 1, "{counts}");
     Ok(())
 }
+
+/// A package at `root/skills/<name>` whose one method is `calls` native
+/// digests, each reading nothing but its own input.
+fn native_package(root: &Path, name: &str, calls: usize) -> TestResult {
+    let package = root.join("skills").join(name);
+    fs::create_dir_all(&package)?;
+    fs::write(
+        package.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: Digests its own subjects.\n---\n# {name}\n"),
+    )?;
+    let steps = (0..calls)
+        .map(|call| {
+            format!(
+                "      - id: call-{call}\n        tool: data.digest\n        inputs:\n          value: {{subject: call-{call}}}\n"
+            )
+        })
+        .collect::<String>();
+    fs::write(
+        package.join("run.yaml"),
+        format!("minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n{steps}"),
+    )?;
+    Ok(())
+}
+
+fn count_of(counts: &Value, field: &str) -> TestResult<u64> {
+    counts[field]
+        .as_u64()
+        .ok_or_else(|| format!("{field} isn't a count in {counts}").into())
+}
+
+/// Readiness follows the skill, not the workspace: inspecting one skill reads
+/// and verifies as much beside 40 other packages as alone, verifies no
+/// package twice, starts nothing and sends nothing.
+#[test]
+fn inspecting_a_skill_reads_and_verifies_as_much_whatever_else_is_in_the_workspace() -> TestResult {
+    let ready = |others: usize| -> TestResult<Value> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-ready-{others}"));
+        fs::create_dir_all(root.join("home"))?;
+        native_package(&root, "ready", 1)?;
+        for other in 0..others {
+            native_package(&root, &format!("other-{other:03}"), 1)?;
+        }
+        counted(&root, &["skill", "inspect", "ready", "--json"])
+    };
+    let alone = ready(0)?;
+    let among = ready(40)?;
+    for counts in [&alone, &among] {
+        assert_eq!(count_of(counts, "process_spawns")?, 0, "{counts}");
+        assert_eq!(count_of(counts, "network_requests")?, 0, "{counts}");
+        assert_eq!(
+            count_of(counts, "most_verifications_of_one_package")?,
+            1,
+            "{counts}"
+        );
+    }
+    assert_eq!(
+        count_of(&among, "packages_read")?,
+        count_of(&alone, "packages_read")?,
+        "alone={alone}\namong={among}"
+    );
+    assert_eq!(
+        count_of(&among, "package_verifications")?,
+        count_of(&alone, "package_verifications")?,
+        "alone={alone}\namong={among}"
+    );
+    Ok(())
+}
+
+/// Each call of a run costs the store the same writes, and no call takes the
+/// run whole: five calls write the store as many more times than three as
+/// three do than one, and replay and seal the run no more often than one.
+#[test]
+fn each_call_of_a_run_writes_the_store_alike_and_takes_the_run_whole_never() -> TestResult {
+    let run = |calls: usize| -> TestResult<Value> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-calls-{calls}"));
+        fs::create_dir_all(root.join("home"))?;
+        native_package(&root, "calls", calls)?;
+        counted(&root, &["skill", "skills/calls", "--json"])
+    };
+    let one = run(1)?;
+    let three = run(3)?;
+    let five = run(5)?;
+    let writes = |counts: &Value| count_of(counts, "store_writes");
+    assert!(writes(&three)? > writes(&one)?, "one={one}\nthree={three}");
+    assert_eq!(
+        writes(&five)? - writes(&three)?,
+        writes(&three)? - writes(&one)?,
+        "one={one}\nthree={three}\nfive={five}"
+    );
+    assert_eq!(
+        count_of(&five, "run_materializations")?,
+        count_of(&one, "run_materializations")?,
+        "one={one}\nfive={five}"
+    );
+    Ok(())
+}

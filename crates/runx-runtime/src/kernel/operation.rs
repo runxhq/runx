@@ -1031,16 +1031,18 @@ pub(crate) fn execute(
 
     // An answer the connector cannot describe as it declares, its effect
     // included, is not trusted: the call holds for reconciliation.
-    let outcome = dispatch(
-        context,
-        session,
-        env,
-        Local {
-            tools,
-            tool: tool.as_deref(),
-        },
-        dispatched,
-    )
+    let outcome = crate::work_counts::provider_call(|| {
+        dispatch(
+            context,
+            session,
+            env,
+            Local {
+                tools,
+                tool: tool.as_deref(),
+            },
+            dispatched,
+        )
+    })
     .and_then(|readback| {
         readback
             .verify(&Expected {

@@ -383,6 +383,7 @@ pub(crate) fn workflow_receipt_with_ending(
     closure: WorkflowEnding,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
+    crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
     let current_child_indexes = current_step_indexes(steps);
     let child_refs = current_child_indexes
         .iter()

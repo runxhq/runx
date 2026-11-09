@@ -136,6 +136,7 @@ fn initialize(connection: &mut Connection, path: &Path) -> Result<(), KernelStor
             source,
         }
     };
+    let _open = crate::work_counts::OpenTransaction::begin();
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(database("locking initialization"))?;

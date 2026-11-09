@@ -132,6 +132,8 @@ pub(crate) fn validate_registry_skill_package(
             ));
         }
     }
+    crate::work_counts::count(crate::work_counts::Work::PackageRead);
+    crate::work_counts::package_verified(crate::skill_package::source_identity(&source));
     validate_skill_package(source)
 }
 
