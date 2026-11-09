@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 pub use runx_contracts::{
-    RunxListEmit, RunxListItem, RunxListItemKind, RunxListReport, RunxListRequestedKind,
+    RunxListItem, RunxListItemKind, RunxListOutputPacket, RunxListReport, RunxListRequestedKind,
     RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
 
@@ -101,10 +101,10 @@ fn discover_tool_list_items(
                     description: None,
                     methods: None,
                     diagnostics: None,
-                    emits: tool
+                    packets: tool
                         .artifacts
                         .as_ref()
-                        .map(tool_emits)
+                        .map(tool_packets)
                         .filter(|items| !items.is_empty()),
                     fixtures: Some(count_yaml_files(&tool_entry.path.join("fixtures"))?),
                     test_cases: None,
@@ -127,10 +127,10 @@ fn read_validated_tool_manifest(manifest_path: &Path) -> Result<runx_parser::Val
 }
 
 /// The outputs a tool keeps as artifacts, each with its packet.
-fn tool_emits(artifacts: &runx_parser::OutputArtifacts) -> Vec<RunxListEmit> {
+fn tool_packets(artifacts: &runx_parser::OutputArtifacts) -> Vec<RunxListOutputPacket> {
     artifacts
         .outputs()
-        .map(|name| RunxListEmit {
+        .map(|name| RunxListOutputPacket {
             name: name.clone(),
             packet: artifacts.packets.get(name).cloned(),
         })
@@ -235,7 +235,7 @@ fn skill_profile_list_item(
         description,
         methods: Some(crate::skill_package::catalog_methods(manifest)),
         diagnostics: None,
-        emits: skill_emits(manifest),
+        packets: skill_packets(manifest),
         fixtures: Some(fixtures),
         test_cases: None,
         steps: Some(
@@ -248,25 +248,25 @@ fn skill_profile_list_item(
     }
 }
 
-fn skill_emits(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<RunxListEmit>> {
-    let mut emits = BTreeSet::<(String, Option<runx_contracts::PacketId>)>::new();
+fn skill_packets(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<RunxListOutputPacket>> {
+    let mut packets = BTreeSet::<(String, Option<runx_contracts::PacketId>)>::new();
     for step in manifest
         .methods
         .values()
         .flat_map(|method| method.graph.steps.iter())
     {
         if let Some(artifacts) = step.artifacts.as_ref() {
-            emits.extend(
-                tool_emits(artifacts)
+            packets.extend(
+                tool_packets(artifacts)
                     .into_iter()
-                    .map(|emit| (emit.name, emit.packet)),
+                    .map(|output| (output.name, output.packet)),
             );
         }
     }
-    (!emits.is_empty()).then(|| {
-        emits
+    (!packets.is_empty()).then(|| {
+        packets
             .into_iter()
-            .map(|(name, packet)| RunxListEmit { name, packet })
+            .map(|(name, packet)| RunxListOutputPacket { name, packet })
             .collect()
     })
 }
@@ -308,7 +308,7 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
                 description: None,
                 methods: None,
                 diagnostics: None,
-                emits: None,
+                packets: None,
                 fixtures: None,
                 test_cases: None,
                 steps: None,
@@ -334,7 +334,7 @@ fn invalid_item(
         description: None,
         methods: None,
         diagnostics: Some(vec![diagnostic.to_owned()]),
-        emits: None,
+        packets: None,
         fixtures: None,
         test_cases: None,
         steps: None,
@@ -397,8 +397,8 @@ mod tests {
         };
 
         assert_eq!(
-            tool_emits(&artifacts),
-            vec![RunxListEmit {
+            tool_packets(&artifacts),
+            vec![RunxListOutputPacket {
                 name: "plan".to_owned(),
                 packet: runx_contracts::PacketId::new("runx.plan.v1"),
             }]
@@ -440,7 +440,7 @@ mod tests {
             description: None,
             methods: None,
             diagnostics: None,
-            emits: None,
+            packets: None,
             fixtures: None,
             test_cases: None,
             steps: None,

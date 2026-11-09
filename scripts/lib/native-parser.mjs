@@ -43,13 +43,13 @@ export function listToolPacketDeclarations(env = process.env) {
     throw new Error("native Runx tool catalog returned an invalid report");
   }
   return report.items.flatMap((item) => {
-    if (item?.status !== "ok" || !Array.isArray(item.emits)) return [];
-    return item.emits.map((emit) => {
-      if (typeof emit?.packet !== "string" || emit.packet.length === 0) {
+    if (item?.status !== "ok" || !Array.isArray(item.packets)) return [];
+    return item.packets.map((output) => {
+      if (typeof output?.packet !== "string" || output.packet.length === 0) {
         throw new Error(`native Runx tool '${String(item?.name ?? "unknown")}' exposed an invalid packet declaration`);
       }
       return {
-        packetId: emit.packet,
+        packetId: output.packet,
         source: String(item.path ?? item.name ?? "native tool catalog"),
       };
     });

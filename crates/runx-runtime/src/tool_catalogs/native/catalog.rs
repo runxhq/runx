@@ -6,7 +6,7 @@ use runx_contracts::tools::{
     ToolInspectReport, ToolInspectResult,
 };
 use runx_contracts::{
-    PacketId, RunxListEmit, RunxListItem, RunxListItemKind, RunxListSource, RunxListStatus,
+    PacketId, RunxListItem, RunxListItemKind, RunxListOutputPacket, RunxListSource, RunxListStatus,
     SkillCatalogEntry,
 };
 use runx_parser::OutputArtifacts;
@@ -138,15 +138,15 @@ pub(crate) fn list_items(effects: &RuntimeEffectRegistry) -> Vec<RunxListItem> {
 
 fn list_native_tool(tool: &dyn NativeCapability) -> RunxListItem {
     let definition = tool.definition();
-    list_item(definition.id, emits(definition.artifacts))
+    list_item(definition.id, packets(definition.artifacts))
 }
 
 fn list_capability(tool: &dyn CapabilityContract) -> RunxListItem {
     let definition = tool.definition();
-    list_item(definition.id, emits(definition.artifacts))
+    list_item(definition.id, packets(definition.artifacts))
 }
 
-fn list_item(name: &str, emits: Option<Vec<RunxListEmit>>) -> RunxListItem {
+fn list_item(name: &str, packets: Option<Vec<RunxListOutputPacket>>) -> RunxListItem {
     RunxListItem {
         kind: RunxListItemKind::Tool,
         name: name.to_owned(),
@@ -157,18 +157,18 @@ fn list_item(name: &str, emits: Option<Vec<RunxListEmit>>) -> RunxListItem {
         description: None,
         methods: None,
         diagnostics: None,
-        emits,
+        packets,
         fixtures: None,
         test_cases: None,
         steps: None,
     }
 }
 
-fn emits(artifacts: CapabilityArtifacts) -> Option<Vec<RunxListEmit>> {
+fn packets(artifacts: CapabilityArtifacts) -> Option<Vec<RunxListOutputPacket>> {
     match artifacts {
         CapabilityArtifacts::None => None,
         CapabilityArtifacts::Named { output, packet }
-        | CapabilityArtifacts::Wrapped { output, packet } => Some(vec![RunxListEmit {
+        | CapabilityArtifacts::Wrapped { output, packet } => Some(vec![RunxListOutputPacket {
             name: output.to_owned(),
             packet: PacketId::new(packet),
         }]),

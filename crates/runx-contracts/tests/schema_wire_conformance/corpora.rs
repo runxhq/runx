@@ -180,7 +180,7 @@ pub(super) fn list_corpus() -> Vec<(&'static str, Value)> {
                 "status": "ok",
                 "diagnostics": [],
                 "scopes": ["repo:read"],
-                "emits": [{ "name": "report", "packet": "runx.report.v1" }],
+                "packets": [{ "name": "report", "packet": "runx.report.v1" }],
                 "fixtures": 2,
                 "test_cases": 1,
                 "steps": 0,

@@ -150,7 +150,7 @@ pub use ledger::{
 };
 pub use links::{DuplicateCandidate, Links};
 pub use list::{
-    RunxListEmit, RunxListItem, RunxListItemKind, RunxListReport, RunxListRequestedKind,
+    RunxListItem, RunxListItemKind, RunxListOutputPacket, RunxListReport, RunxListRequestedKind,
     RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
 pub use native_packets::{

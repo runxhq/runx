@@ -803,7 +803,7 @@ describe("@runxhq/contracts", () => {
         source: "local",
         path: "tools/demo/echo/manifest.json",
         status: "ok",
-        emits: [{ name: "result", packet: "acme/demo.result.v1" }],
+        packets: [{ name: "result", packet: "acme/demo.result.v1" }],
         fixtures: 1,
       }],
     })).toMatchObject({

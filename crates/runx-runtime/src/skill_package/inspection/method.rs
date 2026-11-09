@@ -29,7 +29,7 @@ pub(super) fn inspect_method(
             .flat_map(|outputs| outputs.iter())
             .map(|(name, declaration)| inspect_output(name, declaration))
             .collect(),
-        declared_result_packets: declared_result_packets(method),
+        packets: result_packets(method),
         requirements: manifest.execution_requirements(method),
         connectors: if manifest.connectors.is_empty() {
             None
@@ -47,9 +47,7 @@ pub(super) fn inspect_method(
     })
 }
 
-fn declared_result_packets(
-    method: &SkillMethodDefinition,
-) -> BTreeMap<String, runx_contracts::PacketId> {
+fn result_packets(method: &SkillMethodDefinition) -> BTreeMap<String, runx_contracts::PacketId> {
     let mut packets = BTreeMap::new();
     let mut conflicting = BTreeSet::new();
     // Each result output's packet, by the output's name: a field's, and the

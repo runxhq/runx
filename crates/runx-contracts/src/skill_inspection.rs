@@ -109,8 +109,9 @@ pub struct MethodInspection {
     pub schemas: MethodSchemas,
     pub inputs: Vec<InspectedInput>,
     pub outputs: Vec<InspectedOutput>,
-    /// The packet each result output declares, by output name.
-    pub declared_result_packets: BTreeMap<String, crate::PacketId>,
+    /// The packet each result output declares, by output name, the whole
+    /// result's under the name of the output it is.
+    pub packets: BTreeMap<String, crate::PacketId>,
     pub requirements: ExecutionRequirements,
     /// The connector requirements of the skill, by key.
     #[serde(default, skip_serializing_if = "Option::is_none")]

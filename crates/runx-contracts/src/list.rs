@@ -59,7 +59,8 @@ pub enum RunxListVisibility {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RunxListEmit {
+/// An output kept as an artifact, and its packet.
+pub struct RunxListOutputPacket {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packet: Option<crate::PacketId>,
@@ -86,7 +87,8 @@ pub struct RunxListItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub emits: Option<Vec<RunxListEmit>>,
+    /// The outputs it keeps as artifacts, each with its packet.
+    pub packets: Option<Vec<RunxListOutputPacket>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixtures: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
