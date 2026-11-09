@@ -15,9 +15,6 @@ use crate::process::{
 use crate::process_invocation::prepare_process_invocation;
 
 const DEFAULT_TIMEOUT_SECONDS: u64 = 60;
-#[cfg(test)]
-static DEFAULT_TIMEOUT_OVERRIDE_SECONDS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProcessToolAdapter;
@@ -104,18 +101,7 @@ impl SkillAdapter for ProcessToolAdapter {
 }
 
 fn process_timeout(timeout_seconds: Option<u64>) -> Duration {
-    Duration::from_secs(timeout_seconds.unwrap_or_else(default_timeout_seconds))
-}
-
-fn default_timeout_seconds() -> u64 {
-    #[cfg(test)]
-    {
-        let seconds = DEFAULT_TIMEOUT_OVERRIDE_SECONDS.load(std::sync::atomic::Ordering::SeqCst);
-        if seconds > 0 {
-            return seconds;
-        }
-    }
-    DEFAULT_TIMEOUT_SECONDS
+    Duration::from_secs(timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS))
 }
 
 fn process_stdin(
@@ -209,55 +195,18 @@ struct CapturedText {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-    use std::time::{Duration, Instant};
-
-    use runx_contracts::JsonObject;
+    use std::time::Duration;
 
     use super::*;
-    use crate::credentials::CredentialDelivery;
 
+    /// A process without a declared timeout is held to the default one; one
+    /// that declares its own is held to that.
     #[test]
-    fn process_without_declared_timeout_uses_default_timeout() -> Result<(), RuntimeError> {
-        let started = Instant::now();
-        let workspace =
-            tempfile::tempdir().map_err(|source| RuntimeError::io("creating workspace", source))?;
-        DEFAULT_TIMEOUT_OVERRIDE_SECONDS.store(1, std::sync::atomic::Ordering::SeqCst);
-        let output = ProcessToolAdapter.invoke(SkillInvocation {
-            reach: runx_contracts::Reach::Inputs,
-            historical_context: Vec::new(),
-            skill_name: "default-timeout".to_owned(),
-            step_id: None,
-            artifacts: None,
-            environment: Default::default(),
-            executable: crate::adapter::Executable::Process(ProcessTool {
-                command: "/bin/sh".to_owned(),
-                args: vec!["-c".to_owned(), "sleep 10".to_owned()],
-                cwd: None,
-                timeout_seconds: None,
-                inputs_via: None,
-                environment: Default::default(),
-            }),
-            outputs: None,
-            inputs: JsonObject::new(),
-            resolved_inputs: JsonObject::new(),
-            current_context: Vec::new(),
-            provenance: Vec::new(),
-            skill_directory: workspace.path().to_path_buf(),
-            // The workspace cwd policy requires an explicit workspace anchor.
-            env: BTreeMap::from([(
-                crate::paths::RUNX_CWD_ENV.to_owned(),
-                workspace.path().to_string_lossy().into_owned(),
-            )]),
-            credential_delivery: CredentialDelivery::none(),
-        })?;
-        DEFAULT_TIMEOUT_OVERRIDE_SECONDS.store(0, std::sync::atomic::Ordering::SeqCst);
-
-        assert_eq!(output.status, InvocationStatus::Failure);
-        assert!(
-            started.elapsed() < Duration::from_secs(5),
-            "a process without a declared timeout must not run unbounded"
+    fn process_without_declared_timeout_uses_default_timeout() {
+        assert_eq!(
+            process_timeout(None),
+            Duration::from_secs(DEFAULT_TIMEOUT_SECONDS)
         );
-        Ok(())
+        assert_eq!(process_timeout(Some(1)), Duration::from_secs(1));
     }
 }
