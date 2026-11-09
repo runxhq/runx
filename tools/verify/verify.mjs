@@ -171,6 +171,14 @@ const ASSERTIONS = {
   minItems(schema, value, at, faults) {
     if (Array.isArray(value) && value.length < schema.minItems) faults.push(`${at || "/"} has too few items`);
   },
+  not(schema, value, at, faults) {
+    if (schemaFaults(schema.not, value, at, []).length === 0) faults.push(`${at || "/"} is what its schema excludes`);
+  },
+  uniqueItems(schema, value, at, faults) {
+    if (schema.uniqueItems === true && Array.isArray(value) && new Set(value.map(canon)).size !== value.length) {
+      faults.push(`${at || "/"} repeats an item`);
+    }
+  },
   items(schema, value, at, faults) {
     if (Array.isArray(value)) value.forEach((item, index) => schemaFaults(schema.items, item, `${at}/${index}`, faults));
   },

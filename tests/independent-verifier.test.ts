@@ -59,6 +59,15 @@ describe("the independent receipt verifier", () => {
     }
   });
 
+  it("verifies the canonical receipts the spec shows against the demo JWKS", async () => {
+    const jwks = path.join(root, "tools/verify/runx-demo-jwks.json");
+    const canonical = path.join(root, "fixtures/contracts/canonical-receipts");
+    for (const name of ["workflow-step", "governed-call", "workflow"]) {
+      const verdict = await verify(path.join(canonical, `${name}.receipt.json`), Promise.resolve(["--jwks", jwks]));
+      expect(verdict.verified, `${name}\n${verdict.output}`).toBe(true);
+    }
+  });
+
   it("verifies a receipt only under a trusted key of its own issuer type", async () => {
     const local = path.join(corpus, "broken-lineage-reference", "receipt.json");
     expect((await verify(local, corpusTrust("local"))).verified).toBe(true);
@@ -95,6 +104,29 @@ describe("the independent receipt verifier", () => {
       },
     ]) {
       const verdict = await verify(await altered("valid-production", change));
+      expect(verdict.verified).toBe(false);
+      expect(verdict.output).toContain("[FAIL] document has the runx.receipt.v1 shape");
+    }
+  });
+
+  it("refuses what the schema's uniqueItems and not exclude: a repeated package, a reserved connector name", async () => {
+    const canonical = await readFile(path.join(root, "fixtures/contracts/canonical-receipts/governed-call.receipt.json"), "utf8");
+    for (const change of [
+      (receipt: Record<string, any>) => {
+        const packages: string[] = receipt.authority.terms[0].bounds.packages;
+        packages.push(packages[0]);
+      },
+      (receipt: Record<string, any>) => {
+        receipt.acts[0].operation.connector = "versions";
+      },
+    ]) {
+      const receipt = JSON.parse(canonical);
+      change(receipt);
+      const directory = await mkdtemp(path.join(os.tmpdir(), "runx-independent-verifier-"));
+      directories.push(directory);
+      const document = path.join(directory, "receipt.json");
+      await writeFile(document, JSON.stringify(receipt));
+      const verdict = await verify(document, Promise.resolve(["--jwks", path.join(root, "tools/verify/runx-demo-jwks.json")]));
       expect(verdict.verified).toBe(false);
       expect(verdict.output).toContain("[FAIL] document has the runx.receipt.v1 shape");
     }
