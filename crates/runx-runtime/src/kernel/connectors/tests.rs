@@ -127,7 +127,9 @@ fn the_reachable_connectors_include_every_added_version_once() {
         .collect::<Vec<_>>();
     assert_eq!(
         names,
-        ["artifact", "private", "store", "web", "acme/ops", "acme/ops", "stripe"]
+        [
+            "artifact", "private", "store", "web", "acme/ops", "acme/ops", "stripe"
+        ]
     );
     assert!(
         scope
