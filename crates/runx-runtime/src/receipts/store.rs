@@ -18,8 +18,10 @@ use thiserror::Error;
 use super::paths::ReceiptStoreLabel;
 use super::seal::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
 
-const RECEIPT_STORE_INDEX_SCHEMA: &str = "runx.receipt_store_index.v1";
-const INDEX_FILE_NAME: &str = "index.json";
+/// The receipt index: a log of every receipt the store holds, one JSON entry
+/// per line after a header that names it, appended to and never rewritten.
+const RECEIPT_STORE_INDEX_SCHEMA: &str = "runx.receipt_index.v1";
+const INDEX_FILE_NAME: &str = "index.jsonl";
 pub(crate) const STORE_LOCK_FILE_NAME: &str = ".receipt-store.lock";
 const SHA256_RECEIPT_ID_PREFIX: &str = "sha256:";
 const SHA256_RECEIPT_FILE_PREFIX: &str = "sha256-";
@@ -230,17 +232,39 @@ impl LocalReceiptStore {
         self.rebuild_index_from_receipts(self.list_without_proof_for_history()?)
     }
 
+    /// The index as the log holds it: each receipt once, in id order. Its
+    /// coverage of the directory is checked here, where the index is read,
+    /// never on an append.
+    pub fn index(&self) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
+        self.ensure_store_dir()?;
+        let index_path = self.index_path();
+        let contents = fs::read_to_string(&index_path).map_err(|source| {
+            ReceiptStoreError::StoreUnreadable {
+                path: index_path.clone(),
+                source,
+            }
+        })?;
+        let index = parse_index(&contents, &index_path)?;
+        if self.receipt_file_count()? != index.entries.len() {
+            return Err(ReceiptStoreError::ReceiptIndexStale {
+                path: index_path,
+                message: "index entries do not cover every receipt JSON file".to_owned(),
+            });
+        }
+        Ok(index)
+    }
+
     fn rebuild_index_from_receipts(
         &self,
         receipts: Vec<Receipt>,
     ) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
-        let entries = receipts
+        let mut entries = receipts
             .into_iter()
             .map(|receipt| index_entry(&receipt))
             .collect::<Result<Vec<_>, ReceiptStoreError>>()?;
+        entries.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
         let index = ReceiptStoreIndex {
             schema: RECEIPT_STORE_INDEX_SCHEMA.to_owned(),
-            generated_at: generated_at_nanos(),
             entries,
         };
         self.write_index(&index)?;
@@ -272,49 +296,54 @@ impl LocalReceiptStore {
         }
     }
 
+    /// Add `entries` to the end of the index, reading none of it. A store
+    /// with no index yet, or one whose index was lost, writes it whole from
+    /// its receipts, and so does one whose last line an earlier append left
+    /// torn; either happens once, not on every append.
     fn append_index_entries(
         &self,
         entries: &[ReceiptStoreIndexEntry],
     ) -> Result<(), ReceiptStoreError> {
-        let receipt_count = self.receipt_file_count()?;
-        let mut index = match self.read_index_without_verification() {
-            Ok(index) => index,
-            Err(ReceiptStoreError::StoreUnreadable { source, .. })
-                if source.kind() == ErrorKind::NotFound && receipt_count == entries.len() =>
-            {
-                ReceiptStoreIndex {
-                    schema: RECEIPT_STORE_INDEX_SCHEMA.to_owned(),
-                    generated_at: generated_at_nanos(),
-                    entries: Vec::new(),
-                }
+        let index_path = self.index_path();
+        let mut file = match OpenOptions::new().read(true).append(true).open(&index_path) {
+            Ok(file) => file,
+            Err(source) if source.kind() == ErrorKind::NotFound => {
+                return self.rebuild_index_projection().map(|_| ());
             }
-            Err(error) => return Err(error),
+            Err(source) => {
+                return Err(ReceiptStoreError::StoreUnreadable {
+                    path: index_path,
+                    source,
+                });
+            }
         };
-        ensure_index_shape_for_append(&index)?;
-        let (merged, changed) = merge_index_entries(std::mem::take(&mut index.entries), entries)?;
-        if receipt_count != merged.len() {
+        let unreadable = |source| ReceiptStoreError::StoreUnreadable {
+            path: self.index_path(),
+            source,
+        };
+        if !ends_a_line(&mut file).map_err(unreadable)? {
             return Err(ReceiptStoreError::ReceiptIndexStale {
                 path: self.index_path(),
-                message: "index entries do not cover every receipt JSON file".to_owned(),
+                message: "the index ends partway through an entry".to_owned(),
             });
         }
-        if !changed {
-            return Ok(());
+        let mut lines = Vec::new();
+        for entry in entries {
+            serde_json::to_writer(&mut lines, entry).map_err(|source| {
+                ReceiptStoreError::MalformedIndex {
+                    path: self.index_path(),
+                    message: source.to_string(),
+                }
+            })?;
+            lines.push(b'\n');
         }
-        index.entries = merged;
-        index.generated_at = generated_at_nanos();
-        self.write_index(&index)
-    }
-
-    fn read_index_without_verification(&self) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
-        let index_path = self.index_path();
-        let contents = fs::read_to_string(&index_path).map_err(|source| {
-            ReceiptStoreError::StoreUnreadable {
-                path: index_path.clone(),
-                source,
-            }
-        })?;
-        parse_index(&contents, &index_path)
+        // A recoverable projection of the receipt files, which stay durable:
+        // an append skips fsync so a receipt doesn't pay for durability twice.
+        crate::work_counts::count_many(
+            crate::work_counts::Work::ReceiptIndexEntryWritten,
+            entries.len(),
+        );
+        file.write_all(&lines).map_err(unreadable)
     }
 
     fn receipt_file_count(&self) -> Result<usize, ReceiptStoreError> {
@@ -329,6 +358,7 @@ impl LocalReceiptStore {
                 path: self.root.clone(),
                 source,
             })?;
+            crate::work_counts::count(crate::work_counts::Work::ReceiptDirectoryEntryRead);
             let path = entry.path();
             if is_receipt_json_path(&path) {
                 count += 1;
@@ -337,15 +367,30 @@ impl LocalReceiptStore {
         Ok(count)
     }
 
+    /// Write the whole index, header and entries, in place of whatever was
+    /// there: a rebuild's, never an append's.
     fn write_index(&self, index: &ReceiptStoreIndex) -> Result<(), ReceiptStoreError> {
-        let contents =
-            serde_json::to_vec(index).map_err(|source| ReceiptStoreError::MalformedIndex {
-                path: self.index_path(),
-                message: source.to_string(),
-            })?;
-        // `index.json` is a recoverable projection of receipt files. Receipt
-        // writes remain durable; index writes stay atomic but skip fsync so an
-        // append does not pay the full durability cost twice.
+        let malformed = |source: serde_json::Error| ReceiptStoreError::MalformedIndex {
+            path: self.index_path(),
+            message: source.to_string(),
+        };
+        let mut contents = Vec::new();
+        serde_json::to_writer(
+            &mut contents,
+            &IndexHeader {
+                schema: index.schema.clone(),
+            },
+        )
+        .map_err(malformed)?;
+        contents.push(b'\n');
+        for entry in &index.entries {
+            serde_json::to_writer(&mut contents, entry).map_err(malformed)?;
+            contents.push(b'\n');
+        }
+        crate::work_counts::count_many(
+            crate::work_counts::Work::ReceiptIndexEntryWritten,
+            index.entries.len(),
+        );
         write_atomic_cache(&self.root, INDEX_FILE_NAME, &contents)
     }
 
@@ -420,14 +465,22 @@ impl Drop for ReceiptStoreMutationLock {
     }
 }
 
+/// The receipt index: each receipt the store holds once, in id order.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReceiptStoreIndex {
     pub schema: String,
-    pub generated_at: String,
     pub entries: Vec<ReceiptStoreIndexEntry>,
 }
 
+/// The index's first line, which names it.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IndexHeader {
+    schema: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReceiptStoreIndexEntry {
     pub receipt_id: String,
     pub file_name: String,
@@ -763,115 +816,70 @@ fn read_receipt_file_without_proof(
     parse_receipt_contents_without_proof(&contents, path, expected_id)
 }
 
+/// The index a log holds: its header, then its entries. An entry a retried
+/// write appended again is the same entry; one that differs is a stale index.
 fn parse_index(contents: &str, path: &Path) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
-    let index = serde_json::from_str::<ReceiptStoreIndex>(contents).map_err(|source| {
-        ReceiptStoreError::MalformedIndex {
-            path: path.to_path_buf(),
-            message: source.to_string(),
-        }
-    })?;
-    if index.schema != RECEIPT_STORE_INDEX_SCHEMA {
-        return Err(ReceiptStoreError::MalformedIndex {
-            path: path.to_path_buf(),
-            message: format!("unsupported index schema {}", index.schema),
-        });
-    }
-    Ok(index)
-}
-
-fn ensure_index_shape_for_append(index: &ReceiptStoreIndex) -> Result<(), ReceiptStoreError> {
-    let mut previous_id: Option<&str> = None;
-    for entry in &index.entries {
-        let expected_file_name = receipt_file_name(&entry.receipt_id)?;
-        if entry.file_name != expected_file_name {
-            return Err(ReceiptStoreError::ReceiptIndexStale {
-                path: PathBuf::from(INDEX_FILE_NAME),
-                message: "index file name does not match receipt id".to_owned(),
-            });
-        }
-        if previous_id.is_some_and(|previous| previous >= entry.receipt_id.as_str()) {
-            return Err(ReceiptStoreError::ReceiptIndexStale {
-                path: PathBuf::from(INDEX_FILE_NAME),
-                message: "index receipt ids must be sorted and unique".to_owned(),
-            });
-        }
-        previous_id = Some(entry.receipt_id.as_str());
-    }
-    Ok(())
-}
-
-fn merge_index_entries(
-    existing: Vec<ReceiptStoreIndexEntry>,
-    additions: &[ReceiptStoreIndexEntry],
-) -> Result<(Vec<ReceiptStoreIndexEntry>, bool), ReceiptStoreError> {
-    let mut additions = additions.to_vec();
-    additions.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
-    if additions
-        .windows(2)
-        .any(|pair| pair[0].receipt_id == pair[1].receipt_id)
-    {
-        return Err(ReceiptStoreError::ReceiptIndexStale {
-            path: PathBuf::from(INDEX_FILE_NAME),
-            message: "new receipt ids must be unique".to_owned(),
-        });
-    }
-
-    let mut existing = existing.into_iter().peekable();
-    let mut additions = additions.into_iter().peekable();
-    let mut merged = Vec::with_capacity(existing.len().saturating_add(additions.len()));
-    let mut changed = false;
-    loop {
-        match (existing.peek(), additions.peek()) {
-            (Some(left), Some(right)) => match left.receipt_id.cmp(&right.receipt_id) {
-                std::cmp::Ordering::Less => {
-                    let entry = existing.next().ok_or_else(|| {
-                        index_merge_error("existing index merge iterator changed unexpectedly")
-                    })?;
-                    merged.push(entry);
-                }
-                std::cmp::Ordering::Greater => {
-                    let entry = additions.next().ok_or_else(|| {
-                        index_merge_error("new index merge iterator changed unexpectedly")
-                    })?;
-                    merged.push(entry);
-                    changed = true;
-                }
-                std::cmp::Ordering::Equal => {
-                    let existing_entry = existing.next().ok_or_else(|| {
-                        index_merge_error("existing index merge iterator changed unexpectedly")
-                    })?;
-                    let addition = additions.next().ok_or_else(|| {
-                        index_merge_error("new index merge iterator changed unexpectedly")
-                    })?;
-                    if existing_entry != addition {
-                        return Err(ReceiptStoreError::ReceiptIndexStale {
-                            path: PathBuf::from(INDEX_FILE_NAME),
-                            message: "index entry conflicts with receipt projection".to_owned(),
-                        });
-                    }
-                    merged.push(existing_entry);
-                }
-            },
-            (Some(_), None) => {
-                merged.extend(existing);
-                break;
-            }
-            (None, Some(_)) => {
-                merged.extend(additions);
-                changed = true;
-                break;
-            }
-            (None, None) => break,
-        }
-    }
-    Ok((merged, changed))
-}
-
-fn index_merge_error(message: &str) -> ReceiptStoreError {
-    ReceiptStoreError::ReceiptIndexStale {
-        path: PathBuf::from(INDEX_FILE_NAME),
+    let malformed = |message: String| ReceiptStoreError::MalformedIndex {
+        path: path.to_path_buf(),
+        message,
+    };
+    let stale = |message: &str| ReceiptStoreError::ReceiptIndexStale {
+        path: path.to_path_buf(),
         message: message.to_owned(),
+    };
+    if !contents.ends_with('\n') {
+        return Err(stale("the index ends partway through an entry"));
     }
+    let mut lines = contents.lines();
+    let header: IndexHeader = lines
+        .next()
+        .ok_or_else(|| malformed("the index names no schema".to_owned()))
+        .and_then(|line| {
+            serde_json::from_str(line).map_err(|error| malformed(error.to_string()))
+        })?;
+    if header.schema != RECEIPT_STORE_INDEX_SCHEMA {
+        return Err(malformed(format!(
+            "unsupported index schema {}",
+            header.schema
+        )));
+    }
+    let mut entries = BTreeMap::<String, ReceiptStoreIndexEntry>::new();
+    let mut read = 0usize;
+    for line in lines {
+        read += 1;
+        let entry: ReceiptStoreIndexEntry =
+            serde_json::from_str(line).map_err(|error| malformed(error.to_string()))?;
+        if entry.file_name != receipt_file_name(&entry.receipt_id)? {
+            return Err(stale("index file name does not match receipt id"));
+        }
+        match entries.get(&entry.receipt_id) {
+            Some(known) if *known != entry => {
+                return Err(stale("index entry conflicts with receipt projection"));
+            }
+            Some(_) => {}
+            None => {
+                entries.insert(entry.receipt_id.clone(), entry);
+            }
+        }
+    }
+    crate::work_counts::count_many(crate::work_counts::Work::ReceiptIndexEntryRead, read);
+    Ok(ReceiptStoreIndex {
+        schema: header.schema,
+        entries: entries.into_values().collect(),
+    })
+}
+
+/// Whether `file` ends with a whole line, so an append can't join a torn
+/// entry.
+fn ends_a_line(file: &mut File) -> Result<bool, std::io::Error> {
+    use std::io::{Read, Seek, SeekFrom};
+    if file.metadata()?.len() == 0 {
+        return Ok(false);
+    }
+    file.seek(SeekFrom::End(-1))?;
+    let mut last = [0_u8; 1];
+    file.read_exact(&mut last)?;
+    Ok(last[0] == b'\n')
 }
 
 fn parse_receipt_contents(
@@ -1064,12 +1072,79 @@ fn temp_file_name(file_name: &str) -> String {
     format!(".{file_name}.tmp.{}-{}", std::process::id(), unix_nanos())
 }
 
-fn generated_at_nanos() -> String {
-    unix_nanos().to_string()
-}
-
 fn unix_nanos() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, clippy::unwrap_used)]
+
+    use super::*;
+    use crate::adapter::{InvocationOutput, InvocationStatus};
+    use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, step_receipt};
+
+    /// `count` distinct sealed receipts.
+    fn receipts(signature: &RuntimeReceiptSignatureConfig, count: usize) -> Vec<Receipt> {
+        let output = InvocationOutput::process(
+            InvocationStatus::Success,
+            "ok".to_owned(),
+            String::new(),
+            Some(0),
+            1,
+        );
+        (0..count)
+            .map(|index| {
+                step_receipt(
+                    RunScope {
+                        run_id: "run_index",
+                        workflow_name: "index",
+                    },
+                    &format!("step-{index}"),
+                    1,
+                    &output,
+                    &runx_contracts::JsonObject::new(),
+                    "2026-11-09T00:00:00Z",
+                    signature.signature_policy(),
+                )
+                .unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_receipt_append_adds_to_the_index_and_reads_none_of_it() {
+        let test = concat!(
+            module_path!(),
+            "::a_receipt_append_adds_to_the_index_and_reads_none_of_it"
+        );
+        // What one receipt's append lists of the directory, reads of the
+        // index and writes to it, after `history` receipts.
+        let (small, large) = crate::work_counts::alone(test, || {
+            let signature = RuntimeReceiptSignatureConfig::fixture().unwrap();
+            let append = |history: usize| -> (u64, u64, u64) {
+                let directory = tempfile::tempdir().unwrap();
+                let store = LocalReceiptStore::new(directory.path().join("receipts"));
+                let receipts = receipts(&signature, history + 1);
+                store
+                    .write_receipts(&receipts[..history], signature.signature_policy())
+                    .unwrap();
+                let before = crate::work_counts::snapshot();
+                store
+                    .write_receipt(&receipts[history], signature.signature_policy())
+                    .unwrap();
+                let after = crate::work_counts::snapshot();
+                (
+                    after.receipt_directory_entries_read - before.receipt_directory_entries_read,
+                    after.receipt_index_entries_read - before.receipt_index_entries_read,
+                    after.receipt_index_entries_written - before.receipt_index_entries_written,
+                )
+            };
+            (append(10), append(1_000))
+        });
+        assert_eq!(small, large, "an append's work doesn't grow with the store");
+        assert_eq!(small, (0, 0, 1));
+    }
 }

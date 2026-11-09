@@ -38,6 +38,12 @@ pub(crate) enum Work {
     RunMaterialization,
     /// A row the kernel store read: an event, a stream's head or a blob.
     StoreRowRead,
+    /// An entry of the receipt directory listed.
+    ReceiptDirectoryEntryRead,
+    /// An entry of the receipt index read back.
+    ReceiptIndexEntryRead,
+    /// An entry written to the receipt index, by an append or a rebuild.
+    ReceiptIndexEntryWritten,
 }
 
 static PROCESS_SPAWNS: AtomicU64 = AtomicU64::new(0);
@@ -53,6 +59,9 @@ static ARTIFACT_STORE_BYTES_READ: AtomicU64 = AtomicU64::new(0);
 static ARTIFACT_BYTES_TO_WORKER: AtomicU64 = AtomicU64::new(0);
 static ARTIFACT_BYTES_TO_RESULT: AtomicU64 = AtomicU64::new(0);
 static STORE_ROWS_READ: AtomicU64 = AtomicU64::new(0);
+static RECEIPT_DIRECTORY_ENTRIES_READ: AtomicU64 = AtomicU64::new(0);
+static RECEIPT_INDEX_ENTRIES_READ: AtomicU64 = AtomicU64::new(0);
+static RECEIPT_INDEX_ENTRIES_WRITTEN: AtomicU64 = AtomicU64::new(0);
 
 /// The points an artifact's bytes are copied at, from the store to a worker
 /// and to a result.
@@ -108,6 +117,9 @@ pub(crate) fn count_many(work: Work, units: usize) {
         Work::ProviderCall => &PROVIDER_CALLS,
         Work::RunMaterialization => &RUN_MATERIALIZATIONS,
         Work::StoreRowRead => &STORE_ROWS_READ,
+        Work::ReceiptDirectoryEntryRead => &RECEIPT_DIRECTORY_ENTRIES_READ,
+        Work::ReceiptIndexEntryRead => &RECEIPT_INDEX_ENTRIES_READ,
+        Work::ReceiptIndexEntryWritten => &RECEIPT_INDEX_ENTRIES_WRITTEN,
     };
     counter.fetch_add(u64::try_from(units).unwrap_or(u64::MAX), Ordering::Relaxed);
 }
@@ -202,6 +214,13 @@ pub struct WorkCounts {
     pub artifact_bytes_to_result: u64,
     /// Rows the kernel store read: events, stream heads and blobs.
     pub store_rows_read: u64,
+    /// Entries of the receipt directory listed, which only an index rebuild
+    /// and its coverage check do.
+    pub receipt_directory_entries_read: u64,
+    /// Entries of the receipt index read back.
+    pub receipt_index_entries_read: u64,
+    /// Entries written to the receipt index.
+    pub receipt_index_entries_written: u64,
 }
 
 #[must_use]
@@ -234,6 +253,9 @@ pub fn snapshot() -> WorkCounts {
         artifact_bytes_to_worker: ARTIFACT_BYTES_TO_WORKER.load(Ordering::Relaxed),
         artifact_bytes_to_result: ARTIFACT_BYTES_TO_RESULT.load(Ordering::Relaxed),
         store_rows_read: STORE_ROWS_READ.load(Ordering::Relaxed),
+        receipt_directory_entries_read: RECEIPT_DIRECTORY_ENTRIES_READ.load(Ordering::Relaxed),
+        receipt_index_entries_read: RECEIPT_INDEX_ENTRIES_READ.load(Ordering::Relaxed),
+        receipt_index_entries_written: RECEIPT_INDEX_ENTRIES_WRITTEN.load(Ordering::Relaxed),
     }
 }
 

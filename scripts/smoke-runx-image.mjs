@@ -45,7 +45,7 @@ methods:
     throw new Error(`image skill did not seal the JavaScript result: ${JSON.stringify(output)}`);
   }
   const receiptFiles = readdirSync(receipts, { recursive: true })
-    .filter((entry) => entry.endsWith(".json") && entry !== "index.json");
+    .filter((entry) => entry.endsWith(".json"));
   if (receiptFiles.length === 0) {
     throw new Error("image skill produced no receipt file");
   }

@@ -101,7 +101,7 @@ fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
     );
 
     assert!(receipt_dir.join(file_name).is_file());
-    assert!(receipt_dir.join("index.json").is_file());
+    assert!(receipt_dir.join("index.jsonl").is_file());
     assert!(root.join(".runx/test").read_dir()?.next().is_none());
     Ok(())
 }
@@ -315,7 +315,7 @@ expect:
             .ok_or("invalid receipt id")?
     ));
     assert!(receipt_path.is_file());
-    assert!(receipt_dir.join("index.json").is_file());
+    assert!(receipt_dir.join("index.jsonl").is_file());
     Ok(())
 }
 

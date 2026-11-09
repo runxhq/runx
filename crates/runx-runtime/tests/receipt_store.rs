@@ -498,7 +498,7 @@ fn identical_receipt_retry_repairs_a_missing_index_projection()
     let receipt = success_receipt()?;
 
     store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
-    fs::remove_file(store.root().join("index.json"))?;
+    fs::remove_file(store.root().join("index.jsonl"))?;
 
     store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
 
@@ -509,10 +509,31 @@ fn identical_receipt_retry_repairs_a_missing_index_projection()
 }
 
 #[test]
+fn an_append_after_a_torn_one_leaves_an_index_of_every_receipt()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = TestDir::new()?;
+    let store = LocalReceiptStore::new(temp.path());
+    store.write_receipt(&success_receipt()?, crate::support::fixture_policy()?)?;
+    // An append cut short leaves the index partway through an entry.
+    let index = store.root().join("index.jsonl");
+    let written = fs::read(&index)?;
+    fs::write(&index, &written[..written.len() - 1])?;
+    assert!(matches!(
+        store.index(),
+        Err(ReceiptStoreError::ReceiptIndexStale { .. })
+    ));
+
+    store.write_receipt(&abnormal_receipt()?, crate::support::fixture_policy()?)?;
+
+    assert_eq!(store.index()?.entries.len(), 2);
+    Ok(())
+}
+
+#[test]
 fn index_write_failure_reports_stale_but_receipt_stays_readable()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
-    fs::create_dir(temp.path().join("index.json"))?;
+    fs::create_dir(temp.path().join("index.jsonl"))?;
     let store = LocalReceiptStore::new(temp.path());
     let receipt = success_receipt()?;
 
@@ -717,11 +738,9 @@ impl Drop for TestDir {
     }
 }
 
-/// The index the store keeps beside its receipts, as written.
+/// The index the store keeps beside its receipts, as the store reads it.
 fn written_index(root: &Path) -> Result<ReceiptStoreIndex, Box<dyn std::error::Error>> {
-    Ok(serde_json::from_str(&fs::read_to_string(
-        root.join("index.json"),
-    )?)?)
+    Ok(LocalReceiptStore::new(root).index()?)
 }
 
 fn assert_redacts_external_path(text: &str) {
