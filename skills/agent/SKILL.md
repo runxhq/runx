@@ -53,7 +53,10 @@ as you would the person's.
 ## Agent task: read
 
 Read, search and ask, as above. This turn changes nothing: it offers no tool
-that edits the workspace or runs a command.
+that edits the workspace or runs a command, and anything it loads changes
+nothing either. A change at any depth, a provider write or a purchase is
+refused, whatever is approved, so don't ask for one: say what would need a
+write turn.
 
 ## Agent task: write
 

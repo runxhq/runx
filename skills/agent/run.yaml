@@ -1,4 +1,4 @@
-version: "0.1.7"
+version: "0.1.6"
 minimum_runx: 0.12.0
 default_method: read
 catalog:
@@ -10,6 +10,7 @@ methods:
     examples:
       - {}
     description: Work a turn that reads, searches and asks, across the workspace's files and git history, the web and the catalog, and changes nothing.
+    effects: none
     steps:
       - id: read
         agent: read

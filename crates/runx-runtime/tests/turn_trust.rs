@@ -143,6 +143,12 @@ impl Workspace {
     /// Start the agent skill's `read` method as Fieldwork starts a session:
     /// agent bounds, no standing approval. Return its run's id.
     fn start(&self) -> TestResult<String> {
+        self.start_as(TURN)
+    }
+
+    /// Start the agent skill's `method` the same way. Its turn is named for
+    /// the method.
+    fn start_as(&self, method: &str) -> TestResult<String> {
         let started = self.orchestrator()?.run_skill_with_binding(
             &SkillRunRequest {
                 current_context: Vec::new(),
@@ -162,7 +168,7 @@ impl Workspace {
                 cwd: self.root.clone(),
                 managed_agent: ManagedAgentPolicy::HostDriven,
             },
-            None,
+            Some(method),
             None,
             None,
         )?;
@@ -220,7 +226,12 @@ fn input(value: serde_json::Value) -> TestResult<JsonObject> {
 }
 
 fn load(turn: &TurnSession, target: serde_json::Value) -> TestResult<TurnCallResult> {
-    Ok(turn.call(TURN, "load", None, input(target)?)?)
+    load_in(turn, TURN, target)
+}
+
+/// A load at the turn named `at`.
+fn load_in(turn: &TurnSession, at: &str, target: serde_json::Value) -> TestResult<TurnCallResult> {
+    Ok(turn.call(at, "load", None, input(target)?)?)
 }
 
 fn completed(call: &TurnCallResult) -> bool {
@@ -430,28 +441,31 @@ fn a_project_skill_reaching_a_connector_waits_on_trust_and_runs_once_trusted() -
 #[test]
 fn a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process()
 -> TestResult {
+    // A write session: a read turn refuses the process outright (D16), so
+    // only a turn that may change things shows the floor holding it.
+    const WRITE: &str = "write";
     let temp = tempdir()?;
     let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
-    let run_id = ws.start()?;
+    let run_id = ws.start_as(WRITE)?;
     let turn = ws.open(&run_id)?;
     waits_on(
-        &load(&turn, serde_json::json!({"connector": "marker"}))?,
+        &load_in(&turn, WRITE, serde_json::json!({"connector": "marker"}))?,
         "trust",
     )?;
     drop(turn);
-    ws.answer(&run_id, "read/0/trust", true)?;
+    ws.answer(&run_id, "write/0/trust", true)?;
 
     // The turn reaches the marker connector now, so a skill reaching only it
     // adds nothing, and loads at once.
     let turn = ws.open(&run_id)?;
-    let reach = load(&turn, serde_json::json!({"skill": "skills/reach"}))?;
+    let reach = load_in(&turn, WRITE, serde_json::json!({"skill": "skills/reach"}))?;
     assert!(completed(&reach), "{reach:?}");
 
     // A skill reaching no connector loads at once, and its process still
     // waits on the floor.
-    let own = load(&turn, serde_json::json!({"skill": "skills/own"}))?;
+    let own = load_in(&turn, WRITE, serde_json::json!({"skill": "skills/own"}))?;
     assert!(completed(&own), "{own:?}");
-    let run = turn.call(TURN, "skill__own__run", None, JsonObject::new())?;
+    let run = turn.call(WRITE, "skill__own__run", None, JsonObject::new())?;
     waits_on(&run, "tool")?;
     assert!(!ws.root.join("own-marker").exists(), "the floor held it");
     Ok(())
