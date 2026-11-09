@@ -11,7 +11,7 @@ import {
 const PRESENTATION = `---
 schema: runx.catalog-presentation.v1
 title: Research brief
-method:
+approach:
   - title: Bring the evidence
     description: Supply the question and bounded source material.
   - title: Make sense of it
@@ -50,7 +50,7 @@ describe("readCatalogPresentation", () => {
       schema: "runx.catalog-presentation.v1",
       title: "Research brief",
       overview: "Research that builds toward a decision.",
-      method: [
+      approach: [
         { title: "Bring the evidence", description: "Supply the question and bounded source material." },
         { title: "Make sense of it", description: "Separate evidence, inference and unresolved questions.", skill: "../research", method: "default" },
       ],
@@ -69,12 +69,12 @@ describe("readCatalogPresentation", () => {
     };
     refusal(PRESENTATION.replace("title: Research brief", "title: Research brief\nverified: true"), "unknown fields: verified");
     refusal(PRESENTATION.replace("references/examples/decision-brief.md", "references/examples/missing.md"), "example.path");
-    refusal(PRESENTATION.replace("method: default", "method: elsewhere"), "method[1].method");
+    refusal(PRESENTATION.replace("method: default", "method: elsewhere"), "approach[1].method");
     refusal(`${PRESENTATION}\n${"x".repeat(4_001)}\n`, "overview");
     // References resolve against what the package declares, not only their form.
-    refusal(PRESENTATION.replace("skill: ../research", "skill: ../elsewhere"), "method[1].skill");
+    refusal(PRESENTATION.replace("skill: ../research", "skill: ../elsewhere"), "approach[1].skill");
     // Only a sibling or publisher/name: a package-internal graph has no page to link.
-    refusal(PRESENTATION.replace("skill: ../research", "skill: ./graph/plan"), "method[1].skill");
+    refusal(PRESENTATION.replace("skill: ../research", "skill: ./graph/plan"), "approach[1].skill");
     refusal(PRESENTATION.replace("input: question", "input: topic"), "inputs[0].input");
     refusal(PRESENTATION.replace("schema: runx.catalog-presentation.v1", "schema: runx.catalog-presentation.v2"), "schema");
     refusal(PRESENTATION.replace("input: question", "input: $input.question"), "inputs[0].input");

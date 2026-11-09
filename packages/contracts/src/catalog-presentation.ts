@@ -5,10 +5,10 @@ import { declaredRegistryCategory } from "./registry-taxonomy.js";
 /** Where a package carries its optional descriptive catalog content. */
 export const CATALOG_PRESENTATION_PATH = "references/catalog.md";
 
-/** A child skill a method step can name: a sibling (`name`, `../name`) or `publisher/name`. */
+/** A child skill an approach step can name: a sibling (`name`, `../name`) or `publisher/name`. */
 const SKILL_SELECTOR = /^(?:(?:\.\.\/)?[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*)$/u;
 
-/** The skill a method step's `skill` names: a sibling is under the same publisher. */
+/** The skill an approach step's `skill` names: a sibling is under the same publisher. */
 export function composedSkillId(skill: string, publisher: string): string {
   const sibling = skill.startsWith("../") ? skill.slice(3) : skill;
   return sibling.includes('/') ? sibling : `${publisher}/${sibling}`;
@@ -36,7 +36,8 @@ export interface RegistryCatalogPresentation {
   readonly summary?: string;
   /** The authored overview: the file's Markdown body. */
   readonly overview?: string;
-  readonly method?: readonly { readonly title: string; readonly description: string; readonly skill?: string; readonly method?: string }[];
+  /** How the skill works, step by step: each step may name the method or the child skill that does it. */
+  readonly approach?: readonly { readonly title: string; readonly description: string; readonly skill?: string; readonly method?: string }[];
   readonly inputs?: readonly { readonly label: string; readonly description?: string; readonly input?: string }[];
   readonly outputs?: readonly { readonly label: string; readonly description?: string }[];
   readonly stops?: { readonly title: string; readonly description?: string };
@@ -70,7 +71,7 @@ export function readCatalogPresentation(
     readonly methodNames: readonly string[];
     /** The input names the package declares: an `input` must name one. */
     readonly inputNames: readonly string[];
-    /** The child skills the package composes, as written: a method step's `skill` must name one. */
+    /** The child skills the package composes, as written: an approach step's `skill` must name one. */
     readonly skills: readonly string[];
   },
 ): RegistryCatalogPresentation {
@@ -86,13 +87,13 @@ export function readCatalogPresentation(
   }
   depthWithin(value, "frontmatter", 0);
   const record = object(value, "frontmatter");
-  allowOnly(record, "frontmatter", ["schema", "title", "summary", "method", "inputs", "outputs", "stops", "example", "relationships"]);
+  allowOnly(record, "frontmatter", ["schema", "title", "summary", "approach", "inputs", "outputs", "stops", "example", "relationships"]);
   if (record.schema !== CATALOG_PRESENTATION_SCHEMA) {
     throw new RegistryPresentationError("schema", `must be ${CATALOG_PRESENTATION_SCHEMA}`);
   }
   const overview = body.trim();
   if (overview.length > MAX_OVERVIEW) throw new RegistryPresentationError("overview", `is longer than ${MAX_OVERVIEW} characters`);
-  const method = list(record.method, "method", (entry, field) => {
+  const approach = list(record.approach, "approach", (entry, field) => {
     const item = object(entry, field);
     allowOnly(item, field, ["title", "description", "skill", "method"]);
     const method = optionalText(item.method, `${field}.method`);
@@ -170,7 +171,7 @@ export function readCatalogPresentation(
     ...(title ? { title } : {}),
     ...(summary ? { summary } : {}),
     ...(overview ? { overview } : {}),
-    ...(method.length ? { method } : {}),
+    ...(approach.length ? { approach } : {}),
     ...(inputs.length ? { inputs } : {}),
     ...(outputs.length ? { outputs } : {}),
     ...(stops ? { stops } : {}),
