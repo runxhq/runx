@@ -86,12 +86,15 @@ pub(crate) struct CallStop {
 }
 
 impl CallStop {
-    /// Start the call, unless its host cancelled it first.
+    /// Start the call, unless its host cancelled it first: whether it's
+    /// started, now or already.
     pub(crate) fn start(&self) -> bool {
         let mut executing = self.stops.executing();
         match executing.get_mut(&self.address) {
             Some(call) if Arc::ptr_eq(&call.stop, &self.stop) => {
-                call.started = !call.cancelled;
+                if !call.started {
+                    call.started = !call.cancelled;
+                }
                 call.started
             }
             _ => true,
@@ -145,10 +148,15 @@ mod tests {
         let effect = stops.register("batch/1".to_owned(), false);
         let read = stops.register("batch/2".to_owned(), true);
         assert!(effect.start() && read.start());
+        assert!(effect.start(), "a call starts once");
         assert_eq!(stops.cancel("batch/0"), Some(CallCancel::Cancelled));
         assert_eq!(stops.cancel("batch/1"), Some(CallCancel::SettlesAsItEnds));
         assert_eq!(stops.cancel("batch/2"), Some(CallCancel::Cancelled));
         assert!(!queued.start(), "a cancelled call never starts");
+        assert!(
+            effect.start(),
+            "a cancel of a started call leaves it started"
+        );
         assert!(!effect.cancelled(), "an effect's work isn't stopped");
         assert!(read.cancelled(), "a read's work is");
         assert!(queued.release() && effect.release() && read.release());

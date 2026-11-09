@@ -131,11 +131,20 @@ fn asker(root: &Path, calls: &str) -> TestResult<PathBuf> {
 
 /// Start `skill` to its turn and open it for its host.
 fn open(root: &Path, skill: PathBuf) -> TestResult<(String, Arc<TurnSession>)> {
+    open_under(root, skill, None)
+}
+
+/// Start `skill` under the host's `authority` to its turn, and open it.
+fn open_under(
+    root: &Path,
+    skill: PathBuf,
+    authority: Option<serde_json::Value>,
+) -> TestResult<(String, Arc<TurnSession>)> {
     let started = orchestrator(root)?.run_skill_with_binding(
         &SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),
-            run_authority: None,
+            run_authority: authority.map(serde_json::from_value).transpose()?,
             act: None,
             skill_path: skill,
             receipt_dir: Some(root.join("receipts")),
@@ -344,5 +353,147 @@ methods:
         ]
     );
     assert!(session.cancel("answer/0#prepare/0").is_err());
+    Ok(())
+}
+
+/// A connector whose `hold.wait` reads: its process takes the first free
+/// slot under the directory it's given, says it started on that slot's pipe,
+/// and waits to be released on the slot's other.
+const HOLD_CONNECTOR: &str = r#"schema: runx.connector.v1
+name: hold
+title: Hold
+description: Reads once it is released.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  hold.wait:
+    description: Take a slot, wait to be released, then read.
+    verb: read
+    scopes: [hold.read]
+    target:
+      template: {"$argument": "/dir"}
+    input_schema:
+      type: object
+      required: [dir]
+      additionalProperties: false
+      properties:
+        dir: {type: string, minLength: 1}
+    result_fields: [held]
+    implementation:
+      process:
+        tool: hold.wait
+"#;
+
+const HOLD_TOOL: &str = r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "hold.wait",
+  "version": "0.1.0",
+  "description": "Take a slot, say it started, wait to be released, then read.",
+  "process": {
+    "command": "sh",
+    "args": ["./wait.sh", "{{dir}}"]
+  },
+  "inputs": {
+    "dir": {"type": "string", "description": "Where its slots and pipes are."}
+  }
+}
+"#;
+
+const HOLD_SCRIPT: &str = "#!/bin/sh\nset -eu\nfor n in 0 1 2 3; do mkdir \"$1/slot-$n\" 2>/dev/null && break; done\nprintf x > \"$1/s$n\"\nread line < \"$1/r$n\"\nprintf '{\"held\":true}\\n'\n";
+
+/// A run's `max_concurrency` caps a script's `concurrency`: under a run
+/// authority of 2, a script that declares 4 has two calls executing while
+/// the other two haven't started, which the run's cancel counts. Each call is
+/// a child run that reads, so nothing but the cap keeps them apart, and the
+/// calls the scheduler dispatches at once are in flight before any runs, so a
+/// cap that didn't hold would find calls 2 and 3 started.
+#[test]
+fn a_runs_max_concurrency_caps_how_many_of_a_scripts_calls_execute_at_once() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/hold/tools/hold/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/hold/connector.yaml"), HOLD_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), HOLD_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), HOLD_SCRIPT)?;
+    let held = root.join("held");
+    std::fs::create_dir_all(&held)?;
+    for slot in 0..4 {
+        pipe(&held.join(format!("s{slot}")))?;
+        pipe(&held.join(format!("r{slot}")))?;
+    }
+    crate::support::write_test_skill_package(
+        &root.join("hold"),
+        "---\nname: hold\ndescription: Holds a slot until it is released.\n---\n# Hold\n\nHold.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  hold:\n    steps:\n      - id: hold\n        operation: hold/hold.wait\n        inputs: {{dir: \"{}\"}}\n",
+            held.display()
+        ),
+    )?;
+    let batch = root.join("batch");
+    crate::support::write_test_skill_package(
+        &batch,
+        "---\nname: batch\ndescription: Holds four at once.\n---\n# Batch\n\nHold four.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  prepare:
+    steps:
+      - id: prepare
+        script: {module: prepare.mjs}
+        calls:
+          skills: [../hold]
+        max_calls: 4
+        concurrency: 4
+        outputs:
+          outcomes: {type: array}
+"#,
+    )?;
+    std::fs::write(
+        batch.join("prepare.mjs"),
+        r#"export default async function (ctx) {
+  const settled = await Promise.allSettled([0, 1, 2, 3].map(() => ctx.skill("../hold", {})));
+  return { outcomes: settled.map((call) => (call.status === "fulfilled" ? "held" : call.reason.reason)) };
+}
+"#,
+    )?;
+    let skill = asker(root, "          skills: [../batch]\n")?;
+    let (_, session) = open_under(root, skill, Some(serde_json::json!({"max_concurrency": 2})))?;
+    let calling = std::thread::spawn({
+        let session = Arc::clone(&session);
+        move || session.call(TURN, "skill__batch", None, JsonObject::new())
+    });
+    let slot = |name: String| held.join(name);
+    started(&slot("s0".to_owned()))?;
+    started(&slot("s1".to_owned()))?;
+    // Two are executing; count the rest.
+    let beyond = [
+        session.cancel("answer/0#prepare/2")?,
+        session.cancel("answer/0#prepare/3")?,
+    ];
+    // Release whatever started, so the run ends either way.
+    release(&slot("r0".to_owned()))?;
+    release(&slot("r1".to_owned()))?;
+    for (n, cancel) in [2, 3].into_iter().zip(beyond) {
+        if cancel == CallCancel::SettlesAsItEnds {
+            started(&slot(format!("s{n}")))?;
+            release(&slot(format!("r{n}")))?;
+        }
+    }
+    let called = calling.join().map_err(|_| "the call panicked")??;
+    assert_eq!(
+        beyond,
+        [CallCancel::Cancelled, CallCancel::Cancelled],
+        "no more than two of the script's calls had started"
+    );
+    let TurnCallOutcome::Completed { output, .. } = &called.outcome else {
+        return Err(format!("the batch completed: {called:?}").into());
+    };
+    assert_eq!(
+        serde_json::to_value(output)?,
+        serde_json::json!({"outcomes": ["held", "held", "cancelled", "cancelled"]})
+    );
     Ok(())
 }

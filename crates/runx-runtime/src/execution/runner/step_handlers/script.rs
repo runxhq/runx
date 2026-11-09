@@ -91,7 +91,14 @@ where
     let mut made = Vec::new();
     let mut calls = 0_usize;
     let max_calls = usize::try_from(script.max_calls).unwrap_or(usize::MAX);
-    let concurrency = usize::try_from(script.concurrency).unwrap_or(1);
+    // The run's max_concurrency, and the host's ceiling, narrow what the
+    // step declares.
+    let concurrency = usize::try_from(crate::kernel::authority::step_concurrency(
+        runtime.options.run_authority.as_ref(),
+        runtime.options.max_concurrency,
+        script.concurrency,
+    ))
+    .unwrap_or(1);
     let ended = loop {
         let recorded = ledger.recorded()?;
         matches_record(&step.id, &passed.calls, recorded)?;
@@ -280,11 +287,18 @@ where
             // stops.
             let stops = crate::interrupt::working_stops();
             let stops = &stops;
+            // The calls dispatched at once are in flight before any of them
+            // runs, so a cancel finds each where the scheduler put it; a
+            // later one is dispatched as a place frees for it.
+            for call in admitted.iter().take(concurrency) {
+                call.dispatch();
+            }
             std::thread::scope(|threads| {
                 run_bounded(
                     admitted.into_iter().zip(hosts),
                     concurrency,
                     |(call, mut detached), done| {
+                        call.dispatch();
                         threads.spawn(move || {
                             let executed = std::panic::catch_unwind(AssertUnwindSafe(|| {
                                 crate::interrupt::while_working_under(stops, || {

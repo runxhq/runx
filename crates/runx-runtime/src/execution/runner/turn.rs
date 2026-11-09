@@ -512,6 +512,12 @@ impl AdmittedCall {
     pub fn index(&self) -> u32 {
         self.made.index
     }
+
+    /// Dispatch the call to execute: from here it's in flight, unless its
+    /// host cancelled it first.
+    pub(super) fn dispatch(&self) -> bool {
+        self.stop.start()
+    }
 }
 
 /// What an admitted call's execution came to, to record.
