@@ -928,108 +928,6 @@ export type ExecutionLocationContract = {
   readonly tool_roots?: readonly string[];
 };
 
-export type ExternalJobCheckpointContract = {
-  readonly [key: string]: unknown;
-};
-
-/** Where one purchased external job stands: its stage and state, its attempts against their limit and deadline, and how it ended. */
-export type ExternalJobContinuationContract = {
-  readonly attempts: number;
-  readonly continuation_id: string;
-  readonly created_at: string;
-  readonly deadline_at: string;
-  readonly executor_binding: PaidSkillExecutorBindingContract;
-  readonly failure?: ExternalJobFailureContract;
-  /** The most recent retryable failure while the job is still active, so a stalled continuation is diagnosable before it dead-letters. */
-  readonly last_failure?: ExternalJobFailureContract;
-  readonly max_attempts: number;
-  readonly next_attempt_at?: string;
-  readonly operation_identity: string;
-  readonly principal_ref: PrincipalReferenceContract;
-  readonly provider_job_ref?: ReferenceContract;
-  readonly purchase_ref: ReferenceContract;
-  readonly result_artifact_ref?: ReferenceContract;
-  readonly seller_ref: PrincipalReferenceContract;
-  readonly source_run_ref: ReferenceContract;
-  readonly stage: ExternalJobStageContract;
-  readonly state: ExternalJobStateContract;
-  readonly terminal_evidence_digest?: string;
-  readonly terminal_evidence_ref?: ReferenceContract;
-  readonly terminal_receipt_ref?: ReferenceContract;
-  readonly updated_at: string;
-};
-
-export type ExternalJobFailureContract = {
-  readonly code: string;
-  readonly message: string;
-  readonly retryable: boolean;
-};
-
-/** Durable outbox payload used to create one continuation exactly once. */
-export type ExternalJobScheduleContract = {
-  readonly checkpoint: ExternalJobCheckpointContract;
-  readonly continuation_id: string;
-  readonly created_at: string;
-  readonly deadline_at: string;
-  readonly executor_binding: PaidSkillExecutorBindingContract;
-  readonly max_attempts: number;
-  readonly next_attempt_at: string;
-  readonly operation_identity: string;
-  readonly principal_ref: PrincipalReferenceContract;
-  readonly purchase_ref: ReferenceContract;
-  readonly seller_ref: PrincipalReferenceContract;
-  readonly source_run_ref: ReferenceContract;
-};
-
-/** Product-owned opt-in emitted by the initial execution package. Trusted purchase identity and absolute scheduling timestamps are added by Runx. */
-export type ExternalJobScheduleIntentContract = {
-  readonly checkpoint: ExternalJobCheckpointContract;
-  readonly deadline_ms: number;
-  readonly initial_delay_ms: number;
-  readonly max_attempts: number;
-  readonly schema: ExternalJobScheduleIntentSchemaContract;
-  /** Method in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling. */
-  readonly stage_runner: string;
-};
-
-export type ExternalJobScheduleIntentSchemaContract = "runx.external_job_schedule_intent.v1";
-
-export type ExternalJobStageContract = "start" | "inspect" | "materialize" | "finalize";
-
-/** Exact package re-entry input for one persisted stage. */
-export type ExternalJobStageRequestContract = {
-  readonly checkpoint: ExternalJobCheckpointContract;
-  readonly continuation: ExternalJobContinuationContract;
-  readonly operation_key: string;
-};
-
-/** Provider-neutral package result. Runx owns scheduling and finalization; the package owns only the meaning of each stage. */
-export type ExternalJobStageResultContract = {
-  readonly checkpoint: ExternalJobCheckpointContract;
-  readonly provider_job_ref: ReferenceContract;
-  readonly retry_after_ms: number;
-  readonly status: "waiting";
-} | {
-  readonly checkpoint: ExternalJobCheckpointContract;
-  readonly provider_job_ref: ReferenceContract;
-  readonly retry_after_ms: number;
-  readonly status: "materialize";
-} | {
-  readonly evidence_digest: string;
-  readonly evidence_ref: ReferenceContract;
-  readonly provider_job_ref: ReferenceContract;
-  readonly result_artifact_ref: ReferenceContract;
-  readonly status: "ready";
-} | {
-  readonly evidence_digest: string;
-  readonly evidence_ref: ReferenceContract;
-  readonly failure: ExternalJobFailureContract;
-  readonly provider_job_ref: ReferenceContract;
-  readonly status: "provider_failed";
-};
-
-export type ExternalJobStateContract = "runnable" | "waiting_external" | "succeeded" | "failed" | "superseded" | "dead_letter";
-
 export type ExternalLedgerNotRequestedContract = "not_requested";
 
 /** The kinds of thing outside runx a connector's locators name: what its declared references classify and what its operations produce. */
@@ -1924,15 +1822,6 @@ export type OutputFieldContract = {
   readonly [key: string]: unknown;
 };
 
-/** An exact execution package: the skill and method, and the digests of the package and closure that run. */
-export type PaidSkillExecutorBindingContract = {
-  readonly execution_closure_digest: string;
-  readonly method: string;
-  /** The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds. */
-  readonly package_digest: string;
-  readonly skill: string;
-};
-
 /** Immutable marketplace identity and commercial terms for paid methods in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`. */
 export type PaidSkillListingContract = {
   /** The registry's digest of the published bundle's files. */
@@ -2187,7 +2076,6 @@ export type PurchaseContract = {
   readonly currency: string;
   readonly execution_state: PurchaseExecutionStateContract;
   readonly expires_at: string;
-  readonly external_job_ref?: ReferenceContract;
   readonly idempotency: PaymentIdempotencyBindingContract;
   readonly input_digest: string;
   readonly offer_version: OfferVersionBindingContract;
@@ -2208,7 +2096,7 @@ export type PurchaseContract = {
 /** The sole V1 canonicalization identifier for digest-bound inputs. */
 export type PurchaseCanonicalizerVersionContract = "runx.receipt.c14n.v1";
 
-export type PurchaseExecutionStateContract = "unstarted" | "queued" | "running" | "waiting_external" | "cancelling" | "succeeded" | "failed" | "cancelled";
+export type PurchaseExecutionStateContract = "unstarted" | "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
 
 /** Bounded, customer-safe reason a refund won the outcome gate. */
 export type PurchaseFailureContract = {

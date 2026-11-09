@@ -53,9 +53,6 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
       "type": "string"
     },
-    "external_job_ref": {
-      "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-    },
     "idempotency": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaymentIdempotencyBinding"
     },

@@ -2241,65 +2241,6 @@
       "title": "ExecutionLocation",
       "type": "object"
     },
-    "ExternalJobCheckpoint": {
-      "additionalProperties": true,
-      "title": "ExternalJobCheckpoint",
-      "type": "object"
-    },
-    "ExternalJobFailure": {
-      "additionalProperties": false,
-      "properties": {
-        "code": {
-          "maxLength": 96,
-          "minLength": 1,
-          "type": "string"
-        },
-        "message": {
-          "maxLength": 500,
-          "minLength": 1,
-          "type": "string"
-        },
-        "retryable": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "code",
-        "message",
-        "retryable"
-      ],
-      "title": "ExternalJobFailure",
-      "type": "object"
-    },
-    "ExternalJobScheduleIntentSchema": {
-      "enum": [
-        "runx.external_job_schedule_intent.v1"
-      ],
-      "title": "ExternalJobScheduleIntentSchema",
-      "type": "string"
-    },
-    "ExternalJobStage": {
-      "enum": [
-        "start",
-        "inspect",
-        "materialize",
-        "finalize"
-      ],
-      "title": "ExternalJobStage",
-      "type": "string"
-    },
-    "ExternalJobState": {
-      "enum": [
-        "runnable",
-        "waiting_external",
-        "succeeded",
-        "failed",
-        "superseded",
-        "dead_letter"
-      ],
-      "title": "ExternalJobState",
-      "type": "string"
-    },
     "ExternalLedgerNotRequested": {
       "enum": [
         "not_requested"
@@ -4791,39 +4732,6 @@
       "title": "OutputField",
       "type": "object"
     },
-    "PaidSkillExecutorBinding": {
-      "additionalProperties": false,
-      "description": "An exact execution package: the skill and method, and the digests of the package and closure that run.",
-      "properties": {
-        "execution_closure_digest": {
-          "maxLength": 71,
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "method": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "package_digest": {
-          "description": "The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
-          "maxLength": 71,
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "skill": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "skill",
-        "method",
-        "package_digest",
-        "execution_closure_digest"
-      ],
-      "title": "PaidSkillExecutorBinding",
-      "type": "object"
-    },
     "PaidSkillMethodOffer": {
       "additionalProperties": false,
       "description": "One immutable, registry-resolved method offer.",
@@ -5450,7 +5358,6 @@
         "unstarted",
         "queued",
         "running",
-        "waiting_external",
         "cancelling",
         "succeeded",
         "failed",
