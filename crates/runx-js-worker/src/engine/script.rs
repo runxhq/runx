@@ -71,8 +71,8 @@ struct Ledger {
 
 type Shared = Gc<GcRefCell<Ledger>>;
 
-/// The pass's result: every call the script made, in position order, and
-/// how it ended.
+/// What a pass reports: the calls the script made since the last report, in
+/// position order, and how it stands.
 pub(crate) struct Passed {
     pub(crate) calls: Vec<ScriptCall>,
     pub(crate) ending: ScriptEnding,
@@ -88,7 +88,23 @@ pub(crate) struct ScriptPass<'a> {
     pub(crate) now: i64,
 }
 
-pub(crate) fn pass(request: ScriptPass<'_>) -> Result<Passed, EngineError> {
+/// A script that waits on its calls, kept running between settlements, so a
+/// settlement goes on from where the script stands rather than running it
+/// from the beginning. It is indistinguishable from a pass replaying the same
+/// settlements in the same order: each is delivered alone, and the job queue
+/// drained after it.
+pub(crate) struct LiveScript {
+    context: Context,
+    jobs: Rc<BoundedJobExecutor>,
+    ledger: Shared,
+    returned: JsValue,
+    output_bytes: usize,
+    _loader: Rc<MapModuleLoader>,
+}
+
+/// Run a pass from the beginning against `request.settled`. A script still
+/// waiting on its calls comes back live, to take further settlements.
+pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Passed), EngineError> {
     let limits = request
         .limits
         .validate()
@@ -158,54 +174,96 @@ pub(crate) fn pass(request: ScriptPass<'_>) -> Result<Passed, EngineError> {
     let input = JsValue::from_json(&request.inputs, &mut context)
         .map_err(|error| engine_failure("materializing JavaScript input", error))?;
 
+    jobs.renew();
     let returned = match callable.call(&JsValue::undefined(), &[ctx, input], &mut context) {
         Ok(returned) => returned,
         Err(error) => {
-            return Ok(Passed {
-                calls: take_calls(&ledger),
-                ending: ScriptEnding::Threw {
-                    message: thrown_message(&error.to_opaque(&mut context), &mut context),
+            let message = thrown_message(&error.to_opaque(&mut context), &mut context);
+            return Ok((
+                None,
+                Passed {
+                    calls: take_calls(&ledger),
+                    ending: ScriptEnding::Threw { message },
                 },
-            });
+            ));
         }
     };
     drain(&jobs, &mut context)?;
-    for settled in request.settled {
-        let value = match &settled.outcome {
-            ScriptCallOutcome::Now { .. } => continue,
-            ScriptCallOutcome::Resolved { value } => Ok(JsValue::from_json(value, &mut context)
-                .map_err(|error| engine_failure("materializing a call's result", error))?),
-            ScriptCallOutcome::Rejected {
-                reason,
-                code,
-                message,
-            } => Err(rejection(
-                serde_json::json!({ "reason": reason, "code": code, "message": message }),
-                &mut context,
-            )?),
-        };
-        let Some(resolvers) = ledger.borrow_mut().pending.remove(&settled.position) else {
-            return Ok(Passed {
-                calls: take_calls(&ledger),
-                ending: ScriptEnding::Diverged {
-                    position: settled.position,
-                },
-            });
-        };
-        let (function, value) = match value {
-            Ok(value) => (resolvers.resolve, value),
-            Err(reason) => (resolvers.reject, reason),
-        };
-        function
-            .call(&JsValue::undefined(), &[value], &mut context)
-            .map_err(|error| engine_failure("settling a script call", error))?;
-        drain(&jobs, &mut context)?;
+    let mut live = LiveScript {
+        context,
+        jobs,
+        ledger,
+        returned,
+        output_bytes: limits.output_bytes,
+        _loader: loader,
+    };
+    let passed = live.deliver(request.settled)?;
+    let waiting = passed.ending == ScriptEnding::Waiting;
+    Ok((waiting.then_some(live), passed))
+}
+
+/// Run a pass from the beginning against `request.settled`, and end it there.
+#[cfg(test)]
+pub(crate) fn pass(request: ScriptPass<'_>) -> Result<Passed, EngineError> {
+    start(request).map(|(_, passed)| passed)
+}
+
+impl LiveScript {
+    /// Deliver further settlements, in the order they settled; a `ctx.now()`
+    /// the script reads from here reads `now`.
+    pub(crate) fn settle(
+        &mut self,
+        settled: &[ScriptSettlement],
+        now: i64,
+    ) -> Result<Passed, EngineError> {
+        self.ledger.borrow_mut().now = now;
+        self.deliver(settled)
     }
-    let ending = ending(returned, limits.output_bytes, &mut context)?;
-    Ok(Passed {
-        calls: take_calls(&ledger),
-        ending,
-    })
+
+    /// Deliver each settlement alone, draining the job queue after it, and
+    /// report the calls made since the last report and how the script stands.
+    fn deliver(&mut self, settled: &[ScriptSettlement]) -> Result<Passed, EngineError> {
+        let context = &mut self.context;
+        for settled in settled {
+            let value = match &settled.outcome {
+                ScriptCallOutcome::Now { .. } => continue,
+                ScriptCallOutcome::Resolved { value } => Ok(JsValue::from_json(value, context)
+                    .map_err(|error| engine_failure("materializing a call's result", error))?),
+                ScriptCallOutcome::Rejected {
+                    reason,
+                    code,
+                    message,
+                } => Err(rejection(
+                    serde_json::json!({ "reason": reason, "code": code, "message": message }),
+                    context,
+                )?),
+            };
+            let Some(resolvers) = self.ledger.borrow_mut().pending.remove(&settled.position) else {
+                return Ok(Passed {
+                    calls: take_calls(&self.ledger),
+                    ending: ScriptEnding::Diverged {
+                        position: settled.position,
+                    },
+                });
+            };
+            let (function, value) = match value {
+                Ok(value) => (resolvers.resolve, value),
+                Err(reason) => (resolvers.reject, reason),
+            };
+            // Each delivery drains under the job budget afresh: the budget
+            // bounds what one settlement sets running, not a script's length.
+            self.jobs.renew();
+            function
+                .call(&JsValue::undefined(), &[value], context)
+                .map_err(|error| engine_failure("settling a script call", error))?;
+            drain(&self.jobs, context)?;
+        }
+        let ending = ending(self.returned.clone(), self.output_bytes, context)?;
+        Ok(Passed {
+            calls: take_calls(&self.ledger),
+            ending,
+        })
+    }
 }
 
 fn drain(jobs: &BoundedJobExecutor, context: &mut Context) -> Result<(), EngineError> {

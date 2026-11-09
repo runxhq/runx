@@ -48,6 +48,12 @@ impl BoundedJobExecutor {
         Ok(())
     }
 
+    /// Start a fresh budget: a script's drain after each settlement may queue
+    /// as many jobs as a tool's whole run may.
+    pub(super) fn renew(&self) {
+        self.count.set(0);
+    }
+
     fn admit(&self) -> bool {
         let next = self.count.get().saturating_add(1);
         self.count.set(next);

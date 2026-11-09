@@ -1,13 +1,15 @@
 //! Script steps. A script is deterministic code in the JavaScript worker that
-//! drives the calls its step lists, and the step's run record is its history:
-//! each pass runs the script from the beginning against the calls the record
-//! settled, in the order they settled, and every call it makes past the
-//! record is admitted, executed and recorded by the kernel through the same
-//! ledger an agent turn's calls go through, before the next pass. A call's
-//! identity is its position in the step. After a crash, the next drive of the
-//! step replays the record and goes on from the first call it doesn't hold.
+//! drives the calls its step lists, and the step's run record is its history.
+//! Each drive of the step passes the script from the beginning against the
+//! calls the record settled, in the order they settled, and keeps it live
+//! from there: every call it makes past the record is admitted, executed and
+//! recorded by the kernel through the same ledger an agent turn's calls go
+//! through, and its settlement is delivered to the script where it stands. A
+//! call's identity is its position in the step. After a crash, the next drive
+//! of the step replays the record and goes on from the first call it doesn't
+//! hold.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::javascript_worker::{
     ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
@@ -70,12 +72,38 @@ where
         reach: step.reach,
         reads_local_only: host.reads_local_only(),
     });
+    // The script passes from the beginning against its record once per drive
+    // of the step, and from there stays live: each call's settlement goes on
+    // from where the script stands.
+    further_open_calls(&mut ledger, host, &step.id)?;
+    let (mut live, mut passed) = runtime.javascript.start_script(
+        &prepared,
+        &inputs,
+        settlements(&ledger, ledger.recorded()?)?,
+        0,
+    )?;
+    // Every call the script has made, in position order, and how many of
+    // them are calls rather than reads of the clock.
+    let mut made = Vec::new();
+    let mut calls = 0_usize;
+    let max_calls = usize::try_from(script.max_calls).unwrap_or(usize::MAX);
     let ended = loop {
-        further_open_calls(&mut ledger, host, &step.id)?;
-        let settled = settlements(&ledger, ledger.recorded()?)?;
-        let passed = runtime.javascript.pass(&prepared, &inputs, settled, 0)?;
         let recorded = ledger.recorded()?;
         matches_record(&step.id, &passed.calls, recorded)?;
+        // Only a call this report holds can be new: every earlier one was made
+        // before the script was given its settlement.
+        let new = passed
+            .calls
+            .iter()
+            .filter(|call| at(recorded, call.position).is_none())
+            .cloned()
+            .collect::<Vec<_>>();
+        calls += passed
+            .calls
+            .iter()
+            .filter(|call| !matches!(call.target, ScriptCallTarget::Now { .. }))
+            .count();
+        made.extend(passed.calls);
         match passed.ending {
             ScriptEnding::Diverged { position } => {
                 return Err(diverged(
@@ -88,7 +116,7 @@ where
             ScriptEnding::Returned { output } => {
                 // The output counts only once every call the script started
                 // has settled.
-                if let Some(position) = outstanding(&passed.calls, recorded) {
+                if let Some(position) = outstanding(&made, recorded) {
                     break Err(format!(
                         "the script returned with call {position} outstanding; a script awaits every call it starts"
                     ));
@@ -96,34 +124,33 @@ where
                 break Ok(output);
             }
             ScriptEnding::Waiting => {
-                let new = passed
-                    .calls
-                    .iter()
-                    .filter(|call| !recorded.iter().any(|known| known.index == call.position))
-                    .cloned()
-                    .collect::<Vec<_>>();
                 if new.is_empty() {
                     break Err(
                         "the script waits on something that is not one of its calls".to_owned()
                     );
                 }
-                let made = passed
-                    .calls
-                    .iter()
-                    .filter(|call| !matches!(call.target, ScriptCallTarget::Now { .. }))
-                    .count();
-                if made > usize::try_from(script.max_calls).unwrap_or(usize::MAX) {
+                if calls > max_calls {
                     break Err(format!(
                         "the script reached its max_calls of {}",
                         script.max_calls
                     ));
                 }
+                let positions = new.iter().map(|call| call.position).collect::<Vec<_>>();
                 if let Some(refusal) = make_calls(&mut ledger, host, &step.id, new)? {
                     break Err(refusal);
                 }
+                let recorded = ledger.recorded()?;
+                let fresh = settlements(
+                    &ledger,
+                    positions
+                        .iter()
+                        .filter_map(|position| at(recorded, *position)),
+                )?;
+                passed = live.settle(fresh, 0)?;
             }
         }
     };
+    drop(live);
     let calls = ledger
         .recorded()?
         .iter()
@@ -249,17 +276,26 @@ fn waiting_on(
     }
 }
 
-/// What the record settled, in the order it settled, as the script's
+/// The recorded call at `position`. A step's calls are recorded in position
+/// order.
+fn at(recorded: &[RecordedCall], position: u32) -> Option<&RecordedCall> {
+    recorded
+        .binary_search_by_key(&position, |call| call.index)
+        .ok()
+        .and_then(|found| recorded.get(found))
+}
+
+/// What `calls` settled to, in the order they settled, as the script's
 /// promises take it.
-fn settlements<A>(
+fn settlements<'r, A>(
     ledger: &CallLedger<'_, A>,
-    recorded: &[RecordedCall],
+    calls: impl IntoIterator<Item = &'r RecordedCall>,
 ) -> Result<Vec<ScriptSettlement>, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let mut settled = recorded
-        .iter()
+    let mut settled = calls
+        .into_iter()
         .filter(|call| settled(&call.outcome))
         .collect::<Vec<_>>();
     settled.sort_by_key(|call| call.order);
@@ -338,7 +374,7 @@ fn matches_record(
 ) -> Result<(), RuntimeError> {
     let digest = crate::execution::run_record::input_digest;
     for call in calls {
-        let Some(known) = recorded.iter().find(|known| known.index == call.position) else {
+        let Some(known) = at(recorded, call.position) else {
             continue;
         };
         let same = match ledger_call(&call.target) {
@@ -360,14 +396,15 @@ fn matches_record(
 
 /// The first call the script made that the record doesn't show settled.
 fn outstanding(calls: &[ScriptCall], recorded: &[RecordedCall]) -> Option<u32> {
+    let settled = recorded
+        .iter()
+        .filter(|known| settled(&known.outcome))
+        .map(|known| known.index)
+        .collect::<BTreeSet<_>>();
     calls
         .iter()
         .filter(|call| !matches!(call.target, ScriptCallTarget::Now { .. }))
-        .find(|call| {
-            !recorded
-                .iter()
-                .any(|known| known.index == call.position && settled(&known.outcome))
-        })
+        .find(|call| !settled.contains(&call.position))
         .map(|call| call.position)
 }
 

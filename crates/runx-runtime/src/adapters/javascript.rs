@@ -52,11 +52,41 @@ pub(crate) struct PreparedScript {
     limits: runx_contracts::javascript_worker::InvocationLimits,
 }
 
-/// What one script pass came to: the calls it made, in position order, and
-/// how it ended.
+/// What a script pass or settlement came to: the calls made since the last,
+/// in position order, and how the script stands.
 pub(crate) struct ScriptPassed {
     pub(crate) calls: Vec<runx_contracts::javascript_worker::ScriptCall>,
     pub(crate) ending: runx_contracts::javascript_worker::ScriptEnding,
+}
+
+/// A script waiting on its calls, live on its worker.
+pub(crate) struct LiveScript<'a> {
+    script: supervisor::LiveScript<'a>,
+}
+
+impl LiveScript<'_> {
+    /// Deliver further settlements, in the order they settled.
+    pub(crate) fn settle(
+        &mut self,
+        settled: Vec<runx_contracts::javascript_worker::ScriptSettlement>,
+        now: i64,
+    ) -> Result<ScriptPassed, RuntimeError> {
+        script_passed(self.script.settle(settled, now)?)
+    }
+}
+
+fn script_passed(result: supervisor::WorkerInvocationResult) -> Result<ScriptPassed, RuntimeError> {
+    match result {
+        supervisor::WorkerInvocationResult::Passed { calls, ending } => {
+            Ok(ScriptPassed { calls, ending })
+        }
+        supervisor::WorkerInvocationResult::Failure { message, .. } => {
+            Err(RuntimeError::JavaScriptWorker { message })
+        }
+        supervisor::WorkerInvocationResult::Success(_) => Err(RuntimeError::JavaScriptWorker {
+            message: "the worker answered a script with a tool's result".to_owned(),
+        }),
+    }
 }
 
 impl PreparedJavaScriptInvocation {
@@ -138,38 +168,32 @@ impl JavaScriptAdapter {
         bundle::validated_script(script, package, env.get(WORKER_PATH_ENV).cloned())
     }
 
-    /// Run one pass of `prepared` against what its calls `settled`, in the
-    /// order they settled; a `ctx.now()` past the record reads `now`.
-    pub(crate) fn pass(
+    /// Run `prepared` from the beginning against what its calls `settled`,
+    /// in the order they settled; a `ctx.now()` past the record reads `now`.
+    /// The script comes back live, to take each further settlement where it
+    /// stands rather than from the beginning.
+    pub(crate) fn start_script(
         &self,
         prepared: &PreparedScript,
         inputs: &JsonObject,
         settled: Vec<runx_contracts::javascript_worker::ScriptSettlement>,
         now: i64,
-    ) -> Result<ScriptPassed, RuntimeError> {
+    ) -> Result<(LiveScript<'_>, ScriptPassed), RuntimeError> {
         let inputs = serde_json::to_value(inputs)
             .map_err(|source| RuntimeError::json("serializing a script's inputs", source))?;
-        let outcome = self.supervisor.pass(supervisor::ScriptPassInvocation {
-            entry_module: prepared.entry_module.clone(),
-            export_name: prepared.export_name.clone(),
-            modules: prepared.modules.clone(),
-            inputs,
-            worker_path: prepared.worker_path.clone(),
-            limits: prepared.limits,
-            settled,
-            now,
-        })?;
-        match outcome.result {
-            supervisor::WorkerInvocationResult::Passed { calls, ending } => {
-                Ok(ScriptPassed { calls, ending })
-            }
-            supervisor::WorkerInvocationResult::Failure { message, .. } => {
-                Err(RuntimeError::JavaScriptWorker { message })
-            }
-            supervisor::WorkerInvocationResult::Success(_) => Err(RuntimeError::JavaScriptWorker {
-                message: "the worker answered a script pass with a tool's result".to_owned(),
-            }),
-        }
+        let (script, result) = self
+            .supervisor
+            .start_script(supervisor::ScriptPassInvocation {
+                entry_module: prepared.entry_module.clone(),
+                export_name: prepared.export_name.clone(),
+                modules: prepared.modules.clone(),
+                inputs,
+                worker_path: prepared.worker_path.clone(),
+                limits: prepared.limits,
+                settled,
+                now,
+            })?;
+        Ok((LiveScript { script }, script_passed(result)?))
     }
 
     /// Run `request` from `package`, the validated package its run admitted.

@@ -132,6 +132,20 @@ pub struct ScriptPassRequest {
     pub now: i64,
 }
 
+/// Further settlements for the live script a pass left waiting on this
+/// worker, delivered one at a time in the order they settled. The answer
+/// reports only the calls made since the last.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptSettleRequest {
+    pub protocol_version: u16,
+    /// The pass that started the live script.
+    pub invocation_id: String,
+    pub settled: Vec<ScriptSettlement>,
+    /// What a `ctx.now()` read from here reads.
+    pub now: i64,
+}
+
 /// How the call at `position` settled.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -218,9 +232,15 @@ pub enum ScriptEnding {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerRequest {
-    Hello { protocol_version: u16 },
+    Hello {
+        protocol_version: u16,
+    },
     Invoke(Box<WorkerInvocationRequest>),
+    /// A script run from the beginning against its record. One still waiting
+    /// stays live on the worker until the next request that isn't its
+    /// settlement.
     Pass(Box<ScriptPassRequest>),
+    Settle(Box<ScriptSettleRequest>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -234,8 +254,8 @@ pub enum WorkerResponse {
         invocation_id: String,
         output: serde_json::Value,
     },
-    /// A script pass: every call it made, in position order, and how it
-    /// ended.
+    /// A script pass or settlement: the calls made since the last report,
+    /// in position order, and how the script stands.
     Passed {
         protocol_version: u16,
         invocation_id: String,

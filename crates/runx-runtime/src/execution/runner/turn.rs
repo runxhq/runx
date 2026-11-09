@@ -7,7 +7,7 @@
 //! child skill as a child run of its own, whose turns are open turns too. The
 //! turn ends when the host answers the act.
 
-use std::cell::OnceCell;
+use std::cell::{Cell, OnceCell};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -246,6 +246,8 @@ pub(super) struct CallLedger<'a, A> {
     turn: Option<PendingRequest>,
     /// The calls the run records for the step, read when first needed.
     calls: OnceCell<Vec<RecordedCall>>,
+    /// The place the step's next call event takes, once known.
+    events: Cell<Option<u64>>,
 }
 
 /// The open turn of one agent step: the act it answers, and its calls.
@@ -360,6 +362,7 @@ where
                 scope,
                 turn: Some(pending_request(request)?),
                 calls: OnceCell::new(),
+                events: Cell::new(None),
             },
             invocation,
         })
@@ -381,6 +384,7 @@ where
             scope,
             turn: None,
             calls: OnceCell::new(),
+            events: Cell::new(None),
         }
     }
 
@@ -460,6 +464,21 @@ where
             .run
             .calls(self.scope.step_id, self.scope.attempt)?;
         Ok(self.calls.get_or_init(|| read))
+    }
+
+    /// The place the step's next call event takes among its call events.
+    fn next_order(&self) -> Result<u64, RuntimeError> {
+        if let Some(next) = self.events.get() {
+            return Ok(next);
+        }
+        let next = self
+            .recorded()?
+            .iter()
+            .map(|call| call.order + 1)
+            .max()
+            .unwrap_or(0);
+        self.events.set(Some(next));
+        Ok(next)
     }
 
     fn recorded_mut(&mut self) -> Result<&mut Vec<RecordedCall>, RuntimeError> {
@@ -833,9 +852,10 @@ where
             answers,
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
-        let calls = self.recorded_mut()?;
         // Each event takes the next place among the step's call events.
-        let order = calls.iter().map(|known| known.order + 1).max().unwrap_or(0);
+        let order = self.next_order()?;
+        self.events.set(Some(order + 1));
+        let calls = self.recorded_mut()?;
         let call = RecordedCall {
             step_id,
             attempt,

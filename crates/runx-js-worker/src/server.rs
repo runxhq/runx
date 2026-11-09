@@ -1,13 +1,14 @@
 use std::io::{BufReader, BufWriter};
+use std::sync::mpsc;
 use std::thread;
 
 use thiserror::Error;
 
 use crate::engine::{EngineError, evaluate, script};
 use crate::protocol::{
-    JAVASCRIPT_STACK_BYTES, MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, ScriptPassRequest,
-    WorkerFailureCode, WorkerFate, WorkerInvocationRequest, WorkerRequest, WorkerResponse,
-    read_frame, write_frame,
+    JAVASCRIPT_STACK_BYTES, MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, ScriptEnding,
+    ScriptPassRequest, ScriptSettleRequest, WorkerFailureCode, WorkerFate, WorkerInvocationRequest,
+    WorkerRequest, WorkerResponse, read_frame, write_frame,
 };
 
 #[derive(Debug, Error)]
@@ -57,9 +58,39 @@ pub fn serve() -> Result<(), WorkerServerError> {
             return Ok(());
         }
     }
+    // A script a pass left waiting stays live until the next request that
+    // isn't its settlement.
+    let mut live: Option<LiveScriptThread> = None;
     while let Some(request) = read_frame::<WorkerRequest>(&mut reader, MAX_FRAME_BYTES)? {
+        if let WorkerRequest::Settle(settle) = request {
+            let Some(script) = live.as_ref().filter(|script| {
+                script.invocation_id == settle.invocation_id
+                    && settle.protocol_version == PROTOCOL_VERSION
+            }) else {
+                send_failure(
+                    &mut writer,
+                    Some(settle.invocation_id),
+                    WorkerFailureCode::InvalidRequest,
+                    "no live script on this worker waits for that settlement",
+                    WorkerFate::Discard,
+                )?;
+                break;
+            };
+            let response = script.settle(*settle)?;
+            if !waiting(&response)
+                && let Some(script) = live.take()
+            {
+                script.end()?;
+            }
+            write_frame(&mut writer, &response, MAX_FRAME_BYTES)?;
+            continue;
+        }
+        if let Some(script) = live.take() {
+            script.end()?;
+        }
         let request = match request {
             WorkerRequest::Invoke(request) => request,
+            WorkerRequest::Settle(_) => continue,
             WorkerRequest::Pass(request) => {
                 if request.protocol_version != PROTOCOL_VERSION {
                     send_failure(
@@ -71,7 +102,8 @@ pub fn serve() -> Result<(), WorkerServerError> {
                     )?;
                     break;
                 }
-                let response = on_invocation_thread(move || script_pass(*request))?;
+                let (response, script) = LiveScriptThread::start(*request)?;
+                live = script;
                 write_frame(&mut writer, &response, MAX_FRAME_BYTES)?;
                 continue;
             }
@@ -146,8 +178,97 @@ fn on_invocation_thread(
         .map_err(|_| WorkerServerError::InvocationThreadPanicked)
 }
 
-/// One script pass, answered with the calls it made and how it ended.
-fn script_pass(request: ScriptPassRequest) -> WorkerResponse {
+/// A live script: the thread that owns its JavaScript context, which is
+/// bound to the thread it was built on, and the channels it takes
+/// settlements and gives answers by.
+struct LiveScriptThread {
+    invocation_id: String,
+    settlements: mpsc::Sender<ScriptSettleRequest>,
+    answers: mpsc::Receiver<WorkerResponse>,
+    thread: thread::JoinHandle<()>,
+}
+
+impl LiveScriptThread {
+    /// Run a pass on a thread of its own, with Boa's bounded stack, and keep
+    /// the script there while it waits on its calls.
+    fn start(
+        request: ScriptPassRequest,
+    ) -> Result<(WorkerResponse, Option<Self>), WorkerServerError> {
+        let invocation_id = request.invocation_id.clone();
+        let (settlements, settled) = mpsc::channel::<ScriptSettleRequest>();
+        let (answer, answers) = mpsc::channel::<WorkerResponse>();
+        let thread = thread::Builder::new()
+            .name("runx-js-script".to_owned())
+            .stack_size(JAVASCRIPT_STACK_BYTES)
+            .spawn(move || {
+                let (live, response) = script_pass(request);
+                if answer.send(response).is_err() {
+                    return;
+                }
+                let Some((mut script, invocation_id)) = live else {
+                    return;
+                };
+                while let Ok(settle) = settled.recv() {
+                    let response = match script.settle(&settle.settled, settle.now) {
+                        Ok(passed) => passed_response(invocation_id.clone(), passed),
+                        Err(error) => engine_failure(invocation_id.clone(), &error),
+                    };
+                    let still = waiting(&response);
+                    if answer.send(response).is_err() || !still {
+                        return;
+                    }
+                }
+            })
+            .map_err(WorkerServerError::Thread)?;
+        let response = answers
+            .recv()
+            .map_err(|_| WorkerServerError::InvocationThreadPanicked)?;
+        let live = Self {
+            invocation_id,
+            settlements,
+            answers,
+            thread,
+        };
+        if waiting(&response) {
+            return Ok((response, Some(live)));
+        }
+        live.end()?;
+        Ok((response, None))
+    }
+
+    fn settle(&self, request: ScriptSettleRequest) -> Result<WorkerResponse, WorkerServerError> {
+        self.settlements
+            .send(request)
+            .map_err(|_| WorkerServerError::InvocationThreadPanicked)?;
+        self.answers
+            .recv()
+            .map_err(|_| WorkerServerError::InvocationThreadPanicked)
+    }
+
+    /// Let the script go: its thread ends with its context.
+    fn end(self) -> Result<(), WorkerServerError> {
+        drop(self.settlements);
+        self.thread
+            .join()
+            .map_err(|_| WorkerServerError::InvocationThreadPanicked)
+    }
+}
+
+fn waiting(response: &WorkerResponse) -> bool {
+    matches!(
+        response,
+        WorkerResponse::Passed {
+            ending: ScriptEnding::Waiting,
+            ..
+        }
+    )
+}
+
+/// One script pass from the beginning, answered with the calls it made and
+/// how it stands, and the script itself while it waits.
+fn script_pass(
+    request: ScriptPassRequest,
+) -> (Option<(script::LiveScript, String)>, WorkerResponse) {
     let ScriptPassRequest {
         protocol_version: _,
         invocation_id,
@@ -159,7 +280,7 @@ fn script_pass(request: ScriptPassRequest) -> WorkerResponse {
         settled,
         now,
     } = request;
-    match script::pass(script::ScriptPass {
+    match script::start(script::ScriptPass {
         entry_module: &entry_module,
         export_name: &export_name,
         modules: &modules,
@@ -168,13 +289,20 @@ fn script_pass(request: ScriptPassRequest) -> WorkerResponse {
         settled: &settled,
         now,
     }) {
-        Ok(passed) => WorkerResponse::Passed {
-            protocol_version: PROTOCOL_VERSION,
-            invocation_id,
-            calls: passed.calls,
-            ending: passed.ending,
-        },
-        Err(error) => engine_failure(invocation_id, &error),
+        Ok((live, passed)) => (
+            live.map(|live| (live, invocation_id.clone())),
+            passed_response(invocation_id, passed),
+        ),
+        Err(error) => (None, engine_failure(invocation_id, &error)),
+    }
+}
+
+fn passed_response(invocation_id: String, passed: script::Passed) -> WorkerResponse {
+    WorkerResponse::Passed {
+        protocol_version: PROTOCOL_VERSION,
+        invocation_id,
+        calls: passed.calls,
+        ending: passed.ending,
     }
 }
 

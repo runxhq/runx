@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde_json::json;
 
-use super::{Passed, ScriptPass, pass};
+use super::{Passed, ScriptPass, pass, start};
 use crate::protocol::{
     InvocationLimits, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
     ScriptSettlement,
@@ -257,5 +257,82 @@ fn a_throw_ends_the_pass_with_its_message() -> Result<(), String> {
             message: "no draft passed".to_owned(),
         }
     );
+    Ok(())
+}
+
+#[test]
+fn a_live_script_takes_its_settlements_as_a_replay_of_them_would() -> Result<(), String> {
+    // B settles before A, then each continuation's call settles.
+    let source = r#"export default async function (ctx) {
+        const a = ctx.tool("a", {}).then((value) => ctx.tool("after_a", value));
+        const b = ctx.tool("b", {}).then((value) => ctx.tool("after_b", value));
+        return { results: await Promise.all([a, b]) };
+    }"#;
+    let order = [
+        resolved(1, json!({"from": "b"})),
+        resolved(0, json!({"from": "a"})),
+        resolved(2, json!({"after": "b"})),
+        resolved(3, json!({"after": "a"})),
+    ];
+    let modules = BTreeMap::from([("main.mjs".to_owned(), source.to_owned())]);
+    let (live, first) = start(ScriptPass {
+        entry_module: "main.mjs",
+        export_name: "default",
+        modules: &modules,
+        inputs: json!({}),
+        limits: InvocationLimits::default(),
+        settled: &[],
+        now: NOW,
+    })
+    .map_err(|error| error.message)?;
+    let mut live = live.ok_or("a waiting script stays live")?;
+    let mut calls = first.calls;
+    let mut ending = first.ending;
+    for settlement in &order {
+        let passed = live
+            .settle(std::slice::from_ref(settlement), NOW)
+            .map_err(|error| error.message)?;
+        calls.extend(passed.calls);
+        ending = passed.ending;
+    }
+    let replayed = run(source, &order)?;
+    assert_eq!(calls, replayed.calls);
+    assert_eq!(ending, replayed.ending);
+    assert_eq!(
+        ending,
+        ScriptEnding::Returned {
+            output: json!({"results": [{"after": "a"}, {"after": "b"}]}),
+        }
+    );
+    // Live, each report holds only the calls made since the last.
+    assert_eq!(
+        targets(&Passed {
+            calls: calls[2..].to_vec(),
+            ending: ScriptEnding::Waiting,
+        }),
+        [
+            (2, "tool after_b".to_owned()),
+            (3, "tool after_a".to_owned())
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn each_settlement_drains_under_a_job_budget_of_its_own() -> Result<(), String> {
+    // Far more awaits than one drain's budget allows, across settlements.
+    let source = r#"export default async function (ctx) {
+        let total = 0;
+        for (let call = 0; call < 5000; call++) total += (await ctx.tool("count", {})).one;
+        return { total };
+    }"#;
+    let settled = (0..5000)
+        .map(|position| resolved(position, json!({"one": 1})))
+        .collect::<Vec<_>>();
+    let replayed = run(source, &settled)?;
+    let ScriptEnding::Returned { output } = replayed.ending else {
+        return Err(format!("the script returns: {:?}", replayed.ending));
+    };
+    assert_eq!(output["total"].as_f64(), Some(5_000.0));
     Ok(())
 }

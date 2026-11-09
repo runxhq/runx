@@ -6,6 +6,7 @@ mod types;
 mod validate;
 
 pub use binding::{Binding, Operand, Source};
+pub use step::MAX_SCRIPT_CALLS;
 pub(crate) use step::output_artifacts;
 pub use tool::validate_process_tool;
 pub use types::{

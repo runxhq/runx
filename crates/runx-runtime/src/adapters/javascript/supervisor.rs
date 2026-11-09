@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
     InvocationLimits, PROTOCOL_VERSION, ScriptCall, ScriptEnding, ScriptPassRequest,
-    ScriptSettlement, WorkerFate, WorkerInvocationRequest, WorkerRequest,
+    ScriptSettleRequest, ScriptSettlement, WorkerFate, WorkerInvocationRequest, WorkerRequest,
 };
 
 use crate::RuntimeError;
@@ -88,11 +88,13 @@ impl JavaScriptWorkerSupervisor {
         self.invoke_inner(invocation, || {})
     }
 
-    /// Run one pass of a script step.
-    pub(super) fn pass(
+    /// Run one pass of a script step from the beginning against its
+    /// record. A script still waiting on its calls stays live on the worker
+    /// that ran it, to take further settlements.
+    pub(super) fn start_script(
         &self,
         pass: ScriptPassInvocation,
-    ) -> Result<WorkerInvocationOutcome, RuntimeError> {
+    ) -> Result<(LiveScript<'_>, WorkerInvocationResult), RuntimeError> {
         let invocation_id = self.invocation_id();
         let cpu_budget = Duration::from_millis(pass.limits.cpu_milliseconds);
         let request = WorkerRequest::Pass(Box::new(ScriptPassRequest {
@@ -106,13 +108,16 @@ impl JavaScriptWorkerSupervisor {
             settled: pass.settled,
             now: pass.now,
         }));
-        self.exchange(
-            &invocation_id,
-            &request,
+        let lease = self.pool.acquire(pass.worker_path.as_deref())?;
+        let mut script = LiveScript {
+            lease,
+            invocation_id,
             cpu_budget,
-            pass.worker_path.as_deref(),
-            || {},
-        )
+            clock: self.clock.as_ref(),
+            ended: false,
+        };
+        let result = script.exchange(&request)?;
+        Ok((script, result))
     }
 
     fn invocation_id(&self) -> String {
@@ -206,6 +211,81 @@ impl JavaScriptWorkerSupervisor {
 
     pub(super) fn peak_in_flight(&self) -> usize {
         self.pool.peak_in_flight()
+    }
+}
+
+/// A script a pass left waiting, live on the worker that ran it. A script
+/// let go before it ends takes its worker with it, so no later lease finds it.
+pub(super) struct LiveScript<'a> {
+    lease: pool::WorkerLease<'a>,
+    invocation_id: String,
+    /// The CPU time each exchange with the script may spend.
+    cpu_budget: Duration,
+    clock: &'a dyn Clock,
+    ended: bool,
+}
+
+impl LiveScript<'_> {
+    /// Deliver further settlements, in the order they settled.
+    pub(super) fn settle(
+        &mut self,
+        settled: Vec<ScriptSettlement>,
+        now: i64,
+    ) -> Result<WorkerInvocationResult, RuntimeError> {
+        if self.ended {
+            return Err(worker_error("the script has ended and takes no settlement"));
+        }
+        let request = WorkerRequest::Settle(Box::new(ScriptSettleRequest {
+            protocol_version: PROTOCOL_VERSION,
+            invocation_id: self.invocation_id.clone(),
+            settled,
+            now,
+        }));
+        self.exchange(&request)
+    }
+
+    fn exchange(
+        &mut self,
+        request: &WorkerRequest,
+    ) -> Result<WorkerInvocationResult, RuntimeError> {
+        let result = self.lease.session_mut()?.invoke(
+            &self.invocation_id,
+            request,
+            self.cpu_budget,
+            self.clock,
+        );
+        match result {
+            Ok(result) => {
+                self.ended = !matches!(
+                    result,
+                    WorkerInvocationResult::Passed {
+                        ending: ScriptEnding::Waiting,
+                        ..
+                    }
+                );
+                if let WorkerInvocationResult::Failure {
+                    fate: WorkerFate::Discard,
+                    ..
+                } = result
+                {
+                    self.lease.poison();
+                }
+                Ok(result)
+            }
+            Err(error) => {
+                self.ended = true;
+                self.lease.poison();
+                Err(error)
+            }
+        }
+    }
+}
+
+impl Drop for LiveScript<'_> {
+    fn drop(&mut self) {
+        if !self.ended {
+            self.lease.poison();
+        }
     }
 }
 
