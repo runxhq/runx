@@ -35,9 +35,13 @@ manifest says, so a project package that calls itself `reddit` writes
 - A package reads and writes its own streams with no naming.
 - A package dependency, a `registry:` reference, is its own package, so it
   reads and writes the same streams called directly or through any wrapper.
-- Code a package incorporates, a relative `skill:` path, belongs to the
-  package carrying it, its streams under the carrier: a community package's
-  `./github` writes `acme/foo/github/...` and never meets acme's own `github`.
+- Code a package incorporates, a relative `skill:` path inside it, belongs to
+  the package carrying it, its streams under the carrier: a community
+  package's `./github` writes `acme/foo/github/...` and never meets acme's own
+  `github`.
+- A package outside the one that reaches it, such as a workspace skill a turn
+  loads, is bound by itself: `project:<name>`, or its signer's name, so it
+  writes `project:<name>/...` and never under its loader.
 - An append has no `package` field and a stream is one name with no `/`, so
   another package's stream can't be spelled on a write.
 - A read of another package's stream names it with `package`, and is admitted

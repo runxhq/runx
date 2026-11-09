@@ -74,7 +74,8 @@ enum Reach {
     Registry(Option<SignedPackage>),
     /// `runx/<name>`, the skill this runx bundles.
     Bundled(String),
-    /// A relative `skill:` path, incorporated in the package rooted here.
+    /// A relative `skill:` path inside the package rooted here, which it
+    /// incorporates.
     Incorporated(PathBuf),
 }
 
@@ -920,15 +921,24 @@ impl<'a> ExecutionClosureInspector<'a> {
                     );
                 }
                 if let Some(nested) = nested {
+                    let carrier =
+                        canonical_directory(&loaded.package_root, "bound workflow package")?;
                     let reach = if runx_parser::registry_ref(reference).is_some() {
                         Reach::Registry(nested.signed)
                     } else if crate::registry::is_bundled_reference(reference) {
                         Reach::Bundled(reference.to_owned())
-                    } else {
-                        Reach::Incorporated(canonical_directory(
-                            &loaded.package_root,
+                    } else if crate::identity::carries(
+                        &carrier,
+                        &canonical_directory(
+                            &nested.loaded.package_root,
                             "bound workflow package",
-                        )?)
+                        )?,
+                    ) {
+                        Reach::Incorporated(carrier)
+                    } else {
+                        // A package outside the one that reaches it binds by
+                        // itself, as a run's root does.
+                        Reach::Root
                     };
                     self.walk_method(
                         MethodWalkTarget {

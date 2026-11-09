@@ -503,12 +503,12 @@ methods:
 "#;
 
 /// Where the keeper's streams live when a read turn loads it from the
-/// workspace: under the turn's package, as code it incorporates.
-const KEEPER_STREAMS: &str = "runx/agent/keeper/";
+/// workspace: under its own `project:keeper`, since a loaded package is bound
+/// by itself and the turn's package doesn't carry it (§4.8, identity.md).
+const KEEPER_STREAMS: &str = "project:keeper/";
 
-/// A project with the keeper package, and the `private` instance its calls
-/// resolve, as `skill inspect` reports it.
-fn keeper_project(root: &Path) -> TestResult<String> {
+/// A project with the keeper package, which reaches a `private` instance.
+fn keeper_project(root: &Path) -> TestResult {
     let skill = root.join("skills/keeper");
     std::fs::create_dir_all(&skill)?;
     std::fs::write(
@@ -522,39 +522,37 @@ fn keeper_project(root: &Path) -> TestResult<String> {
             .output()?,
         0,
     )?;
-    inspected["connector_readiness"]
+    let reaches = inspected["connector_readiness"]
         .as_array()
-        .and_then(|readiness| {
+        .is_some_and(|readiness| {
             readiness
                 .iter()
-                .find(|entry| entry["connector"] == "private")
-                .and_then(|entry| entry["instance_id"].as_str())
-        })
-        .map(str::to_owned)
-        .ok_or_else(|| format!("the keeper reaches no private instance: {inspected}").into())
+                .any(|entry| entry["connector"] == "private")
+        });
+    if !reaches {
+        return Err(format!("the keeper reaches no private instance: {inspected}").into());
+    }
+    Ok(())
 }
 
 /// A host's authority that allows every change, so only the read turn's own
-/// `effects: none` holds, with one term on the keeper's `private` instance
-/// when the host grants one: `verbs` over the keeper's streams that begin
-/// with `streams`, for the read turn and the keeper.
-fn keeper_authority(term: Option<(&str, &[&str], &str)>) -> String {
+/// `effects: none` holds, with a delegation on `private` when the host grants
+/// one: one term of `verbs` over the keeper's streams that begin with
+/// `streams`, for the read turn and the keeper.
+fn keeper_authority(term: Option<(&[&str], &str)>) -> String {
     let mut authority = json!({"effects": "allow", "reach": "workspace"});
-    if let Some((instance, verbs, streams)) = term {
-        let actor = json!({"type": "principal", "uri": "runx:principal:host:test"});
-        authority["actor_ref"] = actor.clone();
-        authority["mandate_ref"] = json!({"type": "mandate", "uri": "runx:mandate:test"});
+    if let Some((verbs, streams)) = term {
         authority["delegations"] = json!([{
-            "principal_ref": actor,
-            "resource_ref": {"type": "connector_instance", "uri": format!("runx:connector_instance:{instance}")},
-            "resource_family": "connector",
-            "verbs": verbs,
-            "bounds": {
-                "operations": ["private/*"],
-                "scopes": ["store.read", "store.append"],
-                "targets": [format!("{KEEPER_STREAMS}{streams}*")],
-                "packages": ["runx/agent", "project:keeper"],
-            },
+            "connector": "private",
+            "terms": [{
+                "verbs": verbs,
+                "bounds": {
+                    "operations": ["private/*"],
+                    "scopes": ["store.read", "store.append"],
+                    "targets": [format!("{KEEPER_STREAMS}{streams}*")],
+                    "packages": ["runx/agent", "project:keeper"],
+                },
+            }],
         }]);
     }
     authority.to_string()
@@ -565,7 +563,7 @@ fn keeper_authority(term: Option<(&str, &[&str], &str)>) -> String {
 /// connectors the turn doesn't, so its first load in the home waits on the
 /// person's trust, which they give.
 fn keeper_call(root: &Path, authority: &str, method: &str, input: Value) -> TestResult<Value> {
-    let run = start_session(command(root), "read", authority)?;
+    let run = start_session(command(root), command(root), "read", authority)?;
     let load = json!({"skill": "skills/keeper", "method": method});
     let loaded = turn_call(command(root), &run, "read", "load", load)?;
     if let Some(trust) = waiting_approval(&loaded).filter(|gate| gate["gate"]["type"] == "trust") {
@@ -629,8 +627,8 @@ fn refused_at(called: &Value, step: &str, reason: &str) -> bool {
 fn a_read_turn_keeps_the_persons_words_in_said_on_private_under_its_hosts_term() -> TestResult {
     let root = crate::support::temp_root("runx-writes-read-remembers");
     std::fs::create_dir_all(&root)?;
-    let instance = keeper_project(&root)?;
-    let said = keeper_authority(Some((&instance, &["read", "write"], "said:")));
+    keeper_project(&root)?;
+    let said = keeper_authority(Some((&["read", "write"], "said:")));
 
     let kept_words = keeper_call(
         &root,
@@ -641,6 +639,11 @@ fn a_read_turn_keeps_the_persons_words_in_said_on_private_under_its_hosts_term()
     assert_eq!(kept_words["status"], "completed", "{kept_words}");
     let appended = &kept_words["output"]["provider_operation"]["data"]["result"];
     assert_eq!(appended["status"], "committed", "{kept_words}");
+    // A loaded workspace package writes under its own name, not its loader's.
+    assert_eq!(
+        appended["stream"], "project:keeper/said:personal",
+        "{kept_words}"
+    );
     assert_eq!(
         kept(&root, &said, "said:personal")?,
         vec![json!("I write in Australian English.")]
@@ -653,9 +656,9 @@ fn a_read_turn_keeps_the_persons_words_in_said_on_private_under_its_hosts_term()
 fn a_read_turn_without_its_hosts_term_keeps_nothing() -> TestResult {
     let root = crate::support::temp_root("runx-writes-read-no-term");
     std::fs::create_dir_all(&root)?;
-    let instance = keeper_project(&root)?;
+    keeper_project(&root)?;
     let words = json!({"stream": "said:personal", "text": "Call me Sam."});
-    let reading = keeper_authority(Some((&instance, &["read"], "said:")));
+    let reading = keeper_authority(Some((&["read"], "said:")));
 
     // No term at all: no call on private is made.
     let called = keeper_call(&root, &keeper_authority(None), "keep", words.clone())?;
@@ -680,8 +683,8 @@ fn a_read_turn_without_its_hosts_term_keeps_nothing() -> TestResult {
 fn a_read_turn_keeps_nothing_but_said_on_private_whatever_its_term_reaches() -> TestResult {
     let root = crate::support::temp_root("runx-writes-read-only-said");
     std::fs::create_dir_all(&root)?;
-    let instance = keeper_project(&root)?;
-    let everything = keeper_authority(Some((&instance, &["read", "write"], "")));
+    keeper_project(&root)?;
+    let everything = keeper_authority(Some((&["read", "write"], "")));
 
     // An observation, and streams that only start like the person's words.
     for stream in ["observed:personal", "saidx:personal", "said"] {

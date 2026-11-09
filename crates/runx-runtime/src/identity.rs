@@ -134,8 +134,9 @@ impl ChainLink {
     /// by `reference`. A reference's form says what the child is (§4.8): a
     /// `registry:` dependency is its own `<publisher>/<name>`, verified as
     /// `signed`, or the person's own copy as it binds by itself; `runx/<name>`
-    /// is the skill this runx bundles; and any other reference is code this
-    /// package incorporates, its streams in this package's namespace.
+    /// is the skill this runx bundles; code inside this package is code it
+    /// incorporates, its streams in this package's namespace; and a package
+    /// anywhere else, such as a workspace skill a turn loads, binds by itself.
     ///
     /// # Errors
     ///
@@ -160,6 +161,13 @@ impl ChainLink {
         if crate::registry::is_bundled_reference(reference) {
             return Self::of(&bundled_skill_identity(reference, loaded, env)?, loaded);
         }
+        if !carries(&self.root, &loaded.package_root) {
+            let identity = match signed {
+                Some(signed) => PackageIdentity::Signed(signed.clone()),
+                None => skill_identity(loaded, env)?,
+            };
+            return Self::of(&identity, loaded);
+        }
         Ok(Self {
             package: self.package.clone(),
             owner: format!("{}/{}", self.owner, loaded.package.skill.name),
@@ -167,6 +175,13 @@ impl ChainLink {
             digest: loaded.package.package_digest.clone(),
         })
     }
+}
+
+/// Whether the package rooted at `carrier` carries the one rooted at
+/// `package`: it lives inside it. Only such code is incorporated and writes
+/// under its carrier; a package anywhere else is bound by itself (§4.8).
+pub(crate) fn carries(carrier: &std::path::Path, package: &std::path::Path) -> bool {
+    package != carrier && package.starts_with(carrier)
 }
 
 /// The identity of the skill package `loaded`, bound by itself: from its
