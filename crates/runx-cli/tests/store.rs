@@ -1795,6 +1795,36 @@ methods:
     Ok(())
 }
 
+/// The host's ceiling on the calls a run has executing at once is its
+/// resource policy, `RUNX_MAX_CONCURRENCY`, a positive integer: anything
+/// else and the host refuses to start the run.
+#[test]
+fn a_host_refuses_to_start_under_a_concurrency_ceiling_that_is_no_positive_integer() -> TestResult {
+    let project = Project::new("runx-host-concurrency")?;
+    project.skill("own", COUNTER)?;
+    for refused in ["0", "x"] {
+        let ran = project
+            .runx()?
+            .env("RUNX_MAX_CONCURRENCY", refused)
+            .args(["skill", "skills/own#inspect", "-i", "key=k", "--json"])
+            .output()?;
+        assert!(!ran.status.success(), "{refused}: {}", printed(&ran));
+        assert!(
+            printed(&ran).contains("RUNX_MAX_CONCURRENCY"),
+            "{}",
+            printed(&ran)
+        );
+    }
+    let ran = project
+        .runx()?
+        .env("RUNX_MAX_CONCURRENCY", "32")
+        .args(["skill", "skills/own#inspect", "-i", "key=k"])
+        .args(["--run-authority", r#"{"max_concurrency":64}"#, "--json"])
+        .output()?;
+    assert_eq!(json(&ran, 0)?["outcome"], "completed");
+    Ok(())
+}
+
 // Nobody can publish under `project`.
 
 #[test]

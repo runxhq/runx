@@ -376,45 +376,76 @@ mod tests {
         Ok(())
     }
 
-    /// `max_concurrency` bounds the calls a run has executing at once, from 1
-    /// to the kernel's ceiling, which is what applies when a host states none;
-    /// a step's `concurrency` only narrows it, and a child run keeps it
-    /// (authority.md, §4.11).
+    /// `max_concurrency` is any positive integer: the ceiling it's narrowed
+    /// to is the host's resource policy, not the type's. What runs at once is
+    /// the least of a step's `concurrency`, the authority's limit and the
+    /// host's ceiling, and a child run keeps its parent's (authority.md, §4.11).
     #[test]
-    fn max_concurrency_is_one_to_the_kernel_ceiling_and_a_step_only_narrows_it()
+    fn max_concurrency_is_narrowed_to_the_hosts_ceiling_and_a_step_only_narrows_it()
     -> Result<(), serde_json::Error> {
-        use super::{MAX_CONCURRENCY_CEILING, run_concurrency, step_concurrency};
+        use super::{run_concurrency, step_concurrency};
+        use crate::execution::runner::DEFAULT_MAX_CONCURRENCY;
         let read = |value: serde_json::Value| serde_json::from_value::<RunAuthority>(value);
-        let two = read(serde_json::json!({"max_concurrency": 2}))?;
-        assert_eq!(run_concurrency(Some(&two)), 2);
+        let host =
+            |ceiling: u32| std::num::NonZeroU32::new(ceiling).unwrap_or(DEFAULT_MAX_CONCURRENCY);
+        let sixty_four = read(serde_json::json!({"max_concurrency": 64}))?;
         assert!(
             read(serde_json::json!({"max_concurrency": 0})).is_err(),
             "0 runs nothing"
         );
-        assert!(
-            read(serde_json::json!({"max_concurrency": MAX_CONCURRENCY_CEILING + 1})).is_err(),
-            "a host sets it under the kernel's ceiling"
-        );
-        assert!(read(serde_json::json!({"max_concurrency": MAX_CONCURRENCY_CEILING})).is_ok());
-        // With none stated, the ceiling applies.
-        assert_eq!(run_concurrency(None), MAX_CONCURRENCY_CEILING);
+        assert!(read(serde_json::json!({"max_concurrency": -1})).is_err());
+        // 64 under a host policy of 32 runs at most 32 at once.
+        assert_eq!(run_concurrency(Some(&sixty_four), host(32)), 32);
+        assert_eq!(step_concurrency(Some(&sixty_four), host(32), 100), 32);
+        // With no policy, the CLI's conservative default.
+        assert_eq!(DEFAULT_MAX_CONCURRENCY.get(), 16);
         assert_eq!(
-            run_concurrency(Some(&RunAuthority::default())),
-            MAX_CONCURRENCY_CEILING
+            run_concurrency(Some(&sixty_four), DEFAULT_MAX_CONCURRENCY),
+            16
         );
-        // A step's concurrency only narrows the run's.
-        assert_eq!(step_concurrency(Some(&two), 4), 2);
-        assert_eq!(step_concurrency(Some(&two), 1), 1);
-        assert_eq!(step_concurrency(None, 4), 4);
-        assert_eq!(step_concurrency(None, 64), MAX_CONCURRENCY_CEILING);
-        // A child run holds its parent's.
+        assert_eq!(run_concurrency(None, DEFAULT_MAX_CONCURRENCY), 16);
+        // A narrower authority, or step, narrows further.
+        let two = read(serde_json::json!({"max_concurrency": 2}))?;
+        assert_eq!(step_concurrency(Some(&two), host(32), 4), 2);
+        assert_eq!(step_concurrency(Some(&two), host(32), 1), 1);
+        assert_eq!(step_concurrency(None, host(32), 4), 4);
         let child = RunAuthority::of_step(Some(two.clone()), &step(None, None));
-        assert_eq!(run_concurrency(child.as_ref()), 2);
+        assert_eq!(run_concurrency(child.as_ref(), host(32)), 2);
         assert_eq!(
             serde_json::to_value(&two)?,
             serde_json::json!({"max_concurrency": 2})
         );
         Ok(())
+    }
+
+    /// The CLI host reads its ceiling from `RUNX_MAX_CONCURRENCY`, a positive
+    /// integer, and refuses anything else; absent, the conservative default.
+    #[test]
+    fn the_host_reads_its_ceiling_from_its_environment() {
+        use crate::execution::runner::{DEFAULT_MAX_CONCURRENCY, host_max_concurrency};
+        let env = |value: Option<&str>| {
+            value
+                .map(|value| ("RUNX_MAX_CONCURRENCY".to_owned(), value.to_owned()))
+                .into_iter()
+                .collect::<std::collections::BTreeMap<_, _>>()
+        };
+        assert_eq!(
+            host_max_concurrency(&env(None)),
+            Ok(DEFAULT_MAX_CONCURRENCY)
+        );
+        assert_eq!(
+            host_max_concurrency(&env(Some("32"))).map(std::num::NonZeroU32::get),
+            Ok(32)
+        );
+        for refused in ["0", "x", "-1", "", "1.5", " 4"] {
+            let refusal = host_max_concurrency(&env(Some(refused)))
+                .err()
+                .unwrap_or_default();
+            assert!(
+                refusal.contains("RUNX_MAX_CONCURRENCY"),
+                "{refused:?}: {refusal}"
+            );
+        }
     }
 
     #[test]
