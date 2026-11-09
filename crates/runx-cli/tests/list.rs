@@ -49,7 +49,7 @@ fn list_marks_a_workflow_stage_internal_with_its_own_description()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("runx-list-workflow-stage");
     let skill = root.join("skills/reply");
-    let stage = skill.join("graph/draft");
+    let stage = skill.join("workflow/draft");
     fs::create_dir_all(&stage)?;
     fs::write(
         skill.join("SKILL.md"),
@@ -57,7 +57,7 @@ fn list_marks_a_workflow_stage_internal_with_its_own_description()
     )?;
     fs::write(
         skill.join("run.yaml"),
-        "version: 1.0.0\nminimum_runx: 0.12.0\nmethods:\n  reply:\n    steps:\n      - id: draft\n        skill: ./graph/draft\n",
+        "version: 1.0.0\nminimum_runx: 0.12.0\nmethods:\n  reply:\n    steps:\n      - id: draft\n        skill: ./workflow/draft\n",
     )?;
     fs::write(
         stage.join("SKILL.md"),

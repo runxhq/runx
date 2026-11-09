@@ -269,7 +269,7 @@ fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), Runt
                     reason: format!("context skill '{reference}' must not contain '..'"),
                 });
             }
-            Component::Normal(name) if name == "graph" => {
+            Component::Normal(name) if name == "workflow" => {
                 return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!("context skill '{reference}' must not target workflow stages"),
@@ -285,4 +285,24 @@ fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), Runt
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_local_context_ref;
+
+    /// A skill's stages live in its `workflow/` folder, so a local context ref
+    /// into it is refused, and the folder's old name is a plain path now.
+    #[test]
+    fn a_local_context_ref_never_loads_a_workflow_stage() -> Result<(), String> {
+        let refused = match validate_local_context_ref("apply", "workflow/plan") {
+            Ok(()) => return Err("a context ref into workflow/ was accepted".to_owned()),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            refused.contains("context skill 'workflow/plan' must not target workflow stages"),
+            "{refused}"
+        );
+        validate_local_context_ref("apply", "graph/plan").map_err(|error| error.to_string())
+    }
 }

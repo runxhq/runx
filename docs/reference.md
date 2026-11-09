@@ -1058,7 +1058,7 @@ The runx-maintained catalog is explicit about why each package is public:
 
 Other bundled packages stay in the same `SKILL.md` + `run.yaml` shape, but are
 internal, with `catalog.visibility: internal`. Owned workflow stages live below
-their public skill at `skills/<skill>/graph/<stage>/run.yaml`, not as root
+their public skill at `skills/<skill>/workflow/<stage>/run.yaml`, not as root
 catalog packages.
 
 For first-party skill proposal work, the core builder bar is explicit:

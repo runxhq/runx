@@ -347,12 +347,12 @@ mod tests {
         let root = Path::new("/tmp/bundle");
         assert!(!reference_escapes_bundle(
             root,
-            &root.join("graph/plan"),
+            &root.join("workflow/plan"),
             "../../internal"
         ));
         assert!(reference_escapes_bundle(
             root,
-            &root.join("graph"),
+            &root.join("workflow"),
             "../../external"
         ));
     }

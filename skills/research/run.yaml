@@ -140,7 +140,7 @@ methods:
           source_index: {optional: true}
 
       - id: analyze
-        skill: graph/analyze#analyze
+        skill: workflow/analyze#analyze
         inputs:
           objective: $input.objective
           domain: $input.domain
@@ -207,7 +207,7 @@ methods:
           source_index: {optional: true}
 
       - id: analyze
-        skill: graph/analyze#analyze
+        skill: workflow/analyze#analyze
         inputs:
           objective: $input.objective
           domain: $input.domain

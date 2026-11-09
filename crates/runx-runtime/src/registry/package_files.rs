@@ -144,18 +144,18 @@ mod tests {
     fn bundle_digest_uses_locale_independent_path_ordering() {
         let files = vec![
             RegistryPackageFile {
-                path: "graph/plan/run.yaml".to_owned(),
+                path: "workflow/plan/run.yaml".to_owned(),
                 content: "graph\n".to_owned(),
             },
             RegistryPackageFile {
-                path: "graph/plan/SKILL.md".to_owned(),
+                path: "workflow/plan/SKILL.md".to_owned(),
                 content: "manual\n".to_owned(),
             },
         ];
 
         assert_eq!(
             registry_bundle_digest(&files).as_deref(),
-            Some("sha256:70f0608aac8193a5b10fdf5f9b9d5d3be4f836ef6a8d8ce58b803698cada3d90")
+            Some("sha256:53bf6611ffb51a07f0fd55c0fed1c1de3547e8056553a6060c09de5f8141a786")
         );
     }
 }

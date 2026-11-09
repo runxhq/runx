@@ -1776,32 +1776,62 @@ fn workflow_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn
     )?;
     let skill_dir = write_workflow_agent_task_with_context_skill(temp.path(), "../taste-profile")?;
 
-    let error = match run_skill(SkillRunRequest {
+    let error = context_skill_refusal(temp.path(), skill_dir)?;
+    assert!(
+        error.contains("context skill ref \"../taste-profile\" must not traverse the package"),
+        "unexpected error: {error}"
+    );
+
+    Ok(())
+}
+
+/// A stage in a skill's `workflow/` folder runs only inside its workflow, so
+/// no step loads one as context.
+#[test]
+fn workflow_agent_task_rejects_a_context_skill_in_its_workflow_stages()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_workflow_agent_task_with_context_skill(temp.path(), "workflow/plan")?;
+    let stage = skill_dir.join("workflow/plan");
+    fs::create_dir_all(&stage)?;
+    fs::write(
+        stage.join("SKILL.md"),
+        "---\nname: plan\ndescription: plan stage fixture.\n---\n# Plan\n",
+    )?;
+
+    let error = context_skill_refusal(temp.path(), skill_dir)?;
+    assert!(
+        error.contains(
+            "context skill ref \"workflow/plan\" must not target an internal workflow stage"
+        ),
+        "unexpected error: {error}"
+    );
+
+    Ok(())
+}
+
+/// The error a run of `skill_dir` fails with, refusing its context skill.
+fn context_skill_refusal(
+    root: &Path,
+    skill_dir: PathBuf,
+) -> Result<String, Box<dyn std::error::Error>> {
+    match run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
         act: None,
         skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
+        receipt_dir: Some(root.join("receipts")),
         run_id: None,
         answers: None,
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
-        cwd: temp.path().to_path_buf(),
+        cwd: root.to_path_buf(),
         managed_agent: Default::default(),
     }) {
-        Ok(_) => return Err("parent-path context skill should fail".into()),
-        Err(error) => error,
-    };
-
-    assert!(
-        error
-            .to_string()
-            .contains("context skill ref \"../taste-profile\" must not traverse the package"),
-        "unexpected error: {error}"
-    );
-
-    Ok(())
+        Ok(_) => Err("a refused context skill ran".into()),
+        Err(error) => Ok(error.to_string()),
+    }
 }
 
 #[test]
@@ -3794,7 +3824,7 @@ methods:
 
 fn write_workflow_stage_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("workflow-stage-cli");
-    let stage_dir = skill_dir.join("graph/child-echo");
+    let stage_dir = skill_dir.join("workflow/child-echo");
     crate::support::write_test_skill_package(
         &stage_dir,
         r#"---
@@ -3845,7 +3875,7 @@ methods:
       - nested
     steps:
       - id: nested
-        skill: graph/child-echo
+        skill: workflow/child-echo
         inputs:
           message: $input.thread_title
 "#,

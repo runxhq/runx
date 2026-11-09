@@ -297,11 +297,11 @@ fn skill_package_refuses_a_run_yaml_without_its_manual() {
             "minimum_runx: 0.12.0\nmethods:\n  inspect:\n    steps:\n      - id: inspect\n        agent: inspect\n".to_owned(),
         ),
         (
-            "graph/plan/run.yaml",
+            "workflow/plan/run.yaml",
             "minimum_runx: 0.12.0\nmethods:\n  plan:\n    steps:\n      - id: plan\n        tool: {module: plan.mjs}\n".to_owned(),
         ),
         (
-            "graph/plan/plan.mjs",
+            "workflow/plan/plan.mjs",
             "export default (inputs) => inputs;\n".to_owned(),
         ),
     ]);
@@ -310,14 +310,14 @@ fn skill_package_refuses_a_run_yaml_without_its_manual() {
         .expect_err("a run.yaml without its manual must fail");
     assert!(
         error.to_string().contains(
-            "graph/plan/run.yaml: a run.yaml sits beside the SKILL.md that names its package"
+            "workflow/plan/run.yaml: a run.yaml sits beside the SKILL.md that names its package"
         ),
         "{error}"
     );
 
     let mut owned = source;
     owned.files.insert(
-        "graph/plan/SKILL.md".to_owned(),
+        "workflow/plan/SKILL.md".to_owned(),
         manual("operator-plan").into_bytes(),
     );
     let validated = validate_skill_package(owned).expect("a nested package must validate");
@@ -326,9 +326,9 @@ fn skill_package_refuses_a_run_yaml_without_its_manual() {
         vec!["run.yaml"]
     );
     for path in [
-        "graph/plan/SKILL.md",
-        "graph/plan/run.yaml",
-        "graph/plan/plan.mjs",
+        "workflow/plan/SKILL.md",
+        "workflow/plan/run.yaml",
+        "workflow/plan/plan.mjs",
     ] {
         assert!(validated.consumed_files.contains(path), "{path}");
     }

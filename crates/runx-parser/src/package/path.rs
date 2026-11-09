@@ -119,7 +119,7 @@ pub(super) fn normalize_context_ref(
             format!("context skill ref {reference:?} must not traverse the package"),
         ));
     }
-    if segments.contains(&"graph") {
+    if segments.contains(&"workflow") {
         return Err(SkillPackageError::invalid(
             super::PROFILE_FILE,
             format!("context skill ref {reference:?} must not target an internal workflow stage"),

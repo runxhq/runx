@@ -23,8 +23,8 @@ export const PROSE_ONLY = new Set(["graph"]);
 /**
  * The paths the graph's rename moves: the parser's workflow module, the
  * runtime's two workflow files, and the test fixtures' folder of workflow
- * packages. A skill's own `graph/` folder of stage packages is the package
- * format's, and keeps its name.
+ * packages. A skill's own folder of stage packages is `workflow/` by a
+ * ruling made by hand with the refusals that name it, not by this table.
  */
 export const MOVED_PATHS = /^(crates\/runx-parser\/src\/graph(\.rs$|\/)|crates\/runx-runtime\/src\/execution\/(skill_front\/)?graph\.rs$|fixtures\/graphs\/)/;
 const MOVED_REFERENCE = /runx-parser\/src\/graph|src\/graph\/|execution\/graph\.rs|skill_front\/graph\.rs|fixtures\/graphs/;

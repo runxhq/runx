@@ -94,7 +94,7 @@ The gates are intentionally narrow:
 
 - `context.skills` is accepted only on `agent` steps.
 - Local refs must be relative paths, must not contain `..` or pass through a
-  directory named `graph`, and must be valid skill packages.
+  directory named `workflow`, and must be valid skill packages.
 - Registry refs resolve only from the project's fetched skills, and a fetched
   skill is read only once its signature verifies at the version the ref pins.
 - A step takes at most 128 context skills, and their resolved context is

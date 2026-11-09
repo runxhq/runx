@@ -136,7 +136,7 @@ describe("registry skill native fetch", () => {
       expect((output as { status?: string }).status).toBe("ok");
       // Inspecting is not using: the package is read into the home's inspection cache (N6).
       const skillPath = findAddedSkillPath(path.join(globalHomeDir, "inspected"), "acme/research");
-      expect((await stat(path.join(skillPath, "graph", "analyze", "run.yaml"))).isFile()).toBe(true);
+      expect((await stat(path.join(skillPath, "workflow", "analyze", "run.yaml"))).isFile()).toBe(true);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

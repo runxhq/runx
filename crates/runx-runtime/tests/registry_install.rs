@@ -355,7 +355,7 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
 
     let package_root = install.destination.parent().ok_or("missing package root")?;
     assert_eq!(
-        std::fs::read_to_string(package_root.join("graph/stage/run.mjs"))?,
+        std::fs::read_to_string(package_root.join("workflow/stage/run.mjs"))?,
         "console.log('installed');\n"
     );
     assert_eq!(
@@ -367,7 +367,7 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
         "# Operator\n"
     );
     assert_eq!(
-        std::fs::read_to_string(package_root.join("graph/stage/run.yaml"))?,
+        std::fs::read_to_string(package_root.join("workflow/stage/run.yaml"))?,
         stage_profile()
     );
     assert_eq!(
@@ -857,7 +857,7 @@ fn profile_digest() -> String {
 fn package_files_fixture() -> Vec<RegistryPackageFile> {
     vec![
         RegistryPackageFile {
-            path: "graph/stage/run.mjs".to_owned(),
+            path: "workflow/stage/run.mjs".to_owned(),
             content: "console.log('installed');\n".to_owned(),
         },
         RegistryPackageFile {
@@ -871,11 +871,11 @@ fn package_files_fixture() -> Vec<RegistryPackageFile> {
             content: "# Operator\n".to_owned(),
         },
         RegistryPackageFile {
-            path: "graph/stage/SKILL.md".to_owned(),
+            path: "workflow/stage/SKILL.md".to_owned(),
             content: stage_manual().to_owned(),
         },
         RegistryPackageFile {
-            path: "graph/stage/run.yaml".to_owned(),
+            path: "workflow/stage/run.yaml".to_owned(),
             content: stage_profile().to_owned(),
         },
         RegistryPackageFile {

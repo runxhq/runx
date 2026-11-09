@@ -762,7 +762,7 @@ mod tests {
         let id = PacketId::new("acme/nitro.provider_evidence.v1").ok_or("id")?;
         let evidence = packet("acme/nitro.provider_evidence.v1", "object")?;
         let nested = |root: &Path| -> Result<PathBuf, std::io::Error> {
-            let stage = root.join("graph/provider-operation");
+            let stage = root.join("workflow/provider-operation");
             fs::create_dir_all(&stage)?;
             fs::write(
                 stage.join("SKILL.md"),
@@ -835,7 +835,7 @@ mod tests {
             owner.join("packets/provider_evidence.v1.schema.json"),
             &evidence,
         )?;
-        let stage = owner.join("graph/provider-operation");
+        let stage = owner.join("workflow/provider-operation");
         fs::create_dir_all(&stage)?;
         fs::write(
             stage.join("SKILL.md"),
