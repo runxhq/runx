@@ -315,7 +315,7 @@ mod tests {
     /// A delegation names its connector and holds one or more terms, each its
     /// own verbs and bounds (authority.md), and a run's packages never repeat.
     #[test]
-    fn a_delegation_names_its_connector_and_holds_one_or_more_terms() -> Result<(), String> {
+    fn a_delegation_names_its_connector_and_one_or_more_terms() -> Result<(), String> {
         let read = |value: serde_json::Value| serde_json::from_value::<RunAuthority>(value);
         let term = |verbs: &[&str], targets: &[&str]| {
             serde_json::json!({
