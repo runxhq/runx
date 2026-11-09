@@ -20,7 +20,6 @@ pub mod doctor;
 pub mod execution;
 pub mod execution_boundary;
 pub mod execution_requirements;
-pub mod external_job;
 pub mod host_protocol;
 pub mod javascript_worker;
 pub mod json;
@@ -99,14 +98,6 @@ pub use execution_boundary::{ExecutionBoundaryKind, ExecutionBoundaryObservation
 pub use execution_requirements::{
     AgentExecutionRequirements, EnvironmentRequirementStatus, EnvironmentRequirements,
 };
-pub use external_job::{
-    EXTERNAL_JOB_CONTINUATION_SCHEMA, EXTERNAL_JOB_SCHEDULE_INTENT_SCHEMA,
-    EXTERNAL_JOB_SCHEDULE_SCHEMA, EXTERNAL_JOB_STAGE_REQUEST_SCHEMA,
-    EXTERNAL_JOB_STAGE_RESULT_SCHEMA, ExternalJobAttemptLimit, ExternalJobCheckpoint,
-    ExternalJobContinuation, ExternalJobDeadlineMillis, ExternalJobDelayMillis, ExternalJobFailure,
-    ExternalJobSchedule, ExternalJobScheduleIntent, ExternalJobScheduleIntentSchema,
-    ExternalJobStage, ExternalJobStageRequest, ExternalJobStageResult, ExternalJobState,
-};
 pub use host_protocol::{
     AllowedOperation, ApprovalGate, BoundClosure, CallTarget, CatalogRule, CatalogTrust,
     ExecutionEvent, LoadedMethod, LoadedMethodInput, LoadedPackage, PURCHASE_BALANCE_CHOICE,
@@ -179,9 +170,8 @@ pub use packet_id::{
     PACKET_ID_EXPECTED, PACKET_ID_MAX_LENGTH, PACKET_ID_PATTERN, PacketId, is_packet_id,
 };
 pub use paid_skill_listing::{
-    PAID_SKILL_LISTING_SCHEMA, PaidSkillExecutorBinding, PaidSkillListing, PaidSkillMethodOffer,
-    PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PriceChoice,
-    PriceError, RequiredLease,
+    PAID_SKILL_LISTING_SCHEMA, PaidSkillListing, PaidSkillMethodOffer, PaidSkillOfferTerms,
+    PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PriceChoice, PriceError, RequiredLease,
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use purchase::{

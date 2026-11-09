@@ -401,20 +401,6 @@ pub struct PaidSkillOfferTerms {
     pub requires_lease: Option<RequiredLease>,
 }
 
-/// An exact execution package: the skill and method, and the digests of the
-/// package and closure that run.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PaidSkillExecutorBinding {
-    pub skill: NonEmptyString,
-    pub method: NonEmptyString,
-    /// The execution package digest a run records (`runx.skill-package.v1`
-    /// over the files a run loads), not the registry's digest of the
-    /// published package files that a listing binds.
-    pub package_digest: Digest,
-    pub execution_closure_digest: Digest,
-}
-
 /// One immutable, registry-resolved method offer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]

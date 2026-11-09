@@ -251,20 +251,6 @@ export {
 } from "./schemas/list.js";
 
 export {
-  externalJobContinuationV1Schema,
-  externalJobScheduleV1Schema,
-  externalJobScheduleIntentV1Schema,
-  externalJobStageRequestV1Schema,
-  externalJobStageResultV1Schema,
-  validateExternalJobContinuationContract,
-  validateExternalJobScheduleContract,
-  validateExternalJobScheduleIntentContract,
-  externalJobScheduleIntentFromOutput,
-  validateExternalJobStageRequestContract,
-  validateExternalJobStageResultContract,
-} from "./schemas/external-job.js";
-
-export {
   receiptV1Schema,
   receiptSubjectSchema,
   receiptEnforcementSchema,
@@ -362,13 +348,6 @@ export {
 } from "./schemas/skill-output.js";
 
 import {
-  externalJobContinuationV1Schema,
-  externalJobScheduleV1Schema,
-  externalJobScheduleIntentV1Schema,
-  externalJobStageRequestV1Schema,
-  externalJobStageResultV1Schema,
-} from "./schemas/external-job.js";
-import {
   paidSkillListingV1Schema,
   purchaseV1Schema,
   offerVersionBindingV1Schema,
@@ -410,11 +389,6 @@ export const runxContractSchemas = {
   decision: runxSchemaArtifacts["decision.schema.json"],
   artifact: runxSchemaArtifacts["artifact.schema.json"],
   operationalPolicy: runxSchemaArtifacts["operational-policy.schema.json"],
-  externalJobContinuation: externalJobContinuationV1Schema,
-  externalJobSchedule: externalJobScheduleV1Schema,
-  externalJobScheduleIntent: externalJobScheduleIntentV1Schema,
-  externalJobStageRequest: externalJobStageRequestV1Schema,
-  externalJobStageResult: externalJobStageResultV1Schema,
   paidSkillListing: paidSkillListingV1Schema,
   purchase: purchaseV1Schema,
   offerVersionBinding: offerVersionBindingV1Schema,

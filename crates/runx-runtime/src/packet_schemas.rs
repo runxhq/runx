@@ -706,11 +706,11 @@ mod tests {
     #[test]
     fn core_packets_are_the_published_schema_bytes() -> Result<(), Box<dyn std::error::Error>> {
         let catalog = PacketSchemaCatalog::native_public()?;
-        let id = PacketId::new("runx.external_job_stage.request.v1").ok_or("id")?;
+        let id = PacketId::new("runx.provider.operation.v1").ok_or("id")?;
         let entry = catalog.get(&id).ok_or("core packet missing")?;
         let published = fs::read_to_string(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../schemas/external-job-stage-request.schema.json"),
+                .join("../../schemas/provider-operation.schema.json"),
         )?;
         assert_eq!(entry.source, published);
         assert_eq!(
