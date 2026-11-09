@@ -42,8 +42,10 @@ export interface SkillInspectOptions extends InvocationOptions {
 }
 
 /**
- * A trusted host's authority for one run, as `runx skill --run-authority`
- * reads it. The run record binds it; a resumed run keeps it.
+ * A trusted host's authority for one run or inspection. The client saves it
+ * in the runx home, for the workspace `cwd` names, under a name its content
+ * gives (`runx authority save`), and names it with `--authority`. The run
+ * record binds it; a resumed run keeps it.
  */
 export interface RunAuthority {
   /**

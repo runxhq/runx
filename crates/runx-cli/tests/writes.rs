@@ -26,13 +26,19 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 /// tools stay inside the workspace.
 const ASKING: &str = r#"{"effects":"ask","reach":"workspace"}"#;
 
-/// Start the bundled `agent` at `method` under `authority`, and stop
-/// at its turn, which is named for the method.
-fn start_session(mut runx: Command, method: &str, authority: &str) -> TestResult<String> {
+/// Start the bundled `agent` at `method` under `authority`, which `save`
+/// saves as a host does, and stop at its turn, which is named for the method.
+fn start_session(
+    mut runx: Command,
+    save: Command,
+    method: &str,
+    authority: &str,
+) -> TestResult<String> {
+    let name = crate::support::save_authority(save, authority)?;
     let started = assert_json(
         &runx
             .args(["skill", &format!("agent#{method}")])
-            .args(["--run-authority", authority, "--json"])
+            .args(["--authority", &name, "--json"])
             .output()?,
         2,
     )?;
@@ -65,8 +71,9 @@ fn consent_stream() -> Value {
 fn a_turns_own_call_never_appends_to_a_stream_at_any_effects() -> TestResult {
     for (method, authority) in [("read", ASKING), ("write", r#"{"effects":"allow"}"#)] {
         let root = crate::support::temp_root("runx-writes-turn-append");
-        std::fs::create_dir_all(&root)?;
-        let run = start_session(command(&root), method, authority)?;
+        // A workspace, which a saved authority is for.
+        std::fs::create_dir_all(root.join("skills"))?;
+        let run = start_session(command(&root), command(&root), method, authority)?;
         let call = |tool: &str, input: Value| turn_call(command(&root), &run, method, tool, input);
 
         let loaded = call("load", json!({"connector": "store"}))?;
@@ -147,7 +154,8 @@ impl Slack {
             sent,
         };
         let project = root.join("project");
-        std::fs::create_dir_all(&project)?;
+        // A workspace, which a saved authority is for.
+        std::fs::create_dir_all(project.join("skills"))?;
         assert_json(
             &slack
                 .runx(&project)?
@@ -197,7 +205,7 @@ impl Slack {
         tool: &str,
         input: Value,
     ) -> TestResult<Value> {
-        let run = start_session(self.runx(project)?, method, authority)?;
+        let run = start_session(self.runx(project)?, self.runx(project)?, method, authority)?;
         let loaded = turn_call(
             self.runx(project)?,
             &run,
@@ -419,7 +427,12 @@ fn a_read_turn_changes_nothing_at_any_depth_whatever_its_host_allows() -> TestRe
             marker.display()
         ),
     )?;
-    let run = start_session(slack.runx(&project(&root))?, "read", allowing)?;
+    let run = start_session(
+        slack.runx(&project(&root))?,
+        slack.runx(&project(&root))?,
+        "read",
+        allowing,
+    )?;
     let loaded = turn_call(
         slack.runx(&project(&root))?,
         &run,

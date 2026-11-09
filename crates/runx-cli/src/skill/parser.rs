@@ -53,15 +53,9 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
                 .to_owned(),
         );
     }
-    // A saved authority and a host's are two ways to give a run its
-    // authority, and a run takes one.
+    // Authority is given one way, by a saved authority the run names; with
+    // none, `--max-spend` gives the run an authority that only bounds it.
     let (run_authority, authority) = match state.authority {
-        Some(_) if state.run_authority.is_some() => {
-            return Err(
-                "runx skill takes a saved authority with --authority <name> or a host's with --run-authority <json>, not both"
-                    .to_owned(),
-            );
-        }
         Some(name) => (
             None,
             Some(NamedAuthority {
@@ -69,7 +63,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
                 max_spend_micro_usd: state.max_cost,
             }),
         ),
-        None => (limit_run(state.run_authority, state.max_cost)?, None),
+        None => (limit_run(None, state.max_cost)?, None),
     };
     if action == SkillAction::Inspect
         && (state.expected_package_digest.is_some()
@@ -115,8 +109,8 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
 }
 
 /// `--max-spend <usd>`: the most the run, its child runs included, may spend.
-/// It sets the run authority's money limit, so a direct run gets an authority
-/// that only bounds it.
+/// It sets the money limit of the authority the run names, or gives a run
+/// that names none an authority that only bounds it.
 pub(super) fn limit_run(
     authority: Option<Box<runx_runtime::RunAuthority>>,
     max_spend_micro_usd: Option<u64>,
@@ -130,7 +124,7 @@ pub(super) fn limit_run(
         .is_some_and(|stated| stated != limit)
     {
         return Err(
-            "runx skill --max-spend and the --run-authority money limit differ; state the limit once"
+            "runx skill --max-spend and the saved authority's money limit differ; state the limit once"
                 .to_owned(),
         );
     }
@@ -183,13 +177,6 @@ fn parse_context(value: &str) -> Result<Box<CallerContext>, String> {
         .map_err(|error| format!("runx skill --context must be JSON caller context: {error}"))
 }
 
-/// `--run-authority <json>`: a trusted host's authority for the run.
-fn parse_run_authority(value: &str) -> Result<Box<runx_runtime::RunAuthority>, String> {
-    serde_json::from_str(value).map_err(|error| {
-        format!("runx skill --run-authority must be a JSON run authority: {error}")
-    })
-}
-
 /// `--act <json>`: the act the invoker states for the run.
 fn parse_act(value: &str) -> Result<runx_contracts::CallAct, String> {
     let act = serde_json::from_str::<JsonValue>(value)
@@ -212,7 +199,6 @@ struct SkillParseState {
     inputs: CliInputs,
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
-    run_authority: Option<Box<runx_runtime::RunAuthority>>,
     authority: Option<String>,
     max_cost: Option<u64>,
     context: Option<Box<CallerContext>>,
@@ -362,15 +348,6 @@ fn parse_skill_arg(
         "--act" => {
             index += 1;
             state.act = Some(parse_act(&string_arg(args, index)?)?);
-        }
-        value if value.starts_with("--run-authority=") => {
-            state.run_authority = Some(parse_run_authority(
-                value.trim_start_matches("--run-authority="),
-            )?);
-        }
-        "--run-authority" => {
-            index += 1;
-            state.run_authority = Some(parse_run_authority(&string_arg(args, index)?)?);
         }
         value if value.starts_with("--authority=") => {
             state.authority = Some(value.trim_start_matches("--authority=").to_owned());
@@ -527,41 +504,51 @@ mod tests {
     }
 
     #[test]
-    fn max_cost_joins_a_host_authority_and_never_contradicts_it() -> Result<(), String> {
-        let host =
-            r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_fanout":2}"#;
-        let joined = plan(&[
+    fn max_cost_joins_a_saved_authority_and_never_contradicts_it() -> Result<(), String> {
+        let named = plan(&[
             "skill",
             "skills/research",
-            "--run-authority",
-            host,
+            "--authority",
+            "ops",
             "--max-spend",
             "1",
-        ])?
-        .run_authority
-        .ok_or("no run authority")?;
+        ])?;
+        assert_eq!(
+            named.authority,
+            Some(super::NamedAuthority {
+                name: "ops".to_owned(),
+                max_spend_micro_usd: Some(1_000_000),
+            })
+        );
+        assert_eq!(
+            named.run_authority, None,
+            "it applies once the authority is read"
+        );
+        let saved = |limit: Option<u64>| {
+            Some(Box::new(runx_runtime::RunAuthority {
+                max_fanout: Some(2),
+                max_spend_micro_usd: limit,
+                ..runx_runtime::RunAuthority::default()
+            }))
+        };
+        let joined = super::limit_run(saved(None), Some(1_000_000))?.ok_or("an authority")?;
         assert_eq!(
             (joined.max_fanout, joined.max_spend_micro_usd),
             (Some(2), Some(1_000_000))
         );
-        assert!(joined.actor_ref.is_some());
-
-        let stated = r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_spend_micro_usd":500000}"#;
-        let Err(error) = plan(&[
-            "skill",
-            "skills/research",
-            "--run-authority",
-            stated,
-            "--max-spend",
-            "1",
-        ]) else {
-            return Err("two different limits parsed".to_owned());
+        let Err(error) = super::limit_run(saved(Some(500_000)), Some(1_000_000)) else {
+            return Err("two different limits joined".to_owned());
         };
         assert!(error.contains("state the limit once"), "{error}");
         let Err(error) = plan(&["skill", "inspect", "skills/research", "--max-spend", "1"]) else {
             return Err("inspect took a money limit".to_owned());
         };
         assert!(error.contains("bind a run"), "{error}");
+        // Authority is given one way: inline JSON is no flag.
+        let Err(error) = plan(&["skill", "skills/research", "--run-authority", "{}"]) else {
+            return Err("--run-authority parsed".to_owned());
+        };
+        assert!(error.contains("--run-authority"), "{error}");
         Ok(())
     }
 

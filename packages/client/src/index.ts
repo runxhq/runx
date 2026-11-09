@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { validateProcessContract, validateProcessListContract, validateProcessOutputContract, validateRunReadContract, validateRunxListReportContract, validateSkillInspectionContract } from "@runxhq/contracts";
 import { readProjectArtifact } from "./artifacts.js";
@@ -37,6 +38,15 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     if (text === undefined) throw new RunxClientError("input_limit", "Runx input is not JSON.");
     return text;
   };
+  // A host gives a run, or an inspection, its authority one way: saved in the
+  // runx home for this workspace and named (authority.md). It's saved under
+  // the name its content gives, so the same authority is one saved authority.
+  const authorityArgs = async (authority: RunAuthority | undefined, options: InvocationOptions): Promise<string[]> => {
+    if (!authority) return [];
+    const name = `host-${createHash("sha256").update(canonical(authority)).digest("hex").slice(0, 40)}`;
+    parseJson(await execute(["authority", "save", name, "-", "--json"], options, payload(authority)), [0]);
+    return ["--authority", name];
+  };
   return {
     skills: {
       list: async (options = {}) => {
@@ -44,13 +54,13 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         try { return validateRunxListReportContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill listing.", { cause: error }); }
       },
       inspect: async (options) => {
-        const output = parseJson(await execute(["skill", "inspect", skillReference(options.skillPath, options.method), ...authorityArgs(options.runAuthority), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
+        const output = parseJson(await execute(["skill", "inspect", skillReference(options.skillPath, options.method), ...(await authorityArgs(options.runAuthority, options)), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
         try { return validateSkillInspectionContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill inspection.", { cause: error }); }
       },
       run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
         if (options.binding && options.method && options.method !== options.binding.method) throw new TypeError("Selected method differs from the execution binding.");
-        const result = await execute(["skill", skillReference(options.skillPath, options.binding?.method ?? options.method), ...bindingArgs(options.binding), ...authorityArgs(options.runAuthority), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
+        const result = await execute(["skill", skillReference(options.skillPath, options.binding?.method ?? options.method), ...bindingArgs(options.binding), ...(await authorityArgs(options.runAuthority, options)), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
       },
     },
@@ -178,7 +188,12 @@ function skillReference(skillPath: string, method?: string): string {
   if (!method) throw new TypeError("Invalid method name.");
   return argument(`${skillPath}#${method}`);
 }
-function authorityArgs(authority?: RunAuthority): string[] { return authority ? ["--run-authority", JSON.stringify(authority)] : []; }
+/** `value` as JSON with every object's keys in order, so equal values read the same. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, field: unknown) => field !== null && typeof field === "object" && !Array.isArray(field)
+    ? Object.fromEntries(Object.entries(field).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)))
+    : field);
+}
 function bindingArgs(binding?: ExecutionBinding): string[] {
   if (!binding) return [];
   argument(binding.method);

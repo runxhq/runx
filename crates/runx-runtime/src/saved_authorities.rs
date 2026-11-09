@@ -53,7 +53,7 @@ pub enum SavedAuthorityError {
     )]
     OtherWorkspace { name: String },
     #[error(
-        "{path} is no workspace, so no saved authority is for it: a workspace is a directory with .git, skills/ or connectors/, or one RUNX_CWD names"
+        "{path} is no workspace, so no saved authority is for it: a workspace is a directory with .git, pnpm-workspace.yaml, skills/ or connectors/, or one inside it"
     )]
     NoWorkspace { path: String },
     #[error("the authority doesn't resolve in {workspace}: {reason}")]

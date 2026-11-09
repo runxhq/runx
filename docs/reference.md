@@ -470,7 +470,7 @@ durable histories behind data cursors rather than carrying either through workfl
 context.
 
 `runx skill inspect` also accepts `--inputs file|-`. Inspection binds known
-caller inputs to check concrete connector targets under `--run-authority`;
+caller inputs to check concrete connector targets under `--authority`;
 values produced by later steps remain unknown until execution. Every actual
 call rechecks its target and current grant before provider execution.
 

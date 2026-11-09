@@ -41,11 +41,11 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name | --run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help,
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name | --run-authority json] [-j] [--registry url] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help,
@@ -139,11 +139,11 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name | --run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help("skill"),
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name | --run-authority json] [-j] [--registry url] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--authority name] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help("skill"),
@@ -573,45 +573,29 @@ fn routes_canonical_skill_run_to_native_plan() {
 }
 
 #[test]
-fn a_host_gives_a_run_and_its_inspection_its_authority() -> Result<(), String> {
-    let authority =
-        r#"{"actor_ref":{"type":"principal","uri":"runx:principal:user_1"},"max_child_depth":2}"#;
-    let RouterAction::RunSkill(run) = plan(&["skill", "skills/echo", "--run-authority", authority])
-    else {
-        return Err("a run plan".to_owned());
+fn a_run_and_its_inspection_name_the_saved_authority_they_start_with() -> Result<(), String> {
+    let named = |action: &RouterAction| match action {
+        RouterAction::RunSkill(plan) => plan.authority.as_ref().map(|named| named.name.clone()),
+        _ => None,
     };
-    let authority = run.run_authority.ok_or("the run carries its authority")?;
-    assert_eq!(authority.max_child_depth, Some(2));
-    assert!(authority.delegations.is_empty());
-
-    assert!(matches!(
-        plan(&["skill", "skills/echo", "--run-authority", r#"{"actor":"x"}"#]),
-        RouterAction::Error(message) if message.contains("must be a JSON run authority")
-    ));
-    // Inspect projects readiness under the grants a host would state.
-    let RouterAction::RunSkill(inspect) = plan(&[
-        "skill",
-        "inspect",
-        "skills/echo",
-        "--run-authority",
-        r#"{"grants":{"ausca/inbox":"grant_ausca_1"}}"#,
-    ]) else {
-        return Err("an inspect plan".to_owned());
-    };
-    let grants = inspect
-        .run_authority
-        .ok_or("the inspection carries its authority")?
-        .grants;
     assert_eq!(
-        grants
-            .iter()
-            .map(|(connector, grant)| (connector.as_str(), grant.as_str()))
-            .collect::<Vec<_>>(),
-        [("ausca/inbox", "grant_ausca_1")]
+        named(&plan(&["skill", "skills/echo", "--authority", "ops"])),
+        Some("ops".to_owned())
     );
+    // Inspect projects readiness under the authority a run would name.
+    assert_eq!(
+        named(&plan(&[
+            "skill",
+            "inspect",
+            "skills/echo",
+            "--authority=ops"
+        ])),
+        Some("ops".to_owned())
+    );
+    // Authority is given one way: inline JSON is no flag.
     assert!(matches!(
-        plan(&["skill", "skills/echo", "--run-authority", r#"{"grants":{"Not A Name":"grant_1"}}"#]),
-        RouterAction::Error(message) if message.contains("must be a JSON run authority")
+        plan(&["skill", "skills/echo", "--run-authority", r#"{"grants":{}}"#]),
+        RouterAction::Error(message) if message.contains("--run-authority")
     ));
     assert!(matches!(
         plan(&["skill", "inspect", "skills/echo", "--max-spend", "1"]),

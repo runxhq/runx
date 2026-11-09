@@ -538,6 +538,21 @@ fn a_sqlite_store_refuses_a_file_that_is_not_a_store() {
     assert!(refused.contains("not a runx store"), "{refused}");
 }
 
+/// `private` keeps the person's own data in their runx home, so a home that
+/// fell back to the workspace, which a repository can ship, is refused.
+#[test]
+fn private_refuses_a_home_that_fell_back_to_the_workspace() {
+    let root = tempfile::tempdir().unwrap();
+    let mut private = Test::private(root.path());
+    private.env.remove("RUNX_HOME");
+    let refused = private
+        .call("events.append", append("k1", "a", 0, "one"))
+        .err()
+        .unwrap();
+    assert!(refused.contains("HOME"), "{refused}");
+    assert!(!root.path().join(".runx/private.sqlite").exists());
+}
+
 /// `store` and `private` share the driver and the tables and keep their
 /// own files: a `store` instance naming the private file is refused, so the
 /// person's own data is reached only through `private`, and the reverse.

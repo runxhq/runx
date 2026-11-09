@@ -214,8 +214,17 @@ impl Project {
         for (name, value) in inputs {
             command.args(["-i", &format!("{name}={value}")]);
         }
+        // A host gives a run its authority by saving it and naming it.
         if let Some(authority) = authority {
-            command.args(["--run-authority", &authority.to_string()]);
+            let name = format!(
+                "test-{}",
+                &runx_contracts::sha256_hex(authority.to_string().as_bytes())[..32]
+            );
+            let saved = self.save_authority(&name, authority, &[])?;
+            if !saved.status.success() {
+                return Ok(saved);
+            }
+            command.args(["--authority", &name]);
         }
         Ok(command.arg("--json").output()?)
     }
@@ -767,13 +776,19 @@ fn a_runs_packages_bound_every_calls_chain() -> TestResult {
     assert!(!none.status.success(), "{}", printed(&none));
 
     // Readiness says the same, through the same function.
+    json(
+        &project.save_authority("elsewhere", &packages(&["project:elsewhere"]), &[])?,
+        0,
+    )?;
     let inspected = json(
         &project
             .runx()?
-            .args(["skill", "inspect", "skills/own#bump"])
             .args([
-                "--run-authority",
-                &packages(&["project:elsewhere"]).to_string(),
+                "skill",
+                "inspect",
+                "skills/own#bump",
+                "--authority",
+                "elsewhere",
             ])
             .arg("--json")
             .output()?,
@@ -957,11 +972,18 @@ fn every_private_call_needs_a_term_and_lands_in_the_runx_home() -> TestResult {
     Ok(())
 }
 
+/// A home that fell back to the workspace keeps no saved authority, so no
+/// term reaches `private` there, and the person's file never lands in the
+/// workspace.
 #[test]
 fn private_refuses_a_home_that_fell_back_to_the_workspace() -> TestResult {
     let project = Project::new("runx-store-private-fallback")?;
     project.skill("notes", NOTES)?;
-    let term = private_term();
+    project.write(
+        ".runx/authorities/notes.json",
+        &json!({"workspaces": ["ws_00000000000000000000000000000000"], "authority": private_term()})
+            .to_string(),
+    )?;
     let mut command = crate::support::unsigned_runx_command_with_inherited_cwd();
     let ran = command
         .current_dir(&project.root)
@@ -976,10 +998,11 @@ fn private_refuses_a_home_that_fell_back_to_the_workspace() -> TestResult {
             "-i",
             "attempt=fell",
         ])
-        .args(["--run-authority", &term.to_string(), "--json"])
+        .args(["--authority", "notes", "--json"])
         .output()?;
     assert!(!ran.status.success(), "{}", printed(&ran));
     assert!(printed(&ran).contains("HOME"), "{}", printed(&ran));
+    assert!(!project.root.join(".runx/private.sqlite").exists());
     Ok(())
 }
 
@@ -1436,21 +1459,6 @@ fn a_saved_authority_applies_only_where_it_is_named() -> TestResult {
         !private.is_empty() && private.iter().all(|entry| entry["ready"] == true),
         "{inspected}"
     );
-    // A saved authority and an inline one never mix.
-    let both = project
-        .runx()?
-        .args([
-            "skill",
-            "skills/notes#recall",
-            "-i",
-            "key=tea",
-            "--authority",
-            "notes",
-        ])
-        .args(["--run-authority", &memory_authority().to_string(), "--json"])
-        .output()?;
-    assert!(!both.status.success(), "{}", printed(&both));
-
     // An explicit empty authority stays empty.
     json(&project.save_authority("empty", &json!({}), &[])?, 0)?;
     let empty = project.run_named("skills/notes#recall", &[("key", "tea")], "empty")?;
@@ -1530,7 +1538,14 @@ fn saving_an_authority_checks_it_resolves() -> TestResult {
     let mut stated = memory_authority();
     stated["delegations"][0]["resource_ref"] =
         json!({"type": "connector_instance", "uri": "runx:connector_instance:abc"});
-    for (name, authority) in [("nowhere", nowhere), ("stated", stated)] {
+    for (name, authority) in [
+        ("nowhere", nowhere),
+        ("stated", stated),
+        // A run authority refuses a field it doesn't know, and names its
+        // grants by connector.
+        ("unknown", json!({"actor": "x"})),
+        ("unnamed", json!({"grants": {"Not A Name": "grant_1"}})),
+    ] {
         let refused = project.save_authority(name, &authority, &[])?;
         assert!(!refused.status.success(), "{name}: {}", printed(&refused));
     }
