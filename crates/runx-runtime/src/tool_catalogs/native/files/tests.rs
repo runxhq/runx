@@ -302,7 +302,6 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
     use std::fs::OpenOptions;
     use std::os::unix::fs::MetadataExt;
     use std::sync::{Arc, Barrier, mpsc};
-    use std::time::Duration;
 
     use fs2::FileExt;
 
@@ -363,9 +362,14 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
         .is_err()
     );
     assert_eq!(fs::metadata(&lock_path)?.ino(), original_inode);
-    assert!(receiver.recv_timeout(Duration::from_millis(50)).is_err());
+    // The test holds the lock, so the worker's write hasn't happened; once
+    // it's released, the worker writes and answers.
+    assert!(matches!(
+        receiver.try_recv(),
+        Err(mpsc::TryRecvError::Empty)
+    ));
     FileExt::unlock(&lock)?;
-    receiver.recv_timeout(Duration::from_secs(3))??;
+    receiver.recv()??;
     worker.join().map_err(|_| "receipt worker panicked")?;
     assert_eq!(fs::metadata(&lock_path)?.ino(), original_inode);
     Ok(())
