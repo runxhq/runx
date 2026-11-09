@@ -223,7 +223,7 @@
                 "additionalProperties": false,
                 "description": "The producer of a context artifact.",
                 "properties": {
-                  "runner": {
+                  "method": {
                     "minLength": 1,
                     "type": "string"
                   },
@@ -234,7 +234,7 @@
                 },
                 "required": [
                   "skill",
-                  "runner"
+                  "method"
                 ],
                 "title": "ContextArtifactProducer",
                 "type": "object"
@@ -454,7 +454,7 @@
                 "additionalProperties": false,
                 "description": "The producer of a context artifact.",
                 "properties": {
-                  "runner": {
+                  "method": {
                     "minLength": 1,
                     "type": "string"
                   },
@@ -465,7 +465,7 @@
                 },
                 "required": [
                   "skill",
-                  "runner"
+                  "method"
                 ],
                 "title": "ContextArtifactProducer",
                 "type": "object"

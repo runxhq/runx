@@ -512,7 +512,7 @@
                             "additionalProperties": false,
                             "description": "The producer of a context artifact.",
                             "properties": {
-                              "runner": {
+                              "method": {
                                 "minLength": 1,
                                 "type": "string"
                               },
@@ -523,7 +523,7 @@
                             },
                             "required": [
                               "skill",
-                              "runner"
+                              "method"
                             ],
                             "title": "ContextArtifactProducer",
                             "type": "object"
@@ -743,7 +743,7 @@
                             "additionalProperties": false,
                             "description": "The producer of a context artifact.",
                             "properties": {
-                              "runner": {
+                              "method": {
                                 "minLength": 1,
                                 "type": "string"
                               },
@@ -754,7 +754,7 @@
                             },
                             "required": [
                               "skill",
-                              "runner"
+                              "method"
                             ],
                             "title": "ContextArtifactProducer",
                             "type": "object"
@@ -1213,7 +1213,7 @@
     },
     {
       "additionalProperties": false,
-      "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
+      "description": "A call reached a paid method and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
       "properties": {
         "id": {
           "minLength": 1,
@@ -1227,7 +1227,7 @@
           "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
-          "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
+          "description": "What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
           "properties": {
             "amount_minor": {
               "maximum": 9007199254740991,
@@ -1241,6 +1241,10 @@
             "input_digest": {
               "maxLength": 71,
               "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "method": {
+              "minLength": 1,
               "type": "string"
             },
             "methods": {
@@ -1555,10 +1559,6 @@
               "title": "PurchaseQuote",
               "type": "object"
             },
-            "runner": {
-              "minLength": 1,
-              "type": "string"
-            },
             "seller_ref": {
               "$id": "https://schemas.runx.ai/runx/reference/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1614,7 +1614,7 @@
           },
           "required": [
             "skill",
-            "runner",
+            "method",
             "offer_version",
             "package_digest",
             "seller_ref",

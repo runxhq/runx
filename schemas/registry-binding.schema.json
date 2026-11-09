@@ -3,39 +3,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
-    "harness": {
-      "additionalProperties": true,
-      "description": "Where a binding's harness verification is. Open.",
-      "properties": {
-        "assertion_count": {
-          "type": "number"
-        },
-        "case_count": {
-          "type": "number"
-        },
-        "case_names": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "pending",
-            "failed",
-            "test_verified"
-          ],
-          "title": "RegistryTestState",
-          "type": "string"
-        }
-      },
-      "required": [
-        "state",
-        "case_count"
-      ],
-      "title": "RegistryBindingTest",
-      "type": "object"
-    },
     "registry": {
       "additionalProperties": true,
       "properties": {
@@ -110,6 +77,39 @@
       "title": "RegistryBindingState",
       "type": "string"
     },
+    "test": {
+      "additionalProperties": true,
+      "description": "Where a binding's test verification is. Open.",
+      "properties": {
+        "assertion_count": {
+          "type": "number"
+        },
+        "case_count": {
+          "type": "number"
+        },
+        "case_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "failed",
+            "test_verified"
+          ],
+          "title": "RegistryTestState",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "case_count"
+      ],
+      "title": "RegistryBindingTest",
+      "type": "object"
+    },
     "upstream": {
       "additionalProperties": true,
       "properties": {
@@ -168,7 +168,7 @@
     "skill",
     "upstream",
     "registry",
-    "harness"
+    "test"
   ],
   "title": "RegistryBinding",
   "type": "object",

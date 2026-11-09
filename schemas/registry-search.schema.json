@@ -18,18 +18,11 @@
             "title": "CatalogPackageKind",
             "type": "string"
           },
-          "package": {
-            "description": "What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace.",
-            "type": "string"
-          },
-          "publisher": {
-            "type": "string"
-          },
-          "runners": {
-            "description": "A skill's runners, each with its purpose when its source states one.",
+          "methods": {
+            "description": "A skill's methods, each with its purpose when its source states one.",
             "items": {
               "additionalProperties": false,
-              "description": "One runner of a skill, as a model chooses it from an index.",
+              "description": "One method of a skill, as a model chooses it from an index.",
               "properties": {
                 "name": {
                   "type": "string"
@@ -47,6 +40,13 @@
             },
             "minItems": 1,
             "type": "array"
+          },
+          "package": {
+            "description": "What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace.",
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
           },
           "source": {
             "description": "Where a package is: the registry publishes it, or the project authored it.",

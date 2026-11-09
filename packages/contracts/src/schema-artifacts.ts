@@ -95,13 +95,13 @@ export const runxSchemaArtifacts = {
         "additionalProperties": {},
         "type": "object"
       },
+      "method": {
+        "minLength": 1,
+        "type": "string"
+      },
       "requested_at": {
         "minLength": 1,
         "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-        "type": "string"
-      },
-      "runner": {
-        "minLength": 1,
         "type": "string"
       },
       "schema": {
@@ -123,7 +123,7 @@ export const runxSchemaArtifacts = {
     "required": [
       "schema",
       "skill",
-      "runner",
+      "method",
       "requested_at",
       "host",
       "idempotency"
@@ -767,7 +767,7 @@ export const runxSchemaArtifacts = {
                                       "additionalProperties": false,
                                       "description": "The producer of a context artifact.",
                                       "properties": {
-                                        "runner": {
+                                        "method": {
                                           "minLength": 1,
                                           "type": "string"
                                         },
@@ -778,7 +778,7 @@ export const runxSchemaArtifacts = {
                                       },
                                       "required": [
                                         "skill",
-                                        "runner"
+                                        "method"
                                       ],
                                       "title": "ContextArtifactProducer",
                                       "type": "object"
@@ -998,7 +998,7 @@ export const runxSchemaArtifacts = {
                                       "additionalProperties": false,
                                       "description": "The producer of a context artifact.",
                                       "properties": {
-                                        "runner": {
+                                        "method": {
                                           "minLength": 1,
                                           "type": "string"
                                         },
@@ -1009,7 +1009,7 @@ export const runxSchemaArtifacts = {
                                       },
                                       "required": [
                                         "skill",
-                                        "runner"
+                                        "method"
                                       ],
                                       "title": "ContextArtifactProducer",
                                       "type": "object"
@@ -1468,7 +1468,7 @@ export const runxSchemaArtifacts = {
               },
               {
                 "additionalProperties": false,
-                "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
+                "description": "A call reached a paid method and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
                 "properties": {
                   "id": {
                     "minLength": 1,
@@ -1482,7 +1482,7 @@ export const runxSchemaArtifacts = {
                     "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
-                    "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
+                    "description": "What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
                     "properties": {
                       "amount_minor": {
                         "maximum": 9007199254740991,
@@ -1496,6 +1496,10 @@ export const runxSchemaArtifacts = {
                       "input_digest": {
                         "maxLength": 71,
                         "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "method": {
+                        "minLength": 1,
                         "type": "string"
                       },
                       "methods": {
@@ -1810,10 +1814,6 @@ export const runxSchemaArtifacts = {
                         "title": "PurchaseQuote",
                         "type": "object"
                       },
-                      "runner": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
                       "seller_ref": {
                         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1869,7 +1869,7 @@ export const runxSchemaArtifacts = {
                     },
                     "required": [
                       "skill",
-                      "runner",
+                      "method",
                       "offer_version",
                       "package_digest",
                       "seller_ref",
@@ -2251,7 +2251,7 @@ export const runxSchemaArtifacts = {
                       "additionalProperties": false,
                       "description": "The producer of a context artifact.",
                       "properties": {
-                        "runner": {
+                        "method": {
                           "minLength": 1,
                           "type": "string"
                         },
@@ -2262,7 +2262,7 @@ export const runxSchemaArtifacts = {
                       },
                       "required": [
                         "skill",
-                        "runner"
+                        "method"
                       ],
                       "title": "ContextArtifactProducer",
                       "type": "object"
@@ -2482,7 +2482,7 @@ export const runxSchemaArtifacts = {
                       "additionalProperties": false,
                       "description": "The producer of a context artifact.",
                       "properties": {
-                        "runner": {
+                        "method": {
                           "minLength": 1,
                           "type": "string"
                         },
@@ -2493,7 +2493,7 @@ export const runxSchemaArtifacts = {
                       },
                       "required": [
                         "skill",
-                        "runner"
+                        "method"
                       ],
                       "title": "ContextArtifactProducer",
                       "type": "object"
@@ -3127,7 +3127,7 @@ export const runxSchemaArtifacts = {
                   "additionalProperties": false,
                   "description": "The producer of a context artifact.",
                   "properties": {
-                    "runner": {
+                    "method": {
                       "minLength": 1,
                       "type": "string"
                     },
@@ -3138,7 +3138,7 @@ export const runxSchemaArtifacts = {
                   },
                   "required": [
                     "skill",
-                    "runner"
+                    "method"
                   ],
                   "title": "ContextArtifactProducer",
                   "type": "object"
@@ -3358,7 +3358,7 @@ export const runxSchemaArtifacts = {
                   "additionalProperties": false,
                   "description": "The producer of a context artifact.",
                   "properties": {
-                    "runner": {
+                    "method": {
                       "minLength": 1,
                       "type": "string"
                     },
@@ -3369,7 +3369,7 @@ export const runxSchemaArtifacts = {
                   },
                   "required": [
                     "skill",
-                    "runner"
+                    "method"
                   ],
                   "title": "ContextArtifactProducer",
                   "type": "object"
@@ -7220,7 +7220,7 @@ export const runxSchemaArtifacts = {
                     "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
-                    "description": "What is bought: the skill runner binding the seller's run performs.",
+                    "description": "What is bought: the skill method binding the seller's run performs.",
                     "properties": {
                       "label": {
                         "minLength": 1,
@@ -12363,7 +12363,7 @@ export const runxSchemaArtifacts = {
                     "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
-                    "description": "What is bought: the skill runner binding the seller's run performs.",
+                    "description": "What is bought: the skill method binding the seller's run performs.",
                     "properties": {
                       "label": {
                         "minLength": 1,
@@ -12548,21 +12548,21 @@ export const runxSchemaArtifacts = {
       },
       "executor_binding": {
         "additionalProperties": false,
-        "description": "An exact execution package: the skill and runner, and the digests of the package and closure that run.",
+        "description": "An exact execution package: the skill and method, and the digests of the package and closure that run.",
         "properties": {
           "execution_closure_digest": {
             "maxLength": 71,
             "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
           },
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
           "package_digest": {
             "description": "The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
             "maxLength": 71,
             "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "runner": {
-            "minLength": 1,
             "type": "string"
           },
           "skill": {
@@ -12572,7 +12572,7 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "skill",
-          "runner",
+          "method",
           "package_digest",
           "execution_closure_digest"
         ],
@@ -13297,7 +13297,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "stage_runner": {
-        "description": "Runner in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling.",
+        "description": "Method in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling.",
         "maxLength": 128,
         "minLength": 1,
         "type": "string"
@@ -13344,21 +13344,21 @@ export const runxSchemaArtifacts = {
       },
       "executor_binding": {
         "additionalProperties": false,
-        "description": "An exact execution package: the skill and runner, and the digests of the package and closure that run.",
+        "description": "An exact execution package: the skill and method, and the digests of the package and closure that run.",
         "properties": {
           "execution_closure_digest": {
             "maxLength": 71,
             "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
           },
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
           "package_digest": {
             "description": "The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
             "maxLength": 71,
             "pattern": "^sha256:[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "runner": {
-            "minLength": 1,
             "type": "string"
           },
           "skill": {
@@ -13368,7 +13368,7 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "skill",
-          "runner",
+          "method",
           "package_digest",
           "execution_closure_digest"
         ],
@@ -13700,21 +13700,21 @@ export const runxSchemaArtifacts = {
           },
           "executor_binding": {
             "additionalProperties": false,
-            "description": "An exact execution package: the skill and runner, and the digests of the package and closure that run.",
+            "description": "An exact execution package: the skill and method, and the digests of the package and closure that run.",
             "properties": {
               "execution_closure_digest": {
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
               },
+              "method": {
+                "minLength": 1,
+                "type": "string"
+              },
               "package_digest": {
                 "description": "The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "runner": {
-                "minLength": 1,
                 "type": "string"
               },
               "skill": {
@@ -13724,7 +13724,7 @@ export const runxSchemaArtifacts = {
             },
             "required": [
               "skill",
-              "runner",
+              "method",
               "package_digest",
               "execution_closure_digest"
             ],
@@ -16372,7 +16372,7 @@ export const runxSchemaArtifacts = {
                     "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
-                    "description": "What is bought: the skill runner binding the seller's run performs.",
+                    "description": "What is bought: the skill method binding the seller's run performs.",
                     "properties": {
                       "label": {
                         "minLength": 1,
@@ -17122,7 +17122,7 @@ export const runxSchemaArtifacts = {
               "producer": {
                 "additionalProperties": false,
                 "properties": {
-                  "runner": {
+                  "method": {
                     "minLength": 1,
                     "type": "string"
                   },
@@ -17133,7 +17133,7 @@ export const runxSchemaArtifacts = {
                 },
                 "required": [
                   "skill",
-                  "runner"
+                  "method"
                 ],
                 "title": "LedgerProducer",
                 "type": "object"
@@ -17285,17 +17285,11 @@ export const runxSchemaArtifacts = {
               "title": "RunxListItemKind",
               "type": "string"
             },
-            "name": {
-              "type": "string"
-            },
-            "path": {
-              "type": "string"
-            },
-            "runners": {
-              "description": "A skill's runners, each with its purpose when its `run.yaml` states one.",
+            "methods": {
+              "description": "A skill's methods, each with its purpose when its `run.yaml` states one.",
               "items": {
                 "additionalProperties": false,
-                "description": "One runner of a skill, as a model chooses it from an index.",
+                "description": "One method of a skill, as a model chooses it from an index.",
                 "properties": {
                   "name": {
                     "type": "string"
@@ -17312,6 +17306,12 @@ export const runxSchemaArtifacts = {
                 "type": "object"
               },
               "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
             },
             "scopes": {
               "items": {
@@ -20715,7 +20715,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/payment/purchase-read/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "What a buyer reads of its purchase: the purchase, its receipt once sealed, the runner's public result once fulfilment won, and what runx holds for it. Never the seller's run, step outputs or grants, and never a held value.",
+    "description": "What a buyer reads of its purchase: the purchase, its receipt once sealed, the method's public result once fulfilment won, and what runx holds for it. Never the seller's run, step outputs or grants, and never a held value.",
     "properties": {
       "balance_micro": {
         "description": "What the reading account's runx balance holds, in micro-USD, while the purchase can still be paid from it. Never shown to a buyer key.",
@@ -20744,7 +20744,7 @@ export const runxSchemaArtifacts = {
         "title": "PurchaseFailure",
         "type": "object"
       },
-      "holds": {
+      "leases": {
         "description": "Each resource runx holds for the purchase's buyer, once fulfilment won.",
         "items": {
           "additionalProperties": false,
@@ -21288,7 +21288,7 @@ export const runxSchemaArtifacts = {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
-            "description": "What is bought: the skill runner binding the seller's run performs.",
+            "description": "What is bought: the skill method binding the seller's run performs.",
             "properties": {
               "label": {
                 "minLength": 1,
@@ -21910,7 +21910,7 @@ export const runxSchemaArtifacts = {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "description": "What is bought: the skill runner binding the seller's run performs.",
+        "description": "What is bought: the skill method binding the seller's run performs.",
         "properties": {
           "label": {
             "minLength": 1,
@@ -22291,7 +22291,7 @@ export const runxSchemaArtifacts = {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "description": "What is bought: the skill runner binding the seller's run performs.",
+        "description": "What is bought: the skill method binding the seller's run performs.",
         "properties": {
           "label": {
             "minLength": 1,
@@ -23079,7 +23079,7 @@ export const runxSchemaArtifacts = {
                     "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
-                    "description": "What is bought: the skill runner binding the seller's run performs.",
+                    "description": "What is bought: the skill method binding the seller's run performs.",
                     "properties": {
                       "label": {
                         "minLength": 1,
@@ -27257,39 +27257,6 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": true,
     "properties": {
-      "harness": {
-        "additionalProperties": true,
-        "description": "Where a binding's harness verification is. Open.",
-        "properties": {
-          "assertion_count": {
-            "type": "number"
-          },
-          "case_count": {
-            "type": "number"
-          },
-          "case_names": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "state": {
-            "enum": [
-              "pending",
-              "failed",
-              "test_verified"
-            ],
-            "title": "RegistryTestState",
-            "type": "string"
-          }
-        },
-        "required": [
-          "state",
-          "case_count"
-        ],
-        "title": "RegistryBindingTest",
-        "type": "object"
-      },
       "registry": {
         "additionalProperties": true,
         "properties": {
@@ -27364,6 +27331,39 @@ export const runxSchemaArtifacts = {
         "title": "RegistryBindingState",
         "type": "string"
       },
+      "test": {
+        "additionalProperties": true,
+        "description": "Where a binding's test verification is. Open.",
+        "properties": {
+          "assertion_count": {
+            "type": "number"
+          },
+          "case_count": {
+            "type": "number"
+          },
+          "case_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "failed",
+              "test_verified"
+            ],
+            "title": "RegistryTestState",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "case_count"
+        ],
+        "title": "RegistryBindingTest",
+        "type": "object"
+      },
       "upstream": {
         "additionalProperties": true,
         "properties": {
@@ -27422,7 +27422,7 @@ export const runxSchemaArtifacts = {
       "skill",
       "upstream",
       "registry",
-      "harness"
+      "test"
     ],
     "title": "RegistryBinding",
     "type": "object",
@@ -28497,18 +28497,11 @@ export const runxSchemaArtifacts = {
               "title": "CatalogPackageKind",
               "type": "string"
             },
-            "package": {
-              "description": "What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace.",
-              "type": "string"
-            },
-            "publisher": {
-              "type": "string"
-            },
-            "runners": {
-              "description": "A skill's runners, each with its purpose when its source states one.",
+            "methods": {
+              "description": "A skill's methods, each with its purpose when its source states one.",
               "items": {
                 "additionalProperties": false,
-                "description": "One runner of a skill, as a model chooses it from an index.",
+                "description": "One method of a skill, as a model chooses it from an index.",
                 "properties": {
                   "name": {
                     "type": "string"
@@ -28526,6 +28519,13 @@ export const runxSchemaArtifacts = {
               },
               "minItems": 1,
               "type": "array"
+            },
+            "package": {
+              "description": "What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace.",
+              "type": "string"
+            },
+            "publisher": {
+              "type": "string"
             },
             "source": {
               "description": "Where a package is: the registry publishes it, or the project authored it.",
@@ -29087,7 +29087,7 @@ export const runxSchemaArtifacts = {
                               "additionalProperties": false,
                               "description": "The producer of a context artifact.",
                               "properties": {
-                                "runner": {
+                                "method": {
                                   "minLength": 1,
                                   "type": "string"
                                 },
@@ -29098,7 +29098,7 @@ export const runxSchemaArtifacts = {
                               },
                               "required": [
                                 "skill",
-                                "runner"
+                                "method"
                               ],
                               "title": "ContextArtifactProducer",
                               "type": "object"
@@ -29318,7 +29318,7 @@ export const runxSchemaArtifacts = {
                               "additionalProperties": false,
                               "description": "The producer of a context artifact.",
                               "properties": {
-                                "runner": {
+                                "method": {
                                   "minLength": 1,
                                   "type": "string"
                                 },
@@ -29329,7 +29329,7 @@ export const runxSchemaArtifacts = {
                               },
                               "required": [
                                 "skill",
-                                "runner"
+                                "method"
                               ],
                               "title": "ContextArtifactProducer",
                               "type": "object"
@@ -29788,7 +29788,7 @@ export const runxSchemaArtifacts = {
       },
       {
         "additionalProperties": false,
-        "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
+        "description": "A call reached a paid method and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
         "properties": {
           "id": {
             "minLength": 1,
@@ -29802,7 +29802,7 @@ export const runxSchemaArtifacts = {
             "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
-            "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
+            "description": "What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
             "properties": {
               "amount_minor": {
                 "maximum": 9007199254740991,
@@ -29816,6 +29816,10 @@ export const runxSchemaArtifacts = {
               "input_digest": {
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "method": {
+                "minLength": 1,
                 "type": "string"
               },
               "methods": {
@@ -30130,10 +30134,6 @@ export const runxSchemaArtifacts = {
                 "title": "PurchaseQuote",
                 "type": "object"
               },
-              "runner": {
-                "minLength": 1,
-                "type": "string"
-              },
               "seller_ref": {
                 "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -30189,7 +30189,7 @@ export const runxSchemaArtifacts = {
             },
             "required": [
               "skill",
-              "runner",
+              "method",
               "offer_version",
               "package_digest",
               "seller_ref",
@@ -30401,7 +30401,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/control/run-context/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context.",
+    "description": "What `control.capture_run_context` returns: the test, signal and decision packets a run was given, held as explicit context.",
     "properties": {
       "captured": {
         "type": "boolean"
@@ -30410,11 +30410,11 @@ export const runxSchemaArtifacts = {
         "additionalProperties": {},
         "type": "object"
       },
-      "harness": {
+      "signal": {
         "additionalProperties": {},
         "type": "object"
       },
-      "signal": {
+      "test": {
         "additionalProperties": {},
         "type": "object"
       }
@@ -30447,7 +30447,7 @@ export const runxSchemaArtifacts = {
                 "const": "started",
                 "type": "string"
               },
-              "runner": {
+              "method": {
                 "minLength": 1,
                 "type": "string"
               },
@@ -30459,7 +30459,7 @@ export const runxSchemaArtifacts = {
             "required": [
               "kind",
               "skill",
-              "runner"
+              "method"
             ],
             "type": "object"
           },
@@ -31006,11 +31006,11 @@ export const runxSchemaArtifacts = {
                   },
                   {
                     "additionalProperties": false,
-                    "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
+                    "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
                     "properties": {
                       "bound": {
                         "additionalProperties": false,
-                        "description": "The exact package and execution closure a load bound for one runner.",
+                        "description": "The exact package and execution closure a load bound for one method.",
                         "properties": {
                           "closure_digest": {
                             "minLength": 1,
@@ -31032,7 +31032,7 @@ export const runxSchemaArtifacts = {
                         "const": "skill",
                         "type": "string"
                       },
-                      "runner": {
+                      "method": {
                         "minLength": 1,
                         "type": "string"
                       },
@@ -31063,7 +31063,7 @@ export const runxSchemaArtifacts = {
                   },
                   {
                     "additionalProperties": false,
-                    "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
+                    "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
                     "properties": {
                       "kind": {
                         "const": "load",
@@ -31295,6 +31295,10 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
             "outcome": {
               "description": "How a run, or a receipt's subject, ended.",
               "enum": [
@@ -31323,10 +31327,6 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "runner": {
-              "minLength": 1,
-              "type": "string"
-            },
             "skill": {
               "minLength": 1,
               "type": "string"
@@ -31349,7 +31349,7 @@ export const runxSchemaArtifacts = {
           "required": [
             "run_id",
             "skill",
-            "runner",
+            "method",
             "state",
             "created_at",
             "updated_at"
@@ -31443,7 +31443,7 @@ export const runxSchemaArtifacts = {
                       "const": "started",
                       "type": "string"
                     },
-                    "runner": {
+                    "method": {
                       "minLength": 1,
                       "type": "string"
                     },
@@ -31455,7 +31455,7 @@ export const runxSchemaArtifacts = {
                   "required": [
                     "kind",
                     "skill",
-                    "runner"
+                    "method"
                   ],
                   "type": "object"
                 },
@@ -32002,11 +32002,11 @@ export const runxSchemaArtifacts = {
                         },
                         {
                           "additionalProperties": false,
-                          "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
+                          "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
                           "properties": {
                             "bound": {
                               "additionalProperties": false,
-                              "description": "The exact package and execution closure a load bound for one runner.",
+                              "description": "The exact package and execution closure a load bound for one method.",
                               "properties": {
                                 "closure_digest": {
                                   "minLength": 1,
@@ -32028,7 +32028,7 @@ export const runxSchemaArtifacts = {
                               "const": "skill",
                               "type": "string"
                             },
-                            "runner": {
+                            "method": {
                               "minLength": 1,
                               "type": "string"
                             },
@@ -32059,7 +32059,7 @@ export const runxSchemaArtifacts = {
                         },
                         {
                           "additionalProperties": false,
-                          "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
+                          "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
                           "properties": {
                             "kind": {
                               "const": "load",
@@ -32306,6 +32306,10 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
           "outcome": {
             "description": "How a run, or a receipt's subject, ended.",
             "enum": [
@@ -32334,10 +32338,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "runner": {
-            "minLength": 1,
-            "type": "string"
-          },
           "skill": {
             "minLength": 1,
             "type": "string"
@@ -32360,7 +32360,7 @@ export const runxSchemaArtifacts = {
         "required": [
           "run_id",
           "skill",
-          "runner",
+          "method",
           "state",
           "package_digest",
           "execution_closure_digest",
@@ -32903,7 +32903,7 @@ export const runxSchemaArtifacts = {
                                         "additionalProperties": false,
                                         "description": "The producer of a context artifact.",
                                         "properties": {
-                                          "runner": {
+                                          "method": {
                                             "minLength": 1,
                                             "type": "string"
                                           },
@@ -32914,7 +32914,7 @@ export const runxSchemaArtifacts = {
                                         },
                                         "required": [
                                           "skill",
-                                          "runner"
+                                          "method"
                                         ],
                                         "title": "ContextArtifactProducer",
                                         "type": "object"
@@ -33134,7 +33134,7 @@ export const runxSchemaArtifacts = {
                                         "additionalProperties": false,
                                         "description": "The producer of a context artifact.",
                                         "properties": {
-                                          "runner": {
+                                          "method": {
                                             "minLength": 1,
                                             "type": "string"
                                           },
@@ -33145,7 +33145,7 @@ export const runxSchemaArtifacts = {
                                         },
                                         "required": [
                                           "skill",
-                                          "runner"
+                                          "method"
                                         ],
                                         "title": "ContextArtifactProducer",
                                         "type": "object"
@@ -33604,7 +33604,7 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
+                  "description": "A call reached a paid method and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
                   "properties": {
                     "id": {
                       "minLength": 1,
@@ -33618,7 +33618,7 @@ export const runxSchemaArtifacts = {
                       "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
                       "$schema": "https://json-schema.org/draft/2020-12/schema",
                       "additionalProperties": false,
-                      "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
+                      "description": "What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
                       "properties": {
                         "amount_minor": {
                           "maximum": 9007199254740991,
@@ -33632,6 +33632,10 @@ export const runxSchemaArtifacts = {
                         "input_digest": {
                           "maxLength": 71,
                           "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "method": {
+                          "minLength": 1,
                           "type": "string"
                         },
                         "methods": {
@@ -33946,10 +33950,6 @@ export const runxSchemaArtifacts = {
                           "title": "PurchaseQuote",
                           "type": "object"
                         },
-                        "runner": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
                         "seller_ref": {
                           "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34005,7 +34005,7 @@ export const runxSchemaArtifacts = {
                       },
                       "required": [
                         "skill",
-                        "runner",
+                        "method",
                         "offer_version",
                         "package_digest",
                         "seller_ref",
@@ -36272,7 +36272,7 @@ export const runxSchemaArtifacts = {
             "kind": {
               "enum": [
                 "contract",
-                "harness",
+                "test",
                 "regression",
                 "security",
                 "performance",
@@ -36748,7 +36748,7 @@ export const runxSchemaArtifacts = {
                 "kind": {
                   "enum": [
                     "contract",
-                    "harness",
+                    "test",
                     "regression",
                     "security",
                     "performance",
@@ -37506,7 +37506,7 @@ export const runxSchemaArtifacts = {
                 "kind": {
                   "enum": [
                     "contract",
-                    "harness",
+                    "test",
                     "regression",
                     "security",
                     "performance",
@@ -38723,6 +38723,9 @@ export const runxSchemaArtifacts = {
         "description": "A failed run's exit code and message.",
         "type": "object"
       },
+      "method": {
+        "type": "string"
+      },
       "next": {
         "description": "The command that continues a paused run.",
         "type": "string"
@@ -38798,9 +38801,6 @@ export const runxSchemaArtifacts = {
       },
       "result": {},
       "run_id": {
-        "type": "string"
-      },
-      "runner": {
         "type": "string"
       },
       "schema": {
@@ -39067,12 +39067,8 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/skill/validation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "What `runx.skill.validate` returns: one package's inspection and harness outcome. A failed validation names its failure in both.",
+    "description": "What `runx.skill.validate` returns: one package's inspection and test outcome. A failed validation names its failure in both.",
     "properties": {
-      "harness": {
-        "additionalProperties": {},
-        "type": "object"
-      },
       "inspect": {
         "additionalProperties": {},
         "type": "object"
@@ -39092,6 +39088,10 @@ export const runxSchemaArtifacts = {
         "title": "SkillValidationSchema",
         "type": "string"
       },
+      "test": {
+        "additionalProperties": {},
+        "type": "object"
+      },
       "verdict": {
         "description": "How far validating a package got.",
         "enum": [
@@ -39109,7 +39109,7 @@ export const runxSchemaArtifacts = {
       "resolved_path",
       "verdict",
       "inspect",
-      "harness"
+      "test"
     ],
     "title": "SkillValidation",
     "type": "object",
@@ -40729,7 +40729,7 @@ export const runxSchemaArtifacts = {
                                             "additionalProperties": false,
                                             "description": "The producer of a context artifact.",
                                             "properties": {
-                                              "runner": {
+                                              "method": {
                                                 "minLength": 1,
                                                 "type": "string"
                                               },
@@ -40740,7 +40740,7 @@ export const runxSchemaArtifacts = {
                                             },
                                             "required": [
                                               "skill",
-                                              "runner"
+                                              "method"
                                             ],
                                             "title": "ContextArtifactProducer",
                                             "type": "object"
@@ -40960,7 +40960,7 @@ export const runxSchemaArtifacts = {
                                             "additionalProperties": false,
                                             "description": "The producer of a context artifact.",
                                             "properties": {
-                                              "runner": {
+                                              "method": {
                                                 "minLength": 1,
                                                 "type": "string"
                                               },
@@ -40971,7 +40971,7 @@ export const runxSchemaArtifacts = {
                                             },
                                             "required": [
                                               "skill",
-                                              "runner"
+                                              "method"
                                             ],
                                             "title": "ContextArtifactProducer",
                                             "type": "object"
@@ -41430,7 +41430,7 @@ export const runxSchemaArtifacts = {
                     },
                     {
                       "additionalProperties": false,
-                      "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
+                      "description": "A call reached a paid method and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
                       "properties": {
                         "id": {
                           "minLength": 1,
@@ -41444,7 +41444,7 @@ export const runxSchemaArtifacts = {
                           "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
                           "additionalProperties": false,
-                          "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
+                          "description": "What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
                           "properties": {
                             "amount_minor": {
                               "maximum": 9007199254740991,
@@ -41458,6 +41458,10 @@ export const runxSchemaArtifacts = {
                             "input_digest": {
                               "maxLength": 71,
                               "pattern": "^sha256:[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "method": {
+                              "minLength": 1,
                               "type": "string"
                             },
                             "methods": {
@@ -41772,10 +41776,6 @@ export const runxSchemaArtifacts = {
                               "title": "PurchaseQuote",
                               "type": "object"
                             },
-                            "runner": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
                             "seller_ref": {
                               "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -41831,7 +41831,7 @@ export const runxSchemaArtifacts = {
                           },
                           "required": [
                             "skill",
-                            "runner",
+                            "method",
                             "offer_version",
                             "package_digest",
                             "seller_ref",
@@ -41914,11 +41914,11 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
+            "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
             "properties": {
               "bound": {
                 "additionalProperties": false,
-                "description": "The exact package and execution closure a load bound for one runner.",
+                "description": "The exact package and execution closure a load bound for one method.",
                 "properties": {
                   "closure_digest": {
                     "minLength": 1,
@@ -41940,7 +41940,7 @@ export const runxSchemaArtifacts = {
                 "const": "skill",
                 "type": "string"
               },
-              "runner": {
+              "method": {
                 "minLength": 1,
                 "type": "string"
               },
@@ -41971,7 +41971,7 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
+            "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
             "properties": {
               "kind": {
                 "const": "load",
@@ -42002,7 +42002,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/turn-load/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "A completed load's output: what it bound, a skill's manual and runners, and the calls it adds to the turn. A skill's load binds the runner it names, or the skill's only runner; one that binds none is a reading of the skill, which binds no closure and so asks no trust.",
+    "description": "A completed load's output: what it bound, a skill's manual and methods, and the calls it adds to the turn. A skill's load binds the method it names, or the skill's only method; one that binds none is a reading of the skill, which binds no closure and so asks no trust.",
     "properties": {
       "connectors": {
         "description": "Each connector what it bound reaches, at the exact manifest and implementation it binds: a later load that binds another revision of a name is refused, and the project's own reaching a connector the turn does not already reach at that implementation waits on trust.",
@@ -42059,6 +42059,64 @@ export const runxSchemaArtifacts = {
         ],
         "title": "SkillManual",
         "type": "object"
+      },
+      "methods": {
+        "description": "Every method of a loaded skill, as a model chooses one, and whether this load bound it.",
+        "items": {
+          "additionalProperties": false,
+          "description": "One method of a loaded skill, as a model chooses it.",
+          "properties": {
+            "bound": {
+              "description": "Whether this load bound it, so the turn offers it as a tool.",
+              "type": "boolean"
+            },
+            "inputs": {
+              "items": {
+                "additionalProperties": false,
+                "description": "One input of a loaded skill's method.",
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "type",
+                  "required"
+                ],
+                "title": "LoadedMethodInput",
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "purpose": {
+              "description": "What it does and when to use it, as its package states it.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "inputs",
+            "bound"
+          ],
+          "title": "LoadedMethod",
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "package": {
         "anyOf": [
@@ -42169,66 +42227,8 @@ export const runxSchemaArtifacts = {
         "minItems": 1,
         "type": "array"
       },
-      "runners": {
-        "description": "Every runner of a loaded skill, as a model chooses one, and whether this load bound it.",
-        "items": {
-          "additionalProperties": false,
-          "description": "One runner of a loaded skill, as a model chooses it.",
-          "properties": {
-            "bound": {
-              "description": "Whether this load bound it, so the turn offers it as a tool.",
-              "type": "boolean"
-            },
-            "inputs": {
-              "items": {
-                "additionalProperties": false,
-                "description": "One input of a loaded skill's runner.",
-                "properties": {
-                  "name": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "required": {
-                    "type": "boolean"
-                  },
-                  "type": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name",
-                  "type",
-                  "required"
-                ],
-                "title": "LoadedMethodInput",
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "name": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "purpose": {
-              "description": "What it does and when to use it, as its package states it.",
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "inputs",
-            "bound"
-          ],
-          "title": "LoadedMethod",
-          "type": "object"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
       "tools": {
-        "description": "One per bound runner, or per operation of a loaded connector, as the turn offers it from then on.",
+        "description": "One per bound method, or per operation of a loaded connector, as the turn offers it from then on.",
         "items": {
           "additionalProperties": false,
           "description": "One call an open turn offers its agent: an allowance entry, named for MCP, with the input it takes.",
@@ -42291,11 +42291,11 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
+                  "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
                   "properties": {
                     "bound": {
                       "additionalProperties": false,
-                      "description": "The exact package and execution closure a load bound for one runner.",
+                      "description": "The exact package and execution closure a load bound for one method.",
                       "properties": {
                         "closure_digest": {
                           "minLength": 1,
@@ -42317,7 +42317,7 @@ export const runxSchemaArtifacts = {
                       "const": "skill",
                       "type": "string"
                     },
-                    "runner": {
+                    "method": {
                       "minLength": 1,
                       "type": "string"
                     },
@@ -42348,7 +42348,7 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
+                  "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
                   "properties": {
                     "kind": {
                       "const": "load",
@@ -43089,7 +43089,7 @@ export const runxSchemaArtifacts = {
                                                   "additionalProperties": false,
                                                   "description": "The producer of a context artifact.",
                                                   "properties": {
-                                                    "runner": {
+                                                    "method": {
                                                       "minLength": 1,
                                                       "type": "string"
                                                     },
@@ -43100,7 +43100,7 @@ export const runxSchemaArtifacts = {
                                                   },
                                                   "required": [
                                                     "skill",
-                                                    "runner"
+                                                    "method"
                                                   ],
                                                   "title": "ContextArtifactProducer",
                                                   "type": "object"
@@ -43320,7 +43320,7 @@ export const runxSchemaArtifacts = {
                                                   "additionalProperties": false,
                                                   "description": "The producer of a context artifact.",
                                                   "properties": {
-                                                    "runner": {
+                                                    "method": {
                                                       "minLength": 1,
                                                       "type": "string"
                                                     },
@@ -43331,7 +43331,7 @@ export const runxSchemaArtifacts = {
                                                   },
                                                   "required": [
                                                     "skill",
-                                                    "runner"
+                                                    "method"
                                                   ],
                                                   "title": "ContextArtifactProducer",
                                                   "type": "object"
@@ -43790,7 +43790,7 @@ export const runxSchemaArtifacts = {
                           },
                           {
                             "additionalProperties": false,
-                            "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
+                            "description": "A call reached a paid method and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
                             "properties": {
                               "id": {
                                 "minLength": 1,
@@ -43804,7 +43804,7 @@ export const runxSchemaArtifacts = {
                                 "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
                                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                                 "additionalProperties": false,
-                                "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
+                                "description": "What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
                                 "properties": {
                                   "amount_minor": {
                                     "maximum": 9007199254740991,
@@ -43818,6 +43818,10 @@ export const runxSchemaArtifacts = {
                                   "input_digest": {
                                     "maxLength": 71,
                                     "pattern": "^sha256:[0-9a-f]{64}$",
+                                    "type": "string"
+                                  },
+                                  "method": {
+                                    "minLength": 1,
                                     "type": "string"
                                   },
                                   "methods": {
@@ -44132,10 +44136,6 @@ export const runxSchemaArtifacts = {
                                     "title": "PurchaseQuote",
                                     "type": "object"
                                   },
-                                  "runner": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
                                   "seller_ref": {
                                     "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -44191,7 +44191,7 @@ export const runxSchemaArtifacts = {
                                 },
                                 "required": [
                                   "skill",
-                                  "runner",
+                                  "method",
                                   "offer_version",
                                   "package_digest",
                                   "seller_ref",
@@ -44274,11 +44274,11 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
+                  "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
                   "properties": {
                     "bound": {
                       "additionalProperties": false,
-                      "description": "The exact package and execution closure a load bound for one runner.",
+                      "description": "The exact package and execution closure a load bound for one method.",
                       "properties": {
                         "closure_digest": {
                           "minLength": 1,
@@ -44300,7 +44300,7 @@ export const runxSchemaArtifacts = {
                       "const": "skill",
                       "type": "string"
                     },
-                    "runner": {
+                    "method": {
                       "minLength": 1,
                       "type": "string"
                     },
@@ -44331,7 +44331,7 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
+                  "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
                   "properties": {
                     "kind": {
                       "const": "load",
@@ -45083,11 +45083,11 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
+                  "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
                   "properties": {
                     "bound": {
                       "additionalProperties": false,
-                      "description": "The exact package and execution closure a load bound for one runner.",
+                      "description": "The exact package and execution closure a load bound for one method.",
                       "properties": {
                         "closure_digest": {
                           "minLength": 1,
@@ -45109,7 +45109,7 @@ export const runxSchemaArtifacts = {
                       "const": "skill",
                       "type": "string"
                     },
-                    "runner": {
+                    "method": {
                       "minLength": 1,
                       "type": "string"
                     },
@@ -45140,7 +45140,7 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
+                  "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
                   "properties": {
                     "kind": {
                       "const": "load",

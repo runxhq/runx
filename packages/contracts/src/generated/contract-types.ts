@@ -12,8 +12,8 @@ export type ActAssignmentContract = {
   readonly input_overrides?: {
     readonly [key: string]: unknown;
   };
+  readonly method: string;
   readonly requested_at: string;
-  readonly runner: string;
   readonly schema: ActAssignmentSchemaContract;
   readonly skill: string;
   readonly source_uri?: string;
@@ -363,7 +363,7 @@ export type BoundApprovalContract = {
   readonly value?: unknown;
 };
 
-/** The exact package and execution closure a load bound for one runner. */
+/** The exact package and execution closure a load bound for one method. */
 export type BoundClosureContract = {
   readonly closure_digest: string;
   readonly package_digest: string;
@@ -408,17 +408,17 @@ export type CancelPurchaseResultContract = {
 /** One package `registry.search` found. */
 export type CatalogHitContract = {
   readonly kind: CatalogPackageKindContract;
+  /** A skill's methods, each with its purpose when its source states one. */
+  readonly methods?: readonly CatalogMethodContract[];
   /** What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace. */
   readonly package: string;
   readonly publisher?: string;
-  /** A skill's runners, each with its purpose when its source states one. */
-  readonly runners?: readonly CatalogMethodContract[];
   readonly source: CatalogSourceContract;
   readonly summary?: string;
   readonly trust_tier?: TrustTierContract;
 };
 
-/** One runner of a skill, as a model chooses it from an index. */
+/** One method of a skill, as a model chooses it from an index. */
 export type CatalogMethodContract = {
   readonly name: string;
   /** What it does and when to use it, as its package states it. */
@@ -665,7 +665,7 @@ export type ContextArtifactMetaContract = {
 
 /** The producer of a context artifact. */
 export type ContextArtifactProducerContract = {
-  readonly runner: string;
+  readonly method: string;
   readonly skill: string;
 };
 
@@ -1129,7 +1129,7 @@ export type ExternalJobScheduleIntentContract = {
   readonly initial_delay_ms: number;
   readonly max_attempts: number;
   readonly schema: ExternalJobScheduleIntentSchemaContract;
-  /** Runner in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling. */
+  /** Method in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling. */
   readonly stage_runner: string;
 };
 
@@ -1742,7 +1742,7 @@ export type LedgerPayloadContract = {
 export type LedgerPayloadVersionContract = "1";
 
 export type LedgerProducerContract = {
-  readonly runner: string;
+  readonly method: string;
   readonly skill: string;
 };
 
@@ -1760,7 +1760,7 @@ export type LinksContract = {
   readonly supersedes?: readonly ReferenceContract[];
 };
 
-/** One runner of a loaded skill, as a model chooses it. */
+/** One method of a loaded skill, as a model chooses it. */
 export type LoadedMethodContract = {
   /** Whether this load bound it, so the turn offers it as a tool. */
   readonly bound: boolean;
@@ -1770,7 +1770,7 @@ export type LoadedMethodContract = {
   readonly purpose?: string;
 };
 
-/** One input of a loaded skill's runner. */
+/** One input of a loaded skill's method. */
 export type LoadedMethodInputContract = {
   readonly name: string;
   readonly required: boolean;
@@ -2298,12 +2298,12 @@ export type PacketLockEntryContract = {
 
 export type PacketLockSchemaContract = "runx.packet.lock.v1";
 
-/** An exact execution package: the skill and runner, and the digests of the package and closure that run. */
+/** An exact execution package: the skill and method, and the digests of the package and closure that run. */
 export type PaidSkillExecutorBindingContract = {
   readonly execution_closure_digest: string;
+  readonly method: string;
   /** The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds. */
   readonly package_digest: string;
-  readonly runner: string;
   readonly skill: string;
 };
 
@@ -2580,7 +2580,7 @@ export type PurchaseContract = {
   /** The seller: the publisher's principal enrolled to sell the skill. */
   readonly seller_ref: PrincipalReferenceContract;
   readonly settlement_family?: string;
-  /** What is bought: the skill runner binding the seller's run performs. */
+  /** What is bought: the skill method binding the seller's run performs. */
   readonly skill_ref: ReferenceContract;
   readonly updated_at: string;
 };
@@ -2679,14 +2679,14 @@ export type PurchaseQuoteContract = {
   readonly purchase_id: string;
 };
 
-/** What a buyer reads of its purchase: the purchase, its receipt once sealed, the runner's public result once fulfilment won, and what runx holds for it. Never the seller's run, step outputs or grants, and never a held value. */
+/** What a buyer reads of its purchase: the purchase, its receipt once sealed, the method's public result once fulfilment won, and what runx holds for it. Never the seller's run, step outputs or grants, and never a held value. */
 export type PurchaseReadContract = {
   /** What the reading account's runx balance holds, in micro-USD, while the purchase can still be paid from it. Never shown to a buyer key. */
   readonly balance_micro?: number;
   /** Why a refund won. Present only after refund won. */
   readonly failure?: PurchaseFailureContract;
   /** Each resource runx holds for the purchase's buyer, once fulfilment won. */
-  readonly holds?: readonly PurchaseLeaseContract[];
+  readonly leases?: readonly PurchaseLeaseContract[];
   readonly purchase: PurchaseContract;
   /** runx's signed purchase receipt, once sealed: what a claim presents. */
   readonly receipt?: {
@@ -2697,18 +2697,18 @@ export type PurchaseReadContract = {
 
 export type PurchaseRefusalCodeContract = "offer_unavailable" | "quote_expired" | "terms_changed" | "replay_conflict" | "payment_not_authorized" | "capacity_unavailable" | "not_found" | "cancellation_not_available";
 
-/** What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires. */
+/** What a person decides when a call reaches a paid method: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires. */
 export type PurchaseRequestContract = {
   readonly amount_minor: number;
   readonly currency: string;
   readonly input_digest: string;
+  readonly method: string;
   /** Never empty: a call no method can pay fails instead of asking. */
   readonly methods: readonly PurchaseMethodContract[];
   readonly offer_version: OfferVersionBindingContract;
   /** The execution package digest the purchase runs (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds. */
   readonly package_digest: string;
   readonly quote: PurchaseQuoteContract;
-  readonly runner: string;
   readonly seller_ref: PrincipalReferenceContract;
   readonly skill: string;
 };
@@ -2761,7 +2761,7 @@ export type QuotePurchaseRequestContract = {
   readonly package_digest: string;
   /** The seller: the publisher's principal enrolled to sell the skill. */
   readonly seller_ref: PrincipalReferenceContract;
-  /** What is bought: the skill runner binding the seller's run performs. */
+  /** What is bought: the skill method binding the seller's run performs. */
   readonly skill_ref: ReferenceContract;
 };
 
@@ -3018,7 +3018,6 @@ export type ReferenceLinkContract = {
 export type ReferenceTypeContract = "thread" | "comment" | "event" | "tracking_item" | "change_request" | "repository" | "signal" | "run" | "act" | "receipt" | "artifact" | "verification" | "harness" | "host" | "surface" | "target" | "skill_binding" | "principal" | "scope_admission" | "grant" | "mandate" | "credential" | "webhook_delivery" | "redaction_policy" | "external_url" | "connector_instance" | "connector_operation";
 
 export type RegistryBindingContract = {
-  readonly harness: RegistryBindingTestContract;
   readonly registry: {
     readonly materialized_package_is_registry_artifact: true;
     readonly profile_path: string;
@@ -3030,6 +3029,7 @@ export type RegistryBindingContract = {
   readonly schema: RegistryBindingSchemaContract;
   readonly skill: RegistryBindingSkillContract;
   readonly state: RegistryBindingStateContract;
+  readonly test: RegistryBindingTestContract;
   readonly upstream: {
     readonly blob_sha: string;
     readonly branch?: string;
@@ -3060,7 +3060,7 @@ export type RegistryBindingSkillContract = {
 
 export type RegistryBindingStateContract = "registry_binding_drafted" | "registry_bound" | "test_verified" | "published";
 
-/** Where a binding's harness verification is. Open. */
+/** Where a binding's test verification is. Open. */
 export type RegistryBindingTestContract = {
   readonly assertion_count?: number;
   readonly case_count: number;
@@ -3179,16 +3179,16 @@ export type RunCloseContract = {
   readonly outcome: CloseOutcomeContract;
 };
 
-/** What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context. */
+/** What `control.capture_run_context` returns: the test, signal and decision packets a run was given, held as explicit context. */
 export type RunContextContract = {
   readonly captured: boolean;
   readonly decision?: {
     readonly [key: string]: unknown;
   };
-  readonly harness?: {
+  readonly signal?: {
     readonly [key: string]: unknown;
   };
-  readonly signal?: {
+  readonly test?: {
     readonly [key: string]: unknown;
   };
 };
@@ -3198,7 +3198,7 @@ export type RunDriverContract = "attached" | "managed";
 
 export type RunEventFactContract = {
   readonly kind: "started";
-  readonly runner: string;
+  readonly method: string;
   readonly skill: string;
 } | {
   readonly kind: "child_started";
@@ -3287,12 +3287,12 @@ export type RunListContract = {
 /** One run of a listing, read from its first and latest events. */
 export type RunListEntryContract = {
   readonly created_at: string;
+  readonly method: string;
   readonly outcome?: RunOutcomeContract;
   /** The request a paused run's step is held on: its turn's act, or what it asked. */
   readonly pending_request_id?: string;
   readonly receipt_id?: string;
   readonly run_id: string;
-  readonly runner: string;
   readonly skill: string;
   readonly state: RunStateContract;
   readonly updated_at: string;
@@ -3328,12 +3328,12 @@ export type RunReadSummaryContract = {
   readonly driven: boolean;
   readonly driver: RunDriverContract;
   readonly execution_closure_digest: string;
+  readonly method: string;
   readonly outcome?: RunOutcomeContract;
   /** The execution package digest of the package the run loaded, not the registry's digest of the published package files a listing carries. */
   readonly package_digest: string;
   readonly receipt_id?: string;
   readonly run_id: string;
-  readonly runner: string;
   readonly skill: string;
   readonly state: RunStateContract;
   readonly updated_at: string;
@@ -3356,10 +3356,10 @@ export type RunxListItemContract = {
   readonly emits?: readonly RunxListEmitContract[];
   readonly fixtures?: number;
   readonly kind: RunxListItemKindContract;
+  /** A skill's methods, each with its purpose when its `run.yaml` states one. */
+  readonly methods?: readonly CatalogMethodContract[];
   readonly name: string;
   readonly path: string;
-  /** A skill's runners, each with its purpose when its `run.yaml` states one. */
-  readonly runners?: readonly CatalogMethodContract[];
   readonly scopes?: readonly string[];
   readonly source: RunxListSourceContract;
   readonly status: RunxListStatusContract;
@@ -3761,6 +3761,7 @@ export type SkillOutputContract = {
   readonly error?: {
     readonly [key: string]: unknown;
   };
+  readonly method?: string;
   /** The command that continues a paused run. */
   readonly next?: string;
   /** How the run ended: its seal's outcome, or `deferred` while it waits. */
@@ -3774,7 +3775,6 @@ export type SkillOutputContract = {
   readonly requests?: readonly unknown[];
   readonly result?: unknown;
   readonly run_id?: string;
-  readonly runner?: string;
   readonly schema?: SkillOutputSchemaContract;
   /** Why the seal ended the run so, where the outcome alone does not say. */
   readonly seal_reason?: SealReasonContract;
@@ -3815,7 +3815,7 @@ export type SkillPackageMetricsContract = {
 
 export type SkillPackageVisibilityContract = "public" | "internal";
 
-export type SkillProofKindContract = "contract" | "harness" | "regression" | "security" | "performance" | "selection_trial" | "standalone_operator_journey" | "composed_operator_journey";
+export type SkillProofKindContract = "contract" | "test" | "regression" | "security" | "performance" | "selection_trial" | "standalone_operator_journey" | "composed_operator_journey";
 
 export type SkillProofRequirementContract = {
   readonly expected: string;
@@ -3830,17 +3830,17 @@ export type SkillResourceBudgetContract = {
   readonly network_allowed: boolean;
 };
 
-/** What `runx.skill.validate` returns: one package's inspection and harness outcome. A failed validation names its failure in both. */
+/** What `runx.skill.validate` returns: one package's inspection and test outcome. A failed validation names its failure in both. */
 export type SkillValidationContract = {
-  readonly harness: {
-    readonly [key: string]: unknown;
-  };
   readonly inspect: {
     readonly [key: string]: unknown;
   };
   readonly requested_path: string;
   readonly resolved_path: string;
   readonly schema: SkillValidationSchemaContract;
+  readonly test: {
+    readonly [key: string]: unknown;
+  };
   readonly verdict: SkillValidationVerdictContract;
 };
 
@@ -4050,18 +4050,18 @@ export type TurnInvocationContract = {
   readonly task: string;
 };
 
-/** A completed load's output: what it bound, a skill's manual and runners, and the calls it adds to the turn. A skill's load binds the runner it names, or the skill's only runner; one that binds none is a reading of the skill, which binds no closure and so asks no trust. */
+/** A completed load's output: what it bound, a skill's manual and methods, and the calls it adds to the turn. A skill's load binds the method it names, or the skill's only method; one that binds none is a reading of the skill, which binds no closure and so asks no trust. */
 export type TurnLoadContract = {
   /** Each connector what it bound reaches, at the exact manifest and implementation it binds: a later load that binds another revision of a name is refused, and the project's own reaching a connector the turn does not already reach at that implementation waits on trust. */
   readonly connectors?: readonly ConnectorBindingContract[];
   /** A loaded skill's manual; none for a connector. */
   readonly manual?: SkillManualContract;
+  /** Every method of a loaded skill, as a model chooses one, and whether this load bound it. */
+  readonly methods?: readonly LoadedMethodContract[];
   readonly package: LoadedPackageContract;
   /** Each skill package of the person's own it bound, `project:<name>`, at its directory: a later load in the run that binds another directory as the same `project:<name>` is refused, since the two would be one package. */
   readonly projects?: readonly ProjectBindingContract[];
-  /** Every runner of a loaded skill, as a model chooses one, and whether this load bound it. */
-  readonly runners?: readonly LoadedMethodContract[];
-  /** One per bound runner, or per operation of a loaded connector, as the turn offers it from then on. */
+  /** One per bound method, or per operation of a loaded connector, as the turn offers it from then on. */
   readonly tools: readonly TurnToolContract[];
 };
 
@@ -4094,7 +4094,7 @@ export type TurnTargetContract = {
 } | {
   readonly bound?: BoundClosureContract;
   readonly kind: "skill";
-  readonly runner?: string;
+  readonly method?: string;
   readonly skill: string;
 } | {
   readonly kind: "ask";

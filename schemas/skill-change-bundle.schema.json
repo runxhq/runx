@@ -322,7 +322,7 @@
               "kind": {
                 "enum": [
                   "contract",
-                  "harness",
+                  "test",
                   "regression",
                   "security",
                   "performance",

@@ -106,7 +106,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
     {
       "id": "authoring",
       "label": "Skill building",
-      "description": "Skill building: design, harness, evaluation, improvement, and registry trust.",
+      "description": "Skill building: design, test, evaluation, improvement, and registry trust.",
       "applies_to": [
         "skill"
       ],

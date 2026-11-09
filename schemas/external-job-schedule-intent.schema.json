@@ -32,7 +32,7 @@
       "type": "string"
     },
     "stage_runner": {
-      "description": "Runner in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling.",
+      "description": "Method in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling.",
       "maxLength": 128,
       "minLength": 1,
       "type": "string"

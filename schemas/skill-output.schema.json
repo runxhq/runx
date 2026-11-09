@@ -103,6 +103,9 @@
       "description": "A failed run's exit code and message.",
       "type": "object"
     },
+    "method": {
+      "type": "string"
+    },
     "next": {
       "description": "The command that continues a paused run.",
       "type": "string"
@@ -178,9 +181,6 @@
     },
     "result": {},
     "run_id": {
-      "type": "string"
-    },
-    "runner": {
       "type": "string"
     },
     "schema": {

@@ -95,7 +95,7 @@
             "producer": {
               "additionalProperties": false,
               "properties": {
-                "runner": {
+                "method": {
                   "minLength": 1,
                   "type": "string"
                 },
@@ -106,7 +106,7 @@
               },
               "required": [
                 "skill",
-                "runner"
+                "method"
               ],
               "title": "LedgerProducer",
               "type": "object"

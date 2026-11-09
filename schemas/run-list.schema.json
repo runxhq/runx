@@ -13,6 +13,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
           "outcome": {
             "description": "How a run, or a receipt's subject, ended.",
             "enum": [
@@ -41,10 +45,6 @@
             "minLength": 1,
             "type": "string"
           },
-          "runner": {
-            "minLength": 1,
-            "type": "string"
-          },
           "skill": {
             "minLength": 1,
             "type": "string"
@@ -67,7 +67,7 @@
         "required": [
           "run_id",
           "skill",
-          "runner",
+          "method",
           "state",
           "created_at",
           "updated_at"

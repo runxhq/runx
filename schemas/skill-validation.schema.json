@@ -2,12 +2,8 @@
   "$id": "https://schemas.runx.ai/runx/skill/validation/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "What `runx.skill.validate` returns: one package's inspection and harness outcome. A failed validation names its failure in both.",
+  "description": "What `runx.skill.validate` returns: one package's inspection and test outcome. A failed validation names its failure in both.",
   "properties": {
-    "harness": {
-      "additionalProperties": {},
-      "type": "object"
-    },
     "inspect": {
       "additionalProperties": {},
       "type": "object"
@@ -27,6 +23,10 @@
       "title": "SkillValidationSchema",
       "type": "string"
     },
+    "test": {
+      "additionalProperties": {},
+      "type": "object"
+    },
     "verdict": {
       "description": "How far validating a package got.",
       "enum": [
@@ -44,7 +44,7 @@
     "resolved_path",
     "verdict",
     "inspect",
-    "harness"
+    "test"
   ],
   "title": "SkillValidation",
   "type": "object",

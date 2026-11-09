@@ -514,7 +514,7 @@
                   "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
-                  "description": "What is bought: the skill runner binding the seller's run performs.",
+                  "description": "What is bought: the skill method binding the seller's run performs.",
                   "properties": {
                     "label": {
                       "minLength": 1,

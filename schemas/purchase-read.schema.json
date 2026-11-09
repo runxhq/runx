@@ -2,7 +2,7 @@
   "$id": "https://schemas.runx.ai/runx/payment/purchase-read/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "What a buyer reads of its purchase: the purchase, its receipt once sealed, the runner's public result once fulfilment won, and what runx holds for it. Never the seller's run, step outputs or grants, and never a held value.",
+  "description": "What a buyer reads of its purchase: the purchase, its receipt once sealed, the method's public result once fulfilment won, and what runx holds for it. Never the seller's run, step outputs or grants, and never a held value.",
   "properties": {
     "balance_micro": {
       "description": "What the reading account's runx balance holds, in micro-USD, while the purchase can still be paid from it. Never shown to a buyer key.",
@@ -31,7 +31,7 @@
       "title": "PurchaseFailure",
       "type": "object"
     },
-    "holds": {
+    "leases": {
       "description": "Each resource runx holds for the purchase's buyer, once fulfilment won.",
       "items": {
         "additionalProperties": false,
@@ -575,7 +575,7 @@
           "$id": "https://schemas.runx.ai/runx/reference/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
-          "description": "What is bought: the skill runner binding the seller's run performs.",
+          "description": "What is bought: the skill method binding the seller's run performs.",
           "properties": {
             "label": {
               "minLength": 1,

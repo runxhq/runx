@@ -26,21 +26,21 @@
     },
     "executor_binding": {
       "additionalProperties": false,
-      "description": "An exact execution package: the skill and runner, and the digests of the package and closure that run.",
+      "description": "An exact execution package: the skill and method, and the digests of the package and closure that run.",
       "properties": {
         "execution_closure_digest": {
           "maxLength": 71,
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
+        "method": {
+          "minLength": 1,
+          "type": "string"
+        },
         "package_digest": {
           "description": "The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
           "maxLength": 71,
           "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "runner": {
-          "minLength": 1,
           "type": "string"
         },
         "skill": {
@@ -50,7 +50,7 @@
       },
       "required": [
         "skill",
-        "runner",
+        "method",
         "package_digest",
         "execution_closure_digest"
       ],
