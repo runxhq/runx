@@ -50,7 +50,9 @@ fn apply_sequential_workflow_event_owned_with_index(
             at,
             admission_witness,
             outputs,
-        } => succeed_sequential_workflow_step(workflow, at, *admission_witness, outputs, step_index),
+        } => {
+            succeed_sequential_workflow_step(workflow, at, *admission_witness, outputs, step_index)
+        }
         SequentialWorkflowEvent::StepFailed { step_id, at, error } => {
             update_step_in_place(workflow, &step_id, step_index, |step| {
                 fail_step_in_place(step, at, error);
@@ -185,7 +187,10 @@ fn update_step_in_place(
             .steps
             .get_mut(position)
             .filter(|step| step.step_id == step_id),
-        None if step_index.is_none() => workflow.steps.iter_mut().find(|step| step.step_id == step_id),
+        None if step_index.is_none() => workflow
+            .steps
+            .iter_mut()
+            .find(|step| step.step_id == step_id),
         None => None,
     };
     if let Some(step) = step {

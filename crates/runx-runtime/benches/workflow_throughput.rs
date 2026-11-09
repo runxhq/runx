@@ -229,7 +229,12 @@ fn start_step(
     step_id: &str,
     step_index: &SequentialWorkflowStepIndex,
 ) -> runx_core::state_machine::SequentialWorkflow {
-    start_sequential_workflow_step_indexed(&mut workflow, step_id, CREATED_AT.to_owned(), step_index);
+    start_sequential_workflow_step_indexed(
+        &mut workflow,
+        step_id,
+        CREATED_AT.to_owned(),
+        step_index,
+    );
     workflow
 }
 

@@ -17,7 +17,6 @@ use runx_parser::{SkillMethodDefinition, Workflow};
 use crate::RuntimeError;
 #[cfg(test)]
 use crate::adapter::SkillInvocation;
-use crate::execution::workflow::bind_run_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
@@ -28,6 +27,7 @@ use crate::execution::runner::{
     RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, WorkflowRun, sealed_workflow_run,
     workflow_run_context, workflow_run_result, workflow_run_skill_output, workflow_run_trace,
 };
+use crate::execution::workflow::bind_run_inputs;
 use crate::host::Host;
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;

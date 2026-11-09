@@ -22,13 +22,13 @@ use crate::RuntimeError;
 use crate::services::{WorkspaceEnv, merge_inferred_tool_roots};
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
+use super::skill_context::load_context_skills;
+use super::skill_front::SkillRunError;
+use super::skill_front::method_manifest::selected_method;
 use super::workflow::{
     LoadedStepSkill, LoadedStepSkillRegistryProvenance, StepSkillLoadOptions, child_skill_steps,
     load_step_skill,
 };
-use super::skill_context::load_context_skills;
-use super::skill_front::SkillRunError;
-use super::skill_front::method_manifest::selected_method;
 
 const MAX_CHAIN_DEPTH: usize = 16;
 const MAX_CHAIN_NODES: usize = 128;

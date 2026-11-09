@@ -618,12 +618,21 @@ methods:
         )?;
         assert_eq!(workflow.effects, Some(runx_contracts::Effects::Ask));
         assert_eq!(workflow.reach, Some(runx_contracts::Reach::Workspace));
-        assert_eq!(workflow.steps[0].effects, Some(runx_contracts::Effects::None));
+        assert_eq!(
+            workflow.steps[0].effects,
+            Some(runx_contracts::Effects::None)
+        );
         assert_eq!(workflow.steps[0].reach, None);
         // A value wider than its run's parses; it only never widens.
-        assert_eq!(workflow.steps[1].effects, Some(runx_contracts::Effects::Allow));
+        assert_eq!(
+            workflow.steps[1].effects,
+            Some(runx_contracts::Effects::Allow)
+        );
         assert_eq!(workflow.steps[1].reach, Some(runx_contracts::Reach::Inputs));
-        assert_eq!((workflow.steps[2].effects, workflow.steps[2].reach), (None, None));
+        assert_eq!(
+            (workflow.steps[2].effects, workflow.steps[2].reach),
+            (None, None)
+        );
 
         for (source, expected) in [
             (

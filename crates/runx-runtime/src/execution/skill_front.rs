@@ -24,10 +24,10 @@ use crate::receipts::{
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
 mod executable_adapter;
-mod workflow;
 pub(crate) mod method_manifest;
 mod resolution_answers;
 mod turn_session;
+mod workflow;
 
 pub(crate) use self::executable_adapter::ExecutableAdapter;
 pub use self::turn_session::TurnSession;

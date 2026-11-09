@@ -72,7 +72,8 @@ methods:
 "#,
     )?;
 
-    let runx_parser::StepKind::Tool(runx_parser::ToolTarget::Worker(worker)) = &workflow.steps[0].kind
+    let runx_parser::StepKind::Tool(runx_parser::ToolTarget::Worker(worker)) =
+        &workflow.steps[0].kind
     else {
         return Err("the worker step was not preserved".to_owned());
     };

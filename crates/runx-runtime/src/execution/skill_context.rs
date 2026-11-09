@@ -148,7 +148,8 @@ fn load_context_skill_directory(
             insert_string(&mut data, "skill_id", &signed.name);
             insert_string(&mut data, "version", &signed.version);
             insert_string(&mut data, "digest", &package.package.manual_digest);
-            if let Some(bundle_digest) = crate::execution::workflow::package_files_digest(&package) {
+            if let Some(bundle_digest) = crate::execution::workflow::package_files_digest(&package)
+            {
                 insert_string(&mut data, "bundle_digest", &bundle_digest);
             }
         }

@@ -11,10 +11,10 @@ use runx_core::state_machine::{
 };
 use runx_parser::{Operand, Source, StepKind, Workflow, WorkflowStep};
 
-use super::super::workflow::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
 use super::super::run_record::{
     Answer, Hold, PendingRequest, Replayed, RunRecord, Suspension, request_digest,
 };
+use super::super::workflow::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
 use super::super::workflow_index::{ExecutionWorkflowIndex, PriorRunIndex};
 use super::dispatch::{LoadedStepExecutionRequest, run_step_with_loaded_skill_index};
 use super::step_handlers::output_error;
@@ -167,7 +167,10 @@ impl WorkflowExecution {
 
     /// Rebuild a run's execution state from its record, applying each
     /// recorded fact as the engine applied it.
-    pub(super) fn from_record(workflow: &Workflow, record: &RunRecord) -> Result<Self, RuntimeError> {
+    pub(super) fn from_record(
+        workflow: &Workflow,
+        record: &RunRecord,
+    ) -> Result<Self, RuntimeError> {
         let at = &record.created_at;
         let mut execution = Self::new(workflow);
         for fact in &record.facts {
@@ -401,8 +404,12 @@ impl WorkflowExecution {
     {
         enforce_condition(context.step, &self.runs)?;
         enforce_guards(context.step, &self.runs)?;
-        let admission_refs =
-            verified_approval_references(context.runtime, context.workflow, context.step, &self.runs)?;
+        let admission_refs = verified_approval_references(
+            context.runtime,
+            context.workflow,
+            context.step,
+            &self.runs,
+        )?;
         let resumed_hold = if let Some(pending) = self.suspended_step.take() {
             if pending != context.plan.step_id {
                 return Err(RuntimeError::EngineInvariant {
@@ -765,7 +772,11 @@ impl WorkflowExecution {
         self.record(host, event.into_execution_event())
     }
 
-    pub(super) fn finish(self, workflow: Workflow, receipt: runx_contracts::Receipt) -> WorkflowRun {
+    pub(super) fn finish(
+        self,
+        workflow: Workflow,
+        receipt: runx_contracts::Receipt,
+    ) -> WorkflowRun {
         WorkflowRun {
             workflow,
             progress: self.progress,
@@ -1272,8 +1283,9 @@ methods:
             "mode".to_owned(),
             runx_contracts::JsonValue::String("preview".to_owned()),
         )]);
-        let workflow = crate::execution::workflow::bind_run_inputs(workflow, &inputs, None, "run", None)
-            .expect("the run input binds");
+        let workflow =
+            crate::execution::workflow::bind_run_inputs(workflow, &inputs, None, "run", None)
+                .expect("the run input binds");
         let skipped = when_skipped_steps(&workflow, &[], &BTreeSet::new());
 
         assert_eq!(skipped, BTreeSet::from(["apply".to_owned()]));

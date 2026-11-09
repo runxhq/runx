@@ -131,7 +131,8 @@ mod tests {
         let mut workflow = create_sequential_workflow("graph", &definitions);
         workflow.steps[0].state = WorkflowStepState::Succeeded;
 
-        let canonical = plan_sequential_workflow_transition_indexed(&workflow, &definitions, &index);
+        let canonical =
+            plan_sequential_workflow_transition_indexed(&workflow, &definitions, &index);
         let from_cursor =
             plan_sequential_workflow_transition_indexed_from(&workflow, &definitions, &index, 1);
 

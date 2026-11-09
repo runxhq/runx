@@ -7,7 +7,6 @@
 //!   execution.
 //! - `skill_front`: the skill front; compiles a skill run into an execution and seals it through the act engine.
 
-pub(crate) mod workflow;
 pub(crate) mod operator_context;
 pub mod orchestrator;
 pub(crate) mod outcome;
@@ -18,4 +17,5 @@ pub mod runner;
 pub(crate) mod skill_context;
 pub mod skill_front;
 pub mod test;
+pub(crate) mod workflow;
 pub(crate) mod workflow_index;

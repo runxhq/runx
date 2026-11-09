@@ -21,10 +21,10 @@ use runx_parser::{AskGate, OutputArtifacts, StepKind, ToolTarget, WorkflowStep};
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
+use super::super::skill_context::load_context_skills;
 use super::super::workflow::{
     LoadedStepSkill, StepSkillLoadOptions, bind_run_inputs, load_step_skill,
 };
-use super::super::skill_context::load_context_skills;
 use super::admission::{
     EffectReceiptContext, StepAuthorityContext, enforce_step_authority_admission,
     finalize_effect_output_before_success, persist_effect_state_for_step, prepare_effect_execution,

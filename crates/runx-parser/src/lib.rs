@@ -4,7 +4,6 @@ pub mod connector;
 pub mod data;
 pub mod error;
 pub mod eval;
-pub mod workflow;
 pub mod install;
 mod json_fields;
 pub mod manifest;
@@ -15,6 +14,7 @@ mod registry_ref;
 pub mod skill;
 pub mod test_fixture;
 pub mod tool;
+pub mod workflow;
 pub mod yaml;
 
 pub use connector::{
@@ -22,11 +22,6 @@ pub use connector::{
 };
 pub use error::{ParseError, ValidationError};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
-pub use workflow::{
-    AgentTask, AskGate, Binding, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
-    SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow, WorkflowStep,
-    WorkflowWhen, validate_process_tool,
-};
 pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,
 };
@@ -59,6 +54,11 @@ pub use test_fixture::{
 pub use tool::{
     RawToolManifestIr, ValidatedTool, parse_tool_manifest_json, parse_tool_manifest_yaml,
     validate_tool_manifest,
+};
+pub use workflow::{
+    AgentTask, AskGate, Binding, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
+    SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow, WorkflowStep,
+    WorkflowWhen, validate_process_tool,
 };
 pub use yaml::{
     assert_execution_profile_yaml_subset, assert_yaml_supported_subset, parse_yaml_document,
