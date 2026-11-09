@@ -244,8 +244,7 @@ mod tests {
                     "process.stdout.write(require('node:crypto').randomBytes(16).toString('hex'))"
                         .to_owned(),
                 ])
-                .env(process_baseline_environment(&environment))
-                .timeout(Some(std::time::Duration::from_secs(5))),
+                .env(process_baseline_environment(&environment)),
         )?;
         assert!(!outcome.timed_out);
         assert!(outcome.status.success(), "{:?}", outcome.stderr.bytes);

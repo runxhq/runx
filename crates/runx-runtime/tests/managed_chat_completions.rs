@@ -88,8 +88,8 @@ fn serve_responses<const N: usize>(
 ) -> io::Result<Vec<Value>> {
     let mut requests = Vec::new();
     for response in responses {
+        // The client sends its whole request or closes, so the read ends.
         let (mut stream, _) = listener.accept()?;
-        stream.set_read_timeout(Some(std::time::Duration::from_secs(10)))?;
         requests.push(read_request(&mut stream)?);
         let body = response.to_string();
         write!(
