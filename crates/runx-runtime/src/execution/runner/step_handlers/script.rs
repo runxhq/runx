@@ -75,7 +75,9 @@ where
     // The script passes from the beginning against its record once per drive
     // of the step, and from there stays live: each call's settlement goes on
     // from where the script stands.
-    further_open_calls(&mut ledger, host, &step.id)?;
+    // Calls that wait on a person or a child, by position. A waiting call
+    // never stops the others: the step holds only once none can go further.
+    let mut waiting = further_open_calls(&mut ledger, host)?;
     let (mut live, mut passed) = runtime.javascript.start_script(
         &prepared,
         &inputs,
@@ -125,6 +127,9 @@ where
             }
             ScriptEnding::Waiting => {
                 if new.is_empty() {
+                    if let Some((position, requests)) = waiting.into_iter().next() {
+                        return Err(waiting_on(&step.id, position, requests));
+                    }
                     break Err(
                         "the script waits on something that is not one of its calls".to_owned()
                     );
@@ -136,8 +141,9 @@ where
                     ));
                 }
                 let positions = new.iter().map(|call| call.position).collect::<Vec<_>>();
-                if let Some(refusal) = make_calls(&mut ledger, host, &step.id, new)? {
-                    break Err(refusal);
+                match make_calls(&mut ledger, host, new)? {
+                    Err(refusal) => break Err(refusal),
+                    Ok(still) => waiting.extend(still),
                 }
                 let recorded = ledger.recorded()?;
                 let fresh = settlements(
@@ -146,6 +152,13 @@ where
                         .iter()
                         .filter_map(|position| at(recorded, *position)),
                 )?;
+                if fresh.is_empty() {
+                    // Every new call waits, so nothing can go further.
+                    if let Some((position, requests)) = waiting.into_iter().next() {
+                        return Err(waiting_on(&step.id, position, requests));
+                    }
+                    break Err("the script's calls settled to nothing".to_owned());
+                }
                 passed = live.settle(fresh, 0)?;
             }
         }
@@ -201,45 +214,48 @@ where
     )
 }
 
-/// Make each new call, in position order, through the step's ledger. A call
-/// that waits on a person or a child holds the step; a pass that reads
-/// `ctx.now()` past its record is refused, since this runtime doesn't record
-/// the clock yet.
+/// A call that waits, at its position, with the requests it waits on.
+type Waiting = (u32, Vec<runx_contracts::ResolutionRequest>);
+
+/// Make each new call, in position order, through the step's ledger, and
+/// return those that wait on a person or a child; a waiting call doesn't stop
+/// the next. A pass that reads `ctx.now()` past its record is refused, since
+/// this runtime doesn't record the clock yet.
 fn make_calls<A>(
     ledger: &mut CallLedger<'_, A>,
     host: &mut dyn Host,
-    step_id: &str,
     new: Vec<ScriptCall>,
-) -> Result<Option<String>, RuntimeError>
+) -> Result<Result<Vec<Waiting>, String>, RuntimeError>
 where
     A: SkillAdapter,
 {
+    let mut waiting = Vec::new();
     for call in new {
         let (target, input) = match ledger_call(&call.target) {
             Ok(Some(call)) => call,
             Ok(None) => {
-                return Ok(Some(
+                return Ok(Err(
                     "ctx.now() is not recorded by this runtime yet, so a script can't read it"
                         .to_owned(),
                 ));
             }
-            Err(refusal) => return Ok(Some(refusal)),
+            Err(refusal) => return Ok(Err(refusal)),
         };
-        let result = ledger.make(host, call.position, target, input)?;
-        if let TurnCallOutcome::Pending { waiting } = result.outcome {
-            return Err(waiting_on(step_id, call.position, waiting));
+        if let TurnCallOutcome::Pending { waiting: requests } =
+            ledger.make(host, call.position, target, input)?.outcome
+        {
+            waiting.push((call.position, requests));
         }
     }
-    Ok(None)
+    Ok(Ok(waiting))
 }
 
-/// Take each recorded call that hasn't settled further: a run paused on one
-/// goes on from it, and one still waiting holds the step.
+/// Take each recorded call that hasn't settled further, and return those that
+/// still wait: a run paused on one goes on from it.
 fn further_open_calls<A>(
     ledger: &mut CallLedger<'_, A>,
     host: &mut dyn Host,
-    step_id: &str,
-) -> Result<(), RuntimeError>
+) -> Result<Vec<Waiting>, RuntimeError>
 where
     A: SkillAdapter,
 {
@@ -249,12 +265,14 @@ where
         .filter(|call| !settled(&call.outcome))
         .map(|call| call.index)
         .collect::<Vec<_>>();
+    let mut waiting = Vec::new();
     for index in open {
-        if let TurnCallOutcome::Pending { waiting } = ledger.further(host, index)?.outcome {
-            return Err(waiting_on(step_id, index, waiting));
+        if let TurnCallOutcome::Pending { waiting: requests } = ledger.further(host, index)?.outcome
+        {
+            waiting.push((index, requests));
         }
     }
-    Ok(())
+    Ok(waiting)
 }
 
 fn waiting_on(

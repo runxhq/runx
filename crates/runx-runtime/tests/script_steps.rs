@@ -229,3 +229,59 @@ fn object(value: &JsonValue) -> TestResult<&JsonObject> {
 fn text<'a>(object: &'a JsonObject, field: &str) -> Option<&'a str> {
     object.get(field).and_then(JsonValue::as_str)
 }
+
+#[test]
+fn two_calls_waiting_on_approval_at_once_are_both_listed_and_answered_apart() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        r#"export default async function (ctx) {
+  const [a, b] = await Promise.all([
+    ctx.skill("../confirm-child", { value: "a" }),
+    ctx.skill("../confirm-child", { value: "b" }),
+  ]);
+  return { confirmed: [Object.keys(a).length, Object.keys(b).length] };
+}
+"#,
+        "          confirmed: {type: array}\n",
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    // The first call's wait didn't stop the second: the run waits on both.
+    assert_eq!(
+        requests(&started)?,
+        ["prepare/0#confirm", "prepare/1#confirm"]
+    );
+
+    // An answer to one leaves the run waiting on the other alone.
+    let one = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {"prepare/1#confirm": true}}),
+    )?;
+    assert_eq!(requests(&one)?, ["prepare/0#confirm"], "{:?}", one.output);
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [(0, "child"), (1, "child"), (1, "completed")]
+    );
+
+    let sealed = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {"prepare/0#confirm": true}}),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [
+            (0, "child"),
+            (1, "child"),
+            (1, "completed"),
+            (0, "completed")
+        ]
+    );
+    Ok(())
+}

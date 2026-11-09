@@ -1336,6 +1336,11 @@ impl RunLog {
         }
     }
 
+    /// The version of the run's stream this driver last read or wrote.
+    pub(crate) fn last_version(&self) -> u64 {
+        *self.version()
+    }
+
     fn version(&self) -> std::sync::MutexGuard<'_, u64> {
         self.0
             .version
@@ -1842,17 +1847,9 @@ fn collect_waiting(
     let Some(held) = held(store, run_id)? else {
         return Ok(());
     };
-    // Only an agent turn makes calls of its own.
-    let turn = held
-        .request
-        .value
-        .as_object()
-        .and_then(|value| value.get("kind"))
-        == Some(&JsonValue::String("turn".to_owned()));
-    waiting.push(held.request);
-    if !turn {
-        return Ok(());
-    }
+    push_waiting(waiting, held.request);
+    // A step that makes calls, an agent's turn or a script, waits on every
+    // call of its that waits, each listed once.
     let events = store.read::<RunEvent>(&held.run_id)?;
     let calls = turn_calls(
         store,
@@ -1862,12 +1859,22 @@ fn collect_waiting(
     )?;
     for call in calls {
         match call.outcome {
-            CallOutcome::Pending(request) | CallOutcome::Claimed(request) => waiting.push(request),
+            CallOutcome::Pending(request) | CallOutcome::Claimed(request) => {
+                push_waiting(waiting, request);
+            }
             CallOutcome::Child(child) => collect_waiting(store, &child, waiting)?,
             CallOutcome::Completed(_) | CallOutcome::Refused(_) | CallOutcome::Failed(_) => {}
         }
     }
     Ok(())
+}
+
+/// List `request` once: a step held on one of its calls' requests names it
+/// twice, as its hold and as its call's.
+fn push_waiting(waiting: &mut Vec<PendingRequest>, request: PendingRequest) {
+    if !waiting.iter().any(|known| known.id == request.id) {
+        waiting.push(request);
+    }
 }
 
 /// Where a run's step is held: the run and step that asked, and the request.
