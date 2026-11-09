@@ -1735,6 +1735,33 @@ fn runx_mcp_reads_memory_under_the_authority_it_names() -> TestResult {
         served["result"]["structuredContent"]["runx"]["status"], "sealed",
         "{served}"
     );
+    // The served run's record reads back from the project's store, and its
+    // write is there: a second served call finds the key at version 1.
+    let run_id = served["result"]["structuredContent"]["runx"]["run_id"]
+        .as_str()
+        .ok_or("the served call names its run")?;
+    let read = json(
+        &project
+            .runx()?
+            .args(["history", run_id, "--json"])
+            .output()?,
+        0,
+    )?;
+    assert_eq!(read["run"]["state"], "sealed", "{read}");
+    assert_eq!(read["run"]["outcome"], "completed", "{read}");
+    let again = served_call(
+        &project,
+        "skills/notes#observe",
+        Some("notes"),
+        "notes",
+        &json!({"key": "tea", "text": "takes tea black", "attempt": "served-again"}),
+    )?;
+    assert_eq!(again["result"]["isError"], false, "{again}");
+    assert_eq!(
+        store_result(&again["result"]["structuredContent"]["runx"])["before_version"],
+        1,
+        "{again}"
+    );
     let refused = served_call(&project, "skills/notes#observe", None, "notes", &arguments)?;
     assert_eq!(refused["result"]["isError"], true, "{refused}");
     assert!(refused.to_string().contains("--authority"), "{refused}");
