@@ -567,18 +567,17 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
         "Ambient memory runx never reads.\n",
     )?;
     let memory: runx_contracts::ContextEntry = serde_json::from_value(json!({
+        "schema": "runx.context_entry.v1",
         "type": "fieldwork.memory",
         "summary": "Kam's launch date",
-        "version": "1",
-        "scope": {
-            "purpose": "confirmed_memory",
-            "trust": "operator_confirmed",
-            "sharing": "configured_model",
-            "goal_id": null,
-            "source_uri": null,
-        },
         "data": {"quote": "We launch on the third of November."},
-        "meta": {
+        "labels": {
+            "purpose": "confirmed_memory",
+            "trust": "person_confirmed",
+            "sharing": "configured_model",
+        },
+        "sources": ["conversation:2026-10-20"],
+        "origin": {
             "artifact_id": "memory:1",
             "run_id": "rx_host",
             "step_id": null,
@@ -586,9 +585,6 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
             "created_at": "2026-10-20T00:00:00Z",
             "digest": "sha256:memory",
             "size_bytes": 48,
-            "parent_artifact_id": null,
-            "receipt_id": null,
-            "redacted": false,
         },
     }))?;
     let listener = TcpListener::bind("127.0.0.1:0")?;

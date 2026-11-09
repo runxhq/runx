@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    ContextArtifactMeta, ContextArtifactProducer, ContextEntry, ContextEntryVersion, JsonObject,
-    JsonValue, sha256_prefixed,
+    ContextEntry, ContextEntrySchema, ContextLabels, ContextOrigin, ContextProducer,
+    ContextPurpose, ContextSharing, ContextTrust, JsonObject, JsonValue, sha256_prefixed,
 };
 
 use crate::RuntimeError;
@@ -36,18 +36,18 @@ pub(super) fn skill_context_entry(
         .as_bytes(),
     );
     Ok(ContextEntry {
-        entry_type: Some(non_empty(CONTEXT_ENTRY_TYPE)?),
+        schema: ContextEntrySchema::V1,
+        r#type: non_empty(CONTEXT_ENTRY_TYPE)?,
         summary: Some(non_empty(input.summary)?),
-        version: ContextEntryVersion::V1,
-        scope: runx_contracts::ContextScope {
-            purpose: runx_contracts::ContextPurpose::Procedure,
-            trust: runx_contracts::ContextTrust::SkillInstructions,
-            sharing: runx_contracts::ContextSharing::ConfiguredModel,
-            goal_id: None,
-            source_uri: None,
-        },
         data: input.data,
-        meta: ContextArtifactMeta {
+        labels: ContextLabels {
+            purpose: ContextPurpose::Procedure,
+            trust: ContextTrust::SkillInstructions,
+            sharing: ContextSharing::ConfiguredModel,
+        },
+        // A skill's instructions come from the skill its reference names.
+        sources: vec![non_empty(input.reference)?],
+        origin: ContextOrigin {
             artifact_id: non_empty(artifact_id)?,
             run_id: non_empty(
                 input
@@ -57,16 +57,13 @@ pub(super) fn skill_context_entry(
                     .unwrap_or(PENDING_RUN_ID),
             )?,
             step_id: Some(non_empty(input.step_id)?),
-            producer: ContextArtifactProducer {
+            producer: ContextProducer {
                 skill: non_empty(CONTEXT_PRODUCER_SKILL)?,
                 method: non_empty(CONTEXT_PRODUCER_METHOD)?,
             },
             created_at: non_empty(input.created_at)?,
             digest: non_empty(input.digest)?,
             size_bytes: input.size_bytes,
-            parent_artifact_id: None,
-            receipt_id: None,
-            redacted: false,
         },
     })
 }

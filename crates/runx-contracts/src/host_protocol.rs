@@ -815,11 +815,11 @@ impl From<&AgentContextEnvelope> for TurnViewEnvelope {
 #[serde(deny_unknown_fields)]
 pub struct TurnContextLine {
     pub locator: NonEmptyString,
-    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
-    pub entry_type: Option<NonEmptyString>,
+    #[serde(rename = "type")]
+    pub r#type: NonEmptyString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<NonEmptyString>,
-    pub scope: crate::ContextScope,
+    pub labels: crate::ContextLabels,
     pub created_at: NonEmptyString,
     pub size_bytes: u64,
 }
@@ -828,11 +828,11 @@ impl TurnContextLine {
     fn of(locator: TurnLocator, entry: &crate::ContextEntry) -> Self {
         Self {
             locator: locator.to_string().into(),
-            entry_type: entry.entry_type.clone(),
+            r#type: entry.r#type.clone(),
             summary: entry.summary.clone(),
-            scope: entry.scope.clone(),
-            created_at: entry.meta.created_at.clone(),
-            size_bytes: entry.meta.size_bytes,
+            labels: entry.labels.clone(),
+            created_at: entry.origin.created_at.clone(),
+            size_bytes: entry.origin.size_bytes,
         }
     }
 }

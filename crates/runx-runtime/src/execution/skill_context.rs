@@ -44,7 +44,7 @@ pub fn load_context_skills(
             }
             let entry = load_context_skill(step_id, workflow_dir, reference, env, created_at)?;
             let entry_bytes =
-                usize::try_from(entry.meta.size_bytes).map_err(|_| RuntimeError::StepFailed {
+                usize::try_from(entry.origin.size_bytes).map_err(|_| RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!(
                         "context skill '{reference}' size exceeds this platform's address space"

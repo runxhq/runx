@@ -190,10 +190,10 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     );
     let canonical = canonical_stable_json(&JsonValue::Object(adjacent_context.data.clone()))?;
     assert_eq!(
-        adjacent_context.meta.digest.as_ref(),
+        adjacent_context.origin.digest.as_ref(),
         sha256_prefixed(canonical.as_bytes())
     );
-    assert_eq!(adjacent_context.meta.size_bytes, canonical.len() as u64);
+    assert_eq!(adjacent_context.origin.size_bytes, canonical.len() as u64);
     assert!(!adjacent_context.data.contains_key("sha256"));
 
     let wire = serde_json::to_vec(summary_request)?;

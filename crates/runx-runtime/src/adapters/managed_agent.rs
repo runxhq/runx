@@ -367,7 +367,7 @@ fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) 
             .current_context
             .iter()
             .chain(&envelope.historical_context)
-            .any(|entry| local_only(&entry.scope.sharing))
+            .any(|entry| local_only(&entry.labels.sharing))
             || envelope
                 .voice_profile
                 .iter()
@@ -565,8 +565,8 @@ mod tests {
     use super::*;
     use runx_contracts::schema::NonEmptyString;
     use runx_contracts::{
-        AgentContextProfiles, ContextArtifactMeta, ContextArtifactProducer, ContextEntry,
-        ContextEntryVersion, ExecutionLocation, ProfileFile, ProvenanceEntry,
+        AgentContextProfiles, ContextEntry, ContextEntrySchema, ContextOrigin, ContextProducer,
+        ExecutionLocation, ProfileFile, ProvenanceEntry,
     };
 
     #[test]
@@ -806,33 +806,29 @@ mod tests {
             JsonValue::String("Prefer clear hierarchy.".to_owned()),
         );
         ContextEntry {
-            entry_type: Some(non_empty("runx.skill.context")),
+            schema: ContextEntrySchema::V1,
+            r#type: non_empty("runx.skill.context"),
             summary: Some(non_empty(
                 "Context skill taste-profile: the product's taste in layout",
             )),
-            version: ContextEntryVersion::V1,
-            scope: runx_contracts::ContextScope {
+            data,
+            labels: runx_contracts::ContextLabels {
                 purpose: runx_contracts::ContextPurpose::Procedure,
                 trust: runx_contracts::ContextTrust::SkillInstructions,
                 sharing: runx_contracts::ContextSharing::ConfiguredModel,
-                goal_id: None,
-                source_uri: None,
             },
-            data,
-            meta: ContextArtifactMeta {
+            sources: vec![non_empty("registry:runx/taste-profile@1.0.0")],
+            origin: ContextOrigin {
                 artifact_id: non_empty("sha256:artifact"),
                 run_id: non_empty("rx_pending"),
                 step_id: Some(non_empty("apply_taste")),
-                producer: ContextArtifactProducer {
+                producer: ContextProducer {
                     skill: non_empty("runx-runtime"),
                     method: non_empty("skill-context"),
                 },
                 created_at: non_empty("2026-05-18T00:00:00Z"),
                 digest: non_empty("sha256:taste"),
                 size_bytes: 23,
-                parent_artifact_id: None,
-                receipt_id: None,
-                redacted: false,
             },
         }
     }

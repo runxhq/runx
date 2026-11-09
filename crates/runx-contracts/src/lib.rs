@@ -79,8 +79,8 @@ pub use admission::{
     AdmissionCheck, AdmissionReason, CheckOutcome, OperationAmount, OperationIntent, Readiness,
 };
 pub use agent_context::{
-    AgentContextEnvelope, AgentContextProfiles, ContextArtifactMeta, ContextArtifactProducer,
-    ContextEntry, ContextEntryVersion, ContextPurpose, ContextScope, ContextSharing, ContextTrust,
+    AgentContextEnvelope, AgentContextProfiles, ContextEntry, ContextEntrySchema, ContextLabels,
+    ContextOrigin, ContextProducer, ContextPurpose, ContextSharing, ContextTrust,
     ExecutionLocation, ProfileFile, ProvenanceEntry,
 };
 pub use artifact::{

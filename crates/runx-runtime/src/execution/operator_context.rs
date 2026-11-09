@@ -486,13 +486,13 @@ impl ExpansionState {
                 "resolved context skill '{resolved_reference}' does not match declared skill '{reference}'"
             )));
         }
-        let artifact_bytes = usize::try_from(entry.meta.size_bytes)
+        let artifact_bytes = usize::try_from(entry.origin.size_bytes)
             .map_err(|_| blocked("resolved context skill artifact size exceeds this platform"))?;
         self.add_bytes(artifact_bytes)?;
         Ok(SkillOperatorContextContextSkill {
             reference: reference.to_owned(),
-            artifact_digest: entry.meta.digest.as_str().to_owned(),
-            artifact_bytes: entry.meta.size_bytes,
+            artifact_digest: entry.origin.digest.as_str().to_owned(),
+            artifact_bytes: entry.origin.size_bytes,
             artifact: entry.data,
         })
     }

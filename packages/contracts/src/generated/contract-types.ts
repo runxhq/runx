@@ -676,56 +676,54 @@ export type ContentDigestContract = {
   readonly value: string;
 };
 
-/** Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null). */
-export type ContextArtifactMetaContract = {
+/** One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go. */
+export type ContextEntryContract = {
+  readonly data: {
+    readonly [key: string]: unknown;
+  };
+  readonly labels: ContextLabelsContract;
+  readonly origin: ContextOriginContract;
+  readonly schema: ContextEntrySchemaContract;
+  /** Where its content came from (D35). */
+  readonly sources: readonly string[];
+  /** What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data. */
+  readonly summary?: string;
+  /** What the entry is. */
+  readonly type: string;
+};
+
+/** A context entry's schema, `runx.context_entry.v1`. */
+export type ContextEntrySchemaContract = "runx.context_entry.v1";
+
+/** How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision. */
+export type ContextLabelsContract = {
+  readonly purpose: ContextPurposeContract;
+  readonly sharing: ContextSharingContract;
+  readonly trust: ContextTrustContract;
+};
+
+/** Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size. */
+export type ContextOriginContract = {
   readonly artifact_id: string;
   readonly created_at: string;
   readonly digest: string;
-  readonly parent_artifact_id: string | null;
-  readonly producer: ContextArtifactProducerContract;
-  readonly receipt_id: string | null;
-  readonly redacted: boolean;
+  readonly producer: ContextProducerContract;
   readonly run_id: string;
   readonly size_bytes: number;
   readonly step_id: string | null;
 };
 
-/** The producer of a context artifact. */
-export type ContextArtifactProducerContract = {
+/** The skill and method that produced a context entry. */
+export type ContextProducerContract = {
   readonly method: string;
   readonly skill: string;
 };
 
-/** A single artifact context entry. `type` is required-but-nullable. */
-export type ContextEntryContract = {
-  readonly data: {
-    readonly [key: string]: unknown;
-  };
-  readonly meta: ContextArtifactMetaContract;
-  readonly scope: ContextScopeContract;
-  /** What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data. */
-  readonly summary?: string;
-  readonly type: string | null;
-  readonly version: ContextEntryVersionContract;
-};
-
-/** The artifact context entry version. Committed as `const: "1"`. */
-export type ContextEntryVersionContract = "1";
-
-export type ContextPurposeContract = "procedure" | "mandate" | "confirmed_memory" | "observation" | "work_continuity" | "retrieved_history" | "hypothesis";
-
-/** Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision. */
-export type ContextScopeContract = {
-  readonly goal_id: string | null;
-  readonly purpose: ContextPurposeContract;
-  readonly sharing: ContextSharingContract;
-  readonly source_uri: string | null;
-  readonly trust: ContextTrustContract;
-};
+export type ContextPurposeContract = "procedure" | "mandate" | "confirmed_memory" | "observation";
 
 export type ContextSharingContract = "local_only" | "configured_model";
 
-export type ContextTrustContract = "operator_confirmed" | "skill_instructions" | "untrusted_evidence";
+export type ContextTrustContract = "person_confirmed" | "skill_instructions" | "untrusted_evidence";
 
 export type ConversationObservationContract = {
   readonly message: {
@@ -4200,11 +4198,11 @@ export type TurnCallResultContract = {
 /** One context entry of an act as a model reads it in an index: what it is, whom it may be shared with, how large it is, and the locator `turn_read` reads its data by. */
 export type TurnContextLineContract = {
   readonly created_at: string;
+  readonly labels: ContextLabelsContract;
   readonly locator: string;
-  readonly scope: ContextScopeContract;
   readonly size_bytes: number;
   readonly summary?: string;
-  readonly type?: string;
+  readonly type: string;
 };
 
 export type TurnInvocationContract = {

@@ -739,15 +739,55 @@ export const runxSchemaArtifacts = {
                           "current_context": {
                             "items": {
                               "additionalProperties": false,
-                              "description": "A single artifact context entry. `type` is required-but-nullable.",
+                              "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                               "properties": {
                                 "data": {
                                   "additionalProperties": {},
                                   "type": "object"
                                 },
-                                "meta": {
+                                "labels": {
                                   "additionalProperties": false,
-                                  "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                  "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                  "properties": {
+                                    "purpose": {
+                                      "enum": [
+                                        "procedure",
+                                        "mandate",
+                                        "confirmed_memory",
+                                        "observation"
+                                      ],
+                                      "title": "ContextPurpose",
+                                      "type": "string"
+                                    },
+                                    "sharing": {
+                                      "enum": [
+                                        "local_only",
+                                        "configured_model"
+                                      ],
+                                      "title": "ContextSharing",
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "enum": [
+                                        "person_confirmed",
+                                        "skill_instructions",
+                                        "untrusted_evidence"
+                                      ],
+                                      "title": "ContextTrust",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "purpose",
+                                    "trust",
+                                    "sharing"
+                                  ],
+                                  "title": "ContextLabels",
+                                  "type": "object"
+                                },
+                                "origin": {
+                                  "additionalProperties": false,
+                                  "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                   "properties": {
                                     "artifact_id": {
                                       "minLength": 1,
@@ -761,20 +801,9 @@ export const runxSchemaArtifacts = {
                                       "minLength": 1,
                                       "type": "string"
                                     },
-                                    "parent_artifact_id": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
                                     "producer": {
                                       "additionalProperties": false,
-                                      "description": "The producer of a context artifact.",
+                                      "description": "The skill and method that produced a context entry.",
                                       "properties": {
                                         "method": {
                                           "minLength": 1,
@@ -789,22 +818,8 @@ export const runxSchemaArtifacts = {
                                         "skill",
                                         "method"
                                       ],
-                                      "title": "ContextArtifactProducer",
+                                      "title": "ContextProducer",
                                       "type": "object"
-                                    },
-                                    "receipt_id": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "redacted": {
-                                      "type": "boolean"
                                     },
                                     "run_id": {
                                       "minLength": 1,
@@ -833,80 +848,26 @@ export const runxSchemaArtifacts = {
                                     "producer",
                                     "created_at",
                                     "digest",
-                                    "size_bytes",
-                                    "parent_artifact_id",
-                                    "receipt_id",
-                                    "redacted"
+                                    "size_bytes"
                                   ],
-                                  "title": "ContextArtifactMeta",
+                                  "title": "ContextOrigin",
                                   "type": "object"
                                 },
-                                "scope": {
-                                  "additionalProperties": false,
-                                  "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                  "properties": {
-                                    "goal_id": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "purpose": {
-                                      "enum": [
-                                        "procedure",
-                                        "mandate",
-                                        "confirmed_memory",
-                                        "observation",
-                                        "work_continuity",
-                                        "retrieved_history",
-                                        "hypothesis"
-                                      ],
-                                      "title": "ContextPurpose",
-                                      "type": "string"
-                                    },
-                                    "sharing": {
-                                      "enum": [
-                                        "local_only",
-                                        "configured_model"
-                                      ],
-                                      "title": "ContextSharing",
-                                      "type": "string"
-                                    },
-                                    "source_uri": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "trust": {
-                                      "enum": [
-                                        "operator_confirmed",
-                                        "skill_instructions",
-                                        "untrusted_evidence"
-                                      ],
-                                      "title": "ContextTrust",
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "purpose",
-                                    "trust",
-                                    "sharing",
-                                    "goal_id",
-                                    "source_uri"
+                                "schema": {
+                                  "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                  "enum": [
+                                    "runx.context_entry.v1"
                                   ],
-                                  "title": "ContextScope",
-                                  "type": "object"
+                                  "title": "ContextEntrySchema",
+                                  "type": "string"
+                                },
+                                "sources": {
+                                  "description": "Where its content came from (D35).",
+                                  "items": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "type": "array"
                                 },
                                 "summary": {
                                   "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -914,31 +875,18 @@ export const runxSchemaArtifacts = {
                                   "type": "string"
                                 },
                                 "type": {
-                                  "anyOf": [
-                                    {
-                                      "minLength": 1,
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "version": {
-                                  "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                  "enum": [
-                                    "1"
-                                  ],
-                                  "title": "ContextEntryVersion",
+                                  "description": "What the entry is.",
+                                  "minLength": 1,
                                   "type": "string"
                                 }
                               },
                               "required": [
+                                "schema",
                                 "type",
-                                "version",
-                                "scope",
                                 "data",
-                                "meta"
+                                "labels",
+                                "sources",
+                                "origin"
                               ],
                               "title": "ContextEntry",
                               "type": "object"
@@ -970,15 +918,55 @@ export const runxSchemaArtifacts = {
                           "historical_context": {
                             "items": {
                               "additionalProperties": false,
-                              "description": "A single artifact context entry. `type` is required-but-nullable.",
+                              "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                               "properties": {
                                 "data": {
                                   "additionalProperties": {},
                                   "type": "object"
                                 },
-                                "meta": {
+                                "labels": {
                                   "additionalProperties": false,
-                                  "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                  "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                  "properties": {
+                                    "purpose": {
+                                      "enum": [
+                                        "procedure",
+                                        "mandate",
+                                        "confirmed_memory",
+                                        "observation"
+                                      ],
+                                      "title": "ContextPurpose",
+                                      "type": "string"
+                                    },
+                                    "sharing": {
+                                      "enum": [
+                                        "local_only",
+                                        "configured_model"
+                                      ],
+                                      "title": "ContextSharing",
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "enum": [
+                                        "person_confirmed",
+                                        "skill_instructions",
+                                        "untrusted_evidence"
+                                      ],
+                                      "title": "ContextTrust",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "purpose",
+                                    "trust",
+                                    "sharing"
+                                  ],
+                                  "title": "ContextLabels",
+                                  "type": "object"
+                                },
+                                "origin": {
+                                  "additionalProperties": false,
+                                  "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                   "properties": {
                                     "artifact_id": {
                                       "minLength": 1,
@@ -992,20 +980,9 @@ export const runxSchemaArtifacts = {
                                       "minLength": 1,
                                       "type": "string"
                                     },
-                                    "parent_artifact_id": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
                                     "producer": {
                                       "additionalProperties": false,
-                                      "description": "The producer of a context artifact.",
+                                      "description": "The skill and method that produced a context entry.",
                                       "properties": {
                                         "method": {
                                           "minLength": 1,
@@ -1020,22 +997,8 @@ export const runxSchemaArtifacts = {
                                         "skill",
                                         "method"
                                       ],
-                                      "title": "ContextArtifactProducer",
+                                      "title": "ContextProducer",
                                       "type": "object"
-                                    },
-                                    "receipt_id": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "redacted": {
-                                      "type": "boolean"
                                     },
                                     "run_id": {
                                       "minLength": 1,
@@ -1064,80 +1027,26 @@ export const runxSchemaArtifacts = {
                                     "producer",
                                     "created_at",
                                     "digest",
-                                    "size_bytes",
-                                    "parent_artifact_id",
-                                    "receipt_id",
-                                    "redacted"
+                                    "size_bytes"
                                   ],
-                                  "title": "ContextArtifactMeta",
+                                  "title": "ContextOrigin",
                                   "type": "object"
                                 },
-                                "scope": {
-                                  "additionalProperties": false,
-                                  "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                  "properties": {
-                                    "goal_id": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "purpose": {
-                                      "enum": [
-                                        "procedure",
-                                        "mandate",
-                                        "confirmed_memory",
-                                        "observation",
-                                        "work_continuity",
-                                        "retrieved_history",
-                                        "hypothesis"
-                                      ],
-                                      "title": "ContextPurpose",
-                                      "type": "string"
-                                    },
-                                    "sharing": {
-                                      "enum": [
-                                        "local_only",
-                                        "configured_model"
-                                      ],
-                                      "title": "ContextSharing",
-                                      "type": "string"
-                                    },
-                                    "source_uri": {
-                                      "anyOf": [
-                                        {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "trust": {
-                                      "enum": [
-                                        "operator_confirmed",
-                                        "skill_instructions",
-                                        "untrusted_evidence"
-                                      ],
-                                      "title": "ContextTrust",
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "purpose",
-                                    "trust",
-                                    "sharing",
-                                    "goal_id",
-                                    "source_uri"
+                                "schema": {
+                                  "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                  "enum": [
+                                    "runx.context_entry.v1"
                                   ],
-                                  "title": "ContextScope",
-                                  "type": "object"
+                                  "title": "ContextEntrySchema",
+                                  "type": "string"
+                                },
+                                "sources": {
+                                  "description": "Where its content came from (D35).",
+                                  "items": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "type": "array"
                                 },
                                 "summary": {
                                   "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -1145,31 +1054,18 @@ export const runxSchemaArtifacts = {
                                   "type": "string"
                                 },
                                 "type": {
-                                  "anyOf": [
-                                    {
-                                      "minLength": 1,
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "version": {
-                                  "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                  "enum": [
-                                    "1"
-                                  ],
-                                  "title": "ContextEntryVersion",
+                                  "description": "What the entry is.",
+                                  "minLength": 1,
                                   "type": "string"
                                 }
                               },
                               "required": [
+                                "schema",
                                 "type",
-                                "version",
-                                "scope",
                                 "data",
-                                "meta"
+                                "labels",
+                                "sources",
+                                "origin"
                               ],
                               "title": "ContextEntry",
                               "type": "object"
@@ -2247,15 +2143,55 @@ export const runxSchemaArtifacts = {
           "current_context": {
             "items": {
               "additionalProperties": false,
-              "description": "A single artifact context entry. `type` is required-but-nullable.",
+              "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
               "properties": {
                 "data": {
                   "additionalProperties": {},
                   "type": "object"
                 },
-                "meta": {
+                "labels": {
                   "additionalProperties": false,
-                  "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                  "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                  "properties": {
+                    "purpose": {
+                      "enum": [
+                        "procedure",
+                        "mandate",
+                        "confirmed_memory",
+                        "observation"
+                      ],
+                      "title": "ContextPurpose",
+                      "type": "string"
+                    },
+                    "sharing": {
+                      "enum": [
+                        "local_only",
+                        "configured_model"
+                      ],
+                      "title": "ContextSharing",
+                      "type": "string"
+                    },
+                    "trust": {
+                      "enum": [
+                        "person_confirmed",
+                        "skill_instructions",
+                        "untrusted_evidence"
+                      ],
+                      "title": "ContextTrust",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "purpose",
+                    "trust",
+                    "sharing"
+                  ],
+                  "title": "ContextLabels",
+                  "type": "object"
+                },
+                "origin": {
+                  "additionalProperties": false,
+                  "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                   "properties": {
                     "artifact_id": {
                       "minLength": 1,
@@ -2269,20 +2205,9 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "parent_artifact_id": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
                     "producer": {
                       "additionalProperties": false,
-                      "description": "The producer of a context artifact.",
+                      "description": "The skill and method that produced a context entry.",
                       "properties": {
                         "method": {
                           "minLength": 1,
@@ -2297,22 +2222,8 @@ export const runxSchemaArtifacts = {
                         "skill",
                         "method"
                       ],
-                      "title": "ContextArtifactProducer",
+                      "title": "ContextProducer",
                       "type": "object"
-                    },
-                    "receipt_id": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "redacted": {
-                      "type": "boolean"
                     },
                     "run_id": {
                       "minLength": 1,
@@ -2341,80 +2252,26 @@ export const runxSchemaArtifacts = {
                     "producer",
                     "created_at",
                     "digest",
-                    "size_bytes",
-                    "parent_artifact_id",
-                    "receipt_id",
-                    "redacted"
+                    "size_bytes"
                   ],
-                  "title": "ContextArtifactMeta",
+                  "title": "ContextOrigin",
                   "type": "object"
                 },
-                "scope": {
-                  "additionalProperties": false,
-                  "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                  "properties": {
-                    "goal_id": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "purpose": {
-                      "enum": [
-                        "procedure",
-                        "mandate",
-                        "confirmed_memory",
-                        "observation",
-                        "work_continuity",
-                        "retrieved_history",
-                        "hypothesis"
-                      ],
-                      "title": "ContextPurpose",
-                      "type": "string"
-                    },
-                    "sharing": {
-                      "enum": [
-                        "local_only",
-                        "configured_model"
-                      ],
-                      "title": "ContextSharing",
-                      "type": "string"
-                    },
-                    "source_uri": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "trust": {
-                      "enum": [
-                        "operator_confirmed",
-                        "skill_instructions",
-                        "untrusted_evidence"
-                      ],
-                      "title": "ContextTrust",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "purpose",
-                    "trust",
-                    "sharing",
-                    "goal_id",
-                    "source_uri"
+                "schema": {
+                  "description": "A context entry's schema, `runx.context_entry.v1`.",
+                  "enum": [
+                    "runx.context_entry.v1"
                   ],
-                  "title": "ContextScope",
-                  "type": "object"
+                  "title": "ContextEntrySchema",
+                  "type": "string"
+                },
+                "sources": {
+                  "description": "Where its content came from (D35).",
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "summary": {
                   "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -2422,31 +2279,18 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "type": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "version": {
-                  "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                  "enum": [
-                    "1"
-                  ],
-                  "title": "ContextEntryVersion",
+                  "description": "What the entry is.",
+                  "minLength": 1,
                   "type": "string"
                 }
               },
               "required": [
+                "schema",
                 "type",
-                "version",
-                "scope",
                 "data",
-                "meta"
+                "labels",
+                "sources",
+                "origin"
               ],
               "title": "ContextEntry",
               "type": "object"
@@ -2478,15 +2322,55 @@ export const runxSchemaArtifacts = {
           "historical_context": {
             "items": {
               "additionalProperties": false,
-              "description": "A single artifact context entry. `type` is required-but-nullable.",
+              "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
               "properties": {
                 "data": {
                   "additionalProperties": {},
                   "type": "object"
                 },
-                "meta": {
+                "labels": {
                   "additionalProperties": false,
-                  "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                  "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                  "properties": {
+                    "purpose": {
+                      "enum": [
+                        "procedure",
+                        "mandate",
+                        "confirmed_memory",
+                        "observation"
+                      ],
+                      "title": "ContextPurpose",
+                      "type": "string"
+                    },
+                    "sharing": {
+                      "enum": [
+                        "local_only",
+                        "configured_model"
+                      ],
+                      "title": "ContextSharing",
+                      "type": "string"
+                    },
+                    "trust": {
+                      "enum": [
+                        "person_confirmed",
+                        "skill_instructions",
+                        "untrusted_evidence"
+                      ],
+                      "title": "ContextTrust",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "purpose",
+                    "trust",
+                    "sharing"
+                  ],
+                  "title": "ContextLabels",
+                  "type": "object"
+                },
+                "origin": {
+                  "additionalProperties": false,
+                  "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                   "properties": {
                     "artifact_id": {
                       "minLength": 1,
@@ -2500,20 +2384,9 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "parent_artifact_id": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
                     "producer": {
                       "additionalProperties": false,
-                      "description": "The producer of a context artifact.",
+                      "description": "The skill and method that produced a context entry.",
                       "properties": {
                         "method": {
                           "minLength": 1,
@@ -2528,22 +2401,8 @@ export const runxSchemaArtifacts = {
                         "skill",
                         "method"
                       ],
-                      "title": "ContextArtifactProducer",
+                      "title": "ContextProducer",
                       "type": "object"
-                    },
-                    "receipt_id": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "redacted": {
-                      "type": "boolean"
                     },
                     "run_id": {
                       "minLength": 1,
@@ -2572,80 +2431,26 @@ export const runxSchemaArtifacts = {
                     "producer",
                     "created_at",
                     "digest",
-                    "size_bytes",
-                    "parent_artifact_id",
-                    "receipt_id",
-                    "redacted"
+                    "size_bytes"
                   ],
-                  "title": "ContextArtifactMeta",
+                  "title": "ContextOrigin",
                   "type": "object"
                 },
-                "scope": {
-                  "additionalProperties": false,
-                  "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                  "properties": {
-                    "goal_id": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "purpose": {
-                      "enum": [
-                        "procedure",
-                        "mandate",
-                        "confirmed_memory",
-                        "observation",
-                        "work_continuity",
-                        "retrieved_history",
-                        "hypothesis"
-                      ],
-                      "title": "ContextPurpose",
-                      "type": "string"
-                    },
-                    "sharing": {
-                      "enum": [
-                        "local_only",
-                        "configured_model"
-                      ],
-                      "title": "ContextSharing",
-                      "type": "string"
-                    },
-                    "source_uri": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "trust": {
-                      "enum": [
-                        "operator_confirmed",
-                        "skill_instructions",
-                        "untrusted_evidence"
-                      ],
-                      "title": "ContextTrust",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "purpose",
-                    "trust",
-                    "sharing",
-                    "goal_id",
-                    "source_uri"
+                "schema": {
+                  "description": "A context entry's schema, `runx.context_entry.v1`.",
+                  "enum": [
+                    "runx.context_entry.v1"
                   ],
-                  "title": "ContextScope",
-                  "type": "object"
+                  "title": "ContextEntrySchema",
+                  "type": "string"
+                },
+                "sources": {
+                  "description": "Where its content came from (D35).",
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "summary": {
                   "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -2653,31 +2458,18 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 },
                 "type": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "version": {
-                  "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                  "enum": [
-                    "1"
-                  ],
-                  "title": "ContextEntryVersion",
+                  "description": "What the entry is.",
+                  "minLength": 1,
                   "type": "string"
                 }
               },
               "required": [
+                "schema",
                 "type",
-                "version",
-                "scope",
                 "data",
-                "meta"
+                "labels",
+                "sources",
+                "origin"
               ],
               "title": "ContextEntry",
               "type": "object"
@@ -3138,15 +2930,55 @@ export const runxSchemaArtifacts = {
       "current_context": {
         "items": {
           "additionalProperties": false,
-          "description": "A single artifact context entry. `type` is required-but-nullable.",
+          "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
           "properties": {
             "data": {
               "additionalProperties": {},
               "type": "object"
             },
-            "meta": {
+            "labels": {
               "additionalProperties": false,
-              "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+              "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+              "properties": {
+                "purpose": {
+                  "enum": [
+                    "procedure",
+                    "mandate",
+                    "confirmed_memory",
+                    "observation"
+                  ],
+                  "title": "ContextPurpose",
+                  "type": "string"
+                },
+                "sharing": {
+                  "enum": [
+                    "local_only",
+                    "configured_model"
+                  ],
+                  "title": "ContextSharing",
+                  "type": "string"
+                },
+                "trust": {
+                  "enum": [
+                    "person_confirmed",
+                    "skill_instructions",
+                    "untrusted_evidence"
+                  ],
+                  "title": "ContextTrust",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "purpose",
+                "trust",
+                "sharing"
+              ],
+              "title": "ContextLabels",
+              "type": "object"
+            },
+            "origin": {
+              "additionalProperties": false,
+              "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
               "properties": {
                 "artifact_id": {
                   "minLength": 1,
@@ -3160,20 +2992,9 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "parent_artifact_id": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "producer": {
                   "additionalProperties": false,
-                  "description": "The producer of a context artifact.",
+                  "description": "The skill and method that produced a context entry.",
                   "properties": {
                     "method": {
                       "minLength": 1,
@@ -3188,22 +3009,8 @@ export const runxSchemaArtifacts = {
                     "skill",
                     "method"
                   ],
-                  "title": "ContextArtifactProducer",
+                  "title": "ContextProducer",
                   "type": "object"
-                },
-                "receipt_id": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "redacted": {
-                  "type": "boolean"
                 },
                 "run_id": {
                   "minLength": 1,
@@ -3232,80 +3039,26 @@ export const runxSchemaArtifacts = {
                 "producer",
                 "created_at",
                 "digest",
-                "size_bytes",
-                "parent_artifact_id",
-                "receipt_id",
-                "redacted"
+                "size_bytes"
               ],
-              "title": "ContextArtifactMeta",
+              "title": "ContextOrigin",
               "type": "object"
             },
-            "scope": {
-              "additionalProperties": false,
-              "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-              "properties": {
-                "goal_id": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "purpose": {
-                  "enum": [
-                    "procedure",
-                    "mandate",
-                    "confirmed_memory",
-                    "observation",
-                    "work_continuity",
-                    "retrieved_history",
-                    "hypothesis"
-                  ],
-                  "title": "ContextPurpose",
-                  "type": "string"
-                },
-                "sharing": {
-                  "enum": [
-                    "local_only",
-                    "configured_model"
-                  ],
-                  "title": "ContextSharing",
-                  "type": "string"
-                },
-                "source_uri": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "trust": {
-                  "enum": [
-                    "operator_confirmed",
-                    "skill_instructions",
-                    "untrusted_evidence"
-                  ],
-                  "title": "ContextTrust",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "purpose",
-                "trust",
-                "sharing",
-                "goal_id",
-                "source_uri"
+            "schema": {
+              "description": "A context entry's schema, `runx.context_entry.v1`.",
+              "enum": [
+                "runx.context_entry.v1"
               ],
-              "title": "ContextScope",
-              "type": "object"
+              "title": "ContextEntrySchema",
+              "type": "string"
+            },
+            "sources": {
+              "description": "Where its content came from (D35).",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
             },
             "summary": {
               "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -3313,31 +3066,18 @@ export const runxSchemaArtifacts = {
               "type": "string"
             },
             "type": {
-              "anyOf": [
-                {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "version": {
-              "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-              "enum": [
-                "1"
-              ],
-              "title": "ContextEntryVersion",
+              "description": "What the entry is.",
+              "minLength": 1,
               "type": "string"
             }
           },
           "required": [
+            "schema",
             "type",
-            "version",
-            "scope",
             "data",
-            "meta"
+            "labels",
+            "sources",
+            "origin"
           ],
           "title": "ContextEntry",
           "type": "object"
@@ -3369,15 +3109,55 @@ export const runxSchemaArtifacts = {
       "historical_context": {
         "items": {
           "additionalProperties": false,
-          "description": "A single artifact context entry. `type` is required-but-nullable.",
+          "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
           "properties": {
             "data": {
               "additionalProperties": {},
               "type": "object"
             },
-            "meta": {
+            "labels": {
               "additionalProperties": false,
-              "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+              "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+              "properties": {
+                "purpose": {
+                  "enum": [
+                    "procedure",
+                    "mandate",
+                    "confirmed_memory",
+                    "observation"
+                  ],
+                  "title": "ContextPurpose",
+                  "type": "string"
+                },
+                "sharing": {
+                  "enum": [
+                    "local_only",
+                    "configured_model"
+                  ],
+                  "title": "ContextSharing",
+                  "type": "string"
+                },
+                "trust": {
+                  "enum": [
+                    "person_confirmed",
+                    "skill_instructions",
+                    "untrusted_evidence"
+                  ],
+                  "title": "ContextTrust",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "purpose",
+                "trust",
+                "sharing"
+              ],
+              "title": "ContextLabels",
+              "type": "object"
+            },
+            "origin": {
+              "additionalProperties": false,
+              "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
               "properties": {
                 "artifact_id": {
                   "minLength": 1,
@@ -3391,20 +3171,9 @@ export const runxSchemaArtifacts = {
                   "minLength": 1,
                   "type": "string"
                 },
-                "parent_artifact_id": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "producer": {
                   "additionalProperties": false,
-                  "description": "The producer of a context artifact.",
+                  "description": "The skill and method that produced a context entry.",
                   "properties": {
                     "method": {
                       "minLength": 1,
@@ -3419,22 +3188,8 @@ export const runxSchemaArtifacts = {
                     "skill",
                     "method"
                   ],
-                  "title": "ContextArtifactProducer",
+                  "title": "ContextProducer",
                   "type": "object"
-                },
-                "receipt_id": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "redacted": {
-                  "type": "boolean"
                 },
                 "run_id": {
                   "minLength": 1,
@@ -3463,80 +3218,26 @@ export const runxSchemaArtifacts = {
                 "producer",
                 "created_at",
                 "digest",
-                "size_bytes",
-                "parent_artifact_id",
-                "receipt_id",
-                "redacted"
+                "size_bytes"
               ],
-              "title": "ContextArtifactMeta",
+              "title": "ContextOrigin",
               "type": "object"
             },
-            "scope": {
-              "additionalProperties": false,
-              "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-              "properties": {
-                "goal_id": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "purpose": {
-                  "enum": [
-                    "procedure",
-                    "mandate",
-                    "confirmed_memory",
-                    "observation",
-                    "work_continuity",
-                    "retrieved_history",
-                    "hypothesis"
-                  ],
-                  "title": "ContextPurpose",
-                  "type": "string"
-                },
-                "sharing": {
-                  "enum": [
-                    "local_only",
-                    "configured_model"
-                  ],
-                  "title": "ContextSharing",
-                  "type": "string"
-                },
-                "source_uri": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "trust": {
-                  "enum": [
-                    "operator_confirmed",
-                    "skill_instructions",
-                    "untrusted_evidence"
-                  ],
-                  "title": "ContextTrust",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "purpose",
-                "trust",
-                "sharing",
-                "goal_id",
-                "source_uri"
+            "schema": {
+              "description": "A context entry's schema, `runx.context_entry.v1`.",
+              "enum": [
+                "runx.context_entry.v1"
               ],
-              "title": "ContextScope",
-              "type": "object"
+              "title": "ContextEntrySchema",
+              "type": "string"
+            },
+            "sources": {
+              "description": "Where its content came from (D35).",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
             },
             "summary": {
               "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -3544,31 +3245,18 @@ export const runxSchemaArtifacts = {
               "type": "string"
             },
             "type": {
-              "anyOf": [
-                {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "version": {
-              "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-              "enum": [
-                "1"
-              ],
-              "title": "ContextEntryVersion",
+              "description": "What the entry is.",
+              "minLength": 1,
               "type": "string"
             }
           },
           "required": [
+            "schema",
             "type",
-            "version",
-            "scope",
             "data",
-            "meta"
+            "labels",
+            "sources",
+            "origin"
           ],
           "title": "ContextEntry",
           "type": "object"
@@ -29039,15 +28727,55 @@ export const runxSchemaArtifacts = {
                   "current_context": {
                     "items": {
                       "additionalProperties": false,
-                      "description": "A single artifact context entry. `type` is required-but-nullable.",
+                      "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                       "properties": {
                         "data": {
                           "additionalProperties": {},
                           "type": "object"
                         },
-                        "meta": {
+                        "labels": {
                           "additionalProperties": false,
-                          "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                          "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                          "properties": {
+                            "purpose": {
+                              "enum": [
+                                "procedure",
+                                "mandate",
+                                "confirmed_memory",
+                                "observation"
+                              ],
+                              "title": "ContextPurpose",
+                              "type": "string"
+                            },
+                            "sharing": {
+                              "enum": [
+                                "local_only",
+                                "configured_model"
+                              ],
+                              "title": "ContextSharing",
+                              "type": "string"
+                            },
+                            "trust": {
+                              "enum": [
+                                "person_confirmed",
+                                "skill_instructions",
+                                "untrusted_evidence"
+                              ],
+                              "title": "ContextTrust",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "purpose",
+                            "trust",
+                            "sharing"
+                          ],
+                          "title": "ContextLabels",
+                          "type": "object"
+                        },
+                        "origin": {
+                          "additionalProperties": false,
+                          "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                           "properties": {
                             "artifact_id": {
                               "minLength": 1,
@@ -29061,20 +28789,9 @@ export const runxSchemaArtifacts = {
                               "minLength": 1,
                               "type": "string"
                             },
-                            "parent_artifact_id": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
                             "producer": {
                               "additionalProperties": false,
-                              "description": "The producer of a context artifact.",
+                              "description": "The skill and method that produced a context entry.",
                               "properties": {
                                 "method": {
                                   "minLength": 1,
@@ -29089,22 +28806,8 @@ export const runxSchemaArtifacts = {
                                 "skill",
                                 "method"
                               ],
-                              "title": "ContextArtifactProducer",
+                              "title": "ContextProducer",
                               "type": "object"
-                            },
-                            "receipt_id": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "redacted": {
-                              "type": "boolean"
                             },
                             "run_id": {
                               "minLength": 1,
@@ -29133,80 +28836,26 @@ export const runxSchemaArtifacts = {
                             "producer",
                             "created_at",
                             "digest",
-                            "size_bytes",
-                            "parent_artifact_id",
-                            "receipt_id",
-                            "redacted"
+                            "size_bytes"
                           ],
-                          "title": "ContextArtifactMeta",
+                          "title": "ContextOrigin",
                           "type": "object"
                         },
-                        "scope": {
-                          "additionalProperties": false,
-                          "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                          "properties": {
-                            "goal_id": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "purpose": {
-                              "enum": [
-                                "procedure",
-                                "mandate",
-                                "confirmed_memory",
-                                "observation",
-                                "work_continuity",
-                                "retrieved_history",
-                                "hypothesis"
-                              ],
-                              "title": "ContextPurpose",
-                              "type": "string"
-                            },
-                            "sharing": {
-                              "enum": [
-                                "local_only",
-                                "configured_model"
-                              ],
-                              "title": "ContextSharing",
-                              "type": "string"
-                            },
-                            "source_uri": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "trust": {
-                              "enum": [
-                                "operator_confirmed",
-                                "skill_instructions",
-                                "untrusted_evidence"
-                              ],
-                              "title": "ContextTrust",
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "purpose",
-                            "trust",
-                            "sharing",
-                            "goal_id",
-                            "source_uri"
+                        "schema": {
+                          "description": "A context entry's schema, `runx.context_entry.v1`.",
+                          "enum": [
+                            "runx.context_entry.v1"
                           ],
-                          "title": "ContextScope",
-                          "type": "object"
+                          "title": "ContextEntrySchema",
+                          "type": "string"
+                        },
+                        "sources": {
+                          "description": "Where its content came from (D35).",
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "summary": {
                           "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -29214,31 +28863,18 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "type": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "version": {
-                          "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                          "enum": [
-                            "1"
-                          ],
-                          "title": "ContextEntryVersion",
+                          "description": "What the entry is.",
+                          "minLength": 1,
                           "type": "string"
                         }
                       },
                       "required": [
+                        "schema",
                         "type",
-                        "version",
-                        "scope",
                         "data",
-                        "meta"
+                        "labels",
+                        "sources",
+                        "origin"
                       ],
                       "title": "ContextEntry",
                       "type": "object"
@@ -29270,15 +28906,55 @@ export const runxSchemaArtifacts = {
                   "historical_context": {
                     "items": {
                       "additionalProperties": false,
-                      "description": "A single artifact context entry. `type` is required-but-nullable.",
+                      "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                       "properties": {
                         "data": {
                           "additionalProperties": {},
                           "type": "object"
                         },
-                        "meta": {
+                        "labels": {
                           "additionalProperties": false,
-                          "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                          "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                          "properties": {
+                            "purpose": {
+                              "enum": [
+                                "procedure",
+                                "mandate",
+                                "confirmed_memory",
+                                "observation"
+                              ],
+                              "title": "ContextPurpose",
+                              "type": "string"
+                            },
+                            "sharing": {
+                              "enum": [
+                                "local_only",
+                                "configured_model"
+                              ],
+                              "title": "ContextSharing",
+                              "type": "string"
+                            },
+                            "trust": {
+                              "enum": [
+                                "person_confirmed",
+                                "skill_instructions",
+                                "untrusted_evidence"
+                              ],
+                              "title": "ContextTrust",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "purpose",
+                            "trust",
+                            "sharing"
+                          ],
+                          "title": "ContextLabels",
+                          "type": "object"
+                        },
+                        "origin": {
+                          "additionalProperties": false,
+                          "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                           "properties": {
                             "artifact_id": {
                               "minLength": 1,
@@ -29292,20 +28968,9 @@ export const runxSchemaArtifacts = {
                               "minLength": 1,
                               "type": "string"
                             },
-                            "parent_artifact_id": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
                             "producer": {
                               "additionalProperties": false,
-                              "description": "The producer of a context artifact.",
+                              "description": "The skill and method that produced a context entry.",
                               "properties": {
                                 "method": {
                                   "minLength": 1,
@@ -29320,22 +28985,8 @@ export const runxSchemaArtifacts = {
                                 "skill",
                                 "method"
                               ],
-                              "title": "ContextArtifactProducer",
+                              "title": "ContextProducer",
                               "type": "object"
-                            },
-                            "receipt_id": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "redacted": {
-                              "type": "boolean"
                             },
                             "run_id": {
                               "minLength": 1,
@@ -29364,80 +29015,26 @@ export const runxSchemaArtifacts = {
                             "producer",
                             "created_at",
                             "digest",
-                            "size_bytes",
-                            "parent_artifact_id",
-                            "receipt_id",
-                            "redacted"
+                            "size_bytes"
                           ],
-                          "title": "ContextArtifactMeta",
+                          "title": "ContextOrigin",
                           "type": "object"
                         },
-                        "scope": {
-                          "additionalProperties": false,
-                          "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                          "properties": {
-                            "goal_id": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "purpose": {
-                              "enum": [
-                                "procedure",
-                                "mandate",
-                                "confirmed_memory",
-                                "observation",
-                                "work_continuity",
-                                "retrieved_history",
-                                "hypothesis"
-                              ],
-                              "title": "ContextPurpose",
-                              "type": "string"
-                            },
-                            "sharing": {
-                              "enum": [
-                                "local_only",
-                                "configured_model"
-                              ],
-                              "title": "ContextSharing",
-                              "type": "string"
-                            },
-                            "source_uri": {
-                              "anyOf": [
-                                {
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "trust": {
-                              "enum": [
-                                "operator_confirmed",
-                                "skill_instructions",
-                                "untrusted_evidence"
-                              ],
-                              "title": "ContextTrust",
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "purpose",
-                            "trust",
-                            "sharing",
-                            "goal_id",
-                            "source_uri"
+                        "schema": {
+                          "description": "A context entry's schema, `runx.context_entry.v1`.",
+                          "enum": [
+                            "runx.context_entry.v1"
                           ],
-                          "title": "ContextScope",
-                          "type": "object"
+                          "title": "ContextEntrySchema",
+                          "type": "string"
+                        },
+                        "sources": {
+                          "description": "Where its content came from (D35).",
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "summary": {
                           "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -29445,31 +29042,18 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "type": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "version": {
-                          "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                          "enum": [
-                            "1"
-                          ],
-                          "title": "ContextEntryVersion",
+                          "description": "What the entry is.",
+                          "minLength": 1,
                           "type": "string"
                         }
                       },
                       "required": [
+                        "schema",
                         "type",
-                        "version",
-                        "scope",
                         "data",
-                        "meta"
+                        "labels",
+                        "sources",
+                        "origin"
                       ],
                       "title": "ContextEntry",
                       "type": "object"
@@ -32879,15 +32463,55 @@ export const runxSchemaArtifacts = {
                             "current_context": {
                               "items": {
                                 "additionalProperties": false,
-                                "description": "A single artifact context entry. `type` is required-but-nullable.",
+                                "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                                 "properties": {
                                   "data": {
                                     "additionalProperties": {},
                                     "type": "object"
                                   },
-                                  "meta": {
+                                  "labels": {
                                     "additionalProperties": false,
-                                    "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                    "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                    "properties": {
+                                      "purpose": {
+                                        "enum": [
+                                          "procedure",
+                                          "mandate",
+                                          "confirmed_memory",
+                                          "observation"
+                                        ],
+                                        "title": "ContextPurpose",
+                                        "type": "string"
+                                      },
+                                      "sharing": {
+                                        "enum": [
+                                          "local_only",
+                                          "configured_model"
+                                        ],
+                                        "title": "ContextSharing",
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "enum": [
+                                          "person_confirmed",
+                                          "skill_instructions",
+                                          "untrusted_evidence"
+                                        ],
+                                        "title": "ContextTrust",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "purpose",
+                                      "trust",
+                                      "sharing"
+                                    ],
+                                    "title": "ContextLabels",
+                                    "type": "object"
+                                  },
+                                  "origin": {
+                                    "additionalProperties": false,
+                                    "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                     "properties": {
                                       "artifact_id": {
                                         "minLength": 1,
@@ -32901,20 +32525,9 @@ export const runxSchemaArtifacts = {
                                         "minLength": 1,
                                         "type": "string"
                                       },
-                                      "parent_artifact_id": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
                                       "producer": {
                                         "additionalProperties": false,
-                                        "description": "The producer of a context artifact.",
+                                        "description": "The skill and method that produced a context entry.",
                                         "properties": {
                                           "method": {
                                             "minLength": 1,
@@ -32929,22 +32542,8 @@ export const runxSchemaArtifacts = {
                                           "skill",
                                           "method"
                                         ],
-                                        "title": "ContextArtifactProducer",
+                                        "title": "ContextProducer",
                                         "type": "object"
-                                      },
-                                      "receipt_id": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "redacted": {
-                                        "type": "boolean"
                                       },
                                       "run_id": {
                                         "minLength": 1,
@@ -32973,80 +32572,26 @@ export const runxSchemaArtifacts = {
                                       "producer",
                                       "created_at",
                                       "digest",
-                                      "size_bytes",
-                                      "parent_artifact_id",
-                                      "receipt_id",
-                                      "redacted"
+                                      "size_bytes"
                                     ],
-                                    "title": "ContextArtifactMeta",
+                                    "title": "ContextOrigin",
                                     "type": "object"
                                   },
-                                  "scope": {
-                                    "additionalProperties": false,
-                                    "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                    "properties": {
-                                      "goal_id": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "purpose": {
-                                        "enum": [
-                                          "procedure",
-                                          "mandate",
-                                          "confirmed_memory",
-                                          "observation",
-                                          "work_continuity",
-                                          "retrieved_history",
-                                          "hypothesis"
-                                        ],
-                                        "title": "ContextPurpose",
-                                        "type": "string"
-                                      },
-                                      "sharing": {
-                                        "enum": [
-                                          "local_only",
-                                          "configured_model"
-                                        ],
-                                        "title": "ContextSharing",
-                                        "type": "string"
-                                      },
-                                      "source_uri": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "trust": {
-                                        "enum": [
-                                          "operator_confirmed",
-                                          "skill_instructions",
-                                          "untrusted_evidence"
-                                        ],
-                                        "title": "ContextTrust",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "purpose",
-                                      "trust",
-                                      "sharing",
-                                      "goal_id",
-                                      "source_uri"
+                                  "schema": {
+                                    "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                    "enum": [
+                                      "runx.context_entry.v1"
                                     ],
-                                    "title": "ContextScope",
-                                    "type": "object"
+                                    "title": "ContextEntrySchema",
+                                    "type": "string"
+                                  },
+                                  "sources": {
+                                    "description": "Where its content came from (D35).",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "type": "array"
                                   },
                                   "summary": {
                                     "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -33054,31 +32599,18 @@ export const runxSchemaArtifacts = {
                                     "type": "string"
                                   },
                                   "type": {
-                                    "anyOf": [
-                                      {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "version": {
-                                    "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                    "enum": [
-                                      "1"
-                                    ],
-                                    "title": "ContextEntryVersion",
+                                    "description": "What the entry is.",
+                                    "minLength": 1,
                                     "type": "string"
                                   }
                                 },
                                 "required": [
+                                  "schema",
                                   "type",
-                                  "version",
-                                  "scope",
                                   "data",
-                                  "meta"
+                                  "labels",
+                                  "sources",
+                                  "origin"
                                 ],
                                 "title": "ContextEntry",
                                 "type": "object"
@@ -33110,15 +32642,55 @@ export const runxSchemaArtifacts = {
                             "historical_context": {
                               "items": {
                                 "additionalProperties": false,
-                                "description": "A single artifact context entry. `type` is required-but-nullable.",
+                                "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                                 "properties": {
                                   "data": {
                                     "additionalProperties": {},
                                     "type": "object"
                                   },
-                                  "meta": {
+                                  "labels": {
                                     "additionalProperties": false,
-                                    "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                    "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                    "properties": {
+                                      "purpose": {
+                                        "enum": [
+                                          "procedure",
+                                          "mandate",
+                                          "confirmed_memory",
+                                          "observation"
+                                        ],
+                                        "title": "ContextPurpose",
+                                        "type": "string"
+                                      },
+                                      "sharing": {
+                                        "enum": [
+                                          "local_only",
+                                          "configured_model"
+                                        ],
+                                        "title": "ContextSharing",
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "enum": [
+                                          "person_confirmed",
+                                          "skill_instructions",
+                                          "untrusted_evidence"
+                                        ],
+                                        "title": "ContextTrust",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "purpose",
+                                      "trust",
+                                      "sharing"
+                                    ],
+                                    "title": "ContextLabels",
+                                    "type": "object"
+                                  },
+                                  "origin": {
+                                    "additionalProperties": false,
+                                    "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                     "properties": {
                                       "artifact_id": {
                                         "minLength": 1,
@@ -33132,20 +32704,9 @@ export const runxSchemaArtifacts = {
                                         "minLength": 1,
                                         "type": "string"
                                       },
-                                      "parent_artifact_id": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
                                       "producer": {
                                         "additionalProperties": false,
-                                        "description": "The producer of a context artifact.",
+                                        "description": "The skill and method that produced a context entry.",
                                         "properties": {
                                           "method": {
                                             "minLength": 1,
@@ -33160,22 +32721,8 @@ export const runxSchemaArtifacts = {
                                           "skill",
                                           "method"
                                         ],
-                                        "title": "ContextArtifactProducer",
+                                        "title": "ContextProducer",
                                         "type": "object"
-                                      },
-                                      "receipt_id": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "redacted": {
-                                        "type": "boolean"
                                       },
                                       "run_id": {
                                         "minLength": 1,
@@ -33204,80 +32751,26 @@ export const runxSchemaArtifacts = {
                                       "producer",
                                       "created_at",
                                       "digest",
-                                      "size_bytes",
-                                      "parent_artifact_id",
-                                      "receipt_id",
-                                      "redacted"
+                                      "size_bytes"
                                     ],
-                                    "title": "ContextArtifactMeta",
+                                    "title": "ContextOrigin",
                                     "type": "object"
                                   },
-                                  "scope": {
-                                    "additionalProperties": false,
-                                    "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                    "properties": {
-                                      "goal_id": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "purpose": {
-                                        "enum": [
-                                          "procedure",
-                                          "mandate",
-                                          "confirmed_memory",
-                                          "observation",
-                                          "work_continuity",
-                                          "retrieved_history",
-                                          "hypothesis"
-                                        ],
-                                        "title": "ContextPurpose",
-                                        "type": "string"
-                                      },
-                                      "sharing": {
-                                        "enum": [
-                                          "local_only",
-                                          "configured_model"
-                                        ],
-                                        "title": "ContextSharing",
-                                        "type": "string"
-                                      },
-                                      "source_uri": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "trust": {
-                                        "enum": [
-                                          "operator_confirmed",
-                                          "skill_instructions",
-                                          "untrusted_evidence"
-                                        ],
-                                        "title": "ContextTrust",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "purpose",
-                                      "trust",
-                                      "sharing",
-                                      "goal_id",
-                                      "source_uri"
+                                  "schema": {
+                                    "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                    "enum": [
+                                      "runx.context_entry.v1"
                                     ],
-                                    "title": "ContextScope",
-                                    "type": "object"
+                                    "title": "ContextEntrySchema",
+                                    "type": "string"
+                                  },
+                                  "sources": {
+                                    "description": "Where its content came from (D35).",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "type": "array"
                                   },
                                   "summary": {
                                     "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -33285,31 +32778,18 @@ export const runxSchemaArtifacts = {
                                     "type": "string"
                                   },
                                   "type": {
-                                    "anyOf": [
-                                      {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "version": {
-                                    "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                    "enum": [
-                                      "1"
-                                    ],
-                                    "title": "ContextEntryVersion",
+                                    "description": "What the entry is.",
+                                    "minLength": 1,
                                     "type": "string"
                                   }
                                 },
                                 "required": [
+                                  "schema",
                                   "type",
-                                  "version",
-                                  "scope",
                                   "data",
-                                  "meta"
+                                  "labels",
+                                  "sources",
+                                  "origin"
                                 ],
                                 "title": "ContextEntry",
                                 "type": "object"
@@ -41492,15 +40972,55 @@ export const runxSchemaArtifacts = {
                                 "current_context": {
                                   "items": {
                                     "additionalProperties": false,
-                                    "description": "A single artifact context entry. `type` is required-but-nullable.",
+                                    "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                                     "properties": {
                                       "data": {
                                         "additionalProperties": {},
                                         "type": "object"
                                       },
-                                      "meta": {
+                                      "labels": {
                                         "additionalProperties": false,
-                                        "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                        "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                        "properties": {
+                                          "purpose": {
+                                            "enum": [
+                                              "procedure",
+                                              "mandate",
+                                              "confirmed_memory",
+                                              "observation"
+                                            ],
+                                            "title": "ContextPurpose",
+                                            "type": "string"
+                                          },
+                                          "sharing": {
+                                            "enum": [
+                                              "local_only",
+                                              "configured_model"
+                                            ],
+                                            "title": "ContextSharing",
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "enum": [
+                                              "person_confirmed",
+                                              "skill_instructions",
+                                              "untrusted_evidence"
+                                            ],
+                                            "title": "ContextTrust",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "purpose",
+                                          "trust",
+                                          "sharing"
+                                        ],
+                                        "title": "ContextLabels",
+                                        "type": "object"
+                                      },
+                                      "origin": {
+                                        "additionalProperties": false,
+                                        "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                         "properties": {
                                           "artifact_id": {
                                             "minLength": 1,
@@ -41514,20 +41034,9 @@ export const runxSchemaArtifacts = {
                                             "minLength": 1,
                                             "type": "string"
                                           },
-                                          "parent_artifact_id": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
                                           "producer": {
                                             "additionalProperties": false,
-                                            "description": "The producer of a context artifact.",
+                                            "description": "The skill and method that produced a context entry.",
                                             "properties": {
                                               "method": {
                                                 "minLength": 1,
@@ -41542,22 +41051,8 @@ export const runxSchemaArtifacts = {
                                               "skill",
                                               "method"
                                             ],
-                                            "title": "ContextArtifactProducer",
+                                            "title": "ContextProducer",
                                             "type": "object"
-                                          },
-                                          "receipt_id": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
-                                          "redacted": {
-                                            "type": "boolean"
                                           },
                                           "run_id": {
                                             "minLength": 1,
@@ -41586,80 +41081,26 @@ export const runxSchemaArtifacts = {
                                           "producer",
                                           "created_at",
                                           "digest",
-                                          "size_bytes",
-                                          "parent_artifact_id",
-                                          "receipt_id",
-                                          "redacted"
+                                          "size_bytes"
                                         ],
-                                        "title": "ContextArtifactMeta",
+                                        "title": "ContextOrigin",
                                         "type": "object"
                                       },
-                                      "scope": {
-                                        "additionalProperties": false,
-                                        "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                        "properties": {
-                                          "goal_id": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
-                                          "purpose": {
-                                            "enum": [
-                                              "procedure",
-                                              "mandate",
-                                              "confirmed_memory",
-                                              "observation",
-                                              "work_continuity",
-                                              "retrieved_history",
-                                              "hypothesis"
-                                            ],
-                                            "title": "ContextPurpose",
-                                            "type": "string"
-                                          },
-                                          "sharing": {
-                                            "enum": [
-                                              "local_only",
-                                              "configured_model"
-                                            ],
-                                            "title": "ContextSharing",
-                                            "type": "string"
-                                          },
-                                          "source_uri": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
-                                          "trust": {
-                                            "enum": [
-                                              "operator_confirmed",
-                                              "skill_instructions",
-                                              "untrusted_evidence"
-                                            ],
-                                            "title": "ContextTrust",
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "purpose",
-                                          "trust",
-                                          "sharing",
-                                          "goal_id",
-                                          "source_uri"
+                                      "schema": {
+                                        "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                        "enum": [
+                                          "runx.context_entry.v1"
                                         ],
-                                        "title": "ContextScope",
-                                        "type": "object"
+                                        "title": "ContextEntrySchema",
+                                        "type": "string"
+                                      },
+                                      "sources": {
+                                        "description": "Where its content came from (D35).",
+                                        "items": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "type": "array"
                                       },
                                       "summary": {
                                         "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -41667,31 +41108,18 @@ export const runxSchemaArtifacts = {
                                         "type": "string"
                                       },
                                       "type": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "version": {
-                                        "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                        "enum": [
-                                          "1"
-                                        ],
-                                        "title": "ContextEntryVersion",
+                                        "description": "What the entry is.",
+                                        "minLength": 1,
                                         "type": "string"
                                       }
                                     },
                                     "required": [
+                                      "schema",
                                       "type",
-                                      "version",
-                                      "scope",
                                       "data",
-                                      "meta"
+                                      "labels",
+                                      "sources",
+                                      "origin"
                                     ],
                                     "title": "ContextEntry",
                                     "type": "object"
@@ -41723,15 +41151,55 @@ export const runxSchemaArtifacts = {
                                 "historical_context": {
                                   "items": {
                                     "additionalProperties": false,
-                                    "description": "A single artifact context entry. `type` is required-but-nullable.",
+                                    "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                                     "properties": {
                                       "data": {
                                         "additionalProperties": {},
                                         "type": "object"
                                       },
-                                      "meta": {
+                                      "labels": {
                                         "additionalProperties": false,
-                                        "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                        "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                        "properties": {
+                                          "purpose": {
+                                            "enum": [
+                                              "procedure",
+                                              "mandate",
+                                              "confirmed_memory",
+                                              "observation"
+                                            ],
+                                            "title": "ContextPurpose",
+                                            "type": "string"
+                                          },
+                                          "sharing": {
+                                            "enum": [
+                                              "local_only",
+                                              "configured_model"
+                                            ],
+                                            "title": "ContextSharing",
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "enum": [
+                                              "person_confirmed",
+                                              "skill_instructions",
+                                              "untrusted_evidence"
+                                            ],
+                                            "title": "ContextTrust",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "purpose",
+                                          "trust",
+                                          "sharing"
+                                        ],
+                                        "title": "ContextLabels",
+                                        "type": "object"
+                                      },
+                                      "origin": {
+                                        "additionalProperties": false,
+                                        "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                         "properties": {
                                           "artifact_id": {
                                             "minLength": 1,
@@ -41745,20 +41213,9 @@ export const runxSchemaArtifacts = {
                                             "minLength": 1,
                                             "type": "string"
                                           },
-                                          "parent_artifact_id": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
                                           "producer": {
                                             "additionalProperties": false,
-                                            "description": "The producer of a context artifact.",
+                                            "description": "The skill and method that produced a context entry.",
                                             "properties": {
                                               "method": {
                                                 "minLength": 1,
@@ -41773,22 +41230,8 @@ export const runxSchemaArtifacts = {
                                               "skill",
                                               "method"
                                             ],
-                                            "title": "ContextArtifactProducer",
+                                            "title": "ContextProducer",
                                             "type": "object"
-                                          },
-                                          "receipt_id": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
-                                          "redacted": {
-                                            "type": "boolean"
                                           },
                                           "run_id": {
                                             "minLength": 1,
@@ -41817,80 +41260,26 @@ export const runxSchemaArtifacts = {
                                           "producer",
                                           "created_at",
                                           "digest",
-                                          "size_bytes",
-                                          "parent_artifact_id",
-                                          "receipt_id",
-                                          "redacted"
+                                          "size_bytes"
                                         ],
-                                        "title": "ContextArtifactMeta",
+                                        "title": "ContextOrigin",
                                         "type": "object"
                                       },
-                                      "scope": {
-                                        "additionalProperties": false,
-                                        "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                        "properties": {
-                                          "goal_id": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
-                                          "purpose": {
-                                            "enum": [
-                                              "procedure",
-                                              "mandate",
-                                              "confirmed_memory",
-                                              "observation",
-                                              "work_continuity",
-                                              "retrieved_history",
-                                              "hypothesis"
-                                            ],
-                                            "title": "ContextPurpose",
-                                            "type": "string"
-                                          },
-                                          "sharing": {
-                                            "enum": [
-                                              "local_only",
-                                              "configured_model"
-                                            ],
-                                            "title": "ContextSharing",
-                                            "type": "string"
-                                          },
-                                          "source_uri": {
-                                            "anyOf": [
-                                              {
-                                                "minLength": 1,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "type": "null"
-                                              }
-                                            ]
-                                          },
-                                          "trust": {
-                                            "enum": [
-                                              "operator_confirmed",
-                                              "skill_instructions",
-                                              "untrusted_evidence"
-                                            ],
-                                            "title": "ContextTrust",
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "purpose",
-                                          "trust",
-                                          "sharing",
-                                          "goal_id",
-                                          "source_uri"
+                                      "schema": {
+                                        "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                        "enum": [
+                                          "runx.context_entry.v1"
                                         ],
-                                        "title": "ContextScope",
-                                        "type": "object"
+                                        "title": "ContextEntrySchema",
+                                        "type": "string"
+                                      },
+                                      "sources": {
+                                        "description": "Where its content came from (D35).",
+                                        "items": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "type": "array"
                                       },
                                       "summary": {
                                         "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -41898,31 +41287,18 @@ export const runxSchemaArtifacts = {
                                         "type": "string"
                                       },
                                       "type": {
-                                        "anyOf": [
-                                          {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      "version": {
-                                        "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                        "enum": [
-                                          "1"
-                                        ],
-                                        "title": "ContextEntryVersion",
+                                        "description": "What the entry is.",
+                                        "minLength": 1,
                                         "type": "string"
                                       }
                                     },
                                     "required": [
+                                      "schema",
                                       "type",
-                                      "version",
-                                      "scope",
                                       "data",
-                                      "meta"
+                                      "labels",
+                                      "sources",
+                                      "origin"
                                     ],
                                     "title": "ContextEntry",
                                     "type": "object"
@@ -43876,15 +43252,55 @@ export const runxSchemaArtifacts = {
                                       "current_context": {
                                         "items": {
                                           "additionalProperties": false,
-                                          "description": "A single artifact context entry. `type` is required-but-nullable.",
+                                          "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                                           "properties": {
                                             "data": {
                                               "additionalProperties": {},
                                               "type": "object"
                                             },
-                                            "meta": {
+                                            "labels": {
                                               "additionalProperties": false,
-                                              "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                              "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                              "properties": {
+                                                "purpose": {
+                                                  "enum": [
+                                                    "procedure",
+                                                    "mandate",
+                                                    "confirmed_memory",
+                                                    "observation"
+                                                  ],
+                                                  "title": "ContextPurpose",
+                                                  "type": "string"
+                                                },
+                                                "sharing": {
+                                                  "enum": [
+                                                    "local_only",
+                                                    "configured_model"
+                                                  ],
+                                                  "title": "ContextSharing",
+                                                  "type": "string"
+                                                },
+                                                "trust": {
+                                                  "enum": [
+                                                    "person_confirmed",
+                                                    "skill_instructions",
+                                                    "untrusted_evidence"
+                                                  ],
+                                                  "title": "ContextTrust",
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "purpose",
+                                                "trust",
+                                                "sharing"
+                                              ],
+                                              "title": "ContextLabels",
+                                              "type": "object"
+                                            },
+                                            "origin": {
+                                              "additionalProperties": false,
+                                              "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                               "properties": {
                                                 "artifact_id": {
                                                   "minLength": 1,
@@ -43898,20 +43314,9 @@ export const runxSchemaArtifacts = {
                                                   "minLength": 1,
                                                   "type": "string"
                                                 },
-                                                "parent_artifact_id": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
                                                 "producer": {
                                                   "additionalProperties": false,
-                                                  "description": "The producer of a context artifact.",
+                                                  "description": "The skill and method that produced a context entry.",
                                                   "properties": {
                                                     "method": {
                                                       "minLength": 1,
@@ -43926,22 +43331,8 @@ export const runxSchemaArtifacts = {
                                                     "skill",
                                                     "method"
                                                   ],
-                                                  "title": "ContextArtifactProducer",
+                                                  "title": "ContextProducer",
                                                   "type": "object"
-                                                },
-                                                "receipt_id": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
-                                                "redacted": {
-                                                  "type": "boolean"
                                                 },
                                                 "run_id": {
                                                   "minLength": 1,
@@ -43970,80 +43361,26 @@ export const runxSchemaArtifacts = {
                                                 "producer",
                                                 "created_at",
                                                 "digest",
-                                                "size_bytes",
-                                                "parent_artifact_id",
-                                                "receipt_id",
-                                                "redacted"
+                                                "size_bytes"
                                               ],
-                                              "title": "ContextArtifactMeta",
+                                              "title": "ContextOrigin",
                                               "type": "object"
                                             },
-                                            "scope": {
-                                              "additionalProperties": false,
-                                              "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                              "properties": {
-                                                "goal_id": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
-                                                "purpose": {
-                                                  "enum": [
-                                                    "procedure",
-                                                    "mandate",
-                                                    "confirmed_memory",
-                                                    "observation",
-                                                    "work_continuity",
-                                                    "retrieved_history",
-                                                    "hypothesis"
-                                                  ],
-                                                  "title": "ContextPurpose",
-                                                  "type": "string"
-                                                },
-                                                "sharing": {
-                                                  "enum": [
-                                                    "local_only",
-                                                    "configured_model"
-                                                  ],
-                                                  "title": "ContextSharing",
-                                                  "type": "string"
-                                                },
-                                                "source_uri": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
-                                                "trust": {
-                                                  "enum": [
-                                                    "operator_confirmed",
-                                                    "skill_instructions",
-                                                    "untrusted_evidence"
-                                                  ],
-                                                  "title": "ContextTrust",
-                                                  "type": "string"
-                                                }
-                                              },
-                                              "required": [
-                                                "purpose",
-                                                "trust",
-                                                "sharing",
-                                                "goal_id",
-                                                "source_uri"
+                                            "schema": {
+                                              "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                              "enum": [
+                                                "runx.context_entry.v1"
                                               ],
-                                              "title": "ContextScope",
-                                              "type": "object"
+                                              "title": "ContextEntrySchema",
+                                              "type": "string"
+                                            },
+                                            "sources": {
+                                              "description": "Where its content came from (D35).",
+                                              "items": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "type": "array"
                                             },
                                             "summary": {
                                               "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -44051,31 +43388,18 @@ export const runxSchemaArtifacts = {
                                               "type": "string"
                                             },
                                             "type": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "version": {
-                                              "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                              "enum": [
-                                                "1"
-                                              ],
-                                              "title": "ContextEntryVersion",
+                                              "description": "What the entry is.",
+                                              "minLength": 1,
                                               "type": "string"
                                             }
                                           },
                                           "required": [
+                                            "schema",
                                             "type",
-                                            "version",
-                                            "scope",
                                             "data",
-                                            "meta"
+                                            "labels",
+                                            "sources",
+                                            "origin"
                                           ],
                                           "title": "ContextEntry",
                                           "type": "object"
@@ -44107,15 +43431,55 @@ export const runxSchemaArtifacts = {
                                       "historical_context": {
                                         "items": {
                                           "additionalProperties": false,
-                                          "description": "A single artifact context entry. `type` is required-but-nullable.",
+                                          "description": "One entry of context a turn is given (`runx.context_entry.v1`): memory, a skill's instructions, or any other context, with the labels that say how it may be read and where it may go.",
                                           "properties": {
                                             "data": {
                                               "additionalProperties": {},
                                               "type": "object"
                                             },
-                                            "meta": {
+                                            "labels": {
                                               "additionalProperties": false,
-                                              "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
+                                              "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                                              "properties": {
+                                                "purpose": {
+                                                  "enum": [
+                                                    "procedure",
+                                                    "mandate",
+                                                    "confirmed_memory",
+                                                    "observation"
+                                                  ],
+                                                  "title": "ContextPurpose",
+                                                  "type": "string"
+                                                },
+                                                "sharing": {
+                                                  "enum": [
+                                                    "local_only",
+                                                    "configured_model"
+                                                  ],
+                                                  "title": "ContextSharing",
+                                                  "type": "string"
+                                                },
+                                                "trust": {
+                                                  "enum": [
+                                                    "person_confirmed",
+                                                    "skill_instructions",
+                                                    "untrusted_evidence"
+                                                  ],
+                                                  "title": "ContextTrust",
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "purpose",
+                                                "trust",
+                                                "sharing"
+                                              ],
+                                              "title": "ContextLabels",
+                                              "type": "object"
+                                            },
+                                            "origin": {
+                                              "additionalProperties": false,
+                                              "description": "Where a context entry came from: the artifact that holds it, the run and step that produced it, and its bytes' digest and size.",
                                               "properties": {
                                                 "artifact_id": {
                                                   "minLength": 1,
@@ -44129,20 +43493,9 @@ export const runxSchemaArtifacts = {
                                                   "minLength": 1,
                                                   "type": "string"
                                                 },
-                                                "parent_artifact_id": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
                                                 "producer": {
                                                   "additionalProperties": false,
-                                                  "description": "The producer of a context artifact.",
+                                                  "description": "The skill and method that produced a context entry.",
                                                   "properties": {
                                                     "method": {
                                                       "minLength": 1,
@@ -44157,22 +43510,8 @@ export const runxSchemaArtifacts = {
                                                     "skill",
                                                     "method"
                                                   ],
-                                                  "title": "ContextArtifactProducer",
+                                                  "title": "ContextProducer",
                                                   "type": "object"
-                                                },
-                                                "receipt_id": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
-                                                "redacted": {
-                                                  "type": "boolean"
                                                 },
                                                 "run_id": {
                                                   "minLength": 1,
@@ -44201,80 +43540,26 @@ export const runxSchemaArtifacts = {
                                                 "producer",
                                                 "created_at",
                                                 "digest",
-                                                "size_bytes",
-                                                "parent_artifact_id",
-                                                "receipt_id",
-                                                "redacted"
+                                                "size_bytes"
                                               ],
-                                              "title": "ContextArtifactMeta",
+                                              "title": "ContextOrigin",
                                               "type": "object"
                                             },
-                                            "scope": {
-                                              "additionalProperties": false,
-                                              "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
-                                              "properties": {
-                                                "goal_id": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
-                                                "purpose": {
-                                                  "enum": [
-                                                    "procedure",
-                                                    "mandate",
-                                                    "confirmed_memory",
-                                                    "observation",
-                                                    "work_continuity",
-                                                    "retrieved_history",
-                                                    "hypothesis"
-                                                  ],
-                                                  "title": "ContextPurpose",
-                                                  "type": "string"
-                                                },
-                                                "sharing": {
-                                                  "enum": [
-                                                    "local_only",
-                                                    "configured_model"
-                                                  ],
-                                                  "title": "ContextSharing",
-                                                  "type": "string"
-                                                },
-                                                "source_uri": {
-                                                  "anyOf": [
-                                                    {
-                                                      "minLength": 1,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "type": "null"
-                                                    }
-                                                  ]
-                                                },
-                                                "trust": {
-                                                  "enum": [
-                                                    "operator_confirmed",
-                                                    "skill_instructions",
-                                                    "untrusted_evidence"
-                                                  ],
-                                                  "title": "ContextTrust",
-                                                  "type": "string"
-                                                }
-                                              },
-                                              "required": [
-                                                "purpose",
-                                                "trust",
-                                                "sharing",
-                                                "goal_id",
-                                                "source_uri"
+                                            "schema": {
+                                              "description": "A context entry's schema, `runx.context_entry.v1`.",
+                                              "enum": [
+                                                "runx.context_entry.v1"
                                               ],
-                                              "title": "ContextScope",
-                                              "type": "object"
+                                              "title": "ContextEntrySchema",
+                                              "type": "string"
+                                            },
+                                            "sources": {
+                                              "description": "Where its content came from (D35).",
+                                              "items": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "type": "array"
                                             },
                                             "summary": {
                                               "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
@@ -44282,31 +43567,18 @@ export const runxSchemaArtifacts = {
                                               "type": "string"
                                             },
                                             "type": {
-                                              "anyOf": [
-                                                {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "type": "null"
-                                                }
-                                              ]
-                                            },
-                                            "version": {
-                                              "description": "The artifact context entry version. Committed as `const: \"1\"`.",
-                                              "enum": [
-                                                "1"
-                                              ],
-                                              "title": "ContextEntryVersion",
+                                              "description": "What the entry is.",
+                                              "minLength": 1,
                                               "type": "string"
                                             }
                                           },
                                           "required": [
+                                            "schema",
                                             "type",
-                                            "version",
-                                            "scope",
                                             "data",
-                                            "meta"
+                                            "labels",
+                                            "sources",
+                                            "origin"
                                           ],
                                           "title": "ContextEntry",
                                           "type": "object"
@@ -45404,34 +44676,16 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "scope": {
+                    "labels": {
                       "additionalProperties": false,
-                      "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                      "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
                       "properties": {
-                        "goal_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "purpose": {
                           "enum": [
                             "procedure",
                             "mandate",
                             "confirmed_memory",
-                            "observation",
-                            "work_continuity",
-                            "retrieved_history",
-                            "hypothesis"
+                            "observation"
                           ],
                           "title": "ContextPurpose",
                           "type": "string"
@@ -45444,20 +44698,9 @@ export const runxSchemaArtifacts = {
                           "title": "ContextSharing",
                           "type": "string"
                         },
-                        "source_uri": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "trust": {
                           "enum": [
-                            "operator_confirmed",
+                            "person_confirmed",
                             "skill_instructions",
                             "untrusted_evidence"
                           ],
@@ -45468,12 +44711,14 @@ export const runxSchemaArtifacts = {
                       "required": [
                         "purpose",
                         "trust",
-                        "sharing",
-                        "goal_id",
-                        "source_uri"
+                        "sharing"
                       ],
-                      "title": "ContextScope",
+                      "title": "ContextLabels",
                       "type": "object"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
                     },
                     "size_bytes": {
                       "minimum": 0,
@@ -45490,7 +44735,8 @@ export const runxSchemaArtifacts = {
                   },
                   "required": [
                     "locator",
-                    "scope",
+                    "type",
+                    "labels",
                     "created_at",
                     "size_bytes"
                   ],
@@ -45530,34 +44776,16 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "locator": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "scope": {
+                    "labels": {
                       "additionalProperties": false,
-                      "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
+                      "description": "How context may be read and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
                       "properties": {
-                        "goal_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "purpose": {
                           "enum": [
                             "procedure",
                             "mandate",
                             "confirmed_memory",
-                            "observation",
-                            "work_continuity",
-                            "retrieved_history",
-                            "hypothesis"
+                            "observation"
                           ],
                           "title": "ContextPurpose",
                           "type": "string"
@@ -45570,20 +44798,9 @@ export const runxSchemaArtifacts = {
                           "title": "ContextSharing",
                           "type": "string"
                         },
-                        "source_uri": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "trust": {
                           "enum": [
-                            "operator_confirmed",
+                            "person_confirmed",
                             "skill_instructions",
                             "untrusted_evidence"
                           ],
@@ -45594,12 +44811,14 @@ export const runxSchemaArtifacts = {
                       "required": [
                         "purpose",
                         "trust",
-                        "sharing",
-                        "goal_id",
-                        "source_uri"
+                        "sharing"
                       ],
-                      "title": "ContextScope",
+                      "title": "ContextLabels",
                       "type": "object"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
                     },
                     "size_bytes": {
                       "minimum": 0,
@@ -45616,7 +44835,8 @@ export const runxSchemaArtifacts = {
                   },
                   "required": [
                     "locator",
-                    "scope",
+                    "type",
+                    "labels",
                     "created_at",
                     "size_bytes"
                   ],

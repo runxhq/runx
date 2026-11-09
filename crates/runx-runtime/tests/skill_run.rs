@@ -1430,8 +1430,18 @@ methods:
         string_field(data, "content").is_some_and(|manual| manual.contains("# Taste Profile")
             && manual.contains("Prefer clear product taste"))
     );
-    let meta = object_field(context_entry, "meta").ok_or("missing context meta")?;
-    assert!(string_field(meta, "digest").is_some_and(|digest| digest.starts_with("sha256:")));
+    assert_eq!(
+        string_field(context_entry, "schema"),
+        Some("runx.context_entry.v1")
+    );
+    // A skill's instructions are a procedure, from the skill they name.
+    let labels = object_field(context_entry, "labels").ok_or("missing context labels")?;
+    assert_eq!(string_field(labels, "purpose"), Some("procedure"));
+    assert_eq!(string_field(labels, "trust"), Some("skill_instructions"));
+    let sources = array_field(context_entry, "sources").ok_or("missing context sources")?;
+    assert_eq!(sources.len(), 1);
+    let origin = object_field(context_entry, "origin").ok_or("missing context origin")?;
+    assert!(string_field(origin, "digest").is_some_and(|digest| digest.starts_with("sha256:")));
 
     Ok(())
 }
