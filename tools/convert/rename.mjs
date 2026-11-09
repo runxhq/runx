@@ -23,7 +23,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, PROSE_ONLY, SOURCE, STAYING_PATHS, bareWord, decisionsFor, fencedBlocks, markdownCode, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, PROSE_ONLY, SOURCE, STAYING_PATHS, bareWord, codeProse, decisionsFor, fencedBlocks, inPath, markdownCode, renamedBare, STRINGS, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -486,9 +486,14 @@ function apply(repo, root, write, list, showStays) {
     // none counts among the names its file holds.
     const pinned = pinnedSpans(pins.filter((pin) => pin.file === file), original);
     const inPin = (at) => pinned.some(([from, to]) => at >= from && at < to);
-    // A prose-only word renames in a Markdown file's prose, outside its code.
+    // A prose-only word renames in prose: a Markdown file outside its code,
+    // and the strings a person reads in code.
     const code = file.endsWith(".md") ? markdownCode(original) : undefined;
-    const inProse = (at) => code !== undefined && !code.some(([from, to]) => at >= from && at < to);
+    const strings = STRINGS.test(file) ? codeProse(original, file) : undefined;
+    const inProse = (at, token) =>
+      code !== undefined
+        ? !code.some(([from, to]) => at >= from && at < to)
+        : strings !== undefined && strings.some(([from, to]) => at >= from && at < to) && !inPath(original, at, token);
     const held = new Set([...original.matchAll(TOKEN)].filter((m) => !inPin(m.index)).map((m) => m[0]));
     let count = 0;
     const edits = [];
@@ -522,7 +527,7 @@ function apply(repo, root, write, list, showStays) {
           }
           // Outside prose a prose-only word keeps its bytes, unless a row
           // decides it: a tagline in a text block, or a product's description.
-          if (PROSE_ONLY.has(bareWord(token)) && !inProse(at)) {
+          if (PROSE_ONLY.has(bareWord(token)) && !inProse(at, token)) {
             const rows = decisionsFor(decisions, file, line, index, token);
             if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
             if (rows.length === 0) return token;

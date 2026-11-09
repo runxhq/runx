@@ -14,7 +14,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, bareWord, markdownCode, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, STRINGS, bareWord, codeProse, inPath, markdownCode, stayFor } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records and vendored copies.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -50,8 +50,12 @@ function main([root, ...rest]) {
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
     if (file.endsWith(".json") && SIGNED.test(text)) continue;
-    // A prose-only word is stale only in a Markdown file's prose.
+    // A prose-only word is stale only in prose: Markdown outside its code,
+    // and the strings a person reads in code.
     const code = file.endsWith(".md") ? markdownCode(text) : undefined;
+    const strings = STRINGS.test(file) ? codeProse(text, file) : undefined;
+    const inProse = (at, token) =>
+      code !== undefined ? !code.some(([from, to]) => at >= from && at < to) : strings !== undefined && strings.some(([from, to]) => at >= from && at < to) && !inPath(text, at, token);
     let lineStart = 0;
     text.split("\n").forEach((line, index) => {
       const start = lineStart;
@@ -60,7 +64,7 @@ function main([root, ...rest]) {
         const token = match[0];
         for (const [word, pattern] of Object.entries(RETIRED)) {
           if (!pattern.test(token)) continue;
-          if (PROSE_ONLY.has(word) && (code === undefined || code.some(([from, to]) => start + match.index >= from && start + match.index < to))) continue;
+          if (PROSE_ONLY.has(word) && !inProse(start + match.index, token)) continue;
           if (names.get(token) === token) continue;
           if (bareWord(token) === word && stayFor(file, line, match.index, token)) continue;
           found[word] += 1;

@@ -50,3 +50,14 @@ test("the guard fails on graph as a workflow in prose, and passes another graph,
       "stale: 0 uses of runner as a method, 0 of harness as a test or run and 1 of graph as a workflow in prose, in 1 files\n",
   );
 });
+
+test("the guard counts graph in a message a person reads, and not a wire value or a name", (t) => {
+  const root = tree(t, { "crates/runx-runtime/src/error.rs": 'pub const FAILED: &str = "graph step failed";\npub const KIND: &str = "graph";\nfn graph() {}\n' });
+  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  assert.equal(run.status, 1);
+  assert.equal(
+    run.stdout,
+    'crates/runx-runtime/src/error.rs:1\tgraph\tgraph\tpub const FAILED: &str = "graph step failed";\n' +
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run and 1 of graph as a workflow in prose, in 1 files\n",
+  );
+});

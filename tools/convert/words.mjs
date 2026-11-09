@@ -34,6 +34,115 @@ export function fencedBlocks(text) {
   return blocks;
 }
 
+// Code whose string literals a person reads: an error, a message, help text.
+export const STRINGS = /\.(rs|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|py)$/;
+
+/**
+ * The prose in a code file: each string literal's text that reads as words, a
+ * phrase with a space in it, outside its placeholders. A one-word string is a
+ * wire value or a key, a placeholder such as {graph} or ${graph} names code,
+ * a literal holding a document, YAML, front matter or Markdown a test writes,
+ * is data, and a comment is no one's output, so none of them is prose.
+ */
+export function codeProse(text, file) {
+  const ext = file.slice(file.lastIndexOf("."));
+  const rust = ext === ".rs";
+  const py = ext === ".py";
+  const go = ext === ".go";
+  const js = /^\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(ext);
+  const spans = [];
+  const keep = (from, to) => {
+    const body = text.slice(from, to);
+    if (!/\s/.test(body.trim()) || isDocument(body)) return;
+    // Placeholders name code: {name}, {name:?}, {0} and Python's {name!r}.
+    let at = from;
+    for (const m of text.slice(from, to).matchAll(/\{[A-Za-z_0-9][^{}]*\}/g)) {
+      spans.push([at, from + m.index]);
+      at = from + m.index + m[0].length;
+    }
+    spans.push([at, to]);
+  };
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    const n = text[i + 1];
+    if (!py && c === "/" && n === "/") { const e = text.indexOf("\n", i); i = e < 0 ? text.length : e; continue; }
+    if (!py && c === "/" && n === "*") { const e = text.indexOf("*/", i + 2); i = e < 0 ? text.length : e + 2; continue; }
+    if (py && c === "#") { const e = text.indexOf("\n", i); i = e < 0 ? text.length : e; continue; }
+    if (rust) {
+      const raw = /^b?r(#*)"/.exec(text.slice(i, i + 12));
+      if (raw && !/[A-Za-z0-9_]/.test(text[i - 1] ?? "")) {
+        const close = `"${raw[1]}`;
+        const from = i + raw[0].length;
+        const e = text.indexOf(close, from);
+        const to = e < 0 ? text.length : e;
+        keep(from, to);
+        i = to + close.length;
+        continue;
+      }
+      const char = /^'(\\.[^']{0,8}|[^\\'\n])'/.exec(text.slice(i, i + 14));
+      if (c === "'" && char) { i += char[0].length; continue; }
+      if (c === "'") { i += 1; continue; }
+    }
+    if (py && (text.startsWith('"""', i) || text.startsWith("'''", i))) {
+      const q = text.slice(i, i + 3);
+      const e = text.indexOf(q, i + 3);
+      const to = e < 0 ? text.length : e;
+      keep(i + 3, to);
+      i = to + 3;
+      continue;
+    }
+    if (c === "`" && js) {
+      // A template literal's text, outside its ${...} expressions: prose
+      // when the whole literal reads as words.
+      let j = i + 1;
+      let from = j;
+      const pieces = [];
+      while (j < text.length && text[j] !== "`") {
+        if (text[j] === "\\") { j += 2; continue; }
+        if (text.startsWith("${", j)) {
+          pieces.push([from, j]);
+          let depth = 1;
+          j += 2;
+          while (j < text.length && depth > 0) { if (text[j] === "{") depth += 1; else if (text[j] === "}") depth -= 1; j += 1; }
+          from = j;
+          continue;
+        }
+        j += 1;
+      }
+      pieces.push([from, j]);
+      if (/\s/.test(pieces.map(([a, b]) => text.slice(a, b)).join("x").trim())) spans.push(...pieces);
+      i = j + 1;
+      continue;
+    }
+    if (c === '"' || (c === "'" && (js || py)) || (c === "`" && go)) {
+      let j = i + 1;
+      while (j < text.length && text[j] !== c) {
+        if (text[j] === "\\" && c !== "`") j += 1;
+        else if (text[j] === "\n" && c !== "`" && !rust) break;
+        j += 1;
+      }
+      keep(i + 1, j);
+      i = j + 1;
+      continue;
+    }
+    i += 1;
+  }
+  return spans;
+}
+
+/** Whether a string literal's text is a document: a line of it starts as YAML, front matter, a list item or a heading. */
+function isDocument(body) {
+  return body.split(/\\n|\n/).some((line) => /^\s*(-\s|---\s*$|[A-Za-z_$][\w$-]*:(\s|$)|#{1,6}\s|[{[])/.test(line));
+}
+
+/** Whether a token in a string is a path segment or a file name: beside a slash, or before an extension. */
+export function inPath(text, at, token) {
+  const before = text[at - 1] ?? "";
+  const after = text.slice(at + token.length, at + token.length + 2);
+  return before === "/" || before === "." || after[0] === "/" || /^\.[A-Za-z]/.test(after);
+}
+
 /** The spans of a Markdown text that are code, not prose: fenced blocks, inline code and link targets. */
 export function markdownCode(text) {
   const spans = fencedBlocks(text);
@@ -103,6 +212,7 @@ export const STAYS = [
   { word: "graph", why: "a graph of receipts", before: /\breceipt $/i },
   { word: "graph", why: "a graph database", after: /^ (database|databases|db|store|query)\b/i },
   { word: "graph", why: "a chart", before: /\b(bar|line|pie|time-series|latency|throughput) $/i },
+  { word: "graph", why: "the hello-workflow example's message, which its run.yaml and fixtures write", before: /\bhello from $/ },
   // harness: a receipt's harness reference, whose words receipts keep (§4.6):
   // its type, the runx:harness: references a run's receipts carry, and the
   // fixtures and tests that hold them.

@@ -324,6 +324,26 @@ test("graph is a workflow in prose alone: another graph, code, code spans, link 
   assert.equal(read(root, "crates/runx-parser/src/graph.rs"), code);
 });
 
+test("graph is a workflow in the strings a person reads in code, and stays a word, a key, a document, a path, a comment or a name", (t) => {
+  const code = [
+    '#[error("graph step \'{step_id}\' is missing")]',
+    "Missing { step_id: String },",
+    'fn kind() -> &\'static str { "graph" }',
+    "// a graph comment",
+    'let doc = "methods:\\n  one:\\n    graph: {name: main}\\n";',
+    'let path = "./graph/draft";',
+    'let msg = format!("graph {} did not succeed: {graph}", graph.name);',
+    "",
+  ].join("\n");
+  const root = tree(t, { "crates/runx-runtime/src/error.rs": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(
+    read(root, "crates/runx-runtime/src/error.rs"),
+    code.replace("\"graph step", "\"workflow step").replace('format!("graph {}', 'format!("workflow {}'),
+  );
+});
+
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
   const generated = "type Purchase struct {\n\tRunner string `json:\"runner\"`\n}\n";
   const root = tree(t, {
