@@ -364,8 +364,6 @@ export {
   validateOperationalProposalContract,
 } from "./schemas/operational-proposal.js";
 
-export { fixtureV1Schema } from "./schemas/fixture.js";
-
 export { toolManifestV1Schema } from "./schemas/tool-manifest.js";
 
 export { packetLockV1Schema, packetLockEntrySchema } from "./schemas/packet-lock.js";
@@ -465,7 +463,6 @@ export const runxContractSchemas = {
   skillValidationResult: runxSchemaArtifacts["skill-validation-result.schema.json"],
   skillApplyResult: runxSchemaArtifacts["skill-apply-result.schema.json"],
   receipt: runxSchemaArtifacts["receipt.schema.json"],
-  fixture: runxSchemaArtifacts["fixture.schema.json"],
   toolManifest: runxSchemaArtifacts["tool-manifest.schema.json"],
   packetLock: runxSchemaArtifacts["packet-lock.schema.json"],
   reference: runxSchemaArtifacts["reference.schema.json"],

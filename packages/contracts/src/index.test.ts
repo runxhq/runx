@@ -9,7 +9,6 @@ import {
   credentialDeliveryObservationV1Schema,
   storeResultV1Schema,
   doctorV1Schema,
-  fixtureV1Schema,
   listV1Schema,
   outputSchema,
   packetLockV1Schema,
@@ -68,17 +67,7 @@ describe("@runxhq/contracts", () => {
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);
     expect(listV1Schema).toBe(runxContractSchemas.list);
-    expect(fixtureV1Schema).toBe(runxContractSchemas.fixture);
     expect(packetLockV1Schema).toBe(runxContractSchemas.packetLock);
-  });
-
-  it("keeps fixture lanes aligned with authoring plan", () => {
-    const fixtureProperties = runxContractSchemas.fixture.properties as Record<string, unknown> | undefined;
-    expect(fixtureProperties?.lane).toEqual({
-      title: "FixtureLane",
-      type: "string",
-      enum: ["deterministic", "agent", "repo-integration"],
-    });
   });
 
   it("validates store results, one shape per operation", () => {

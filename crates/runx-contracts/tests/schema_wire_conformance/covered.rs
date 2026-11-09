@@ -4,7 +4,6 @@ use runx_contracts::authority::{AuthoritySubsetProof, AuthorityTerm};
 use runx_contracts::credential_delivery::CredentialDeliveryObservation;
 use runx_contracts::decision::Decision;
 use runx_contracts::doctor::DoctorReport;
-use runx_contracts::fixture::Fixture;
 use runx_contracts::host_protocol::{
     ApprovalGate, Question, ResolutionRequest, ResolutionResponse, TurnCallResult, TurnInvocation,
     TurnStatus,
@@ -161,11 +160,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "run-event.schema.json",
             emitted: RunEventRecord::json_schema(),
             corpus: run_event_corpus(),
-        },
-        Covered {
-            file_name: "fixture.schema.json",
-            emitted: Fixture::json_schema(),
-            corpus: fixture_corpus(),
         },
         Covered {
             file_name: "tool-manifest.schema.json",

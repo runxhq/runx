@@ -1239,37 +1239,6 @@ export type FileWriteContract = {
   readonly repo_root: string;
 };
 
-export type FixtureContract = {
-  readonly agent?: {
-    readonly [key: string]: unknown;
-  };
-  readonly env?: {
-    readonly [key: string]: unknown;
-  };
-  readonly execution?: {
-    readonly [key: string]: unknown;
-  };
-  readonly expect: {
-    readonly [key: string]: unknown;
-  };
-  readonly inputs?: {
-    readonly [key: string]: unknown;
-  };
-  readonly lane: FixtureLaneContract;
-  readonly name: string;
-  readonly permissions?: {
-    readonly [key: string]: unknown;
-  };
-  readonly repo?: {
-    readonly [key: string]: unknown;
-  };
-  readonly target: {
-    readonly [key: string]: unknown;
-  };
-};
-
-export type FixtureLaneContract = "deterministic" | "agent" | "repo-integration";
-
 export type GetPurchaseAdmissionContract = {
   /** Why a refund won. Present only after refund won. */
   readonly failure?: PurchaseFailureContract;

@@ -13481,66 +13481,6 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.fs.file_write.v1"
   } as JsonSchema,
-  "fixture.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/fixture/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "agent": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "env": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "execution": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "expect": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "inputs": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "lane": {
-        "enum": [
-          "deterministic",
-          "agent",
-          "repo-integration"
-        ],
-        "title": "FixtureLane",
-        "type": "string"
-      },
-      "name": {
-        "type": "string"
-      },
-      "permissions": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "repo": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "target": {
-        "additionalProperties": {},
-        "type": "object"
-      }
-    },
-    "required": [
-      "name",
-      "lane",
-      "target",
-      "expect"
-    ],
-    "title": "Fixture",
-    "type": "object",
-    "x-runx-schema": "runx.fixture.v1"
-  } as JsonSchema,
   "get-purchase-request.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/get-purchase/request/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",

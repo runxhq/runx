@@ -23,7 +23,6 @@ pub mod execution;
 pub mod execution_boundary;
 pub mod execution_requirements;
 pub mod external_job;
-pub mod fixture;
 pub mod host_protocol;
 pub mod javascript_worker;
 pub mod json;
@@ -121,7 +120,6 @@ pub use external_job::{
     ExternalJobSchedule, ExternalJobScheduleIntent, ExternalJobScheduleIntentSchema,
     ExternalJobStage, ExternalJobStageRequest, ExternalJobStageResult, ExternalJobState,
 };
-pub use fixture::{Fixture, FixtureLane};
 pub use host_protocol::{
     AllowedOperation, ApprovalGate, BoundClosure, CatalogRule, CatalogTrust, ExecutionEvent,
     LoadedMethod, LoadedMethodInput, LoadedPackage, PURCHASE_BALANCE_CHOICE, ProjectBinding,

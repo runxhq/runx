@@ -1,37 +1,5 @@
 use serde_json::{Value, json};
 
-pub(super) fn fixture_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "name": "fixture-1",
-        "lane": "deterministic",
-        "target": { "kind": "tool", "tool": "echo" },
-        "expect": { "status": "sealed" },
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["inputs"] = json!({ "message": "hi" });
-            v["env"] = json!({ "RUNX": "1" });
-            v["agent"] = json!({ "model": "fixture" });
-            v["repo"] = json!({ "path": "." });
-            v["execution"] = json!({ "timeout_ms": 10 });
-            v["permissions"] = json!({ "network": false });
-            v
-        }),
-        ("missing name", drop_field(valid.clone(), "name")),
-        ("missing expect", drop_field(valid.clone(), "expect")),
-        (
-            "unknown lane",
-            set_field(valid.clone(), "lane", json!("manual")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "schema": "runx.tool.manifest.v1",
