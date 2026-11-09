@@ -198,7 +198,7 @@ fn append_node(
 
 fn append_step(out: &mut String, step: &SkillOperatorContextStep) -> Result<(), String> {
     let definition = &step.definition;
-    out.push_str(&format!("\n--- graph step: {} ---\n", step.node_path));
+    out.push_str(&format!("\n--- workflow step: {} ---\n", step.node_path));
     out.push_str(&format!(
         "step_id: {}\ntarget: {}\nexecution_boundary: {}\n",
         definition.id,
@@ -210,7 +210,7 @@ fn append_step(out: &mut String, step: &SkillOperatorContextStep) -> Result<(), 
     append_string_list(out, "tools", &step.tools);
     append_json_block(
         out,
-        &format!("graph step contract: {}", step.node_path),
+        &format!("workflow step contract: {}", step.node_path),
         definition,
     )?;
     for context in &step.context_skills {
@@ -241,7 +241,7 @@ fn append_context_skill(
 fn append_tools(out: &mut String, node_path: &str, tools: &[SkillOperatorContextTool]) {
     out.push_str(&format!("\n--- tool manifests: {node_path} ---\n"));
     if tools.is_empty() {
-        out.push_str("none declared by selected method or graph steps\n");
+        out.push_str("none declared by selected method or workflow steps\n");
         return;
     }
     for tool in tools {

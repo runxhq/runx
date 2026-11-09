@@ -280,7 +280,7 @@ fn authoring_answers() -> Value {
                 "change_draft": {
                     "schema": "runx.skill.change_draft.v1",
                     "decision": "write",
-                    "summary": "Create one manual and one declarative native digest graph.",
+                    "summary": "Create one manual and one declarative native digest workflow.",
                     "non_goals": ["Do not add JavaScript, network access, or provider effects."],
                     "writes": digest_note_files()
                         .iter()

@@ -25,7 +25,7 @@ A core skill must provide at least one of these forms of leverage:
 5. **Context** — creates a reusable bounded packet that improves downstream
    decisions without pretending to perform an external action.
 
-Internal runtime rails, fixtures, and owner-local graph stages can remain
+Internal runtime rails, fixtures, and owner-local workflow stages can remain
 non-public. Their value is judged through the canonical skill that owns them.
 
 A package fails admission when it merely renames generic prompting, duplicates
@@ -65,7 +65,7 @@ Proof must match the claim:
 | Builder | A fixture produces a valid package, policy, test, or change artifact and runs the native validator that would accept it. |
 | Context | A fixture produces the bounded context packet and a downstream forward test shows that the declared consumer can use it without inventing missing fields. |
 
-`caller.answers` can prove graph wiring and an agent-artifact contract. It
+`caller.answers` can prove workflow wiring and an agent-artifact contract. It
 cannot prove a provider mutation, network result, payment, send, publish, or
 other external effect. Live destructive proof is never required when a faithful
 isolated fixture plus refusal and, when requested, approval cases establish the
@@ -138,7 +138,7 @@ Prepared context is always digest-bound and drift-checked, but it is not an
 approval gate. It proves what was selected and prevents context or artifact
 drift without fabricating human authority. Each consequential action has one
 approval owner at the point of use. A connector operation step owns any exact
-approval it declares or its connector requires; an explicit graph approval is
+approval it declares or its connector requires; an explicit workflow approval is
 valid only when no native effect owns the decision. Never place a second
 approval immediately before an effect that already requested exact human
 approval, and never invent approval merely because a capability mutates state.
@@ -211,7 +211,7 @@ operator.
 - a method-specific nested value remains an inline schema; `packet` is reserved
   for the complete value at a named reusable skill, runtime, SDK, provider,
   receipt, or registry boundary, never as a way to make inspection richer;
-- graph intermediates and one-run implementation values do not mint packet ids;
+- workflow intermediates and one-run implementation values do not mint packet ids;
   every package packet is declared by its own package and validated by at
   least one fixture's run;
 - a named packet describes its semantic fields or references a canonical typed
@@ -229,7 +229,7 @@ operator.
 
 - methods, typed inputs and outputs, and default selection;
 - agent-versus-deterministic step boundaries;
-- tool, adapter, context-skill, and graph wiring;
+- tool, adapter, context-skill, and workflow wiring;
 - authority, approval, scopes, and receipt-act mappings;
 - side-effect posture and truthful completion semantics;
 - artifact packets and focused test declarations.
@@ -262,7 +262,7 @@ the execution profile.
 
 Standalone fixtures should live under `fixtures/` and exercise public methods.
 Inline cases remain acceptable where the runtime package already uses them as a
-focused evaluator or graph contract, but they should not turn `run.yaml` into a
+focused evaluator or workflow contract, but they should not turn `run.yaml` into a
 large scenario archive.
 
 ## Architecture admission
@@ -276,7 +276,7 @@ Skill authoring must decide ownership before it writes files:
   skill or operator owner merely because Hosted Connect is used. Existing Cloud
   code is not architectural precedent. A missing operator capability is fixed
   in OSS or the product, not in a Cloud dogfood script.
-- Prefer a declarative graph composed from existing native tools and canonical
+- Prefer a declarative workflow composed from existing native tools and canonical
   skills.
 - Treat the selected method's execution requirements as the complete
   permission request. Opaque scopes, exact non-secret environment names, and
@@ -296,13 +296,13 @@ Skill authoring must decide ownership before it writes files:
   output packet; do not repeat named artifact checks that the manifest already
   owns.
 - Add package executable code only for irreducible domain computation. Its
-  admission names the domain boundary, why the graph cannot express it, and
+  admission names the domain boundary, why the workflow cannot express it, and
   which existing owners and tools were inspected.
 - Express irreducible JavaScript through a worker step, `tool: { module: ... }`: a cohesive
   package module exposes focused functions from resolved inputs and frozen
   declared non-secret environment to JSON values, while Runx owns process
   input, output, errors, wall limits, and worker isolation. Do not simulate named
-  operations with public inputs or create one process wrapper per graph step.
+  operations with public inputs or create one process wrapper per workflow step.
   The runtime must enforce a read-only, no-network worker with no workspace,
   writable paths, ambient OS environment, or injected credentials. Reserve a
   process tool, `tool: { command: ... }`, for a genuine executable or protocol

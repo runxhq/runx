@@ -89,7 +89,7 @@ runx resume <run-id> -
 
 The stdin document (`runx.resume.v1`) carries the requested agent answer,
 bound to the request's digest. Normal output stays
-compact; use `--diagnostics` only when graph internals are actually needed.
+compact; use `--diagnostics` only when workflow internals are actually needed.
 
 ## Dogfood proof
 

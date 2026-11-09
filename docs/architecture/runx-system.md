@@ -81,7 +81,7 @@ give a human and an acting agent the context that changes how they operate:
 
 `run.yaml` owns method composition, typed inputs and outputs, effects, scopes,
 approvals, test cases, and skill references. It must not repeat the manual.
-Package JavaScript exists only for deterministic domain computation the graph
+Package JavaScript exists only for deterministic domain computation the workflow
 and native capability plane cannot express cleanly. It never exists merely to
 perform HTTP, filesystem, subprocess, credential, packet, or receipt mechanics
 that Runx already owns.
@@ -96,8 +96,8 @@ manual.
 
 Each target has one meaning and one authority boundary:
 
-- **Graph:** deterministic composition, dependencies, branches, guards, and
-  recovery. A graph author cannot choose an effect
+- **Workflow:** deterministic composition, dependencies, branches, guards, and
+  recovery. A workflow author cannot choose an effect
   owner or gain provider/process authority by naming inputs.
 - **Agent step:** bounded judgment under the current manual and an explicit
   allowed-tool set. It yields `needs_agent` by default. In-process managed-agent
@@ -125,7 +125,7 @@ Each target has one meaning and one authority boundary:
 Test fixtures are test data interpreted by the runtime test. They are not
 an execution source and cannot become selectable production behavior.
 
-Static step inputs and graph context are materialized once into the invocation
+Static step inputs and workflow context are materialized once into the invocation
 map for every target kind. A static/context name collision is a validation
 error. Missing or type-invalid context fails at the producing edge. No target
 kind gets a private context projection path.
@@ -176,7 +176,7 @@ runtime-owned implementation.
 
 Authors declare helpers introduced after the baseline `parseUrl` API in
 `requires`, currently `requires: [parseData]`. This is an admission guard, not
-a permission or inferred source analysis. Graph admission rejects unsupported
+a permission or inferred source analysis. Workflow admission rejects unsupported
 declared names before any step runs; an old parser rejects the new field.
 The worker exposes its fixed helper surface regardless of this declaration.
 Omitting a requirement loses the old-runtime guard and can fail at the helper
@@ -266,7 +266,7 @@ declares its `setup.sessions`, per-connector `setup.parameters` and exact
 `caller.process_calls`; it never borrows a live browser or saved account.
 
 The registered native capability owns the effect classification, admission,
-approval policy, execution boundary, and finality preparation. Graph, skill,
+approval policy, execution boundary, and finality preparation. Workflow, skill,
 method, and tool manifests do not redeclare `mutation`, `mutating`, or an
 `effect_family`; those parallel claims inevitably drift from the code that can
 actually perform the effect. Catalog approval metadata is an operator-facing
@@ -279,7 +279,7 @@ when its connector operation declares `approval: required`, or when the skill's
 `operation` step supplies a typed `approval` request because the skill decides
 the act is consequential. Admission hashes that request into the exact intent,
 asks the host for the decision, and refuses agent-authored approval.
-There is no generic mutation flag and no adjacent graph gate for the same act.
+There is no generic mutation flag and no adjacent workflow gate for the same act.
 
 Generic local capabilities do not impose human approval merely because they
 write a file, execute a command, or send a bounded HTTP request. Their declared
@@ -290,7 +290,7 @@ its verified receipt is bound to the governed step. The decision does not
 become ambient authority for nested work.
 
 An unresolved approval suspends the run after sealing its checkpoint; it is not
-a failure or a blocked graph. The host protocol keeps the generic
+a failure or a blocked workflow. The host protocol keeps the generic
 `needs_agent` resolution envelope, while CLI JSON and operator output present an
 approval-only request set as `needs_approval`. The caller or an integrated host
 records the human decision under `approvals` and continues the same execution
@@ -364,7 +364,7 @@ below those features.
 ## Performance contract
 
 Performance is measured by named, replayable workloads rather than line-count
-intuition. Baselines cover graph planning and context projection, native
+intuition. Baselines cover workflow planning and context projection, native
 dispatch, deterministic module cold and warm execution, large payloads,
 provider-effect transitions, receipt sealing/storage, and process launch.
 

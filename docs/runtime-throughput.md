@@ -1,6 +1,6 @@
 # Runtime Throughput
 
-This note defines the OSS runtime performance contract. The target is throughput on runx-controlled overhead: graph planning,
+This note defines the OSS runtime performance contract. The target is throughput on runx-controlled overhead: workflow planning,
 context and output projection, receipt sealing, receipt
 store maintenance, and native CLI launch overhead. It does not claim speedups
 for external LLMs, network APIs, or user subprocess work.
@@ -42,9 +42,9 @@ Rust runtime workloads live in
 
 The runtime-path workloads invoke production APIs rather than benchmark-only
 reimplementations. `native_capability_dispatch` runs `data.digest` as a
-one-step graph: the path every graph tool step and agent turn call takes,
+one-step workflow: the path every workflow tool step and agent turn call takes,
 through admission, dispatch and receipt sealing. The workloads also cover
-graph context flowing from a native output into a deterministic module; fresh
+workflow context flowing from a native output into a deterministic module; fresh
 and reused module adapters; a near-4 MiB JSON input; and provider-permission
 admission through receipt sealing without contacting a live provider.
 
@@ -59,7 +59,7 @@ There are intentionally no standalone `context_projection` or
 `output_projection` microbenchmarks. The former implementations were local
 benchmark helpers, not runtime code, so optimizing them could not improve the
 product. `workflow_context_to_module` exercises both production context
-materialization and step-output projection through the real graph runner.
+materialization and step-output projection through the real workflow runner.
 
 The module rows exercise the production Boa worker. `pure_module_cold_start`
 creates and retires a real worker session per measured invocation;
@@ -125,7 +125,7 @@ development kernel evaluator dressed up as skill-input evidence.
 
 The hot-path runtime changes keep ownership narrow:
 
-- `runx-core` remains the pure decision layer for graph planning, scope
+- `runx-core` remains the pure decision layer for workflow planning, scope
   matching, and authority derivation.
 - `runx-runtime` owns mutable execution indexes, step dispatch, subprocess
   supervision, receipt linking, receipt store indexing, and journal projection.
@@ -153,7 +153,7 @@ or a JavaScript anchor.
 
 ## Limits
 
-The 2x gate applies to deterministic graph planning state-machine overhead. Production context-to-module execution has a no-regression gate;
+The 2x gate applies to deterministic workflow planning state-machine overhead. Production context-to-module execution has a no-regression gate;
 receipt canonicalization and store maintenance use a 1.75x throughput gate
 plus a measured growth-shape budget. Session gates track spawn count and p99
 regression. Runx does not emit allocation metrics until the test has a real

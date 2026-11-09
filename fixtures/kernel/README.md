@@ -56,7 +56,7 @@ deterministic `BTreeMap`-backed objects rather than public
 The Rust policy fixture runner lives in
 `crates/runx-core/tests/policy_fixtures.rs`.
 Current policy fixtures cover scope-grant matching, which the TypeScript
-contracts mirror; state-machine fixtures cover the sequential graph.
+contracts mirror; state-machine fixtures cover the sequential workflow.
 
 Fixtures under `runner/` pin fixture-runner ingestion behavior rather than a
 trusted-kernel decision. They exist to keep the cross-language fixture test

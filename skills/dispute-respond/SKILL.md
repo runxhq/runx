@@ -23,7 +23,7 @@ actual merchant. A Runx connection ID is not a merchant account ID.
   ID and any relevant evidence. A ready response reaches one native approval;
   approval covers the complete provider evidence fields and exact case.
 - `capture` reads the selected merchant case and original charge once, returning
-  their native packets and normalized `case_context` for parent graphs. It
+  their native packets and normalized `case_context` for parent workflows. It
   requires the exact selected `account_id` and performs no drafting or filing.
 - `respond` requires the selected `account_id` and reads and prepares only. Use it when the operator wants to review
   the draft before deciding whether to submit anything.
@@ -105,7 +105,7 @@ substantive evidence silently or emit an empty contest merely to reach filing.
 
 Prepared packets preserve case and charge evidence, exact request, selected
 sources, field citations, posture, summary, open questions and findings. They
-record `filing_status: not_attempted`. Parent graphs can reuse them with `file`
+record `filing_status: not_attempted`. Parent workflows can reuse them with `file`
 or carry a held response to further evidence collection. `from-evidence` is the
 no-repeat drafting path; `file` still performs the current provider state checks
 needed for an irreversible submission.

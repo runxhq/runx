@@ -46,7 +46,7 @@ An exact `fixed_version` must occur in the affected package's supplied advisory
 events; otherwise describe version verification as pending. Do not invent a
 release or assume that the highest suggested version is compatible.
 
-## Use it directly or inside a graph
+## Use it directly or inside a workflow
 
 The default returns `vulnerability_review` (`runx/vuln-triage.scan.v1`), with
 the original findings, one assessment and recommendation per coordinate/advisory
@@ -55,7 +55,7 @@ Repeated identities keep their locations together. No arbitrary finding count
 is silently discarded. Runtime byte and model-turn budgets still apply; for a
 large audit, consume its bounded result parts and retain the overall scope.
 
-A parent can pass a current CVE result directly while its graph is still open.
+A parent can pass a current CVE result directly while its workflow is still open.
 There is no requirement to fabricate a sealed parent receipt first. The final
 parent receipt records the actual provider and triage steps. If an independent
 consumer needs sealed evidence, verify the original receipt tree through native

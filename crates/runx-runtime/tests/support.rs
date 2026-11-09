@@ -196,7 +196,7 @@ pub(crate) fn read_test_first_step_receipt(
         .lineage
         .children
         .first()
-        .ok_or("graph receipt has no step receipt")?;
+        .ok_or("workflow receipt has no step receipt")?;
     let id = child
         .uri
         .strip_prefix("runx:receipt:")

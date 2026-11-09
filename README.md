@@ -22,7 +22,7 @@
 
 ```text
 A skill is a URL.
-A graph is what unfolds.
+A workflow is what unfolds.
 Authority narrows. It does not pass through.
 Every act produces a receipt.
 ```
@@ -133,7 +133,7 @@ The next skill can use that result directly.
 
 These are compositions you can give an agent: Runx skills working with your
 repositories, provider skills, and connected accounts. Your agent or a
-project-owned graph makes the handoffs, carrying the actual outputs into the
+project-owned workflow makes the handoffs, carrying the actual outputs into the
 next skill's inputs.
 
 ### Business ops: get the next release into customers' hands
@@ -317,11 +317,11 @@ Its checked-in package also includes the command and test case.
 
 Runx binds the manual and execution closure by digest. An acting agent receives
 the invoked skill's full manual; declared adjacent skills contribute bounded
-summaries until invoked. A graph can also supply a skill as explicit
+summaries until invoked. A workflow can also supply a skill as explicit
 `context_skills` on an agent step—for example, a writing rubric. Context informs
 judgment; permission comes from admission.
 
-## Graphs make acts composable
+## Workflows make acts composable
 
 A method can combine five step kinds:
 
@@ -358,13 +358,13 @@ research packet into `ghostwrite`, then pass the validated draft into its
 packaging and handoff methods. Inspect its
 [actual methods](skills/content-package/run.yaml).
 
-Use an agent turn for work that needs judgment. Use a graph when phases,
+Use an agent turn for work that needs judgment. Use a workflow when phases,
 branches, guards, or approval boundaries must be part of the execution
 contract. Required side effects belong in explicit execution steps, where
 Runx can record the attempt and result. An agent's completion text cannot
 substitute for a provider operation.
 
-Graphs and agent turns can both call skills. A host can pass an existing packet
+Workflows and agent turns can both call skills. A host can pass an existing packet
 artifact into a later call; Runx checks its content digest and input schema.
 This is how a useful result becomes an input to more work without flattening
 its provenance into prose.

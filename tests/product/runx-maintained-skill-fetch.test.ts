@@ -117,7 +117,7 @@ describe("registry skill native fetch", () => {
     }
   });
 
-  it("copies graph stages beside cached registry graph skills", async () => {
+  it("copies workflow stages beside cached registry workflow skills", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-stages-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
@@ -142,7 +142,7 @@ describe("registry skill native fetch", () => {
     }
   });
 
-  it("runs cached registry graph skills through native data operations", async () => {
+  it("runs cached registry workflow skills through native data operations", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-store-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");

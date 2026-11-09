@@ -52,7 +52,7 @@ host:
         required_behaviors:
           - id: prepare-release-notes
             outcome: Produce a reviewable release-note artifact separate from publication.
-            lane: graph
+            lane: workflow
         native_reuse:
           inspected_capabilities:
             - runx.skill.inspect

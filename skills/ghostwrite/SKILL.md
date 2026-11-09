@@ -20,7 +20,7 @@ publishes, posts, sends, or claims provider acknowledgement.
 - Lead with the reader's problem, decision, or next action—not the evidence
   collection process.
 - Turn evidence into concrete claims and examples; do not dump receipts, issue
-  threads, graph traces, or machine packets into the body.
+  threads, workflow traces, or machine packets into the body.
 - Match the project's vocabulary and supplied writing context instead of
   defaulting to generic AI, launch, preview, or adoption language.
 - Write as the responsible maintainer or operator. The surfaced artifact should

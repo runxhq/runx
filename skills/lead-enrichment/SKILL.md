@@ -34,9 +34,9 @@ provider-usage approval. A dollar ceiling cannot cover an unknown USD price;
 do not drop that ceiling or fabricate a zero quote to proceed. Authentication
 health does not establish enrichment entitlement or a credit balance.
 
-The graph performs one synchronous person or company lookup. It does not
+The workflow performs one synchronous person or company lookup. It does not
 request personal email, phone, waterfall enrichment or a callback receiver.
-A parent can process a bounded set of leads through ordinary graph calls;
+A parent can process a bounded set of leads through ordinary workflow calls;
 this skill does not schedule continuing work or impose a global batch limit.
 Do not repeat an uncertain charged lookup. Preserve the paused run and native
 custody, reconcile its evidence and use remaining authority for any new attempt.
@@ -71,7 +71,7 @@ the normalization boundary. They are not an independent provider-verification
 claim. Lookup additionally returns lookup_evidence with the actual native
 readback URI, result digest, observed time, match outcome and cost uncertainty.
 Keep that evidence and the run receipt with the factual packet; do not relabel
-caller-supplied observations as provider proof. Existing composed graphs that
+caller-supplied observations as provider proof. Existing composed workflows that
 have sources must select enrich and must not fetch them again.
 
 The packet distinguishes enriched, partial and needs_more_evidence. Present

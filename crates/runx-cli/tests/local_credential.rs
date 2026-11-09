@@ -333,7 +333,7 @@ fn inline_workflow_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn
 
     assert!(
         elapsed < Duration::from_secs(4),
-        "inline graph ignored its one-second timeout and ran for {elapsed:?}"
+        "inline workflow ignored its one-second timeout and ran for {elapsed:?}"
     );
     assert!(
         !output.status.success(),

@@ -51,7 +51,7 @@ execution:
   verifier: string | null
 ```
 
-`command` is descriptive, not a shell transcript. The deterministic graph
+`command` is descriptive, not a shell transcript. The deterministic workflow
 step or human operator runs the command with real inputs after approval.
 
 ## Release handoff

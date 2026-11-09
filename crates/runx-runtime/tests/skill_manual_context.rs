@@ -149,7 +149,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
             result,
             Err(RuntimeError::ResolutionPending { ref step_id, .. }) if step_id == "judge"
         ),
-        "unexpected context graph result: {result:?}"
+        "unexpected context workflow result: {result:?}"
     );
     let summary_request = summary_host
         .requests
@@ -214,7 +214,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
             result,
             Err(RuntimeError::ResolutionPending { ref step_id, .. }) if step_id == "adjacent"
         ),
-        "unexpected adjacent graph result: {result:?}"
+        "unexpected adjacent workflow result: {result:?}"
     );
     let invoked = invoked_host
         .requests

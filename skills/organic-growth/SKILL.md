@@ -19,11 +19,11 @@ action is executed by this skill.
 
 The default `review` starts from an objective and the canonical site root. It
 collects only missing evidence, then uses the same `analyze` phase as a composed
-graph. Any supplied search, analytics or site evidence takes the reuse branch
+workflow. Any supplied search, analytics or site evidence takes the reuse branch
 immediately: no page fetch, measurement query or extra research turn runs.
 Forward any prior `collection_notes` with those sources so access failures and
 measurement gaps survive the handoff.
-Choose `analyze` explicitly for a source-only graph that must never acquire data.
+Choose `analyze` explicitly for a source-only workflow that must never acquire data.
 
 With no sources, the collection turn can use `web-fetch#web-fetch` for relevant
 public pages and the read-only defaults `google-search-console#performance` or

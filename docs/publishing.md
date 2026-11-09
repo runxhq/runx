@@ -84,8 +84,8 @@ For remote publishes the CLI sends a bounded skill package:
 - Package files are the exact parser-admitted material for the package:
   - process entrypoints and their complete static local source closure;
   - deterministic modules reachable from execution profiles;
-  - nested `SKILL.md` / `run.yaml` files for graph stages, context skills, and
-    local sub-skills called by the graph;
+  - nested `SKILL.md` / `run.yaml` files for workflow stages, context skills, and
+    local sub-skills called by the workflow;
   - test-only support files explicitly declared in `test.files`, confined
     to the owning profile's `fixtures/` directory and staged profile-relative
     into the isolated test workspace;

@@ -305,7 +305,7 @@ native execution boundary, persists them in pause checkpoints, and rejects a
 resume whose supplied bindings disagree with that checkpoint. These flags bind
 execution; they are never skill inputs. The closure digest includes the
 immutable Runx release identity, so a pending continuation cannot silently
-cross a runtime upgrade. Runx-generated run ids and durable graph state bind
+cross a runtime upgrade. Runx-generated run ids and durable workflow state bind
 the same package and execution-closure digests, so changing a skill, transitive
 child package, or runtime closure cannot merge incompatible checkpoint history.
 
@@ -345,7 +345,7 @@ consequential action stops once at its owning boundary. An `operation` step
 accepts an optional typed `approval` request, and an operation the connector
 marks `approval: required` always needs one; the kernel then suspends the call
 for one exact host-attested human decision. Otherwise the admitted grant is
-sufficient and no performative gate is invented. Use an explicit graph approval only when no
+sufficient and no performative gate is invented. Use an explicit workflow approval only when no
 native effect owns the consequential decision. There is no persistent or
 environment-based auto-approval override; development configuration must not
 silently acquire live authority.
@@ -365,7 +365,7 @@ normally copy; Ctrl-C is the interrupt.
 
 `runx skill ... --json` and `runx resume ... --json` return the canonical
 `runx.skill_run.v1` envelope. A sealed run has one caller-facing `result`, a compact
-`trace` for graph runs, its `outcome` (with a `seal_reason` when the outcome
+`trace` for workflow runs, its `outcome` (with a `seal_reason` when the outcome
 alone does not say why), and the `receipt_id` needed for independent
 inspection:
 
@@ -399,7 +399,7 @@ step, `refusal` carries why (`code` and `message`) beside what the steps
 produced; a failed run's `result` is its failure. Neither is part of the signed
 receipt, whose seal records the typed `outcome` and, when the outcome alone
 does not say why, a `reason` from a closed vocabulary. `trace` deliberately carries
-references rather than step payloads. Intermediate graph state, child receipts,
+references rather than step payloads. Intermediate workflow state, child receipts,
 and the full signed receipt are written to the local Runx state and receipt
 stores; process output identity is committed by the receipt. Inspect proof
 through `runx history` and `runx verify` instead of paying to copy it through
@@ -427,7 +427,7 @@ diagnostic.
 
 This is a control-document transport, not a high-volume execution profile. Put
 large immutable content behind the digest-bound artifact/page boundary and put
-durable histories behind data cursors rather than carrying either through graph
+durable histories behind data cursors rather than carrying either through workflow
 context.
 
 `runx skill inspect` also accepts `--inputs file|-`. Inspection binds known
@@ -498,7 +498,7 @@ Stateful product work should use the governed data-plane shape in
 meaning, while the store connector keeps bounded reads, append-only event
 writes and projection reads.
 
-Graphs call the store's operations, `events.append`, `events.read`,
+Workflows call the store's operations, `events.append`, `events.read`,
 `projection.read` and `heads.list`, as operation steps.
 Each call's `data_source_uri` names a logical source inside the workspace's
 store. With no store instance confirmed, that is the workspace store, a SQLite
@@ -569,7 +569,7 @@ with no approval of its own waits on a person: a step that changes the
 workspace or runs a process waits on an approval of gate type `tool` (a native
 tool that changes something, `fs.edit`, `fs.write`, `fs.apply_bundle`,
 `runx.skill.apply`, `command.execute` or `process.start`, a catalog tool runx
-runs as a process, and a graph's process step), which carries exactly what
+runs as a process, and a workflow's process step), which carries exactly what
 executes: for an edit each file with its unified diff and the digests of what
 it replaces and becomes, for a command its argv, directory and digest. A
 connector operation that writes, whether an agent's turn call made it or a
@@ -656,7 +656,7 @@ permissions.
 
 Authors declare newly required JavaScript helpers, for example
 `tool: {module: inventory.mjs, requires: [parseData]}`. Unsupported declared
-requirements fail graph admission before effects. Runx does not infer helper
+requirements fail workflow admission before effects. Runx does not infer helper
 calls or use this declaration as a permission; omitting it loses the old-runtime
 guard. The baseline `parseUrl` helper predates this declaration.
 
@@ -725,7 +725,7 @@ Community skills should be authored and published as standalone packages
 through this lane. The main `runx` repo is the lane for runx-maintained skills
 and runtime code, not the community package catalog.
 
-Prefer declarative graphs composed from native tools and existing skills. When
+Prefer declarative workflows composed from native tools and existing skills. When
 irreducible deterministic domain computation needs JavaScript, declare a worker
 step, `tool: { module: ... }`; the module receives resolved inputs and returns
 JSON while Runx owns the process protocol. A frozen second argument carries
@@ -954,7 +954,7 @@ README/changelog/setup docs, generated state, logs, screenshots, private
 provider config, or broad project plans inside a public skill. The public docs
 for the package belong in `SKILL.md`; external guides belong under `docs/`.
 
-See [composing-skills.md](composing-skills.md) for composing skills into a graph and
+See [composing-skills.md](composing-skills.md) for composing skills into a workflow and
 [publishing.md](publishing.md) for publishing and trust tiers.
 
 Use `code-plan` for bounded change planning, `skill-build` for skill-package
@@ -965,7 +965,7 @@ design and improvement, and the named downstream execution lane for mutation.
 Reusable Runx mechanics and security boundaries belong in the native Rust tool
 catalog. Skills should compose those native tools instead of shipping request,
 filesystem, Git, hashing, packet, approval, credential, or receipt wrappers.
-Use `runx tool inspect <name> --json` to inspect the contract that both graphs
+Use `runx tool inspect <name> --json` to inspect the contract that both workflows
 and managed agents execute.
 
 The repository-level tool package shape remains for a genuinely separate
@@ -1089,7 +1089,7 @@ policy, approvals, and resolution requests still behave the same way.
 
 Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx verify <receipt-id>` shows what a receipt says, with its signature's `verified`, `unverified`, or `invalid` status, and verifies the tree it belongs to. Once a skill package and method resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
-Graph receipt lineage is an immutable one-way tree. The parent commits each
+Workflow receipt lineage is an immutable one-way tree. The parent commits each
 child receipt ID and exact signed-body digest; a child never names its parent,
 so receipt identity stays content-addressed. Every verifier applies one rule to
 a tree: each receipt is committed once by its parent, and a tree holds at most
@@ -1107,7 +1107,7 @@ does not load raw invocation inputs, transport diagnostics or credential stores.
 Declared outputs can contain sensitive source data; they are returned exactly,
 without a redaction that would change their signed meaning.
 
-A graph receipt returns `not_a_step` with its verified child references; it
+A workflow receipt returns `not_a_step` with its verified child references; it
 does not directly sign an assembled result. A valid step receipt imported
 without its matching local run record returns `not_retained`. The reader
 neither replays the run nor searches another workspace. A run with

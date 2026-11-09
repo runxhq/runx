@@ -299,11 +299,11 @@ authoring.
   intermediate writes remain available in operator context and receipts without
   polluting the result. Multiple producers are valid only for mutually exclusive
   branches or when their distinct contracts are intentionally returned together;
-  simultaneous producers may not emit the same key. When a graph needs one
+  simultaneous producers may not emit the same key. When a workflow needs one
   public result, end it with an explicit package/finalize step and let that
   producer own the packet schema.
 - Add executable code only for irreducible deterministic domain computation.
-  Explain its domain boundary and why native tools plus a declarative graph
+  Explain its domain boundary and why native tools plus a declarative workflow
   cannot express it. Do not add code merely to transform Runx contracts.
 - For a genuinely separate CLI or protocol tool, keep one canonical
   `manifest.json`. It owns source, inputs and defaults, artifact projection,
@@ -355,7 +355,7 @@ authoring.
   method inputs; `runx skill --inputs` is only a bounded transport for one
   complete control object. Large immutable local content belongs behind
   `artifact.admit`/bounded pages. Durable history belongs behind
-  the store's `events.read` cursors or a compact projection. A graph must not carry an
+  the store's `events.read` cursors or a compact projection. A workflow must not carry an
   archive, growing event history, or completed-id array simply because one CLI
   call can parse it.
 - Use a worker tool's deterministic `paged_input` only for irreducible record
@@ -433,7 +433,7 @@ authoring.
   A local cross-package skill edge must be present in the digest-bound registry
   package bundle, and the tests a publish runs must execute that exact
   materialized package. Never copy sibling source beside a test while omitting it from the
-  published artifact, rewrite the source graph for registry-only execution, or
+  published artifact, rewrite the source workflow for registry-only execution, or
   certify a package that needs the original checkout to run.
 - Include a realistic happy path and refusal, stop, or error path.
 - Never treat supplied agent answers as provider-effect proof.
@@ -513,7 +513,7 @@ Call `turn_complete` with exactly one root field,
 `no_skill`, or `needs_core`. Explain the operator value and the manual's
 knowledge contract: purpose, required evidence, decision logic, stop conditions,
 and recovery. Assign every required behavior to exactly one real execution lane
-(`manual`, `graph`, `agent`, `native_capability`, `domain_module`,
+(`manual`, `workflow`, `agent`, `native_capability`, `domain_module`,
 `process`, or `operation`). A native lane names a selected capability;
 a domain module supplies a specific justification. Record inspected, selected,
 and genuinely missing native capabilities; use `needs_core` only for a runtime
@@ -524,7 +524,7 @@ any deterministic architecture error it returns, then submit the same validated
 decision. For every `native_capability` behavior, `reuses` must be exactly one
 entry from `native_reuse.selected_capabilities`; split a behavior when it needs
 more than one capability. This prevalidation is read-only and does not replace
-the graph's native digest-binding step.
+the workflow's native digest-binding step.
 When `package_name` is supplied, treat it as the requested package identity;
 do not silently rename the package from its target path.
 
@@ -579,7 +579,7 @@ validation, reversible package writes, and routine grant-scoped provider
 mutations do not gain ceremonial human approval. Add an exact resumable gate
 only when the action genuinely requires a separate human decision. Assign each
 such action exactly one approval owner; never pair
-an explicit graph approval with an effect-owned approval for the same action.
+an explicit workflow approval with an effect-owned approval for the same action.
 Budgets are operational ceilings, not guesses to be widened after validation.
 Do not write files, calculate a digest, invent provider proof, or solve an
 ownership gap with package code.

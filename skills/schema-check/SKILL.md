@@ -65,7 +65,7 @@ which declared paths occur in samples, including homogeneous array items.
 `proposal` is null when held. When present, it carries the native schema/sample
 digests, affected paths and `live_write_performed: false`.
 
-The same method is reusable in a graph. A parent supplies its exact schemas,
+The same method is reusable in a workflow. A parent supplies its exact schemas,
 samples and policy, then consumes this verdict and these digests without a second
 comparison. No discovery, provider credentials, model turn or delivery is needed.
 Publication belongs to the schema publisher under its own authorization and

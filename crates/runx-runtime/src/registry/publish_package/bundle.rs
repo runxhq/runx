@@ -201,7 +201,7 @@ fn bundled_workflow_directory(
         .strip_prefix(source_package_root)
         .map_err(|_| {
             RegistryPublishPackageError::invalid(format!(
-                "graph directory {} is outside source package {}",
+                "workflow directory {} is outside source package {}",
                 workflow_directory.display(),
                 source_package_root.display()
             ))
@@ -321,7 +321,7 @@ fn portable_package_paths(
             .map(|edge| {
                 let graph = edge.workflow_directory.strip_prefix(&source).map_err(|_| {
                     RegistryPublishPackageError::invalid(
-                        "publish graph directory is outside its source package",
+                        "publish workflow directory is outside its source package",
                     )
                 })?;
                 Ok((

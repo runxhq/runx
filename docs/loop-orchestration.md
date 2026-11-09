@@ -11,7 +11,7 @@ runx should make those loops safe and verifiable without becoming the loop host.
 
 - A **loop** lives outside the trusted kernel. It owns scheduling, durable loop
   state, wakeups, projections, and stop policy.
-- A **turn** is one governed runx skill or graph run. It has explicit inputs,
+- A **turn** is one governed runx skill or workflow run. It has explicit inputs,
   authority, the skill's declared `tools:`, optional `context_skills`, bounded model/tool
   rounds, approval gates, and one sealed receipt.
 - A **handoff** is a receipt-backed artifact or tool-shaped result asking
@@ -47,7 +47,7 @@ The design follows mature orchestration systems instead of inventing a special
 runx loop model:
 
 - LangGraph frames agent orchestration around durable execution, persistence,
-  human-in-the-loop interrupts, and stateful graph execution:
+  human-in-the-loop interrupts, and stateful workflow execution:
   `https://docs.langchain.com/oss/python/langgraph/overview`,
   `https://docs.langchain.com/oss/python/langgraph/persistence`, and
   `https://docs.langchain.com/oss/python/langchain/human-in-the-loop`.
@@ -93,7 +93,7 @@ Required gates:
 
 Use runx for:
 
-- governed skill/graph turns;
+- governed skill/workflow turns;
 - authority attenuation and approval gates;
 - bounded model/tool execution;
 - governed data operations through declared data-source adapters;

@@ -25,7 +25,7 @@ The demo's loop host, `loop-host.mjs`, sits beside this package in
 The important boundary is not the Node script. It is the contract:
 
 - A **loop** owns scheduling, durable loop state, projection, and stop policy.
-- A **turn** is one runx skill/graph run with explicit authority and one sealed
+- A **turn** is one runx skill/workflow run with explicit authority and one sealed
   receipt.
 - A **handoff** is an artifact/result the loop host can inspect; it is not
   hidden prompt continuation.

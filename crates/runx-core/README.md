@@ -2,7 +2,7 @@
 
 Pure Rust kernel for runx state-machine and policy decisions.
 
-This crate owns the sequential graph state machine, scope-grant matching, and
+This crate owns the sequential workflow state machine, scope-grant matching, and
 authority derivation and minting, and checks them against the checked-in kernel
 fixture set.
 

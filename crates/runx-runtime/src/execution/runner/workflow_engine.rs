@@ -402,7 +402,7 @@ impl WorkflowExecution {
         let resumed_hold = if let Some(pending) = self.suspended_step.take() {
             if pending != context.plan.step_id {
                 return Err(RuntimeError::EngineInvariant {
-                    context: "resuming a graph step",
+                    context: "resuming a workflow step",
                     message: "the suspended step is not the selected step".to_owned(),
                 });
             }
@@ -898,7 +898,7 @@ fn enforce_condition(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), Runtim
         Ok(())
     } else {
         Err(RuntimeError::EngineInvariant {
-            context: "running a graph step",
+            context: "running a workflow step",
             message: format!(
                 "step {} was selected although its condition '{shown}' does not hold",
                 step.id

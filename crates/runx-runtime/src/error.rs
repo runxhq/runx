@@ -25,9 +25,9 @@ pub enum RuntimeError {
         #[source]
         source: std::io::Error,
     },
-    #[error("graph parse failed: {0}")]
+    #[error("workflow parse failed: {0}")]
     ParseWorkflow(#[from] runx_parser::ParseError),
-    #[error("graph validation failed: {0}")]
+    #[error("workflow validation failed: {0}")]
     ValidateWorkflow(#[from] runx_parser::ValidationError),
     #[error("skill package validation failed: {0}")]
     SkillPackage(#[from] runx_parser::SkillPackageError),
@@ -39,17 +39,17 @@ pub enum RuntimeError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("graph step '{step_id}' is missing")]
+    #[error("workflow step '{step_id}' is missing")]
     StepMissing { step_id: String },
-    #[error("graph step '{step_id}' has no skill target")]
+    #[error("workflow step '{step_id}' has no skill target")]
     StepMissingSkill { step_id: String },
-    #[error("graph step '{step_id}' has invalid run configuration: {reason}")]
+    #[error("workflow step '{step_id}' has invalid run configuration: {reason}")]
     InvalidRunStep { step_id: String, reason: String },
-    #[error("graph step '{step_id}' uses unsupported run type '{run_type}'")]
+    #[error("workflow step '{step_id}' uses unsupported run type '{run_type}'")]
     UnsupportedRunStep { step_id: String, run_type: String },
-    #[error("graph step '{step_id}' is blocked: {reason}")]
+    #[error("workflow step '{step_id}' is blocked: {reason}")]
     WorkflowBlocked { step_id: String, reason: String },
-    #[error("graph step '{step_id}' is waiting for host resolution: {reason}")]
+    #[error("workflow step '{step_id}' is waiting for host resolution: {reason}")]
     ResolutionPending {
         step_id: String,
         reason: String,
@@ -62,7 +62,7 @@ pub enum RuntimeError {
     /// A step sealed a governed outcome other than `completed`: an agent act
     /// that declined, deferred, blocked, or was superseded. The graph stops
     /// there with that outcome; it is an outcome, not a fault.
-    #[error("graph step '{step_id}' ended {}: {summary}", outcome.label())]
+    #[error("workflow step '{step_id}' ended {}: {summary}", outcome.label())]
     StepClosed {
         step_id: String,
         outcome: runx_contracts::RunOutcome,
@@ -75,7 +75,7 @@ pub enum RuntimeError {
     },
     #[error(transparent)]
     ContextEdgeUnresolved(Box<ContextEdgeUnresolvedError>),
-    #[error("authority {verb:?} denied graph step '{step_id}': {reason}")]
+    #[error("authority {verb:?} denied workflow step '{step_id}': {reason}")]
     AuthorityDenied {
         verb: AuthorityVerb,
         step_id: String,
@@ -83,12 +83,12 @@ pub enum RuntimeError {
     },
     /// A call would spend more than is left of the run's money limit;
     /// nothing was sent.
-    #[error("graph step '{step_id}' exceeds the run's money limit: {reason}")]
+    #[error("workflow step '{step_id}' exceeds the run's money limit: {reason}")]
     CostLimitExceeded { step_id: String, reason: String },
-    #[error("graph step '{step_id}' failed planning: {reason}")]
+    #[error("workflow step '{step_id}' failed planning: {reason}")]
     WorkflowPlanningFailed { step_id: String, reason: String },
     #[cfg(feature = "agent")]
-    #[error("managed agent resolution '{request_id}' failed in graph step '{step_id}': {source}")]
+    #[error("managed agent resolution '{request_id}' failed in workflow step '{step_id}': {source}")]
     ManagedAgentResolution {
         step_id: String,
         request_id: String,
@@ -96,7 +96,7 @@ pub enum RuntimeError {
         source: Box<crate::adapters::agent::ManagedAgentError>,
     },
     #[error(
-        "provider mutation was applied but independent readback is unavailable at graph step '{step_id}': {reason}"
+        "provider mutation was applied but independent readback is unavailable at workflow step '{step_id}': {reason}"
     )]
     ProviderReadbackPending {
         step_id: String,

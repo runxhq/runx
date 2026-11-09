@@ -198,7 +198,7 @@ review evidence; Reddit draft text remains plain text.
 Return `target_candidates` for the targets inspected. Mark each selected,
 alternate or rejected; include source URLs and observation times, community
 rule and account-eligibility status, bounded activity samples, the contribution
-gap, reason and risk. Match each draft to a selected candidate's exact target. The default graph
+gap, reason and risk. Match each draft to a selected candidate's exact target. The default workflow
 checks that every draft has a selected candidate with allowed rules. A selected
 candidate with unknown account eligibility yields `provisional`, retaining the
 draft for review and stating the missing check. Disallowed rules or known

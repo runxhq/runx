@@ -55,7 +55,7 @@ bench = false
 [package.metadata.deb]
 maintainer = "auscaster <oss@0state.com>"
 copyright = "2026, runxhq"
-extended-description = "Native governed runtime for agent skills, tools, graphs, and packets."
+extended-description = "Native governed runtime for agent skills, tools, workflows, and packets."
 section = "utils"
 priority = "optional"
 assets = [

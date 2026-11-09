@@ -20,7 +20,7 @@ are different states. This operation does not pay a merchant.
 challenge, destination and request. Runx owns the payment approval and outgoing
 budget. The connector checks the terms before the official CLI privately obtains
 the SPT. The CLI pins the challenge and destination and refuses redirects.
-No credential is returned to a graph or supplied in a graph input.
+No credential is returned to a workflow or supplied in a workflow input.
 
 A resource's HTTP response is not settlement proof. Confirmation independently
 reads the original Link spend request and requires a successful payment

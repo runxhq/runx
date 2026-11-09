@@ -39,7 +39,7 @@ before they may be added to `deny.toml`.
 - `runx-core`: pure decisions. State-machine parity and policy parity
   (admission, authority proof, retry, workflow-step scope, generic
   authority subset).
-- `runx-parser`: pure YAML → AST → IR parity for graphs, skills, methods, tool
+- `runx-parser`: pure YAML → AST → IR parity for workflows, skills, methods, tool
   manifests, and skill installs. Raw object subtrees use
   `runx_contracts::JsonValue`.
 - `runx-receipts`: pure receipt model, canonical hashing, and tree

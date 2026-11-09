@@ -43,7 +43,7 @@ and connector; keyless access is not a commercial entitlement. This is the world
 
 The default returns `location` plus the requested provider operation evidence.
 Ambiguous, unmatched or invalid selection returns its candidates and reason
-without a weather request. `locate` retains raw geocoding candidates for graphs.
+without a weather request. `locate` retains raw geocoding candidates for workflows.
 The explicit `forecast` method takes a selected latitude and longitude and
 returns forecast evidence without geocoding again. `air_quality` likewise takes
 coordinates directly. There is no dependency between an unrelated place name

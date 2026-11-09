@@ -80,7 +80,7 @@ RUNX_VITEST_BATCH=cli-package pnpm vitest run tests/cli-package.test.ts
 Use checked-in fixtures when a behavior should remain stable:
 
 - `fixtures/skills/` for reusable skill packages
-- `fixtures/graphs/` for graph execution shapes
+- `fixtures/graphs/` for workflow execution shapes
 - `fixtures/test/` for test-level contracts
 - `examples/` for public docs examples that should also be executable
 
@@ -157,7 +157,7 @@ archive version print is not release evidence.
 ## Adding Tests
 
 Use package-local tests for package internals and `tests/` for cross-package
-wrapper behavior. Trusted local skill, graph, test, receipt, policy,
+wrapper behavior. Trusted local skill, workflow, test, receipt, policy,
 authority, registry, config, and payment behavior needs a Rust test or a
 TS-free Rust CLI fixture. TypeScript tests may wrap those paths, but they
 should not be the only proof.

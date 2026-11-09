@@ -33,7 +33,7 @@ reserved, recovery or compliance work. Even a recorded scope is not proved
 necessary. `repo:write` does not imply `repo:read`, and a wildcard cannot be
 replaced by the first matching string. Scope strings remain opaque here.
 
-A graph root can record no scopes while its verified child tree contains actual
+A workflow root can record no scopes while its verified child tree contains actual
 operations. Select attributable child receipts when reviewing those operations;
 root metadata is not an aggregated successful-usage log. Exact retained operation
 claims may provide further bounded evidence through their native reader, but
@@ -63,7 +63,7 @@ This skill neither grants new authority nor substitutes for those jobs.
    reference. A friendly label alone cannot establish attribution.
 2. Resolve missing evidence through `receipt-query#read` with native chain verification.
    Supply an already completed `receipt_evidence` ledger packet to bypass that
-   query, or invoke `from-evidence` explicitly in a graph. That phase interprets
+   query, or invoke `from-evidence` explicitly in a workflow. That phase interprets
    prior reported verification and does not independently recheck signatures;
    preserve its source receipt alongside the result.
    Every requested id needs one verified, attributable native detail. Missing,

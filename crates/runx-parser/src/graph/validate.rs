@@ -280,11 +280,11 @@ methods:
         let outputs = graph.steps[0]
             .outputs
             .as_ref()
-            .ok_or_else(|| "typed graph step omitted outputs".to_owned())?;
+            .ok_or_else(|| "typed workflow step omitted outputs".to_owned())?;
         let verdict = outputs
             .get("verdict")
             .and_then(runx_contracts::JsonValue::as_object)
-            .ok_or_else(|| "typed graph step omitted verdict schema".to_owned())?;
+            .ok_or_else(|| "typed workflow step omitted verdict schema".to_owned())?;
 
         assert_eq!(
             verdict

@@ -46,7 +46,7 @@ export default function auditLeastPrivilege(inputs) {
       "Reused supplied ledger evidence. Its signature and chain labels are prior reported evidence, not independently rechecked by this phase.",
     );
   limitations.push(
-    "A graph root scope projection does not describe all descendant operations; select attributable child receipts when that coverage is needed.",
+    "A workflow root scope projection does not describe all descendant operations; select attributable child receipts when that coverage is needed.",
   );
   if (!subject)
     limitations.push(

@@ -19,7 +19,7 @@ The default generate method takes the actual workspace lockfile path. Native art
 - from-inventory: render the supplied completed inventory without another file read, decode or dependency interpretation.
 - save: write only report.document to a new workspace-relative output file, normally sbom.cdx.json. It preserves the report and source identities, creates no extra source inventory, and refuses to overwrite an existing file. For an intentional replacement, use the ordinary native file writer with the exact current digest.
 
-Prefer an already completed inventory in a graph. It remains source evidence, never new authority. Pass its native artifact reference when available, preserving the package/receipt identity; an arbitrary caller-authored JSON packet is a supplied claim, not independently acquired evidence.
+Prefer an already completed inventory in a workflow. It remains source evidence, never new authority. Pass its native artifact reference when available, preserving the package/receipt identity; an arbitrary caller-authored JSON packet is a supplied claim, not independently acquired evidence.
 
 ## Coverage and interpretation
 

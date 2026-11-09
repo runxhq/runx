@@ -3,14 +3,14 @@
 Native Rust runtime for governed runx execution.
 
 This crate owns the canonical local orchestration path for Rust-backed runx:
-skill execution, graph execution, test replay, host reporting, exact process
+skill execution, workflow execution, test replay, host reporting, exact process
 invocation and supervision, typed execution-boundary evidence, receipts,
 history projection, adapters, and domain-free effect orchestration. Pure
 parser, core, contract, receipt, and domain crates remain upstream.
 
 Current slice:
 
-- parses a skill's methods, each a graph of agent, tool, operation, ask and
+- parses a skill's methods, each a workflow of agent, tool, operation, ask and
   skill steps, with `runx-parser`
 - plans sequential transitions with `runx-core`
 - runs worker tools through the dedicated `runx-js-worker` and trusted host
@@ -57,6 +57,6 @@ Deferred doctor families remain owned by follow-up slices:
 - runx-maintained skills lock freshness
 - tool manifest stale source and schema hashes
 - packet index diagnostics
-- graph packet path validation
+- workflow packet path validation
 - receipt proof health
 - policy health

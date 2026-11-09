@@ -84,7 +84,7 @@ establish, is in [What a receipt proves](../README.md#what-a-receipt-proves).
 ## Production Receipt Signing
 
 For receipts a hosted or CI identity signs, configure its Ed25519 signing key
-before running skills, graphs or MCP server calls:
+before running skills, workflows or MCP server calls:
 
 ```bash
 export RUNX_RECEIPT_SIGN_KID="hosted-prod-key"
@@ -120,7 +120,7 @@ runx verify <receipt-id> --json
   it uses is the one this release bundles, materialized into the runx home at
   `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing Runx
   first, use the same command through `npx @runxhq/cli`.
-- Compose the example into a graph with [Composing Skills](./composing-skills.md).
+- Compose the example into a workflow with [Composing Skills](./composing-skills.md).
 - Bind provider accounts once as described in
   [Credentials](./credentials.md); agents and MCP use the same readiness path
   automatically.

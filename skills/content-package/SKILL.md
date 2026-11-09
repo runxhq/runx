@@ -30,7 +30,7 @@ or enable a concrete next step—not merely prove that research happened.
    optional `paths`, `urls` or completed `source_packets`. `research#investigate`
    reads explicit sources directly and acquires only missing evidence. Nonempty
    supplied source packets skip acquisition. The explicit `content-package`
-   method retains its bounded-source-only contract for existing graphs.
+   method retains its bounded-source-only contract for existing workflows.
 2. `research` admits the sources, binds citations, and decides whether the
    evidence supports a useful deliverable. For a completed `research_packet`,
    select `from-research` to skip both acquisition and research synthesis.

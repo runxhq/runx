@@ -74,7 +74,7 @@ pub(crate) fn resolve_bundled_skill(
     };
     let workflow_directory = workflow_directory.canonicalize().map_err(|error| {
         format!(
-            "failed to resolve graph directory {} for registry package bundle: {error}",
+            "failed to resolve workflow directory {} for registry package bundle: {error}",
             workflow_directory.display()
         )
     })?;
@@ -82,7 +82,7 @@ pub(crate) fn resolve_bundled_skill(
         .strip_prefix(&bundle_root)
         .map_err(|_| {
             format!(
-                "graph directory {} is outside registry package bundle {}",
+                "workflow directory {} is outside registry package bundle {}",
                 workflow_directory.display(),
                 bundle_root.display()
             )

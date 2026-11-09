@@ -101,7 +101,7 @@ runs instead.
 Every registry package a project runs is added under
 `.runx/added-skills/<publisher>/<name>/<version>/`, with its `signature.json`: a
 registry skill when it is first run or installed, and the registry skills a
-graph names. A bundled runx skill materializes into the runx home instead,
+workflow names. A bundled runx skill materializes into the runx home instead,
 never the project. Commit added packages or ignore them as you would any other
 dependency: a committed package keeps its identity wherever its signature
 verifies.
@@ -110,7 +110,7 @@ verifies.
 
 A public package has one memorable capability name and two supported invocation
 contexts. Direct use selects the truthful default described by its exact
-`SKILL.md`; a parent graph selects an exact named method and passes typed prior
+`SKILL.md`; a parent workflow selects an exact named method and passes typed prior
 results. Runx binds both the injected manual bytes and executable closure by
 digest, so a host cannot silently operate from instructions that disagree with
 the installed package.
@@ -124,7 +124,7 @@ Defaults follow the public promise:
 - explicit `plan`, `inspect`, `apply`, and `verify` methods remain available for
   composed use and do not compete as separate public skills;
 - normal output contains one compact domain result and receipt references;
-  intermediate graph context is available only with diagnostics.
+  intermediate workflow context is available only with diagnostics.
 
 For GitHub, the selected `github` instance decides the account: a signed-in
 local `gh` session (`runx connector use github --session`), a stored token, or
@@ -209,7 +209,7 @@ evidence, not copied into the repo by default.
 | `research` | `research-brief`, `research`, `web-search` |
 | `security` | `cve-audit`, `sbom-generate`, `vuln-triage`, `privacy-request-review`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
 
-Graph stages, test fixtures, context-only packages, and provider bindings are
+Workflow stages, test fixtures, context-only packages, and provider bindings are
 not listed here unless they are meant to be run as catalog packages. Their
 ownership lives with the parent skill or binding metadata.
 
@@ -221,7 +221,7 @@ Before opening a new first-party skill PR, do the overlap check in public:
 2. Read the closest first-party and verified community packages.
 3. Search open PRs and issues for the same category and method shape.
 4. Decide whether the work is a new skill, an improvement to an existing skill,
-   a graph composition, or a community package that does not belong in the
+   a workflow composition, or a community package that does not belong in the
    first-party repo.
 5. Put that reasoning in the PR body.
 
@@ -238,7 +238,7 @@ A strong proposal answers:
 - What pain does this skill solve that the current catalog does not?
 - Which existing packages did you compare against?
 - Why is this a new first-party package rather than a community registry
-  package, graph composition, or patch to an existing skill?
+  package, workflow composition, or patch to an existing skill?
 - What method files, `SKILL.md`, `run.yaml`, fixtures, test evidence, receipt,
   and public registry URL prove it works?
 - What authority, network, filesystem, provider, or spend boundaries does the

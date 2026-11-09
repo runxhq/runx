@@ -670,7 +670,7 @@ methods:
     let steps = object_field(output, "trace")
         .and_then(|trace| trace.get("steps"))
         .and_then(JsonValue::as_array)
-        .ok_or("missing graph steps")?;
+        .ok_or("missing workflow steps")?;
     let receipt_id = steps
         .first()
         .and_then(JsonValue::as_object)
@@ -903,7 +903,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Graph bug".to_owned()),
+        JsonValue::String("Workflow bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -923,7 +923,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&initial.output, "graph skill run result")?;
+    let output = object(&initial.output, "workflow skill run result")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
     let requests = array_field(output, "requests").ok_or("missing requests")?;
@@ -938,7 +938,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
     let envelope_inputs = object_field(envelope, "inputs").ok_or("missing inputs")?;
     assert_eq!(
         envelope_inputs.get("thread_title"),
-        Some(&JsonValue::String("Graph bug".to_owned()))
+        Some(&JsonValue::String("Workflow bug".to_owned()))
     );
 
     // The paused run's record binds its package, closure and method.
@@ -1025,7 +1025,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         "answers": {
             "decide": {
                 "result": {
-                    "summary": "Graph fix authored."
+                    "summary": "Workflow fix authored."
                 },
                 "closure": {
                     "outcome": "completed"
@@ -1049,21 +1049,21 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&resumed.output, "resumed graph skill run result")?;
+    let output = object(&resumed.output, "resumed workflow skill run result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let declared_result =
         object_field(public_result, "result").ok_or("missing declared result output")?;
     assert_eq!(
         string_field(declared_result, "summary"),
-        Some("Graph fix authored.")
+        Some("Workflow fix authored.")
     );
     let record = runx_runtime::run_record::read_run(&BTreeMap::new(), temp.path(), run_id, None)?;
     assert_eq!(record.run.state, runx_contracts::RunState::Sealed);
     assert_eq!(
         record.run.outcome,
         Some(runx_contracts::RunOutcome::Completed),
-        "the run record must agree with the sealed graph receipt"
+        "the run record must agree with the sealed workflow receipt"
     );
 
     Ok(())
@@ -1091,7 +1091,7 @@ fn native_workflow_transition_gate_allows_declared_agent_output()
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
-    let output = object(&initial.output, "gated graph result")?;
+    let output = object(&initial.output, "gated workflow result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
 
     let answers = serde_json::json!({
@@ -1121,7 +1121,7 @@ fn native_workflow_transition_gate_allows_declared_agent_output()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&resumed.output, "resumed gated graph result")?;
+    let output = object(&resumed.output, "resumed gated workflow result")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
@@ -1218,7 +1218,7 @@ fn native_workflow_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
-    let output = object(&initial.output, "gated graph result")?;
+    let output = object(&initial.output, "gated workflow result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
 
     let answers = serde_json::json!({
@@ -1247,7 +1247,7 @@ fn native_workflow_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
-    let output = object(&blocked.output, "blocked graph result")?;
+    let output = object(&blocked.output, "blocked workflow result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     assert_eq!(string_field(output, "outcome"), Some("blocked"));
     assert_eq!(
@@ -1294,7 +1294,7 @@ fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&initial.output, "nested agent graph result")?;
+    let output = object(&initial.output, "nested agent workflow result")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
     let requests = array_field(output, "requests").ok_or("missing requests")?;
@@ -1333,7 +1333,7 @@ fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&resumed.output, "resumed nested agent graph result")?;
+    let output = object(&resumed.output, "resumed nested agent workflow result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let result = object_field(public_result, "result").ok_or("missing declared result")?;
@@ -1397,7 +1397,7 @@ methods:
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "registry context graph result")?;
+    let output = object(&result.output, "registry context workflow result")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
@@ -1485,7 +1485,7 @@ fn native_workflow_skill_run_executes_local_tool_step() -> Result<(), Box<dyn st
     let tool_root = temp.path().join("tools");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Graph tool bug".to_owned()),
+        JsonValue::String("Workflow tool bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -1511,12 +1511,12 @@ fn native_workflow_skill_run_executes_local_tool_step() -> Result<(), Box<dyn st
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "graph tool result")?;
+    let output = object(&result.output, "workflow tool result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
     let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
-    assert_eq!(string_field(echo, "message"), Some("Graph tool bug"));
+    assert_eq!(string_field(echo, "message"), Some("Workflow tool bug"));
 
     Ok(())
 }
@@ -1546,7 +1546,7 @@ fn configured_model_credentials_do_not_enable_workflow_agent_without_run_consent
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "configured graph no-consent result")?;
+    let output = object(&result.output, "configured workflow no-consent result")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     Ok(())
 }
@@ -1563,7 +1563,7 @@ fn native_workflow_skill_run_resolves_agent_task_named_emit_context()
         "answers": {
             "author": {
                 "fix_bundle": {
-                    "message": "Graph tool bug"
+                    "message": "Workflow tool bug"
                 },
                 "closure": {
                     "outcome": "completed"
@@ -1591,10 +1591,10 @@ fn native_workflow_skill_run_resolves_agent_task_named_emit_context()
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
-    let pending_output = object(&pending.output, "pending graph agent artifact result")?;
+    let pending_output = object(&pending.output, "pending workflow agent artifact result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
     let run_id = string_field(pending_output, "run_id")
-        .ok_or("pending graph agent artifact result missing run_id")?
+        .ok_or("pending workflow agent artifact result missing run_id")?
         .to_owned();
 
     let answers = crate::support::bind_resume(&env, temp.path(), &run_id, answers)?;
@@ -1613,12 +1613,12 @@ fn native_workflow_skill_run_resolves_agent_task_named_emit_context()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "graph agent artifact result")?;
+    let output = object(&result.output, "workflow agent artifact result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
     let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
-    assert_eq!(string_field(echo, "message"), Some("Graph tool bug"));
+    assert_eq!(string_field(echo, "message"), Some("Workflow tool bug"));
 
     Ok(())
 }
@@ -1655,7 +1655,7 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
     let initial_inputs = [
         (
             "thread_title".to_owned(),
-            JsonValue::String("Graph tool bug".to_owned()),
+            JsonValue::String("Workflow tool bug".to_owned()),
         ),
         (
             "repo_root".to_owned(),
@@ -1679,10 +1679,10 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
-    let pending_output = object(&pending.output, "pending graph input resume result")?;
+    let pending_output = object(&pending.output, "pending workflow input resume result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
     let run_id = string_field(pending_output, "run_id")
-        .ok_or("pending graph input resume result missing run_id")?
+        .ok_or("pending workflow input resume result missing run_id")?
         .to_owned();
 
     let answers = crate::support::bind_resume(&env.clone(), temp.path(), &run_id, answers)?;
@@ -1724,7 +1724,7 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "graph input resume result")?;
+    let output = object(&result.output, "workflow input resume result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
@@ -1750,7 +1750,7 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
             "author": {
                 "output": {
                     "fix_bundle": {
-                        "message": "Graph tool bug"
+                        "message": "Workflow tool bug"
                     }
                 },
                 "closure": {
@@ -1781,11 +1781,11 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
     })?;
     let pending_output = object(
         &pending.output,
-        "pending graph agent artifact envelope result",
+        "pending workflow agent artifact envelope result",
     )?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
     let run_id = string_field(pending_output, "run_id")
-        .ok_or("pending graph agent artifact envelope result missing run_id")?
+        .ok_or("pending workflow agent artifact envelope result missing run_id")?
         .to_owned();
 
     // An answer that breaks the act's output contract is refused and the
@@ -1842,7 +1842,7 @@ fn native_workflow_skill_run_omits_missing_optional_workflow_input_references()
     let tool_root = temp.path().join("tools");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Graph optional JSON bug".to_owned()),
+        JsonValue::String("Workflow optional JSON bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -1868,14 +1868,14 @@ fn native_workflow_skill_run_omits_missing_optional_workflow_input_references()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "graph optional JSON tool result")?;
+    let output = object(&result.output, "workflow optional JSON tool result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
     let echo = object_field(echo, "data").ok_or("missing echo data envelope")?;
     assert_eq!(
         string_field(echo, "message"),
-        Some("Graph optional JSON bug")
+        Some("Workflow optional JSON bug")
     );
 
     Ok(())
@@ -2119,7 +2119,7 @@ fn native_workflow_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn st
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Graph tool bug".to_owned()),
+        JsonValue::String("Workflow tool bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -2139,7 +2139,7 @@ fn native_workflow_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn st
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "graph tool result")?;
+    let output = object(&result.output, "workflow tool result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
@@ -2157,7 +2157,7 @@ fn native_workflow_skill_run_merges_imported_workflow_skill_tool_roots()
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Graph tool bug".to_owned()),
+        JsonValue::String("Workflow tool bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -2177,19 +2177,19 @@ fn native_workflow_skill_run_merges_imported_workflow_skill_tool_roots()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "nested graph tool root result")?;
+    let output = object(&result.output, "nested workflow tool root result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing nested echo output")?;
     let echo_data = object_field(echo, "data").ok_or("missing nested echo data")?;
     assert_eq!(
         string_field(echo_data, "message"),
-        Some("Nested graph tool root bug")
+        Some("Nested workflow tool root bug")
     );
     let root_receipt_id = string_field(output, "receipt_id").ok_or("missing receipt id")?;
     let trace = object_field(output, "trace").ok_or("missing trace")?;
-    let steps = array_field(trace, "steps").ok_or("missing graph steps")?;
-    let nested_step = object(&steps[0], "nested graph step")?;
+    let steps = array_field(trace, "steps").ok_or("missing workflow steps")?;
+    let nested_step = object(&steps[0], "nested workflow step")?;
     let nested_step_id =
         string_field(nested_step, "receipt_id").ok_or("missing nested step receipt id")?;
     let root_receipt = crate::support::read_test_signed_receipt(&receipt_dir, root_receipt_id)?;
@@ -2199,12 +2199,12 @@ fn native_workflow_skill_run_merges_imported_workflow_skill_tool_roots()
         .lineage
         .children
         .first()
-        .ok_or("nested step receipt missing child graph reference")?;
+        .ok_or("nested step receipt missing child workflow reference")?;
     let nested_workflow_id = nested_workflow_ref
         .uri
         .as_str()
         .strip_prefix("runx:receipt:")
-        .ok_or("nested graph receipt reference is malformed")?;
+        .ok_or("nested workflow receipt reference is malformed")?;
     let nested_workflow_receipt =
         crate::support::read_test_signed_receipt(&receipt_dir, nested_workflow_id)?;
     assert_eq!(
@@ -2247,7 +2247,7 @@ fn native_workflow_skill_run_executes_nested_process_tool_skill()
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Nested graph bug".to_owned()),
+        JsonValue::String("Nested workflow bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -2267,23 +2267,23 @@ fn native_workflow_skill_run_executes_nested_process_tool_skill()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "nested graph skill result")?;
+    let output = object(&result.output, "nested workflow skill result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let declared_nested =
         object_field(public_result, "nested").ok_or("missing exposed nested output")?;
     assert_eq!(
         string_field(declared_nested, "message"),
-        Some("Nested graph bug")
+        Some("Nested workflow bug")
     );
-    let context = object_field(output, "context").ok_or("missing graph context")?;
+    let context = object_field(output, "context").ok_or("missing workflow context")?;
     let step_outputs =
         object_field(context, "step_outputs").ok_or("missing declared step context")?;
     let nested_context =
         object_field(step_outputs, "nested").ok_or("missing nested step context")?;
     assert_eq!(
         object_field(nested_context, "nested").and_then(|nested| string_field(nested, "message")),
-        Some("Nested graph bug")
+        Some("Nested workflow bug")
     );
     let public_json = serde_json::to_string(&result.output)?;
     for diagnostic in [
@@ -2305,7 +2305,7 @@ fn native_workflow_skill_run_executes_nested_process_tool_skill()
     );
     let root_receipt_id = string_field(output, "receipt_id").ok_or("missing receipt id")?;
     let trace = object_field(output, "trace").ok_or("missing trace")?;
-    let steps = array_field(trace, "steps").ok_or("missing graph steps")?;
+    let steps = array_field(trace, "steps").ok_or("missing workflow steps")?;
     let nested_step_summary = object(&steps[0], "nested step summary")?;
     let nested_receipt_id =
         string_field(nested_step_summary, "receipt_id").ok_or("missing nested receipt id")?;
@@ -2550,7 +2550,7 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     };
     let result = run_skill(request.clone())?;
 
-    let output = object(&result.output, "counter graph skill result")?;
+    let output = object(&result.output, "counter workflow skill result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     assert_eq!(fs::read_to_string(&count_file)?, "1");
 
@@ -2571,7 +2571,7 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     );
     let error = run_skill(drift)
         .err()
-        .ok_or("pinned graph identity must reject input drift")?;
+        .ok_or("pinned workflow identity must reject input drift")?;
     assert!(
         error
             .to_string()
@@ -2602,7 +2602,7 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     )?;
     drop(database);
 
-    let receipt_id = result.receipt_ids.first().ok_or("missing graph receipt")?;
+    let receipt_id = result.receipt_ids.first().ok_or("missing workflow receipt")?;
     let receipt_path = LocalReceiptStore::new(&receipt_dir).receipt_path(receipt_id)?;
     fs::write(receipt_path, b"{}")?;
     let error = run_skill(request)
@@ -2629,7 +2629,7 @@ fn native_workflow_skill_run_executes_workflow_stage_process_tool_skill()
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Stage graph bug".to_owned()),
+        JsonValue::String("Stage workflow bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -2649,13 +2649,13 @@ fn native_workflow_skill_run_executes_workflow_stage_process_tool_skill()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "stage graph skill result")?;
+    let output = object(&result.output, "stage workflow skill result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let nested = object_field(public_result, "nested").ok_or("missing nested output")?;
-    assert_eq!(string_field(nested, "message"), Some("Stage graph bug"));
+    assert_eq!(string_field(nested, "message"), Some("Stage workflow bug"));
     let trace = object_field(output, "trace").ok_or("missing trace")?;
-    let steps = array_field(trace, "steps").ok_or("missing graph steps")?;
+    let steps = array_field(trace, "steps").ok_or("missing workflow steps")?;
     let nested_step_summary = object(&steps[0], "nested step summary")?;
     assert_eq!(
         string_field(nested_step_summary, "skill"),
@@ -2693,7 +2693,7 @@ fn native_workflow_skill_run_executes_nested_x_yaml_method_skill()
         managed_agent: Default::default(),
     })?;
 
-    let output = object(&result.output, "nested run.yaml graph skill result")?;
+    let output = object(&result.output, "nested run.yaml workflow skill result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let nested = object_field(public_result, "nested").ok_or("missing nested output")?;
@@ -3095,7 +3095,7 @@ methods:
     )?;
     write_echo_tool_at(
         &child_dir.join("tools/test/echo"),
-        "Nested graph tool root bug",
+        "Nested workflow tool root bug",
     )?;
     Ok(parent_dir)
 }
@@ -3281,7 +3281,7 @@ methods:
 }
 
 fn write_echo_tool(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    write_echo_tool_at(&root.join("tools/test/echo"), "Graph tool bug")
+    write_echo_tool_at(&root.join("tools/test/echo"), "Workflow tool bug")
 }
 
 fn write_echo_tool_at(tool_dir: &Path, message: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -3313,7 +3313,7 @@ fn write_echo_tool_at(tool_dir: &Path, message: &str) -> Result<(), Box<dyn std:
         format!(
             r#"raw="$(cat)"
 case "$raw" in
-  *"Graph tool bug"*|*"{}"*) printf '%s\n' '{{"echo":{{"message":"{}"}}}}' ;;
+  *"Workflow tool bug"*|*"{}"*) printf '%s\n' '{{"echo":{{"message":"{}"}}}}' ;;
   *) printf '%s\n' '{{"echo":{{"message":"unexpected"}}}}' ;;
 esac
 "#,
@@ -3361,8 +3361,8 @@ case "$raw" in
     printf '%s\n' '{"error":"optional test should be omitted when absent"}'
     exit 3
     ;;
-  *"Graph optional JSON bug"*)
-    printf '%s\n' '{"echo":{"message":"Graph optional JSON bug"}}'
+  *"Workflow optional JSON bug"*)
+    printf '%s\n' '{"echo":{"message":"Workflow optional JSON bug"}}'
     ;;
   *)
     printf '%s\n' '{"echo":{"message":"unexpected"}}'
@@ -3769,7 +3769,7 @@ fn native_workflow_when_skips_unselected_branch() -> Result<(), Box<dyn std::err
         cwd: temp.path().to_path_buf(),
         managed_agent: Default::default(),
     })?;
-    let output = object(&initial.output, "when graph result")?;
+    let output = object(&initial.output, "when workflow result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
 
     // Answer decide, then the selected branch it leads to; branch_stop is
@@ -3798,12 +3798,12 @@ fn native_workflow_when_skips_unselected_branch() -> Result<(), Box<dyn std::err
     let branched = answer(serde_json::json!({
         "answers": { "decide": { "verdict": "go", "closure": { "outcome": "completed" } } }
     }))?;
-    let branched = object(&branched.output, "branched when graph result")?;
+    let branched = object(&branched.output, "branched when workflow result")?;
     assert_eq!(string_field(branched, "status"), Some("needs_agent"));
     let sealed = answer(serde_json::json!({
         "answers": { "branch_go": { "result": { "ok": true }, "closure": { "outcome": "completed" } } }
     }))?;
-    let output = object(&sealed.output, "sealed when graph result")?;
+    let output = object(&sealed.output, "sealed when workflow result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     Ok(())
 }

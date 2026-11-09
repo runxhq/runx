@@ -75,7 +75,7 @@ The admitted grant is sufficient for a routine connector write. A
 consequential write carries a typed `approval` request, which the connector
 can make mandatory with `approval: required`. The kernel binds that request to
 the exact intent and suspends for host-attested human resolution; the package
-must not place a second graph approval beside the same effect. Approval is
+must not place a second workflow approval beside the same effect. Approval is
 therefore an explicit property of one act, not a generic consequence of write
 scope.
 
@@ -89,7 +89,7 @@ token material.
 
 OSS payment skills cross the same generic provider-permission effect boundary
 as other hosted operations. Their receipts record the grant that admitted the
-hosted call and the provider evidence returned to the graph. They do not prove
+hosted call and the provider evidence returned to the workflow. They do not prove
 the private payment runtime's internal reservation or ledger state.
 
 Runx Hosted owns payment-specific attenuation, aggregate caps, reservations,

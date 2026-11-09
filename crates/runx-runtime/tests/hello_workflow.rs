@@ -19,7 +19,7 @@ methods:
         Err(error) => error,
         Ok(_) => {
             return Err(std::io::Error::other(
-                "an unknown step kind passed typed graph validation",
+                "an unknown step kind passed typed workflow validation",
             )
             .into());
         }

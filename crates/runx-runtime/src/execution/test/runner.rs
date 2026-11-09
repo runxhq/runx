@@ -736,7 +736,7 @@ where
                         JsonValue::Object(run.contract.clone()),
                         run.outcome
                             .failure_message()
-                            .unwrap_or_else(|| "graph test step failed".to_owned()),
+                            .unwrap_or_else(|| "workflow test step failed".to_owned()),
                         0,
                     )
                 }

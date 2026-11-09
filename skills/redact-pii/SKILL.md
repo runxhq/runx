@@ -43,7 +43,7 @@ absence of names, contextual identification or sensitive inferences. Use
 ## Reuse and custody
 
 `from-detections` accepts the exact content and an existing semantic review with
-its quote selections. Graphs use it to apply a reviewed treatment without asking
+its quote selections. Workflows use it to apply a reviewed treatment without asking
 another model to rediscover the same identifiers. It validates every selection
 against the actual source and computes both digests natively. A draft is a
 proposal, not an approval or proof that all personal information was found.

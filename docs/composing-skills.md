@@ -1,9 +1,9 @@
 # Composing Skills
 
 Start with [Getting Started](./getting-started.md). This page takes the same
-`examples/hello-world` skill and composes it into a two-step graph.
+`examples/hello-world` skill and composes it into a two-step workflow.
 
-## Graph Shape
+## Workflow Shape
 
 A package is its `SKILL.md` and its `run.yaml`, and each of its methods is the
 steps its `run.yaml` lists. A `skill:` step runs another skill's method. This
@@ -155,7 +155,7 @@ Its test, `examples/hello-workflow/tests/hello-workflow.yaml`, expects a sealed
 `runx.receipt.v1` receipt with a child for each step, and the ordered steps
 `first`, then `second`.
 
-## When To Use A Graph
+## When To Use A Workflow
 
 A method is a list of steps, and one agent turn is a method of one `agent`
 step. The skill's manual supplies its instructions. The step's `calls` govern
@@ -166,9 +166,9 @@ call directly. A step that writes no `calls` allows nothing. See the
 `needs_agent` to the calling agent. `--drive` explicitly delegates that act to the configured
 in-process provider for the current run; credentials alone never enable it. The
 round cap is shown in prepared context and defaults to four. Not everything
-needs a graph. Use one agent step when a single judgment produces the result.
+needs a workflow. Use one agent step when a single judgment produces the result.
 
-Reach for a graph when the work has explicit phases, when a later step consumes
+Reach for a workflow when the work has explicit phases, when a later step consumes
 an earlier step's receipt-backed output, or when approval and revision boundaries
 need to be visible in the execution record.
 
@@ -178,16 +178,16 @@ side effect: an agent handed a write-capable tool may narrate the action ("done,
 claimed it") instead of calling it. So an action that *must* happen, a mutation,
 an API call, or a payment belongs in a deterministic `tool:`, `operation:` or
 `skill:` step, not among an agent turn's calls, where the call is optional. The
-governed shape is a graph where an agent step authors or decides and the next
+governed shape is a workflow where an agent step authors or decides and the next
 deterministic step performs the act; one receipt seals both. Agent steps yield
 `needs_agent` unless the current invocation explicitly supplies
 `--drive`; provider configuration alone does not change execution.
 
-Graphs should stay small enough to review. If the graph is carrying hidden
+Workflows should stay small enough to review. If the workflow is carrying hidden
 policy decisions, split the policy into the skill profile or a separate
 governed step instead of burying it in prose.
 
-For long-running agent workflows, do not turn a graph into an unbounded resident
+For long-running agent workflows, do not turn a workflow into an unbounded resident
 loop. Use [Loop Orchestration](./loop-orchestration.md): an outer loop host
 submits one governed runx run at a time, reads receipts and projections, and
 continues only when explicit stop policy allows.
@@ -248,7 +248,7 @@ configuration once through `environment.required` and `environment.optional`;
 the same declaration drives CLI, MCP, and deterministic JavaScript delivery.
 Credentials never travel this way.
 
-A graph reaches a provider only through a connector operation. There is no
+A workflow reaches a provider only through a connector operation. There is no
 skill-owned HTTP: the connector manifest declares each operation's requests,
 host allowlist, readbacks and how each credential authenticates, and the
 package's steps name the operations they call and pass their inputs:
@@ -281,7 +281,7 @@ path.
 
 ## Governed Data Steps
 
-Use the data plane when a graph needs durable state, not when it needs a model
+Use the data plane when a workflow needs durable state, not when it needs a model
 to invent database commands. The canonical shape is a domain skill followed by
 a declared data operation:
 
@@ -300,12 +300,12 @@ steps:
       event: $steps.decide.claim_packet
 ```
 
-The store can be SQLite, Postgres or Redis. The graph calls the store
+The store can be SQLite, Postgres or Redis. The workflow calls the store
 connector's declared operations, as operation steps, and receives
 `runx.data.operation_result.v1` with version movement, digests and provider
 evidence.
 
-Storage choice is not product logic. A graph passes `data_source_uri` such as
+Storage choice is not product logic. A workflow passes `data_source_uri` such as
 `local://dev-board/events`; the workspace's store instance decides
 where the streams live. With none confirmed it is the workspace store, a SQLite
 file under `.runx/`. Moving to Postgres or Redis is a store instance, not a

@@ -295,7 +295,7 @@ For the `plan` method, build `twitter_plan` this way:
   derives its stream version and batch key; a host must not invent either.
 - **Partially posted thread:** resume from the ledger's `active_thread` cursor;
   never restart the thread from its first confirmed segment.
-- **Approval missing or denied:** the execute graph stops at the gate.
+- **Approval missing or denied:** the execute workflow stops at the gate.
 - **No bound account:** admission refuses before any provider call; bind one
   with `runx connector use twitter --credential user`.
 - **Fully autonomous live posting requested:** `reject`; the gate is the

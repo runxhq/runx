@@ -1,6 +1,6 @@
 # runx-py
 
-Python SDK for [runx](https://runx.ai), the governed runtime for agent skills, tools, and graphs.
+Python SDK for [runx](https://runx.ai), the governed runtime for agent skills, tools, and workflows.
 
 `runx-py` is a thin Python client over the `runx` CLI's JSON output. Install the CLI separately (`@runxhq/cli` on npm), then use this package from Python to search the registry, run skills, and resume a paused run with a `runx.resume.v1` answers document.
 

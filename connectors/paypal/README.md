@@ -10,7 +10,7 @@ Bind `paypal` with the selected REST app credential. Locally,
 `client_secret`, or bind a secret (`runx secret set`), kept in runx or in a
 secrets manager. OAuth
 tokens remain inside credential custody; they never become skill inputs,
-receipts or graph results. Every operation requires `api_host`: either
+receipts or workflow results. Every operation requires `api_host`: either
 `api-m.paypal.com` or `api-m.sandbox.paypal.com`. The same admitted choice
 controls the token endpoint, operation requests, relationship checks and
 approval target. Bind the matching app credential for that environment.

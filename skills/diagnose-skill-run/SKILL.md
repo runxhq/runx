@@ -5,7 +5,7 @@ description: Diagnose a failed or suspicious Runx skill execution from receipts 
 
 # Diagnose Skill Run
 
-Diagnose what went wrong in a skill or graph execution and propose the
+Diagnose what went wrong in a skill or workflow execution and propose the
 smallest change that fixes it.
 
 The default resolves an exact `receipt_id` through native `receipt-query#read`, then combines its
@@ -23,7 +23,7 @@ private runtime files or reconstruct the failed operation. Raw transport logs
 are not exposed by the claim reader; request the specific bounded sanitized
 material if it is needed.
 
-Distinguish root cause from symptoms. A graph may report failure at step 4,
+Distinguish root cause from symptoms. A workflow may report failure at step 4,
 but the root cause may be bad output from step 2 that propagated through
 context passing. Trace data flow backward through context edges to find
 where the problem originated.
@@ -32,7 +32,7 @@ Classify the failure:
 
 - **Input error** — required input missing or malformed. Fix: input
   validation or input resolution.
-- **Scope denial** — step requested scopes outside the graph grant.
+- **Scope denial** — step requested scopes outside the workflow grant.
   Fix: correct an overbroad request or the intended binding under operator
   authority; never silently widen the grant.
 - **Tool failure** — CLI tool or adapter returned an error. Fix: tool
@@ -57,14 +57,14 @@ Classify the failure:
 
 ## Agent-mediated suspension is not a failure
 
-A receipt sealed with reason `needs_agent`, or whose graph status is `deferred`, denotes a healthy
+A receipt sealed with reason `needs_agent`, or whose workflow status is `deferred`, denotes a healthy
 agent-mediated suspension, not a defect. The runtime yielded to the
 caller for missing agent or human input.
-This is a normal part of graph execution, not one of the failure
+This is a normal part of workflow execution, not one of the failure
 classes above. When the only evidence is `needs_agent` without
 any exit code, scope denial, schema mismatch, or other concrete
 failure signal, return `verdict: pass` with an empty
-`improvement_proposals` array and note that the graph is paused as
+`improvement_proposals` array and note that the workflow is paused as
 designed.
 
 A ledger answer of `needs_agent` because no audit question was supplied is not
@@ -89,7 +89,7 @@ receipt.
 - `failure_summary`: which step, which failure class, what root cause.
   One to three sentences.
 - `improvement_proposals`: array of bounded changes. Each:
-  - `target`: what to change (SKILL.md, execution profile, graph step, input, fixture)
+  - `target`: what to change (SKILL.md, execution profile, workflow step, input, fixture)
   - `change`: what specifically to change
   - `rationale`: why this fixes the root cause
   - `risk`: what could go wrong
@@ -100,7 +100,7 @@ receipt.
 Supply whichever evidence is available. Without a receipt ID, the default does
 not scan the ledger: it diagnoses only the bounded supplemental material. A
 completed `receipt_evidence` packet skips lookup; `from-evidence` accepts it
-explicitly for a graph. Preserve the source receipt and its verification
+explicitly for a workflow. Preserve the source receipt and its verification
 posture; reuse is not independent verification in this phase. Neither path
 replays the failed work.
 

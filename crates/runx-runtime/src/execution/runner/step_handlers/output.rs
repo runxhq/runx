@@ -146,7 +146,7 @@ methods:
             .steps
             .into_iter()
             .next()
-            .ok_or("validated output-contract graph omitted its step")?;
+            .ok_or("validated output-contract workflow omitted its step")?;
         let output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 4);
 
         let projection = build_step_output_projection(&step, &output, None, None)?;
@@ -173,6 +173,6 @@ methods:
             .steps
             .into_iter()
             .next()
-            .ok_or_else(|| "validated output-contract graph omitted its step".into())
+            .ok_or_else(|| "validated output-contract workflow omitted its step".into())
     }
 }

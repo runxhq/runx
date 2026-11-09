@@ -71,7 +71,7 @@ const manifest = {
   tag: options.tag,
   commit_ref: options.commit,
   homepage: cliManifest.homepage,
-  description: "Native governed runtime for agent skills, tools, graphs, and packets.",
+  description: "Native governed runtime for agent skills, tools, workflows, and packets.",
   artifacts,
   source,
 };

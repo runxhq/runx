@@ -139,7 +139,7 @@ fn capability_registry_dispatch_projects_only_declared_inputs() {
     );
     let output = result
         .result
-        .expect("ambient graph inputs must not enter the typed handler");
+        .expect("ambient workflow inputs must not enter the typed handler");
     assert!(
         output
             .as_object()

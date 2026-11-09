@@ -32,7 +32,7 @@ credential with different values (the environment and the workspace `.env`, or a
 model key from more than one place), runx refuses rather than pick one. See
 [Credentials](docs/credentials.md).
 
-Authority narrows at every hop. A hop's scopes are a subset of the grant it inherits, and widening is denied by construction, so a skill deep in a graph cannot reach past the authority its caller held. Every act produces a signed, reproducible receipt.
+Authority narrows at every hop. A hop's scopes are a subset of the grant it inherits, and widening is denied by construction, so a skill deep in a workflow cannot reach past the authority its caller held. Every act produces a signed, reproducible receipt.
 
 Hosted brokerage and the browser connect flow are opt-in and never sit between you and a local run. The result is a small attack surface: most of what runx does has no network edge to attack, and the parts that do are bounded grants you choose to make.
 

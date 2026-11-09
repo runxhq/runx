@@ -267,7 +267,7 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
     );
     let next_done = complete(
         next_run,
-        "Read the signed children for a graph's declared step claims.",
+        "Read the signed children for a workflow's declared step claims.",
     )?;
     assert_receipt_verifies(
         &root,

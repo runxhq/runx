@@ -42,7 +42,7 @@ impl LifecycleEvent {
     }
 
     pub(crate) fn workflow_completed(workflow_name: &str, receipt: &Receipt) -> Self {
-        Self::sealed(receipt, format!("graph {workflow_name} completed"))
+        Self::sealed(receipt, format!("workflow {workflow_name} completed"))
     }
 
     /// The graph stopped at `step_id` with its receipt's outcome.
@@ -50,7 +50,7 @@ impl LifecycleEvent {
         Self::sealed(
             receipt,
             format!(
-                "graph {workflow_name} {} at {step_id}",
+                "workflow {workflow_name} {} at {step_id}",
                 receipt.seal.outcome.label()
             ),
         )

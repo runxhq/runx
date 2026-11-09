@@ -15,7 +15,7 @@ boundary between domain skills and the storage they keep their records in.
 - A **data operation result** (`runx.data.operation_result.v1`) is the
   provider-neutral evidence a skill reads and a receipt seals.
 
-The model never writes SQL, Redis commands or migrations. A graph calls the
+The model never writes SQL, Redis commands or migrations. A workflow calls the
 store's declared operations with typed inputs, and the kernel admits each call
 like any other connector operation.
 
@@ -63,7 +63,7 @@ An append is keyed by the idempotency key the kernel derives from the call's
 intent, which includes the caller's `idempotency_key`. The same call answers
 as `idempotent_replay` in any run. A stream at another version answers
 `conflict` with the current version, and nothing is appended. A conflict is the
-append's result, not a refusal, so a graph can read the stream again and
+append's result, not a refusal, so a workflow can read the stream again and
 decide.
 
 Every append is confirmed. The kernel reads what the store holds under the
@@ -78,7 +78,7 @@ same digests.
 ## Domain example
 
 A domain skill decides whether a transition is allowed and emits a transition
-packet. Its graph calls the store's `events.append` operation, which appends
+packet. Its workflow calls the store's `events.append` operation, which appends
 the packet only if the stream is still at the version the skill read. A later
 turn reads the events or the projection to resume.
 
@@ -106,5 +106,5 @@ The public skills compose the store instead of embedding storage semantics:
 - `contact-consent-review` reads a contact's consent stream, appends the decided
   transition and reads the result back.
 
-Their fixtures run against the workspace store. The same graphs run against
+Their fixtures run against the workspace store. The same workflows run against
 Postgres or Redis by confirming a store instance; no skill changes.

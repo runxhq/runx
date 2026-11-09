@@ -62,7 +62,7 @@ pub enum SkillArchitectureChoice {
 #[serde(rename_all = "snake_case")]
 pub enum SkillExecutionLane {
     Manual,
-    Graph,
+    Workflow,
     Agent,
     NativeCapability,
     DomainModule,

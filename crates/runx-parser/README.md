@@ -6,7 +6,7 @@ and generator code may call the native parser but does not reimplement it.
 
 The implementation covers:
 
-- execution graphs
+- execution workflows
 - skill markdown frontmatter and body preservation
 - method manifests and test cases
 - tool manifests from YAML and JSON

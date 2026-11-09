@@ -56,7 +56,7 @@ or new authority. An unresolved concern belongs in limitations, not a fabricated
 correctness finding. Empty findings mean no substantiated issue in this bounded
 evidence; they do not establish that the change is safe.
 
-## Reuse in a graph
+## Reuse in a workflow
 
 - `capture` acquires the source once and returns a native `project_artifact`
   descriptor. The default result also includes this descriptor.
@@ -64,7 +64,7 @@ evidence; they do not establish that the change is safe.
   `runx/github-pr-review.context.v1` packet. It makes no provider call.
 - `from-snapshot` selects and reviews the same source with optional new paths or
   budget. It does not reread GitHub. Its selection and analysis are reusable
-  graph phases rather than another acquisition implementation.
+  workflow phases rather than another acquisition implementation.
 - `analyze` accepts an already prepared context and has no provider operations,
   tools, child-skill loads or questions. Native packet admission also supports
   an exact retained context reference where the calling turn uses that contract.

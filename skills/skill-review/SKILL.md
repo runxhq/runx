@@ -36,7 +36,7 @@ execution evidence may require more evidence; they are not permission to fetch.
 4. Separate native test results, provider readback, supplied assertions, and
    unverified claims.
 5. Start from an ordinary request. State what the caller must still supply or do,
-   what useful work the skill actually finishes, and whether a downstream graph
+   what useful work the skill actually finishes, and whether a downstream workflow
    can reuse its output without duplicate reads, judgment, effects or authority.
    Identify a thin wrapper, missing advertised operation, unused result or invented
    prerequisite explicitly. Assess stop behavior, authority, provenance and recovery.

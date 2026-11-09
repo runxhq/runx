@@ -67,8 +67,8 @@ states an intent nobody gave it.
   deliveries. No output field is scanned for one.
 - **Acts chain.** A receipt's lineage is what runx committed:
   `lineage.children`, the identity and body digest of each immutable step
-  receipt a graph receipt seals. A child never names its parent: the same
-  content-addressed receipt may be reused by more than one graph, so the edge
+  receipt a workflow receipt seals. A child never names its parent: the same
+  content-addressed receipt may be reused by more than one workflow, so the edge
   is the parent's. The receipt an act follows is the caller's statement,
   `acts[].previous`, recorded as given and never checked.
 - **A run is a composition of calls.** Nothing seals an act for a run as a

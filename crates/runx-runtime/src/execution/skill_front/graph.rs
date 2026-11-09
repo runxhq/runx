@@ -72,7 +72,7 @@ impl BoundRun {
         let execution_closure_digest = self
             .execution_closure_digest
             .as_deref()
-            .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
+            .ok_or_else(|| invalid("workflow execution requires an execution-closure digest"))?;
         let log = self.log()?;
         // A pass that executes a call apart from its session's driver writes
         // nothing of the run's own, and reads the run as it finds it.

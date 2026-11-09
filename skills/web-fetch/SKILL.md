@@ -63,7 +63,7 @@ receipt-safe evidence.
 
 ## Procedure
 
-1. Require `url` at method preflight. A missing target fails before the graph
+1. Require `url` at method preflight. A missing target fails before the workflow
    starts with the exact missing input.
 2. Use `allowlist: ["*"]` when the caller omits it, meaning any publicly
    routable host. A caller-supplied allowlist narrows that default. Match the

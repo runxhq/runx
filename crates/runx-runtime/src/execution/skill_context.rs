@@ -271,7 +271,7 @@ fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), Runt
             Component::Normal(name) if name == "graph" => {
                 return Err(RuntimeError::InvalidRunStep {
                     step_id: step_id.to_owned(),
-                    reason: format!("context skill '{reference}' must not target graph stages"),
+                    reason: format!("context skill '{reference}' must not target workflow stages"),
                 });
             }
             Component::RootDir | Component::Prefix(_) => {

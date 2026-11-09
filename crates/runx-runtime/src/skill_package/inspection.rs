@@ -51,7 +51,7 @@ pub enum SkillInspectionError {
     SubSkillManifestMissing { path: PathBuf },
     #[error("sub-skill {path} has no selected method {method}")]
     SubSkillNamedMethodMissing { path: PathBuf, method: String },
-    #[error("graph source omitted its validated graph")]
+    #[error("workflow source omitted its validated workflow")]
     WorkflowMissing,
     #[error("canonicalizing {label} {path}: {source}")]
     Canonicalize {

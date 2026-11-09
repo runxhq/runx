@@ -122,7 +122,7 @@ pub(super) fn normalize_context_ref(
     if segments.contains(&"graph") {
         return Err(SkillPackageError::invalid(
             super::PROFILE_FILE,
-            format!("context skill ref {reference:?} must not target an internal graph stage"),
+            format!("context skill ref {reference:?} must not target an internal workflow stage"),
         ));
     }
     let relative = segments.join("/");

@@ -101,7 +101,7 @@ comparison.
 
 This decision does not make arbitrary JavaScript a native capability and does
 not promote package-specific computation into Rust. It supplies one reusable,
-authority-free computation lane for cases where declarative graphs and native
+authority-free computation lane for cases where declarative workflows and native
 capabilities cannot express the domain transformation cleanly. Provider work,
 local commands, and agent judgment remain separate execution kinds with their
 own authority contracts.

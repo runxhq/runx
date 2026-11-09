@@ -22,7 +22,7 @@ Supplying `reports` bypasses collection entirely. `analyze` is the explicit
 provider-neutral phase for prepared aggregates from any source. `read-posthog`
 reads one exact saved insight; `normalize-posthog` reuses a retained native
 provider packet artifact; `from-posthog` accepts current and optional baseline
-artifacts and continues analysis. A composed graph should enter the narrowest
+artifacts and continues analysis. A composed workflow should enter the narrowest
 phase for the evidence it already has. No phase captures events, changes
 instrumentation, creates tasks or executes arbitrary SQL.
 

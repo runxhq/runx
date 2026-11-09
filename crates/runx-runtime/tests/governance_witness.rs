@@ -79,7 +79,7 @@ fn admitted_step_records_authority_in_sealed_witness() {
     let (package, workflow) = hello_workflow();
     let run = runtime
         .run_workflow_with_host(&package, workflow, &mut NoopHost)
-        .expect("graph runs to completion");
+        .expect("workflow runs to completion");
     let authority = run.steps[0]
         .admission_witness
         .authority
@@ -96,7 +96,7 @@ fn unadmitted_step_records_local_runtime_witness() {
     let (package, workflow) = hello_workflow();
     let run = runtime
         .run_workflow_with_host(&package, workflow, &mut NoopHost)
-        .expect("graph runs to completion");
+        .expect("workflow runs to completion");
     assert!(
         run.steps[0].admission_witness.authority.is_none(),
         "a step with no admitted authority must not fabricate an authority witness"

@@ -16,7 +16,7 @@ test('a receipt selection does not mix an unrelated receipt into causal support'
   assert.equal(result.verdict, 'blocked');
 });
 test('a healthy suspension and prior verification posture survive without a repair proposal', () => {
-  const result = finish({ receipt_id: 'paused', receipt_evidence: { receipt_details: [{ id: 'paused', outcome: 'deferred', seal_reason: 'resolution_pending', verification: { status: 'verified' } }] }, candidate: { verdict: 'pass', failure_summary: 'The selected graph is waiting for its caller turn.', improvement_proposals: [], next_test_checks: ['Complete the intended caller turn.'] } });
+  const result = finish({ receipt_id: 'paused', receipt_evidence: { receipt_details: [{ id: 'paused', outcome: 'deferred', seal_reason: 'resolution_pending', verification: { status: 'verified' } }] }, candidate: { verdict: 'pass', failure_summary: 'The selected workflow is waiting for its caller turn.', improvement_proposals: [], next_test_checks: ['Complete the intended caller turn.'] } });
   assert.equal(result.verdict, 'pass');
   assert.match(result.evidence[0].observation, /outcome=deferred/);
   assert.match(result.evidence[0].limitation, /does not independently reverify/);

@@ -523,8 +523,8 @@ fn sealing_stop(
         error if error.is_fatal_step_fault() => return Ok(None),
         error => (
             failed_step_id(graph, error).ok_or_else(|| RuntimeError::EngineInvariant {
-                context: "sealing graph step failure",
-                message: format!("sealable graph error has no authoritative step: {error}"),
+                context: "sealing workflow step failure",
+                message: format!("sealable workflow error has no authoritative step: {error}"),
             })?,
             Some(SealReason::WorkflowStepFailed),
             StopKind::Failed,
@@ -713,7 +713,7 @@ where
     fn open_execution(&self, graph: &Workflow) -> Result<WorkflowExecution, RuntimeError> {
         match self.options.run.load()? {
             None => Err(RuntimeError::EngineInvariant {
-                context: "running a graph",
+                context: "running a workflow",
                 message: format!("run {} was not started", self.options.run.run_id()),
             }),
             Some(record) => self.replay_execution(graph, &record),
@@ -993,7 +993,7 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
         if outputs.is_empty() {
             return Err(RuntimeError::InvalidRunStep {
                 step_id: step_id.clone(),
-                reason: "graph result producer emitted no declared outputs".to_owned(),
+                reason: "workflow result producer emitted no declared outputs".to_owned(),
             });
         }
         contributing_steps += 1;
@@ -1002,7 +1002,7 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
                 return Err(RuntimeError::InvalidRunStep {
                     step_id: step_id.clone(),
                     reason: format!(
-                        "graph result output {name:?} is emitted by more than one successful result producer"
+                        "workflow result output {name:?} is emitted by more than one successful result producer"
                     ),
                 });
             }
@@ -1012,7 +1012,7 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
     if run.progress.state == WorkflowState::Succeeded && contributing_steps == 0 {
         return Err(RuntimeError::SkillFailed {
             skill_name: run.graph.name.clone(),
-            message: "graph succeeded without running a declared result producer".to_owned(),
+            message: "workflow succeeded without running a declared result producer".to_owned(),
         });
     }
 
@@ -1197,19 +1197,19 @@ pub(crate) fn workflow_failure(run: &WorkflowRun) -> String {
     match failed {
         Some((step_id, Some(error))) => {
             format!(
-                "graph {} did not succeed: step {step_id}: {error}",
+                "workflow {} did not succeed: step {step_id}: {error}",
                 run.graph.name
             )
         }
         Some((step_id, None)) => {
             format!(
-                "graph {} did not succeed: step {step_id} failed",
+                "workflow {} did not succeed: step {step_id} failed",
                 run.graph.name
             )
         }
         None => match &run.stop {
-            Some(stop) => format!("graph {} stopped: {stop}", run.graph.name),
-            None => format!("graph {} did not succeed", run.graph.name),
+            Some(stop) => format!("workflow {} stopped: {stop}", run.graph.name),
+            None => format!("workflow {} did not succeed", run.graph.name),
         },
     }
 }
@@ -1454,15 +1454,15 @@ mod tests {
         let mut run = test_workflow_run(Vec::new(), Vec::new(), WorkflowState::Failed)?;
         assert_eq!(
             super::workflow_failure(&run),
-            "graph test-workflow did not succeed"
+            "workflow test-workflow did not succeed"
         );
         run.stop = Some(
-            "authority Create denied graph step 'provision': a mutation needs an idempotency_key"
+            "authority Create denied workflow step 'provision': a mutation needs an idempotency_key"
                 .to_owned(),
         );
         assert_eq!(
             super::workflow_failure(&run),
-            "graph test-workflow stopped: authority Create denied graph step 'provision': a mutation needs an idempotency_key"
+            "workflow test-workflow stopped: authority Create denied workflow step 'provision': a mutation needs an idempotency_key"
         );
         Ok(())
     }
@@ -1599,7 +1599,7 @@ mod tests {
 
         let error = workflow_run_result(&run)
             .err()
-            .ok_or("graph without a result unexpectedly succeeded")?;
+            .ok_or("workflow without a result unexpectedly succeeded")?;
         assert!(
             error
                 .to_string()

@@ -1,6 +1,6 @@
 ---
 name: runx
-description: "Governed runtime for agent skills: discover and install portable skills, run bounded skill graphs with explicit authority, and inspect signed receipts for what happened."
+description: "Governed runtime for agent skills: discover and install portable skills, run bounded skill workflows with explicit authority, and inspect signed receipts for what happened."
 metadata:
   tags: runtime, meta
 license: Apache-2.0
@@ -21,7 +21,7 @@ real work through a portable skill while preserving four properties:
 4. the run leaves a signed receipt that can be inspected later.
 
 A runx skill is not just a prompt. It is a small, portable package with a
-`SKILL.md` contract, optional graph/config files, and enough procedural context
+`SKILL.md` contract, optional workflow/config files, and enough procedural context
 for an agent to execute deliberately instead of improvising hidden side effects.
 
 ## When to use runx
@@ -43,8 +43,8 @@ authority, a receipt, or a reusable skill package.
 
 - **Skill**: the portable contract an agent reads and runs. `SKILL.md` explains
   the task, required context, safety rules, inputs, and success criteria.
-- **Graph**: the executable shape under a skill when work has multiple steps.
-  Good graphs compose skills; they do not duplicate business logic in prose.
+- **Workflow**: the executable shape under a skill when work has multiple steps.
+  Good workflows compose skills; they do not duplicate business logic in prose.
 - **Grant**: explicit authority from a principal. Grants should be narrow,
   time-scoped, and tied to the action being performed.
 - **Gate**: the human or policy decision before a consequential act.
@@ -53,7 +53,7 @@ authority, a receipt, or a reusable skill package.
 - **Effect**: an externally meaningful result such as payment settlement,
   message delivery, deployment, file write, provider mutation, or refusal.
 
-Authority must narrow as it flows through a graph. If a child step needs broader
+Authority must narrow as it flows through a workflow. If a child step needs broader
 authority than the parent grant, stop and ask for a new grant instead of trying
 to continue.
 
@@ -216,7 +216,7 @@ or missing confirmation.
 
 After running runx, report:
 
-- the skill or graph that ran
+- the skill or workflow that ran
 - the principal/grant used, at a safe level of detail
 - the action that was attempted
 - whether it succeeded, was denied, or needs input

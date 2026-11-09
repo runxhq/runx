@@ -96,7 +96,7 @@ evidence. Preserve repository, issue number, title, and state exactly. Do not
 claim work is complete unless the snapshot proves it. The draft is not sent.
 
 Prepared-evidence drafting (`respond`) and queue judgment (`discover`) offer no
-provider operations or other tool calls. The default’s graph owns its one issue
+provider operations or other tool calls. The default’s workflow owns its one issue
 read; `post` owns the separate deliberate provider mutation and independent
 readback. No drafting turn may use connector declarations as ambient posting
 authority.

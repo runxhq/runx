@@ -40,7 +40,7 @@ provider-issued MPP challenge to the default Link payment lane.
 
 The connector pins and rechecks the account, amount/currency, payment method,
 merchant network and challenge. Only the official CLI retrieves the SPT; it
-never enters graph inputs, results or receipts. Independent original spend
+never enters workflow inputs, results or receipts. Independent original spend
 request readback must confirm the exact paid amount and transaction. This lane
 returns payment evidence, not the merchant HTTP body or delivery proof. Read a
 merchant artifact through its declared provider operation when needed. Link is

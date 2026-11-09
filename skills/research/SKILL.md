@@ -27,7 +27,7 @@ well-supported findings over a broad report whose conclusions cannot be traced.
 The default `investigate` method accepts the question and optional `urls`,
 `paths` or existing `source_packets`. Supplied packets bypass acquisition.
 Otherwise the host works a governed acquisition turn over native local reads
-and the existing `web-fetch`/`web-search` skills; the graph then runs the same
+and the existing `web-fetch`/`web-search` skills; the workflow then runs the same
 research analysis and verifier. Explicit URLs and paths do not require a search.
 Use `research` explicitly for already collected source packets, or `local-files`
 for a wholly declarative read of known UTF-8 files. All routes converge on the
@@ -123,7 +123,7 @@ finding. If no valid source can be obtained, return an empty list and let the
 existing analysis produce its evidence stop. Ask for missing scope through the
 native ask tool when it would change which sources are relevant.
 
-Do not synthesize the final research in this acquisition turn. The graph's
+Do not synthesize the final research in this acquisition turn. The workflow's
 existing research phase owns that single synthesis and source verification.
 Native connector authority and charge limits still apply to search/read calls;
 a result count is not a dollar cap. Preserve a pending approval or uncertain

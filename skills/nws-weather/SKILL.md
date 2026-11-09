@@ -36,7 +36,7 @@ explains point-to-grid discovery. Mappings can change, so reuse a saved grid
 only while its freshness is appropriate to the caller's job. The default reads
 the current mapping; it does not maintain a cache or background loop.
 
-## Reuse in graphs
+## Reuse in workflows
 
 `forecast` still accepts `office`, `grid_x` and `grid_y` as strings and reads
 that exact grid once. It never calls points or geocodes again. `locate` still
@@ -44,7 +44,7 @@ accepts string `lat` and `lon` for a points-only read. Preserve the native
 provider packet and readback when handing either result downstream.
 
 For the Washington Monument, the direct call is
-`{latitude: 38.8894, longitude: -77.0352}`. A parent graph that already has the
+`{latitude: 38.8894, longitude: -77.0352}`. A parent workflow that already has the
 NWS mapping can instead call `forecast` with its current office/grid values.
 
 ## Results and failure

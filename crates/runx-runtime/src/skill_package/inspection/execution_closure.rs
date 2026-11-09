@@ -760,7 +760,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         walk: &mut ExecutionWalkState<'_>,
     ) -> Result<(), SkillInspectionError> {
         if context.materialize_local {
-            let package_root = canonical_directory(&loaded.package_root, "bound graph package")?;
+            let package_root = canonical_directory(&loaded.package_root, "bound workflow package")?;
             let packet_ids = walk.closure.local_packages.entry(package_root).or_default();
             for step in &graph.steps {
                 packet_ids.extend(crate::packet_schemas::declared_artifact_packet_ids(
@@ -870,7 +870,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     && let Some(nested) = nested.as_ref()
                 {
                     let source_package_root =
-                        canonical_directory(&loaded.package_root, "bound graph package")?;
+                        canonical_directory(&loaded.package_root, "bound workflow package")?;
                     let target_package_root =
                         canonical_directory(&nested.loaded.package_root, "referenced sub-skill")?;
                     if source_package_root != target_package_root {
@@ -878,7 +878,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                             source_package_root,
                             workflow_directory: canonical_directory(
                                 context.directory,
-                                "bound graph directory",
+                                "bound workflow directory",
                             )?,
                             reference: reference.to_owned(),
                             target_package_root,
@@ -906,7 +906,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     } else {
                         Reach::Incorporated(canonical_directory(
                             &loaded.package_root,
-                            "bound graph package",
+                            "bound workflow package",
                         )?)
                     };
                     self.walk_method(

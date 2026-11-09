@@ -7,7 +7,7 @@ the native runtime. It specializes the normative
 ## Current boundary
 
 Rust is canonical for trusted local runtime and execution: local skill and
-graph execution, test and dogfood execution, receipt sealing and
+workflow execution, test and dogfood execution, receipt sealing and
 verification, history, policy and registry configuration, generic authority and
 effect admission, exact process invocation and supervision, typed
 execution-boundary evidence, built-in adapter execution, and external
@@ -22,7 +22,7 @@ creation and improvement. TypeScript does not own a parallel authoring service
 or a local executor-package fallback for trusted local behavior.
 
 MCP follows the same rule. `rmcp` is an adapter-tier Rust dependency for MCP
-protocol behavior, while runx keeps graph state, policy, authority, approvals,
+protocol behavior, while runx keeps workflow state, policy, authority, approvals,
 and receipts in the Rust kernel. TypeScript MCP code may survive only as
 generated contracts, hosted cloud code, helper SDKs over documented protocol
 surfaces, or contract fixtures. It must not execute trusted local fallback
@@ -115,7 +115,7 @@ language-neutral protocol lane; they must not need Rust, `runx-core`,
 Language-owned unit tests stay with their implementation. Contract and parity
 tests use durable fixtures under `fixtures/`. End-to-end tests should spawn the
 `runx` binary and assert stdout, exit codes, and JSON instead of importing
-TypeScript internals. Trusted local graph, test, receipt, authority,
+TypeScript internals. Trusted local workflow, test, receipt, authority,
 registry/policy config, and payment behavior needs Rust coverage or a TS-free
 Rust CLI fixture before wrapper tests can count as proof. Extension-lane tests
 prove protocol conformance by spawning or simulating the external process

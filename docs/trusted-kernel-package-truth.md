@@ -7,7 +7,7 @@ Rust verification and dependency policy; language-package decisions live in
 
 ## Runtime authority
 
-Rust owns local package parsing, policy and authority, graph execution, test
+Rust owns local package parsing, policy and authority, workflow execution, test
 execution, receipts, registry/configuration, native capabilities, and process
 supervision. `runx-core` contains pure policy and transition algebra;
 `runx-runtime` performs effects. CLI and MCP skill calls use the same runtime

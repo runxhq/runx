@@ -12,7 +12,7 @@ Bump the version in the same commit as the change.
 - **Minor (`0.X.0`):** new method, new input field, new output field,
   new test-case shape, backward-compatible output
   extension.
-- **Major (`X.0.0`):** graph redefinition, method renaming, input or
+- **Major (`X.0.0`):** workflow redefinition, method renaming, input or
   output removal, any change that would break an existing caller's
   invocation shape.
 

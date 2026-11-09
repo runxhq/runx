@@ -141,7 +141,7 @@ export function checkCanonicalParserOwnership(findings) {
   const workflowTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/graph/types.rs");
   const workflowTypes = existsSync(workflowTypesPath) ? readFileSync(workflowTypesPath, "utf8") : "";
   if (!/pub\s+artifacts:\s+Option<SkillArtifactContract>/u.test(workflowTypes)) {
-    findings.push(`${relative(workflowTypesPath)} must expose parser-validated graph artifact contracts`);
+    findings.push(`${relative(workflowTypesPath)} must expose parser-validated workflow artifact contracts`);
   }
   if (!/pub\s+kind:\s+StepKind/u.test(workflowTypes)) {
     findings.push(`${relative(workflowTypesPath)} must expose parser-validated step kinds`);
@@ -177,6 +177,6 @@ export function checkCanonicalParserOwnership(findings) {
     ? productionRustSource(readFileSync(preparedSkillPath, "utf8"))
     : "";
   if (/step\.raw|json_field\s*\(\s*&step\.|collect_string_values\s*\(\s*&step\./u.test(preparedSkill)) {
-    findings.push(`${relative(preparedSkillPath)} reparses serialized graph steps instead of using WorkflowStep`);
+    findings.push(`${relative(preparedSkillPath)} reparses serialized workflow steps instead of using WorkflowStep`);
   }
 }

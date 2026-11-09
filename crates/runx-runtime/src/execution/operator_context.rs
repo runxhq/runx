@@ -652,12 +652,12 @@ fn validate_workflow_result_contracts(
             .find(|step| step.definition.id == *result_step_id)
             .ok_or_else(|| {
                 blocked(format!(
-                    "operator context graph result producer '{node_path}.{result_step_id}' was not expanded"
+                    "operator context workflow result producer '{node_path}.{result_step_id}' was not expanded"
                 ))
             })?;
         if !step_declares_result(step, tools) {
             return Err(blocked(format!(
-                "graph result producer '{}' declares no semantic output contract; add outputs or artifacts.wrap_as/named_emits before execution",
+                "workflow result producer '{}' declares no semantic output contract; add outputs or artifacts.wrap_as/named_emits before execution",
                 step.node_path
             )));
         }
@@ -1078,7 +1078,7 @@ methods:
                 None,
                 SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
             ),
-            "child graph context must fail",
+            "child workflow context must fail",
         )?;
         assert!(
             error

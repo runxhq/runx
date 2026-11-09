@@ -608,7 +608,7 @@ pub(crate) fn restore_continuation_inputs(
     let answered = request.answers.is_some();
     let Some(run_id) = request.run_id.as_deref() else {
         return if answered {
-            Err(invalid("graph continuation requires run_id"))
+            Err(invalid("workflow continuation requires run_id"))
         } else {
             Ok(())
         };
@@ -633,7 +633,7 @@ pub(crate) fn restore_continuation_inputs(
         .any(|(name, value)| record.inputs.get(name) != Some(value))
     {
         return Err(invalid(
-            "graph run identity cannot replace its original inputs",
+            "workflow run identity cannot replace its original inputs",
         ));
     }
     request.inputs = record.inputs.into_iter().collect();

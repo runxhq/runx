@@ -97,7 +97,7 @@ are requested authority for later runs, not grants. A filesystem prefix in prose
 or an echoed act count is not enforcement; unsupported restrictions must stop
 at their native owner. No second policy or approval system is introduced here.
 
-Call from-source with an existing source_snapshot in a composed graph to preserve the reviewed
+Call from-source with an existing source_snapshot in a composed workflow to preserve the reviewed
 source without reacquiring it. Reuse a completed application instead of running
 adoption again: subsequent work normally invokes the returned package. After a
 failure, inspect the native apply_result and current target before retrying.

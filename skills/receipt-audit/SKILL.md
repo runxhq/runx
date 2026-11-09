@@ -20,7 +20,7 @@ identifies findings, their limits and the evidence needed to resolve them.
 
 The default `audit` resolves missing receipt metadata through `receipt-query#read`.
 A completed `receipt_evidence` packet bypasses that read. The explicit
-`from-evidence` phase accepts the same packet directly for composed graphs. Reuse its receipt
+`from-evidence` phase accepts the same packet directly for composed workflows. Reuse its receipt
 identity, native verification posture, recorded authority, decisions and lineage;
 state that supplied evidence was reused rather than independently verified here.
 Explicit `receipt_rows`/`receipt_details` are replay inputs: their labels are not
@@ -36,7 +36,7 @@ by guessing string prefixes.
 
 Use `receipt.read` only when the question needs a retained declared output. It
 requires `receipt.claim.read` and verifies the signed binding before returning
-current-workspace data. Follow a graph's verified child references to the
+current-workspace data. Follow a workflow's verified child references to the
 relevant step; `not_a_step` is not an output body. `not_retained`, a read
 that `reach: workspace` refuses or an exceeded byte budget is an evidence gap.
 Narrow a JSON pointer or obtain an operator read when appropriate. Never replay the

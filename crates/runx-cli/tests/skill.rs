@@ -793,7 +793,7 @@ fn a_workflow_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn 
         let output = registry_runx_command(&root, &registry)?
             .args([
                 "skill",
-                graph.to_str().ok_or("non-utf8 graph dir")?,
+                graph.to_str().ok_or("non-utf8 workflow dir")?,
                 "--registry",
                 &registry.url,
                 "--json",
@@ -991,7 +991,7 @@ fn a_missing_program_fails_its_step_once_and_is_named() -> Result<(), Box<dyn st
     let step_id = steps[0]["id"].as_str().ok_or("step receipt has no id")?;
     let children = graphs[0]["lineage"]["children"]
         .as_array()
-        .ok_or("graph receipt has no children")?;
+        .ok_or("workflow receipt has no children")?;
     assert_eq!(children.len(), 1, "{children:?}");
     assert_eq!(children[0]["uri"], format!("runx:receipt:{step_id}"));
     Ok(())

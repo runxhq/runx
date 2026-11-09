@@ -1973,7 +1973,7 @@ fn seal_executed_step(
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     seal_step(request, signature_policy)
-        .map_err(|source| RuntimeError::engine("sealing a graph step receipt", source))
+        .map_err(|source| RuntimeError::engine("sealing a workflow step receipt", source))
 }
 
 fn step_admission_witness(

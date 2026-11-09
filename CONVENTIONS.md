@@ -127,7 +127,7 @@ contract. That does not make every method or skill a global packet owner.
   reads, or a platform protocol any producer speaks. It uses
   `public_packet_artifact`, is published as its `schemas/` document, and is
   never copied into a package. Existence in `runx-contracts` is not enough.
-- Keep graph intermediates and one-run implementation values as typed step
+- Keep workflow intermediates and one-run implementation values as typed step
   inputs or outputs; do not mint packet ids to make inspection work.
 - The producer owns the packet. A reader names it by id and never copies its
   schema; publishing pins a copy of each packet a package reads from another
@@ -207,7 +207,7 @@ live-provider availability checks in a separate opt-in smoke lane.
 A sealed status is engine coverage, not operator-value proof. Every kept public
 skill must have at least one semantic oracle through `expect.output`,
 `expect.step_outputs`, or replayed `caller.answers`. Stateful workflows put the
-whole transition and readback in one graph fixture. Individual fixtures must be
+whole transition and readback in one workflow fixture. Individual fixtures must be
 independent: never share hidden state through filename order or reuse a
 single-use idempotency or capability key across cases.
 

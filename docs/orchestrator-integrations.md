@@ -9,7 +9,7 @@ cross-app branching.
 For long-running agent systems, keep the same boundary described in
 [Loop Orchestration](./loop-orchestration.md): n8n, Zapier, Make, Temporal,
 LangGraph, or a hosted app may own the loop, while each consequential turn is a
-normal governed runx skill/graph run with its own receipt.
+normal governed runx skill/workflow run with its own receipt.
 
 - a runx listing on n8n's public integrations surface
 - a runx app page in Zapier's public App Directory

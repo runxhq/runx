@@ -66,7 +66,7 @@ to two seconds and may be declared from 1 through 30 seconds.
 
 Volume changes transport, not execution authority. `runx skill --inputs` may
 read one complete control object from a contained UTF-8 JSON file or stdin, but
-it does not widen graph, deterministic-worker, output, credential, or approval
+it does not widen workflow, deterministic-worker, output, credential, or approval
 limits. Do not pass an archive, history, or growing completed-id list through
 that object merely because the CLI can read it.
 
@@ -148,7 +148,7 @@ bounded result it is building; durable progress belongs in the store, appended
 through the `store` connector's operations and resumed through `after_version` or a projection rather
 than an ever-growing array.
 
-Use `artifact.admit`/`artifact.read` directly when a graph or tool needs exact
+Use `artifact.admit`/`artifact.read` directly when a workflow or tool needs exact
 byte pages instead of a domain transform. Use `fs.read` and `fs.read_bundle`
 only for bounded text. If a format cannot be framed safely or needs genuine
 streaming protocol behavior, use one declared trusted-host process tool; never
@@ -174,7 +174,7 @@ mechanics, not duplicate instructions.
 Provider calls need an explicit method `operations: [requirement/operation]`
 list. Each entry must belong to the package's connector requirements. An omitted
 or empty list offers and admits no direct provider calls in that method's agent
-turns. Connector requirements describe graph dependencies and the validation
+turns. Connector requirements describe workflow dependencies and the validation
 ceiling; they do not grant agent permissions. Static `operation` steps retain
 their declared behavior, and every provider call retains its existing grant,
 scope, credential, approval and readback requirements.
@@ -309,10 +309,10 @@ outputs, but raw stdout and stderr remain visible.
 
 Output ownership is exact. Every result-producing step declares its typed
 outputs and packets. A method declares neither method-level `outputs` nor
-method-level `artifacts`: the graph receipt proves the composition, while the
+method-level `artifacts`: the workflow receipt proves the composition, while the
 method's result steps (its last step unless `result_from` names others) own the
 result and its packet schema. If a method needs one reusable result, add an
-explicit package/finalize step instead of wrapping the graph trace in a second
+explicit package/finalize step instead of wrapping the workflow trace in a second
 contract.
 
 ## Fixture Gate
