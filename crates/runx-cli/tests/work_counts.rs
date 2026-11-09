@@ -272,3 +272,54 @@ fn an_agent_call_reads_the_run_record_no_more_at_call_1000_than_at_call_10() -> 
     );
     Ok(())
 }
+
+/// A package at `root/skills/<name>` whose one method is `calls` calls of
+/// its own JavaScript module, and a test that runs it.
+fn module_package(root: &Path, name: &str, calls: usize) -> TestResult {
+    let package = root.join("skills").join(name);
+    fs::create_dir_all(package.join("tests"))?;
+    fs::write(
+        package.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: Calls its own module.\n---\n# {name}\n"),
+    )?;
+    fs::write(
+        package.join("call.mjs"),
+        "export default () => ({ ok: true });\n",
+    )?;
+    let steps = (0..calls)
+        .map(|call| {
+            format!(
+                "      - id: call-{call}\n        tool: {{module: call.mjs}}\n        outputs:\n          ok: {{type: boolean}}\n"
+            )
+        })
+        .collect::<String>();
+    fs::write(
+        package.join("run.yaml"),
+        format!("minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n{steps}"),
+    )?;
+    fs::write(
+        package.join("tests/calls.yaml"),
+        "name: calls\nmethod: run\nexpect:\n  status: sealed\n",
+    )?;
+    Ok(())
+}
+
+/// A run resolves its package once: a run of 1,000 calls of the package's
+/// own module reads the package as often as a run of 10.
+#[test]
+fn a_run_reads_its_package_no_more_at_call_1000_than_at_call_10() -> TestResult {
+    let run = |calls: usize| -> TestResult<Value> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-reads-{calls}"));
+        fs::create_dir_all(root.join("home"))?;
+        module_package(&root, "reads", calls)?;
+        counted(&root, &["test", "skills/reads", "--json"])
+    };
+    let ten = run(10)?;
+    let thousand = run(1000)?;
+    assert_eq!(
+        count_of(&thousand, "packages_read")?,
+        count_of(&ten, "packages_read")?,
+        "ten={ten}\nthousand={thousand}"
+    );
+    Ok(())
+}

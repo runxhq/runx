@@ -100,6 +100,7 @@ impl TestOptions {
             effect_gate: None,
             packages: None,
             chain: Vec::new(),
+            reads: crate::execution::runner::RunReads::default(),
             workspace: None,
             max_concurrency,
         })

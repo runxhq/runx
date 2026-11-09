@@ -10,8 +10,8 @@
 //! and the per-step execution helpers live in private submodules.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use runx_contracts::{JsonObject, JsonValue, Receipt, RunOutcome, SealReason};
 use runx_core::state_machine::{SequentialWorkflow, StepAdmissionWitness, WorkflowState};
@@ -200,6 +200,8 @@ pub struct RuntimeOptions {
     /// child step reached its package. Empty for a root run, whose package is
     /// the one its steps run from.
     pub(crate) chain: Vec<crate::identity::ChainLink>,
+    /// What the run reads once and holds for the rest of it.
+    pub(crate) reads: RunReads,
     /// The workspace the run runs in, whose id `$run.workspace_id` reads; a
     /// child run runs in its parent's. None for a runtime no workspace's run
     /// made, as a test replay.
@@ -283,6 +285,58 @@ impl EffectGate {
     }
 }
 
+/// What a run reads once and holds for the rest of it: each package a runtime
+/// no binding made reads, the first time a step needs it, as a binding admits
+/// its packages before the run starts; and the chain each package's
+/// operations call from. A run resolves each package once, whatever its
+/// length.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RunReads(Arc<Mutex<Reads>>);
+
+#[derive(Debug, Default)]
+struct Reads {
+    packages: BTreeMap<PathBuf, Arc<crate::LoadedSkillPackage>>,
+    chains: BTreeMap<PathBuf, Vec<crate::identity::ChainLink>>,
+}
+
+impl RunReads {
+    fn reads(&self) -> std::sync::MutexGuard<'_, Reads> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn package(&self, directory: &Path) -> Result<Arc<crate::LoadedSkillPackage>, RuntimeError> {
+        if let Some(package) = self.reads().packages.get(directory) {
+            return Ok(Arc::clone(package));
+        }
+        let package = Arc::new(crate::load_validated_skill_package(directory)?);
+        Ok(Arc::clone(
+            self.reads()
+                .packages
+                .entry(directory.to_path_buf())
+                .or_insert(package),
+        ))
+    }
+
+    fn chain(
+        &self,
+        directory: &Path,
+        read: impl FnOnce() -> Result<Vec<crate::identity::ChainLink>, RuntimeError>,
+    ) -> Result<Vec<crate::identity::ChainLink>, RuntimeError> {
+        if let Some(chain) = self.reads().chains.get(directory) {
+            return Ok(chain.clone());
+        }
+        let chain = read()?;
+        Ok(self
+            .reads()
+            .chains
+            .entry(directory.to_path_buf())
+            .or_insert(chain)
+            .clone())
+    }
+}
+
 impl RuntimeOptions {
     /// Where a step that reaches the world passes the run's effect gate, if
     /// the run has one.
@@ -291,14 +345,14 @@ impl RuntimeOptions {
     }
 
     /// The package at `directory` the run executes: the one it admitted, or
-    /// the package as it is for a runtime no binding made.
+    /// for a runtime no binding made, the package as the run first read it.
     pub(crate) fn package(
         &self,
         directory: &Path,
     ) -> Result<Arc<crate::LoadedSkillPackage>, RuntimeError> {
         match &self.packages {
             Some(admitted) => admitted.get(directory),
-            None => crate::load_validated_skill_package(directory).map(Arc::new),
+            None => self.reads.package(directory),
         }
     }
 
@@ -340,25 +394,27 @@ impl RuntimeOptions {
         if !self.chain.is_empty() {
             return Ok(self.chain.clone());
         }
-        if self.packages.is_none()
-            && crate::skill_package::find_owning_package_root(directory).is_none()
-            && !directory.join(runx_parser::PROFILE_FILE).is_file()
-        {
-            return Ok(Vec::new());
-        }
-        let package = self.package(directory)?;
-        let identity = match self
-            .packages
-            .as_ref()
-            .and_then(|admitted| admitted.identity(&package.package_root))
-        {
-            Some(identity) => identity.clone(),
-            None => crate::identity::skill_identity(&package, &self.env)
-                .map_err(|reason| identity_refused(directory, &reason))?,
-        };
-        crate::identity::ChainLink::of(&identity, &package)
-            .map(|link| vec![link])
-            .map_err(|reason| identity_refused(directory, &reason))
+        self.reads.chain(directory, || {
+            if self.packages.is_none()
+                && crate::skill_package::find_owning_package_root(directory).is_none()
+                && !directory.join(runx_parser::PROFILE_FILE).is_file()
+            {
+                return Ok(Vec::new());
+            }
+            let package = self.package(directory)?;
+            let identity = match self
+                .packages
+                .as_ref()
+                .and_then(|admitted| admitted.identity(&package.package_root))
+            {
+                Some(identity) => identity.clone(),
+                None => crate::identity::skill_identity(&package, &self.env)
+                    .map_err(|reason| identity_refused(directory, &reason))?,
+            };
+            crate::identity::ChainLink::of(&identity, &package)
+                .map(|link| vec![link])
+                .map_err(|reason| identity_refused(directory, &reason))
+        })
     }
 }
 
@@ -392,6 +448,7 @@ impl RuntimeOptions {
             effect_gate: None,
             packages: None,
             chain: Vec::new(),
+            reads: RunReads::default(),
             workspace: None,
             max_concurrency: DEFAULT_MAX_CONCURRENCY,
         }
@@ -1016,6 +1073,8 @@ impl<A: Clone> Runtime<A> {
     pub fn for_run(&self, run: RunLog) -> Self {
         let mut options = self.options.as_ref().clone();
         options.run = run;
+        // A new run reads its packages afresh.
+        options.reads = RunReads::default();
         Self {
             configured_adapter: self.configured_adapter.clone(),
             javascript: self.javascript.clone(),

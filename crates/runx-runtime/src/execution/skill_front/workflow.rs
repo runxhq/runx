@@ -358,6 +358,7 @@ impl BoundRun {
             effect_gate,
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
+            reads: crate::execution::runner::RunReads::default(),
             workspace: Some(self.workspace.paths().clone()),
             max_concurrency: self.max_concurrency,
         };
