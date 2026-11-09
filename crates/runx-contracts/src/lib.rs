@@ -24,7 +24,6 @@ pub mod external_job;
 pub mod host_protocol;
 pub mod javascript_worker;
 pub mod json;
-pub mod links;
 pub mod list;
 pub mod maturity;
 pub mod native_packets;
@@ -49,7 +48,6 @@ pub mod run_read;
 pub mod schema;
 pub mod schema_artifacts;
 mod schema_reconcile;
-pub mod signal;
 pub mod skill_authoring;
 pub mod skill_inspection;
 pub mod skill_output;
@@ -122,7 +120,6 @@ pub use host_protocol::{
     TurnRequirement, TurnStatus, TurnTarget, TurnTool, TurnView, TurnViewEnvelope, check_answer,
 };
 pub use json::{JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_string_field};
-pub use links::{DuplicateCandidate, Links};
 pub use list::{
     RunxListItem, RunxListItemKind, RunxListOutputPacket, RunxListReport, RunxListRequestedKind,
     RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
@@ -257,7 +254,6 @@ pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,
 };
 pub use schema_reconcile::{SchemaDrift, reconcile_schema_artifacts};
-pub use signal::{SIGNAL_SCHEMA, Signal, SignalAuthenticity, SignalSchema, SignalTrustLevel};
 pub use skill_authoring::{
     SKILL_APPLY_RESULT_SCHEMA, SKILL_ARCHITECTURE_DECISION_SCHEMA, SKILL_ARCHITECTURE_PLAN_SCHEMA,
     SKILL_CHANGE_BUNDLE_SCHEMA, SKILL_CHANGE_DRAFT_SCHEMA, SKILL_VALIDATION_RESULT_SCHEMA,
@@ -274,7 +270,9 @@ pub use skill_authoring::{
     SkillValidationResult, SkillValidationResultSchema, SkillValidationSchema,
     SkillValidationVerdict,
 };
-pub use source_packet::{SOURCE_PACKET_SCHEMA, SourcePacket, SourcePacketSchema};
+pub use source_packet::{
+    SOURCE_PACKET_SCHEMA, SignalAuthenticity, SignalTrustLevel, SourcePacket, SourcePacketSchema,
+};
 pub use tools::{
     RuntimeCommand, ToolCommandInputMode, ToolInput, ToolManifest, ToolManifestSchema, ToolProcess,
 };

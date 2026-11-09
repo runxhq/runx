@@ -20,9 +20,7 @@ import type {
   DecisionChoiceContract,
   DecisionContract,
   DigestCommitmentContract,
-  DuplicateCandidateContract,
   IntentContract,
-  LinksContract,
   ProofKindContract,
   ReceiptActContract,
   ReceiptContract,
@@ -31,9 +29,6 @@ import type {
   ReferenceContract,
   ReferenceTypeContract,
   RunOutcomeContract,
-  SignalAuthenticityContract,
-  SignalContract,
-  SignalTrustLevelContract,
 } from "../generated/contract-types.js";
 
 function schemaAt<TStatic>(
@@ -45,7 +40,6 @@ function schemaAt<TStatic>(
 }
 
 export const referenceSchema = generatedSchema<ReferenceContract>("reference.schema.json");
-export const signalSchema = generatedSchema<SignalContract>("signal.schema.json");
 export const authoritySubsetProofSchema = generatedSchema<AuthoritySubsetProofContract>(
   "authority-subset-proof.schema.json",
 );
@@ -75,37 +69,6 @@ export const digestCommitmentSchema = schemaAt<DigestCommitmentContract>(
   ["properties", "digest"],
   "artifact.digest",
 );
-export const signalTypeSchema = schemaAt<string>(
-  signalSchema,
-  ["properties", "signal_type"],
-  "signal.signal_type",
-);
-export const signalAuthenticitySchema = schemaAt<SignalAuthenticityContract>(
-  signalSchema,
-  ["properties", "authenticity"],
-  "signal.authenticity",
-);
-export const signalTrustLevelSchema = schemaAt<SignalTrustLevelContract>(
-  signalAuthenticitySchema,
-  ["properties", "trust_level"],
-  "signal.authenticity.trust_level",
-);
-export const linksSchema = schemaAt<LinksContract>(
-  signalSchema,
-  ["properties", "links"],
-  "signal.links",
-);
-export const nullableReferenceSchema = schemaAt<ReferenceContract | null>(
-  linksSchema,
-  ["properties", "duplicate_of"],
-  "links.duplicate_of",
-);
-export const duplicateCandidateSchema = schemaAt<DuplicateCandidateContract>(
-  linksSchema,
-  ["properties", "duplicate_candidates", "items"],
-  "links.duplicate_candidates[]",
-);
-
 export const authorityBoundsSchema = schemaAt<AuthorityBoundsContract>(
   authorityTermSchema,
   ["properties", "bounds"],
@@ -180,10 +143,6 @@ export const receiptSignatureSchema = schemaAt<ReceiptSignatureContract>(
 
 export function validateReferenceContract(value: unknown, label = "reference"): ReferenceContract {
   return validateContractSchema(referenceSchema, value, label) as ReferenceContract;
-}
-
-export function validateSignalContract(value: unknown, label = "signal"): SignalContract {
-  return validateContractSchema(signalSchema, value, label) as SignalContract;
 }
 
 export function validateAuthoritySubsetProofContract(

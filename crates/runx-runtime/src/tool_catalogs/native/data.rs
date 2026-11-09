@@ -167,7 +167,7 @@ const CONTEXT_FIELDS: &[CapabilityField] = &[
     field("test", "Optional current runx.test.v1 packet."),
     field(
         "signal",
-        "Optional runx.signal.v1 packet that informed the run.",
+        "Optional signal packet that informed the run, such as a source event's.",
     ),
     field(
         "decision",

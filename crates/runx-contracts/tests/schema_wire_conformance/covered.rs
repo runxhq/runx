@@ -18,7 +18,6 @@ use runx_contracts::receipt::Receipt;
 use runx_contracts::reference::Reference;
 use runx_contracts::run_read::{RunEventRecord, RunRead};
 use runx_contracts::schema::RunxSchema;
-use runx_contracts::signal::Signal;
 use runx_contracts::source_packet::SourcePacket;
 use runx_contracts::tools::ToolManifest;
 
@@ -48,11 +47,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "artifact.schema.json",
             emitted: Artifact::json_schema(),
             corpus: artifact_corpus(),
-        },
-        Covered {
-            file_name: "signal.schema.json",
-            emitted: Signal::json_schema(),
-            corpus: signal_corpus(),
         },
         Covered {
             file_name: "source-packet.schema.json",

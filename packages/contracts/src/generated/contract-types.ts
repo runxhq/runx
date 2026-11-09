@@ -852,14 +852,6 @@ export type DoctorSummaryContract = {
   readonly warnings: number;
 };
 
-export type DuplicateCandidateContract = {
-  readonly candidate_ref: ReferenceContract;
-  readonly confidence: number;
-  readonly evidence_refs?: readonly ReferenceContract[];
-  readonly observed_at: string;
-  readonly reviewer_refs?: readonly ReferenceContract[];
-};
-
 export type EmbeddedOfferVersionBindingContract = {
   readonly input_schema_digest: string;
   readonly offer_id: string;
@@ -1508,14 +1500,6 @@ export type LeaseTakeContract = {
 export type LineageContract = {
   /** The receipts of the subject's direct children, each committed by its id and signed-body digest. */
   readonly children: readonly ReferenceContract[];
-};
-
-export type LinksContract = {
-  readonly duplicate_candidates?: readonly DuplicateCandidateContract[];
-  readonly duplicate_of?: ReferenceContract;
-  readonly related?: readonly ReferenceContract[];
-  readonly superseded_by?: readonly ReferenceContract[];
-  readonly supersedes?: readonly ReferenceContract[];
 };
 
 /** One method of a loaded skill, as a model chooses it. */
@@ -3164,24 +3148,7 @@ export type SessionAuthContract = {
 
 export type SessionKindContract = "command" | "managed_command" | "host_browser";
 
-export type SignalContract = {
-  readonly authenticity?: SignalAuthenticityContract;
-  readonly body_preview?: string;
-  readonly digest?: ContentDigestContract;
-  readonly evidence_refs?: readonly ReferenceContract[];
-  readonly extensions?: {
-    readonly [key: string]: unknown;
-  };
-  readonly links?: LinksContract;
-  readonly observed_at: string;
-  readonly schema: SignalSchemaContract;
-  readonly signal_id: string;
-  /** Open signal type identifier (e.g. `issue_opened`). Adapters can publish their own identifier without a contract edit. */
-  readonly signal_type: string;
-  readonly source_ref: ReferenceContract;
-  readonly title: string;
-};
-
+/** Who vouches for a source's arrival, and on what evidence. */
 export type SignalAuthenticityContract = {
   readonly evidence_refs?: readonly ReferenceContract[];
   readonly host_ref: ReferenceContract;
@@ -3192,8 +3159,7 @@ export type SignalAuthenticityContract = {
   readonly verified_by_ref?: ReferenceContract;
 };
 
-export type SignalSchemaContract = "runx.signal.v1";
-
+/** How far a source's arrival is vouched for. */
 export type SignalTrustLevelContract = "unverified" | "observed" | "verified_delivery" | "verified_signature" | "operator_attested";
 
 export type SignatureAlgorithmContract = "Ed25519";

@@ -10,6 +10,7 @@
     },
     "authenticity": {
       "additionalProperties": false,
+      "description": "Who vouches for a source's arrival, and on what evidence.",
       "properties": {
         "evidence_refs": {
           "items": {
@@ -332,6 +333,7 @@
           "type": "array"
         },
         "trust_level": {
+          "description": "How far a source's arrival is vouched for.",
           "enum": [
             "unverified",
             "observed",

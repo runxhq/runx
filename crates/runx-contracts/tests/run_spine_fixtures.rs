@@ -1,13 +1,12 @@
 use serde::Deserialize;
 
-use runx_contracts::{Receipt, Signal};
+use runx_contracts::Receipt;
 
 use crate::fixture_support::roundtrip;
 
 const FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/contracts/run-spine/receipt-abnormal.json"),
     include_str!("../../../fixtures/contracts/run-spine/receipt-success.json"),
-    include_str!("../../../fixtures/contracts/run-spine/signal-digest-links.json"),
 ];
 
 #[derive(Debug, Deserialize)]
@@ -20,7 +19,6 @@ struct Fixture {
 #[serde(rename_all = "snake_case")]
 enum FixtureKind {
     Receipt,
-    Signal,
 }
 
 #[test]
@@ -48,6 +46,5 @@ fn receipt_rejects_unknown_fields() -> Result<(), serde_json::Error> {
 fn assert_roundtrip(fixture: Fixture) -> Result<(), serde_json::Error> {
     match fixture.fixture_kind {
         FixtureKind::Receipt => roundtrip::<Receipt>(fixture.expected),
-        FixtureKind::Signal => roundtrip::<Signal>(fixture.expected),
     }
 }

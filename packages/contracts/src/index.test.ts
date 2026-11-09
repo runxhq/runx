@@ -30,7 +30,6 @@ import {
   validateRunxListReportContract,
   validateOperationalPolicyContract,
   validateOperationalProposalContract,
-  validateSignalContract,
   validateReferenceContract,
   proofKindSchema,
 } from "./index.js";
@@ -461,7 +460,7 @@ describe("@runxhq/contracts", () => {
     })).toThrow();
   });
 
-  it("validates a source signal and a governed call's receipt", () => {
+  it("validates a governed call's receipt", () => {
     const issueRef = {
       type: "thread",
       uri: "github://runxhq/example/issues/101",
@@ -476,24 +475,6 @@ describe("@runxhq/contracts", () => {
       evidence_refs: [],
       verification_refs: [{ type: "verification", uri: "runx:provider_ack:comment_1", proof_kind: "effect_evidence" }],
     };
-
-    expect(validateSignalContract({
-      schema: "runx.signal.v1",
-      signal_id: "sig_101",
-      source_ref: issueRef,
-      authenticity: {
-        host_ref: { type: "webhook_delivery", uri: "github://delivery/abc" },
-        principal_ref: { type: "principal", uri: "github:user:octocat" },
-        verified_by_ref: principalRef,
-        trust_level: "verified_signature",
-        verified_at: "2026-05-18T00:00:01Z",
-      },
-      signal_type: "issue_opened",
-      title: "Checkout retry failure",
-      body_preview: "Retry fails when the discount service flakes.",
-      observed_at: "2026-05-18T00:00:00Z",
-      evidence_refs: [issueRef],
-    })).toMatchObject({ schema: "runx.signal.v1", signal_type: "issue_opened" });
 
     const receipt = {
       schema: "runx.receipt.v1",
@@ -576,14 +557,10 @@ describe("@runxhq/contracts", () => {
       schema: "runx.receipt.v1",
       id: "rcpt_bad",
     })).toThrow(/receipt\/v1\.json/);
-    expect(() => validateSignalContract({
-      schema: "runx.signal.v1",
-      signal_id: "sig_bad",
-      source_ref: { type: `${"evidence"}_bundle`, uri: `runx:${"evidence"}_bundle:old` },
-      signal_type: "issue_opened",
-      title: "Old evidence bundle ref",
-      observed_at: "2026-05-18T00:00:00Z",
-    })).toThrow(/signal\/v1\.json/);
+    expect(() => validateReferenceContract({
+      type: `${"evidence"}_bundle`,
+      uri: `runx:${"evidence"}_bundle:old`,
+    })).toThrow(/reference\/v1\.json/);
   });
 
   it("routes public schema validation through Rust-generated artifacts", () => {
