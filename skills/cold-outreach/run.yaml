@@ -3,18 +3,40 @@ minimum_runx: 0.12.0
 catalog:
   visibility: public
   category: growth
+shared_inputs:
+  sender:
+    type: object
+    description: Exact approved writing identity; does not grant send authority.
+    additionalProperties: false
+    required: [name, from_address, reply_to]
+    properties:
+      name: {type: string, minLength: 1, maxLength: 200}
+      from_address: {type: string, format: email, maxLength: 320}
+      reply_to: {type: string, format: email, maxLength: 320}
+  audience:
+    type: string
+    description: Reader segment this prospect belongs to. Supplied brand and taste context applies only when it declares this exact audience.
+    minLength: 1
+    maxLength: 200
+  purpose:
+    type: string
+    description: Intended useful outcome of this first contact.
+    minLength: 1
+    maxLength: 2000
+  offer:
+    type: string
+    description: Proposed value, to be substantiated from approved evidence rather than treated as a fact.
+    minLength: 1
+    maxLength: 2000
+  required_footer:
+    type: string
+    description: Exact policy-required sender identity and opt-out wording, included unchanged in the draft.
+    minLength: 1
+    maxLength: 3000
 methods:
   prepare:
     inputs:
-      sender:
-        type: object
-        description: Exact approved writing identity; does not grant send authority.
-        additionalProperties: false
-        required: [name, from_address, reply_to]
-        properties:
-          name: {type: string, minLength: 1, maxLength: 200}
-          from_address: {type: string, format: email, maxLength: 320}
-          reply_to: {type: string, format: email, maxLength: 320}
+      sender: {}
       prospect:
         type: object
         description: Exact intended recipient; personalisation must be supported by the evidence packet.
@@ -25,26 +47,10 @@ methods:
           email: {type: string, format: email, maxLength: 320}
           name: {type: string, minLength: 1, maxLength: 200}
           company: {type: string, minLength: 1, maxLength: 200}
-      audience:
-        type: string
-        description: Reader segment this prospect belongs to. Supplied brand and taste context applies only when it declares this exact audience.
-        minLength: 1
-        maxLength: 200
-      purpose:
-        type: string
-        description: Intended useful outcome of this first contact.
-        minLength: 1
-        maxLength: 2000
-      offer:
-        type: string
-        description: Proposed value, to be substantiated from approved evidence rather than treated as a fact.
-        minLength: 1
-        maxLength: 2000
-      required_footer:
-        type: string
-        description: Exact policy-required sender identity and opt-out wording, included unchanged in the draft.
-        minLength: 1
-        maxLength: 3000
+      audience: {}
+      purpose: {}
+      offer: {}
+      required_footer: {}
       contact_policy:
         type: object
         description: Current policy status for this exact recipient, supplied by the caller; the model does not establish legal permission.
