@@ -11152,6 +11152,66 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.credential_delivery.observation.v1"
   } as JsonSchema,
+  "criteria.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/criteria/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "A fixed set of checks a verdict answers. Deterministic steps produce it, bound to the subject's revision, or a person writes it, and whoever produced the subject can't change it.",
+    "properties": {
+      "criteria": {
+        "items": {
+          "additionalProperties": false,
+          "description": "One check: its stable id, whether it's required, and the question that must be answered yes.",
+          "properties": {
+            "id": {
+              "maxLength": 128,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            "question": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            },
+            "required": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "required",
+            "question"
+          ],
+          "title": "VerdictCriterion",
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "revision": {
+        "description": "The set's digest, which a verdict binds.",
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "schema": {
+        "enum": [
+          "runx.criteria.v1"
+        ],
+        "title": "CriteriaSchema",
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema",
+      "revision",
+      "criteria"
+    ],
+    "title": "Criteria",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.criteria.v1"
+  } as JsonSchema,
   "data-comparison.schema.json": {
     "$id": "https://schemas.runx.ai/runx/data/comparison/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -45345,6 +45405,257 @@ export const runxSchemaArtifacts = {
     "title": "TurnStatus",
     "type": "object",
     "x-runx-schema": "runx.turn_status.v1"
+  } as JsonSchema,
+  "verdict.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/verdict/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Whether an exact subject meets a fixed set of checks it didn't choose, each check answered, with the evidence the evaluator obtained itself.",
+    "properties": {
+      "assessments": {
+        "description": "One answer per check. Every answer stays visible, even when one failure already decides the whole.",
+        "items": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "evidence": {
+                  "items": {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "verdict": {
+                  "const": "met",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "verdict",
+                "id",
+                "evidence"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "evidence": {
+                  "items": {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "failure": {
+                  "additionalProperties": false,
+                  "description": "What failed: what was expected, what happened, and where. The criterion says what failed.",
+                  "properties": {
+                    "actual": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "expected": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "where": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "expected",
+                    "actual",
+                    "where"
+                  ],
+                  "title": "AssessmentFailure",
+                  "type": "object"
+                },
+                "id": {
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "verdict": {
+                  "const": "not_met",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "verdict",
+                "id",
+                "evidence",
+                "failure"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "evidence": {
+                  "items": {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "failure": {
+                  "additionalProperties": false,
+                  "description": "What failed: what was expected, what happened, and where. The criterion says what failed.",
+                  "properties": {
+                    "actual": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "expected": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "where": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "expected",
+                    "actual",
+                    "where"
+                  ],
+                  "title": "AssessmentFailure",
+                  "type": "object"
+                },
+                "id": {
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "verdict": {
+                  "const": "inconclusive",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "verdict",
+                "id",
+                "evidence"
+              ],
+              "type": "object"
+            }
+          ],
+          "description": "One answer to one criterion, with the references to the sealed calls or receipts the evaluator obtained against this subject. A `not_met` answer says what failed, and a `met` one has nothing to say.",
+          "title": "Assessment"
+        },
+        "type": "array"
+      },
+      "criteria_set": {
+        "additionalProperties": false,
+        "description": "Which runx.criteria.v1 set it answered, by its revision digest.",
+        "properties": {
+          "ref": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "revision"
+        ],
+        "title": "Pinned",
+        "type": "object"
+      },
+      "evaluator": {
+        "additionalProperties": false,
+        "description": "Who judged. The runtime sets it from the step that returned the verdict, never the step.",
+        "properties": {
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "package": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "run": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "package",
+          "method",
+          "run"
+        ],
+        "title": "Evaluator",
+        "type": "object"
+      },
+      "schema": {
+        "enum": [
+          "runx.verdict.v1"
+        ],
+        "title": "VerdictSchema",
+        "type": "string"
+      },
+      "subject": {
+        "additionalProperties": false,
+        "description": "What was judged. The verdict counts only for this exact revision.",
+        "properties": {
+          "ref": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "revision"
+        ],
+        "title": "Pinned",
+        "type": "object"
+      },
+      "verdict": {
+        "description": "The whole: any required criterion not_met makes it not_met; otherwise any missing or unresolved one makes it inconclusive; only every required one met makes it met.",
+        "enum": [
+          "met",
+          "not_met",
+          "inconclusive"
+        ],
+        "title": "VerdictAnswer",
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema",
+      "verdict",
+      "subject",
+      "criteria_set",
+      "assessments",
+      "evaluator"
+    ],
+    "title": "Verdict",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.verdict.v1"
   } as JsonSchema,
   "work-outcome.schema.json": {
     "$id": "https://schemas.runx.ai/runx/work-outcome/v1.json",

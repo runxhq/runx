@@ -225,6 +225,30 @@ export type ArtifactProducedByContract = {
 
 export type ArtifactSchemaContract = "runx.artifact.v1";
 
+/** One answer to one criterion, with the references to the sealed calls or receipts the evaluator obtained against this subject. A `not_met` answer says what failed, and a `met` one has nothing to say. */
+export type AssessmentContract = {
+  readonly evidence: readonly string[];
+  readonly id: string;
+  readonly verdict: "met";
+} | {
+  readonly evidence: readonly string[];
+  readonly failure: AssessmentFailureContract;
+  readonly id: string;
+  readonly verdict: "not_met";
+} | {
+  readonly evidence: readonly string[];
+  readonly failure?: AssessmentFailureContract;
+  readonly id: string;
+  readonly verdict: "inconclusive";
+};
+
+/** What failed: what was expected, what happened, and where. The criterion says what failed. */
+export type AssessmentFailureContract = {
+  readonly actual: string;
+  readonly expected: string;
+  readonly where: string;
+};
+
 /** What `receipt.attest` returns: one claim about an action outside runx, bound to opaque evidence and digested for the parent receipt to seal. A field the tool could not admit is null and a gap says why; a `ready_to_seal` attestation has no gaps. */
 export type AttestationContract = {
   readonly action: string | null;
@@ -782,6 +806,16 @@ export type CredentialFieldContract = {
 
 export type CredentialMaterialRoleContract = "personal_token" | "api_key" | "client_secret" | "session_token";
 
+/** A fixed set of checks a verdict answers. Deterministic steps produce it, bound to the subject's revision, or a person writes it, and whoever produced the subject can't change it. */
+export type CriteriaContract = {
+  readonly criteria: readonly VerdictCriterionContract[];
+  /** The set's digest, which a verdict binds. */
+  readonly revision: string;
+  readonly schema: CriteriaSchemaContract;
+};
+
+export type CriteriaSchemaContract = "runx.criteria.v1";
+
 /** A check the runtime runs and binds to a receipt. The runtime is the only writer of criteria, so they are its own closed vocabulary: each names what was checked, and its binding states the result and the evidence. */
 export type CriterionContract = "step_outcome" | "output_contract_verified" | "voice_profile_applied" | "packet_schemas_verified";
 
@@ -1029,6 +1063,13 @@ export type EnvironmentRequirementStatusContract = {
   readonly available: boolean;
   readonly name: string;
   readonly required: boolean;
+};
+
+/** Who judged: the package and method of the step that returned the verdict, and the run it returned it in. */
+export type EvaluatorContract = {
+  readonly method: string;
+  readonly package: string;
+  readonly run: string;
 };
 
 export type ExecutePurchaseRequestContract = {
@@ -2377,6 +2418,12 @@ export type PaymentReferenceContract = {
   readonly provider?: string;
   readonly type: ReferenceTypeContract;
   readonly uri: string;
+};
+
+/** Something named exactly: its `ref` and its exact `revision`. */
+export type PinnedContract = {
+  readonly ref: string;
+  readonly revision: string;
 };
 
 export type PlacementContract = "hosted" | "local";
@@ -4164,6 +4211,33 @@ export type UnreadableRunContract = {
   /** When the run last moved. */
   readonly updated_at: string;
 };
+
+/** Whether an exact subject meets a fixed set of checks it didn't choose, each check answered, with the evidence the evaluator obtained itself. */
+export type VerdictContract = {
+  /** One answer per check. Every answer stays visible, even when one failure already decides the whole. */
+  readonly assessments: readonly AssessmentContract[];
+  /** Which runx.criteria.v1 set it answered, by its revision digest. */
+  readonly criteria_set: PinnedContract;
+  /** Who judged. The runtime sets it from the step that returned the verdict, never the step. */
+  readonly evaluator: EvaluatorContract;
+  readonly schema: VerdictSchemaContract;
+  /** What was judged. The verdict counts only for this exact revision. */
+  readonly subject: PinnedContract;
+  /** The whole: any required criterion not_met makes it not_met; otherwise any missing or unresolved one makes it inconclusive; only every required one met makes it met. */
+  readonly verdict: VerdictAnswerContract;
+};
+
+/** An answer: to one criterion, or for the whole. */
+export type VerdictAnswerContract = "met" | "not_met" | "inconclusive";
+
+/** One check: its stable id, whether it's required, and the question that must be answered yes. */
+export type VerdictCriterionContract = {
+  readonly id: string;
+  readonly question: string;
+  readonly required: boolean;
+};
+
+export type VerdictSchemaContract = "runx.verdict.v1";
 
 /** A request the run waits on: its address, the digest an answer binds to, and the request itself. */
 export type WaitedRequestContract = {

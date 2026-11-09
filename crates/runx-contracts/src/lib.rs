@@ -61,6 +61,7 @@ pub mod skill_inspection;
 pub mod skill_output;
 pub mod source_packet;
 pub mod tools;
+pub mod verdict;
 pub mod work_outcome;
 pub mod x402;
 
@@ -301,6 +302,11 @@ pub use source_packet::{SOURCE_PACKET_SCHEMA, SourcePacket, SourcePacketSchema};
 pub use tools::{
     RuntimeCommand, ToolCommandInputMode, ToolIdempotencyPolicy, ToolInput, ToolManifest,
     ToolManifestSchema, ToolSource,
+};
+pub use verdict::{
+    Assessment, AssessmentFailure, CRITERIA_SCHEMA, Criteria, CriteriaSchema, CriterionId, Decided,
+    Evaluator, Pinned, VERDICT_SCHEMA, Verdict, VerdictAnswer, VerdictCriterion, VerdictRefused,
+    VerdictSchema,
 };
 pub use work_outcome::{WorkOutcome, WorkProposal, WorkState};
 pub use x402::{

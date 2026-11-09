@@ -1,0 +1,60 @@
+{
+  "$id": "https://schemas.runx.ai/runx/criteria/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A fixed set of checks a verdict answers. Deterministic steps produce it, bound to the subject's revision, or a person writes it, and whoever produced the subject can't change it.",
+  "properties": {
+    "criteria": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One check: its stable id, whether it's required, and the question that must be answered yes.",
+        "properties": {
+          "id": {
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "required",
+          "question"
+        ],
+        "title": "VerdictCriterion",
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "revision": {
+      "description": "The set's digest, which a verdict binds.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "enum": [
+        "runx.criteria.v1"
+      ],
+      "title": "CriteriaSchema",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "revision",
+    "criteria"
+  ],
+  "title": "Criteria",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.criteria.v1"
+}

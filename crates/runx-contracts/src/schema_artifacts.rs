@@ -160,6 +160,8 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<ConversationPage>("conversation-page.schema.json"),
         public_packet_artifact::<ConversationObservation>("conversation-observation.schema.json"),
         public_packet_artifact::<Decision>("decision.schema.json"),
+        public_packet_artifact::<crate::Verdict>("verdict.schema.json"),
+        public_packet_artifact::<crate::Criteria>("criteria.schema.json"),
         public_packet_artifact::<Receipt>("receipt.schema.json"),
         schema_artifact::<Artifact>("artifact.schema.json"),
         schema_artifact::<LedgerEntry>("ledger-entry.schema.json"),
