@@ -8,8 +8,6 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -163,9 +161,13 @@ fn process(root: &Path, args: &[&str]) -> TestResult<serde_json::Value> {
     Ok(serde_json::from_slice(&output.stdout)?)
 }
 
-/// Wait until what process `id` wrote holds `text`.
+/// Read process `id`'s log until what it wrote holds `text`. A detached
+/// process is read by cursor, so this reads again until the text is there,
+/// and fails once the process has exited without writing it. Its exit is
+/// recorded once its output is all in the log, so the read after one that
+/// says it exited holds everything it wrote.
 fn read_until(root: &Path, id: &str, text: &str) -> TestResult<String> {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut whole = false;
     loop {
         let read = process(root, &["read", id])?;
         let written = read["chunks"]
@@ -177,15 +179,15 @@ fn read_until(root: &Path, id: &str, text: &str) -> TestResult<String> {
         if written.contains(text) {
             return Ok(written);
         }
-        if Instant::now() > deadline {
-            return Err(format!("{id} never wrote {text:?}: {written:?}").into());
+        if whole {
+            return Err(format!("{id} exited without writing {text:?}: {written:?}").into());
         }
-        thread::sleep(Duration::from_millis(50));
+        whole = read["state"] == "exited";
     }
 }
 
+/// List process `id` until its record says it exited.
 fn exited(root: &Path, id: &str) -> TestResult<serde_json::Value> {
-    let deadline = Instant::now() + Duration::from_secs(20);
     loop {
         let listed = process(root, &["list"])?;
         let found = listed["processes"]
@@ -198,10 +200,6 @@ fn exited(root: &Path, id: &str) -> TestResult<serde_json::Value> {
         if found["state"] == "exited" {
             return Ok(found);
         }
-        if Instant::now() > deadline {
-            return Err(format!("{id} never exited: {found}").into());
-        }
-        thread::sleep(Duration::from_millis(50));
     }
 }
 
@@ -247,10 +245,14 @@ fn the_person_reads_and_stops_a_process_a_run_started() -> TestResult {
     let root = crate::support::temp_root("runx-process-stop");
     fs::create_dir_all(&root)?;
     skills(&root)?;
+    // It waits on a gate nothing opens, so it runs until it's stopped.
+    let gate = root.join("gate");
+    let made = Command::new("mkfifo").arg(&gate).status()?;
+    assert!(made.success(), "mkfifo {}", gate.display());
     let started = run(
         &root,
         "proc-start",
-        serde_json::json!({"args": ["-c", "echo ready; sleep 30"]}),
+        serde_json::json!({"args": ["-c", format!("echo ready; read go < '{}'", gate.display())]}),
     )?;
     let id = started["process_id"]
         .as_str()
