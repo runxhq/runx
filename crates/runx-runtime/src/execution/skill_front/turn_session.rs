@@ -1016,14 +1016,19 @@ mod tests {
                 )
             })
         };
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        // Each call is admitted and then held at the gate, or fails before
+        // it's admitted and ends, so this reads until all nine are in flight
+        // or one has ended.
         while session.in_flight_now().len() < 9 {
             assert!(
-                std::time::Instant::now() < deadline,
+                !calls
+                    .iter()
+                    .chain(std::iter::once(&writer))
+                    .any(std::thread::JoinHandle::is_finished),
                 "nine calls admitted at once: {:?}",
                 session.in_flight_now()
             );
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::thread::yield_now();
         }
         assert!(
             !root.join("out.txt").exists(),
