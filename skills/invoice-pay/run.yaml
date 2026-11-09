@@ -68,7 +68,7 @@ methods:
         tool:
           module: invoice.mjs
           export: admitInvoice
-          timeout_seconds: 5
+          cpu_seconds: 5
         outputs:
           payment_request: {type: object}
       - id: settle
@@ -158,7 +158,7 @@ methods:
         tool:
           module: invoice.mjs
           export: invoiceTerms
-          timeout_seconds: 5
+          cpu_seconds: 5
         outputs:
           invoice_id: {type: string}
           amount_decimal: {type: string}
@@ -183,7 +183,7 @@ methods:
         tool:
           module: invoice.mjs
           export: documentRequest
-          timeout_seconds: 5
+          cpu_seconds: 5
         outputs:
           request: {type: object}
       - id: settle

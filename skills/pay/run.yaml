@@ -95,7 +95,7 @@ methods:
         tool:
           module: payment.mjs
           export: admitPayment
-          timeout_seconds: 5
+          cpu_seconds: 5
         outputs:
           request: {type: object}
           resource_url: {type: string}
@@ -122,7 +122,7 @@ methods:
         tool:
           module: readback.mjs
           export: requireCompleteReadback
-          timeout_seconds: 5
+          cpu_seconds: 5
         outputs:
           verified: {type: object}
         when:
@@ -255,7 +255,7 @@ methods:
         tool:
           module: readback.mjs
           export: prepareReadback
-          timeout_seconds: 5
+          cpu_seconds: 5
         outputs:
           readback_request: {type: object}
           expected_result: {type: object}
