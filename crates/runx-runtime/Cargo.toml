@@ -68,6 +68,11 @@ globset = "0.4.20"
 same-file = "1.0.6"
 # The unified diff an edit's approval shows.
 similar = "3.2.0"
+# The CPU time a JavaScript worker's invocation spends, read from outside its
+# sandbox: std has no safe call for another process's CPU clock on macOS or
+# Windows, and runx keeps unsafe_code forbidden, so the OS calls stay in this
+# audited dependency, as process-wrap, win32job and signal-hook hold theirs.
+sysinfo = { version = "=0.39.6", default-features = false, features = ["system"] }
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled", "cache"] }
 postgres = { version = "0.19.14", default-features = false, optional = true }
 tokio-postgres-rustls = { version = "0.14.0", optional = true }

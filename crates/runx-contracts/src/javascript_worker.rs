@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
-pub const PROTOCOL_VERSION: u16 = 3;
+pub const PROTOCOL_VERSION: u16 = 4;
 
 /// Authority-free helpers exposed by every matching supervised worker.
 /// Profiles declare the helpers they need so unsupported runtimes reject them
@@ -30,8 +30,10 @@ pub const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_FRAME_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_STDERR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_JOBS: u32 = 4_096;
-pub const DEFAULT_WALL_MILLISECONDS: u64 = 2_000;
-pub const MAX_WALL_MILLISECONDS: u64 = 30_000;
+/// The CPU time one invocation may spend by default, and at most: the
+/// supervisor reads it from the worker process's CPU clock.
+pub const DEFAULT_CPU_MILLISECONDS: u64 = 2_000;
+pub const MAX_CPU_MILLISECONDS: u64 = 30_000;
 /// Maximum number of isolated JavaScript worker processes retained by one
 /// runtime. Each process executes exactly one invocation at a time.
 pub const MAX_WORKER_POOL_SIZE: usize = 4;
@@ -54,7 +56,8 @@ pub struct InvocationLimits {
     pub output_bytes: usize,
     pub heap_bytes: u64,
     pub stack_bytes: usize,
-    pub wall_milliseconds: u64,
+    /// The CPU time the invocation may spend, which the supervisor enforces.
+    pub cpu_milliseconds: u64,
     pub queued_jobs: u32,
 }
 
@@ -66,7 +69,7 @@ impl Default for InvocationLimits {
             output_bytes: MAX_OUTPUT_BYTES,
             heap_bytes: JAVASCRIPT_HEAP_BYTES,
             stack_bytes: JAVASCRIPT_STACK_BYTES,
-            wall_milliseconds: DEFAULT_WALL_MILLISECONDS,
+            cpu_milliseconds: DEFAULT_CPU_MILLISECONDS,
             queued_jobs: MAX_QUEUED_JOBS,
         }
     }
@@ -84,8 +87,8 @@ impl InvocationLimits {
             || self.heap_bytes != maximum.heap_bytes
             || self.stack_bytes == 0
             || self.stack_bytes > maximum.stack_bytes
-            || self.wall_milliseconds == 0
-            || self.wall_milliseconds > MAX_WALL_MILLISECONDS
+            || self.cpu_milliseconds == 0
+            || self.cpu_milliseconds > MAX_CPU_MILLISECONDS
             || self.queued_jobs == 0
             || self.queued_jobs > maximum.queued_jobs
         {

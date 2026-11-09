@@ -1,7 +1,7 @@
 //! Tool step targets: a catalog reference, a deterministic worker module, or a
 //! trusted host process.
 
-use runx_contracts::javascript_worker::{MAX_INPUT_BYTES, MAX_WALL_MILLISECONDS};
+use runx_contracts::javascript_worker::{MAX_CPU_MILLISECONDS, MAX_INPUT_BYTES};
 use runx_contracts::{JsonObject, JsonValue};
 use runx_core::policy::admit_agent_tool;
 
@@ -20,7 +20,7 @@ const WORKER_FIELDS: &[&str] = &[
     "module",
     "requires",
     "export",
-    "timeout_seconds",
+    "cpu_seconds",
     "paged_input",
     "environment",
 ];
@@ -74,15 +74,12 @@ pub fn validate_process_tool(
 
 fn validate_worker(tool: &JsonObject, field: &str) -> Result<WorkerTool, ValidationError> {
     reject_unknown(tool, field, WORKER_FIELDS)?;
-    let timeout_seconds = optional_u64(
-        tool.get("timeout_seconds"),
-        &format!("{field}.timeout_seconds"),
-    )?;
-    if let Some(timeout_seconds) = timeout_seconds {
-        let maximum = MAX_WALL_MILLISECONDS / 1_000;
-        if timeout_seconds == 0 || timeout_seconds > maximum {
+    let cpu_seconds = optional_u64(tool.get("cpu_seconds"), &format!("{field}.cpu_seconds"))?;
+    if let Some(cpu_seconds) = cpu_seconds {
+        let maximum = MAX_CPU_MILLISECONDS / 1_000;
+        if cpu_seconds == 0 || cpu_seconds > maximum {
             return Err(validation_error(format!(
-                "{field}.timeout_seconds must be between 1 and {maximum}."
+                "{field}.cpu_seconds must be between 1 and {maximum}."
             )));
         }
     }
@@ -101,7 +98,7 @@ fn validate_worker(tool: &JsonObject, field: &str) -> Result<WorkerTool, Validat
         requires,
         module: validate_module(tool.get("module"), &format!("{field}.module"))?,
         export: validate_export(tool.get("export"), &format!("{field}.export"))?,
-        timeout_seconds,
+        cpu_seconds,
         paged_input: validate_paged_input(
             tool.get("paged_input"),
             &format!("{field}.paged_input"),

@@ -41,14 +41,14 @@ fn a_process_tool_parses_its_command_and_input_mode() -> Result<(), String> {
 #[test]
 fn a_worker_tool_parses_a_portable_module() -> Result<(), String> {
     let method = method(
-        "      - id: run\n        tool: {module: domain/workflow.mjs, export: execute, timeout_seconds: 30}\n",
+        "      - id: run\n        tool: {module: domain/workflow.mjs, export: execute, cpu_seconds: 30}\n",
     )?;
     let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&method).kind else {
         return Err("expected a worker tool".to_owned());
     };
     assert_eq!(worker.module, "domain/workflow.mjs");
     assert_eq!(worker.export.as_deref(), Some("execute"));
-    assert_eq!(worker.timeout_seconds, Some(30));
+    assert_eq!(worker.cpu_seconds, Some(30));
     Ok(())
 }
 
@@ -154,7 +154,10 @@ fn a_worker_rejects_process_fields_escapes_and_bad_bounds() {
         "{module: ../escape.mjs}",
         "{module: domain.mjs, command: node}",
         "{module: domain.mjs, args: [extra]}",
-        "{module: domain.mjs, timeout_seconds: 31}",
+        "{module: domain.mjs, cpu_seconds: 31}",
+        "{module: domain.mjs, cpu_seconds: 0}",
+        // A worker's limit is its CPU time; a wall-clock timeout is a process's.
+        "{module: domain.mjs, timeout_seconds: 5}",
         "{module: domain.mjs, export: not-valid}",
         "{command: node, module: domain.mjs}",
         "{args: [run.mjs]}",

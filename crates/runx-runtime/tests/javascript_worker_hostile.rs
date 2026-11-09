@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::{Duration, Instant};
 
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::{SkillPackageSource, validate_skill_package};
@@ -200,13 +199,26 @@ fn javascript_worker_hostile_promises_are_immediate_and_job_bounded()
 fn javascript_worker_hostile_infinite_loop_is_bounded_and_recoverable()
 -> Result<(), Box<dyn std::error::Error>> {
     let hostile = JavaScriptPackage::new("export default () => { while (true) {} };")?;
-    let started = Instant::now();
     let result = hostile.invoke(JsonObject::new());
     assert!(
         result.is_err() || result.is_ok_and(|output| output.status == InvocationStatus::Failure),
         "infinite loop unexpectedly completed"
     );
-    assert!(started.elapsed() < Duration::from_secs(5));
+    // The engine counts a call frame's loop iterations, so a loop that calls
+    // a short loop stays far within its iteration limit and spins until the
+    // invocation's CPU time runs out: only the CPU limit stops it.
+    let spinning = JavaScriptPackage::new(
+        "const pass = () => { for (let index = 0; index < 1000; index += 1) {} }; export default () => { for (;;) pass(); };",
+    )?;
+    let output = spinning.invoke(JsonObject::new())?;
+    assert_eq!(output.status, InvocationStatus::Failure);
+    assert!(
+        output
+            .failure_message()
+            .is_some_and(|message| message.contains("ms CPU time limit")),
+        "{:?}",
+        output.failure_message()
+    );
 
     let clean = JavaScriptPackage::new("export default () => ({ recovered: 'loop' });")?;
     assert_eq!(

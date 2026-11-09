@@ -131,8 +131,10 @@ pub struct WorkerTool {
     /// Named export; the module's default export when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub export: Option<String>,
+    /// The CPU time one invocation may spend, in seconds: 1 to 30, 2 when
+    /// omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout_seconds: Option<u64>,
+    pub cpu_seconds: Option<u64>,
     /// Runtime-owned paging over one contained immutable file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paged_input: Option<ArtifactPageSource>,

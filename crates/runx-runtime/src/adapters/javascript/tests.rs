@@ -228,7 +228,7 @@ fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
             requires: Vec::new(),
             module: "domain.mjs".to_owned(),
             export: None,
-            timeout_seconds: None,
+            cpu_seconds: None,
             paged_input: None,
             environment: Default::default(),
         }),

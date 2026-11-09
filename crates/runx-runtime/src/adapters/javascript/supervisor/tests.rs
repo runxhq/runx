@@ -55,9 +55,6 @@ fn supervisors_own_independent_session_state() {
 #[test]
 fn concurrently_started_workers_close_while_their_siblings_stay_alive()
 -> Result<(), Box<dyn std::error::Error>> {
-    use std::sync::mpsc;
-    use std::time::Duration;
-
     use super::session::{WorkerLaunchPlan, WorkerSession};
 
     let plan = WorkerLaunchPlan::prepare(None)?;
@@ -77,23 +74,13 @@ fn concurrently_started_workers_close_while_their_siblings_stay_alive()
                 .map(|start| start.join().expect("worker startup thread"))
                 .collect::<Result<Vec<_>, _>>()
         })?;
+        // Each session closes while its siblings still run: its reader sees
+        // its own worker's pipes close, which no sibling holds open. A
+        // session whose close waited on a live sibling would never be joined.
         while let Some(session) = sessions.pop() {
-            let (closed_tx, closed_rx) = mpsc::channel();
-            let closing = thread::spawn(move || {
-                drop(session);
-                let _ = closed_tx.send(());
-            });
-            let closed = closed_rx.recv_timeout(Duration::from_secs(5));
-            if closed.is_err() {
-                // Release any inherited handles before joining the failed
-                // close, so this regression reports a failure instead of
-                // stranding the test runner in the same destructor deadlock.
-                for sibling in &mut sessions {
-                    sibling.terminate();
-                }
-            }
-            closing.join().expect("worker shutdown thread");
-            assert!(closed.is_ok(), "worker shutdown depended on a live sibling");
+            thread::spawn(move || drop(session))
+                .join()
+                .expect("worker shutdown thread");
         }
     }
     Ok(())
@@ -105,12 +92,12 @@ fn pooled_worker_never_reuses_a_session_for_a_different_runtime_path()
     let supervisor = JavaScriptWorkerSupervisor::new(1);
     supervisor.invoke(invocation(
         "export default () => ({ ready: true });",
-        InvocationLimits::default().wall_milliseconds,
+        InvocationLimits::default().cpu_milliseconds,
     ))?;
     let missing = tempfile::tempdir()?.path().join("missing-worker");
     let mut changed = invocation(
         "export default () => ({ should_not_run: true });",
-        InvocationLimits::default().wall_milliseconds,
+        InvocationLimits::default().cpu_milliseconds,
     );
     changed.worker_path = Some(missing.to_string_lossy().into_owned());
 
@@ -127,7 +114,8 @@ fn pooled_worker_never_reuses_a_session_for_a_different_runtime_path()
 }
 
 #[test]
-fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std::error::Error>> {
+fn a_worker_past_its_cpu_time_does_not_fail_a_healthy_sibling()
+-> Result<(), Box<dyn std::error::Error>> {
     let supervisor = Arc::new(JavaScriptWorkerSupervisor::new(2));
     let barrier = Arc::new(Barrier::new(3));
     let slow = invoke_at(
@@ -143,7 +131,7 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
         &barrier,
         invocation(
             "export default () => { let value = 0; for (let index = 0; index < 100000; index += 1) value = (value + index) % 1000003; return { healthy: true }; };",
-            InvocationLimits::default().wall_milliseconds,
+            InvocationLimits::default().cpu_milliseconds,
         ),
     );
     barrier.wait();
@@ -157,9 +145,9 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
             WorkerInvocationResult::Failure {
                 ref message,
                 fate: runx_contracts::javascript_worker::WorkerFate::Discard,
-            } if message.contains("exceeded 1 ms wall limit")
+            } if message.contains("exceeded its 1 ms CPU time limit")
         ),
-        "timed-out invocation must be a typed wall-limit failure"
+        "an invocation past its CPU time is a typed CPU-limit failure"
     );
     let healthy = healthy
         .join()
@@ -180,7 +168,7 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
                 &barrier,
                 invocation(
                     "export default () => { let value = 0; for (let index = 0; index < 100000; index += 1) value = (value + index) % 1000003; return { recovered: true }; };",
-                    InvocationLimits::default().wall_milliseconds,
+                    InvocationLimits::default().cpu_milliseconds,
                 ),
             )
         })
@@ -224,7 +212,7 @@ fn invoke_at(
     })
 }
 
-fn invocation(source: &str, wall_milliseconds: u64) -> WorkerInvocation {
+fn invocation(source: &str, cpu_milliseconds: u64) -> WorkerInvocation {
     WorkerInvocation {
         entry_module: "main.mjs".to_owned(),
         export_name: "default".to_owned(),
@@ -233,8 +221,122 @@ fn invocation(source: &str, wall_milliseconds: u64) -> WorkerInvocation {
         environment: BTreeMap::new(),
         worker_path: None,
         limits: InvocationLimits {
-            wall_milliseconds,
+            cpu_milliseconds,
             ..InvocationLimits::default()
         },
     }
+}
+
+/// A clock that moves on 30 seconds each time it is read, so a worker that
+/// spends nothing is idle past the unresponsive window within a few readings.
+struct Advancing {
+    started: std::time::Instant,
+    readings: std::sync::atomic::AtomicU32,
+}
+
+impl super::watch::Clock for Advancing {
+    fn now(&self) -> std::time::Instant {
+        let readings = self
+            .readings
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.started + std::time::Duration::from_secs(30 * u64::from(readings))
+    }
+}
+
+#[test]
+fn the_watch_stops_an_invocation_past_its_cpu_time_or_idle_past_the_unresponsive_window() {
+    use std::time::{Duration, Instant};
+
+    use super::watch::{UNRESPONSIVE_AFTER, Verdict, Watch};
+
+    let start = Instant::now();
+    let second = Duration::from_secs(1);
+    // Spending within its budget, a worker is working however long it takes.
+    let mut spinning = Watch::start(2 * second, 5 * second, start);
+    assert_eq!(
+        spinning.observe(Some(6 * second), start + 10 * UNRESPONSIVE_AFTER),
+        Verdict::Working
+    );
+    // One reading past its budget, counted from the invocation's start, stops it.
+    assert_eq!(
+        spinning.observe(Some(7 * second + Duration::from_millis(1)), start),
+        Verdict::OverBudget
+    );
+    // A worker that spends nothing is unresponsive only once the window has
+    // passed since it last spent any.
+    let mut blocked = Watch::start(2 * second, second, start);
+    assert_eq!(
+        blocked.observe(Some(second), start + UNRESPONSIVE_AFTER - second),
+        Verdict::Working
+    );
+    assert_eq!(
+        blocked.observe(None, start + UNRESPONSIVE_AFTER),
+        Verdict::Unresponsive
+    );
+    // Spending any CPU time restarts the window.
+    let mut waking = Watch::start(2 * second, second, start);
+    let later = start + UNRESPONSIVE_AFTER - second;
+    assert_eq!(
+        waking.observe(Some(second + Duration::from_millis(5)), later),
+        Verdict::Working
+    );
+    assert_eq!(
+        waking.observe(None, start + UNRESPONSIVE_AFTER),
+        Verdict::Working
+    );
+    assert_eq!(
+        waking.observe(None, later + UNRESPONSIVE_AFTER),
+        Verdict::Unresponsive
+    );
+}
+
+/// A worker that completes its handshake and then blocks reading its pipe
+/// spends no CPU time and answers nothing: the supervisor discards it as
+/// unresponsive once its clock says the window has passed.
+#[cfg(unix)]
+#[test]
+fn a_worker_blocked_on_its_pipe_is_discarded_as_unresponsive()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+
+    use runx_contracts::javascript_worker::{PROTOCOL_VERSION, WorkerFate};
+
+    let temp = tempfile::tempdir()?;
+    let ready = format!(r#"{{"type":"ready","protocol_version":{PROTOCOL_VERSION}}}"#);
+    let length = u32::try_from(ready.len())?.to_be_bytes();
+    let prefix = length
+        .iter()
+        .map(|byte| format!("\\{byte:03o}"))
+        .collect::<String>();
+    let worker = temp.path().join("blocked-worker");
+    fs::write(
+        &worker,
+        format!("#!/bin/sh\nprintf '{prefix}%s' '{ready}'\n/bin/cat >/dev/null\n"),
+    )?;
+    fs::set_permissions(&worker, fs::Permissions::from_mode(0o755))?;
+
+    let supervisor = JavaScriptWorkerSupervisor::with_clock(
+        1,
+        Box::new(Advancing {
+            started: std::time::Instant::now(),
+            readings: std::sync::atomic::AtomicU32::new(0),
+        }),
+    );
+    let mut blocked = invocation(
+        "export default () => ({ never: true });",
+        InvocationLimits::default().cpu_milliseconds,
+    );
+    blocked.worker_path = Some(worker.to_string_lossy().into_owned());
+    let outcome = supervisor.invoke(blocked)?;
+    assert!(
+        matches!(
+            outcome.result,
+            WorkerInvocationResult::Failure {
+                ref message,
+                fate: WorkerFate::Discard,
+            } if message.contains("spent no CPU time and answered nothing for 60 s")
+        ),
+        "a blocked worker is discarded as unresponsive"
+    );
+    Ok(())
 }

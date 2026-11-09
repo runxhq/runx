@@ -179,7 +179,7 @@ fn javascript_worker() -> WorkerTool {
         requires: Vec::new(),
         module: "main.mjs".to_owned(),
         export: None,
-        timeout_seconds: None,
+        cpu_seconds: None,
         paged_input: None,
         environment: EnvironmentRequirements::default(),
     }

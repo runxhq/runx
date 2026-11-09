@@ -95,7 +95,7 @@ function checkRequirements(value) {
     output_bytes: 4_194_304,
     heap_bytes: 67_108_864,
     stack_bytes: 4_194_304,
-    wall_milliseconds: 2_000,
+    cpu_milliseconds: 2_000,
     queued_jobs: 4_096,
   })) {
     expect(value?.limits?.[field] === expected, `requirements.limits.${field} must equal ${expected}`);

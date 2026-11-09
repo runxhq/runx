@@ -43,7 +43,7 @@ export function assessRisk(inputs) {
 Omit `export` to select the default export. Module paths are portable relative
 `.mjs` or `.js` paths contained by the owning skill. The selected export may be
 sync or async. Runx owns the dedicated no-host worker, input and output framing,
-wall enforcement, and failure semantics. The second export argument is a
+CPU time enforcement, and failure semantics. The second export argument is a
 frozen `{ environment }` object containing only names the worker declares:
 
 ```yaml
@@ -53,7 +53,7 @@ frozen `{ environment }` object containing only names the worker declares:
       environment:
         required: [REGION]
         optional: [TRACE_LABEL]
-      timeout_seconds: 10
+      cpu_seconds: 10
 ```
 
 Required values fail before the worker starts when unavailable; absent optional

@@ -13,8 +13,10 @@ mod pool;
 mod process;
 mod response_reader;
 mod session;
+mod watch;
 
 use pool::WorkerPool;
+use watch::{Clock, SystemClock};
 
 #[derive(Debug)]
 pub(super) struct WorkerInvocation {
@@ -40,13 +42,20 @@ pub(super) struct WorkerInvocationOutcome {
 pub(super) struct JavaScriptWorkerSupervisor {
     pool: WorkerPool,
     next_invocation: AtomicU64,
+    /// What a worker's idleness is measured by.
+    clock: Box<dyn Clock>,
 }
 
 impl JavaScriptWorkerSupervisor {
     pub(super) fn new(max_concurrency: usize) -> Self {
+        Self::with_clock(max_concurrency, Box::new(SystemClock))
+    }
+
+    fn with_clock(max_concurrency: usize, clock: Box<dyn Clock>) -> Self {
         Self {
             pool: WorkerPool::new(max_concurrency),
             next_invocation: AtomicU64::new(1),
+            clock,
         }
     }
 
@@ -66,7 +75,7 @@ impl JavaScriptWorkerSupervisor {
             "js-{}",
             self.next_invocation.fetch_add(1, Ordering::Relaxed)
         );
-        let timeout = Duration::from_millis(invocation.limits.wall_milliseconds);
+        let cpu_budget = Duration::from_millis(invocation.limits.cpu_milliseconds);
         let worker_path = invocation.worker_path;
         let request = WorkerRequest::Invoke(Box::new(WorkerInvocationRequest {
             protocol_version: PROTOCOL_VERSION,
@@ -83,7 +92,7 @@ impl JavaScriptWorkerSupervisor {
         let (execution_boundary, result) = {
             let session = lease.session_mut()?;
             let execution_boundary = session.execution_boundary;
-            let result = session.invoke(&invocation_id, &request, timeout);
+            let result = session.invoke(&invocation_id, &request, cpu_budget, self.clock.as_ref());
             (execution_boundary, result)
         };
         match result {

@@ -24,7 +24,7 @@
       "output_bytes": 4194304,
       "heap_bytes": 67108864,
       "stack_bytes": 4194304,
-      "wall_milliseconds": 2000,
+      "cpu_milliseconds": 2000,
       "queued_jobs": 4096
     },
     "worker": {
@@ -192,7 +192,7 @@
       "module_model": "A validated relative module bundle is loaded from memory into a fresh Boa context for every invocation; a runtime-scoped pool reuses up to four dedicated workers, with one active invocation per process.",
       "resource_controls": [
         "Boa loop, stack, recursion, and parser limits bound engine work",
-        "Per-worker memory limits, per-invocation wall limits, and the four-worker pool cap bound aggregate host exposure outside the engine",
+        "Per-worker memory limits, per-invocation CPU time limits, and the four-worker pool cap bound aggregate host exposure outside the engine",
         "A fixed clock and no host bindings remove ambient time and authority",
         "Fresh contexts prevent globals, modules, promises, and mutable state crossing invocations"
       ],
@@ -265,5 +265,5 @@
       }
     ]
   },
-  "decision_digest": "sha256:ef613578387b86597edbb2d5a75db73cefb61b42526c33490da1625bd4000aa5"
+  "decision_digest": "sha256:9690deb0f42eb47171af8ae0fe896cf590770fd066a9c6d05c293c14b04a4c40"
 }

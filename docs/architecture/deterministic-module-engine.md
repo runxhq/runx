@@ -18,7 +18,7 @@ fallback.
 
 This selects an engine and a containment design together. Boa is not loaded
 into the main Runx process and is not treated as the process-security boundary.
-The worker supervisor must enforce per-worker memory, per-invocation wall time,
+The worker supervisor must enforce per-worker memory, per-invocation CPU time,
 the aggregate pool cap, queue bounds, environment clearing, a non-workspace
 current directory, protocol framing, and replacement after a fault. Boa
 supplies the inner language boundary: no host APIs, a fixed clock, engine work

@@ -18,12 +18,12 @@ pub(super) fn validated_module(
     );
     let modules = reachable_modules(&loaded.package, &entry_module)?;
     let mut limits = InvocationLimits::default();
-    if let Some(timeout_seconds) = worker.timeout_seconds {
-        limits.wall_milliseconds =
-            timeout_seconds
+    if let Some(cpu_seconds) = worker.cpu_seconds {
+        limits.cpu_milliseconds =
+            cpu_seconds
                 .checked_mul(1_000)
                 .ok_or_else(|| RuntimeError::JavaScriptWorker {
-                    message: "JavaScript wall limit overflowed milliseconds".to_owned(),
+                    message: "JavaScript CPU limit overflowed milliseconds".to_owned(),
                 })?;
     }
     let limits = limits

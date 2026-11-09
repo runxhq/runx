@@ -416,7 +416,7 @@ methods:
   run:
     steps:
       - id: run
-        tool: {module: interrupt.mjs, timeout_seconds: 30}
+        tool: {module: interrupt.mjs}
         outputs:
           completed: {type: boolean}
 `,

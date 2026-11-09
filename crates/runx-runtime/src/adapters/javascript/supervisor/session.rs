@@ -11,12 +11,13 @@ use crate::RuntimeError;
 
 use super::process::{BoundedStderr, capture_stderr, resolve_worker_path, spawn_child, stop_child};
 use super::response_reader::{WorkerFrameResult, read_responses};
+use super::watch::{Clock, CpuClock, SAMPLE_EVERY, UNRESPONSIVE_AFTER, Verdict, Watch};
 use super::{WorkerInvocationResult, lock, worker_error};
 
 // This bounds process startup and the protocol handshake, not JavaScript
 // execution. A freshly downloaded macOS binary may remain in dyld while the OS
 // performs first-launch policy verification, so this must tolerate cold-host
-// startup without weakening the independently governed invocation wall limit.
+// startup without weakening the independently governed invocation CPU limit.
 const WORKER_START_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) struct WorkerSession {
@@ -138,35 +139,51 @@ impl WorkerSession {
         }
     }
 
+    /// Run one invocation: it may spend `cpu_budget` of the worker process's
+    /// CPU time, and the worker is discarded once it has spent no CPU time and
+    /// answered nothing for [`UNRESPONSIVE_AFTER`] by `clock`.
     pub(super) fn invoke(
         &mut self,
         invocation_id: &str,
         request: &WorkerRequest,
-        timeout: Duration,
+        cpu_budget: Duration,
+        clock: &dyn Clock,
     ) -> Result<WorkerInvocationResult, RuntimeError> {
         if self.terminated {
             return Err(worker_error(
                 "deterministic JavaScript worker session is closed",
             ));
         }
+        let mut cpu = CpuClock::of(self.child_id()?);
+        let mut watch = Watch::start(cpu_budget, cpu.spent().unwrap_or_default(), clock.now());
         self.write_request(request)?;
-        let response = match self.receive_response(timeout) {
-            Ok(Ok(response)) => response,
-            Ok(Err(message)) => return Err(self.failure_with_stderr(message)),
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                self.terminate();
-                return Ok(WorkerInvocationResult::Failure {
-                    message: self.failure_message_with_stderr(format!(
-                        "deterministic JavaScript worker exceeded {} ms wall limit",
-                        timeout.as_millis()
-                    )),
-                    fate: WorkerFate::Discard,
-                });
-            }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(self.failure_with_stderr(
-                    "deterministic JavaScript worker exited without a response",
-                ));
+        let response = loop {
+            match self.receive_response(SAMPLE_EVERY) {
+                Ok(Ok(response)) => break response,
+                Ok(Err(message)) => return Err(self.failure_with_stderr(message)),
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    let message = match watch.observe(cpu.spent(), clock.now()) {
+                        Verdict::Working => continue,
+                        Verdict::OverBudget => format!(
+                            "deterministic JavaScript worker exceeded its {} ms CPU time limit",
+                            cpu_budget.as_millis()
+                        ),
+                        Verdict::Unresponsive => format!(
+                            "deterministic JavaScript worker spent no CPU time and answered nothing for {} s, so it is discarded as unresponsive",
+                            UNRESPONSIVE_AFTER.as_secs()
+                        ),
+                    };
+                    self.terminate();
+                    return Ok(WorkerInvocationResult::Failure {
+                        message: self.failure_message_with_stderr(message),
+                        fate: WorkerFate::Discard,
+                    });
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err(self.failure_with_stderr(
+                        "deterministic JavaScript worker exited without a response",
+                    ));
+                }
             }
         };
         match response {
@@ -190,6 +207,13 @@ impl WorkerSession {
                 "deterministic JavaScript worker response mismatch: {response:?}"
             ))),
         }
+    }
+
+    fn child_id(&self) -> Result<u32, RuntimeError> {
+        self.child
+            .as_ref()
+            .map(std::process::Child::id)
+            .ok_or_else(|| worker_error("deterministic JavaScript worker process is gone"))
     }
 
     fn receive_response(

@@ -328,7 +328,7 @@ authoring.
   step. Prefer one cohesive module named for the skill with focused named
   exports of the form `(inputs, context) => JSON`; split it only when the
   computations have genuinely separate ownership. Runx owns input delivery,
-  output serialization, errors, wall limits, and isolation. Do not add fake
+  output serialization, errors, CPU limits, and isolation. Do not add fake
   operation inputs, Node command declarations, per-method wrapper files, or
   stdout/environment plumbing. Pure JavaScript receives only its validated
   in-memory module bundle, JSON input, and a frozen
@@ -340,9 +340,9 @@ authoring.
   configuration; credentials stay on the native credential/provider boundary.
   The worker process itself has an empty ambient environment and no workspace
   path, filesystem, network, clock, randomness, subprocess, credential, or
-  provider surface. The default wall limit is two seconds; a worker tool may
-  declare `timeout_seconds` from 1 through 30 when irreducible computation
-  genuinely needs it. The worker is ECMAScript, not a browser: use the frozen
+  provider surface. An invocation may spend two seconds of CPU time by default;
+  a worker tool may declare `cpu_seconds` from 1 through 30 when irreducible
+  computation genuinely needs it. The worker is ECMAScript, not a browser: use the frozen
   `Runx.parseUrl(value)` helper for absolute URLs and do not assume Web or Node
   globals exist. Use `Runx.parseData(source, format)` for bounded JSON, YAML or
   TOML syntax decoding, with package-specific interpretation kept in the domain

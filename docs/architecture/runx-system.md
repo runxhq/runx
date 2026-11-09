@@ -222,9 +222,11 @@ than pass a growing completed-history array to the next turn. The host owns
 continuation and scheduling.
 
 Runtime-owned ceilings are 4 MiB source, 4 MiB input, 4 MiB output, 64 MiB
-JavaScript heap, 4 MiB JavaScript stack, 30 seconds wall time, and 4,096 queued
-jobs. Wall time defaults to two seconds and a method may select 1 through 30
-seconds; other package limits may narrow but never widen the runtime ceiling.
+JavaScript heap, 4 MiB JavaScript stack, 30 seconds of CPU time, and 4,096 queued
+jobs. A worker's CPU time defaults to two seconds and a tool may declare
+`cpu_seconds` from 1 through 30; other package limits may narrow but never
+widen the runtime ceiling. A worker that spends no CPU time and answers nothing
+for 60 seconds is discarded as unresponsive.
 The worker starts with a cleared environment, a non-workspace current
 directory, no inherited handles, process memory supervision, and no host APIs.
 A timeout, memory fault, protocol error, crash, or polluted stdout fails the

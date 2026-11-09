@@ -71,7 +71,7 @@ impl TwitterFixture {
                 requires: Vec::new(),
                 module: "twitter-selection.mjs".to_owned(),
                 export: Some("selectArchivePage".to_owned()),
-                timeout_seconds: None,
+                cpu_seconds: None,
                 paged_input: Some(ArtifactPageSource {
                     source: ArtifactPageInput::Path {
                         path: "archive_file".to_owned(),

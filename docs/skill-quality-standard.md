@@ -302,7 +302,7 @@ Skill authoring must decide ownership before it writes files:
 - Express irreducible JavaScript through a worker step, `tool: { module: ... }`: a cohesive
   package module exposes focused functions from resolved inputs and frozen
   declared non-secret environment to JSON values, while Runx owns process
-  input, output, errors, wall limits, and worker isolation. Do not simulate named
+  input, output, errors, CPU limits, and worker isolation. Do not simulate named
   operations with public inputs or create one process wrapper per workflow step.
   The runtime must enforce a read-only, no-network worker with no workspace,
   writable paths, ambient OS environment, or injected credentials. Reserve a
