@@ -140,7 +140,7 @@ export function checkCanonicalParserOwnership(findings) {
   }
   const workflowTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/graph/types.rs");
   const workflowTypes = existsSync(workflowTypesPath) ? readFileSync(workflowTypesPath, "utf8") : "";
-  if (!/pub\s+artifacts:\s+Option<SkillArtifactContract>/u.test(workflowTypes)) {
+  if (!/pub\s+artifacts:\s+Option<OutputArtifacts>/u.test(workflowTypes)) {
     findings.push(`${relative(workflowTypesPath)} must expose parser-validated workflow artifact contracts`);
   }
   if (!/pub\s+kind:\s+StepKind/u.test(workflowTypes)) {

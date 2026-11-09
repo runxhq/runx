@@ -49,7 +49,7 @@ describe("@runxhq/contracts", () => {
     expect(toolManifestV1Schema).toBe(runxContractSchemas.toolManifest);
     expect(runxContractSchemas.storeResult.$id)
       .toBe("https://schemas.runx.ai/runx/store/result/v1.json");
-    expect((toolManifestV1Schema.properties as Record<string, unknown>).source).toBeDefined();
+    expect((toolManifestV1Schema.properties as Record<string, unknown>).process).toBeDefined();
     expect((toolManifestV1Schema.required as readonly string[])).not.toContain("version");
   });
 
@@ -803,7 +803,6 @@ describe("@runxhq/contracts", () => {
         source: "local",
         path: "tools/demo/echo/manifest.json",
         status: "ok",
-        scopes: ["repo:status"],
         emits: [{ name: "result", packet: "acme/demo.result.v1" }],
         fixtures: 1,
       }],
