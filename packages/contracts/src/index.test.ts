@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type JsonSchema, validateContractSchema } from "./internal.js";
+import { type JsonSchema } from "./internal.js";
 
 import {
   agentContextEnvelopeSchema,
@@ -31,6 +31,7 @@ import {
   validateOperationalPolicyContract,
   validateReferenceContract,
   proofKindSchema,
+  validateContractSchema,
 } from "./index.js";
 
 describe("@runxhq/contracts", () => {
@@ -439,6 +440,23 @@ describe("@runxhq/contracts", () => {
     expect(validateContractSchema(stale, reference, "reference")).toEqual(reference);
     expect(() => validateContractSchema(stale, "runx:receipt:rx_1", "reference"))
       .toThrow(/runx\/reference\/v1\.json/);
+  });
+
+  it("validates a host's own schema that refers to the published definitions", () => {
+    // A host keeps a schema of its own that refers to types runx publishes
+    // once, so it validates against runx's whole published set.
+    const hostSchema = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: "https://host.example.test/digested/v1.json",
+      type: "object",
+      additionalProperties: false,
+      required: ["digest"],
+      properties: { digest: { $ref: "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContentDigest" } },
+    } as JsonSchema;
+    const digested = { digest: { algorithm: "sha256", canonicalization: "runx.c14n.v1", value: "abc", derived_from: [] } };
+    expect(validateContractSchema(hostSchema, digested, "digested")).toEqual(digested);
+    expect(() => validateContractSchema(hostSchema, { digest: { ...digested.digest, algorithm: "md5" } }, "digested"))
+      .toThrow(/digested\.digest\.algorithm must match https:\/\/host\.example\.test\/digested\/v1\.json/);
   });
 
   it("validates machine report payloads from Rust-generated contract schemas", () => {

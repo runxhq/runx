@@ -147,9 +147,12 @@ export {
   type X402DiscoveryHttpProjection,
 } from "./x402-presentation.js";
 
+// A host's own schema may refer to the types runx publishes once; this
+// validates it against runx's whole published set.
 export {
   type JsonSchema,
   type Static,
+  validateContractSchema,
 } from "./internal.js";
 
 // Every contract type, generated from the Rust type that owns its schema.
