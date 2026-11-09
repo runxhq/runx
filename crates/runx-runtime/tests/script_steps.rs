@@ -1491,3 +1491,91 @@ fn a_large_packet_reads_as_its_inline_value_and_returns_as_a_checked_packet() ->
     );
     Ok(())
 }
+
+/// What `kept.txt` holds, which only a model on this machine may read.
+const KEPT: &str = "the gate code is 4417";
+
+/// A skill that admits `kept.txt` as `local_only`, runs the script step
+/// `prepare` declared by `prepare`, and gives the agent step `answer` what
+/// `answer_inputs` names. No managed agent works its runs, so their host
+/// can't say its model runs on this machine.
+fn write_local_only_skill(
+    root: &Path,
+    prepare: &str,
+    script: &str,
+    answer_inputs: &str,
+) -> TestResult<PathBuf> {
+    std::fs::write(root.join("kept.txt"), KEPT)?;
+    let skill_dir = root.join("local-notes");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: local-notes\ndescription: Answers from notes kept on this machine.\n---\n# Local notes\n\n## Agent task: answer\n\nAnswer from the notes.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: kept\n        tool: artifact.admit\n        inputs: {{path: kept.txt, media_type: text/plain, labels: {{sharing: local_only}}}}\n      - id: prepare\n        script: {{module: prepare.mjs}}\n{prepare}      - id: answer\n        agent: answer\n        inputs:\n{answer_inputs}        outputs:\n          answer: {{type: string}}\n"
+        ),
+    )?;
+    std::fs::write(skill_dir.join("prepare.mjs"), script)?;
+    Ok(skill_dir)
+}
+
+/// A script's call that reads what's labelled `local_only` is withheld from
+/// it as it is from a turn, when the run's host can't say its model runs on
+/// this machine: the call settles as refused, and the script, and the turn
+/// after it, never see what it read.
+#[test]
+fn a_scripts_read_of_a_local_only_artifact_on_a_remote_host_settles_as_refused() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_local_only_skill(
+        temp.path(),
+        "        inputs:\n          kept: $steps.kept.artifact.ref\n        calls:\n          tools: [artifact.read]\n        max_calls: 1\n        outputs:\n          text: {type: string}\n",
+        r#"export default async function (ctx, { kept }) {
+  try {
+    const read = await ctx.tool("artifact.read", { ref: kept, encoding: "utf8" });
+    return { text: read.artifact_page.data };
+  } catch (refused) {
+    return { text: refused.reason + ": " + refused.message };
+  }
+}
+"#,
+        "          text: $steps.prepare.text\n",
+    )?;
+    let paused = run(temp.path(), skill_dir)?;
+    assert_eq!(requests(&paused)?, ["answer"], "{:?}", paused.output);
+    let rendered = serde_json::to_string(&paused.output)?;
+    assert!(!rendered.contains(KEPT), "{rendered}");
+    assert!(
+        rendered.contains(
+            "refused: call 0 reads what's labelled local_only, and this step's host can't say its model runs on this machine"
+        ),
+        "{rendered}"
+    );
+    Ok(())
+}
+
+/// A script given a `local_only` artifact can't return it: a returned
+/// descriptor that no call of the step returned fails the step, so no turn
+/// after it is given it.
+#[test]
+fn a_returned_local_only_descriptor_no_call_of_the_step_returned_fails_the_step() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_local_only_skill(
+        temp.path(),
+        "        inputs:\n          kept: $steps.kept.artifact\n        max_calls: 1\n        outputs:\n          kept: {type: object}\n",
+        "export default async function (ctx, { kept }) {\n  return { kept };\n}\n",
+        "          kept: $steps.prepare.kept\n",
+    )?;
+    let failed = run(temp.path(), skill_dir)?;
+    let output = object(&failed.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    let rendered = serde_json::to_string(output)?;
+    assert!(
+        rendered.contains("step prepare: output kept: ")
+            && rendered.contains("names no artifact a call of the step returned"),
+        "{rendered}"
+    );
+    assert!(
+        requests(&failed)?.is_empty(),
+        "no turn is asked: {rendered}"
+    );
+    Ok(())
+}
