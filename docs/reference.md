@@ -496,14 +496,18 @@ Command-surface ownership:
 Stateful product work should use the governed data-plane shape in
 [docs/governed-data-plane.md](governed-data-plane.md): domain skills own
 meaning, while the store connector keeps bounded reads, append-only event
-writes and projection reads.
+writes and key reads.
 
 Workflows call the store's operations, `events.append`, `events.read`,
-`projection.read` and `heads.list`, as operation steps.
-Each call's `data_source_uri` names a logical source inside the workspace's
-store. With no store instance confirmed, that is the workspace store, a SQLite
-file at `.runx/store.sqlite`; `runx connector use store --parameter url=...`
-moves the workspace's streams to another SQLite file, Postgres or Redis.
+`key.inspect` and `keys.list`, as operation steps. A step names a stream's own
+name and a key, and the runtime places the stream under the package the step
+runs in: a package reads and writes its own streams with no naming, and reads
+another's only by naming its `package` under a term. With no store instance
+confirmed, the streams live in the workspace store, a SQLite file at
+`.runx/store.sqlite`; `runx connector use store --parameter url=...` moves them
+to another SQLite file, Postgres or Redis. The person's own data uses the
+`private` connector, its own file in the runx home, where every call needs a
+term.
 
 Large local inputs use `artifact.admit` and `artifact.read`. Admission snapshots
 one contained regular file, binds its media type, byte count, and whole-file

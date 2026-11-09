@@ -293,27 +293,29 @@ steps:
     operation: store/events.append
     idempotency_key: $input.idempotency_key
     inputs:
-      data_source_uri: $input.data_source_uri
-      resource: board_events
-      aggregate_id: $input.posting_id
+      stream: board
+      key: $input.posting_id
       expected_version: $input.expected_version
-      event: $steps.decide.claim_packet
+      type: board.claimed
+      data: $steps.decide.claim_packet
 ```
 
 The store can be SQLite, Postgres or Redis. The workflow calls the store
 connector's declared operations, as operation steps, and receives
-`runx.data.operation_result.v1` with version movement, digests and provider
-evidence.
+`runx.store.result.v1` with the key's versions, the event's id and digest, and
+the key's chain digest.
 
-Storage choice is not product logic. A workflow passes `data_source_uri` such as
-`local://dev-board/events`; the workspace's store instance decides
-where the streams live. With none confirmed it is the workspace store, a SQLite
-file under `.runx/`. Moving to Postgres or Redis is a store instance, not a
-change to the domain skill.
+The stream is the package's own. The step names `board`, and the runtime
+stores it under the package the step runs in, so a package reads and writes
+its own streams with no naming, and no step can write another's. Storage choice
+is not product logic: the workspace's store instance decides where the streams
+live. With none confirmed it is the workspace store, a SQLite file under
+`.runx/`. Moving to Postgres or Redis is a store instance, not a change to the
+domain skill.
 
 Do not put board, CRM, billing or support-specific state machines into the
 store. Domain skills own meaning; the store owns bounded reads, idempotent
-appends and projection evidence. See
+appends and their chain evidence. See
 [the governed data plane](./governed-data-plane.md).
 
 ## Values And References
