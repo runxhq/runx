@@ -93,7 +93,7 @@ describe("native invocation and decoding", () => {
     await expect(client.runs.read({ runId: "run_test", after: "stale" })).rejects.toMatchObject({ reason: "exit", code: "invalid_cursor" });
   });
   it("lists the project's skills and reads an artifact by its digest-bound reference", async () => {
-    const { config } = await setup(`process.stdout.write(JSON.stringify(process.argv[2] === 'list' ? { schema: 'runx.list.v1', root: '/w', requested_kind: 'skills', items: [{ kind: 'skill', name: 'runx/run-history', source: 'built-in', path: 'runx/run-history', status: 'ok', emits: [] }] } : {}));`);
+    const { config } = await setup(`process.stdout.write(JSON.stringify(process.argv[2] === 'list' ? { schema: 'runx.list.v1', root: '/w', requested_kind: 'skills', items: [{ kind: 'skill', name: 'runx/run-history', source: 'built-in', path: 'runx/run-history', status: 'ok', packets: [] }] } : {}));`);
     const client = createRunxClient(config);
     await expect(client.skills.list()).resolves.toMatchObject({ schema: "runx.list.v1", items: [{ name: "runx/run-history" }] });
     const reference = await artifact(config.projectDir, { verdict: "ok" }) as ProjectArtifactContract;
