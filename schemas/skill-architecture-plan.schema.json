@@ -364,7 +364,7 @@
               "lane": {
                 "enum": [
                   "manual",
-                  "graph",
+                  "workflow",
                   "agent",
                   "native_capability",
                   "domain_module",

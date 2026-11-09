@@ -7,7 +7,7 @@ The package manifests are authoritative; regenerate this page with `pnpm docs:ap
 
 ## @runxhq/cli
 
-Runx CLI - native governed runtime for agent skills, tools, graphs, and packets.
+Runx CLI - native governed runtime for agent skills, tools, workflows, and packets.
 
 Version: `0.11.1`
 

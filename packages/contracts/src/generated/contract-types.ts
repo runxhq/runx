@@ -3714,7 +3714,7 @@ export type SkillEffectRequirementContract = {
   readonly provider_boundary: boolean;
 };
 
-export type SkillExecutionLaneContract = "manual" | "graph" | "agent" | "native_capability" | "domain_module" | "process" | "operation";
+export type SkillExecutionLaneContract = "manual" | "workflow" | "agent" | "native_capability" | "domain_module" | "process" | "operation";
 
 export type SkillExpectedOutputContract = {
   readonly name: string;

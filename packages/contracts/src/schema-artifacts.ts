@@ -36469,7 +36469,7 @@ export const runxSchemaArtifacts = {
             "lane": {
               "enum": [
                 "manual",
-                "graph",
+                "workflow",
                 "agent",
                 "native_capability",
                 "domain_module",
@@ -36945,7 +36945,7 @@ export const runxSchemaArtifacts = {
                 "lane": {
                   "enum": [
                     "manual",
-                    "graph",
+                    "workflow",
                     "agent",
                     "native_capability",
                     "domain_module",
@@ -37703,7 +37703,7 @@ export const runxSchemaArtifacts = {
                 "lane": {
                   "enum": [
                     "manual",
-                    "graph",
+                    "workflow",
                     "agent",
                     "native_capability",
                     "domain_module",
