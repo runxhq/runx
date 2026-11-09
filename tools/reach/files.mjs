@@ -82,10 +82,15 @@ for (const file of tracked) {
     const found = resolve(file, written);
     if (found) add(file, found);
     else {
-      // A path naming a package's folder reaches the code in it, as a build or publish step does.
+      // A path naming a runx package's folder, as `skill: ../extract` does, reaches its
+      // manifest, and the manifest's own references decide which of its code is reached.
+      // A path naming any other package's folder reaches the code in it, as a build or
+      // publish step does.
       const dir = `${path.normalize(written.startsWith(".") ? path.join(path.dirname(file), written) : written).replace(/\/$/, "")}/`;
+      const runx = ["run.yaml", "connector.yaml"].map((m) => dir + m).filter((m) => trackedSet.has(m));
       const isPackage = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml"].some((m) => trackedSet.has(dir + m));
-      if (isPackage) for (const inside of subjects) if (inside.startsWith(dir) && !isTest(inside)) add(file, inside);
+      if (runx.length) for (const manifest of runx) add(file, manifest);
+      else if (isPackage) for (const inside of subjects) if (inside.startsWith(dir) && !isTest(inside)) add(file, inside);
     }
   }
   // Any other token naming a file, from the file's own folder and then from the root.
