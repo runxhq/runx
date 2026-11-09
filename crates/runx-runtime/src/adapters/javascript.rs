@@ -17,6 +17,14 @@ use crate::observations::Observations;
 
 const WORKER_PATH_ENV: &str = "RUNX_JS_WORKER_PATH";
 
+/// The digest of the sources the worker `env` names reports it was built
+/// from.
+pub(crate) fn reported_worker_digest(
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<String, RuntimeError> {
+    supervisor::reported_worker_digest(env.get(WORKER_PATH_ENV).map(String::as_str))
+}
+
 /// One explicit deterministic-JavaScript session. Clones share a bounded lazy
 /// worker pool so warm sequential work reuses one process while concurrent
 /// branches receive independent wall-time kill boundaries. Independent

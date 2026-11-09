@@ -8406,13 +8406,14 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "worker": {
-            "description": "The JavaScript worker's it runs scripts and workers with; absent for a runtime built without the worker's sources to hand.",
+            "description": "The JavaScript worker's it runs scripts and workers with, as the worker reported it in its handshake.",
             "minLength": 1,
             "type": "string"
           }
         },
         "required": [
-          "runtime"
+          "runtime",
+          "worker"
         ],
         "title": "RunImplementation",
         "type": "object"

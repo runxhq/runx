@@ -90,6 +90,7 @@ impl BoundRun {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
         };
+        let implementation = crate::implementation::current(self.workspace.env())?;
         let (workflow_inputs, run_act, run_context, run_authority, prepared) = match &existing {
             Some(record) => {
                 let started = continuation_identity(
@@ -99,6 +100,7 @@ impl BoundRun {
                     &self.method,
                     &self.package_digest,
                     execution_closure_digest,
+                    &implementation,
                 )?;
                 host.check_driver(log.run_id(), started.driver)?;
                 (
@@ -139,6 +141,7 @@ impl BoundRun {
                     },
                     prepared: prepared.as_ref(),
                     purchase: self.purchase(),
+                    implementation: &implementation,
                     created_at: &crate::time::now_iso8601(),
                 })?;
                 (
@@ -459,6 +462,7 @@ fn continuation_identity<'a>(
     method: &SkillMethodDefinition,
     package_digest: &str,
     execution_closure_digest: &str,
+    implementation: &runx_contracts::RunImplementation,
 ) -> Result<&'a crate::execution::run_record::Started, SkillRunError> {
     let Origin::Run(started) = &record.origin else {
         return Err(invalid("a child run continues only through its parent"));
@@ -477,10 +481,9 @@ fn continuation_identity<'a>(
     if started.execution_closure_digest != execution_closure_digest {
         return Err(refuse("execution closure"));
     }
-    if let Some(reason) = crate::implementation::refusal(
-        started.implementation.as_ref(),
-        &crate::implementation::current(),
-    ) {
+    if let Some(reason) =
+        crate::implementation::refusal(started.implementation.as_ref(), implementation)
+    {
         return Err(invalid(format!(
             "run identity cannot replace its original implementation: {reason}"
         )));
@@ -1148,6 +1151,7 @@ methods:
                 driver: RunDriver::Managed,
                 prepared: None,
                 purchase: None,
+                implementation: &crate::implementation::current(&env)?,
                 created_at: "2026-07-24T00:00:00Z",
             })?;
             if suspended {

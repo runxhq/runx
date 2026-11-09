@@ -49,7 +49,8 @@ impl WorkerPool {
             if state.total.saturating_add(state.starting) < self.maximum {
                 state.starting = state.starting.saturating_add(1);
                 drop(state);
-                let started = WorkerSession::start(&launch_plan);
+                let started = WorkerSession::start(&launch_plan)
+                    .and_then(|session| session.built_beside().map(|()| session));
                 let mut state = lock(&self.state, "recording JavaScript worker startup")?;
                 state.starting = state.starting.saturating_sub(1);
                 match started {

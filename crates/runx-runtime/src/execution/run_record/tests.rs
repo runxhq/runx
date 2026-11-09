@@ -21,6 +21,13 @@ fn store() -> (tempfile::TempDir, Arc<KernelStore>) {
     (root, store)
 }
 
+fn implementation() -> runx_contracts::RunImplementation {
+    runx_contracts::RunImplementation {
+        runtime: "sha256:runtime".into(),
+        worker: "sha256:worker".into(),
+    }
+}
+
 fn start(log: &RunLog, inputs: &JsonObject) {
     log.begin(StartRequest {
         skill: "triage",
@@ -35,6 +42,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         driver: RunDriver::Attached,
         prepared: None,
         purchase: None,
+        implementation: &implementation(),
         created_at: "2026-10-09T00:00:00.000Z",
     })
     .expect("begin");
@@ -233,6 +241,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 driver: RunDriver::Attached,
                 prepared: None,
                 purchase: None,
+                implementation: &implementation(),
                 created_at: "2026-10-09T00:00:00.000Z",
             }),
         Err(RunRecordError::Contended { .. })

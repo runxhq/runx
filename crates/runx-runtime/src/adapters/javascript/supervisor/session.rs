@@ -1,5 +1,6 @@
+use std::collections::BTreeMap;
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -30,6 +31,8 @@ pub(super) struct WorkerSession {
     stderr_reader: Option<JoinHandle<()>>,
     pub(super) execution_boundary: runx_contracts::ExecutionBoundaryKind,
     terminated: bool,
+    /// The digest of the sources the worker reports it was built from.
+    pub(super) source_digest: String,
 }
 
 pub(super) struct WorkerLaunchPlan {
@@ -63,7 +66,57 @@ impl WorkerLaunchPlan {
     }
 }
 
+/// The digest each worker binary this process started reported, by its
+/// command: a worker whose report changes while this runx runs is refused,
+/// so every worker a run's scripts run on is the one its record names.
+fn reported() -> Result<std::sync::MutexGuard<'static, BTreeMap<String, String>>, RuntimeError> {
+    static REPORTED: OnceLock<Mutex<BTreeMap<String, String>>> = OnceLock::new();
+    lock(
+        REPORTED.get_or_init(|| Mutex::new(BTreeMap::new())),
+        "reading the JavaScript worker's sources",
+    )
+}
+
+fn pin(command: &str, digest: &str) -> Result<(), RuntimeError> {
+    let mut reported = reported()?;
+    match reported.get(command) {
+        Some(known) if known != digest => Err(worker_error(format!(
+            "the JavaScript worker at {command} reports other sources ({digest}) than when this runx first started it ({known})"
+        ))),
+        Some(_) => Ok(()),
+        None => {
+            reported.insert(command.to_owned(), digest.to_owned());
+            Ok(())
+        }
+    }
+}
+
+/// The digest of the sources the worker `plan` starts reports it was built
+/// from: what it reported when this process first started it, or what it
+/// reports when started now.
+pub(super) fn reported_digest(plan: &WorkerLaunchPlan) -> Result<String, RuntimeError> {
+    let known = reported()?.get(&plan.command).cloned();
+    if let Some(known) = known {
+        return Ok(known);
+    }
+    let mut session = WorkerSession::start(plan)?;
+    Ok(std::mem::take(&mut session.source_digest))
+}
+
 impl WorkerSession {
+    /// A worker built from other sources than the one this runtime was built
+    /// beside, when it was, would run a run's scripts as another
+    /// implementation than the one the runtime names.
+    pub(super) fn built_beside(&self) -> Result<(), RuntimeError> {
+        match crate::implementation::expected_worker() {
+            Some(expected) if expected != self.source_digest => Err(worker_error(format!(
+                "the JavaScript worker was built from other sources ({}) than this runx expects ({expected}); build them together",
+                self.source_digest
+            ))),
+            _ => Ok(()),
+        }
+    }
+
     pub(super) fn start(plan: &WorkerLaunchPlan) -> Result<Self, RuntimeError> {
         let mut command = Command::new(&plan.command);
         let cwd = crate::process::child_process_cwd(&plan.cwd);
@@ -102,6 +155,7 @@ impl WorkerSession {
             stderr_reader: None,
             execution_boundary: plan.execution_boundary,
             terminated: false,
+            source_digest: String::new(),
         };
         session.response_reader = Some(
             thread::Builder::new()
@@ -130,19 +184,13 @@ impl WorkerSession {
             })?;
         let ready = ready.map_err(|message| session.failure_with_stderr(message))?;
         match ready {
-            // A worker built from other sources than the one this runtime
-            // was built beside would run a run's scripts as another
-            // implementation than the one its record names.
             WorkerResponse::Ready {
                 protocol_version,
                 source_digest,
             } if protocol_version == PROTOCOL_VERSION => {
-                match crate::implementation::expected_worker() {
-                    Some(expected) if expected != source_digest => Err(worker_error(format!(
-                        "the JavaScript worker was built from other sources ({source_digest}) than this runx expects ({expected}); build them together"
-                    ))),
-                    _ => Ok(session),
-                }
+                pin(&plan.command, &source_digest)?;
+                session.source_digest = source_digest.into_string();
+                Ok(session)
             }
             response => Err(worker_error(format!(
                 "deterministic JavaScript worker handshake failed: {response:?}"

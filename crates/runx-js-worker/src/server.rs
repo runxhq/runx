@@ -39,7 +39,7 @@ pub fn serve() -> Result<(), WorkerServerError> {
                 &mut writer,
                 &WorkerResponse::Ready {
                     protocol_version: PROTOCOL_VERSION,
-                    source_digest: env!("RUNX_JS_WORKER_SOURCE_DIGEST").to_owned(),
+                    source_digest: env!("RUNX_JS_WORKER_SOURCE_DIGEST").into(),
                 },
                 MAX_FRAME_BYTES,
             )?;

@@ -232,10 +232,9 @@ pub enum RunHold {
 pub struct RunImplementation {
     /// The runtime's: the runx binary that drove it.
     pub runtime: NonEmptyString,
-    /// The JavaScript worker's it runs scripts and workers with; absent for
-    /// a runtime built without the worker's sources to hand.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub worker: Option<NonEmptyString>,
+    /// The JavaScript worker's it runs scripts and workers with, as the
+    /// worker reported it in its handshake.
+    pub worker: NonEmptyString,
 }
 
 /// How a call stood when this event recorded it.

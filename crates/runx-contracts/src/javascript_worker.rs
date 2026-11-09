@@ -273,9 +273,9 @@ pub enum WorkerRequest {
 pub enum WorkerResponse {
     Ready {
         protocol_version: u16,
-        /// The digest of the sources the worker was built from, which a
-        /// runtime built beside it expects.
-        source_digest: String,
+        /// The digest of the sources the worker was built from, which a run
+        /// records, and a runtime built beside it expects.
+        source_digest: crate::schema::NonEmptyString,
     },
     Result {
         protocol_version: u16,

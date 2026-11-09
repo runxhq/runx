@@ -19,6 +19,12 @@ mod watch;
 use pool::WorkerPool;
 use watch::{Clock, SystemClock};
 
+/// The digest of the sources the worker at `worker_path`, or the one beside
+/// this runx, reports it was built from.
+pub(super) fn reported_worker_digest(worker_path: Option<&str>) -> Result<String, RuntimeError> {
+    session::reported_digest(&session::WorkerLaunchPlan::prepare(worker_path)?)
+}
+
 #[derive(Debug)]
 pub(super) struct WorkerInvocation {
     pub(super) entry_module: String,

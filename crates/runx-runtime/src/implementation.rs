@@ -1,18 +1,30 @@
 //! What a run is started by: the digest of the sources each binary was built
 //! from (reuse contract, `implementation`). The runtime's is made by its
-//! build script, and so is the worker's it was built beside, which the
-//! worker reports when it starts, so a worker of other sources is refused. A
-//! run records its implementation when it starts, and a resume under another
-//! is refused, so a build of changed sources never replays old history.
+//! build script. The worker's is what the worker reports in its handshake,
+//! whatever this runtime was built beside; a runtime built beside the
+//! worker's sources also refuses a worker that reports others before it runs
+//! a script on it. A run records its implementation when it starts, and a
+//! resume under another is refused, so a build of changed sources never
+//! replays old history.
+
+use std::collections::BTreeMap;
 
 use runx_contracts::RunImplementation;
 
-/// The implementation this runx is.
-#[must_use]
-pub fn current() -> RunImplementation {
+use crate::RuntimeError;
+
+/// The implementation a run started under `env` runs on: this runtime, and
+/// the worker that environment names, as it reports itself.
+pub fn current(env: &BTreeMap<String, String>) -> Result<RunImplementation, RuntimeError> {
+    Ok(implementation(
+        crate::adapters::javascript::reported_worker_digest(env)?,
+    ))
+}
+
+fn implementation(worker: String) -> RunImplementation {
     RunImplementation {
         runtime: env!("RUNX_RUNTIME_SOURCE_DIGEST").into(),
-        worker: expected_worker().map(Into::into),
+        worker: worker.into(),
     }
 }
 
@@ -28,9 +40,11 @@ pub(crate) fn refusal(
     started: Option<&RunImplementation>,
     current: &RunImplementation,
 ) -> Option<String> {
-    let describe = |implementation: &RunImplementation| match &implementation.worker {
-        Some(worker) => format!("runtime {}, worker {worker}", implementation.runtime),
-        None => format!("runtime {}, no worker", implementation.runtime),
+    let describe = |implementation: &RunImplementation| {
+        format!(
+            "runtime {}, worker {}",
+            implementation.runtime, implementation.worker
+        )
     };
     match started {
         Some(started) if started == current => None,
@@ -52,7 +66,7 @@ mod tests {
 
     use runx_contracts::RunImplementation;
 
-    use super::{current, refusal};
+    use super::{implementation, refusal};
 
     mod digest {
         include!("../source_digest.rs");
@@ -124,7 +138,7 @@ mod tests {
 
     #[test]
     fn a_resume_under_another_implementation_names_both() {
-        let now = current();
+        let now = implementation("sha256:worker".to_owned());
         assert_eq!(refusal(Some(&now), &now), None);
         let earlier = RunImplementation {
             runtime: "sha256:earlier".into(),

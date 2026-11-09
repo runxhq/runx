@@ -939,7 +939,7 @@ impl RunLog {
             driver: started.driver,
             prepared: started.prepared.cloned(),
             purchase: started.purchase.map(str::to_owned),
-            implementation: Some(crate::implementation::current()),
+            implementation: Some(started.implementation.clone()),
             created_at: started.created_at.to_owned(),
         };
         let mut blobs = vec![inputs];
@@ -1488,6 +1488,8 @@ pub(crate) struct StartRequest<'a> {
     pub driver: RunDriver,
     pub prepared: Option<&'a crate::execution::prepared_skill::PreparedContext>,
     pub purchase: Option<&'a str>,
+    /// The implementation it runs on.
+    pub implementation: &'a runx_contracts::RunImplementation,
     pub created_at: &'a str,
 }
 

@@ -2823,8 +2823,8 @@ export type RunHoldContract = {
 export type RunImplementationContract = {
   /** The runtime's: the runx binary that drove it. */
   readonly runtime: string;
-  /** The JavaScript worker's it runs scripts and workers with; absent for a runtime built without the worker's sources to hand. */
-  readonly worker?: string;
+  /** The JavaScript worker's it runs scripts and workers with, as the worker reported it in its handshake. */
+  readonly worker: string;
 };
 
 /** What `run.list` returns: the workspace's top-level runs, most recently advanced first, and those whose record this runx can't read. */
