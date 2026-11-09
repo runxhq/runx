@@ -64,3 +64,7 @@ oss	*	max-cost	max-spend	--$		the CLI's --max-spend (cli.md); the max-cost of pr
 oss	*	managed-agent	drive	--$		the CLI's --drive (cli.md); a managed agent, the thing, keeps its name
 oss	*	managed-agent-rounds	drive-rounds	--$		the CLI's --drive-rounds (cli.md)
 oss	crates/runx-runtime/src/kernel/purchase/tests.rs	holds	leases	\bpurchase\.$		PurchaseRead's leases, read from a purchase
+oss	README.md	graph	workflow	^A $	^ is what unfolds\.	the README's tagline is prose, in a text block
+oss	packages/cli/package.json	graphs	workflows	\btools, $		the CLI package's description is prose, and docs/api-surface.md is generated from it
+oss	crates/runx-cli/Cargo.toml	graphs	workflows	\btools, $		the CLI crate's description is prose
+oss	packages/sdk-python/pyproject.toml	graphs	workflows	\btools, and $		the Python SDK's description is prose
