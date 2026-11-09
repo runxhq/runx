@@ -36,6 +36,8 @@ approved draft under its key.
 
 - `ghostwrite#admit`
 - `ghostwrite#verify`
+- `lead-enrichment#enrich`
+- `lead-qualify#qualify`
 
 ## Outreach judgment
 
