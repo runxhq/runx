@@ -673,7 +673,6 @@ function turnResolutionRequest(): Readonly<Record<string, unknown>> {
         instructions_digest: sha256Prefixed("Summarize receipt"),
         provenance: [],
         requirements: {
-          declaration: {},
           execution_boundary: { kind: "remote_provider" },
         },
         run_id: "run_1",

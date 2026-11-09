@@ -218,7 +218,6 @@ describe("@runxhq/contracts", () => {
       instructions: "Do the work.",
       inputs: {},
       requirements: {
-        declaration: {},
         execution_boundary: { kind: "remote_provider" },
       },
       current_context: [],
@@ -242,7 +241,6 @@ describe("@runxhq/contracts", () => {
       instructions: "Do the work.",
       inputs: {},
       requirements: {
-        declaration: {},
         execution_boundary: { kind: "remote_provider" },
       },
       current_context: [],
@@ -262,7 +260,6 @@ describe("@runxhq/contracts", () => {
       instructions: "Do the work.",
       inputs: {},
       requirements: {
-        declaration: {},
         execution_boundary: { kind: "remote_provider" },
       },
       current_context: [],
