@@ -244,19 +244,19 @@ From this checkout:
 
 ```bash
 # Research → draft → channel package → publication handoff
-runx test skills/content-package/fixtures/composes-in-workflow.yaml
+runx test skills/content-package/tests/composes-in-workflow.yaml
 
 # A specific outreach draft with supplied evidence and writing context
-runx test skills/cold-outreach/fixtures/prepares-approved-context-email.yaml
+runx test skills/cold-outreach/tests/prepares-approved-context-email.yaml
 
 # Search + analytics + site evidence → growth priorities
-runx test skills/organic-growth/fixtures/composes-in-workflow.yaml
+runx test skills/organic-growth/tests/composes-in-workflow.yaml
 
 # Defined product funnel → rates and source-bound recommendations
-runx test skills/product-analytics/fixtures/composes-in-workflow.yaml
+runx test skills/product-analytics/tests/composes-in-workflow.yaml
 
 # Exact Slack post → approval → provider response → independent readback
-runx test skills/message-send/fixtures/post-default-notifies-and-verifies.yaml
+runx test skills/message-send/tests/post-default-notifies-and-verifies.yaml
 ```
 
 These are fixture-backed executions, with no live account reads or sends. Live
@@ -333,26 +333,30 @@ A method can combine five step kinds:
 | `ask` | A question or decision the run needs before it can continue. |
 | `skill` | Another skill's method, with explicit inputs and outputs. |
 
-A small graph makes the dataflow visible:
+A method's steps make the dataflow visible. The `hello-workflow` example's
+run.yaml runs one skill twice:
 
 ```yaml
-name: hello-workflow
-steps:
-  - id: first
-    skill: ../hello-world
-    inputs:
-      message: Hello from the first skill.
-  - id: second
-    skill: ../hello-world
-    inputs:
-      message: $steps.first.message
+minimum_runx: 0.12.0
+
+methods:
+  default:
+    steps:
+      - id: first
+        skill: ../hello-world
+        inputs:
+          message: Hello from the first skill.
+      - id: second
+        skill: ../hello-world
+        inputs:
+          message: $steps.first.message
 ```
 
-The second skill consumes the first skill's typed output. The graph receipt
-links their receipts. The same mechanism lets `content-package` pass a
+The second step consumes the first step's typed output, and the method's
+receipt links their receipts. The same mechanism lets `content-package` pass a
 research packet into `ghostwrite`, then pass the validated draft into its
 packaging and handoff methods. Inspect its
-[actual graph](skills/content-package/run.yaml).
+[actual methods](skills/content-package/run.yaml).
 
 Use an agent turn for work that needs judgment. Use a graph when phases,
 branches, guards, or approval boundaries must be part of the execution
