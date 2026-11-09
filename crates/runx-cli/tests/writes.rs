@@ -178,25 +178,27 @@ impl Slack {
             .collect())
     }
 
-    /// A write session in `project` under `authority` that has loaded the
-    /// Slack connector, and the outcome of the one call it then makes.
-    fn develop_call(
+    /// A session of the agent's `method` in `project` under `authority`
+    /// that has loaded the Slack connector, and the outcome of the one call
+    /// it then makes.
+    fn call_in(
         &self,
         project: &Path,
+        method: &str,
         authority: &str,
         tool: &str,
         input: Value,
     ) -> TestResult<Value> {
-        let run = start_session(self.runx(project)?, "write", authority)?;
+        let run = start_session(self.runx(project)?, method, authority)?;
         let loaded = turn_call(
             self.runx(project)?,
             &run,
-            "write",
+            method,
             "load",
             json!({"connector": "slack"}),
         )?;
         assert_eq!(loaded["status"], "completed", "{loaded}");
-        turn_call(self.runx(project)?, &run, "write", tool, input)
+        turn_call(self.runx(project)?, &run, method, tool, input)
     }
 }
 
@@ -264,7 +266,13 @@ fn a_provider_write_that_declares_an_approval_keeps_it_under_ask() -> TestResult
     std::fs::create_dir_all(&root)?;
     let slack = Slack::serve(&root)?;
 
-    let posted = slack.develop_call(&project(&root), ASKING, "slack__channel_post", post())?;
+    let posted = slack.call_in(
+        &project(&root),
+        "write",
+        ASKING,
+        "slack__channel_post",
+        post(),
+    )?;
     let approval = waiting_approval(&posted).ok_or_else(|| format!("{posted}"))?;
     assert_eq!(approval["gate"]["type"], "operation", "{posted}");
     assert_eq!(slack.sent()?, Vec::<String>::new(), "{posted}");
@@ -278,7 +286,13 @@ fn a_provider_write_with_no_approval_of_its_own_waits_on_a_person_under_ask() ->
     std::fs::create_dir_all(&root)?;
     let slack = Slack::serve(&root)?;
 
-    let replied = slack.develop_call(&project(&root), ASKING, "slack__thread_reply", reply())?;
+    let replied = slack.call_in(
+        &project(&root),
+        "write",
+        ASKING,
+        "slack__thread_reply",
+        reply(),
+    )?;
     let sent = slack.sent()?;
     let approval = waiting_approval(&replied).ok_or_else(|| {
         format!(
@@ -311,13 +325,24 @@ fn a_standing_operations_approval_lets_the_write_it_names_through() -> TestResul
     })
     .to_string();
 
-    let replied =
-        slack.develop_call(&project(&root), &authority, "slack__thread_reply", reply())?;
+    let replied = slack.call_in(
+        &project(&root),
+        "write",
+        &authority,
+        "slack__thread_reply",
+        reply(),
+    )?;
     assert_eq!(replied["status"], "completed", "{replied}");
     assert_eq!(slack.sent()?, vec!["thread.reply".to_owned()], "{replied}");
 
     // It names one operation: a post still keeps its own approval.
-    let posted = slack.develop_call(&project(&root), &authority, "slack__channel_post", post())?;
+    let posted = slack.call_in(
+        &project(&root),
+        "write",
+        &authority,
+        "slack__channel_post",
+        post(),
+    )?;
     assert!(waiting_approval(&posted).is_some(), "{posted}");
     assert_eq!(slack.sent()?, vec!["thread.reply".to_owned()], "{posted}");
     std::fs::remove_dir_all(&root)?;
@@ -335,7 +360,7 @@ fn effects_none_refuses_every_provider_write_even_one_with_its_own_approval() ->
         ("slack__thread_reply", reply()),
         ("slack__channel_post", post()),
     ] {
-        let called = slack.develop_call(&project(&root), none, tool, input)?;
+        let called = slack.call_in(&project(&root), "write", none, tool, input)?;
         assert_eq!(called["status"], "refused", "{tool}: {called}");
         assert!(
             called.to_string().contains("effects are none"),
@@ -343,6 +368,72 @@ fn effects_none_refuses_every_provider_write_even_one_with_its_own_approval() ->
         );
     }
     assert_eq!(slack.sent()?, Vec::<String>::new());
+    std::fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+// D16: `agent#read` takes `effects: none`, so a read turn changes nothing at
+// any depth, whatever its host allows.
+
+#[test]
+fn a_read_turn_changes_nothing_at_any_depth_whatever_its_host_allows() -> TestResult {
+    let root = crate::support::temp_root("runx-writes-read-wall");
+    std::fs::create_dir_all(&root)?;
+    let slack = Slack::serve(&root)?;
+    let allowing = r#"{"effects":"allow","reach":"workspace"}"#;
+
+    // A provider write the read turn reaches, even one with its own approval.
+    for (tool, input) in [
+        ("slack__thread_reply", reply()),
+        ("slack__channel_post", post()),
+    ] {
+        let called = slack.call_in(&project(&root), "read", allowing, tool, input)?;
+        assert_eq!(called["status"], "refused", "{tool}: {called}");
+        assert!(
+            called.to_string().contains("effects are none"),
+            "{tool}: {called}"
+        );
+    }
+    assert_eq!(slack.sent()?, Vec::<String>::new());
+
+    // A project skill the read turn loads, whose process would write a file.
+    let marker = project(&root).join("marker");
+    let skill = project(&root).join("skills/marker");
+    std::fs::create_dir_all(&skill)?;
+    std::fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: marker\ndescription: Writes a marker.\n---\n# Marker\n\nWrite the marker.\n",
+    )?;
+    std::fs::write(
+        skill.join("run.yaml"),
+        format!(
+            "minimum_runx: 0.12.0\nmethods:\n  mark:\n    steps:\n      - id: mark\n        tool: {{command: sh, args: [-c, 'echo written > {}']}}\n",
+            marker.display()
+        ),
+    )?;
+    let run = start_session(slack.runx(&project(&root))?, "read", allowing)?;
+    let loaded = turn_call(
+        slack.runx(&project(&root))?,
+        &run,
+        "read",
+        "load",
+        json!({"skill": "skills/marker", "method": "mark"}),
+    )?;
+    let tool = loaded["output"]["tools"]
+        .as_array()
+        .and_then(|tools| tools.first())
+        .and_then(|tool| tool["name"].as_str())
+        .ok_or_else(|| format!("the load offers the method: {loaded}"))?
+        .to_owned();
+    let called = turn_call(slack.runx(&project(&root))?, &run, "read", &tool, json!({}))?;
+    assert_ne!(called["status"], "completed", "{called}");
+    assert!(
+        called
+            .to_string()
+            .contains("effects are none, so it changes nothing: running sh"),
+        "{called}"
+    );
+    assert!(!marker.exists(), "a read turn's load wrote at depth");
     std::fs::remove_dir_all(&root)?;
     Ok(())
 }
