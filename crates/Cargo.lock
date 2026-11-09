@@ -2776,6 +2776,7 @@ dependencies = [
  "boa_engine",
  "boa_gc",
  "cap",
+ "criterion",
  "futures-lite",
  "rlimit",
  "runx-contracts",

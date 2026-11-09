@@ -41,7 +41,7 @@ const SCRIPT_FIELDS: &[&str] = &["module", "export"];
 /// The most calls one script step may make: the kernel's ceiling over every
 /// `max_calls`. Set from what recovery costs, since recovery replays a
 /// step's whole record in one pass of the worker (the worker's
-/// `script_replay` example, 9 November 2026): replay is linear, about 3 to
+/// `script_replay` bench, 9 November 2026): replay is linear, about 3 to
 /// 4 µs a recorded call, so a record at this ceiling replays in about 30 ms,
 /// under 2% of the 2 s a pass may take by default. The pass's frame binds first:
 /// at this ceiling a call's result averages at most about 1 KiB inline in the
