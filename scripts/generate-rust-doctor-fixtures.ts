@@ -42,12 +42,11 @@ const cases: readonly DoctorFixtureCase[] = [
         schema: "runx.tool.manifest.v1",
         name: "demo.echo",
         description: "Echo fixture.",
-        source: {
+        process: {
           command: "node",
           args: ["./run.mjs"],
         },
         inputs: {},
-        scopes: [],
       }, null, 2)}\n`),
     ],
   },

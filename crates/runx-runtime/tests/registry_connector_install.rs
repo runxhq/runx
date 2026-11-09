@@ -28,7 +28,7 @@ operations:
       process:
         tool: acme.sync
 "#;
-const ACME_SYNC_MANIFEST: &str = r#"{"schema": "runx.tool.manifest.v1", "name": "acme.sync", "version": "0.1.0", "description": "Syncs.", "source": {"command": "node", "args": ["./sync.mjs"]}}"#;
+const ACME_SYNC_MANIFEST: &str = r#"{"schema": "runx.tool.manifest.v1", "name": "acme.sync", "version": "0.1.0", "description": "Syncs.", "process": {"command": "node", "args": ["./sync.mjs"]}}"#;
 
 #[test]
 fn a_signed_connector_version_installs_into_the_package_cache_once()

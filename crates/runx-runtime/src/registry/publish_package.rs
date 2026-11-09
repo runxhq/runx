@@ -487,7 +487,10 @@ expect:
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
-  "source": { "command": "node", "args": ["./src/run.mjs"] }
+  "process": {
+    "command": "node",
+    "args": ["./src/run.mjs"]
+  }
 }
 "#,
         )?;
@@ -950,7 +953,7 @@ operations:
       process:
         tool: acme.sync
 "#;
-    const ACME_SYNC_MANIFEST: &str = r#"{"schema": "runx.tool.manifest.v1", "name": "acme.sync", "version": "0.1.0", "description": "Syncs.", "source": {"command": "node", "args": ["./sync.mjs"]}}"#;
+    const ACME_SYNC_MANIFEST: &str = r#"{"schema": "runx.tool.manifest.v1", "name": "acme.sync", "version": "0.1.0", "description": "Syncs.", "process": {"command": "node", "args": ["./sync.mjs"]}}"#;
     const MARK: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="#123456"/></svg>"##;
 
     /// A plugin repository: `skills/sync` declares the plugin's `acme-ops`

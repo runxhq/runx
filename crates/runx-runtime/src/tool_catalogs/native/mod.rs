@@ -110,7 +110,6 @@ pub(crate) struct NativeToolInvocation<'a> {
     pub tool: &'a str,
     pub observed_at: &'a str,
     pub inputs: JsonObject,
-    pub scopes: &'a [String],
     pub env: &'a BTreeMap<String, String>,
     pub skill_directory: &'a Path,
     pub credential_delivery: &'a CredentialDelivery,
@@ -131,7 +130,6 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
     if let Some(tool) = definition(request.tool) {
         let invocation = RawNativeInvocation {
             inputs: request.inputs,
-            scopes: request.scopes,
             observed_at: request.observed_at,
             env: request.env,
             skill_directory: request.skill_directory,
@@ -148,18 +146,8 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
         });
     }
 
-    let capability = request.effects.capability(request.tool)?;
-    if let Err(error) = crate::capability::enforce_required_scopes(
-        capability.definition().id,
-        capability.definition().scopes.iter().copied(),
-        request.scopes,
-    ) {
-        return Some(NativeToolInvocationResult {
-            result: Err(error),
-            ephemeral: None,
-            execution_boundary: runx_contracts::ExecutionBoundaryKind::NativeCapability,
-        });
-    }
+    // Only an effect capability runs here.
+    request.effects.capability(request.tool)?;
     // An effect capability runs in the runtime's process, behind its native
     // capability boundary; the effect does not say where it ran.
     let execution_boundary = runx_contracts::ExecutionBoundaryKind::NativeCapability;
@@ -196,11 +184,6 @@ fn definition(tool: &str) -> Option<&'static dyn NativeCapability> {
     index.by_id.get(tool).copied()
 }
 
-#[cfg(test)]
-pub(super) fn required_scopes(tool: &str) -> Option<&'static [&'static str]> {
-    definition(tool).map(|capability| capability.definition().scopes)
-}
-
 /// What a call of core tool `tool` with `inputs` would change or run,
 /// without running it; none for a tool that only reads or that runx does not
 /// own.
@@ -217,7 +200,6 @@ pub(crate) fn local_effect(
     };
     tool.local_effect(RawNativeInvocation {
         inputs,
-        scopes: &[],
         observed_at: "",
         env,
         skill_directory,

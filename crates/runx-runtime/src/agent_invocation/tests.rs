@@ -272,11 +272,6 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
     let skill = temp_skill("Use the declared execution requirements without guessing.")?;
     let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
     request.requirements = ExecutionRequirements {
-        scopes: vec![
-            "provider:Read.Mixed".to_owned(),
-            "provider:Read.Mixed".to_owned(),
-            "opaque/scope?x=1".to_owned(),
-        ],
         environment: EnvironmentRequirements {
             required: vec!["REGION".to_owned()],
             optional: vec!["TRACE_LABEL".to_owned()],

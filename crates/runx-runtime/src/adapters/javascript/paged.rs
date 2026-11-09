@@ -23,12 +23,6 @@ pub(super) fn invoke(
         .paged_input
         .clone()
         .ok_or_else(|| page_error("missing page source"))?;
-    crate::capability::enforce_required_scopes(
-        "javascript.pages",
-        ["fs.read"],
-        &request.requirements.scopes,
-    )
-    .map_err(|error| page_error(error.to_string()))?;
     reject_reserved_input(&request.inputs)?;
     let artifact = match &page_source.source {
         ArtifactPageInput::Path {

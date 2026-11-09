@@ -69,13 +69,9 @@ mod tests {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.packet",
-  "source": { "command": "example" },
+  "process": { "command": "example" },
   "inputs": {
-    "plan": {
-      "type": "json",
-      "required": true,
-      "packet": "acme/planner.tool_plan.v1"
-    }
+    "plan": { "packet": "acme/planner.tool_plan.v1" }
   }
 }"#,
         )?;

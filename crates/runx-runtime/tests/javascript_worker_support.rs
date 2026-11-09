@@ -75,7 +75,7 @@ impl JavaScriptPackage {
         &self,
         inputs: JsonObject,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        self.invoke_worker(inputs, javascript_worker(), BTreeMap::new(), Vec::new())
+        self.invoke_worker(inputs, javascript_worker(), BTreeMap::new())
     }
 
     pub(super) fn invoke_with_environment(
@@ -86,7 +86,7 @@ impl JavaScriptPackage {
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
         let mut worker = javascript_worker();
         worker.environment = requirements;
-        self.invoke_worker(inputs, worker, environment, Vec::new())
+        self.invoke_worker(inputs, worker, environment)
     }
 
     pub(super) fn invoke_paged(
@@ -119,7 +119,7 @@ impl JavaScriptPackage {
             framing: ArtifactPageFraming::JsonArray,
             page_bytes,
         });
-        Ok(self.invoke_worker(inputs, worker, BTreeMap::new(), vec!["fs.read".to_owned()])?)
+        Ok(self.invoke_worker(inputs, worker, BTreeMap::new())?)
     }
 
     fn invoke_worker(
@@ -127,10 +127,8 @@ impl JavaScriptPackage {
         inputs: JsonObject,
         worker: WorkerTool,
         env: BTreeMap<String, String>,
-        scopes: Vec<String>,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
         let requirements = ExecutionRequirements {
-            scopes,
             environment: worker.environment.clone(),
         };
         self.adapter.invoke(SkillInvocation {

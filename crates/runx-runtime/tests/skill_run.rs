@@ -3622,20 +3622,17 @@ fn write_echo_tool_at(tool_dir: &Path, message: &str) -> Result<(), Box<dyn std:
         r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "test.echo",
-  "source": {
+  "process": {
     "command": "sh",
     "args": ["./run.sh"],
     "inputs_via": "stdin"
   },
   "inputs": {
-    "message": { "type": "string", "required": true }
+    "message": { "type": "string" }
   },
-  "artifacts": {
-    "named_emits": {
-      "echo": "test.echo.v1"
-    }
-  },
-  "scopes": ["test.echo"]
+  "outputs": {
+    "echo": { "optional": true }
+  }
 }
 "#,
     )?;
@@ -3662,21 +3659,18 @@ fn write_optional_json_tool(root: &Path) -> Result<(), Box<dyn std::error::Error
         r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "test.optional-json",
-  "source": {
+  "process": {
     "command": "sh",
     "args": ["./run.sh"],
     "inputs_via": "stdin"
   },
   "inputs": {
-    "message": { "type": "string", "required": true },
-    "test": { "type": "json", "required": false }
+    "message": { "type": "string" },
+    "test": { "optional": true }
   },
-  "artifacts": {
-    "named_emits": {
-      "echo": "test.optional-json.v1"
-    }
-  },
-  "scopes": ["test.optional-json"]
+  "outputs": {
+    "echo": { "optional": true }
+  }
 }
 "#,
     )?;

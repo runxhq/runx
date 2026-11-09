@@ -1304,14 +1304,15 @@ methods:
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.record",
-  "source": {
+  "process": {
     "command": "true",
     "args": [],
     "inputs_via": "none"
   },
-  "artifacts": {
-    "wrap_as": "record_result"
-  }
+  "outputs": {
+    "record_result": {}
+  },
+  "result_as": "record_result"
 }
 "#,
         )?;
@@ -1355,7 +1356,7 @@ methods:
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.record",
-  "source": {
+  "process": {
     "command": "sh",
     "args": ["-c", "touch \"$RUNX_CWD/tool-ran\""],
     "inputs_via": "none"

@@ -84,10 +84,7 @@ impl TwitterFixture {
                 environment: Default::default(),
             }),
             outputs: None,
-            requirements: runx_contracts::ExecutionRequirements {
-                scopes: vec!["fs.read".to_owned()],
-                ..Default::default()
-            },
+            requirements: runx_contracts::ExecutionRequirements::default(),
             artifacts: None,
             inputs: selection_inputs(),
             resolved_inputs: JsonObject::new(),

@@ -1256,7 +1256,7 @@ mod tests {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.record",
-  "source": {
+  "process": {
     "command": "sh",
     "args": ["-c", "touch \"$RUNX_CWD/tool-ran\""],
     "inputs_via": "none"

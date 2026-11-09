@@ -101,7 +101,6 @@ fn discover_tool_list_items(
                     description: None,
                     methods: None,
                     diagnostics: None,
-                    scopes: Some(tool.scopes),
                     emits: tool
                         .artifacts
                         .as_ref()
@@ -249,7 +248,6 @@ fn skill_profile_list_item(
         description,
         methods: Some(crate::skill_package::catalog_methods(manifest)),
         diagnostics: None,
-        scopes: None,
         emits: skill_emits(manifest),
         fixtures: Some(fixtures),
         test_cases: None,
@@ -323,7 +321,6 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
                 description: None,
                 methods: None,
                 diagnostics: None,
-                scopes: None,
                 emits: None,
                 fixtures: None,
                 test_cases: None,
@@ -350,7 +347,6 @@ fn invalid_item(
         description: None,
         methods: None,
         diagnostics: Some(vec![diagnostic.to_owned()]),
-        scopes: None,
         emits: None,
         fixtures: None,
         test_cases: None,
@@ -479,7 +475,6 @@ mod tests {
             description: None,
             methods: None,
             diagnostics: None,
-            scopes: None,
             emits: None,
             fixtures: None,
             test_cases: None,

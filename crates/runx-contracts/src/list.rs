@@ -86,8 +86,6 @@ pub struct RunxListItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub scopes: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub emits: Option<Vec<RunxListEmit>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixtures: Option<u64>,

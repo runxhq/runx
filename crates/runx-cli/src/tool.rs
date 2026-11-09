@@ -122,9 +122,6 @@ fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResu
         lines.push(format!("  namespace {}", result.namespace));
         lines.push(format!("  external  {}", result.external_name));
         lines.push(format!("  catalog   {}", result.catalog_id));
-        if !result.required_scopes.is_empty() {
-            lines.push(format!("  scopes    {}", result.required_scopes.join(", ")));
-        }
         if let Some(summary) = &result.summary {
             lines.push(format!("  summary   {summary}"));
         }
@@ -135,9 +132,6 @@ fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResu
 
 fn render_inspect_result(result: &runx_contracts::tools::ToolInspectResult) -> String {
     let mut lines = inspect_header_lines(result);
-    if !result.scopes.is_empty() {
-        lines.push(format!("  scopes    {}", result.scopes.join(", ")));
-    }
     if let Some(description) = &result.description {
         lines.push(format!("  summary   {description}"));
     }

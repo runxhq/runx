@@ -253,7 +253,6 @@ pub(crate) trait ToolRunner {
         tool: &str,
         manifest: &Path,
         inputs: JsonObject,
-        scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<JsonValue, confirm::Unperformed>;
 }
@@ -269,7 +268,6 @@ impl ToolRunner for NoTools {
         tool: &str,
         _manifest: &Path,
         _inputs: JsonObject,
-        _scopes: &[String],
         _delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<JsonValue, confirm::Unperformed> {
         Err(confirm::Unperformed::NotSent {
@@ -1463,11 +1461,6 @@ fn dispatch(
         }
         Implementation::Process(spec) => {
             let delivery = process_delivery(context, call.credential)?;
-            let scopes = spec
-                .requires
-                .iter()
-                .map(|scope| scope.as_str().to_owned())
-                .collect::<Vec<_>>();
             let checks = Checks {
                 preconditions: Vec::new(),
                 readbacks: match (call.mutation(), &spec.readback) {
@@ -1498,7 +1491,6 @@ fn dispatch(
                 tool: spec.tool.as_str(),
                 manifest: tool,
                 call: &call,
-                scopes: &scopes,
                 delivery: &delivery,
             };
             confirm::run(&driver, &call, &checks, recovery, &mut record)

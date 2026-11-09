@@ -2916,11 +2916,21 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     let tool = directory.join("tools/fixture/account");
     std::fs::create_dir_all(&tool).unwrap();
     std::fs::write(tool.join("account.sh"), "#!/bin/sh\nexit 1\n").unwrap();
-    std::fs::write(tool.join("manifest.json"), serde_json::json!({
-        "schema":"runx.tool.manifest.v1","name":"fixture.account","version":"0.1.0","description":"Read a managed session account.",
-        "source":{"command":"sh","args":["./account.sh"],"inputs_via":"stdin"},
-        "inputs":{"principal_uri":{"type":"string","required":true}}
-    }).to_string()).unwrap();
+    std::fs::write(
+        tool.join("manifest.json"),
+        serde_json::json!({
+            "schema": "runx.tool.manifest.v1",
+            "name": "fixture.account",
+            "version": "0.1.0",
+            "description": "Read a managed session account.",
+            "process": {"command": "sh", "args": ["./account.sh"], "inputs_via": "stdin"},
+            "inputs": {
+                "principal_uri": {"type": "string"}
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
     let connector = crate::kernel::connectors::ConnectorScope::at(root)
         .unwrap()
         .connector("fixture/forge")
@@ -2969,7 +2979,6 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
             _: &str,
             _: &std::path::Path,
             inputs: JsonObject,
-            _: &[String],
             _: &crate::credentials::CredentialDelivery,
         ) -> Result<JsonValue, super::confirm::Unperformed> {
             self.0.borrow_mut().push(inputs.clone());

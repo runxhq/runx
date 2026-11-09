@@ -85,8 +85,7 @@ fn inspect_local_tool(
         description: tool.description,
         execution: "process".to_owned(),
         inputs: tool.inputs,
-        scopes: tool.scopes,
-        runtime: Some(super::projection::runtime_command(&tool.source)),
+        runtime: Some(super::projection::runtime_command(&tool.process)),
         reference_path: display_path(manifest_path),
         skill_directory: manifest_path
             .parent()

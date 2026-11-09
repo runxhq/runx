@@ -31,7 +31,6 @@ impl ToolRunner for StandIn<'_> {
         tool: &str,
         manifest: &Path,
         inputs: JsonObject,
-        scopes: &[String],
         _delivery: &CredentialDelivery,
     ) -> Result<JsonValue, Unperformed> {
         let declared = crate::tool_catalogs::manifest::read(manifest).map_err(|error| {
@@ -39,19 +38,6 @@ impl ToolRunner for StandIn<'_> {
                 code: "test_input",
                 reason: error.to_string(),
             }
-        })?;
-        crate::capability::enforce_required_scopes(
-            tool,
-            declared
-                .execution_requirements()
-                .scopes
-                .iter()
-                .map(String::as_str),
-            scopes,
-        )
-        .map_err(|error| Unperformed::NotSent {
-            code: "test_input",
-            reason: error.to_string(),
         })?;
         let inputs = crate::input_contract::materialize_tool_inputs(
             &declared.inputs,
@@ -83,7 +69,6 @@ pub(crate) struct Process<'a> {
     /// The installed manifest of the connector's tool.
     pub manifest: &'a Path,
     pub call: &'a AdmittedCall<'a>,
-    pub scopes: &'a [String],
     pub delivery: &'a CredentialDelivery,
 }
 
@@ -190,7 +175,7 @@ impl Process<'_> {
             }
         }
         self.tools
-            .run(self.tool, self.manifest, inputs, self.scopes, self.delivery)
+            .run(self.tool, self.manifest, inputs, self.delivery)
     }
 }
 
@@ -233,7 +218,6 @@ mod tests {
             _tool: &str,
             _manifest: &Path,
             inputs: JsonObject,
-            _scopes: &[String],
             _delivery: &CredentialDelivery,
         ) -> Result<JsonValue, Unperformed> {
             self.runs.borrow_mut().push(inputs.clone());
@@ -290,7 +274,6 @@ mod tests {
                 tool: "git.push",
                 manifest,
                 call: &call,
-                scopes: &[],
                 delivery: &delivery,
             };
             let performed = driver.perform(None);
@@ -319,7 +302,6 @@ mod tests {
             tool: "git.push",
             manifest,
             call: &call,
-            scopes: &[],
             delivery: &delivery,
         };
         let answer = performed.map_err(Unperformed::reason)?.value;
@@ -370,7 +352,6 @@ mod tests {
             tool: "git.push",
             manifest,
             call: &call,
-            scopes: &[],
             delivery: &delivery,
         };
         read.perform(None).map_err(Unperformed::reason)?;
@@ -407,7 +388,6 @@ mod tests {
             tool: "browser.probe",
             manifest: Path::new("manifest.json"),
             call: &call,
-            scopes: &[],
             delivery: &CredentialDelivery::none(),
         }
         .perform(None)

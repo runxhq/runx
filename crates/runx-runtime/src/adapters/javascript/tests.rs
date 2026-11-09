@@ -43,7 +43,6 @@ fn page_invocation(
     page_bytes: u64,
 ) -> SkillInvocation {
     let mut request = invocation(root);
-    request.requirements.scopes.push("fs.read".to_owned());
     if let Executable::Worker(worker) = &mut request.executable {
         worker
             .requires
@@ -130,7 +129,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
 }
 
 #[test]
-fn admitted_artifact_pages_use_the_snapshot_and_require_native_scope_and_lifetime()
+fn admitted_artifact_pages_use_the_snapshot_and_its_lifetime()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let root = directory.path();
@@ -191,16 +190,6 @@ fn admitted_artifact_pages_use_the_snapshot_and_require_native_scope_and_lifetim
             .contains(&crate::services::WorkspaceFileError::UnknownArtifactReference.to_string()),
         "{error}"
     );
-    request.requirements.scopes.clear();
-    request.inputs.insert(
-        "source_uri".to_owned(),
-        JsonValue::String("not-a-native-reference".to_owned()),
-    );
-    let error = adapter
-        .invoke_with_artifacts(request, &package, &artifacts)
-        .err()
-        .ok_or("missing page scope was admitted")?;
-    assert!(error.to_string().contains("fs.read"), "{error}");
     assert_eq!(adapter.session_stats().spawned_process_count, 1);
     Ok(())
 }

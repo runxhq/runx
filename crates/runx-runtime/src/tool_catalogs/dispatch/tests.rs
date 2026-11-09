@@ -12,39 +12,6 @@ use crate::adapter::{InvocationOutput, InvocationStatus};
 use crate::{CredentialDelivery, RuntimeEffectRegistry, RuntimeError};
 
 #[test]
-fn dispatch_refuses_local_tool_with_undeclared_required_scope()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    write_catalog_tool(
-        &temp.path().join("tools/test/scope-claim"),
-        r#"{
-  "schema": "runx.tool.manifest.v1",
-  "name": "test.scope-claim",
-  "source": {
-    "command": "/bin/sh",
-    "args": ["./run.sh"]
-  },
-  "scopes": ["example:network"]
-}
-"#,
-        "printf '%s\n' '{\"ok\":true}'\n",
-    )?;
-
-    let output = invoke_with_declared_scopes_in_directory(
-        "test.scope-claim",
-        JsonObject::new(),
-        JsonObject::new(),
-        temp.path().to_path_buf(),
-        tool_root_env(temp.path()),
-        &[],
-    )?;
-
-    assert_eq!(output.status, InvocationStatus::Failure);
-    assert!(diagnostic(&output).contains("missing required scope declaration(s): example:network"));
-    Ok(())
-}
-
-#[test]
 fn dispatch_invokes_local_tool_with_declared_inputs_only() -> Result<(), Box<dyn std::error::Error>>
 {
     let temp = tempdir()?;
@@ -53,15 +20,10 @@ fn dispatch_invokes_local_tool_with_declared_inputs_only() -> Result<(), Box<dyn
         r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "test.exact-inputs",
-  "source": {
-    "command": "/bin/sh",
-    "args": ["./run.sh"],
-    "inputs_via": "stdin"
-  },
+  "process": { "command": "/bin/sh", "args": ["./run.sh"], "inputs_via": "stdin" },
   "inputs": {
-    "message": { "type": "string", "required": true }
-  },
-  "scopes": ["test.exact-inputs"]
+    "message": { "type": "string" }
+  }
 }
 "#,
         r#"raw="$(cat)"
@@ -110,18 +72,13 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
         r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "test.materialized",
-  "source": {
-    "command": "/bin/sh",
-    "args": ["./run.sh"],
-    "inputs_via": "stdin"
-  },
+  "process": { "command": "/bin/sh", "args": ["./run.sh"], "inputs_via": "stdin" },
   "inputs": {
-    "count": { "type": "integer", "required": true },
-    "message": { "type": "string", "required": true },
-    "mode": { "type": "string", "required": false, "default": "safe" },
-    "optional": { "type": "object", "required": false }
-  },
-  "scopes": ["test.materialized"]
+    "count": { "type": "integer" },
+    "message": { "type": "string" },
+    "mode": { "type": "string", "default": "safe", "optional": true },
+    "optional": { "type": "object", "optional": true }
+  }
 }
 "#,
         "cat\n",
@@ -180,15 +137,10 @@ fn dispatch_rejects_missing_and_type_invalid_inputs_before_tool_execution()
         r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "test.typed",
-  "source": {
-    "command": "/bin/sh",
-    "args": ["./run.sh"],
-    "inputs_via": "stdin"
-  },
+  "process": { "command": "/bin/sh", "args": ["./run.sh"], "inputs_via": "stdin" },
   "inputs": {
-    "message": { "type": "string", "required": true }
-  },
-  "scopes": ["test.typed"]
+    "message": { "type": "string" }
+  }
 }
 "#,
         "printf '%s\\n' '{\"started\":true}'\n",
@@ -234,28 +186,6 @@ fn invoke_with_resolved_in_directory(
     skill_directory: PathBuf,
     env: BTreeMap<String, String>,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let scopes = crate::tool_catalogs::native::required_scopes(tool).map_or_else(
-        || vec![tool.to_owned()],
-        |scopes| scopes.iter().map(|scope| (*scope).to_owned()).collect(),
-    );
-    invoke_with_declared_scopes_in_directory(
-        tool,
-        inputs,
-        resolved_inputs,
-        skill_directory,
-        env,
-        &scopes,
-    )
-}
-
-fn invoke_with_declared_scopes_in_directory(
-    tool: &str,
-    inputs: JsonObject,
-    resolved_inputs: JsonObject,
-    skill_directory: PathBuf,
-    env: BTreeMap<String, String>,
-    scopes: &[String],
-) -> Result<InvocationOutput, RuntimeError> {
     let credential_delivery = CredentialDelivery::none();
     let effects = RuntimeEffectRegistry::default();
     let local_artifacts = crate::services::LocalArtifactService::default();
@@ -264,7 +194,6 @@ fn invoke_with_declared_scopes_in_directory(
             tool: Cow::Borrowed(tool),
             inputs: Cow::Owned(inputs),
             resolved_inputs: Cow::Owned(resolved_inputs),
-            scopes,
             env: &env,
             skill_directory: &skill_directory,
             credential_delivery: &credential_delivery,
@@ -325,10 +254,15 @@ fn process_protocol_fields_survive_production_input_materialization()
     write_catalog_tool(
         &temp.path().join("tools/test/process-protocol"),
         r#"{
-      "schema":"runx.tool.manifest.v1","name":"test.process-protocol",
-      "source":{"command":"/bin/sh","args":["./run.sh"],"inputs_via":"stdin"},
-      "inputs":{"operation":{"type":"string","required":true},"phase":{"type":"string","required":false},"idempotency_key":{"type":"string","required":false},"session_account":{"type":"string","required":false}},
-      "scopes":["test.process-protocol"]
+      "schema": "runx.tool.manifest.v1",
+      "name": "test.process-protocol",
+      "process": {"command": "/bin/sh", "args": ["./run.sh"], "inputs_via": "stdin"},
+      "inputs": {
+        "operation": {"type": "string"},
+        "phase": {"type": "string", "optional": true},
+        "idempotency_key": {"type": "string", "optional": true},
+        "session_account": {"type": "string", "optional": true}
+      }
     }"#,
         "cat\n",
     )?;

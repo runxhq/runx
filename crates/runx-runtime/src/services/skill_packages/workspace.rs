@@ -191,12 +191,6 @@ fn catalog_entry(item: RunxListItem) -> SkillCatalogEntry {
             .and_then(runx_contracts::schema::NonEmptyString::new),
         path: item.path.into(),
         status: item.status,
-        scopes: item
-            .scopes
-            .unwrap_or_default()
-            .into_iter()
-            .map(Into::into)
-            .collect(),
         fixtures: item.fixtures,
         test_cases: item.test_cases,
     }

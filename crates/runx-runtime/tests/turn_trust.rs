@@ -55,9 +55,15 @@ const MARKER_TOOL: &str = r#"{
   "name": "marker.write",
   "version": "0.1.0",
   "description": "Write a marker file: the marker connector's marker.write implementation.",
-  "source": {"command": "sh", "args": ["./write.sh", "{{path}}"]},
+  "process": {
+    "command": "sh",
+    "args": [
+      "./write.sh",
+      "{{path}}"
+    ]
+  },
   "inputs": {
-    "path": {"type": "string", "required": true, "description": "Where the marker goes."}
+    "path": {"type": "string", "description": "Where the marker goes."}
   }
 }
 "#;

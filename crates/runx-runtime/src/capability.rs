@@ -112,28 +112,6 @@ pub trait CapabilityContract: Send + Sync {
     }
 }
 
-pub(crate) fn enforce_required_scopes<'a>(
-    operation: &str,
-    required: impl IntoIterator<Item = &'a str>,
-    declared: &[String],
-) -> Result<(), RuntimeError> {
-    let declared = declared.iter().map(String::as_str).collect::<BTreeSet<_>>();
-    let missing = required
-        .into_iter()
-        .filter(|scope| !declared.contains(scope))
-        .collect::<BTreeSet<_>>();
-    if missing.is_empty() {
-        return Ok(());
-    }
-    Err(RuntimeError::SkillFailed {
-        skill_name: operation.to_owned(),
-        message: format!(
-            "missing required scope declaration(s): {}",
-            missing.into_iter().collect::<Vec<_>>().join(", ")
-        ),
-    })
-}
-
 pub struct TypedCapability<I> {
     definition: CapabilityDefinition,
     marker: PhantomData<fn() -> I>,

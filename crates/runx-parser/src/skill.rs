@@ -24,7 +24,7 @@ pub use types::{
 
 pub(crate) use catalog::validate_catalog_metadata;
 pub(crate) use environment::validate_environment_requirements;
-pub(crate) use governance::{validate_input_fields, validate_inputs};
+pub(crate) use governance::validate_input_fields;
 pub(crate) use method_definition::validate_method_definition;
 
 const FIELDS: JsonFieldReader = JsonFieldReader::new("skill");

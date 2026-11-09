@@ -156,7 +156,7 @@ mod tests {
         std::fs::create_dir_all(&tool).map_err(|error| error.to_string())?;
         std::fs::write(
             tool.join(MANIFEST),
-            r#"{"schema": "runx.tool.manifest.v1", "name": "acme.sync", "version": "0.1.0", "description": "Syncs.", "source": {"command": "node", "args": ["./sync.mjs"]}}"#,
+            r#"{"schema": "runx.tool.manifest.v1", "name": "acme.sync", "version": "0.1.0", "description": "Syncs.", "process": {"command": "node", "args": ["./sync.mjs"]}}"#,
         )
         .map_err(|error| error.to_string())?;
         std::fs::write(tool.join("sync.mjs"), body).map_err(|error| error.to_string())

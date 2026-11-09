@@ -14,14 +14,12 @@ fn call(
     artifacts: &LocalArtifactService,
     reach: Reach,
     identity: Option<&ToolCall>,
-    scopes: &[String],
 ) -> Result<JsonValue, Box<dyn std::error::Error>> {
     let root = std::path::Path::new(env.get("RUNX_CWD").ok_or("missing workspace")?);
     let result = invoke(NativeToolInvocation {
         tool,
         observed_at: "2026-11-03T10:00:00Z",
         inputs: serde_json::from_value::<JsonObject>(inputs)?,
-        scopes,
         env,
         skill_directory: root,
         credential_delivery: &CredentialDelivery::none(),
@@ -60,7 +58,6 @@ fn store(
         &LocalArtifactService::default(),
         Reach::Inputs,
         Some(&ToolCall::new("artifact-run", "store", 1, None)),
-        &["artifact.write".to_owned()],
     )?
     .deserialize_into()
     .map_err(Into::into)
@@ -93,7 +90,6 @@ fn project_artifact_store_reopens_in_a_fresh_snapshot_service_and_pages_exact_by
         &snapshots,
         Reach::Inputs,
         None,
-        &["artifact.read".to_owned()],
     )?
     .deserialize_into()?;
     assert_eq!(opened.whole_digest, artifact.digest);
@@ -126,7 +122,6 @@ fn project_artifact_store_reopens_in_a_fresh_snapshot_service_and_pages_exact_by
             &LocalArtifactService::default(),
             Reach::Inputs,
             None,
-            &["artifact.read".to_owned()]
         )
         .is_err()
     );
@@ -134,7 +129,7 @@ fn project_artifact_store_reopens_in_a_fresh_snapshot_service_and_pages_exact_by
 }
 
 #[test]
-fn project_artifact_ports_require_scope_identity_and_reach_inputs_before_io()
+fn project_artifact_ports_require_identity_and_reach_inputs_before_io()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
     let project = workspace.path().join("not-created");
@@ -144,24 +139,11 @@ fn project_artifact_ports_require_scope_identity_and_reach_inputs_before_io()
     assert!(
         call(
             "artifact.store",
-            serde_json::json!({"value":{"secret":"already supplied"}}),
-            &env,
-            &snapshots,
-            Reach::Inputs,
-            Some(&identity),
-            &[]
-        )
-        .is_err()
-    );
-    assert!(
-        call(
-            "artifact.store",
             serde_json::json!({"value":1}),
             &env,
             &snapshots,
             Reach::Inputs,
             None,
-            &["artifact.write".to_owned()]
         )
         .is_err()
     );
@@ -173,7 +155,6 @@ fn project_artifact_ports_require_scope_identity_and_reach_inputs_before_io()
             &snapshots,
             Reach::Workspace,
             Some(&identity),
-            &["artifact.write".to_owned()]
         )
         .is_err()
     );
@@ -185,7 +166,6 @@ fn project_artifact_ports_require_scope_identity_and_reach_inputs_before_io()
         &snapshots,
         Reach::Workspace,
         None,
-        &["artifact.read".to_owned()],
     );
     let error = match result {
         Err(error) => error,
@@ -214,7 +194,6 @@ fn project_artifact_open_refuses_tampering_foreign_roots_and_oversized_descripto
             &fresh,
             Reach::Inputs,
             None,
-            &["artifact.read".to_owned()]
         )
         .is_err()
     );
@@ -234,7 +213,6 @@ fn project_artifact_open_refuses_tampering_foreign_roots_and_oversized_descripto
                 &fresh,
                 Reach::Inputs,
                 None,
-                &["artifact.read".to_owned()]
             )
             .is_err()
         );
@@ -251,7 +229,6 @@ fn project_artifact_open_refuses_tampering_foreign_roots_and_oversized_descripto
             &fresh,
             Reach::Inputs,
             None,
-            &["artifact.read".to_owned()]
         )
         .is_err()
     );
@@ -282,7 +259,6 @@ fn project_artifact_open_refuses_file_symlinks_and_nonregular_sources()
             &LocalArtifactService::default(),
             Reach::Inputs,
             None,
-            &["artifact.read".to_owned()]
         )
         .is_err()
     );
@@ -296,7 +272,6 @@ fn project_artifact_open_refuses_file_symlinks_and_nonregular_sources()
             &LocalArtifactService::default(),
             Reach::Inputs,
             None,
-            &["artifact.read".to_owned()]
         )
         .is_err()
     );
@@ -326,7 +301,6 @@ fn project_artifact_open_preserves_large_record_paging_without_a_control_blob()
         &snapshots,
         Reach::Inputs,
         None,
-        &["artifact.read".to_owned()],
     )?
     .deserialize_into()?;
     let mut offset = 0;

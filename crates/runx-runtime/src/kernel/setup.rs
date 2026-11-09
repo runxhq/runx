@@ -63,7 +63,6 @@ impl ToolRunner for SetupTools<'_> {
         tool: &str,
         manifest: &Path,
         inputs: JsonObject,
-        scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<runx_contracts::JsonValue, super::operation::confirm::Unperformed> {
         let directory =
@@ -79,7 +78,6 @@ impl ToolRunner for SetupTools<'_> {
                 tool: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
                 resolved_inputs: Cow::Owned(JsonObject::new()),
-                scopes,
                 env: self.env,
                 skill_directory: directory,
                 credential_delivery: delivery,

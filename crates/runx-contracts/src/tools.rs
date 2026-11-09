@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
-use crate::{ArtifactDeclaration, EnvironmentRequirements, IdempotencyPolicy, InputDefinition};
+use crate::{EnvironmentRequirements, InputDefinition, JsonObject};
 
 pub const TOOL_MANIFEST_SCHEMA: &str = "runx.tool.manifest.v1";
 
@@ -31,35 +31,40 @@ pub enum ToolInspectOrigin {
     Native,
 }
 
+/// A tool: a named process that declares its interface the way a method does.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.tool.manifest.v1")]
 pub struct ToolManifest {
     pub schema: ToolManifestSchema,
+    /// The catalog name a step's `tool:` uses.
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub source: ToolSource,
+    pub process: ToolProcess,
+    /// Each input is its JSON Schema, required unless it says
+    /// `optional: true`, as a method's are.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub inputs: BTreeMap<String, ToolInput>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub scopes: Vec<String>,
+    pub inputs: BTreeMap<String, JsonObject>,
+    /// Each output is its JSON Schema, as a method's are. One with a `packet`
+    /// is also kept as an artifact of that packet.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub outputs: BTreeMap<String, JsonObject>,
+    /// The output the whole result becomes, as a step's `result_as` is.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifacts: Option<ArtifactDeclaration>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency: Option<ToolIdempotencyPolicy>,
+    pub result_as: Option<String>,
 }
 
 pub type ToolInput = InputDefinition;
-pub type ToolIdempotencyPolicy = IdempotencyPolicy;
 
-/// A tool's executable: a trusted host process. runx controls its argv, cwd,
-/// environment and lifetime, but does not confine it.
+/// A tool's executable: a trusted host process, the same object as a step's
+/// process tool. runx controls its argv, cwd, environment and lifetime, but
+/// does not confine it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ToolSource {
+pub struct ToolProcess {
     pub command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
@@ -96,7 +101,6 @@ pub struct ToolCatalogSearchResult {
     pub source_label: String,
     pub namespace: String,
     pub external_name: String,
-    pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
     pub catalog_id: String,
 }
@@ -118,7 +122,6 @@ pub struct ToolInspectResult {
     /// How the tool executes: `native` (runx's own code) or `process`.
     pub execution: String,
     pub inputs: BTreeMap<String, ToolInput>,
-    pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime: Option<RuntimeCommand>,
     pub reference_path: String,
@@ -155,10 +158,12 @@ pub struct ToolInspectProvenance {
 #[cfg(test)]
 mod tests {
     use super::{
-        ToolCatalogSearchResult, ToolCommandInputMode, ToolInput, ToolInspectOrigin,
-        ToolInspectProvenance, ToolInspectResult, ToolManifest, ToolManifestSchema, ToolSource,
+        ToolCatalogSearchResult, ToolCommandInputMode, ToolInspectOrigin, ToolInspectProvenance,
+        ToolInspectResult, ToolManifest, ToolManifestSchema, ToolProcess,
     };
-    use crate::EnvironmentRequirements;
+    use std::collections::BTreeMap;
+
+    use crate::{EnvironmentRequirements, JsonValue};
 
     #[test]
     fn tool_manifest_round_trips_snake_case_fields() -> Result<(), serde_json::Error> {
@@ -166,7 +171,7 @@ mod tests {
           "schema": "runx.tool.manifest.v1",
           "name": "fs.read",
           "description": "Read a UTF-8 text file.",
-          "source": {
+          "process": {
             "command": "node",
             "args": ["./run.mjs"],
             "timeout_seconds": 30,
@@ -175,35 +180,31 @@ mod tests {
           "inputs": {
             "path": {
               "type": "string",
-              "required": true,
               "description": "Path to read."
             }
           },
-          "artifacts": {
-            "packet": "runx.fs.file_read.v1",
-            "wrap_as": "file_read"
+          "outputs": {
+            "file_read": { "packet": "runx.fs.file_read.v1" }
           },
-          "scopes": ["fs.read"]
+          "result_as": "file_read"
         }"#;
 
         let manifest: ToolManifest = serde_json::from_str(json)?;
 
         assert_eq!(manifest.schema, ToolManifestSchema::V1);
-        assert_eq!(manifest.source.command, "node");
+        assert_eq!(manifest.process.command, "node");
         assert_eq!(
-            manifest.source.inputs_via,
+            manifest.process.inputs_via,
             Some(ToolCommandInputMode::Stdin)
         );
+        assert_eq!(manifest.result_as.as_deref(), Some("file_read"));
         assert_eq!(
-            manifest
-                .artifacts
-                .as_ref()
-                .and_then(|value| value.wrap_as.as_deref()),
-            Some("file_read")
+            manifest.outputs["file_read"]["packet"],
+            JsonValue::String("runx.fs.file_read.v1".to_owned())
         );
 
         let encoded = serde_json::to_value(&manifest)?;
-        assert_eq!(encoded["source"]["timeout_seconds"], 30);
+        assert_eq!(encoded["process"]["timeout_seconds"], 30);
         assert!(encoded.get("runtime").is_none());
         assert!(encoded.get("output").is_none());
         assert!(encoded.get("source_digest").is_none());
@@ -215,8 +216,9 @@ mod tests {
         let encoded = serde_json::to_value(tool_manifest_fixture())?;
 
         assert!(encoded.get("description").is_none());
-        assert!(encoded["source"].get("args").is_none());
-        assert!(encoded.get("artifacts").is_none());
+        assert!(encoded["process"].get("args").is_none());
+        assert!(encoded.get("outputs").is_none());
+        assert!(encoded.get("result_as").is_none());
         Ok(())
     }
 
@@ -226,28 +228,22 @@ mod tests {
             name: "fixture.echo".to_owned(),
             version: None,
             description: None,
-            source: tool_source_fixture(),
+            process: tool_process_fixture(),
             inputs: [(
                 "message".to_owned(),
-                ToolInput {
-                    input_type: "string".to_owned(),
-                    required: true,
-                    description: None,
-                    default: None,
-                    packet: None,
-                    schema: None,
-                },
+                [("type".to_owned(), JsonValue::String("string".to_owned()))]
+                    .into_iter()
+                    .collect(),
             )]
             .into_iter()
             .collect(),
-            scopes: Vec::new(),
-            artifacts: None,
-            idempotency: None,
+            outputs: BTreeMap::new(),
+            result_as: None,
         }
     }
 
-    fn tool_source_fixture() -> ToolSource {
-        ToolSource {
+    fn tool_process_fixture() -> ToolProcess {
+        ToolProcess {
             command: "node".to_owned(),
             args: Vec::new(),
             cwd: None,
@@ -268,14 +264,12 @@ mod tests {
               "source_label": "runx-runtime/filesystem",
               "namespace": "fs",
               "external_name": "read",
-              "required_scopes": ["fs.read"],
               "tags": ["native"],
               "catalog_id": "runx-runtime/filesystem:fs.read"
             }"#,
         )?;
 
         assert_eq!(result.catalog_id, "runx-runtime/filesystem:fs.read");
-        assert_eq!(result.required_scopes, ["fs.read"]);
         Ok(())
     }
 
@@ -286,7 +280,6 @@ mod tests {
               "name": "fs.read",
               "execution": "native",
               "inputs": {},
-              "scopes": ["fs.read"],
               "reference_path": "native:runx-runtime/filesystem:fs.read",
               "skill_directory": ".",
               "provenance": {

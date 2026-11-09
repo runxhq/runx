@@ -584,7 +584,7 @@ methods:
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
-  "source": {
+  "process": {
     "command": "node",
     "args": ["./run.mjs"]
   }
@@ -643,7 +643,10 @@ fn skill_package_rejects_invalid_or_misplaced_bundled_tool_manifests() {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.other",
-  "source": { "command": "node", "args": ["./run.mjs"] }
+  "process": {
+    "command": "node",
+    "args": ["./run.mjs"]
+  }
 }"#,
             "must match its catalog path",
         ),
@@ -674,7 +677,10 @@ fn skill_package_rejects_unbound_bundled_tool_dependencies() {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
-  "source": { "command": "node", "args": ["./run.mjs"] }
+  "process": {
+    "command": "node",
+    "args": ["./run.mjs"]
+  }
 }"#
             .to_owned(),
         ),
@@ -697,7 +703,10 @@ fn skill_package_rejects_a_node_tool_that_imports_uncompiled_typescript() {
             r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "example.echo",
-  "source": { "command": "node", "args": ["./run.mjs"] }
+  "process": {
+    "command": "node",
+    "args": ["./run.mjs"]
+  }
 }"#
             .to_owned(),
         ),

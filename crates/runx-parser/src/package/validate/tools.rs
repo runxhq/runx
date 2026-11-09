@@ -20,7 +20,7 @@ pub(super) fn validate_package_tools(
             })?;
             let tool = validate_manifest(&manifest_path, text_file(&manifest_path, contents)?)?;
             validate_tool_identity(&manifest_path, &tool)?;
-            let source_files = validate_tool_source_files(source, &manifest_path, &tool.source)?;
+            let source_files = validate_tool_source_files(source, &manifest_path, &tool.process)?;
             Ok((
                 manifest_path.clone(),
                 ValidatedPackageTool {

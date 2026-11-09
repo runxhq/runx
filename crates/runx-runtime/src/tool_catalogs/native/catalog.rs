@@ -38,7 +38,6 @@ pub(crate) fn inspect(
             definition.source,
             definition.summary,
             tool.catalog_inputs().ok()?,
-            definition.scopes,
             root,
         ));
     }
@@ -50,7 +49,6 @@ pub(crate) fn inspect(
         definition.source,
         definition.summary,
         tool.catalog_inputs().ok()?,
-        definition.scopes,
         root,
     ))
 }
@@ -60,7 +58,6 @@ fn inspect_report(
     source: &str,
     description: &str,
     inputs: BTreeMap<String, ToolInput>,
-    scopes: &[&str],
     root: &Path,
 ) -> ToolInspectReport {
     ToolInspectReport {
@@ -69,7 +66,6 @@ fn inspect_report(
             description: Some(description.to_owned()),
             execution: "native".to_owned(),
             inputs,
-            scopes: scopes.iter().map(|scope| (*scope).to_owned()).collect(),
             runtime: None,
             reference_path: format!("native:{name}"),
             skill_directory: root.to_string_lossy().into_owned(),
@@ -99,21 +95,11 @@ pub(crate) fn search(
     let query = query.trim().to_ascii_lowercase();
     let core = core_capabilities().map(|tool| {
         let definition = tool.definition();
-        search_result(
-            definition.id,
-            definition.source,
-            definition.summary,
-            definition.scopes,
-        )
+        search_result(definition.id, definition.source, definition.summary)
     });
     let extensions = effects.capabilities().into_iter().map(|tool| {
         let definition = tool.definition();
-        search_result(
-            definition.id,
-            definition.source,
-            definition.summary,
-            definition.scopes,
-        )
+        search_result(definition.id, definition.source, definition.summary)
     });
 
     core.chain(extensions)
@@ -140,12 +126,6 @@ pub(crate) fn inventory(effects: &RuntimeEffectRegistry) -> Vec<SkillCatalogEntr
                 description: Some(description.into()),
                 path: tool.path.into(),
                 status: RunxListStatus::Ok,
-                scopes: tool
-                    .scopes
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
                 fixtures: None,
                 test_cases: None,
             }
@@ -161,23 +141,15 @@ pub(crate) fn list_items(effects: &RuntimeEffectRegistry) -> Vec<RunxListItem> {
 
 fn list_native_tool(tool: &dyn NativeCapability) -> RunxListItem {
     let definition = tool.definition();
-    list_item(
-        definition.id,
-        definition.scopes,
-        emits(definition.artifacts),
-    )
+    list_item(definition.id, emits(definition.artifacts))
 }
 
 fn list_capability(tool: &dyn CapabilityContract) -> RunxListItem {
     let definition = tool.definition();
-    list_item(
-        definition.id,
-        definition.scopes,
-        emits(definition.artifacts),
-    )
+    list_item(definition.id, emits(definition.artifacts))
 }
 
-fn list_item(name: &str, scopes: &[&str], emits: Option<Vec<RunxListEmit>>) -> RunxListItem {
+fn list_item(name: &str, emits: Option<Vec<RunxListEmit>>) -> RunxListItem {
     RunxListItem {
         kind: RunxListItemKind::Tool,
         name: name.to_owned(),
@@ -188,8 +160,6 @@ fn list_item(name: &str, scopes: &[&str], emits: Option<Vec<RunxListEmit>>) -> R
         description: None,
         methods: None,
         diagnostics: None,
-        scopes: (!scopes.is_empty())
-            .then(|| scopes.iter().map(|scope| (*scope).to_owned()).collect()),
         emits,
         fixtures: None,
         test_cases: None,
@@ -208,12 +178,7 @@ fn emits(artifacts: CapabilityArtifacts) -> Option<Vec<RunxListEmit>> {
     }
 }
 
-fn search_result(
-    name: &str,
-    source: &str,
-    description: &str,
-    scopes: &[&str],
-) -> ToolCatalogSearchResult {
+fn search_result(name: &str, source: &str, description: &str) -> ToolCatalogSearchResult {
     ToolCatalogSearchResult {
         tool_id: format!("native/{name}"),
         name: name.to_owned(),
@@ -228,7 +193,6 @@ fn search_result(
             .split_once('.')
             .map_or(name, |(_, external_name)| external_name)
             .to_owned(),
-        required_scopes: scopes.iter().map(|scope| (*scope).to_owned()).collect(),
         tags: vec!["native".to_owned(), "runx".to_owned()],
         catalog_id: name.to_owned(),
     }

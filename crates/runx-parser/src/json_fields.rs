@@ -119,18 +119,6 @@ impl JsonFieldReader {
         }
     }
 
-    pub(crate) fn optional_bool(
-        &self,
-        value: Option<&JsonValue>,
-        field: &str,
-    ) -> Result<Option<bool>, ValidationError> {
-        match value {
-            None | Some(JsonValue::Null) => Ok(None),
-            Some(JsonValue::Bool(value)) => Ok(Some(*value)),
-            Some(_) => Err(self.validation_error(format!("{field} must be a boolean."))),
-        }
-    }
-
     pub(crate) fn reject_unknown_fields(
         &self,
         object: &JsonObject,

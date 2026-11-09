@@ -644,13 +644,21 @@ fn operation_call(
     Ok(call)
 }
 
-/// The outputs a step keeps as artifacts: each output naming a `packet`, and
-/// `result_as`, the output the whole result becomes, with its packet.
-fn output_artifacts(
+/// The outputs a step or a tool keeps as artifacts: each output naming a
+/// `packet`, and `result_as`, the output the whole result becomes, with its
+/// packet. `field` is where they're written, empty at a document's root.
+pub(crate) fn output_artifacts(
     outputs: Option<&JsonObject>,
     result_as: Option<String>,
     field: &str,
 ) -> Result<Option<SkillArtifactContract>, ValidationError> {
+    let at = |key: &str| {
+        if field.is_empty() {
+            key.to_owned()
+        } else {
+            format!("{field}.{key}")
+        }
+    };
     let mut packets = BTreeMap::new();
     for (name, declaration) in outputs.into_iter().flatten() {
         let Some(packet) = declaration.as_object().and_then(|spec| spec.get("packet")) else {
@@ -661,7 +669,8 @@ fn output_artifacts(
             .and_then(|packet| PacketId::new(packet.to_owned()))
             .ok_or_else(|| {
                 validation_error(format!(
-                    "{field}.outputs.{name}.packet is not a packet id; {}.",
+                    "{}.packet is not a packet id; {}.",
+                    at(&format!("outputs.{name}")),
                     runx_contracts::PACKET_ID_EXPECTED
                 ))
             })?;
@@ -671,7 +680,9 @@ fn output_artifacts(
         && !outputs.is_some_and(|outputs| outputs.contains_key(result_as))
     {
         return Err(validation_error(format!(
-            "{field}.result_as names {result_as}, which the step's outputs don't declare."
+            "{} names {result_as}, which {} doesn't declare.",
+            at("result_as"),
+            at("outputs")
         )));
     }
     let packet = result_as

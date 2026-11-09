@@ -16,19 +16,6 @@ fn invoke(
     workspace: &Path,
     credential_delivery: CredentialDelivery,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let scopes: Vec<String> = crate::tool_catalogs::native::required_scopes(tool)
-        .map(|scopes| scopes.iter().map(|scope| (*scope).to_owned()).collect())
-        .unwrap_or_default();
-    invoke_with_scopes(tool, inputs, workspace, credential_delivery, &scopes)
-}
-
-fn invoke_with_scopes(
-    tool: &str,
-    inputs: JsonObject,
-    workspace: &Path,
-    credential_delivery: CredentialDelivery,
-    scopes: &[String],
-) -> Result<InvocationOutput, RuntimeError> {
     let env = BTreeMap::from([(
         "RUNX_CWD".to_owned(),
         workspace.to_string_lossy().into_owned(),
@@ -39,7 +26,6 @@ fn invoke_with_scopes(
             tool: Cow::Borrowed(tool),
             inputs: Cow::Owned(inputs),
             resolved_inputs: Cow::Owned(JsonObject::new()),
-            scopes,
             env: &env,
             skill_directory: workspace,
             credential_delivery: &credential_delivery,
@@ -57,34 +43,10 @@ fn invoke_with_scopes(
 }
 
 #[test]
-fn native_capability_refuses_undeclared_owned_scope() -> Result<(), Box<dyn std::error::Error>> {
-    let workspace = tempfile::tempdir()?;
-    let output = invoke_with_scopes(
-        "fs.read",
-        JsonObject::from([(
-            "path".to_owned(),
-            JsonValue::String("missing.txt".to_owned()),
-        )]),
-        workspace.path(),
-        CredentialDelivery::none(),
-        &[],
-    )?;
-
-    assert_eq!(output.status, InvocationStatus::Failure);
-    assert!(
-        output.failure_message().is_some_and(
-            |message| message.contains("missing required scope declaration(s): fs.read")
-        )
-    );
-    Ok(())
-}
-
-#[test]
 fn scoped_native_command_does_not_invent_human_approval() -> Result<(), Box<dyn std::error::Error>>
 {
     let workspace = tempfile::tempdir()?;
-    let scopes = vec!["process.exec".to_owned()];
-    let output = invoke_with_scopes(
+    let output = invoke(
         "command.execute",
         JsonObject::from([(
             "command".to_owned(),
@@ -92,7 +54,6 @@ fn scoped_native_command_does_not_invent_human_approval() -> Result<(), Box<dyn 
         )]),
         workspace.path(),
         CredentialDelivery::none(),
-        &scopes,
     )?;
 
     assert_eq!(output.status, InvocationStatus::Success);

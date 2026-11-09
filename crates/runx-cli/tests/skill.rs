@@ -1281,20 +1281,19 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
   "schema": "runx.tool.manifest.v1",
   "name": "example.record",
   "description": "Records a reviewed decision.",
-  "source": {
+  "process": {
     "command": "node",
     "args": ["record.mjs"],
     "inputs_via": "stdin"
   },
   "inputs": {
     "decision": {
-      "type": "string",
-      "required": true
+      "type": "string"
     }
   },
-  "artifacts": {
-    "named_emits": {
-      "decision": "decision"
+  "outputs": {
+    "decision": {
+      "optional": true
     }
   }
 }

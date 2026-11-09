@@ -45,7 +45,6 @@ pub(super) fn decode_typed_output<O: CapabilityOutput>(
 
 pub(super) struct RawNativeInvocation<'a> {
     pub(super) inputs: JsonObject,
-    pub(super) scopes: &'a [String],
     pub(super) observed_at: &'a str,
     pub(super) env: &'a std::collections::BTreeMap<String, String>,
     pub(super) skill_directory: &'a std::path::Path,
@@ -181,11 +180,6 @@ where
     }
 
     fn invoke(&self, invocation: RawNativeInvocation<'_>) -> Result<JsonValue, RuntimeError> {
-        crate::capability::enforce_required_scopes(
-            self.definition().id,
-            self.definition().scopes.iter().copied(),
-            invocation.scopes,
-        )?;
         let inputs = self.contract.decode_inputs(invocation.inputs)?;
         let invocation = NativeInvocation {
             inputs: &inputs,

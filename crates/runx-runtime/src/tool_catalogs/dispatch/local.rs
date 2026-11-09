@@ -88,13 +88,6 @@ fn run(
     let artifacts = resolution.tool.artifacts.clone();
     let declared_inputs = resolution.tool.inputs.clone();
     let requirements = resolution.tool.execution_requirements();
-    if let Err(error) = crate::capability::enforce_required_scopes(
-        &resolution.tool.name,
-        requirements.scopes.iter().map(String::as_str),
-        request.scopes,
-    ) {
-        return Ok(failure(error.to_string(), started));
-    }
     let tool_directory = manifest_directory(&resolution.manifest_path, request.skill_directory);
     let inputs = match crate::input_contract::materialize_tool_inputs(
         &declared_inputs,
@@ -111,7 +104,7 @@ fn run(
         historical_context: Vec::new(),
         skill_name: resolution.tool.name,
         step_id: None,
-        executable: crate::adapter::Executable::Process(resolution.tool.source),
+        executable: crate::adapter::Executable::Process(resolution.tool.process),
         outputs: None,
         requirements,
         artifacts,

@@ -91,9 +91,11 @@ fn tool_catalogs_ignore_ancestor_tool_roots_outside_workspace()
   "schema": "runx.tool.manifest.v1",
   "name": "docs.echo",
   "description": "Ancestor outside the workspace.",
-  "source": {"command": "node", "args": ["./run.mjs"]},
-  "inputs": {},
-  "scopes": []
+  "process": {
+    "command": "node",
+    "args": ["./run.mjs"]
+  },
+  "inputs": {}
 }
 "#,
     )?;

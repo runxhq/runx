@@ -42,17 +42,11 @@ pub(crate) fn principal(
             JsonValue::Object(parameters.clone()),
         ),
     ]);
-    let scopes = process
-        .requires
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
     let answer = tools
         .run(
             tool,
             &manifest,
             input,
-            &scopes,
             &crate::credentials::CredentialDelivery::none(),
         )
         .map_err(crate::kernel::operation::confirm::Unperformed::reason)?;
@@ -123,7 +117,6 @@ mod tests {
             tool: &str,
             _: &Path,
             input: JsonObject,
-            _: &[String],
             _: &CredentialDelivery,
         ) -> Result<JsonValue, crate::kernel::operation::confirm::Unperformed> {
             if tool != "browser.probe"

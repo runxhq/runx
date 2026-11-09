@@ -36,7 +36,7 @@ fn tool_manifests_reject_unknown_input_types_and_invalid_defaults() -> Result<()
         ),
     ] {
         let raw = parse_tool_manifest_yaml(&format!(
-            "schema: runx.tool.manifest.v1\nname: invalid-input\nsource:\n  command: /bin/true\ninputs:\n  value:\n    {input}\n"
+            "schema: runx.tool.manifest.v1\nname: invalid-input\nprocess:\n  command: /bin/true\ninputs:\n  value:\n    {input}\n"
         ))
         .map_err(|error| error.to_string())?;
         let error = validate_tool_manifest(raw)
@@ -48,34 +48,22 @@ fn tool_manifests_reject_unknown_input_types_and_invalid_defaults() -> Result<()
 }
 
 #[test]
-fn tool_manifests_reject_blank_scopes_without_rewriting_opaque_values() -> Result<(), String> {
-    let raw = parse_tool_manifest_yaml(
-        "schema: runx.tool.manifest.v1\nname: invalid-scope\nsource:\n  command: /bin/true\nscopes:\n  - '   '\n",
-    )
-    .map_err(|error| error.to_string())?;
-    let error = validate_tool_manifest(raw)
-        .err()
-        .ok_or_else(|| "blank tool scope unexpectedly validated".to_owned())?;
-    assert!(
-        error
-            .to_string()
-            .contains("scopes must contain only non-empty scope strings"),
-        "{error}"
-    );
-
-    let raw = parse_tool_manifest_yaml(
-        "schema: runx.tool.manifest.v1\nname: opaque-scope\nsource:\n  command: /bin/true\nscopes:\n  - 'https://provider.example/auth/custom.scope?mode=read,write'\n  - 'opaque capability with spaces'\n  - 'opaque capability with spaces'\n",
-    )
-    .map_err(|error| error.to_string())?;
-    let tool = validate_tool_manifest(raw).map_err(|error| error.to_string())?;
-    assert_eq!(
-        tool.scopes,
-        [
-            "https://provider.example/auth/custom.scope?mode=read,write",
-            "opaque capability with spaces",
-            "opaque capability with spaces",
-        ]
-    );
+fn tool_manifests_refuse_the_keys_0_12_removed() -> Result<(), String> {
+    for field in ["source", "scopes", "idempotency", "artifacts"] {
+        let raw = parse_tool_manifest_yaml(&format!(
+            "schema: runx.tool.manifest.v1\nname: removed\nprocess:\n  command: /bin/true\n{field}: {{}}\n"
+        ))
+        .map_err(|error| error.to_string())?;
+        let error = validate_tool_manifest(raw)
+            .err()
+            .ok_or_else(|| format!("removed key {field} unexpectedly validated"))?;
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("{field} is not supported")),
+            "{error}"
+        );
+    }
     Ok(())
 }
 
@@ -90,7 +78,7 @@ fn tool_manifests_reject_generated_parallel_contract_fields() -> Result<(), Stri
         "toolkit_version",
     ] {
         let raw = parse_tool_manifest_yaml(&format!(
-            "schema: runx.tool.manifest.v1\nname: canonical-only\nsource:\n  command: /bin/true\n{field}: {{}}\n"
+            "schema: runx.tool.manifest.v1\nname: canonical-only\nprocess:\n  command: /bin/true\n{field}: {{}}\n"
         ))
         .map_err(|error| error.to_string())?;
         let error = validate_tool_manifest(raw)
@@ -306,7 +294,7 @@ fn workflow_step_rejects_malformed_artifact_contract() -> Result<(), String> {
         ),
         (
             "        result_as: result\n",
-            "steps.0.result_as names result, which the step's outputs don't declare",
+            "steps.0.result_as names result, which steps.0.outputs doesn't declare",
         ),
         (
             "        outputs:\n          result: {type: object, packet: not a packet}\n",

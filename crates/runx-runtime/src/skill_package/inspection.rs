@@ -541,7 +541,6 @@ mod tests {
     #[test]
     fn environment_readiness_names_variables_without_their_values() {
         let requirements = runx_contracts::ExecutionRequirements {
-            scopes: Vec::new(),
             environment: runx_contracts::EnvironmentRequirements {
                 required: vec!["REGION".to_owned()],
                 optional: vec!["TRACE_LABEL".to_owned()],

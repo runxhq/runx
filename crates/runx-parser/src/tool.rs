@@ -4,11 +4,8 @@ use runx_contracts::tools::ToolManifestSchema;
 use runx_contracts::{JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
-use crate::graph::{ProcessTool, validate_process_tool};
-use crate::skill::{
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, validate_inputs,
-    validate_skill_artifact_contract,
-};
+use crate::graph::{ProcessTool, output_artifacts, validate_process_tool};
+use crate::skill::{SkillArtifactContract, SkillInput, validate_input_fields};
 use crate::{
     ParseError, ValidationError, assert_yaml_supported_subset, json_fields::JsonFieldReader,
 };
@@ -29,11 +26,17 @@ pub struct ValidatedTool {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// The tool's executable: a trusted host process.
-    pub source: ProcessTool,
+    pub process: ProcessTool,
+    /// Its inputs, in a method's form.
     pub inputs: BTreeMap<String, SkillInput>,
-    pub scopes: Vec<String>,
+    /// Its outputs as written, in a method's form.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency: Option<SkillIdempotencyPolicy>,
+    pub outputs: Option<JsonObject>,
+    /// The output the whole result becomes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_as: Option<String>,
+    /// The outputs kept as artifacts: each output naming a `packet`, and
+    /// `result_as` with its packet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<SkillArtifactContract>,
 }
@@ -41,12 +44,11 @@ pub struct ValidatedTool {
 impl ValidatedTool {
     /// Return the exact non-secret execution requirements selected by this
     /// tool manifest. Runtime callers consume this typed projection instead of
-    /// rescanning the source or normalizing provider scope strings.
+    /// rescanning the process.
     #[must_use]
     pub fn execution_requirements(&self) -> runx_contracts::ExecutionRequirements {
         runx_contracts::ExecutionRequirements {
-            scopes: self.scopes.clone(),
-            environment: self.source.environment.clone(),
+            environment: self.process.environment.clone(),
         }
     }
 }
@@ -79,44 +81,39 @@ pub fn validate_tool_manifest(raw: RawToolManifestIr) -> Result<ValidatedTool, V
             "name",
             "version",
             "description",
-            "source",
+            "process",
             "inputs",
-            "scopes",
-            "idempotency",
-            "artifacts",
+            "outputs",
+            "result_as",
         ],
     )?;
     validate_required_contract::<ToolManifestSchema>(raw.document.get("schema"), "schema")?;
-    let source = validate_process_tool(
-        FIELDS.required_object(raw.document.get("source"), "source")?,
-        "source",
+    let process = validate_process_tool(
+        FIELDS.required_object(raw.document.get("process"), "process")?,
+        "process",
     )?;
+    let outputs = FIELDS.optional_object(raw.document.get("outputs"), "outputs")?;
+    if let Some(outputs) = &outputs {
+        runx_contracts::parse_output_contract(outputs)
+            .map_err(|error| FIELDS.validation_error(format!("outputs is invalid: {error}")))?;
+    }
+    let result_as = FIELDS.optional_non_empty_string(raw.document.get("result_as"), "result_as")?;
+    let artifacts = output_artifacts(outputs.as_ref(), result_as.clone(), "")?;
     Ok(ValidatedTool {
         name: FIELDS.required_string(raw.document.get("name"), "name")?,
         version: FIELDS.optional_string(raw.document.get("version"), "version")?,
         description: FIELDS.optional_string(raw.document.get("description"), "description")?,
-        source,
-        inputs: validate_inputs(
-            FIELDS
+        process,
+        inputs: validate_input_fields(
+            &FIELDS
                 .optional_object(raw.document.get("inputs"), "inputs")?
                 .unwrap_or_default(),
             "inputs",
         )?,
-        scopes: validate_scopes(
-            FIELDS
-                .optional_string_array(raw.document.get("scopes"), "scopes")?
-                .unwrap_or_default(),
-        )?,
-        idempotency: validate_idempotency(raw.document.get("idempotency"), "idempotency")?,
-        artifacts: validate_skill_artifact_contract(raw.document.get("artifacts"), "artifacts")?,
+        outputs,
+        result_as,
+        artifacts,
     })
-}
-
-fn validate_scopes(scopes: Vec<String>) -> Result<Vec<String>, ValidationError> {
-    if scopes.iter().any(|scope| scope.trim().is_empty()) {
-        return Err(FIELDS.validation_error("scopes must contain only non-empty scope strings"));
-    }
-    Ok(scopes)
 }
 
 fn manifest_from_value(
@@ -143,26 +140,4 @@ where
     serde_json::to_value(value)
         .and_then(serde_json::from_value)
         .map_err(|error| FIELDS.validation_error(format!("{field} is invalid: {error}")))
-}
-
-fn validate_idempotency(
-    value: Option<&JsonValue>,
-    field: &str,
-) -> Result<Option<SkillIdempotencyPolicy>, ValidationError> {
-    match value {
-        None | Some(JsonValue::Null) => Ok(None),
-        Some(JsonValue::String(value)) if value.trim().is_empty() => {
-            Err(FIELDS.validation_error(format!("{field} must not be empty.")))
-        }
-        Some(JsonValue::String(value)) => Ok(Some(SkillIdempotencyPolicy {
-            key: Some(value.clone()),
-        })),
-        Some(value) => {
-            let record = FIELDS.required_object(Some(value), field)?;
-            Ok(Some(SkillIdempotencyPolicy {
-                key: FIELDS
-                    .optional_non_empty_string(record.get("key"), &format!("{field}.key"))?,
-            }))
-        }
-    }
 }

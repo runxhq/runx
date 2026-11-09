@@ -106,7 +106,7 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
         "schema": "runx.tool.manifest.v1",
         "name": "fs.read",
         "description": "Read a file",
-        "source": {
+        "process": {
             "command": "node",
             "args": ["tool.mjs"],
             "inputs_via": "stdin",
@@ -115,10 +115,12 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
             }
         },
         "inputs": {
-            "path": { "type": "string", "required": true }
+            "path": { "type": "string" }
         },
-        "scopes": ["fs.read"],
-        "idempotency": { "key": "path" }
+        "outputs": {
+            "file_read": { "type": "object", "packet": "runx.fs.file_read.v1" }
+        },
+        "result_as": "file_read"
     });
     vec![
         ("valid tool manifest", valid.clone()),
@@ -127,29 +129,29 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
             set_field(valid.clone(), "version", json!("1.2.3")),
         ),
         ("missing schema", drop_field(valid.clone(), "schema")),
-        ("missing source", drop_field(valid.clone(), "source")),
+        ("missing process", drop_field(valid.clone(), "process")),
         (
-            "source with a retired type",
+            "process with a retired type",
             set_field(
                 valid.clone(),
-                "source",
-                set_field(valid["source"].clone(), "type", json!("cli-tool")),
+                "process",
+                set_field(valid["process"].clone(), "type", json!("cli-tool")),
             ),
         ),
         (
             "bad input mode",
             set_field(
                 valid.clone(),
-                "source",
-                set_field(valid["source"].clone(), "inputs_via", json!("stream")),
+                "process",
+                set_field(valid["process"].clone(), "inputs_via", json!("stream")),
             ),
         ),
         (
-            "missing source command",
+            "missing process command",
             set_field(
                 valid.clone(),
-                "source",
-                drop_field(valid["source"].clone(), "command"),
+                "process",
+                drop_field(valid["process"].clone(), "command"),
             ),
         ),
         (

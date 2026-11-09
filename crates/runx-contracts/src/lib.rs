@@ -306,8 +306,7 @@ pub use skill_authoring::{
 };
 pub use source_packet::{SOURCE_PACKET_SCHEMA, SourcePacket, SourcePacketSchema};
 pub use tools::{
-    RuntimeCommand, ToolCommandInputMode, ToolIdempotencyPolicy, ToolInput, ToolManifest,
-    ToolManifestSchema, ToolSource,
+    RuntimeCommand, ToolCommandInputMode, ToolInput, ToolManifest, ToolManifestSchema, ToolProcess,
 };
 pub use verdict::{
     Assessment, AssessmentFailure, CRITERIA_SCHEMA, Criteria, CriteriaSchema, CriterionId, Decided,

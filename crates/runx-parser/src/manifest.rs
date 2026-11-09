@@ -82,7 +82,6 @@ impl SkillMethodManifest {
     #[must_use]
     pub fn execution_requirements(&self, method: &SkillMethodDefinition) -> ExecutionRequirements {
         ExecutionRequirements {
-            scopes: Vec::new(),
             environment: method.environment(),
         }
     }

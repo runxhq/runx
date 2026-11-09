@@ -52,8 +52,6 @@ impl EnvironmentRequirements {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionRequirements {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub scopes: Vec<String>,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub environment: EnvironmentRequirements,
 }

@@ -468,7 +468,6 @@ mod tests {
                 tool: "control.observed_at",
                 observed_at: "2026-11-03T06:00:00.123Z",
                 inputs: runx_contracts::JsonObject::new(),
-                scopes: &[],
                 env: &BTreeMap::new(),
                 skill_directory: directory.path(),
                 credential_delivery: &delivery,

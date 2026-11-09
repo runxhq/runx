@@ -80,60 +80,6 @@ pub(super) fn validate_artifact_contract(
     }))
 }
 
-pub(crate) fn validate_inputs(
-    inputs: JsonObject,
-    field_prefix: &str,
-) -> Result<BTreeMap<String, SkillInput>, ValidationError> {
-    inputs
-        .into_iter()
-        .map(|(name, value)| {
-            let field = format!("{field_prefix}.{name}");
-            // The invoker's act travels beside a run's inputs, under this name.
-            if name == "act" {
-                return Err(FIELDS.validation_error(format!(
-                    "{field}: act is the act a run's invoker states, given beside its inputs, never one of them."
-                )));
-            }
-            let input = FIELDS.required_object(Some(&value), &field)?;
-            FIELDS.reject_unknown_fields(
-                input,
-                &field,
-                &["type", "required", "description", "default", "packet", "schema"],
-            )?;
-            let input_type = FIELDS
-                .optional_string(input.get("type"), &format!("{field}.type"))?
-                .unwrap_or_else(|| "string".to_owned());
-            if !matches!(
-                input_type.as_str(),
-                "array" | "boolean" | "integer" | "json" | "number" | "object" | "string"
-            ) {
-                return Err(FIELDS.validation_error(format!(
-                    "{field}.type must be one of array, boolean, integer, json, number, object, or string"
-                )));
-            }
-            let validated = SkillInput {
-                input_type,
-                required: FIELDS
-                    .optional_bool(input.get("required"), &format!("{field}.required"))?
-                    .unwrap_or(false),
-                description: FIELDS.optional_string(
-                    input.get("description"),
-                    &format!("{field}.description"),
-                )?,
-                default: input.get("default").cloned(),
-                packet: FIELDS
-                    .optional_non_empty_string(input.get("packet"), &format!("{field}.packet"))?
-                    .map(|packet| packet_id(packet, &format!("{field}.packet")))
-                    .transpose()?,
-                schema: FIELDS
-                    .optional_object(input.get("schema"), &format!("{field}.schema"))?,
-            };
-            validate_input_schema(&validated, &field)?;
-            Ok((name.clone(), validated))
-        })
-        .collect()
-}
-
 /// The input types a field may name. A field with no `type` takes any value.
 const FIELD_TYPES: &[&str] = &["array", "boolean", "integer", "number", "object", "string"];
 
@@ -407,18 +353,14 @@ mod tests {
 
     use runx_contracts::{JsonObject, JsonValue, PacketId};
 
-    use super::{validate_artifact_contract, validate_inputs};
+    use super::{validate_artifact_contract, validate_input_fields};
     use crate::ValidationError;
 
     fn packet_input(extra: impl IntoIterator<Item = (&'static str, JsonValue)>) -> JsonObject {
-        let mut input = JsonObject::from([
-            ("type".to_owned(), JsonValue::String("json".to_owned())),
-            ("required".to_owned(), JsonValue::Bool(true)),
-            (
-                "packet".to_owned(),
-                JsonValue::String("runx.test.plan.v1".to_owned()),
-            ),
-        ]);
+        let mut input = JsonObject::from([(
+            "packet".to_owned(),
+            JsonValue::String("runx.test.plan.v1".to_owned()),
+        )]);
         input.extend(
             extra
                 .into_iter()
@@ -428,18 +370,15 @@ mod tests {
     }
 
     fn object_input(schema: JsonObject) -> JsonObject {
-        JsonObject::from([(
-            "value".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                ("type".to_owned(), JsonValue::String("object".to_owned())),
-                ("schema".to_owned(), JsonValue::Object(schema)),
-            ])),
-        )])
+        let mut input =
+            JsonObject::from([("type".to_owned(), JsonValue::String("object".to_owned()))]);
+        input.extend(schema);
+        JsonObject::from([("value".to_owned(), JsonValue::Object(input))])
     }
 
     #[test]
     fn packet_input_reference_is_parser_owned() -> Result<(), ValidationError> {
-        let inputs = validate_inputs(packet_input([]), "inputs")?;
+        let inputs = validate_input_fields(&packet_input([]), "inputs")?;
         assert_eq!(
             inputs
                 .get("plan")
@@ -459,7 +398,7 @@ mod tests {
                 JsonValue::String("test.plan.v1".to_owned()),
             );
         }
-        let error = validate_inputs(inputs, "inputs").err();
+        let error = validate_input_fields(&inputs, "inputs").err();
         assert!(
             error
                 .as_ref()
@@ -470,24 +409,17 @@ mod tests {
 
     #[test]
     fn packet_input_reference_rejects_parallel_contract_ownership() {
-        let inline_schema = packet_input([(
-            "schema",
-            JsonValue::Object(JsonObject::from([(
-                "properties".to_owned(),
-                JsonValue::Object(JsonObject::new()),
-            )])),
-        )]);
+        let inline_schema = packet_input([("properties", JsonValue::Object(JsonObject::new()))]);
         let default_packet = packet_input([("default", JsonValue::Object(JsonObject::new()))]);
         let wrong_type = packet_input([("type", JsonValue::String("object".to_owned()))]);
 
-        assert!(validate_inputs(inline_schema, "inputs").is_err());
-        assert!(validate_inputs(default_packet, "inputs").is_err());
-        assert!(validate_inputs(wrong_type, "inputs").is_err());
+        assert!(validate_input_fields(&inline_schema, "inputs").is_err());
+        assert!(validate_input_fields(&default_packet, "inputs").is_err());
+        assert!(validate_input_fields(&wrong_type, "inputs").is_err());
     }
 
     #[test]
     fn object_inputs_require_recursive_shape_or_explicit_openness() -> Result<(), ValidationError> {
-        let implicit_open = object_input(JsonObject::new());
         let explicit_open = object_input(JsonObject::from([(
             "additionalProperties".to_owned(),
             JsonValue::Bool(true),
@@ -513,10 +445,9 @@ mod tests {
             )])),
         )]));
 
-        assert!(validate_inputs(implicit_open, "inputs").is_err());
-        assert!(validate_inputs(nested_implicit_open, "inputs").is_err());
-        validate_inputs(explicit_open, "inputs")?;
-        validate_inputs(nested_closed, "inputs")?;
+        assert!(validate_input_fields(&nested_implicit_open, "inputs").is_err());
+        validate_input_fields(&explicit_open, "inputs")?;
+        validate_input_fields(&nested_closed, "inputs")?;
         Ok(())
     }
 

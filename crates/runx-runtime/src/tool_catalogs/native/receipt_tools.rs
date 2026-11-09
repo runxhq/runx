@@ -252,7 +252,7 @@ mod tests {
     use runx_contracts::Reach;
 
     #[test]
-    fn receipt_read_requires_claim_authority_and_preserves_the_host_agent_state_boundary()
+    fn receipt_read_preserves_the_host_agent_state_boundary()
     -> Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
         let environment = BTreeMap::from([(
@@ -262,48 +262,37 @@ mod tests {
         let effects = RuntimeEffectRegistry::default();
         let artifacts = LocalArtifactService::default();
         let delivery = CredentialDelivery::none();
-        for (scopes, reach, reason) in [
-            (
-                vec!["receipt.read".to_owned()],
-                Reach::Inputs,
-                "receipt.claim.read",
-            ),
-            (
-                vec!["receipt.claim.read".to_owned()],
-                Reach::Workspace,
-                "protected operator state",
-            ),
-        ] {
-            let result = crate::tool_catalogs::native::invoke(
-                crate::tool_catalogs::native::NativeToolInvocation {
-                    tool: "receipt.read",
-                    observed_at: "2026-11-03T00:00:00Z",
-                    inputs: JsonObject::from([
-                        (
-                            "receipt_id".to_owned(),
-                            JsonValue::String(format!("sha256:{}", "a".repeat(64))),
-                        ),
-                        (
-                            "root_receipt_id".to_owned(),
-                            JsonValue::String(format!("sha256:{}", "b".repeat(64))),
-                        ),
-                    ]),
-                    scopes: &scopes,
-                    env: &environment,
-                    skill_directory: directory.path(),
-                    credential_delivery: &delivery,
-                    local_artifacts: &artifacts,
-                    effects: &effects,
-                    reach,
-                    call: None,
-                    effect_admission: None,
-                },
-            )
-            .ok_or("receipt.read was not registered")?;
-            let error = result.result.err().ok_or("protected read was allowed")?;
-            assert!(error.to_string().contains(reason), "{error}");
-            assert!(!directory.path().join("unused-home").exists());
-        }
+        let result = crate::tool_catalogs::native::invoke(
+            crate::tool_catalogs::native::NativeToolInvocation {
+                tool: "receipt.read",
+                observed_at: "2026-11-03T00:00:00Z",
+                inputs: JsonObject::from([
+                    (
+                        "receipt_id".to_owned(),
+                        JsonValue::String(format!("sha256:{}", "a".repeat(64))),
+                    ),
+                    (
+                        "root_receipt_id".to_owned(),
+                        JsonValue::String(format!("sha256:{}", "b".repeat(64))),
+                    ),
+                ]),
+                env: &environment,
+                skill_directory: directory.path(),
+                credential_delivery: &delivery,
+                local_artifacts: &artifacts,
+                effects: &effects,
+                reach: Reach::Workspace,
+                call: None,
+                effect_admission: None,
+            },
+        )
+        .ok_or("receipt.read was not registered")?;
+        let error = result.result.err().ok_or("protected read was allowed")?;
+        assert!(
+            error.to_string().contains("protected operator state"),
+            "{error}"
+        );
+        assert!(!directory.path().join("unused-home").exists());
         Ok(())
     }
 }

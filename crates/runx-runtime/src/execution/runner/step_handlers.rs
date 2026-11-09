@@ -1158,17 +1158,7 @@ fn step_requirements(executable: &Executable) -> runx_contracts::ExecutionRequir
         Executable::Process(process) => process.environment.clone(),
         Executable::Agent(_) => runx_contracts::EnvironmentRequirements::default(),
     };
-    // A worker that reads its input in pages reads one file: the
-    // `paged_input` it declares is its `fs.read`, as a catalog tool runs with
-    // the scopes it declares.
-    let scopes = match executable {
-        Executable::Worker(worker) if worker.paged_input.is_some() => vec!["fs.read".to_owned()],
-        _ => Vec::new(),
-    };
-    runx_contracts::ExecutionRequirements {
-        scopes,
-        environment,
-    }
+    runx_contracts::ExecutionRequirements { environment }
 }
 
 // Function rationale: tool execution keeps lookup,
@@ -1204,14 +1194,13 @@ where
         attempt,
         runtime.options.run_authority.as_ref(),
     );
-    // A catalog tool runs with the scopes it declares.
-    let scopes = crate::tool_catalogs::dispatch::inspect_catalog_tool(
+    // A catalog tool resolves before it runs.
+    crate::tool_catalogs::dispatch::inspect_catalog_tool(
         tool,
         &runtime.options.env,
         workflow_dir,
         &runtime.options.effects,
     )
-    .map(|inspected| inspected.scopes)
     .map_err(|error| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason: format!("tool {tool} could not be resolved: {error}"),
@@ -1220,7 +1209,6 @@ where
         tool: Cow::Borrowed(tool),
         inputs: Cow::Owned(inputs),
         resolved_inputs: Cow::Owned(JsonObject::new()),
-        scopes: &scopes,
         env: &runtime.options.env,
         skill_directory: workflow_dir,
         credential_delivery: &crate::credentials::CredentialDelivery::none(),
@@ -1407,7 +1395,6 @@ where
         tool: &str,
         manifest: &Path,
         inputs: JsonObject,
-        scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<runx_contracts::JsonValue, crate::kernel::operation::confirm::Unperformed> {
         let directory = manifest.parent().unwrap_or(self.workflow_dir);
@@ -1417,7 +1404,6 @@ where
                 tool: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
                 resolved_inputs: Cow::Owned(JsonObject::new()),
-                scopes,
                 env: &self.runtime.options.env,
                 skill_directory: directory,
                 credential_delivery: delivery,
