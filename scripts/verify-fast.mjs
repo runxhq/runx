@@ -75,6 +75,9 @@ if (rustBuild.status === 0) {
       ]),
       step("codex export", "pnpm", ["codex-export:check"]),
       step("test:fast", "pnpm", ["test:fast"]),
+      // Offline and deterministic: the product journeys run on every loop,
+      // so they cannot drift unseen.
+      step("test:product", "pnpm", ["test:product"]),
     ],
     evalBinEnv,
   );

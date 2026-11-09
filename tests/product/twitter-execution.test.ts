@@ -60,6 +60,6 @@ function prepare(acts: Record<string, unknown>[], principal = "account:@example"
     },
     plan_digest: DIGEST,
     digest_result: { digest: DIGEST },
-    execution_ledger: { after_version: 0, events: [] },
+    execution_ledger: { version: 0, events: [] },
   }).twitter_execution_plan;
 }

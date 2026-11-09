@@ -153,8 +153,7 @@ describe("registry skill native fetch", () => {
       // The cursor method plans locally and persists through the store's own
       // operations; it calls no GitHub operation.
       const result = runNativeSkill(env, [
-        githubRef,
-        "plan_and_append_cursor",
+        `${githubRef}#plan_and_append_cursor`,
         "--registry",
         registry.url,
         "--input",

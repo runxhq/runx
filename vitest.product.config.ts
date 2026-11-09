@@ -8,5 +8,9 @@ export default defineConfig({
   },
   test: {
     include: ["tests/product/**/*.test.ts"],
+    // A product journey ends on its own events, a process's exit or a
+    // registry's answer, never on a clock.
+    testTimeout: 0,
+    hookTimeout: 0,
   },
 });

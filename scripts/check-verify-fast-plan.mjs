@@ -16,6 +16,7 @@ for (const forbidden of [
   "rust:crate-graph",
   "build rust binaries",
   "test:fast",
+  "test:product",
 ]) {
   if (parallelSourceGroup.includes(forbidden)) {
     throw new Error(`verify:fast launches ${forbidden} inside the parallel source-check group`);
@@ -31,6 +32,7 @@ for (const required of [
   'step("deterministic module engine decision"',
   'step("core skill version drift"',
   'step("docs:api:check"',
+  'step("test:product"',
   'await runSerialGroup("rust structure checks"',
   'step("build rust binaries"',
   'step("build workspace"',
