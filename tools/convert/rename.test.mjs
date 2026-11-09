@@ -354,6 +354,18 @@ test("graph is a workflow in code, its comments and placeholders, and the string
   );
 });
 
+test("a message whose next line is a placeholder is still prose, and a document's lines still keep their words", (t) => {
+  const code = [
+    'assert!(failed, "timed-out inline graph unexpectedly succeeded: {stderr}\\n{stdout}");',
+    'let doc = "{\\"graph\\": 1}\\n- graph step\\n";',
+    "",
+  ].join("\n");
+  const root = tree(t, { "crates/runx-cli/tests/local_credential.rs": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "crates/runx-cli/tests/local_credential.rs"), code.replace("inline graph", "inline workflow"));
+});
+
 test("a kind filter's description names its wire values, so its graph stays", (t) => {
   const code = 'queryParameter("kind", "Catalog kind filter: skill or graph."),\nqueryParameter("q", "Text query over a skill or graph."),\n';
   const root = tree(t, { "packages/openapi-catalog/src/openapi-route-catalog.ts": code });

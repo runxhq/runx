@@ -195,9 +195,15 @@ export function stringLiterals(text, file) {
   return literals;
 }
 
-/** Whether a string literal's text is a document: a line of it starts as YAML, front matter, a list item or a heading. */
+/**
+ * Whether a string literal's text is a document: a line of it starts as YAML,
+ * front matter, a list item, a heading, or JSON. A line that starts with a
+ * format placeholder, such as a message's `{stdout}`, starts no document.
+ */
 function isDocument(body) {
-  return body.split(/\\n|\n/).some((line) => /^\s*(-\s|---\s*$|[A-Za-z_$][\w$-]*:(\s|$)|#{1,6}\s|[{[])/.test(line));
+  return body
+    .split(/\\n|\n/)
+    .some((line) => /^\s*(-\s|---\s*$|[A-Za-z_$][\w$-]*:(\s|$)|#{1,6}\s|[{[])/.test(line) && !/^\s*\{[A-Za-z_0-9][^{}\s]*\}/.test(line));
 }
 
 /** Whether a token in a string is a path segment or a file name: beside a slash, or before an extension. */
