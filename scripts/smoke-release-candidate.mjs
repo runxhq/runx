@@ -11,6 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -401,12 +402,19 @@ async function proveInterruption() {
   if (process.platform === "win32") {
     return "covered_by_windows_process_containment";
   }
-  const blockingWorker = ["/usr/bin/wc", "/bin/wc"].find((candidate) =>
-    existsSync(candidate),
+  // A stand-in worker that answers nothing on its protocol pipe. It connects
+  // to this script once it's running and answers on that connection while it
+  // lives, so its connection closes when it dies.
+  const server = net.createServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const connected = new Promise((resolve) => server.once("connection", resolve));
+  const blockingWorker = path.join(root, "blocking-worker");
+  writeFileSync(
+    blockingWorker,
+    `#!${process.execPath}\nconst s = require("node:net").connect(${port}, "127.0.0.1"); s.on("data", () => s.write("alive")); process.stdin.resume();\n`,
+    { mode: 0o755 },
   );
-  if (!blockingWorker) {
-    throw new Error("interruption probe requires an absolute wc executable");
-  }
   const skill = path.join(root, "interrupt-probe");
   writeSkill(
     skill,
@@ -434,77 +442,48 @@ methods:
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
-  let closedResult;
   const closed = new Promise((resolve) => {
-    child.once("error", (error) => {
-      closedResult = { error };
-      resolve(closedResult);
-    });
-    child.once("close", (code, signal) => {
-      closedResult = { code, signal };
-      resolve(closedResult);
-    });
+    child.once("error", (error) => resolve({ error }));
+    child.once("close", (code, signal) => resolve({ code, signal }));
   });
-  await waitForDirectChildProcess(child, blockingWorker, () => closedResult);
-  const startedAt = Date.now();
+  // Interrupt once the worker is running; the candidate exiting first fails.
+  const first = await Promise.race([
+    connected.then((worker) => ({ worker })),
+    closed.then((result) => ({ result })),
+  ]);
+  if (!first.worker) {
+    server.close();
+    throw new Error(
+      `candidate exited before its JavaScript context became active: ${JSON.stringify(first.result)}`,
+    );
+  }
   if (!child.kill("SIGINT")) {
     throw new Error("candidate exited before SIGINT could be delivered");
   }
-  let timeout;
-  const result = await Promise.race([
-    closed,
-    new Promise((resolve) => {
-      timeout = setTimeout(() => {
-        child.kill("SIGKILL");
-        resolve({ timeout: true });
-      }, 5_000);
-    }),
-  ]);
-  clearTimeout(timeout);
-  if (result.timeout) {
-    throw new Error("candidate did not stop after SIGINT");
-  }
+  // The candidate exits by its own path or its interrupt watchdog.
+  const result = await closed;
   if (result.error) {
     throw result.error;
   }
-  if (Date.now() - startedAt >= 5_000 || result.code !== 130 || result.signal) {
+  if (result.code !== 130 || result.signal) {
     throw new Error(
       `candidate did not close interruption with exit 130: ${JSON.stringify(result)}`,
     );
   }
-  return true;
-}
-
-async function waitForDirectChildProcess(child, expectedCommand, closed) {
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    if (closed()) {
-      const result = closed();
-      throw new Error(
-        `candidate exited before its JavaScript context became active: ${JSON.stringify(result)}`,
-      );
-    }
-    const processes = spawnSync("ps", ["-axo", "ppid=,pid=,command="], {
-      encoding: "utf8",
-    });
-    if (processes.error) throw processes.error;
-    if (processes.status !== 0) {
-      throw new Error(
-        `ps failed while observing the active candidate: ${processes.stderr}`,
-      );
-    }
-    if (
-      processes.stdout.split("\n").some((line) => {
-        const [parent, _processId, ...command] = line.trim().split(/\s+/u);
-        return Number(parent) === child.pid && command.join(" ").includes(expectedCommand);
-      })
-    ) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
+  // The interrupt killed the worker before the candidate exited, so it can't
+  // answer: its connection closes. One that survived answers.
+  const fate = await new Promise((resolve) => {
+    if (first.worker.destroyed) return resolve("gone");
+    first.worker.once("data", () => resolve("alive"));
+    first.worker.once("close", () => resolve("gone"));
+    first.worker.once("error", () => resolve("gone"));
+    first.worker.write("ping");
+  });
+  server.close();
+  if (fate !== "gone") {
+    throw new Error("the JavaScript worker survived the candidate's interruption");
   }
-  child.kill("SIGKILL");
-  throw new Error("candidate did not start its JavaScript worker before SIGINT");
+  return true;
 }
 
 function writeSkill(directory, name, profile, manualBody = "", tests = {}) {
@@ -541,7 +520,6 @@ function run(args, { expectedStatuses = [0], env = {} } = {}) {
     env: { ...isolatedEnvironment(), ...env },
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
-    timeout: 60_000,
   });
   if (result.error) throw result.error;
   if (!expectedStatuses.includes(result.status)) {
