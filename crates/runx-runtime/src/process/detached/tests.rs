@@ -163,7 +163,6 @@ fn a_run_reaches_only_its_actors_processes() -> TestResult {
 #[cfg(unix)]
 mod supervised {
     use std::thread::{self, JoinHandle};
-    use std::time::{Duration, Instant};
 
     use runx_contracts::{ProcessExitReason, ProcessState, ProcessStream};
 
@@ -178,21 +177,25 @@ mod supervised {
         thread::spawn(move || supervisor::supervise(&project, &id))
     }
 
+    /// Read `id`'s record until `done` holds of it. What supervises it writes
+    /// the record, so this reads again until it does, and fails on the read
+    /// after `ended` says the supervising thread finished without it.
     fn until(
         processes: &Processes,
         id: &str,
         done: impl Fn(&Record) -> bool,
+        ended: impl Fn() -> bool,
     ) -> Result<Record, Box<dyn std::error::Error>> {
-        let deadline = Instant::now() + Duration::from_secs(20);
         loop {
+            let finished = ended();
             let record = processes.known(id)?;
             if done(&record) {
                 return Ok(record);
             }
-            if Instant::now() > deadline {
+            if finished {
                 return Err(format!("process {id} never got there: {record:?}").into());
             }
-            thread::sleep(Duration::from_millis(20));
+            thread::yield_now();
         }
     }
 
@@ -200,8 +203,17 @@ mod supervised {
         record.confirmed.is_some()
     }
 
-    fn exited(record: &Record) -> bool {
-        record.exit.is_some()
+    /// The shell that waits on a named pipe nothing writes, for as long as it
+    /// runs, and the directory that holds the pipe.
+    fn gate() -> Result<(tempfile::TempDir, String), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("gate");
+        let made = std::process::Command::new("mkfifo").arg(&path).status()?;
+        if !made.success() {
+            return Err(format!("mkfifo {} failed", path.display()).into());
+        }
+        let wait = format!("read go < '{}'", path.display());
+        Ok((directory, wait))
     }
 
     fn output(
@@ -230,7 +242,7 @@ mod supervised {
             &now,
         )?;
         let supervisor = supervise(processes, &id);
-        until(processes, &id, running)?;
+        until(processes, &id, running, || supervisor.is_finished())?;
 
         // The same call sent again is applied once.
         processes.write(
@@ -251,8 +263,9 @@ mod supervised {
             Some("run#other@1"),
             "y\n".to_owned(),
         )?;
-        let record = until(processes, &id, exited)?;
+        // The supervisor records the exit before it returns.
         supervisor.join().map_err(|_| "the supervisor panicked")??;
+        let record = processes.known(&id)?;
 
         let exit = record.exit.ok_or("an exit")?;
         assert_eq!(
@@ -277,20 +290,24 @@ mod supervised {
         Ok(())
     }
 
+    /// The process waits on a gate nothing opens, so only the stop ends it,
+    /// and the signal it died of says the terminate was enough, without the
+    /// kill that follows the grace.
     #[test]
     fn a_stop_terminates_the_process_and_records_it_stopped() -> TestResult {
         let project = project()?;
         let processes = &project.processes;
+        let (_gate, wait) = gate()?;
         let id = recorded(
             processes,
             "run#serve@1",
             None,
-            "sleep 30",
+            &wait,
             60,
             &crate::time::now_iso8601(),
         )?;
         let supervisor = supervise(processes, &id);
-        until(processes, &id, running)?;
+        until(processes, &id, running, || supervisor.is_finished())?;
         assert!(matches!(
             processes.resize(
                 &id,
@@ -300,14 +317,14 @@ mod supervised {
             Err(ProcessError::NoTerminal(_))
         ));
 
-        let started = Instant::now();
         let stopped = processes.stop(&id, Reach::Person)?;
         supervisor.join().map_err(|_| "the supervisor panicked")??;
         assert_eq!(stopped.state, ProcessState::Exited);
         let exit = stopped.exit.ok_or("an exit")?;
         assert_eq!(exit.reason, ProcessExitReason::Stopped);
-        assert!(
-            started.elapsed() < supervisor::STOP_GRACE,
+        assert_eq!(
+            exit.signal,
+            Some(rustix::process::Signal::TERM.as_raw()),
             "a terminate was enough"
         );
         Ok(())
@@ -317,17 +334,19 @@ mod supervised {
     fn a_process_past_its_limit_is_stopped_by_its_supervisor() -> TestResult {
         let project = project()?;
         let processes = &project.processes;
+        // It waits on a gate nothing opens, so only its limit ends it.
+        let (_gate, wait) = gate()?;
         let id = recorded(
             processes,
             "run#slow@1",
             None,
-            "sleep 30",
+            &wait,
             1,
             &crate::time::now_iso8601(),
         )?;
         let supervisor = supervise(processes, &id);
-        let record = until(processes, &id, exited)?;
         supervisor.join().map_err(|_| "the supervisor panicked")??;
+        let record = processes.known(&id)?;
         assert_eq!(
             record.exit.map(|exit| exit.reason),
             Some(ProcessExitReason::TimedOut)
@@ -370,7 +389,6 @@ mod supervised {
                 "PATH".to_owned(),
                 std::env::var("PATH").unwrap_or_default(),
             )]))
-            .timeout(Some(Duration::from_secs(60)))
             .follower(Some(
                 followed.clone() as std::sync::Arc<dyn crate::process::Follower>
             ));
@@ -383,29 +401,53 @@ mod supervised {
         let project = project()?;
         let reader = Processes::at(&project.processes.project)?;
         let id = super::process_id("run#command@1");
+        // The command waits on a gate after its first line, which the test
+        // opens once it has read that line while the command runs.
+        let gates = tempfile::tempdir()?;
+        let gate = gates.path().join("gate");
+        let made = std::process::Command::new("mkfifo").arg(&gate).status()?;
+        assert!(made.success(), "mkfifo {}", gate.display());
         let (followed, spec) = followed_command(
             Processes::at(&project.processes.project)?,
             "run#command@1",
-            "echo one; sleep 1; echo two",
+            &format!("echo one; read go < '{}'; echo two", gate.display()),
         )?;
         let running = thread::spawn(move || crate::process::run_process(spec));
 
-        let deadline = Instant::now() + Duration::from_secs(20);
         loop {
+            let finished = running.is_finished();
             let read = reader.read(&id, Reach::Person, 0, 1024)?;
             if read.chunks.iter().any(|chunk| chunk.text.contains("one")) {
                 assert_eq!(read.state, ProcessState::Running, "{read:?}");
                 break;
             }
-            assert!(Instant::now() < deadline, "the output arrived while it ran");
-            thread::sleep(Duration::from_millis(20));
+            assert!(!finished, "the output arrived while it ran: {read:?}");
+            thread::yield_now();
         }
         assert!(matches!(
             reader.write(&id, Reach::Person, None, "x\n".to_owned()),
             Err(ProcessError::Refused(_))
         ));
 
+        // Both ends of the gate, opened without waiting on the command, and
+        // held until it's done, so it reads its line whenever it gets there.
+        let opened = {
+            use std::io::Write as _;
+            use std::os::unix::fs::OpenOptionsExt as _;
+            let nonblocking = rustix::fs::OFlags::NONBLOCK.bits() as i32;
+            let reader = std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(nonblocking)
+                .open(&gate)?;
+            let mut writer = std::fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(nonblocking)
+                .open(&gate)?;
+            writer.write_all(b"go\n")?;
+            (reader, writer)
+        };
         let outcome = running.join().map_err(|_| "the command panicked")??;
+        drop(opened);
         followed.settle(Ok(&outcome))?;
         assert_eq!(String::from_utf8_lossy(&outcome.stdout.bytes), "one\ntwo\n");
         let process = reader.list(Reach::Person)?.processes;
@@ -426,13 +468,15 @@ mod supervised {
         let project = project()?;
         let reader = Processes::at(&project.processes.project)?;
         let id = super::process_id("run#serve@1");
+        // It waits on a gate nothing opens, so only the stop ends it.
+        let (_gate, wait) = gate()?;
         let (followed, spec) = followed_command(
             Processes::at(&project.processes.project)?,
             "run#serve@1",
-            "sleep 30",
+            &wait,
         )?;
         let running = thread::spawn(move || crate::process::run_process(spec));
-        until(&reader, &id, |record| record.confirmed.is_some())?;
+        until(&reader, &id, self::running, || running.is_finished())?;
 
         super::super::control::send(
             &reader.directory(&id)?,
