@@ -294,28 +294,73 @@ runners:
   assert.match(read(dir, "run.yaml"), /        act:\n          purpose: Read what the invoking act names\.\n          reason: \$run\.act\.reason\n          target: \$run\.act\n          form: \$\$act\n/);
 });
 
-test("a tool manifest a package or connector owns says source.inputs_via, and keeps its other bytes", (t) => {
-  const manifest = (key) => `{
+test("a tool manifest a package or connector owns declares its process and its interface as a method does", (t) => {
+  const manifest = `{
   "schema": "runx.tool.manifest.v1",
   "name": "demo.echo",
-  "source": {"command": "node", "args": ["./echo.mjs"], "${key}": "stdin"},
-  "inputs": {"text": {"type": "string", "required": true}}
+  "source": {"command": "node", "args": ["./echo.mjs"], "input_mode": "stdin", "type": "cli-tool"},
+  "inputs": {
+    "text": {"type": "string", "required": true},
+    "note": {"type": "json"},
+    "count": {"schema": {"type": "integer"}}
+  },
+  "artifacts": {"wrap_as": "echo", "packet": "demo.echo.v1"},
+  "scopes": ["demo.echo"]
+}
+`;
+  const converted = `{
+  "schema": "runx.tool.manifest.v1",
+  "name": "demo.echo",
+  "process": {
+    "command": "node",
+    "args": ["./echo.mjs"],
+    "inputs_via": "stdin"
+  },
+  "inputs": {
+    "text": {
+      "type": "string"
+    },
+    "note": {
+      "optional": true
+    },
+    "count": {
+      "type": "integer",
+      "optional": true
+    }
+  },
+  "outputs": {
+    "echo": {
+      "packet": "demo.echo.v1"
+    }
+  },
+  "result_as": "echo"
 }
 `;
   const dir = tree(t, {
     "SKILL.md": manual("demo"),
     "run.yaml": "skill: demo\nversion: \"0.1.0\"\nrunners:\n  run:\n    steps:\n      - id: echo\n        tool: demo.echo\n",
-    "tools/demo/echo/manifest.json": manifest("input_mode"),
+    "tools/demo/echo/manifest.json": manifest,
   });
   const connector = tree(t, {
     "connector.yaml": "schema: runx.connector.v1\nname: demo\ntitle: Demo\ndescription: A test connector.\noperations:\n  thing.read:\n    description: Read a thing.\n    verb: read\n",
-    "tools/demo/echo/manifest.json": manifest("input_mode"),
+    "tools/demo/echo/manifest.json": manifest,
   });
   const { status, out } = convert("--write", dir, connector);
   assert.equal(status, 0, out);
-  assert.equal(read(dir, "tools/demo/echo/manifest.json"), manifest("inputs_via"));
-  assert.equal(read(connector, "tools/demo/echo/manifest.json"), manifest("inputs_via"));
+  assert.equal(read(dir, "tools/demo/echo/manifest.json"), converted);
+  assert.equal(read(connector, "tools/demo/echo/manifest.json"), converted);
+  assert.match(out, /tools\/demo\/echo\/manifest\.json: scopes goes/);
   assert.match(out, new RegExp(`converted ${connector}: connector, already in the 0\\.12 shape, 1 files changed`));
+  // A manifest that says process is in the 0.12 shape, and converts to itself.
+  const again = convert("--write", connector);
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, new RegExp(`converted ${connector}: connector, already in the 0\\.12 shape, 0 files changed`));
+  assert.equal(read(connector, "tools/demo/echo/manifest.json"), converted);
+  // A workspace's own tool, outside any package, converts by its path.
+  const workspace = tree(t, { "tools/demo/echo/manifest.json": manifest });
+  const standalone = convert("--write", path.join(workspace, "tools/demo/echo/manifest.json"));
+  assert.equal(standalone.status, 0, standalone.out);
+  assert.equal(read(workspace, "tools/demo/echo/manifest.json"), converted);
 });
 
 test("a fixture package declares the inputs its tests pass and its steps read, each optional", (t) => {

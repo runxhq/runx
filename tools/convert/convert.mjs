@@ -4,7 +4,7 @@
 // contracts (plans/0.12/contracts/run-yaml.md, connector-yaml.md) own every rule here. Every key the converter reads is named below, and a
 // package holding any other key is refused, never guessed at. Comments survive.
 //
-//   node tools/convert/convert.mjs [--write] <package-or-connector-dir>...
+//   node tools/convert/convert.mjs [--write] <package-or-connector-dir | tool manifest.json>...
 //
 // Without --write it changes nothing and reports what it would do. A package
 // or connector already in the 0.12 shape converts again to itself, changed
@@ -1117,11 +1117,16 @@ function settlePackage(dir, doc) {
 
 // ---- Tool manifests a package or connector owns
 
-// A tool manifest (runx.tool.manifest.v1) under a package's or connector's
-// own tools/ says how its process gets its inputs as `source.inputs_via`,
-// as a step's tool does (rename-table.tsv row 44); today it says
-// `input_mode`. Manifests are written by hand, so the key is renamed where
-// it stands and the rest of the file keeps its bytes.
+// A tool manifest (runx.tool.manifest.v1, run-yaml.md's "A tool manifest") is
+// a named process that declares its interface the way a method does:
+// `process` (today `source`, whose `input_mode` is `inputs_via` and whose
+// `type` goes), inputs in a method's form, and `artifacts` as `result_as` and
+// the outputs' `packet`. `scopes` and `idempotency` decided nothing and go.
+// One already in the 0.12 shape, saying `process`, converts to itself.
+const MANIFEST_KEYS = ["schema", "name", "version", "description", "source", "inputs", "scopes", "idempotency", "artifacts"];
+const MANIFEST_KEYS_012 = ["schema", "name", "version", "description", "process", "inputs", "outputs", "result_as"];
+const SOURCE_KEYS = ["command", "args", "cwd", "timeout_seconds", "input_mode", "inputs_via", "environment", "type"];
+
 function toolManifests(dir) {
   const found = [];
   const walk = (folder) => {
@@ -1135,25 +1140,64 @@ function toolManifests(dir) {
   return found.sort();
 }
 
+// The converted manifest is written as its file was: on one line, or two
+// spaces deep with a list of scalars kept on its own line where the file did.
+function formatLike(original, value) {
+  if (!original.trimEnd().includes("\n")) return `${JSON.stringify(value)}\n`;
+  let text = JSON.stringify(value, null, 2);
+  if (/\[\s*[^\s[\]{}][^\n[\]{}]*\]/.test(original)) {
+    const scalar = String.raw`("(?:[^"\\]|\\.)*"|-?[\d.eE+-]+|true|false|null)`;
+    const scalars = new RegExp(`^${scalar}(,\\n\\s*${scalar})*$`);
+    text = text.replace(/\[\n\s*([^[\]{}]*?)\n\s*\]/g, (whole, items) => (scalars.test(items) ? `[${items.split(/,\n\s*/).join(", ")}]` : whole));
+  }
+  return `${text}\n`;
+}
+
+function convertToolManifest(text, where, notes) {
+  const doc = YAML.parseDocument(text);
+  if (doc.errors.length || !isMap(doc.contents)) refuse(`${where} isn't a JSON object`);
+  const root = doc.contents;
+  if (read(root, "schema") !== "runx.tool.manifest.v1") return undefined;
+  if (has(root, "process")) {
+    only(root, MANIFEST_KEYS_012, `${where}, which says process,`);
+    return undefined;
+  }
+  only(root, MANIFEST_KEYS, where);
+  const source = node(root, "source");
+  if (!isMap(source)) refuse(`${where}: source is not an object`);
+  only(source, SOURCE_KEYS, `${where}.source`);
+  rename(root, "source", "process");
+  const kind = take(source, "type");
+  if (kind !== undefined) {
+    // A tool has one kind, a process.
+    if (plain(kind) !== "cli-tool") refuse(`${where}.source.type is ${plain(kind)}, not the cli-tool every manifest says`);
+    notes.push(`${where}: source.type cli-tool goes`);
+  }
+  if (has(source, "input_mode")) rename(source, "input_mode", "inputs_via");
+  convertFields(doc, node(root, "inputs"), "input", `${where}.inputs`);
+  // An artifact contract is the manifest's outputs and its result_as, as a step's is.
+  const artifacts = node(root, "artifacts");
+  if (artifacts !== undefined) {
+    only(artifacts, ["wrap_as", "packet"], `${where}.artifacts, which no manifest has said more than wrap_as and packet in,`);
+    convertOutputs(doc, root, where);
+  }
+  for (const key of ["scopes", "idempotency"]) {
+    if (take(root, key) !== undefined) notes.push(`${where}: ${key} goes`);
+  }
+  return formatLike(text, doc.toJSON());
+}
+
 function convertToolManifests(dir, files, notes) {
   for (const file of toolManifests(dir)) {
     const text = readFileSync(file, "utf8");
-    let manifest;
-    try {
-      manifest = JSON.parse(text);
-    } catch {
-      refuse(`${path.relative(dir, file)} isn't JSON`);
-    }
-    if (manifest?.schema !== "runx.tool.manifest.v1" || !Object.hasOwn(manifest.source ?? {}, "input_mode")) continue;
     const where = path.relative(dir, file);
-    if (Object.hasOwn(manifest.source, "inputs_via")) refuse(`${where} sets both source.input_mode and source.inputs_via`);
-    const keys = text.match(/"input_mode"\s*:/g) ?? [];
-    if (keys.length !== 1) refuse(`${where} says "input_mode" ${keys.length} times, so the one in source can't be told`);
-    const next = text.replace(/"input_mode"(\s*:)/, '"inputs_via"$1');
-    const converted = JSON.parse(next);
-    if (converted.source?.inputs_via !== manifest.source.input_mode) refuse(`${where}: "input_mode" isn't source's own key`);
-    files.set(file, next);
-    notes.push(`${where}: source.input_mode is source.inputs_via`);
+    try {
+      JSON.parse(text);
+    } catch {
+      refuse(`${where} isn't JSON`);
+    }
+    const next = convertToolManifest(text, where, notes);
+    if (next !== undefined && next !== text) files.set(file, next);
   }
 }
 
@@ -1288,7 +1332,7 @@ function main(argv) {
   const write = argv.includes("--write");
   const dirs = argv.filter((arg) => arg !== "--write");
   if (dirs.length === 0) {
-    process.stderr.write("usage: convert.mjs [--write] <package-or-connector-dir>...\n");
+    process.stderr.write("usage: convert.mjs [--write] <package-or-connector-dir | tool manifest.json>...\n");
     return 2;
   }
   let refused = 0;
@@ -1298,6 +1342,17 @@ function main(argv) {
       // match of a glob, is refused by name, and the rest still convert.
       const stat = statSync(dir, { throwIfNoEntry: false });
       if (stat === undefined) refuse("doesn't exist");
+      // A workspace's own tool, outside any package, converts by its manifest's path.
+      if (stat.isFile() && path.basename(dir) === "manifest.json") {
+        const text = readFileSync(dir, "utf8");
+        const notes = [];
+        const next = convertToolManifest(text, path.basename(dir), notes);
+        const changed = next !== undefined && next !== text;
+        if (write && changed) writeFileSync(dir, next);
+        process.stdout.write(`converted ${dir}: tool manifest${changed ? "" : ", already in the 0.12 shape"}${write ? "" : " (dry run)"}\n`);
+        for (const note of notes) process.stdout.write(`  note: ${note}\n`);
+        continue;
+      }
       if (!stat.isDirectory()) refuse("is not a directory");
       if (!existsSync(path.join(dir, "connector.yaml")) && !existsSync(path.join(dir, "run.yaml"))) {
         refuse("holds neither a run.yaml nor a connector.yaml, so it's not a package or a connector");
