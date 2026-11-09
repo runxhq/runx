@@ -10,19 +10,16 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::connector::ConnectorName;
-use runx_contracts::schema::{BoundedU64, IsoDateTime, NonEmptyString, NonEmptyVec};
+use runx_contracts::schema::{IsoDateTime, NonEmptyString, NonEmptyVec};
 use runx_contracts::{AuthorityBounds, AuthorityVerb, Effects, Reach, Reference};
 use runx_parser::{Workflow, WorkflowStep};
 use serde::{Deserialize, Serialize};
 
-/// The kernel's ceiling on the calls a run may have executing at once
-/// beneath its root, which a host's `max_concurrency` stays under and which
-/// applies when a host states none. Neither authority.md nor §4.11 gives the
-/// number; performance.md's composition journey runs a run at 8 under it.
-pub const MAX_CONCURRENCY_CEILING: u32 = 16;
-
-/// A run's `max_concurrency`: from 1 to the kernel's ceiling.
-pub type MaxConcurrency = BoundedU64<1, { MAX_CONCURRENCY_CEILING as u64 }>;
+/// A run's `max_concurrency`: any positive integer. The ceiling it's
+/// narrowed to is the host's resource policy
+/// ([`RuntimeOptions::max_concurrency`](crate::RuntimeOptions)), not the
+/// type's.
+pub type MaxConcurrency = std::num::NonZeroU32;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -88,9 +85,9 @@ pub struct RunAuthority {
     )]
     pub packages: Option<Vec<runx_contracts::PackagePattern>>,
     /// The most calls the run, its steps and child runs included, may have
-    /// executing at once, from 1 to [`MAX_CONCURRENCY_CEILING`], which
-    /// applies when it's absent. A step's `concurrency` only narrows it, so
-    /// nesting can't multiply it (§4.11).
+    /// executing at once: a positive integer, narrowed to the host's ceiling,
+    /// which applies when it's absent. A step's `concurrency` only narrows
+    /// it, so nesting can't multiply it (§4.11).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_concurrency: Option<MaxConcurrency>,
 }
@@ -163,23 +160,28 @@ impl RunAuthority {
     }
 }
 
-/// The most calls a run under `authority` may have executing at once: its
-/// `max_concurrency`, else the kernel's ceiling.
+/// The most calls a run under `authority` may have executing at once on a
+/// host whose ceiling is `host`: the authority's `max_concurrency`, narrowed
+/// to the host's ceiling, which applies when it states none.
 #[must_use]
-pub fn run_concurrency(authority: Option<&RunAuthority>) -> u32 {
+pub fn run_concurrency(authority: Option<&RunAuthority>, host: MaxConcurrency) -> u32 {
     authority
         .and_then(|authority| authority.max_concurrency)
-        .and_then(|limit| u32::try_from(limit.get()).ok())
-        .unwrap_or(MAX_CONCURRENCY_CEILING)
+        .map_or(host, |limit| limit.min(host))
+        .get()
 }
 
-/// How many of a step's calls may execute at once under the run's
-/// `authority`: the `concurrency` it declares, narrowed by the run's. A step
-/// that runs calls at once, such as a script, reads it from its runtime's
-/// authority.
+/// How many of a step's calls may execute at once: the `concurrency` it
+/// declares, narrowed by the run's `authority` and the host's ceiling,
+/// `host`. A step that runs calls at once, such as a script, reads both from
+/// its runtime's options.
 #[must_use]
-pub fn step_concurrency(authority: Option<&RunAuthority>, declared: u32) -> u32 {
-    declared.min(run_concurrency(authority))
+pub fn step_concurrency(
+    authority: Option<&RunAuthority>,
+    host: MaxConcurrency,
+    declared: u32,
+) -> u32 {
+    declared.min(run_concurrency(authority, host))
 }
 
 /// What `step` may change under the run's `authority`: the run's effects,

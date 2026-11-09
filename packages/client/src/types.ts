@@ -14,6 +14,13 @@ export interface RunxClientConfig {
   readonly maxOutputBytes?: number;
   readonly maxInputBytes?: number;
   readonly maxArtifactBytes?: number;
+  /**
+   * The host's resource policy: the most calls a run may have executing at
+   * once, given to runx as RUNX_MAX_CONCURRENCY. Every authority's
+   * `max_concurrency` is narrowed to it. Absent, runx's conservative
+   * default of 16 applies.
+   */
+  readonly maxConcurrency?: number;
 }
 
 export interface InvocationOptions {
@@ -68,8 +75,8 @@ export interface RunAuthority {
   readonly max_child_depth?: number;
   /**
    * The most calls the run, its steps and child runs included, may have
-   * executing at once: 1 to the kernel's ceiling of 16, which applies when
-   * it's absent. A step's `concurrency` only narrows it.
+   * executing at once: a positive integer, narrowed to the host's ceiling,
+   * which applies when it's absent. A step's `concurrency` only narrows it.
    */
   readonly max_concurrency?: number;
   /**

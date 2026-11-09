@@ -204,6 +204,45 @@ pub struct RuntimeOptions {
     /// child run runs in its parent's. None for a runtime no workspace's run
     /// made, as a test replay.
     pub(crate) workspace: Option<crate::paths::RunxPaths>,
+    /// The host's resource policy: the most calls a run may have executing at
+    /// once, which an authority's `max_concurrency` is narrowed to and which
+    /// applies when it states none. A child run runs under its parent's.
+    pub max_concurrency: crate::MaxConcurrency,
+}
+
+/// Where the CLI host reads its concurrency ceiling, a positive integer.
+pub const RUNX_MAX_CONCURRENCY_ENV: &str = "RUNX_MAX_CONCURRENCY";
+
+/// The CLI's conservative default for its concurrency ceiling when
+/// `RUNX_MAX_CONCURRENCY` names none. It's a default, not a measured limit.
+pub const DEFAULT_MAX_CONCURRENCY: crate::MaxConcurrency = match std::num::NonZeroU32::new(16) {
+    Some(ceiling) => ceiling,
+    None => std::num::NonZeroU32::MIN,
+};
+
+/// The concurrency ceiling a host whose environment is `env` sets: its
+/// `RUNX_MAX_CONCURRENCY`, else [`DEFAULT_MAX_CONCURRENCY`].
+///
+/// # Errors
+///
+/// Returns why `RUNX_MAX_CONCURRENCY` is no positive integer, so the host
+/// refuses to start a run under it.
+pub fn host_max_concurrency(
+    env: &BTreeMap<String, String>,
+) -> Result<crate::MaxConcurrency, String> {
+    let Some(value) = env.get(RUNX_MAX_CONCURRENCY_ENV) else {
+        return Ok(DEFAULT_MAX_CONCURRENCY);
+    };
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_digit())
+        .then(|| value.parse::<crate::MaxConcurrency>().ok())
+        .flatten()
+        .ok_or_else(|| {
+            format!(
+                "{RUNX_MAX_CONCURRENCY_ENV} is the most calls a run may have executing at once, a positive integer, not {value:?}"
+            )
+        })
 }
 
 /// The gate a session's calls take where they reach the world: a read shares
@@ -354,6 +393,7 @@ impl RuntimeOptions {
             packages: None,
             chain: Vec::new(),
             workspace: None,
+            max_concurrency: DEFAULT_MAX_CONCURRENCY,
         }
     }
 

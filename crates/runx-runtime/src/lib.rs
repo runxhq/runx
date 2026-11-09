@@ -117,8 +117,7 @@ pub use http::{
 };
 pub use install::{InstallStateError, installation_id};
 pub use kernel::authority::{
-    Delegation, DelegationTerm, MAX_CONCURRENCY_CEILING, MaxConcurrency, RunAuthority,
-    run_concurrency, step_concurrency,
+    Delegation, DelegationTerm, MaxConcurrency, RunAuthority, run_concurrency, step_concurrency,
 };
 pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector, OperationDigests,

@@ -359,6 +359,7 @@ impl BoundRun {
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
             workspace: Some(self.workspace.paths().clone()),
+            max_concurrency: self.max_concurrency,
         };
         let local_artifacts = crate::services::LocalArtifactService::for_run(
             &options.run.store().project_dir(),

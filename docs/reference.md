@@ -325,9 +325,14 @@ says how to give one. A runx home that fell back to the workspace keeps none.
 `runx authority list`, `show <name>` and `remove <name>` manage them.
 
 A run's authority may set `max_concurrency`, the most calls the run, its steps
-and child runs included, may have executing at once: from 1 to the kernel's
-ceiling of 16, which applies when a host states none. A step that runs calls at
-once only narrows it, so nesting can't multiply it.
+and child runs included, may have executing at once: any positive integer. The
+ceiling it's narrowed to is the host's resource policy, which applies when the
+authority states none. The CLI reads it from `RUNX_MAX_CONCURRENCY`, a positive
+integer, and refuses to start a run under anything else; with none set it uses
+16, a conservative default, not a measured limit. A step that runs calls at
+once only narrows it: what runs at once is the least of the step's
+`concurrency`, the authority's limit and the host's ceiling, so nesting can't
+multiply it.
 
 A run's authority may also set `max_spend_micro_usd`, the most the run may spend in
 integer micro-USD (1 = $0.000001); `runx skill --max-spend <usd>` sets it for a

@@ -73,6 +73,10 @@ impl TestOptions {
         fixture: &TestFixture,
         target: &Path,
     ) -> Result<RuntimeOptions, RuntimeError> {
+        let max_concurrency =
+            crate::execution::runner::host_max_concurrency(&self.env).map_err(|error| {
+                RuntimeError::effect_state("reading the host's resource policy", error)
+            })?;
         let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&self.env, target))
             .map_err(|error| {
                 RuntimeError::effect_state("opening a test case kernel", error.to_string())
@@ -97,6 +101,7 @@ impl TestOptions {
             packages: None,
             chain: Vec::new(),
             workspace: None,
+            max_concurrency,
         })
     }
 }

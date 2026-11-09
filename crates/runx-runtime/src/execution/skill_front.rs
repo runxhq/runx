@@ -121,6 +121,8 @@ pub(crate) struct BoundRun {
     method: SkillMethodDefinition,
     package_digest: String,
     execution_closure_digest: Option<String>,
+    /// The host's ceiling on the calls the run may have executing at once.
+    max_concurrency: crate::MaxConcurrency,
 }
 
 pub(crate) fn execute_skill_run_with_overrides(
@@ -478,6 +480,10 @@ fn bind_resolved(
             .map_err(invalid)?,
         );
     }
+    // The host's resource policy: a ceiling that is no positive integer
+    // refuses the run before it starts.
+    let max_concurrency =
+        crate::execution::runner::host_max_concurrency(workspace.env()).map_err(invalid)?;
     let skill_env = workspace.skill_env_for_skill(skill_dir);
     if !trusted_prepared {
         super::operator_context::load_skill_operator_context_chain_from_package(
@@ -509,6 +515,7 @@ fn bind_resolved(
         method: method.clone(),
         package_digest: package_digest.to_owned(),
         execution_closure_digest: execution_closure_digest.map(str::to_owned),
+        max_concurrency,
     })
 }
 

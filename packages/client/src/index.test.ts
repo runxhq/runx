@@ -225,6 +225,18 @@ describe("native invocation and decoding", () => {
     await createRunxClient({ ...config, environment: { ...config.environment, HOME: person } }).skills.run({ skillPath: "/skill", receiptDir });
     expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ home: person, runxHome: config.home });
   });
+  it("gives runx the host's concurrency ceiling as RUNX_MAX_CONCURRENCY, and refuses one that is no positive integer", async () => {
+    const { root, config, receiptDir } = await setup();
+    const capture = path.join(root, "capture.json");
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ ceiling: process.env.RUNX_MAX_CONCURRENCY ?? null }));
+      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed"))}));`);
+    await createRunxClient({ ...config, maxConcurrency: 32 }).skills.run({ skillPath: "/skill", receiptDir });
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ ceiling: "32" });
+    await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir });
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ ceiling: null });
+    for (const maxConcurrency of [0, 1.5, -1]) expect(() => createRunxClient({ ...config, maxConcurrency })).toThrow("maxConcurrency");
+  });
   /** A native stub that records each call's arguments and stdin, and answers with `answer`. */
   const recording = (capture: string, answer: unknown) => `#!${process.execPath}\nimport { appendFileSync, readFileSync } from 'node:fs';
       const args = process.argv.slice(2);

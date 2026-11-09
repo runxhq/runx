@@ -46,7 +46,9 @@ Directory separation is not an operating-system sandbox.
 
 Each operation accepts `signal`. Configuration sets `timeoutMs`, combined
 `maxOutputBytes`, `maxInputBytes`, a total `maxArtifactBytes` budget and
-`terminationGraceMs` (one second by default).
+`terminationGraceMs` (one second by default), and `maxConcurrency`, the host's
+ceiling on the calls a run may have executing at once, given to runx as
+`RUNX_MAX_CONCURRENCY` (runx's default of 16 applies without it).
 A run's inputs, a resume's resolutions and the signed records an install takes
 travel to native on stdin, never in a file or on argv. Input keys are never converted into CLI flags. `act` states the
 act the run is invoked with, `context` gives it the caller's current and
