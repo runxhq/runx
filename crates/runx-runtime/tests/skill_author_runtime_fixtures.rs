@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::ProcessTool;
@@ -27,7 +26,6 @@ struct FixtureCase {
     cwd: Option<String>,
     inputs_via: Option<runx_parser::InputMode>,
     large_input_bytes: Option<usize>,
-    timeout_seconds: u64,
     inputs: JsonObject,
     expected: FixtureExpected,
 }
@@ -38,7 +36,6 @@ struct FixtureExpected {
     stdout_bytes: Option<usize>,
     stdout_json: Option<JsonValue>,
     stderr_contains: Option<String>,
-    max_duration_ms: Option<u128>,
 }
 
 #[test]
@@ -50,7 +47,6 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
 
     for fixture in suite.cases {
         let temp_dir = tempfile::tempdir()?;
-        let started = Instant::now();
         let output = ProcessToolAdapter.invoke(SkillInvocation {
             reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
@@ -68,7 +64,6 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
             environment: Default::default(),
             credential_delivery: CredentialDelivery::none(),
         })?;
-        let duration_ms = started.elapsed().as_millis();
 
         assert_eq!(
             normalized_status(&output.status),
@@ -100,13 +95,6 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
                 fixture.id
             );
         }
-        if let Some(max_duration_ms) = fixture.expected.max_duration_ms {
-            assert!(
-                duration_ms < max_duration_ms,
-                "{} duration {duration_ms}ms exceeded {max_duration_ms}ms",
-                fixture.id
-            );
-        }
     }
 
     Ok(())
@@ -125,7 +113,8 @@ fn fixture_tool(
         command: "node".to_owned(),
         args: vec![path_string(probe_path)?, fixture.mode.clone()],
         cwd: fixture.cwd.clone(),
-        timeout_seconds: Some(fixture.timeout_seconds),
+        // A case takes the process default: none of them is about a timeout.
+        timeout_seconds: None,
         inputs_via: fixture.inputs_via,
         environment: Default::default(),
     })

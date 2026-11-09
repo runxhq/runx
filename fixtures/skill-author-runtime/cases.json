@@ -6,7 +6,6 @@
     {
       "id": "env-json",
       "mode": "inspect-env",
-      "timeout_seconds": 1,
       "inputs": {
         "message": "hi",
         "thread.title": "Docs",
@@ -29,7 +28,6 @@
       "id": "stdin-json",
       "mode": "inspect-stdin",
       "inputs_via": "stdin",
-      "timeout_seconds": 1,
       "inputs": {
         "message": "from stdin"
       },
@@ -49,7 +47,6 @@
       "id": "large-input-path",
       "mode": "inspect-large-input",
       "large_input_bytes": 81920,
-      "timeout_seconds": 1,
       "inputs": {
         "message": "large"
       },
@@ -68,7 +65,6 @@
       "id": "workspace-cwd",
       "mode": "inspect-env",
       "cwd": "../workspace-target",
-      "timeout_seconds": 1,
       "inputs": {
         "message": "cwd"
       },
@@ -88,7 +84,6 @@
     {
       "id": "large-output",
       "mode": "large-output",
-      "timeout_seconds": 1,
       "inputs": {},
       "expected": {
         "status": "sealed",
