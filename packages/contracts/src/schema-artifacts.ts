@@ -542,6 +542,15 @@ export const runxSchemaArtifacts = {
                         "title": "TurnAllowance",
                         "type": "object"
                       },
+                      "context_kinds": {
+                        "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
                       "envelope": {
                         "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1402,6 +1411,21 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
+                      "requires": {
+                        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+                        "items": {
+                          "description": "What a turn can need from the agent harness that works it.",
+                          "enum": [
+                            "native_tools",
+                            "fresh_context",
+                            "separate_reviewer"
+                          ],
+                          "title": "TurnRequirement",
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
                       "task": {
                         "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                         "minLength": 1,
@@ -2025,6 +2049,15 @@ export const runxSchemaArtifacts = {
         },
         "title": "TurnAllowance",
         "type": "object"
+      },
+      "context_kinds": {
+        "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+        "items": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "envelope": {
         "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
@@ -2885,6 +2918,21 @@ export const runxSchemaArtifacts = {
       "id": {
         "minLength": 1,
         "type": "string"
+      },
+      "requires": {
+        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+        "items": {
+          "description": "What a turn can need from the agent harness that works it.",
+          "enum": [
+            "native_tools",
+            "fresh_context",
+            "separate_reviewer"
+          ],
+          "title": "TurnRequirement",
+          "type": "string"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "task": {
         "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
@@ -28862,6 +28910,15 @@ export const runxSchemaArtifacts = {
                 "title": "TurnAllowance",
                 "type": "object"
               },
+              "context_kinds": {
+                "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
               "envelope": {
                 "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29721,6 +29778,21 @@ export const runxSchemaArtifacts = {
               "id": {
                 "minLength": 1,
                 "type": "string"
+              },
+              "requires": {
+                "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+                "items": {
+                  "description": "What a turn can need from the agent harness that works it.",
+                  "enum": [
+                    "native_tools",
+                    "fresh_context",
+                    "separate_reviewer"
+                  ],
+                  "title": "TurnRequirement",
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
               },
               "task": {
                 "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
@@ -32678,6 +32750,15 @@ export const runxSchemaArtifacts = {
                           "title": "TurnAllowance",
                           "type": "object"
                         },
+                        "context_kinds": {
+                          "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
                         "envelope": {
                           "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -33537,6 +33618,21 @@ export const runxSchemaArtifacts = {
                         "id": {
                           "minLength": 1,
                           "type": "string"
+                        },
+                        "requires": {
+                          "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+                          "items": {
+                            "description": "What a turn can need from the agent harness that works it.",
+                            "enum": [
+                              "native_tools",
+                              "fresh_context",
+                              "separate_reviewer"
+                            ],
+                            "title": "TurnRequirement",
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
                         },
                         "task": {
                           "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
@@ -40504,6 +40600,15 @@ export const runxSchemaArtifacts = {
                               "title": "TurnAllowance",
                               "type": "object"
                             },
+                            "context_kinds": {
+                              "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
                             "envelope": {
                               "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -41363,6 +41468,21 @@ export const runxSchemaArtifacts = {
                             "id": {
                               "minLength": 1,
                               "type": "string"
+                            },
+                            "requires": {
+                              "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+                              "items": {
+                                "description": "What a turn can need from the agent harness that works it.",
+                                "enum": [
+                                  "native_tools",
+                                  "fresh_context",
+                                  "separate_reviewer"
+                                ],
+                                "title": "TurnRequirement",
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
                             },
                             "task": {
                               "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
@@ -42864,6 +42984,15 @@ export const runxSchemaArtifacts = {
                                     "title": "TurnAllowance",
                                     "type": "object"
                                   },
+                                  "context_kinds": {
+                                    "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  },
                                   "envelope": {
                                     "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -43724,6 +43853,21 @@ export const runxSchemaArtifacts = {
                                     "minLength": 1,
                                     "type": "string"
                                   },
+                                  "requires": {
+                                    "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+                                    "items": {
+                                      "description": "What a turn can need from the agent harness that works it.",
+                                      "enum": [
+                                        "native_tools",
+                                        "fresh_context",
+                                        "separate_reviewer"
+                                      ],
+                                      "title": "TurnRequirement",
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  },
                                   "task": {
                                     "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                                     "minLength": 1,
@@ -44364,6 +44508,15 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "description": "An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`).",
         "properties": {
+          "context_kinds": {
+            "description": "The kinds of context the turn asks its host to supply.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "envelope": {
             "additionalProperties": false,
             "description": "An act's envelope as its turn's agent reads it: whole, except that each context entry is a line of an index, its data read by `turn_read`. The act's instructions and inputs stay whole, as the act itself; each input also reads by its ref.",
@@ -45006,6 +45159,21 @@ export const runxSchemaArtifacts = {
           "id": {
             "minLength": 1,
             "type": "string"
+          },
+          "requires": {
+            "description": "What the turn needs from its agent harness.",
+            "items": {
+              "description": "What a turn can need from the agent harness that works it.",
+              "enum": [
+                "native_tools",
+                "fresh_context",
+                "separate_reviewer"
+              ],
+              "title": "TurnRequirement",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
           },
           "task": {
             "minLength": 1,

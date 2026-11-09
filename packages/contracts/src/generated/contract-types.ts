@@ -4044,8 +4044,12 @@ export type TurnContextLineContract = {
 export type TurnInvocationContract = {
   /** What the agent may call while its turn is open. */
   readonly allowance: TurnAllowanceContract;
+  /** The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31). */
+  readonly context_kinds?: readonly string[];
   readonly envelope: AgentContextEnvelopeContract;
   readonly id: string;
+  /** What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`. */
+  readonly requires?: readonly TurnRequirementContract[];
   /** The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions. */
   readonly task: string;
 };
@@ -4075,6 +4079,9 @@ export type TurnReadPageContract = {
   /** How many characters the whole holds. */
   readonly total: number;
 };
+
+/** What a turn can need from the agent harness that works it. */
+export type TurnRequirementContract = "native_tools" | "fresh_context" | "separate_reviewer";
 
 /** An open turn as its agent reads it: the act it answers (its id is the turn's address), with the act's context as an index, the calls it may make, and how each call it made so far ended. Nothing in it is the data of a context entry, which `turn_read` reads by its locator. */
 export type TurnStatusContract = {
@@ -4115,8 +4122,12 @@ export type TurnToolContract = {
 
 /** An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
 export type TurnViewContract = {
+  /** The kinds of context the turn asks its host to supply. */
+  readonly context_kinds?: readonly string[];
   readonly envelope: TurnViewEnvelopeContract;
   readonly id: string;
+  /** What the turn needs from its agent harness. */
+  readonly requires?: readonly TurnRequirementContract[];
   readonly task: string;
 };
 
