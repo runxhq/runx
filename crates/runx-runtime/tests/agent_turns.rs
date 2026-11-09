@@ -619,7 +619,12 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
 fn a_run_answered_later_seals_at_the_time_it_closes() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
-    std::thread::sleep(std::time::Duration::from_millis(20));
+    // The answer comes at a later millisecond than the start, so a seal
+    // stamped at the start would sort before it.
+    let started = runx_runtime::RunClock::System.now();
+    while runx_runtime::RunClock::System.now() <= started {
+        std::hint::spin_loop();
+    }
     let answered_at = runx_runtime::RunClock::System.now();
     let sealed = paused
         .open()?
@@ -888,10 +893,12 @@ fn a_nested_turns_call_runs_where_it_waits() -> TestResult {
 }
 
 #[test]
+#[cfg(unix)]
 fn a_cancelled_nested_call_is_recorded_and_its_turn_goes_on() -> TestResult {
+    use std::io::BufRead as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::time::{Duration, Instant};
 
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_nested_tool_skills(temp.path())?, TURN)?;
@@ -900,25 +907,51 @@ fn a_cancelled_nested_call_is_recorded_and_its_turn_goes_on() -> TestResult {
     let child_turn = "answer/0#answer";
 
     // The host cancels a command while it runs: the command is terminated,
-    // and the call records that it stopped, then returns.
-    let command = input(serde_json::json!({"command": "sleep", "args": ["30"]}))?;
+    // and the call records that it stopped, then returns. The command says
+    // it's running on a named pipe, then waits on a gate nothing opens, so
+    // only the cancellation ends it. The test holds both ends of the first
+    // pipe, so neither side's open waits, and lets its own end go once the
+    // call returns, so the watch ends on every path.
+    let pipes = tempdir()?;
+    let (running, gate) = (pipes.path().join("running"), pipes.path().join("gate"));
+    for pipe in [&running, &gate] {
+        let made = std::process::Command::new("mkfifo").arg(pipe).status()?;
+        assert!(made.success(), "mkfifo {}", pipe.display());
+    }
+    let nonblocking = rustix::fs::OFlags::NONBLOCK;
+    let reader = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(nonblocking.bits() as i32)
+        .open(&running)?;
+    rustix::fs::fcntl_setfl(&reader, rustix::fs::fcntl_getfl(&reader)? - nonblocking)?;
+    let ours = std::fs::OpenOptions::new()
+        .write(true)
+        .custom_flags(nonblocking.bits() as i32)
+        .open(&running)?;
+    let command = input(serde_json::json!({"command": "sh", "args": [
+        "-c",
+        format!("echo running > '{}'; read go < '{}'", running.display(), gate.display()),
+    ]}))?;
     let cancel = Arc::new(AtomicBool::new(false));
-    let began = Instant::now();
     let stopped = std::thread::scope(|scope| {
+        let watch = scope.spawn(|| {
+            let mut line = String::new();
+            let _read = std::io::BufReader::new(&reader).read_line(&mut line);
+            if !line.is_empty() {
+                cancel.store(true, Ordering::Release);
+            }
+        });
         let call = scope.spawn(|| {
             runx_runtime::interrupt::while_working(&cancel, || {
                 turn.call(child_turn, "command_execute", Some("sleep"), command)
             })
         });
-        std::thread::sleep(Duration::from_millis(500));
-        cancel.store(true, Ordering::Release);
-        call.join()
+        let stopped = call.join();
+        drop(ours);
+        let _watched = watch.join();
+        stopped
     })
     .map_err(|_| "the cancelled call panicked")??;
-    assert!(
-        began.elapsed() < Duration::from_secs(15),
-        "the call returned once its command was stopped"
-    );
     let TurnCallOutcome::Completed { output, .. } = &stopped.outcome else {
         return Err(format!("the stopped call is recorded: {stopped:?}").into());
     };
