@@ -27,19 +27,6 @@ pub struct OutputField {
 }
 
 impl OutputField {
-    /// A required field of one JSON Schema type.
-    #[must_use]
-    pub fn of_type(field_type: &str) -> Self {
-        Self {
-            schema: JsonObject::from([(
-                "type".to_owned(),
-                JsonValue::String(field_type.to_owned()),
-            )]),
-            optional: false,
-            packet: None,
-        }
-    }
-
     /// Whether a successful producer must return this field.
     #[must_use]
     pub const fn is_required(&self) -> bool {
@@ -272,7 +259,17 @@ mod tests {
 
     fn declared_output() -> BTreeMap<String, OutputField> {
         [
-            ("notify_plan".to_owned(), OutputField::of_type("object")),
+            (
+                "notify_plan".to_owned(),
+                OutputField {
+                    schema: crate::JsonObject::from([(
+                        "type".to_owned(),
+                        JsonValue::String("object".to_owned()),
+                    )]),
+                    optional: false,
+                    packet: None,
+                },
+            ),
             (
                 "status".to_owned(),
                 OutputField {

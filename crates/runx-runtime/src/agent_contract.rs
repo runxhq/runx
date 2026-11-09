@@ -203,9 +203,19 @@ mod tests {
         assert_eq!(
             invocation.envelope.output,
             Some(
-                [("notify_plan".to_owned(), OutputField::of_type("object"))]
-                    .into_iter()
-                    .collect()
+                [(
+                    "notify_plan".to_owned(),
+                    OutputField {
+                        schema: runx_contracts::JsonObject::from([(
+                            "type".to_owned(),
+                            JsonValue::String("object".to_owned()),
+                        )]),
+                        optional: false,
+                        packet: None,
+                    },
+                )]
+                .into_iter()
+                .collect()
             )
         );
         Ok(())

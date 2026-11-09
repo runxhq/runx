@@ -853,7 +853,14 @@ mod tests {
             final_result_tool: FINAL.to_owned(),
             final_result_output: Some(BTreeMap::from([(
                 "architecture_decision".to_owned(),
-                OutputField::of_type("object"),
+                OutputField {
+                    schema: JsonObject::from([(
+                        "type".to_owned(),
+                        JsonValue::String("object".to_owned()),
+                    )]),
+                    optional: false,
+                    packet: None,
+                },
             )])),
             final_result_schema: None,
         };
