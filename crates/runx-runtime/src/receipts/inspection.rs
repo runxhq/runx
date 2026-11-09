@@ -217,10 +217,11 @@ fn authority_inspection(receipt: &Receipt) -> ReceiptAuthorityInspection {
     }
 }
 
+/// A term's verbs as the scopes it exercised on the connector instance it
+/// names, such as `connector:write`.
 fn term_scopes(term: &AuthorityTerm) -> impl Iterator<Item = ReceiptExercisedScope> + '_ {
-    let family = wire_label(&term.resource_family);
     term.verbs.iter().map(move |verb| ReceiptExercisedScope {
-        scope: format!("{family}:{}", wire_label(verb)),
+        scope: format!("connector:{}", wire_label(verb)),
         source: "authority_term".to_owned(),
         term_id: Some(term.term_id.to_string()),
         resource_uri: Some(term.resource_ref.uri.to_string()),

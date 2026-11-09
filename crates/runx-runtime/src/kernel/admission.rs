@@ -19,9 +19,9 @@ use runx_contracts::connector::{
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AdmissionCheck, AdmissionReason, AuthorityApproval, AuthorityBounds, AuthorityDerivation,
-    AuthorityEvidence, AuthorityEvidenceKind, AuthorityResourceFamily, AuthorityTerm,
-    AuthorityUseLimit, CheckOutcome, ConnectorInstance, JsonObject, JsonValue, OperationAmount,
-    OperationIntent, Readiness, Reference, ReferenceType,
+    AuthorityEvidence, AuthorityEvidenceKind, AuthorityTerm, AuthorityUseLimit, CheckOutcome,
+    ConnectorInstance, JsonObject, JsonValue, OperationAmount, OperationIntent, Readiness,
+    Reference, ReferenceType,
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
@@ -1159,7 +1159,6 @@ fn delegated_terms(
         let narrowing = AttenuationRequest {
             principal_ref: preceding.principal_ref.clone(),
             resource_ref: preceding.resource_ref.clone(),
-            resource_family: preceding.resource_family.clone(),
             verbs: preceding.verbs.clone(),
             bounds: AuthorityBounds {
                 packages: packages.clone(),
@@ -1646,7 +1645,6 @@ fn term_request(
     AttenuationRequest {
         principal_ref: actor_ref,
         resource_ref: capability::instance_reference(instance),
-        resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![spec.verb.authority_verb()],
         bounds: AuthorityBounds {
             operations: vec![NonEmptyString::from(operation)],

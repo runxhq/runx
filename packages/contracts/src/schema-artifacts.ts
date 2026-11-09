@@ -5113,13 +5113,6 @@ export const runxSchemaArtifacts = {
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
                 },
-                "resource_family": {
-                  "enum": [
-                    "connector"
-                  ],
-                  "title": "AuthorityResourceFamily",
-                  "type": "string"
-                },
                 "resource_ref": {
                   "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5226,7 +5219,6 @@ export const runxSchemaArtifacts = {
                 "term_id",
                 "principal_ref",
                 "resource_ref",
-                "resource_family",
                 "verbs",
                 "bounds",
                 "issued_by_ref"
@@ -6187,13 +6179,6 @@ export const runxSchemaArtifacts = {
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
-      "resource_family": {
-        "enum": [
-          "connector"
-        ],
-        "title": "AuthorityResourceFamily",
-        "type": "string"
-      },
       "resource_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6300,7 +6285,6 @@ export const runxSchemaArtifacts = {
       "term_id",
       "principal_ref",
       "resource_ref",
-      "resource_family",
       "verbs",
       "bounds",
       "issued_by_ref"
@@ -24783,13 +24767,6 @@ export const runxSchemaArtifacts = {
                             "type": "object",
                             "x-runx-schema": "runx.reference.v1"
                           },
-                          "resource_family": {
-                            "enum": [
-                              "connector"
-                            ],
-                            "title": "AuthorityResourceFamily",
-                            "type": "string"
-                          },
                           "resource_ref": {
                             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24896,7 +24873,6 @@ export const runxSchemaArtifacts = {
                           "term_id",
                           "principal_ref",
                           "resource_ref",
-                          "resource_family",
                           "verbs",
                           "bounds",
                           "issued_by_ref"
@@ -25910,13 +25886,6 @@ export const runxSchemaArtifacts = {
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
                 },
-                "resource_family": {
-                  "enum": [
-                    "connector"
-                  ],
-                  "title": "AuthorityResourceFamily",
-                  "type": "string"
-                },
                 "resource_ref": {
                   "$id": "https://schemas.runx.ai/runx/reference/v1.json",
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -26023,7 +25992,6 @@ export const runxSchemaArtifacts = {
                 "term_id",
                 "principal_ref",
                 "resource_ref",
-                "resource_family",
                 "verbs",
                 "bounds",
                 "issued_by_ref"

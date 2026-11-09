@@ -19,7 +19,6 @@ pub runx_core::policy::AttenuationError::ChildNotSubset
 pub runx_core::policy::AttenuationError::Expired
 pub runx_core::policy::AttenuationError::ExpiryNotSubset
 pub runx_core::policy::AttenuationError::ResourceAddressMismatch
-pub runx_core::policy::AttenuationError::ResourceFamilyMismatch
 pub runx_core::policy::AttenuationError::VerbsNotSubset
 pub enum runx_core::policy::DerivationError
 pub runx_core::policy::DerivationError::ActorMismatch
@@ -49,7 +48,6 @@ pub struct runx_core::policy::AttenuationRequest
 pub runx_core::policy::AttenuationRequest::bounds: runx_contracts::authority::AuthorityBounds
 pub runx_core::policy::AttenuationRequest::expires_at: core::option::Option<runx_contracts::schema::IsoDateTime>
 pub runx_core::policy::AttenuationRequest::principal_ref: runx_contracts::reference::Reference
-pub runx_core::policy::AttenuationRequest::resource_family: runx_contracts::authority::AuthorityResourceFamily
 pub runx_core::policy::AttenuationRequest::resource_ref: runx_contracts::reference::Reference
 pub runx_core::policy::AttenuationRequest::verbs: alloc::vec::Vec<runx_contracts::authority::AuthorityVerb>
 pub struct runx_core::policy::ConnectorBoundsComparator
@@ -91,72 +89,72 @@ pub fn runx_core::policy::scope_grant_allows(granted_scope: &str, requested_scop
 pub fn runx_core::policy::strict_process_tool_inline_code_denial(command: core::option::Option<&str>, args: &[alloc::string::String], policy: core::option::Option<&runx_core::policy::LocalExecutionPolicy>) -> core::option::Option<alloc::string::String>
 pub mod runx_core::serde_conventions
 pub mod runx_core::state_machine
-pub enum runx_core::state_machine::GraphState
-pub runx_core::state_machine::GraphState::Failed
-pub runx_core::state_machine::GraphState::Pending
-pub runx_core::state_machine::GraphState::Running
-pub runx_core::state_machine::GraphState::Succeeded
-pub enum runx_core::state_machine::GraphStepState
-pub runx_core::state_machine::GraphStepState::Failed
-pub runx_core::state_machine::GraphStepState::Pending
-pub runx_core::state_machine::GraphStepState::Running
-pub runx_core::state_machine::GraphStepState::Skipped
-pub runx_core::state_machine::GraphStepState::Succeeded
-pub enum runx_core::state_machine::SequentialGraphEvent
-pub runx_core::state_machine::SequentialGraphEvent::Complete
-pub runx_core::state_machine::SequentialGraphEvent::FailGraph
-pub runx_core::state_machine::SequentialGraphEvent::FailGraph::error: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StartStep
-pub runx_core::state_machine::SequentialGraphEvent::StartStep::at: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StartStep::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepFailed
-pub runx_core::state_machine::SequentialGraphEvent::StepFailed::at: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepFailed::error: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepFailed::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepSkipped
-pub runx_core::state_machine::SequentialGraphEvent::StepSkipped::at: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepSkipped::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepSucceeded
-pub runx_core::state_machine::SequentialGraphEvent::StepSucceeded::admission_witness: alloc::boxed::Box<runx_core::state_machine::StepAdmissionWitness>
-pub runx_core::state_machine::SequentialGraphEvent::StepSucceeded::at: alloc::string::String
-pub runx_core::state_machine::SequentialGraphEvent::StepSucceeded::outputs: core::option::Option<runx_contracts::json::JsonObject>
-pub enum runx_core::state_machine::SequentialGraphPlan
-pub runx_core::state_machine::SequentialGraphPlan::Blocked
-pub runx_core::state_machine::SequentialGraphPlan::Blocked::reason: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Blocked::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Complete
-pub runx_core::state_machine::SequentialGraphPlan::Failed
-pub runx_core::state_machine::SequentialGraphPlan::Failed::reason: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::Failed::step_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphPlan::RunStep
-pub runx_core::state_machine::SequentialGraphPlan::RunStep::attempt: u32
-pub runx_core::state_machine::SequentialGraphPlan::RunStep::context_from: alloc::vec::Vec<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphPlan::RunStep::step_id: alloc::string::String
+pub enum runx_core::state_machine::SequentialWorkflowEvent
+pub runx_core::state_machine::SequentialWorkflowEvent::Complete
+pub runx_core::state_machine::SequentialWorkflowEvent::FailWorkflow
+pub runx_core::state_machine::SequentialWorkflowEvent::FailWorkflow::error: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StartStep
+pub runx_core::state_machine::SequentialWorkflowEvent::StartStep::at: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StartStep::step_id: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepFailed
+pub runx_core::state_machine::SequentialWorkflowEvent::StepFailed::at: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepFailed::error: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepFailed::step_id: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSkipped
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSkipped::at: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSkipped::step_id: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSucceeded
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSucceeded::admission_witness: alloc::boxed::Box<runx_core::state_machine::StepAdmissionWitness>
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSucceeded::at: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowEvent::StepSucceeded::outputs: core::option::Option<runx_contracts::json::JsonObject>
+pub enum runx_core::state_machine::SequentialWorkflowPlan
+pub runx_core::state_machine::SequentialWorkflowPlan::Blocked
+pub runx_core::state_machine::SequentialWorkflowPlan::Blocked::reason: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowPlan::Blocked::step_id: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowPlan::Complete
+pub runx_core::state_machine::SequentialWorkflowPlan::Failed
+pub runx_core::state_machine::SequentialWorkflowPlan::Failed::reason: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowPlan::Failed::step_id: alloc::string::String
+pub runx_core::state_machine::SequentialWorkflowPlan::RunStep
+pub runx_core::state_machine::SequentialWorkflowPlan::RunStep::attempt: u32
+pub runx_core::state_machine::SequentialWorkflowPlan::RunStep::context_from: alloc::vec::Vec<alloc::string::String>
+pub runx_core::state_machine::SequentialWorkflowPlan::RunStep::step_id: alloc::string::String
+pub enum runx_core::state_machine::WorkflowState
+pub runx_core::state_machine::WorkflowState::Failed
+pub runx_core::state_machine::WorkflowState::Pending
+pub runx_core::state_machine::WorkflowState::Running
+pub runx_core::state_machine::WorkflowState::Succeeded
+pub enum runx_core::state_machine::WorkflowStepState
+pub runx_core::state_machine::WorkflowStepState::Failed
+pub runx_core::state_machine::WorkflowStepState::Pending
+pub runx_core::state_machine::WorkflowStepState::Running
+pub runx_core::state_machine::WorkflowStepState::Skipped
+pub runx_core::state_machine::WorkflowStepState::Succeeded
 pub struct runx_core::state_machine::AuthorityAdmissionWitness
 pub runx_core::state_machine::AuthorityAdmissionWitness::capability_ref: core::option::Option<runx_contracts::reference::Reference>
 pub runx_core::state_machine::AuthorityAdmissionWitness::child_term_id: alloc::string::String
 pub runx_core::state_machine::AuthorityAdmissionWitness::idempotency_key: core::option::Option<alloc::string::String>
 pub runx_core::state_machine::AuthorityAdmissionWitness::parent_term_id: alloc::string::String
 pub runx_core::state_machine::AuthorityAdmissionWitness::verb: runx_contracts::authority::AuthorityVerb
-pub struct runx_core::state_machine::SequentialGraph
-pub runx_core::state_machine::SequentialGraph::graph_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraph::state: runx_core::state_machine::GraphState
-pub runx_core::state_machine::SequentialGraph::steps: alloc::vec::Vec<runx_core::state_machine::SequentialGraphStep>
-pub struct runx_core::state_machine::SequentialGraphStep
-pub runx_core::state_machine::SequentialGraphStep::attempts: u32
-pub runx_core::state_machine::SequentialGraphStep::completed_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStep::error: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStep::outputs: core::option::Option<runx_contracts::json::JsonObject>
-pub runx_core::state_machine::SequentialGraphStep::receipt_id: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStep::started_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStep::state: runx_core::state_machine::GraphStepState
-pub runx_core::state_machine::SequentialGraphStep::step_id: alloc::string::String
-pub struct runx_core::state_machine::SequentialGraphStepDefinition
-pub runx_core::state_machine::SequentialGraphStepDefinition::context_from: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-pub runx_core::state_machine::SequentialGraphStepDefinition::id: alloc::string::String
-pub struct runx_core::state_machine::SequentialGraphStepIndex
-impl runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::SequentialGraphStepIndex::new(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> Self
+pub struct runx_core::state_machine::SequentialWorkflow
+pub runx_core::state_machine::SequentialWorkflow::state: runx_core::state_machine::WorkflowState
+pub runx_core::state_machine::SequentialWorkflow::steps: alloc::vec::Vec<runx_core::state_machine::SequentialWorkflowStep>
+pub runx_core::state_machine::SequentialWorkflow::workflow_id: alloc::string::String
+pub struct runx_core::state_machine::SequentialWorkflowStep
+pub runx_core::state_machine::SequentialWorkflowStep::attempts: u32
+pub runx_core::state_machine::SequentialWorkflowStep::completed_at: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialWorkflowStep::error: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialWorkflowStep::outputs: core::option::Option<runx_contracts::json::JsonObject>
+pub runx_core::state_machine::SequentialWorkflowStep::receipt_id: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialWorkflowStep::started_at: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialWorkflowStep::state: runx_core::state_machine::WorkflowStepState
+pub runx_core::state_machine::SequentialWorkflowStep::step_id: alloc::string::String
+pub struct runx_core::state_machine::SequentialWorkflowStepDefinition
+pub runx_core::state_machine::SequentialWorkflowStepDefinition::context_from: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub runx_core::state_machine::SequentialWorkflowStepDefinition::id: alloc::string::String
+pub struct runx_core::state_machine::SequentialWorkflowStepIndex
+impl runx_core::state_machine::SequentialWorkflowStepIndex
+pub fn runx_core::state_machine::SequentialWorkflowStepIndex::new(steps: &[runx_core::state_machine::SequentialWorkflowStepDefinition]) -> Self
 pub struct runx_core::state_machine::StepAdmissionWitness
 pub runx_core::state_machine::StepAdmissionWitness::authority: core::option::Option<runx_core::state_machine::AuthorityAdmissionWitness>
 pub runx_core::state_machine::StepAdmissionWitness::receipt_id: alloc::string::String
@@ -164,13 +162,13 @@ pub runx_core::state_machine::StepAdmissionWitness::step_id: alloc::string::Stri
 impl runx_core::state_machine::StepAdmissionWitness
 pub fn runx_core::state_machine::StepAdmissionWitness::local_runtime(step_id: impl core::convert::Into<alloc::string::String>, receipt_id: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn runx_core::state_machine::StepAdmissionWitness::with_authority(step_id: impl core::convert::Into<alloc::string::String>, receipt_id: impl core::convert::Into<alloc::string::String>, authority: runx_core::state_machine::AuthorityAdmissionWitness) -> Self
-pub fn runx_core::state_machine::apply_sequential_graph_event(graph: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent)
-pub fn runx_core::state_machine::apply_sequential_graph_event_owned_indexed(graph: &mut runx_core::state_machine::SequentialGraph, event: runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::create_sequential_graph(graph_id: impl core::convert::Into<alloc::string::String>, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraph
-pub fn runx_core::state_machine::create_sequential_graph_step_index(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::plan_sequential_graph_transition(graph: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(graph: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(graph: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::start_sequential_graph_step_indexed(graph: &mut runx_core::state_machine::SequentialGraph, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::succeed_sequential_graph_step_indexed(graph: &mut runx_core::state_machine::SequentialGraph, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::transition_sequential_graph(graph: &runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent) -> runx_core::state_machine::SequentialGraph
+pub fn runx_core::state_machine::apply_sequential_workflow_event(graph: &mut runx_core::state_machine::SequentialWorkflow, event: &runx_core::state_machine::SequentialWorkflowEvent)
+pub fn runx_core::state_machine::apply_sequential_workflow_event_owned_indexed(graph: &mut runx_core::state_machine::SequentialWorkflow, event: runx_core::state_machine::SequentialWorkflowEvent, step_index: &runx_core::state_machine::SequentialWorkflowStepIndex)
+pub fn runx_core::state_machine::create_sequential_workflow(workflow_id: impl core::convert::Into<alloc::string::String>, steps: &[runx_core::state_machine::SequentialWorkflowStepDefinition]) -> runx_core::state_machine::SequentialWorkflow
+pub fn runx_core::state_machine::create_sequential_workflow_step_index(steps: &[runx_core::state_machine::SequentialWorkflowStepDefinition]) -> runx_core::state_machine::SequentialWorkflowStepIndex
+pub fn runx_core::state_machine::plan_sequential_workflow_transition(graph: &runx_core::state_machine::SequentialWorkflow, steps: &[runx_core::state_machine::SequentialWorkflowStepDefinition]) -> runx_core::state_machine::SequentialWorkflowPlan
+pub fn runx_core::state_machine::plan_sequential_workflow_transition_indexed(graph: &runx_core::state_machine::SequentialWorkflow, steps: &[runx_core::state_machine::SequentialWorkflowStepDefinition], step_index: &runx_core::state_machine::SequentialWorkflowStepIndex) -> runx_core::state_machine::SequentialWorkflowPlan
+pub fn runx_core::state_machine::plan_sequential_workflow_transition_indexed_from(graph: &runx_core::state_machine::SequentialWorkflow, steps: &[runx_core::state_machine::SequentialWorkflowStepDefinition], step_index: &runx_core::state_machine::SequentialWorkflowStepIndex, start_index: usize) -> runx_core::state_machine::SequentialWorkflowPlan
+pub fn runx_core::state_machine::start_sequential_workflow_step_indexed(graph: &mut runx_core::state_machine::SequentialWorkflow, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialWorkflowStepIndex)
+pub fn runx_core::state_machine::succeed_sequential_workflow_step_indexed(graph: &mut runx_core::state_machine::SequentialWorkflow, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialWorkflowStepIndex)
+pub fn runx_core::state_machine::transition_sequential_workflow(graph: &runx_core::state_machine::SequentialWorkflow, event: &runx_core::state_machine::SequentialWorkflowEvent) -> runx_core::state_machine::SequentialWorkflow

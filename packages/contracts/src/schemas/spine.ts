@@ -10,7 +10,6 @@ import type {
   ArtifactContract,
   AuthorityApprovalContract,
   AuthorityBoundsContract,
-  AuthorityResourceFamilyContract,
   AuthoritySubsetComparisonContract,
   AuthoritySubsetProofContract,
   AuthorityTermContract,
@@ -113,11 +112,6 @@ export const authorityBoundsSchema = schemaAt<AuthorityBoundsContract>(
   authorityTermSchema,
   ["properties", "bounds"],
   "authority.terms[].bounds",
-);
-export const authorityResourceFamilySchema = schemaAt<AuthorityResourceFamilyContract>(
-  authorityTermSchema,
-  ["properties", "resource_family"],
-  "authority.terms[].resource_family",
 );
 export const authorityVerbSchema = schemaAt<AuthorityVerbContract>(
   authorityTermSchema,

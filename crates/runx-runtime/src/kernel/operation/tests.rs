@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{
-    AuthorityBounds, AuthorityResourceFamily, AuthorityVerb, ExecutionEvent, JsonObject, JsonValue,
-    Reference, ReferenceType, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    AuthorityBounds, AuthorityVerb, ExecutionEvent, JsonObject, JsonValue, Reference,
+    ReferenceType, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
 use runx_core::policy::AttenuationRequest;
 use runx_parser::WorkflowStep;
@@ -1133,7 +1133,6 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
                 .unwrap()
                 .as_str(),
         ),
-        resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Read],
         bounds: AuthorityBounds {
             operations: vec!["fixture/chat/channel.post.read".into()],
@@ -1608,7 +1607,6 @@ fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval(
     authority.delegations.push(AttenuationRequest {
         principal_ref: context.admitted.actor_ref.clone(),
         resource_ref: context.admitted.capability.term.resource_ref.clone(),
-        resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Read],
         bounds: AuthorityBounds {
             operations: vec!["fixture/advisories/vulnerabilities.read".into()],
@@ -2072,7 +2070,6 @@ fn a_request_whose_path_changes_when_parsed_is_never_sent() {
             delegations: vec![AttenuationRequest {
                 principal_ref: actor_ref,
                 resource_ref: Reference::runx(ReferenceType::ConnectorInstance, instance.as_str()),
-                resource_family: AuthorityResourceFamily::Connector,
                 verbs: vec![AuthorityVerb::Read],
                 bounds: AuthorityBounds {
                     operations: vec!["fixture/forge/issues.read".into()],
@@ -3278,7 +3275,6 @@ fn a_use_bound_on_another_instance_leaves_one_gate_naming_both_reasons() {
                 .unwrap()
                 .as_str(),
         ),
-        resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Write],
         bounds: AuthorityBounds {
             operations: vec!["fixture/credits/credits.spend".into()],

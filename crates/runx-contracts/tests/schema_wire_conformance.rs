@@ -48,7 +48,6 @@ fn receipt_with_term(bounds: Value, approvals: Option<Value>) -> Result<Value, S
         "term_id": "term_1",
         "principal_ref": { "type": "principal", "uri": "runx:principal:p" },
         "resource_ref": { "type": "connector_instance", "uri": "runx:connector_instance:i" },
-        "resource_family": "connector",
         "verbs": ["read"],
         "bounds": bounds,
         "issued_by_ref": { "type": "principal", "uri": "runx:principal:issuer" },

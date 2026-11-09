@@ -1047,7 +1047,6 @@ fn authority_term() -> Value {
         "term_id": "term_1",
         "principal_ref": a_ref(),
         "resource_ref": a_ref(),
-        "resource_family": "connector",
         "verbs": ["read", "write"],
         "bounds": {},
         "issued_by_ref": a_ref(),
@@ -1134,8 +1133,8 @@ pub(super) fn authority_term_corpus() -> Vec<(&'static str, Value)> {
             set_field(valid.clone(), "term_id", json!("")),
         ),
         (
-            "unknown resource family",
-            set_field(valid.clone(), "resource_family", json!("payment")),
+            "a resource family, which 0.12 dropped",
+            set_field(valid.clone(), "resource_family", json!("connector")),
         ),
         (
             "additional property",

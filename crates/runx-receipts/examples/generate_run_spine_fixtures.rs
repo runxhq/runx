@@ -12,12 +12,12 @@ use std::path::Path;
 
 use runx_contracts::connector::Digest;
 use runx_contracts::{
-    ActForm, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, AuthorityVerb, Criterion,
-    CriterionBinding, CriterionStatus, Decision, DecisionChoice, ExecutionBoundaryKind,
-    ExecutionBoundaryObservation, Intent, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt,
-    ReceiptAct, ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer,
-    ReceiptIssuerType, ReceiptSchema, ReceiptSignature, Reference, ReferenceType, RunOutcome, Seal,
-    SignatureAlgorithm, Subject, SubjectKind, TermLegitimacy, canonical_stable_json,
+    ActForm, AuthorityBounds, AuthorityTerm, AuthorityVerb, Criterion, CriterionBinding,
+    CriterionStatus, Decision, DecisionChoice, ExecutionBoundaryKind, ExecutionBoundaryObservation,
+    Intent, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority,
+    ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,
+    ReceiptSignature, Reference, ReferenceType, RunOutcome, Seal, SignatureAlgorithm, Subject,
+    SubjectKind, TermLegitimacy, canonical_stable_json,
 };
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
@@ -166,7 +166,6 @@ fn call_authority(receipt: &mut Receipt) {
         term_id: TERM_ID.into(),
         principal_ref: principal,
         resource_ref: Reference::runx(ReferenceType::ConnectorInstance, "github.default"),
-        resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Write],
         bounds: AuthorityBounds {
             operations: vec!["github/comments.create".into()],

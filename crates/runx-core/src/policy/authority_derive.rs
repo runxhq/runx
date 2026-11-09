@@ -103,7 +103,6 @@ pub fn derive_execution_term(
         let narrowing = AttenuationRequest {
             principal_ref: delegation.principal_ref.clone(),
             resource_ref: delegation.resource_ref.clone(),
-            resource_family: delegation.resource_family.clone(),
             verbs: delegation.verbs.clone(),
             bounds: delegation.bounds.clone(),
             expires_at: delegation.expires_at.clone(),
@@ -157,7 +156,6 @@ pub fn derive_execution_term(
         term_id: derive_term_id(request, &parents),
         principal_ref: intent.principal_ref.clone(),
         resource_ref: intent.resource_ref.clone(),
-        resource_family: intent.resource_family.clone(),
         verbs: intent.verbs.clone(),
         bounds: intent.bounds.clone(),
         approvals,
@@ -211,9 +209,7 @@ fn precheck(
     parent_term: &AuthorityTerm,
     parent: DerivationParent,
 ) -> Result<(), DerivationError> {
-    if intent.resource_family != parent_term.resource_family
-        || !same_reference_address(&intent.resource_ref, &parent_term.resource_ref)
-    {
+    if !same_reference_address(&intent.resource_ref, &parent_term.resource_ref) {
         return Err(DerivationError::ResourceMismatch { parent });
     }
     if !items_subset(&intent.verbs, &parent_term.verbs) {
@@ -266,8 +262,8 @@ fn derive_term_id(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use runx_contracts::{
-        AuthorityApproval, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm,
-        AuthorityUseLimit, AuthorityVerb, Reference, ReferenceType,
+        AuthorityApproval, AuthorityBounds, AuthorityTerm, AuthorityUseLimit, AuthorityVerb,
+        Reference, ReferenceType,
     };
 
     use super::{DerivationError, DerivationParent, ExecutionTermRequest, derive_execution_term};
@@ -284,7 +280,6 @@ mod tests {
             term_id: id.into(),
             principal_ref: Reference::with_uri(ReferenceType::Principal, "runx:principal:kam"),
             resource_ref: instance(),
-            resource_family: AuthorityResourceFamily::Connector,
             verbs: vec![AuthorityVerb::Read, AuthorityVerb::Write],
             bounds,
             approvals: Vec::new(),
@@ -315,7 +310,6 @@ mod tests {
                     "runx:principal:assistant",
                 ),
                 resource_ref: instance(),
-                resource_family: AuthorityResourceFamily::Connector,
                 verbs: vec![AuthorityVerb::Write],
                 bounds: AuthorityBounds {
                     operations: vec!["slack/channel.post".into()],
@@ -343,7 +337,6 @@ mod tests {
                 "runx:principal:assistant",
             ),
             resource_ref: instance(),
-            resource_family: AuthorityResourceFamily::Connector,
             verbs: vec![AuthorityVerb::Write],
             bounds: AuthorityBounds {
                 operations: vec!["slack/channel.post".into()],

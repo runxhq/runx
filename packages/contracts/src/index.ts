@@ -397,7 +397,6 @@ export {
   actFormSchema,
   criterionStatusSchema,
   criterionSchema,
-  authorityResourceFamilySchema,
   authorityVerbSchema,
   proofKindSchema,
   referenceSchema,

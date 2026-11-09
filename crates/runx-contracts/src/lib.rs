@@ -88,10 +88,9 @@ pub use artifact::{
 };
 pub use authority::{
     AuthorityApproval, AuthorityBounds, AuthorityDerivation, AuthorityEvidence,
-    AuthorityEvidenceKind, AuthorityResourceFamily, AuthoritySubsetComparison,
-    AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
-    AuthorityUseLimit, AuthorityVerb, Effects, PackagePattern, Reach, TermLegitimacy,
-    every_package,
+    AuthorityEvidenceKind, AuthoritySubsetComparison, AuthoritySubsetProof,
+    AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit,
+    AuthorityVerb, Effects, PackagePattern, Reach, TermLegitimacy, every_package,
 };
 pub use canonical_json::{
     CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_digest, canonical_stable_json,

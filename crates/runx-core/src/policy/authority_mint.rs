@@ -15,9 +15,9 @@
 
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
-    AuthorityBounds, AuthorityResourceFamily, AuthoritySubsetComparison, AuthoritySubsetProof,
-    AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit,
-    AuthorityVerb, PackagePattern, Reference, sha256_hex,
+    AuthorityBounds, AuthoritySubsetComparison, AuthoritySubsetProof, AuthoritySubsetRelation,
+    AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit, AuthorityVerb, PackagePattern,
+    Reference, sha256_hex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -82,8 +82,7 @@ impl FamilySubsetComparator for ConnectorBoundsComparator {
     }
 
     fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool {
-        child.resource_family == AuthorityResourceFamily::Connector
-            && bounds_subset(&child.bounds, &parent.bounds)
+        bounds_subset(&child.bounds, &parent.bounds)
     }
 }
 
@@ -125,8 +124,8 @@ fn uses_subset(child: Option<&AuthorityUseLimit>, parent: Option<&AuthorityUseLi
 
 /// The requested narrowing handed to [`mint_attenuated`].
 ///
-/// It carries the child's identity (`principal_ref`, `resource_ref`,
-/// `resource_family`) and the requested ceiling (`verbs`, `bounds`, optional
+/// It carries the child's identity (`principal_ref`, `resource_ref`) and the
+/// requested ceiling (`verbs`, `bounds`, optional
 /// `expires_at`). Approvals are intentionally absent: they are PRESERVED from
 /// the parent by [`mint_attenuated`] and cannot be requested away.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -137,8 +136,6 @@ pub struct AttenuationRequest {
     /// The resource the child authority addresses. Must share its address with
     /// the parent's resource (same type and URI); mint fails closed otherwise.
     pub resource_ref: Reference,
-    /// The child's resource family. Must equal the parent's family.
-    pub resource_family: AuthorityResourceFamily,
     /// The verbs to keep. Must be a subset of the parent's verbs.
     pub verbs: Vec<AuthorityVerb>,
     /// The requested bounds. The family comparator may clamp these; the
@@ -155,9 +152,6 @@ pub enum AttenuationError {
     /// A parent or requested child is already expired at the proof time.
     #[error("parent or requested authority is expired or has an invalid proof time")]
     Expired,
-    /// The requested resource family does not match the parent's family.
-    #[error("requested resource family does not match the parent authority")]
-    ResourceFamilyMismatch,
     /// The requested resource address does not match the parent's resource.
     #[error("requested resource address does not match the parent authority")]
     ResourceAddressMismatch,
@@ -207,9 +201,6 @@ pub fn mint_attenuated(
     // Cheap generic guards first, so the error is specific. The derived-child
     // subset check below is the authoritative fail-closed gate; these only make
     // the common widening mistakes legible.
-    if request.resource_family != parent.resource_family {
-        return Err(AttenuationError::ResourceFamilyMismatch);
-    }
     if !same_reference_address(&request.resource_ref, &parent.resource_ref) {
         return Err(AttenuationError::ResourceAddressMismatch);
     }
@@ -231,7 +222,6 @@ pub fn mint_attenuated(
         term_id,
         principal_ref: request.principal_ref.clone(),
         resource_ref: request.resource_ref.clone(),
-        resource_family: request.resource_family.clone(),
         verbs: request.verbs.clone(),
         bounds,
         approvals: parent.approvals.clone(),
@@ -305,8 +295,7 @@ pub(crate) fn is_authority_subset(
     parent: &AuthorityTerm,
     comparator: &dyn FamilySubsetComparator,
 ) -> bool {
-    child.resource_family == parent.resource_family
-        && same_reference_address(&child.resource_ref, &parent.resource_ref)
+    same_reference_address(&child.resource_ref, &parent.resource_ref)
         && items_subset(&child.verbs, &parent.verbs)
         && parent_items_preserved(&child.approvals, &parent.approvals)
         && expiry_subset(child.expires_at.as_ref(), parent.expires_at.as_ref())
@@ -314,7 +303,7 @@ pub(crate) fn is_authority_subset(
 }
 
 /// A deterministic child `term_id`: `mint-` plus the SHA-256 hex of the child's
-/// identifying content (parent term, principal, resource, family, verbs,
+/// identifying content (parent term, principal, resource, verbs,
 /// bounds, expiry). Self-syncing by construction; the same parent
 /// and request always mint the same id, and any change to the narrowed content
 /// changes the id, so there is no hand-maintained parallel identifier.
@@ -328,7 +317,6 @@ fn derive_term_id(
         "parent_term_id": parent.term_id.as_str(),
         "principal_ref": request.principal_ref,
         "resource_ref": request.resource_ref,
-        "resource_family": request.resource_family,
         "verbs": request.verbs,
         "bounds": bounds,
         "expires_at": expires_at.map(IsoDateTime::as_str),
@@ -345,8 +333,8 @@ mod tests {
     };
     use runx_contracts::schema::IsoDateTime;
     use runx_contracts::{
-        AuthorityApproval, AuthorityBounds, AuthorityResourceFamily, AuthoritySubsetRelation,
-        AuthorityTerm, AuthorityUseLimit, AuthorityVerb, Reference, ReferenceType,
+        AuthorityApproval, AuthorityBounds, AuthoritySubsetRelation, AuthorityTerm,
+        AuthorityUseLimit, AuthorityVerb, Reference, ReferenceType,
     };
 
     const CHECKED_AT: &str = "2026-06-23T00:00:00Z";
@@ -372,7 +360,6 @@ mod tests {
             term_id: "capability".into(),
             principal_ref: reference(ReferenceType::Principal, "runx:principal:operator"),
             resource_ref: reference(ReferenceType::ConnectorInstance, INSTANCE),
-            resource_family: AuthorityResourceFamily::Connector,
             verbs: vec![
                 AuthorityVerb::Read,
                 AuthorityVerb::Write,
@@ -400,7 +387,6 @@ mod tests {
         AttenuationRequest {
             principal_ref: reference(ReferenceType::Principal, "runx:principal:assistant"),
             resource_ref: reference(ReferenceType::ConnectorInstance, INSTANCE),
-            resource_family: AuthorityResourceFamily::Connector,
             verbs: vec![AuthorityVerb::Read],
             bounds: AuthorityBounds {
                 operations: vec!["slack/channel.post".into()],
@@ -438,7 +424,6 @@ mod tests {
         // preserved.
         assert_eq!(child.verbs, vec![AuthorityVerb::Read]);
         assert_eq!(child.approvals, parent.approvals);
-        assert_eq!(child.resource_family, parent.resource_family);
 
         // The proof attests this exact pair.
         assert_eq!(proof.parent_authority_ref, parent.resource_ref);

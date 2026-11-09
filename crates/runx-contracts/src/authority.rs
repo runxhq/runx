@@ -4,13 +4,6 @@ use serde::{Deserialize, Serialize};
 use crate::Reference;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthorityResourceFamily {
-    /// Operations on one connector instance.
-    Connector,
-}
-
 /// What a run may change, and whether a change waits (D25). A host sets it
 /// on a run, and a method or step only narrows it: `none` is narrower than
 /// `ask`, and `ask` than `allow`.
@@ -312,7 +305,6 @@ pub struct AuthorityTerm {
     pub term_id: NonEmptyString,
     pub principal_ref: Reference,
     pub resource_ref: Reference,
-    pub resource_family: AuthorityResourceFamily,
     pub verbs: Vec<AuthorityVerb>,
     pub bounds: AuthorityBounds,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

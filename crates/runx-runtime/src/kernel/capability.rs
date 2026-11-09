@@ -20,8 +20,7 @@ use std::collections::BTreeSet;
 use runx_contracts::connector::{ConnectorOperation, Implementation, OperationVerb};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, ConnectorInstance, InstanceAuthority,
-    Reference, ReferenceType,
+    AuthorityBounds, AuthorityTerm, ConnectorInstance, InstanceAuthority, Reference, ReferenceType,
 };
 
 use super::connectors::LoadedConnector;
@@ -236,7 +235,6 @@ fn capability(
         term_id: NonEmptyString::from(term_id),
         principal_ref: principal_reference(instance),
         resource_ref: instance_reference(instance),
-        resource_family: AuthorityResourceFamily::Connector,
         verbs: unique_verbs,
         bounds: AuthorityBounds {
             operations: vec![NonEmptyString::from(format!("{}/*", connector.name))],

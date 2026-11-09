@@ -567,7 +567,6 @@ describe("@runxhq/contracts", () => {
           term_id: "term_reply",
           principal_ref: principalRef,
           resource_ref: { type: "connector_instance", uri: "runx:connector_instance:github.default" },
-          resource_family: "connector",
           verbs: ["write"],
           bounds: { operations: ["github/comments.create"] },
           issued_by_ref: { type: "host", uri: "runx:host:runx-kernel" },

@@ -139,8 +139,9 @@ bumps require Kam's explicit instruction.
 
 Runx-maintained skills that drive stateful apps emit generic effect transition packets.
 Put product identity in `effect_family` and the method/action in `operation`;
-do not add product-specific `AuthorityResourceFamily` variants or
-`runx.<product>.*` packet namespaces. The owning product declares state,
+do not add product-specific authority kinds or `runx.<product>.*` packet
+namespaces: an authority term names its connector instance, and that is its
+boundary. The owning product declares state,
 transitions and views. Operator state stays local by default; hosted persistence
 requires an explicit binding. OSS core must not acquire product state or bespoke
 runtime branches.

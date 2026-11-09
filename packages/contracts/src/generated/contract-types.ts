@@ -317,8 +317,6 @@ export type AuthorityEvidenceContract = {
 /** The three kinds of evidence admission proves. Each has one job. */
 export type AuthorityEvidenceKindContract = "capability" | "delegation" | "approval";
 
-export type AuthorityResourceFamilyContract = "connector";
-
 export type AuthoritySubsetComparisonContract = {
   readonly child_term_id: string;
   readonly parent_term_id: string;
@@ -345,7 +343,6 @@ export type AuthorityTermContract = {
   readonly expires_at?: string;
   readonly issued_by_ref: ReferenceContract;
   readonly principal_ref: ReferenceContract;
-  readonly resource_family: AuthorityResourceFamilyContract;
   readonly resource_ref: ReferenceContract;
   readonly term_id: string;
   readonly verbs: readonly AuthorityVerbContract[];
