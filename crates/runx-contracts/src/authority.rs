@@ -95,6 +95,118 @@ pub struct AuthorityBounds {
     pub targets: Vec<NonEmptyString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uses: Option<AuthorityUseLimit>,
+    /// The packages every call's chain must be covered by, in any order
+    /// (D31). An absent bound covers nothing, as every bound does, so a
+    /// delegation states its own and an execution term names its chain.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub packages: Vec<PackagePattern>,
+}
+
+/// The patterns that cover every package: a capability's, which only a
+/// delegation or a run's `packages` narrows.
+#[must_use]
+pub fn every_package() -> Vec<PackagePattern> {
+    vec![
+        PackagePattern(format!("{WILDCARD}/{WILDCARD}")),
+        PackagePattern(format!("{PROJECT_PREFIX}{WILDCARD}")),
+    ]
+}
+
+const WILDCARD: &str = "*";
+const PROJECT_PREFIX: &str = "project:";
+const PACKAGE_PATTERN: &str =
+    r"^(([a-z0-9][a-z0-9-]*|\*)/([a-z0-9][a-z0-9-]*|\*)|project:([A-Za-z0-9][A-Za-z0-9._-]*|\*))$";
+
+/// A package, or a pattern of packages: `<publisher>/<name>`, a registry or
+/// bundled package, or `project:<name>`, one the project authored. `*`
+/// stands for one segment and never crosses `/`, so `acme/*` covers acme's
+/// packages and `project:*` the project's own. A publisher never holds `/`,
+/// so neither form can pass for the other.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct PackagePattern(String);
+
+impl PackagePattern {
+    /// `None` when `value` is neither a package nor a pattern of them.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Option<Self> {
+        let value = value.into();
+        Self::segments(&value).is_some().then_some(Self(value))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Whether every package `child` names is one this pattern covers.
+    #[must_use]
+    pub fn covers(&self, child: &Self) -> bool {
+        let (Some(parent), Some(child)) = (Self::segments(&self.0), Self::segments(&child.0))
+        else {
+            return false;
+        };
+        parent.0 == child.0
+            && parent
+                .1
+                .iter()
+                .zip(&child.1)
+                .all(|(parent, child)| *parent == WILDCARD || parent == child)
+    }
+
+    /// Whether the pattern names the project's own packages, and its
+    /// segments: the project name alone, or the publisher and the name, each
+    /// a name or `*`.
+    fn segments(value: &str) -> Option<(bool, Vec<&str>)> {
+        let name = |segment: &str, project: bool| {
+            segment == WILDCARD
+                || !segment.is_empty()
+                    && segment
+                        .bytes()
+                        .enumerate()
+                        .all(|(index, byte)| match (project, index) {
+                            (true, 0) => byte.is_ascii_alphanumeric(),
+                            (true, _) => {
+                                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+                            }
+                            (false, 0) => byte.is_ascii_lowercase() || byte.is_ascii_digit(),
+                            (false, _) => {
+                                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                            }
+                        })
+        };
+        if let Some(project) = value.strip_prefix(PROJECT_PREFIX) {
+            return name(project, true).then(|| (true, vec![project]));
+        }
+        let (publisher, package) = value.split_once('/')?;
+        (name(publisher, false) && name(package, false)).then(|| (false, vec![publisher, package]))
+    }
+}
+
+impl std::fmt::Display for PackagePattern {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for PackagePattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value.clone()).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "{value:?} is not a package: <publisher>/<name> or project:<name>, with * for one segment"
+            ))
+        })
+    }
+}
+
+impl RunxSchema for PackagePattern {
+    fn json_schema() -> serde_json::Value {
+        serde_json::json!({"type": "string", "pattern": PACKAGE_PATTERN})
+    }
 }
 
 /// How many times a term may be used. An execution term is single use.
@@ -285,6 +397,57 @@ pub struct AuthorityDerivation {
 
 #[cfg(test)]
 mod tests {
+    /// A package is `<publisher>/<name>` or `project:<name>`, and `*` stands
+    /// for one segment and never crosses `/`, so neither form passes for the
+    /// other.
+    #[test]
+    fn a_package_pattern_covers_one_segment_per_star() {
+        let pattern = |value: &str| super::PackagePattern::new(value);
+        for valid in [
+            "acme/counter",
+            "runx/memory",
+            "acme/*",
+            "*/*",
+            "project:work",
+            "project:My.Skill_1",
+            "project:*",
+        ] {
+            assert!(pattern(valid).is_some(), "{valid}");
+        }
+        for invalid in [
+            "acme",
+            "*",
+            "acme/foo/github",
+            "Acme/x",
+            "project:",
+            "project:a/b",
+            "acme/",
+            "/x",
+            "acme/x*",
+        ] {
+            assert!(pattern(invalid).is_none(), "{invalid}");
+        }
+        let covers = |parent: &str, child: &str| {
+            pattern(parent)
+                .zip(pattern(child))
+                .is_some_and(|(parent, child)| parent.covers(&child))
+        };
+        assert!(covers("*/*", "acme/counter"));
+        assert!(covers("*/*", "acme/*"));
+        assert!(covers("acme/*", "acme/counter"));
+        assert!(covers("project:*", "project:work"));
+        assert!(!covers("*/*", "project:work"));
+        assert!(!covers("project:*", "acme/counter"));
+        assert!(!covers("acme/*", "other/counter"));
+        assert!(!covers("acme/counter", "acme/*"));
+        assert_eq!(super::every_package().len(), 2);
+        assert!(super::every_package().iter().all(|parent| {
+            ["acme/x", "project:y"]
+                .iter()
+                .any(|child| covers(parent.as_str(), child))
+        }));
+    }
+
     use super::{Effects, Reach};
 
     #[test]

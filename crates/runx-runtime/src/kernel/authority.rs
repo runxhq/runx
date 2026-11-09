@@ -67,6 +67,11 @@ pub struct RunAuthority {
     /// amount a call moves. Absent, the run is unbounded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_spend_micro_usd: Option<u64>,
+    /// The packages every call's chain must be covered by, on whichever
+    /// instance the call resolves (D31): a plain narrowing of its
+    /// capability. Absent, any package may call; an empty list covers none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packages: Option<Vec<runx_contracts::PackagePattern>>,
 }
 
 impl RunAuthority {

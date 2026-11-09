@@ -325,6 +325,7 @@ mod tests {
                         total: Some(100),
                         per_day: Some(5),
                     }),
+                    packages: Vec::new(),
                 },
                 expires_at: capability.expires_at.clone(),
             },
@@ -352,6 +353,7 @@ mod tests {
                     total: Some(1),
                     per_day: Some(1),
                 }),
+                packages: Vec::new(),
             },
             expires_at: Some("2026-10-06T01:00:00Z".into()),
         }

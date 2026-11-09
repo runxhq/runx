@@ -253,6 +253,9 @@ fn capability(
                     .collect()
             },
             uses: None,
+            // A capability covers every package: only a run's `packages` or
+            // a host's delegation narrows who may use it (D31).
+            packages: runx_contracts::every_package(),
         },
         approvals: Vec::new(),
         expires_at: None,

@@ -343,6 +343,14 @@ fn instance_parameters(
             )
         })?;
     let instance = serde_json::to_value(&parameters).map_err(|error| error.to_string())?;
+    // An instance of the runtime's own store serves every operation its
+    // connector declares, or it isn't configured.
+    if matches!(
+        connector.origin,
+        super::connectors::ConnectorOrigin::RuntimeCapability
+    ) {
+        crate::drivers::store::configurable(connector.name.as_str(), &parameters)?;
+    }
     match validator.iter_errors(&instance).next() {
         None => Ok(parameters),
         Some(error) => Err(format!(

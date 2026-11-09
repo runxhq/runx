@@ -509,7 +509,10 @@ fn validate_parameters(manifest: &ConnectorManifest, errors: &mut Errors) {
         }
         None => {
             for (name, operation) in &manifest.operations {
-                let binds = operation.target.template.binds_parameter()
+                let binds = operation
+                    .target
+                    .as_ref()
+                    .is_some_and(|target| target.template.binds_parameter())
                     || matches!(&operation.implementation, Some(Implementation::Http(http))
                         if http.requests.iter().chain(
                             http.preconditions.iter().chain(&http.readbacks).map(|check| &check.request),
@@ -634,7 +637,22 @@ fn validate_operation(
             );
         }
     }
-    if let Some(pattern) = &operation.target.pattern
+    let store = matches!(operation.implementation, Some(Implementation::Store(_)));
+    match (&operation.target, store) {
+        (None, false) => errors.push(
+            &format!("{field}.target"),
+            "an operation names the resource its terms' targets are checked against",
+        ),
+        (Some(_), true) => errors.push(
+            &format!("{field}.target"),
+            "a store operation states no target: the runtime renders the calling package's stream",
+        ),
+        _ => {}
+    }
+    if let Some(pattern) = operation
+        .target
+        .as_ref()
+        .and_then(|target| target.pattern.as_ref())
         && let Err(error) = whole_match(pattern.as_str())
     {
         errors.push(
@@ -882,7 +900,8 @@ fn validate_operation(
                 .chain(&http.readbacks)
                 .map(|check| &check.request),
         );
-        if requests.into_iter().any(binds_parameter) || operation.target.template.binds_parameter()
+        if requests.into_iter().any(binds_parameter)
+            || operation.target.as_ref().is_some_and(|target| target.template.binds_parameter())
             || http.auth.values().any(|auth| matches!(auth, HttpAuth::Oauth2ClientCredentials { token_url, .. } if token_url.binds_parameter()))
         {
             errors.push(
@@ -1154,7 +1173,11 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
                     "an operation on a leased resource is authorized by its lease alone",
                 );
             }
-            if !acts_on_arguments(&operation.target.template) {
+            if !operation
+                .target
+                .as_ref()
+                .is_some_and(|target| acts_on_arguments(&target.template))
+            {
                 errors.push(
                     &format!("{field}.target"),
                     "an operation on a leased resource renders its target from the call's arguments alone, so the lease is found before the call",
@@ -1213,7 +1236,11 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
             );
         }
         let OperationLease::Take(take) = lease else {
-            if !acts_on_arguments(&operation.target.template) {
+            if !operation
+                .target
+                .as_ref()
+                .is_some_and(|target| acts_on_arguments(&target.template))
+            {
                 errors.push(
                     &format!("operations.{name}.target"),
                     "a lease is renewed or released on the target the call's arguments name",
@@ -1221,9 +1248,9 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
             }
             continue;
         };
-        if !(operation.target.template.is_literal()
-            || acts_on_arguments(&operation.target.template))
-        {
+        if !operation.target.as_ref().is_some_and(|target| {
+            target.template.is_literal() || acts_on_arguments(&target.template)
+        }) {
             errors.push(
                 &format!("operations.{name}.target"),
                 "the operation that takes a lease renders its own target without instance parameters",
@@ -1379,7 +1406,11 @@ fn call_templates<'a>(
     manifest: &'a ConnectorManifest,
     operation: &'a ConnectorOperation,
 ) -> impl Iterator<Item = &'a Template> {
-    std::iter::once(&operation.target.template).chain(implementation_templates(manifest, operation))
+    operation
+        .target
+        .iter()
+        .map(|target| &target.template)
+        .chain(implementation_templates(manifest, operation))
 }
 
 /// The implementation's requests, readbacks, tool arguments and session
@@ -1423,7 +1454,11 @@ fn validate_purchase_binding(manifest: &ConnectorManifest, errors: &mut Errors) 
     const CONNECT_ONLY: &str = "only runx Connect supplies the purchase: bind {\"$runx\": \"purchase\"} only in a hosted operation's declared requests";
     for (name, operation) in &manifest.operations {
         let field = format!("operations.{name}");
-        if operation.target.template.binds_purchase() {
+        if operation
+            .target
+            .as_ref()
+            .is_some_and(|target| target.template.binds_purchase())
+        {
             errors.push(&format!("{field}.target"), CONNECT_ONLY);
         }
         if let Some(effect) = &operation.effect

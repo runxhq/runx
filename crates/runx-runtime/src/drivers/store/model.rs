@@ -1,37 +1,62 @@
-//! Events, projections and results, the same for every backend. A record's
-//! digest covers its event; a projection's digest chains the stream's events.
+//! Events, a key's state and the answers, the same for every backend
+//! (`store.md`). An event's digest covers its writer, its type and its data;
+//! one written before events recorded a writer covers its data alone, as it
+//! was written. A key's `chain_digest` chains its events, its hash input
+//! keeping the field names it always had, so existing chains still verify.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue, sha256_prefixed};
 
 use super::StoreError;
-use super::request::{Source, validate_aggregate_id, validate_event_type};
+use super::request::{Key, validate_key};
+
+/// What every answer names as its schema.
+pub(super) const RESULT_SCHEMA: &str = "runx.store.result.v1";
+
+/// Who wrote an event: the package the runtime established, and the digest
+/// of the exact bytes it ran from. Never a caller's statement.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Writer {
+    pub package: String,
+    pub digest: String,
+}
 
 #[derive(Clone, Debug)]
 pub(super) struct EventRecord {
-    pub event_id: String,
+    pub id: String,
     pub version: u64,
     pub event_type: String,
-    pub event: JsonObject,
-    pub event_digest: String,
+    pub data: JsonObject,
+    pub digest: String,
     pub idempotency_key: String,
     pub committed_at: String,
+    /// Absent on an event written before events recorded their writer.
+    pub writer: Option<Writer>,
 }
 
+/// One key's state: its version, its newest event, and the digest that
+/// chains its events.
 #[derive(Clone, Debug)]
-pub(super) struct Projection {
+pub(super) struct KeyState {
     pub version: u64,
-    pub last_event_id: Option<String>,
-    pub last_event_type: Option<String>,
-    pub last_event_digest: Option<String>,
-    pub projection_digest: String,
+    pub last: Option<EventRecord>,
+    pub chain_digest: String,
 }
 
+/// A listed key and its newest event.
 #[derive(Clone, Debug)]
-pub(super) struct StreamHead {
-    pub aggregate_id: String,
-    pub event: EventRecord,
+pub(super) struct Listed {
+    pub key: String,
+    pub last: EventRecord,
+}
+
+/// A key a search matched, by its newest event, and how well.
+#[derive(Clone, Debug)]
+pub(super) struct Matched {
+    pub key: String,
+    pub last: EventRecord,
+    pub score: f64,
 }
 
 /// What an append did.
@@ -39,120 +64,120 @@ pub(super) enum Appended {
     Committed {
         before: u64,
         record: EventRecord,
-        projection: Projection,
+        state: KeyState,
     },
-    /// The key already holds this exact event.
-    Replay {
-        current: Projection,
+    /// The idempotency key already holds this exact event.
+    Replayed {
+        current: KeyState,
         existing: EventRecord,
     },
-    /// The key holds a different event, whose digest is `held`.
-    KeyConflict {
-        current: Projection,
-        proposed: EventRecord,
-        held: String,
-    },
-    /// The stream is not at the expected version.
-    VersionConflict {
-        current: Projection,
-        proposed: EventRecord,
-        expected: u64,
-    },
+    /// The idempotency key holds a different event, whose digest is `held`.
+    IdempotencyConflict { current: KeyState, held: String },
+    /// The key is not at the expected version.
+    VersionConflict { current: KeyState },
 }
 
 impl Appended {
-    /// The digest of the event the store holds under the call's key, which
-    /// a readback must find there: none after a version conflict.
+    /// The digest of the event the store holds under the call's idempotency
+    /// key, which a readback must find there: none after a version conflict.
     pub(super) fn landed(&self) -> Option<&str> {
         match self {
-            Self::Committed { record, .. } => Some(&record.event_digest),
-            Self::Replay { existing, .. } => Some(&existing.event_digest),
-            Self::KeyConflict { held, .. } => Some(held),
+            Self::Committed { record, .. } => Some(&record.digest),
+            Self::Replayed { existing, .. } => Some(&existing.digest),
+            Self::IdempotencyConflict { held, .. } => Some(held),
             Self::VersionConflict { .. } => None,
         }
     }
 }
 
+/// An event's identity: its stream, key and version, each length-delimited,
+/// so a `:` in a stream or a key never makes two events one.
+pub(super) fn event_id(stream: &str, key: &str, version: u64) -> String {
+    format!("{}:{stream},{}:{key},{version}", stream.len(), key.len())
+}
+
+/// The event an append proposes at `version`, with its digest.
 pub(super) fn record(
-    source: Source<'_>,
+    at: Key<'_>,
     version: u64,
     idempotency_key: &str,
-    event: &JsonObject,
+    event_type: &str,
+    data: &JsonObject,
+    writer: &Writer,
     committed_at: &str,
 ) -> Result<EventRecord, StoreError> {
-    let event_type = event_type(event);
-    validate_event_type(&event_type)?;
-    Ok(EventRecord {
-        event_id: format!("{}:{}:{version}", source.resource, source.aggregate_id),
+    let mut record = EventRecord {
+        id: event_id(at.stream, at.key, version),
         version,
-        event_type,
-        event: event.clone(),
-        event_digest: digest(&JsonValue::Object(event.clone()))?,
+        event_type: event_type.to_owned(),
+        data: data.clone(),
+        digest: String::new(),
         idempotency_key: idempotency_key.to_owned(),
         committed_at: normalize_time(committed_at)?,
-    })
+        writer: Some(writer.clone()),
+    };
+    record.digest = event_digest(&record)?;
+    Ok(record)
 }
 
-pub(super) fn empty_projection() -> Result<Projection, StoreError> {
-    Ok(Projection {
+/// What an event's digest covers: its writer, type and data from the event
+/// version that records a writer on, and its data alone before it.
+pub(super) fn event_digest(record: &EventRecord) -> Result<String, StoreError> {
+    match &record.writer {
+        None => digest(&JsonValue::Object(record.data.clone())),
+        Some(writer) => digest(&JsonValue::Object(JsonObject::from([
+            ("data".to_owned(), JsonValue::Object(record.data.clone())),
+            ("type".to_owned(), text(&record.event_type)),
+            ("writer".to_owned(), writer_object(writer)),
+        ]))),
+    }
+}
+
+pub(super) fn empty_state() -> Result<KeyState, StoreError> {
+    Ok(KeyState {
         version: 0,
-        last_event_id: None,
-        last_event_type: None,
-        last_event_digest: None,
-        projection_digest: digest(&JsonValue::Object(JsonObject::from([
-            ("version".to_owned(), number(0)),
-            ("event_digest".to_owned(), JsonValue::Null),
-        ])))?,
+        last: None,
+        chain_digest: empty_chain()?,
     })
 }
 
-pub(super) fn advance(current: &Projection, event: &EventRecord) -> Result<Projection, StoreError> {
-    Ok(Projection {
+/// The chain of a key with no events.
+pub(super) fn empty_chain() -> Result<String, StoreError> {
+    digest(&JsonValue::Object(JsonObject::from([
+        ("version".to_owned(), number(0)),
+        ("event_digest".to_owned(), JsonValue::Null),
+    ])))
+}
+
+/// The chain after `event_digest` at `version` follows `previous`.
+pub(super) fn chain(
+    previous: &str,
+    version: u64,
+    event_digest: &str,
+) -> Result<String, StoreError> {
+    digest(&JsonValue::Object(JsonObject::from([
+        ("version".to_owned(), number(version)),
+        ("previous_projection_digest".to_owned(), text(previous)),
+        ("event_digest".to_owned(), text(event_digest)),
+    ])))
+}
+
+pub(super) fn advance(current: &KeyState, event: &EventRecord) -> Result<KeyState, StoreError> {
+    Ok(KeyState {
         version: event.version,
-        last_event_id: Some(event.event_id.clone()),
-        last_event_type: Some(event.event_type.clone()),
-        last_event_digest: Some(event.event_digest.clone()),
-        projection_digest: digest(&JsonValue::Object(JsonObject::from([
-            ("version".to_owned(), number(event.version)),
-            (
-                "previous_projection_digest".to_owned(),
-                text(&current.projection_digest),
-            ),
-            ("event_digest".to_owned(), text(&event.event_digest)),
-        ])))?,
+        last: Some(event.clone()),
+        chain_digest: chain(&current.chain_digest, event.version, &event.digest)?,
     })
-}
-
-/// The event type an event declares: `type`, `event_type`, the effect family
-/// and operation, or the operation, else `data.event`.
-fn event_type(event: &JsonObject) -> String {
-    let valid = |value: &str| validate_event_type(value).is_ok();
-    for field in ["type", "event_type"] {
-        if let Some(value) = event.get(field).and_then(JsonValue::as_str)
-            && valid(value)
-        {
-            return value.to_owned();
-        }
-    }
-    let family = event.get("effect_family").and_then(JsonValue::as_str);
-    let operation = event.get("operation").and_then(JsonValue::as_str);
-    match (family, operation) {
-        (Some(family), Some(operation)) if valid(family) && valid(operation) => {
-            format!("{family}.{operation}")
-        }
-        (_, Some(operation)) if valid(operation) => operation.to_owned(),
-        _ => "data.event".to_owned(),
-    }
 }
 
 /// An RFC 3339 time as UTC with milliseconds, so times order as text.
 pub(super) fn normalize_time(value: &str) -> Result<String, StoreError> {
     let (days, seconds, nanos) = runx_core::policy::parse_rfc3339_moment(value)
-        .ok_or_else(|| StoreError::invalid("observed_at must be RFC 3339"))?;
+        .ok_or_else(|| StoreError::invalid("a commit time must be RFC 3339"))?;
     let unix_seconds = days
         .checked_mul(86_400)
         .and_then(|value| value.checked_add(seconds))
-        .ok_or_else(|| StoreError::invalid("observed_at is outside the supported range"))?;
+        .ok_or_else(|| StoreError::invalid("a commit time is outside the supported range"))?;
     let whole = crate::time::iso8601_from_unix_seconds(unix_seconds);
     let prefix = whole.strip_suffix('Z').unwrap_or(&whole);
     Ok(format!("{prefix}.{:03}Z", nanos / 1_000_000))
@@ -181,16 +206,28 @@ pub(super) fn number(value: u64) -> JsonValue {
     JsonValue::Number(JsonNumber::U64(value))
 }
 
+fn writer_object(writer: &Writer) -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("package".to_owned(), text(&writer.package)),
+        ("digest".to_owned(), text(&writer.digest)),
+    ]))
+}
+
+/// An event as every answer and every JSON backend holds it.
 pub(super) fn record_object(record: &EventRecord) -> JsonObject {
-    JsonObject::from([
-        ("event_id".to_owned(), text(&record.event_id)),
+    let mut object = JsonObject::from([
+        ("id".to_owned(), text(&record.id)),
         ("version".to_owned(), number(record.version)),
-        ("event_type".to_owned(), text(&record.event_type)),
-        ("event".to_owned(), JsonValue::Object(record.event.clone())),
-        ("event_digest".to_owned(), text(&record.event_digest)),
+        ("type".to_owned(), text(&record.event_type)),
+        ("data".to_owned(), JsonValue::Object(record.data.clone())),
+        ("digest".to_owned(), text(&record.digest)),
         ("idempotency_key".to_owned(), text(&record.idempotency_key)),
         ("committed_at".to_owned(), text(&record.committed_at)),
-    ])
+    ]);
+    if let Some(writer) = &record.writer {
+        object.insert("writer".to_owned(), writer_object(writer));
+    }
+    object
 }
 
 /// A record back from the object [`record_object`] wrote, as a backend that
@@ -207,338 +244,263 @@ pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, Store
             .map(str::to_owned)
             .ok_or_else(|| StoreError::corrupt(format!("a stored event has no {name}")))
     };
+    let writer = match object.get("writer") {
+        None => None,
+        Some(writer) => {
+            let writer = writer
+                .as_object()
+                .ok_or_else(|| StoreError::corrupt("a stored event's writer is not an object"))?;
+            let part = |name: &str| {
+                writer
+                    .get(name)
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| StoreError::corrupt(format!("a stored writer has no {name}")))
+            };
+            Some(Writer {
+                package: part("package")?,
+                digest: part("digest")?,
+            })
+        }
+    };
     Ok(EventRecord {
-        event_id: field("event_id")?,
+        id: field("id")?,
         version: object
             .get("version")
             .and_then(unsigned)
             .ok_or_else(|| StoreError::corrupt("a stored event has no version"))?,
-        event_type: field("event_type")?,
-        event: object
-            .get("event")
+        event_type: field("type")?,
+        data: object
+            .get("data")
             .and_then(JsonValue::as_object)
             .cloned()
-            .ok_or_else(|| StoreError::corrupt("a stored event has no event"))?,
-        event_digest: field("event_digest")?,
+            .ok_or_else(|| StoreError::corrupt("a stored event has no data"))?,
+        digest: field("digest")?,
         idempotency_key: field("idempotency_key")?,
         committed_at: field("committed_at")?,
+        writer,
     })
 }
 
-fn projection_object(projection: &Projection, source: Source<'_>) -> JsonObject {
-    let optional = |value: &Option<String>| value.as_deref().map_or(JsonValue::Null, text);
+/// An answer's common fields: its schema, operation, stream and backend.
+fn answer(backend: &str, operation: &str, stream: &str) -> JsonObject {
     JsonObject::from([
-        ("aggregate_id".to_owned(), text(source.aggregate_id)),
-        ("resource".to_owned(), text(source.resource)),
-        ("version".to_owned(), number(projection.version)),
-        ("event_count".to_owned(), number(projection.version)),
-        (
-            "last_event_id".to_owned(),
-            optional(&projection.last_event_id),
-        ),
-        (
-            "last_event_type".to_owned(),
-            optional(&projection.last_event_type),
-        ),
-        (
-            "last_event_digest".to_owned(),
-            optional(&projection.last_event_digest),
-        ),
+        ("schema".to_owned(), text(RESULT_SCHEMA)),
+        ("operation".to_owned(), text(operation)),
+        ("stream".to_owned(), text(stream)),
+        ("backend".to_owned(), text(backend)),
     ])
 }
 
-/// The result of an append, and the digest the store holds under its key.
+/// The answer, with the digest of everything it says.
+fn sealed(mut answer: JsonObject) -> Result<JsonValue, StoreError> {
+    let result_digest = digest(&JsonValue::Object(answer.clone()))?;
+    answer.insert("result_digest".to_owned(), text(&result_digest));
+    Ok(JsonValue::Object(answer))
+}
+
+/// The answer to an append. A replay answers as the first time did, with
+/// the key's chain as it is now; a conflict appends nothing and names no
+/// event.
 pub(super) fn appended_result(
     backend: &str,
-    source: Source<'_>,
+    at: Key<'_>,
     appended: &Appended,
 ) -> Result<JsonValue, StoreError> {
-    let mut result = envelope(backend, source, "events.append")?;
-    match appended {
+    let mut result = answer(backend, "events.append", at.stream);
+    result.insert("key".to_owned(), text(at.key));
+    let (status, before, version, event, chain_digest) = match appended {
         Appended::Committed {
             before,
             record,
-            projection,
-        } => effect(
-            &mut result,
+            state,
+        } => (
             "committed",
             *before,
-            record,
-            &projection.projection_digest,
-        )?,
-        Appended::Replay { current, existing } => effect(
-            &mut result,
-            "idempotent_replay",
+            record.version,
+            Some(record),
+            &state.chain_digest,
+        ),
+        Appended::Replayed { current, existing } => (
+            "replayed",
+            existing.version.saturating_sub(1),
+            existing.version,
+            Some(existing),
+            &current.chain_digest,
+        ),
+        Appended::IdempotencyConflict { current, .. } => (
+            "idempotency_conflict",
             current.version,
-            existing,
-            &current.projection_digest,
-        )?,
-        Appended::KeyConflict {
-            current, proposed, ..
-        } => conflict(
-            &mut result,
-            current,
-            proposed,
-            "the idempotency key was used for a different event",
-        )?,
-        Appended::VersionConflict {
-            current,
-            proposed,
-            expected,
-        } => conflict(
-            &mut result,
-            current,
-            proposed,
-            &format!("expected version {expected}, got {}", current.version),
-        )?,
-    }
-    Ok(JsonValue::Object(result))
-}
-
-fn effect(
-    result: &mut JsonObject,
-    status: &str,
-    before: u64,
-    record: &EventRecord,
-    projection_digest: &str,
-) -> Result<(), StoreError> {
-    let after = if status == "committed" {
-        record.version
-    } else {
-        before
+            current.version,
+            None,
+            &current.chain_digest,
+        ),
+        Appended::VersionConflict { current } => (
+            "version_conflict",
+            current.version,
+            current.version,
+            None,
+            &current.chain_digest,
+        ),
     };
-    versions(result, before, after);
     result.insert("status".to_owned(), text(status));
-    result.insert("idempotency_key".to_owned(), text(&record.idempotency_key));
-    result.insert("event_id".to_owned(), text(&record.event_id));
-    result.insert("event_digest".to_owned(), text(&record.event_digest));
-    result.insert(
-        "result_digest".to_owned(),
-        text(&digest(&JsonValue::Object(record_object(record)))?),
-    );
-    result.insert("projection_digest".to_owned(), text(projection_digest));
-    result.insert("projection".to_owned(), JsonValue::Null);
-    empty(result, Vec::new());
-    Ok(())
+    result.insert("before_version".to_owned(), number(before));
+    result.insert("version".to_owned(), number(version));
+    if let Some(event) = event {
+        result.insert(
+            "event".to_owned(),
+            JsonValue::Object(JsonObject::from([
+                ("id".to_owned(), text(&event.id)),
+                ("digest".to_owned(), text(&event.digest)),
+            ])),
+        );
+    }
+    result.insert("chain_digest".to_owned(), text(chain_digest));
+    sealed(result)
 }
 
-fn conflict(
-    result: &mut JsonObject,
-    current: &Projection,
-    proposed: &EventRecord,
-    reason: &str,
-) -> Result<(), StoreError> {
-    let stop = JsonValue::Object(JsonObject::from([
-        ("code".to_owned(), text("conflict")),
-        ("message".to_owned(), text(reason)),
-    ]));
-    versions(result, current.version, current.version);
-    result.insert("status".to_owned(), text("conflict"));
-    result.insert(
-        "idempotency_key".to_owned(),
-        text(&proposed.idempotency_key),
-    );
-    result.insert("event_id".to_owned(), JsonValue::Null);
-    result.insert("event_digest".to_owned(), text(&proposed.event_digest));
-    result.insert("result_digest".to_owned(), text(&digest(&stop)?));
-    result.insert(
-        "projection_digest".to_owned(),
-        text(&current.projection_digest),
-    );
-    result.insert("projection".to_owned(), JsonValue::Null);
-    empty(result, vec![stop]);
-    Ok(())
-}
-
+/// The answer to a read of one page of a key's events. `last_version` is
+/// the last version in the page, or the version read after when it's empty.
 pub(super) fn events_result(
     backend: &str,
-    source: Source<'_>,
-    projection: &Projection,
+    at: Key<'_>,
+    state: &KeyState,
     events: &[EventRecord],
-    limit: usize,
     after_version: Option<u64>,
     has_more: bool,
 ) -> Result<JsonValue, StoreError> {
-    let rows = events
-        .iter()
-        .map(|record| JsonValue::Object(record_object(record)))
-        .collect::<Vec<_>>();
-    let next_after_version = events.last().map_or_else(
-        || after_version.unwrap_or(projection.version),
+    let last_version = events.last().map_or_else(
+        || after_version.unwrap_or(state.version),
         |event| event.version,
     );
-    let page = JsonObject::from([
-        ("events".to_owned(), JsonValue::Array(rows.clone())),
-        ("limit".to_owned(), number(limit as u64)),
-        ("next_after_version".to_owned(), number(next_after_version)),
-        ("has_more".to_owned(), JsonValue::Bool(has_more)),
-    ]);
-    let mut result = envelope(backend, source, "events.read")?;
-    versions(&mut result, projection.version, projection.version);
-    read(&mut result);
+    let mut result = answer(backend, "events.read", at.stream);
+    result.insert("key".to_owned(), text(at.key));
+    result.insert("version".to_owned(), number(state.version));
     result.insert(
-        "result_digest".to_owned(),
-        text(&digest(&JsonValue::Object(page))?),
+        "events".to_owned(),
+        JsonValue::Array(
+            events
+                .iter()
+                .map(|record| JsonValue::Object(record_object(record)))
+                .collect(),
+        ),
     );
-    result.insert(
-        "projection_digest".to_owned(),
-        text(&projection.projection_digest),
-    );
-    result.insert("projection".to_owned(), JsonValue::Null);
-    result.insert("limit".to_owned(), number(limit as u64));
-    result.insert("next_after_version".to_owned(), number(next_after_version));
+    result.insert("last_version".to_owned(), number(last_version));
     result.insert("has_more".to_owned(), JsonValue::Bool(has_more));
-    result.insert("events".to_owned(), JsonValue::Array(rows.clone()));
-    result.insert("rows".to_owned(), JsonValue::Array(rows));
-    result.insert("redactions".to_owned(), JsonValue::Array(Vec::new()));
-    result.insert("stop_conditions".to_owned(), JsonValue::Array(Vec::new()));
-    Ok(JsonValue::Object(result))
+    result.insert("chain_digest".to_owned(), text(&state.chain_digest));
+    sealed(result)
 }
 
-pub(super) fn projection_result(
+/// The answer to a key's inspection: its version, its newest event whole,
+/// and its chain.
+pub(super) fn inspected_result(
     backend: &str,
-    source: Source<'_>,
-    projection: &Projection,
+    at: Key<'_>,
+    state: &KeyState,
 ) -> Result<JsonValue, StoreError> {
-    let object = projection_object(projection, source);
-    let mut result = envelope(backend, source, "projection.read")?;
-    versions(&mut result, projection.version, projection.version);
-    read(&mut result);
+    let mut result = answer(backend, "key.inspect", at.stream);
+    result.insert("key".to_owned(), text(at.key));
+    result.insert("version".to_owned(), number(state.version));
     result.insert(
-        "result_digest".to_owned(),
-        text(&digest(&JsonValue::Object(object.clone()))?),
+        "last_event".to_owned(),
+        state.last.as_ref().map_or(JsonValue::Null, |last| {
+            JsonValue::Object(record_object(last))
+        }),
     );
-    result.insert(
-        "projection_digest".to_owned(),
-        text(&projection.projection_digest),
-    );
-    result.insert("projection".to_owned(), JsonValue::Object(object));
-    empty(&mut result, Vec::new());
-    Ok(JsonValue::Object(result))
+    result.insert("chain_digest".to_owned(), text(&state.chain_digest));
+    sealed(result)
 }
 
-pub(super) fn heads_result(
+/// The answer to one page of a stream's keys, newest commit first.
+pub(super) fn listed_result(
     backend: &str,
-    data_source_uri: &str,
-    resource: &str,
-    limit: usize,
-    heads: &[StreamHead],
+    stream: &str,
+    keys: &[Listed],
     has_more: bool,
 ) -> Result<JsonValue, StoreError> {
-    let rows = heads
-        .iter()
-        .map(|head| {
-            let mut object = record_object(&head.event);
-            object.insert("aggregate_id".to_owned(), text(&head.aggregate_id));
-            JsonValue::Object(object)
-        })
-        .collect::<Vec<_>>();
-    let next_cursor = match (has_more, heads.last()) {
-        (true, Some(last)) => text(&encode_cursor(last)?),
+    let next_cursor = match (has_more, keys.last()) {
+        (true, Some(last)) => text(&encode_cursor(&ListCursor {
+            committed_at: last.last.committed_at.clone(),
+            key: last.key.clone(),
+        })?),
         _ => JsonValue::Null,
     };
-    let page = JsonObject::from([
-        ("limit".to_owned(), number(limit as u64)),
-        ("count".to_owned(), number(rows.len() as u64)),
-        ("has_more".to_owned(), JsonValue::Bool(has_more)),
-        ("next_cursor".to_owned(), next_cursor),
-    ]);
-    let identities = rows
-        .iter()
-        .filter_map(JsonValue::as_object)
-        .map(|row| {
-            JsonValue::Array(
-                ["aggregate_id", "version", "event_digest"]
-                    .iter()
-                    .map(|field| row.get(*field).cloned().unwrap_or(JsonValue::Null))
-                    .collect(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let source = Source {
-        data_source_uri,
-        resource,
-        aggregate_id: "stream-heads",
-    };
-    let mut result = envelope(backend, source, "heads.list")?;
-    versions(&mut result, 0, 0);
-    read(&mut result);
+    let mut result = answer(backend, "keys.list", stream);
     result.insert(
-        "result_digest".to_owned(),
-        text(&digest(&JsonValue::Object(JsonObject::from([
-            ("rows".to_owned(), JsonValue::Array(rows.clone())),
-            ("page".to_owned(), JsonValue::Object(page.clone())),
-        ])))?),
-    );
-    result.insert(
-        "projection_digest".to_owned(),
-        text(&digest(&JsonValue::Array(identities))?),
-    );
-    result.insert("projection".to_owned(), JsonValue::Object(page));
-    result.insert("events".to_owned(), JsonValue::Array(Vec::new()));
-    result.insert("rows".to_owned(), JsonValue::Array(rows));
-    result.insert("redactions".to_owned(), JsonValue::Array(Vec::new()));
-    result.insert("stop_conditions".to_owned(), JsonValue::Array(Vec::new()));
-    Ok(JsonValue::Object(result))
-}
-
-fn envelope(backend: &str, source: Source<'_>, operation: &str) -> Result<JsonObject, StoreError> {
-    Ok(JsonObject::from([
-        ("schema".to_owned(), text("runx.data.operation_result.v1")),
-        ("data_source_uri".to_owned(), text(source.data_source_uri)),
-        ("provider".to_owned(), text("store")),
-        ("operation".to_owned(), text(operation)),
-        ("resource".to_owned(), text(source.resource)),
-        ("aggregate_id".to_owned(), text(source.aggregate_id)),
-        (
-            "provider_evidence".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                ("backend".to_owned(), text(backend)),
-                (
-                    "data_source_uri_digest".to_owned(),
-                    text(&digest(&text(source.data_source_uri))?),
-                ),
-                ("resource".to_owned(), text(source.resource)),
-                ("aggregate_id".to_owned(), text(source.aggregate_id)),
-            ])),
+        "keys".to_owned(),
+        JsonValue::Array(
+            keys.iter()
+                .map(|listed| {
+                    JsonValue::Object(JsonObject::from([
+                        ("key".to_owned(), text(&listed.key)),
+                        (
+                            "last_event".to_owned(),
+                            JsonValue::Object(record_object(&listed.last)),
+                        ),
+                    ]))
+                })
+                .collect(),
         ),
-    ]))
-}
-
-fn versions(result: &mut JsonObject, before: u64, after: u64) {
-    result.insert("before_version".to_owned(), number(before));
-    result.insert("after_version".to_owned(), number(after));
-}
-
-fn read(result: &mut JsonObject) {
-    result.insert("status".to_owned(), text("read"));
-    result.insert("idempotency_key".to_owned(), JsonValue::Null);
-    result.insert("event_id".to_owned(), JsonValue::Null);
-    result.insert("event_digest".to_owned(), JsonValue::Null);
-}
-
-fn empty(result: &mut JsonObject, stop_conditions: Vec<JsonValue>) {
-    result.insert("events".to_owned(), JsonValue::Array(Vec::new()));
-    result.insert("rows".to_owned(), JsonValue::Array(Vec::new()));
-    result.insert("redactions".to_owned(), JsonValue::Array(Vec::new()));
-    result.insert(
-        "stop_conditions".to_owned(),
-        JsonValue::Array(stop_conditions),
     );
+    result.insert("next_cursor".to_owned(), next_cursor);
+    sealed(result)
 }
 
-/// Where a stream-head page resumes: after this head in (newest commit,
-/// aggregate) order.
-pub(super) struct HeadCursor {
-    pub committed_at: String,
-    pub aggregate_id: String,
-}
-
-pub(super) fn decode_cursor(value: Option<&str>) -> Result<Option<HeadCursor>, StoreError> {
-    let Some(value) = value else {
-        return Ok(None);
+/// The answer to one page of a search, in score order, ties by key.
+pub(super) fn matched_result(
+    backend: &str,
+    stream: &str,
+    matches: &[Matched],
+    has_more: bool,
+) -> Result<JsonValue, StoreError> {
+    let next_cursor = match (has_more, matches.last()) {
+        (true, Some(last)) => text(&encode_search_cursor(&SearchCursor {
+            score: last.score,
+            key: last.key.clone(),
+        })?),
+        _ => JsonValue::Null,
     };
-    let invalid = || StoreError::invalid("cursor must be an opaque stream-head cursor");
+    let mut result = answer(backend, "keys.search", stream);
+    result.insert(
+        "matches".to_owned(),
+        JsonValue::Array(
+            matches
+                .iter()
+                .map(|matched| {
+                    JsonValue::Object(JsonObject::from([
+                        ("key".to_owned(), text(&matched.key)),
+                        (
+                            "score".to_owned(),
+                            JsonValue::Number(JsonNumber::F64(matched.score)),
+                        ),
+                        (
+                            "last_event".to_owned(),
+                            JsonValue::Object(record_object(&matched.last)),
+                        ),
+                    ]))
+                })
+                .collect(),
+        ),
+    );
+    result.insert("next_cursor".to_owned(), next_cursor);
+    sealed(result)
+}
+
+/// Where a page of keys resumes: after this key in (newest commit, key)
+/// order.
+pub(super) struct ListCursor {
+    pub committed_at: String,
+    pub key: String,
+}
+
+/// Where a page of matches resumes: after this key in (score, key) order.
+pub(super) struct SearchCursor {
+    pub score: f64,
+    pub key: String,
+}
+
+fn decode(value: &str, what: &str) -> Result<JsonObject, StoreError> {
+    let invalid = || StoreError::invalid(format!("cursor must be an opaque {what} cursor"));
     if value.len() > 1024
         || !value
             .chars()
@@ -547,29 +509,105 @@ pub(super) fn decode_cursor(value: Option<&str>) -> Result<Option<HeadCursor>, S
         return Err(invalid());
     }
     let bytes = URL_SAFE_NO_PAD.decode(value).map_err(|_| invalid())?;
-    let cursor: JsonObject = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+    serde_json::from_slice(&bytes).map_err(|_| invalid())
+}
+
+fn encode(cursor: &JsonObject) -> Result<String, StoreError> {
+    let bytes = serde_json::to_vec(cursor)
+        .map_err(|error| StoreError::invalid(format!("encoding a cursor: {error}")))?;
+    Ok(URL_SAFE_NO_PAD.encode(bytes))
+}
+
+fn cursor_key(cursor: &JsonObject, what: &str) -> Result<String, StoreError> {
+    let key = cursor
+        .get("key")
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| StoreError::invalid(format!("cursor must be an opaque {what} cursor")))?;
+    validate_key(key)
+        .map_err(|_| StoreError::invalid(format!("cursor must be an opaque {what} cursor")))?;
+    Ok(key.to_owned())
+}
+
+pub(super) fn decode_cursor(value: Option<&str>) -> Result<Option<ListCursor>, StoreError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let cursor = decode(value, "key list")?;
     let committed_at = cursor
         .get("committed_at")
         .and_then(JsonValue::as_str)
         .filter(|value| runx_core::policy::parse_rfc3339_moment(value).is_some())
-        .ok_or_else(invalid)?;
-    let aggregate_id = cursor
-        .get("aggregate_id")
-        .and_then(JsonValue::as_str)
-        .ok_or_else(invalid)?;
-    validate_aggregate_id(aggregate_id).map_err(|_| invalid())?;
-    Ok(Some(HeadCursor {
+        .ok_or_else(|| StoreError::invalid("cursor must be an opaque key list cursor"))?;
+    Ok(Some(ListCursor {
         committed_at: committed_at.to_owned(),
-        aggregate_id: aggregate_id.to_owned(),
+        key: cursor_key(&cursor, "key list")?,
     }))
 }
 
-fn encode_cursor(head: &StreamHead) -> Result<String, StoreError> {
-    let cursor = JsonObject::from([
-        ("committed_at".to_owned(), text(&head.event.committed_at)),
-        ("aggregate_id".to_owned(), text(&head.aggregate_id)),
-    ]);
-    let bytes = serde_json::to_vec(&cursor)
-        .map_err(|error| StoreError::invalid(format!("encoding a cursor: {error}")))?;
-    Ok(URL_SAFE_NO_PAD.encode(bytes))
+fn encode_cursor(cursor: &ListCursor) -> Result<String, StoreError> {
+    encode(&JsonObject::from([
+        ("committed_at".to_owned(), text(&cursor.committed_at)),
+        ("key".to_owned(), text(&cursor.key)),
+    ]))
+}
+
+pub(super) fn decode_search_cursor(
+    value: Option<&str>,
+) -> Result<Option<SearchCursor>, StoreError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let cursor = decode(value, "search")?;
+    let score = match cursor.get("score") {
+        Some(JsonValue::Number(JsonNumber::F64(score))) if score.is_finite() => *score,
+        Some(JsonValue::Number(JsonNumber::I64(score))) => *score as f64,
+        Some(JsonValue::Number(JsonNumber::U64(score))) => *score as f64,
+        _ => {
+            return Err(StoreError::invalid(
+                "cursor must be an opaque search cursor",
+            ));
+        }
+    };
+    Ok(Some(SearchCursor {
+        score,
+        key: cursor_key(&cursor, "search")?,
+    }))
+}
+
+fn encode_search_cursor(cursor: &SearchCursor) -> Result<String, StoreError> {
+    encode(&JsonObject::from([
+        (
+            "score".to_owned(),
+            JsonValue::Number(JsonNumber::F64(cursor.score)),
+        ),
+        ("key".to_owned(), text(&cursor.key)),
+    ]))
+}
+
+/// The words an event's data holds, which a search on `private` matches:
+/// every string in it, its keys left out.
+pub(super) fn searchable_text(data: &JsonObject) -> String {
+    fn collect(value: &JsonValue, words: &mut Vec<String>) {
+        match value {
+            JsonValue::String(text) => words.push(text.clone()),
+            JsonValue::Array(items) => items.iter().for_each(|item| collect(item, words)),
+            JsonValue::Object(object) => object.values().for_each(|item| collect(item, words)),
+            _ => {}
+        }
+    }
+    let mut words = Vec::new();
+    data.values().for_each(|value| collect(value, &mut words));
+    words.join("\n")
+}
+
+/// A query as plain words: each run of letters and digits quoted, any of
+/// them matching, so FTS5's own syntax is never read as syntax. None when
+/// it holds no word.
+pub(super) fn quoted_query(query: &str) -> Option<String> {
+    let words = query
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(|word| format!("\"{word}\""))
+        .collect::<Vec<_>>();
+    (!words.is_empty()).then(|| words.join(" OR "))
 }

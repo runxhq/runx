@@ -414,13 +414,15 @@ impl TestTransport {
                 );
             }
             let arguments = JsonValue::Object(call.input.clone());
-            let target = operation.target.template.render_string(
-                &runx_contracts::connector::TemplateInputs {
-                    arguments: Some(&arguments),
-                    ..runx_contracts::connector::TemplateInputs::default()
-                },
-            );
-            if target.as_deref().ok() != Some(held.target.as_str()) {
+            let target = operation.target.as_ref().map(|target| {
+                target
+                    .template
+                    .render_string(&runx_contracts::connector::TemplateInputs {
+                        arguments: Some(&arguments),
+                        ..runx_contracts::connector::TemplateInputs::default()
+                    })
+            });
+            if target.and_then(Result::ok).as_deref() != Some(held.target.as_str()) {
                 return refused(
                     400,
                     "invalid_input",

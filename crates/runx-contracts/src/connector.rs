@@ -590,7 +590,11 @@ pub struct ConnectorOperation {
     /// Named credentials that may authorize this operation (any of).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub credentials: Vec<CredentialName>,
-    pub target: OperationTarget,
+    /// The resource a term's `targets` are checked against. Every operation
+    /// names one, but one the runtime's own `store` implements: its target is
+    /// the stream the runtime renders under the calling package (§4.8).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<OperationTarget>,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub approval: ApprovalFloor,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]

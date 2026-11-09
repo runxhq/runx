@@ -263,6 +263,13 @@ impl RunxPaths {
         self.project.join("store.sqlite")
     }
 
+    /// The SQLite file of the `private` connector when no instance names
+    /// one: the person's own data, in their runx home, never a workspace.
+    #[must_use]
+    pub fn private_store(&self) -> PathBuf {
+        self.home.join("private.sqlite")
+    }
+
     /// Where a test keeps the receipts of passing cases: the directory
     /// asked for, else `RUNX_RECEIPT_DIR`, else the project's own.
     #[must_use]

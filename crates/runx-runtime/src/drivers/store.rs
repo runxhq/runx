@@ -1,21 +1,31 @@
-//! The store connector's native implementation: an event store with
-//! append-only streams, an expected version and an idempotency key per
-//! append, a rolling projection per stream, and stream heads by their latest
-//! event.
+//! The native implementation of the runtime's own `store` and `private`
+//! connectors (`store.md`): streams of keys, each key's events appended at
+//! the version its caller expects under an idempotency key, read in version
+//! order, inspected, and listed newest first; on `private`, a stream's
+//! current entries searched.
+//!
+//! A stream belongs to a package. The author writes its own name, and the
+//! runtime places it under the package the call is made from, rendering the
+//! call's target as `<package>/<stream>` (§4.8). So a package reads and
+//! writes its own streams with no naming, a read of another's names it
+//! under a term, and a write can't name one. Every event records its writer:
+//! the package and the digest of the bytes it ran from, set by the runtime.
 //!
 //! The instance's `url` parameter chooses where the streams live: SQLite
 //! (`sqlite:<path>`), Postgres (`postgres://`) or Redis (`redis://`,
-//! `rediss://`). Without one, the instance is the workspace store, a SQLite
-//! file beside the kernel store. A password is the instance's credential,
-//! never part of the URL. Every backend keeps the same streams with the same
-//! digests, so a store moves between them without changing what a skill sees.
+//! `rediss://`). Without one, `store` is the workspace store, a SQLite file
+//! beside the kernel store, and `private` its own file in the runx home. A
+//! password is the instance's credential, never part of the URL. Every
+//! backend keeps the same streams with the same digests, so a store moves
+//! between them without changing what a skill sees, wherever an instance is
+//! accepted: a `private` instance is accepted only where it can search.
 //!
 //! An event is keyed by the idempotency key the kernel derives from the
 //! call's intent, so the same call replays in any run. An append's answer is
 //! authoritative in its own transaction, and the kernel still confirms it:
 //! the readback reads what the store holds under the key, which must be the
-//! event the append reported, or nothing after a conflict. A version conflict is the append's result, not a
-//! refusal, so a caller can re-read and decide.
+//! event the append reported, or nothing after a conflict. A conflict is the
+//! append's answer, not a refusal, so a caller can read again and decide.
 
 use std::path::{Path, PathBuf};
 
@@ -25,6 +35,7 @@ use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 use crate::kernel::operation::AdmittedCall;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
 
+mod migration;
 mod model;
 #[cfg(feature = "store")]
 mod postgres;
@@ -33,8 +44,8 @@ mod redis;
 mod request;
 mod sqlite;
 
-use model::{Appended, EventRecord, Projection, StreamHead};
-use request::{Append, Input, ListHeads, ReadEvents, Request, Source};
+use model::{Appended, EventRecord, KeyState, Listed, Matched, Writer};
+use request::{Append, Input, Key, ListKeys, ReadEvents, Request, SearchKeys};
 
 /// What confirms a store append: the store holds the reported event under
 /// the call's key, or nothing after a conflict.
@@ -49,6 +60,10 @@ pub(crate) fn readback_matches() -> Vec<ReadbackMatch> {
 
 /// Nothing is held under the key.
 const NOTHING_LANDED: &str = "none";
+
+/// The runtime's connector for the person's own data: the store's driver
+/// and tables in its own file in the runx home, every call under a term.
+pub(crate) const PRIVATE: &str = "private";
 
 #[derive(Debug)]
 pub(crate) struct StoreError {
@@ -125,6 +140,26 @@ impl std::fmt::Display for StoreError {
     }
 }
 
+/// Which of the runtime's two connectors an instance serves: they share the
+/// driver and the tables, and each keeps its own file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Holding {
+    /// A package's ordinary state, in the workspace.
+    Store,
+    /// The person's own data, in the runx home, searchable.
+    Private,
+}
+
+impl Holding {
+    fn of(connector: &str) -> Self {
+        if connector == PRIVATE {
+            Self::Private
+        } else {
+            Self::Store
+        }
+    }
+}
+
 /// Where an instance's streams live, from its `url` parameter.
 enum Location {
     Sqlite(PathBuf),
@@ -135,11 +170,23 @@ enum Location {
 }
 
 impl Location {
-    fn of(call: &AdmittedCall<'_>) -> Result<Self, StoreError> {
+    fn of(
+        holding: Holding,
+        parameters: &JsonObject,
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> Result<Self, StoreError> {
         // The admitted environment always names the workspace.
-        let paths = crate::paths::RunxPaths::resolve(call.env, Path::new("."));
-        let Some(url) = call.parameters.get("url") else {
-            return Ok(Self::Sqlite(paths.workspace_store()));
+        let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
+        let Some(url) = parameters.get("url") else {
+            return match holding {
+                Holding::Store => Ok(Self::Sqlite(paths.workspace_store())),
+                // A home that fell back to the workspace counts for nothing
+                // (D30): a repository could ship it.
+                Holding::Private if paths.home_fell_back() => Err(StoreError::invalid(
+                    "private keeps the person's own data in their runx home, and with HOME and USERPROFILE unset the home fell back to the workspace, which a repository can ship; set HOME, or RUNX_HOME",
+                )),
+                Holding::Private => Ok(Self::Sqlite(paths.private_store())),
+            };
         };
         let url = url
             .as_str()
@@ -157,7 +204,11 @@ impl Location {
                 "the store url carries a password; bind it as the instance's credential",
             ));
         }
-        match parsed.scheme() {
+        let scheme = parsed.scheme();
+        if holding == Holding::Private && scheme != "sqlite" {
+            return Err(cannot_search(scheme));
+        }
+        match scheme {
             #[cfg(feature = "store")]
             "postgres" | "postgresql" => Ok(Self::Postgres(url.to_owned())),
             #[cfg(feature = "store")]
@@ -169,97 +220,137 @@ impl Location {
     }
 }
 
-/// What a backend keeps: streams of events with their projections and heads.
-trait Backend {
-    /// The backend's name in results: `sqlite`, `postgres` or `redis`.
-    fn name(&self) -> &'static str;
-    fn append(&mut self, request: &Append<'_>, committed_at: &str) -> Result<Appended, StoreError>;
-    fn projection(&mut self, source: Source<'_>) -> Result<Projection, StoreError>;
-    /// A page of events, ascending, and whether more follow.
-    fn events(&mut self, request: &ReadEvents<'_>) -> Result<(Vec<EventRecord>, bool), StoreError>;
-    /// A page of the newest heads, and whether more follow.
-    fn heads(&mut self, request: &ListHeads<'_>) -> Result<(Vec<StreamHead>, bool), StoreError>;
-    /// The digest of the event held under `idempotency_key`.
-    fn landed(
-        &mut self,
-        source: Source<'_>,
-        idempotency_key: &str,
-    ) -> Result<Option<String>, StoreError>;
+/// Why a `private` instance on `scheme` is refused.
+fn cannot_search(scheme: &str) -> StoreError {
+    StoreError::invalid(format!(
+        "a private instance serves every operation of private, keys.search among them, and a {scheme} store can't search; name a sqlite: url, or none for its own file in the runx home"
+    ))
 }
 
-/// One transaction's view of a SQL store's streams, for the shared append.
+/// Whether an instance of `connector` with `parameters` serves every
+/// operation its connector declares, checked when the instance is
+/// configured, never on a call: a `private` instance on a backend that
+/// can't search is refused.
+///
+/// # Errors
+///
+/// Returns why the instance can't be configured.
+pub(crate) fn configurable(connector: &str, parameters: &JsonObject) -> Result<(), String> {
+    let holding = Holding::of(connector);
+    if holding == Holding::Store {
+        return Ok(());
+    }
+    let Some(url) = parameters.get("url").and_then(JsonValue::as_str) else {
+        return Ok(());
+    };
+    if url.starts_with("sqlite:") {
+        return Ok(());
+    }
+    let scheme = url.split_once(':').map_or(url, |(scheme, _)| scheme);
+    Err(cannot_search(scheme).to_string())
+}
+
+/// What a backend keeps: streams of keys, each with its events and state.
+trait Backend {
+    /// The backend's name in answers: `sqlite`, `postgres` or `redis`.
+    fn name(&self) -> &'static str;
+    fn append(&mut self, request: &Append<'_>, committed_at: &str) -> Result<Appended, StoreError>;
+    fn state(&mut self, at: Key<'_>) -> Result<KeyState, StoreError>;
+    /// A page of a key's events, in version order, and whether more follow.
+    fn events(&mut self, request: &ReadEvents<'_>) -> Result<(Vec<EventRecord>, bool), StoreError>;
+    /// A page of a stream's keys, newest commit first, and whether more
+    /// follow.
+    fn keys(&mut self, request: &ListKeys<'_>) -> Result<(Vec<Listed>, bool), StoreError>;
+    /// A page of a stream's keys ranked against the query, and whether more
+    /// follow. Only a backend `private` accepts implements it.
+    fn search(&mut self, _request: &SearchKeys<'_>) -> Result<(Vec<Matched>, bool), StoreError> {
+        Err(cannot_search(self.name()))
+    }
+    /// The digest of the event held under `idempotency_key`.
+    fn landed(&mut self, at: Key<'_>, idempotency_key: &str) -> Result<Option<String>, StoreError>;
+}
+
+/// One transaction's view of a SQL store's keys, for the shared append.
 trait Streams {
-    fn projection(&mut self, source: Source<'_>) -> Result<Projection, StoreError>;
+    fn state(&mut self, at: Key<'_>) -> Result<KeyState, StoreError>;
     fn existing(
         &mut self,
-        source: Source<'_>,
+        at: Key<'_>,
         idempotency_key: &str,
     ) -> Result<Option<EventRecord>, StoreError>;
-    /// Insert the event and move the stream's head and projection to it.
+    /// Insert the event and move its key's state to it.
     fn commit_event(
         &mut self,
-        source: Source<'_>,
+        at: Key<'_>,
         record: &EventRecord,
-        projection: &Projection,
+        state: &KeyState,
     ) -> Result<(), StoreError>;
 }
 
-/// The append, decided inside one transaction: a key already used replays or
-/// conflicts, a stream at another version conflicts, else the event commits.
+/// The append, decided inside one transaction: an idempotency key already
+/// used replays or conflicts, which is checked first, a key at another
+/// version conflicts, else the event commits.
 fn append_in(
     streams: &mut dyn Streams,
     request: &Append<'_>,
     committed_at: &str,
 ) -> Result<Appended, StoreError> {
-    let current = streams.projection(request.source)?;
+    let current = streams.state(request.at)?;
     let next = current
         .version
         .checked_add(1)
-        .ok_or_else(|| StoreError::invalid("the stream version exceeds the supported range"))?;
-    let proposed = model::record(
-        request.source,
-        next,
-        request.idempotency_key,
-        request.event,
-        committed_at,
-    )?;
-    if let Some(existing) = streams.existing(request.source, request.idempotency_key)? {
-        return Ok(if existing.event_digest == proposed.event_digest {
-            Appended::Replay { current, existing }
+        .ok_or_else(|| StoreError::invalid("the key's version exceeds the supported range"))?;
+    let proposed = proposed(request, next, committed_at)?;
+    if let Some(existing) = streams.existing(request.at, request.idempotency_key)? {
+        return Ok(if existing.digest == proposed.digest {
+            Appended::Replayed { current, existing }
         } else {
-            Appended::KeyConflict {
+            Appended::IdempotencyConflict {
                 current,
-                proposed,
-                held: existing.event_digest,
+                held: existing.digest,
             }
         });
     }
     if current.version != request.expected_version {
-        return Ok(Appended::VersionConflict {
-            current,
-            proposed,
-            expected: request.expected_version,
-        });
+        return Ok(Appended::VersionConflict { current });
     }
-    let projection = model::advance(&current, &proposed)?;
-    streams.commit_event(request.source, &proposed, &projection)?;
+    let state = model::advance(&current, &proposed)?;
+    streams.commit_event(request.at, &proposed, &state)?;
     Ok(Appended::Committed {
         before: current.version,
         record: proposed,
-        projection,
+        state,
     })
 }
 
+/// The event `request` proposes at `version`.
+fn proposed(
+    request: &Append<'_>,
+    version: u64,
+    committed_at: &str,
+) -> Result<EventRecord, StoreError> {
+    model::record(
+        request.at,
+        version,
+        request.idempotency_key,
+        request.event_type,
+        request.data,
+        &request.writer,
+        committed_at,
+    )
+}
+
 fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
+    let holding = Holding::of(call.connector);
     let password = call
         .credential
         .and_then(|secret| secret.field("password").ok());
-    match Location::of(call)? {
+    match Location::of(holding, call.parameters, call.env)? {
         Location::Sqlite(path) => {
             if password.is_some() {
                 return Err(StoreError::invalid("a sqlite store takes no password"));
             }
-            Ok(Box::new(sqlite::Sqlite::open(&path)?))
+            Ok(Box::new(sqlite::Sqlite::open(&path, holding)?))
         }
         #[cfg(feature = "store")]
         Location::Postgres(url) => Ok(Box::new(postgres::Postgres::connect(&url, password)?)),
@@ -274,18 +365,25 @@ pub(crate) struct Store<'a> {
 }
 
 impl Store<'_> {
+    fn writer(&self) -> Option<Writer> {
+        self.call.writer.map(|link| Writer {
+            package: link.package.as_str().to_owned(),
+            digest: link.digest.clone(),
+        })
+    }
+
     fn perform_call(&self) -> Result<JsonValue, StoreError> {
         let input = Input::decode(self.call.operation, self.call.arguments)?;
-        let request = input.request(self.call.idempotency_key)?;
+        let writer = self.writer();
+        let request =
+            input.request(self.call.target, self.call.idempotency_key, writer.as_ref())?;
         let mut backend = open(self.call)?;
         let name = backend.name();
         match request {
             Request::Append(append) => {
-                let committed_at = append
-                    .observed_at
-                    .map_or_else(crate::time::now_iso8601, str::to_owned);
+                let committed_at = crate::time::now_iso8601();
                 let appended = backend.append(&append, &committed_at)?;
-                let mut result = model::appended_result(name, append.source, &appended)?;
+                let mut result = model::appended_result(name, append.at, &appended)?;
                 if let JsonValue::Object(object) = &mut result {
                     object.insert(
                         "landed".to_owned(),
@@ -294,43 +392,40 @@ impl Store<'_> {
                 }
                 Ok(result)
             }
-            Request::ReadEvents(read) => {
-                let projection = backend.projection(read.source)?;
+            Request::Read(read) => {
+                let state = backend.state(read.at)?;
                 let (events, has_more) = backend.events(&read)?;
-                model::events_result(
-                    name,
-                    read.source,
-                    &projection,
-                    &events,
-                    read.limit,
-                    read.after_version,
-                    has_more,
-                )
+                model::events_result(name, read.at, &state, &events, read.after_version, has_more)
             }
-            Request::ReadProjection(source) => {
-                let projection = backend.projection(source)?;
-                model::projection_result(name, source, &projection)
+            Request::Inspect(at) => {
+                let state = backend.state(at)?;
+                model::inspected_result(name, at, &state)
             }
-            Request::ListHeads(list) => {
-                let (heads, has_more) = backend.heads(&list)?;
-                model::heads_result(
-                    name,
-                    list.data_source_uri,
-                    list.resource,
-                    list.limit,
-                    &heads,
-                    has_more,
-                )
+            Request::List(list) => {
+                let (keys, has_more) = backend.keys(&list)?;
+                model::listed_result(name, list.stream, &keys, has_more)
+            }
+            Request::Search(search) => {
+                if Holding::of(self.call.connector) != Holding::Private {
+                    return Err(StoreError::invalid(
+                        "keys.search searches private's streams only",
+                    ));
+                }
+                let (matches, has_more) = backend.search(&search)?;
+                model::matched_result(name, search.stream, &matches, has_more)
             }
         }
     }
 
     fn landed(&self) -> Result<JsonValue, StoreError> {
         let input = Input::decode(self.call.operation, self.call.arguments)?;
-        let Request::Append(append) = input.request(self.call.idempotency_key)? else {
+        let writer = self.writer();
+        let Request::Append(append) =
+            input.request(self.call.target, self.call.idempotency_key, writer.as_ref())?
+        else {
             return Err(StoreError::invalid("only an append is read back"));
         };
-        let landed = open(self.call)?.landed(append.source, append.idempotency_key)?;
+        let landed = open(self.call)?.landed(append.at, append.idempotency_key)?;
         Ok(JsonValue::Object(JsonObject::from([(
             "landed".to_owned(),
             model::text(landed.as_deref().unwrap_or(NOTHING_LANDED)),
@@ -374,21 +469,25 @@ impl Driver for Store<'_> {
         if let JsonValue::Object(object) = &mut result {
             object.remove("landed");
         }
-        // The event the call landed on, or for a conflict the stream position
-        // it was decided against: `<resource>:<aggregate>:<version>` either way.
+        // The event the call landed on, or for a conflict the key's position
+        // it was decided against, in the event id's encoding either way.
         let object = result.as_object();
         let field = |name: &str| object.and_then(|object| object.get(name));
-        let operation_id = match field("event_id").and_then(JsonValue::as_str) {
-            Some(event_id) => Some(event_id.to_owned()),
+        let operation_id = match field("event")
+            .and_then(JsonValue::as_object)
+            .and_then(|event| event.get("id"))
+            .and_then(JsonValue::as_str)
+        {
+            Some(id) => Some(id.to_owned()),
             None => match (
-                field("resource").and_then(JsonValue::as_str),
-                field("aggregate_id").and_then(JsonValue::as_str),
-                field("after_version").and_then(model::unsigned),
+                field("stream").and_then(JsonValue::as_str),
+                field("key").and_then(JsonValue::as_str),
+                field("version").and_then(model::unsigned),
             ) {
-                (Some(resource), Some(aggregate), Some(version))
+                (Some(stream), Some(key), Some(version))
                     if self.call.operation == "events.append" =>
                 {
-                    Some(format!("{resource}:{aggregate}:{version}"))
+                    Some(model::event_id(stream, key, version))
                 }
                 _ => None,
             },

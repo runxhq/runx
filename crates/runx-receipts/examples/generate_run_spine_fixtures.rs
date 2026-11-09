@@ -173,6 +173,7 @@ fn call_authority(receipt: &mut Receipt) {
             scopes: vec!["issues:write".into()],
             targets: vec!["github://acme/app".into()],
             uses: None,
+            packages: Vec::new(),
         },
         approvals: Vec::new(),
         expires_at: None,

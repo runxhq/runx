@@ -40,11 +40,11 @@ operations:
 "###,
     ),
     (
-        "store",
+        "private",
         r###"schema: runx.connector.v1
-name: store
-title: Store
-description: Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.
+name: private
+title: Private
+description: The person's own data, such as memory and people. Its own file in the runx home, or its instance's url. Every call needs a term, only the package that owns a stream writes it, and a stream's current entries can be searched.
 category: agent-tools
 auth:
   none: {}
@@ -52,16 +52,14 @@ auth:
     password:
       kind: password
       fields:
-        - name: password
-          label: Store password
-      delivery:
-        env: RUNX_STORE_PASSWORD
+        - {name: password, label: Private store password, secret: true, required: true}
+      delivery: {env: RUNX_PRIVATE_PASSWORD}
 parameters:
   type: object
   additionalProperties: false
   properties:
     url:
-      description: Where the streams live. sqlite:<path> (relative to the workspace), postgres://user@host:port/db (TLS unless ?sslmode=disable), or redis:// and rediss://. Never a password; bind that as the instance's credential.
+      description: Where the streams live. sqlite:<path>, postgres:// or redis://, never with a password, which is the instance's credential. Without one, its own file in the runx home. An instance on a backend that can't search is refused when it's configured, never on a call.
       type: string
       minLength: 1
       maxLength: 2048
@@ -71,87 +69,209 @@ placements:
     auth: [none, credentials]
 operations:
   events.append:
-    description: Append one event to a stream when the stream is at the expected version. The event is keyed by the call's idempotency key, so a repeated call answers as a replay; at another version the answer is a conflict and nothing is appended.
+    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended.
     verb: write
     scopes: [store.append]
     credentials: [password]
-    target:
-      template: {"$argument": "/data_source_uri"}
-    guarantees:
-      provider_idempotency: enforced
+    guarantees: {provider_idempotency: enforced}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_uri, resource, aggregate_id, expected_version, event]
+      required: [stream, key, expected_version, type, data]
       properties:
-        data_source_uri: {type: string, minLength: 1, maxLength: 512}
-        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
-        aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as said:personal, stored under the calling package. No / and no #."}
+        key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
         expected_version: {type: integer, minimum: 0, maximum: 9007199254740990}
-        event: {type: object}
-        observed_at: {type: string, minLength: 1, maxLength: 64}
-    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+        type: {type: string, minLength: 1, maxLength: 128, pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+        data: {type: object}
+    result_fields: [schema, operation, stream, key, backend, result_digest, status, before_version, version, event, chain_digest]
     implementation:
       store: {}
   events.read:
-    description: Read one page of a stream's events in ascending order, the latest page when no after_version is given.
+    description: Read one page of a key's events in version order, after a version, or the latest page without one.
     verb: read
     scopes: [store.read]
     credentials: [password]
-    target:
-      template: {"$argument": "/data_source_uri"}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_uri, resource, aggregate_id]
+      required: [stream, key]
       properties:
-        data_source_uri: {type: string, minLength: 1, maxLength: 512}
-        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
-        aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
-        limit: {type: integer, minimum: 1, maximum: 500}
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as said:personal, stored under the calling package. No / and no #."}
+        key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
         after_version: {type: integer, minimum: 0, maximum: 9007199254740991}
-    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, limit, next_after_version, has_more, events, rows, redactions, stop_conditions, provider_evidence]
+        limit: {type: integer, minimum: 1, maximum: 500, default: 100}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
+    result_fields: [schema, operation, stream, key, backend, result_digest, version, events, last_version, has_more, chain_digest]
     implementation:
       store: {}
-  projection.read:
-    description: Read a stream's projection, its version and last event, with the digest that chains its events.
+  key.inspect:
+    description: Read a key's version, its newest event whole, and the digest that chains its events.
     verb: read
     scopes: [store.read]
     credentials: [password]
-    target:
-      template: {"$argument": "/data_source_uri"}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_uri, resource, aggregate_id]
+      required: [stream, key]
       properties:
-        data_source_uri: {type: string, minLength: 1, maxLength: 512}
-        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
-        aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
-    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as said:personal, stored under the calling package. No / and no #."}
+        key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
+    result_fields: [schema, operation, stream, key, backend, result_digest, version, last_event, chain_digest]
     implementation:
       store: {}
-  heads.list:
-    description: List one page of a resource's stream heads, newest first, optionally only those whose latest event has one of the given types.
+  keys.list:
+    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types.
     verb: read
     scopes: [store.read]
     credentials: [password]
-    target:
-      template: {"$argument": "/data_source_uri"}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_uri, resource]
+      required: [stream]
       properties:
-        data_source_uri: {type: string, minLength: 1, maxLength: 512}
-        resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
-        event_types:
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as said:personal, stored under the calling package. No / and no #."}
+        types:
           type: array
-          maxItems: 20
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
           items: {type: string, minLength: 1, maxLength: 128}
-        limit: {type: integer, minimum: 1, maximum: 100}
         cursor: {type: string, minLength: 1, maxLength: 1024}
-    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+        limit: {type: integer, minimum: 1, maximum: 100, default: 50}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
+    result_fields: [schema, operation, stream, backend, result_digest, keys, next_cursor]
+    implementation:
+      store: {}
+  keys.search:
+    description: Rank one stream's keys by a full-text match against each key's newest event, in score order with ties by key, one page at a time, optionally only keys whose newest event has one of the given types. It searches what's current, never history. The query is quoted, so its words are plain words.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [stream, query]
+      properties:
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as said:personal, stored under the calling package. No / and no #."}
+        query: {type: string, minLength: 1, maxLength: 512}
+        types:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 128}
+        cursor: {type: string, minLength: 1, maxLength: 1024}
+        limit: {type: integer, minimum: 1, maximum: 100, default: 20}
+    result_fields: [schema, operation, stream, backend, result_digest, matches, next_cursor]
+    implementation:
+      store: {}
+"###,
+    ),
+    (
+        "store",
+        r###"schema: runx.connector.v1
+name: store
+title: Store
+description: A package's ordinary state, such as cursors, plans and consent, in the workspace's store or its instance's url. A package reads and writes its own streams with no naming; another package reads one only under a term, and never writes it.
+category: agent-tools
+auth:
+  none: {}
+  credentials:
+    password:
+      kind: password
+      fields:
+        - {name: password, label: Store password, secret: true, required: true}
+      delivery: {env: RUNX_STORE_PASSWORD}
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    url:
+      description: Where the streams live. sqlite:<path>, relative to the workspace, postgres://user@host:port/db (TLS unless ?sslmode=disable), or redis:// and rediss://, never with a password, which is the instance's credential. Without one, the workspace's store.
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: "^(sqlite:.+|(postgres|postgresql|redis|rediss)://([^:@/]+@)?[^@]+)$"
+placements:
+  local:
+    auth: [none, credentials]
+operations:
+  events.append:
+    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended.
+    verb: write
+    scopes: [store.append]
+    credentials: [password]
+    guarantees: {provider_idempotency: enforced}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [stream, key, expected_version, type, data]
+      properties:
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as accounts, stored under the calling package. No / and no #."}
+        key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
+        expected_version: {type: integer, minimum: 0, maximum: 9007199254740990}
+        type: {type: string, minLength: 1, maxLength: 128, pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+        data: {type: object}
+    result_fields: [schema, operation, stream, key, backend, result_digest, status, before_version, version, event, chain_digest]
+    implementation:
+      store: {}
+  events.read:
+    description: Read one page of a key's events in version order, after a version, or the latest page without one.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [stream, key]
+      properties:
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as accounts, stored under the calling package. No / and no #."}
+        key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
+        after_version: {type: integer, minimum: 0, maximum: 9007199254740991}
+        limit: {type: integer, minimum: 1, maximum: 500, default: 100}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$", description: "Another package's stream to read, under a term that names it, or unowned for a stream a migration found no owner for. Never on a write."}
+    result_fields: [schema, operation, stream, key, backend, result_digest, version, events, last_version, has_more, chain_digest]
+    implementation:
+      store: {}
+  key.inspect:
+    description: Read a key's version, its newest event whole, and the digest that chains its events.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [stream, key]
+      properties:
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as accounts, stored under the calling package. No / and no #."}
+        key: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$", description: "One entity in its stream, with its own order and version. No #."}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$", description: "Another package's stream to read, under a term that names it, or unowned for a stream a migration found no owner for. Never on a write."}
+    result_fields: [schema, operation, stream, key, backend, result_digest, version, last_event, chain_digest]
+    implementation:
+      store: {}
+  keys.list:
+    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types.
+    verb: read
+    scopes: [store.read]
+    credentials: [password]
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [stream]
+      properties:
+        stream: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$", description: "What the author writes, such as accounts, stored under the calling package. No / and no #."}
+        types:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 128}
+        cursor: {type: string, minLength: 1, maxLength: 1024}
+        limit: {type: integer, minimum: 1, maximum: 100, default: 50}
+        package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*|unowned)$", description: "Another package's stream to read, under a term that names it, or unowned for a stream a migration found no owner for. Never on a write."}
+    result_fields: [schema, operation, stream, backend, result_digest, keys, next_cursor]
     implementation:
       store: {}
 "###,

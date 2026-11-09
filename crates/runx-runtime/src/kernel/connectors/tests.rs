@@ -12,7 +12,7 @@ fn only_the_runtime_capabilities_are_embedded() {
             .iter()
             .map(|connector| connector.name.as_str())
             .collect::<Vec<_>>(),
-        ["artifact", "store", "web"]
+        ["artifact", "private", "store", "web"]
     );
     assert!(connectors.iter().all(|connector| {
         connector.origin == ConnectorOrigin::RuntimeCapability && connector.tools.is_empty()
@@ -127,7 +127,7 @@ fn the_reachable_connectors_include_every_added_version_once() {
         .collect::<Vec<_>>();
     assert_eq!(
         names,
-        ["artifact", "store", "web", "acme/ops", "acme/ops", "stripe"]
+        ["artifact", "private", "store", "web", "acme/ops", "acme/ops", "stripe"]
     );
     assert!(
         scope
@@ -494,7 +494,7 @@ fn a_bundled_package_sees_native_capabilities_and_only_its_external_snapshots() 
             .iter()
             .map(|connector| connector.name.as_str())
             .collect::<Vec<_>>(),
-        ["artifact", "store", "web"]
+        ["artifact", "private", "store", "web"]
     );
 }
 

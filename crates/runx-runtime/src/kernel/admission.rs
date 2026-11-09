@@ -69,6 +69,10 @@ pub(crate) struct Evaluation<'a> {
     /// The run the call belongs to: a read's custody, and the run a new use
     /// is attributed to.
     pub run_id: &'a str,
+    /// The packages the call is made from, its own last (D31): each must be
+    /// covered by every `packages` bound, and a store call's stream is its
+    /// own package's unless a read names another.
+    pub chain: &'a [crate::identity::ChainLink],
     pub context: Context<'a>,
 }
 
@@ -106,6 +110,9 @@ pub(crate) struct Admitted {
     /// delegated actor under a run authority.
     pub actor_ref: Reference,
     pub delegations: Vec<AuthorityTerm>,
+    /// What stated each delegation link: the operator's mandate for a host's
+    /// delegation, the run for its `packages`.
+    pub delegation_sources: Vec<Reference>,
     pub mandate_ref: Option<Reference>,
     /// The act's custody, kept for a mutation or a bounded call.
     pub custody: Option<EffectCustody>,
@@ -159,7 +166,7 @@ impl Admitted {
         let (term, derivation) = derive(
             &self.capability,
             &self.delegations,
-            self.mandate_ref.as_ref(),
+            &self.delegation_sources,
             &self.term_request,
             self.admission.intent_digest.as_str(),
             approvals,
@@ -317,6 +324,25 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Ok(shape) => shape,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
+    // A store call reaching another package's stream, and every `private`
+    // call, is made only under a term the host states (D21).
+    let needs_term = if is_private(&connector) {
+        Some(format!(
+            "every {} call needs a term, and the run's authority states none for this instance; a host grants one with a delegation on it",
+            connector.name
+        ))
+    } else {
+        store_stream(evaluation, operation_spec)
+            .ok()
+            .flatten()
+            .filter(|stream| stream.named)
+            .map(|stream| {
+                format!(
+                    "{target} is another package's stream, which a package reads only under a term naming it, and the run's authority states none for this instance",
+                    target = stream.target
+                )
+            })
+    };
     let mut approval = approval_text(call, operation_spec);
     // A write the floor holds under `effects: ask` has no approval of its
     // own: the call's one gate carries the floor's reason.
@@ -357,10 +383,26 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         .run_authority
         .and_then(|authority| authority.actor_ref.clone())
         .unwrap_or_else(|| capability.term.principal_ref.clone());
-    let delegations = match delegated_terms(&capability.term, &instance, evaluation.run_authority) {
-        Ok(terms) => terms,
+    let delegated = match delegated_terms(
+        &capability.term,
+        &instance,
+        evaluation.run_authority,
+        evaluation.run_id,
+    ) {
+        Ok(delegated) => delegated,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Delegation, detail)),
     };
+    if let Some(detail) = needs_term.filter(|_| !delegated.stated) {
+        return Err(reasons.refuse(AdmissionCheck::Delegation, detail));
+    }
+    let Delegated {
+        terms: delegations,
+        sources: delegation_sources,
+        ..
+    } = delegated;
+    if let Some(detail) = uncovered_package(evaluation.chain, &delegations) {
+        return Err(reasons.refuse(AdmissionCheck::Delegation, detail));
+    }
     let mandate_ref = evaluation
         .run_authority
         .and_then(|authority| authority.mandate_ref.clone());
@@ -429,13 +471,14 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         operation_spec,
         &target,
         intent_uses,
+        evaluation.chain,
     );
 
     // Capability and delegation, proven together by deriving the term.
     let (term, derivation) = match derive(
         &capability,
         &delegations,
-        mandate_ref.as_ref(),
+        &delegation_sources,
         &term_request,
         intent_digest.as_str(),
         Vec::new(),
@@ -640,6 +683,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         capability,
         actor_ref,
         delegations,
+        delegation_sources,
         mandate_ref,
         custody,
         pending,
@@ -675,19 +719,20 @@ fn held(
 }
 
 /// The readiness of every operation a skill's connectors block lists, from
-/// the instances and evidence present here and the grants `authority` states.
-/// A projection, never an admission.
-pub fn skill_readiness(
+/// the instances and evidence present here and the grants `authority` states,
+/// for calls made from `chain`. A projection, never an admission.
+pub(crate) fn skill_readiness(
     skill_dir: &Path,
     requirements: &BTreeMap<String, ConnectorRequirement>,
     calls: &[runx_parser::WorkflowStep],
     authority: Option<&RunAuthority>,
+    chain: &[crate::identity::ChainLink],
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
     let scope = ConnectorScope::in_project(skill_dir, &crate::paths::RunxPaths::resolve(env, cwd))
         .map_err(|error| error.to_string())?;
-    project(&scope, requirements, calls, authority, env, cwd)
+    project(&scope, requirements, calls, authority, chain, env, cwd)
 }
 
 /// The readiness of every operation of one connector in the workspace at
@@ -710,6 +755,7 @@ pub fn connector_readiness(
         &BTreeMap::from([(connector.name.as_str().to_owned(), requirement)]),
         &[],
         None,
+        &[],
         env,
         cwd,
     )
@@ -720,6 +766,7 @@ fn project(
     requirements: &BTreeMap<String, ConnectorRequirement>,
     calls: &[runx_parser::WorkflowStep],
     authority: Option<&RunAuthority>,
+    chain: &[crate::identity::ChainLink],
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
@@ -757,6 +804,7 @@ fn project(
                         operation,
                         calls,
                         authority,
+                        chain,
                         context,
                     )
                 })
@@ -798,6 +846,7 @@ fn readiness(
     operation: &OperationName,
     calls: &[runx_parser::WorkflowStep],
     authority: Option<&RunAuthority>,
+    chain: &[crate::identity::ChainLink],
     context: Context<'_>,
 ) -> Readiness {
     let Context {
@@ -901,18 +950,31 @@ fn readiness(
         actor_ref: authority.and_then(|authority| authority.actor_ref.as_ref()),
     }) {
         Ok(capability) => {
-            match delegated_terms(&capability.term, &instance, authority) {
-                Ok(terms) => {
+            match delegated_terms(&capability.term, &instance, authority, "inspection") {
+                Ok(delegated) => {
                     let limits = std::iter::once(&capability.term)
-                        .chain(terms.iter())
+                        .chain(delegated.terms.iter())
                         .filter_map(|term| term.bounds.uses.as_ref())
                         .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
                         .collect::<Vec<_>>();
                     usage_approval = usage_approval_required(spec, money_limit, &limits);
-                    reasons.pass(
-                        AdmissionCheck::Delegation,
-                        "applicable delegation terms are valid",
-                    );
+                    if let Some(detail) = uncovered_package(chain, &delegated.terms) {
+                        reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail);
+                    } else if is_private(&connector) && !delegated.stated {
+                        reasons.push(
+                            AdmissionCheck::Delegation,
+                            CheckOutcome::Fail,
+                            format!(
+                                "every {} call needs a term, and the run's authority states none for this instance",
+                                connector.name
+                            ),
+                        );
+                    } else {
+                        reasons.pass(
+                            AdmissionCheck::Delegation,
+                            "applicable delegation terms are valid",
+                        );
+                    }
                 }
                 Err(detail) => reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail),
             }
@@ -947,8 +1009,14 @@ fn readiness(
             } else {
                 arguments
             };
-            for (arguments, unresolved) in arguments {
-                match spec.target.template.render_string(&TemplateInputs {
+            // A store operation's stream is rendered under the calling
+            // package when the call is made.
+            let template = spec.target.as_ref().map(|target| &target.template);
+            for (arguments, unresolved) in arguments.into_iter().filter(|_| template.is_some()) {
+                let Some(template) = template else {
+                    continue;
+                };
+                match template.render_string(&TemplateInputs {
                     arguments,
                     parameters: Some(&instance.parameters),
                     ..TemplateInputs::default()
@@ -1038,25 +1106,82 @@ fn usage_approval_required(
     operation.is_unpriced_metered() && money_limit.is_none() && limits.is_empty()
 }
 
+/// The links between an instance's capability and a call: the run's
+/// `packages`, then the host's delegation on the instance.
+#[derive(Default)]
+struct Delegated {
+    terms: Vec<AuthorityTerm>,
+    /// What stated each link: the run for its `packages`, the operator's
+    /// mandate for a host's delegation.
+    sources: Vec<Reference>,
+    /// A host stated a delegation on the instance: the call is made under a
+    /// term.
+    stated: bool,
+}
+
 /// The same applicable delegation chain serves admission and inspection.
+/// The run's `packages` is a plain narrowing of whichever instance a call
+/// resolves, needing no actor or mandate (D31), and the host's delegations
+/// on the instance narrow it in turn.
 fn delegated_terms(
     base: &AuthorityTerm,
     instance: &ConnectorInstance,
     authority: Option<&RunAuthority>,
-) -> Result<Vec<AuthorityTerm>, String> {
+    run_id: &str,
+) -> Result<Delegated, String> {
     let Some(authority) = authority else {
-        return Ok(Vec::new());
+        return Ok(Delegated::default());
     };
     if authority.actor_ref.is_none() && !authority.delegations.is_empty() {
         return Err("the run's delegations name no actor to delegate to".to_owned());
     }
-    let instance_ref = capability::instance_reference(instance);
-    let mut terms = Vec::new();
+    let mut delegated = Delegated::default();
     let mut preceding = base.clone();
-    for request in authority.delegations.iter().filter(|request| {
-        request.resource_ref.reference_type == instance_ref.reference_type
-            && request.resource_ref.uri == instance_ref.uri
-    }) {
+    if let Some(packages) = &authority.packages {
+        let narrowing = AttenuationRequest {
+            principal_ref: preceding.principal_ref.clone(),
+            resource_ref: preceding.resource_ref.clone(),
+            resource_family: preceding.resource_family.clone(),
+            verbs: preceding.verbs.clone(),
+            bounds: AuthorityBounds {
+                packages: packages.clone(),
+                ..preceding.bounds.clone()
+            },
+            expires_at: preceding.expires_at.clone(),
+        };
+        let (term, _) = mint_attenuated(
+            &preceding,
+            &narrowing,
+            &ConnectorBoundsComparator,
+            IsoDateTime::from(crate::time::now_iso8601()),
+        )
+        .map_err(|error| {
+            format!("the run's packages do not narrow this instance's capability: {error}")
+        })?;
+        preceding = term.clone();
+        delegated.terms.push(term);
+        delegated
+            .sources
+            .push(Reference::runx(ReferenceType::Run, run_id));
+    }
+    let instance_ref = capability::instance_reference(instance);
+    let stated = authority
+        .delegations
+        .iter()
+        .filter(|request| {
+            request.resource_ref.reference_type == instance_ref.reference_type
+                && request.resource_ref.uri == instance_ref.uri
+        })
+        .collect::<Vec<_>>();
+    if stated.is_empty() {
+        return Ok(delegated);
+    }
+    let mandate = authority
+        .mandate_ref
+        .clone()
+        .filter(|reference| reference.reference_type == ReferenceType::Mandate)
+        .ok_or("the actor's delegation has no bound operator mandate")?;
+    for request in stated {
         let (term, _) = mint_attenuated(
             &preceding,
             request,
@@ -1067,17 +1192,11 @@ fn delegated_terms(
             format!("the run's delegation does not narrow this instance's capability: {error}")
         })?;
         preceding = term.clone();
-        terms.push(term);
+        delegated.terms.push(term);
+        delegated.sources.push(mandate.clone());
     }
-    if !terms.is_empty()
-        && !authority
-            .mandate_ref
-            .as_ref()
-            .is_some_and(|reference| reference.reference_type == ReferenceType::Mandate)
-    {
-        return Err("the actor's delegation has no bound operator mandate".to_owned());
-    }
-    Ok(terms)
+    delegated.stated = true;
+    Ok(delegated)
 }
 
 /// The connector `step`'s requirement resolves to in `scope` for `call`,
@@ -1231,6 +1350,8 @@ fn leased_resource(
         let arguments = JsonValue::Object(evaluation.call.inputs.clone());
         let target = operation
             .target
+            .as_ref()
+            .ok_or("an operation on a held resource names its target")?
             .template
             .render_string(&TemplateInputs {
                 arguments: Some(&arguments),
@@ -1263,6 +1384,92 @@ fn leased_resource(
     })())
 }
 
+/// The runtime's own connector for the person's own data, which every call
+/// reaches only under a term (D21). The kernel knows it by its origin, never
+/// by what a manifest claims.
+fn is_private(connector: &LoadedConnector) -> bool {
+    connector.name.as_str() == crate::drivers::store::PRIVATE
+        && matches!(
+            connector.origin,
+            super::connectors::ConnectorOrigin::RuntimeCapability
+        )
+}
+
+/// The stream a store call addresses, as the runtime renders it.
+struct StoreStream {
+    /// `<owner>/<stream>`: the calling package's own, or the package a read
+    /// names.
+    target: String,
+    /// The stream is another package's.
+    named: bool,
+}
+
+/// The stream a call to a store operation addresses (§4.8): the author
+/// writes `stream`, and the runtime places it under the package the call is
+/// made from, or under the package a read names in `package`. A write has
+/// no `package`, so another package's stream can't be spelled. None for an
+/// operation the store doesn't implement.
+fn store_stream(
+    evaluation: &Evaluation<'_>,
+    operation: &ConnectorOperation,
+) -> Result<Option<StoreStream>, String> {
+    if !matches!(
+        operation.implementation,
+        Some(runx_contracts::connector::Implementation::Store(_))
+    ) {
+        return Ok(None);
+    }
+    let inputs = &evaluation.call.inputs;
+    let text = |field: &str| inputs.get(field).and_then(JsonValue::as_str);
+    let stream = text("stream").ok_or("a store call names its stream")?;
+    if stream.contains('/') {
+        return Err("a stream is one name, never another package's path".to_owned());
+    }
+    let caller = evaluation
+        .chain
+        .last()
+        .ok_or("a store call is made from a package's step, and this call is made from none")?;
+    let (owner, named) = match text("package") {
+        Some(package) if operation.access() == OperationAccess::Mutate => {
+            return Err(format!(
+                "a write never names a package: it writes {}'s own stream, and {package} is never another's to write",
+                caller.package
+            ));
+        }
+        Some(package) => (package, package != caller.owner),
+        None => (caller.owner.as_str(), false),
+    };
+    Ok(Some(StoreStream {
+        target: format!("{owner}/{stream}"),
+        named,
+    }))
+}
+
+/// The first package of `chain` that a term of `delegations` doesn't cover,
+/// as why the call is refused.
+fn uncovered_package(
+    chain: &[crate::identity::ChainLink],
+    delegations: &[AuthorityTerm],
+) -> Option<String> {
+    delegations.iter().find_map(|term| {
+        chain
+            .iter()
+            .find(|link| {
+                !term
+                    .bounds
+                    .packages
+                    .iter()
+                    .any(|pattern| pattern.covers(&link.package))
+            })
+            .map(|link| {
+                format!(
+                    "{} is in this call's chain, and the run's authority doesn't cover it: every package a call is made from is covered by its packages",
+                    link.package
+                )
+            })
+    })
+}
+
 fn call_shape(
     evaluation: &Evaluation<'_>,
     operation: &ConnectorOperation,
@@ -1272,25 +1479,33 @@ fn call_shape(
     let access = operation.access();
     input_conforms(operation, &call.inputs)?;
     let arguments = JsonValue::Object(call.inputs.clone());
-    let rendered = operation
-        .target
-        .template
-        .render_string(&TemplateInputs {
-            arguments: Some(&arguments),
-            parameters: Some(&instance.parameters),
-            ..TemplateInputs::default()
-        })
-        .map_err(|error| format!("the target cannot be rendered: {error}"))?;
-    if let Some(pattern) = &operation.target.pattern {
-        let pattern = runx_parser::whole_match(pattern.as_str())
-            .map_err(|error| format!("the target pattern is invalid: {error}"))?;
-        if !pattern.is_match(&rendered) {
-            return Err(format!(
-                "target {rendered:?} does not have the shape the connector declares"
-            ));
+    let target = match &operation.target {
+        Some(declared) => {
+            let rendered = declared
+                .template
+                .render_string(&TemplateInputs {
+                    arguments: Some(&arguments),
+                    parameters: Some(&instance.parameters),
+                    ..TemplateInputs::default()
+                })
+                .map_err(|error| format!("the target cannot be rendered: {error}"))?;
+            if let Some(pattern) = &declared.pattern {
+                let pattern = runx_parser::whole_match(pattern.as_str())
+                    .map_err(|error| format!("the target pattern is invalid: {error}"))?;
+                if !pattern.is_match(&rendered) {
+                    return Err(format!(
+                        "target {rendered:?} does not have the shape the connector declares"
+                    ));
+                }
+            }
+            rendered
         }
-    }
-    let target = rendered;
+        None => {
+            store_stream(evaluation, operation)?
+                .ok_or("the operation names no target")?
+                .target
+        }
+    };
     if target.trim().is_empty() || target.len() > 512 || target.chars().any(char::is_control) {
         return Err("the rendered target must be a safe non-empty value".to_owned());
     }
@@ -1401,7 +1616,16 @@ fn term_request(
     spec: &ConnectorOperation,
     target: &str,
     uses: Option<AuthorityUseLimit>,
+    chain: &[crate::identity::ChainLink],
 ) -> AttenuationRequest {
+    // The chain sits in the term's bounds and the receipt, never in the
+    // intent, so the same act through two wrappers is one act (D31).
+    let packages = chain
+        .iter()
+        .map(|link| link.package.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
     AttenuationRequest {
         principal_ref: actor_ref,
         resource_ref: capability::instance_reference(instance),
@@ -1412,6 +1636,7 @@ fn term_request(
             scopes: spec.scopes.iter().cloned().collect(),
             targets: vec![NonEmptyString::from(target)],
             uses,
+            packages,
         },
         expires_at: None,
     }
@@ -1420,7 +1645,7 @@ fn term_request(
 fn derive(
     capability: &Capability,
     delegations: &[AuthorityTerm],
-    mandate_ref: Option<&Reference>,
+    sources: &[Reference],
     request: &AttenuationRequest,
     intent_digest: &str,
     approvals: Vec<AuthorityApproval>,
@@ -1456,21 +1681,22 @@ fn derive(
         reference: capability.term.issued_by_ref.clone(),
         term: Some(capability.term.clone()),
     }];
-    let source = if delegations.is_empty() {
-        None
-    } else {
-        Some(mandate_ref.ok_or((
+    if sources.len() != delegations.len() {
+        return Err((
             DerivationParent::Delegation(0),
-            "delegation evidence has no operator mandate".to_owned(),
-        ))?)
-    };
-    if let Some(source) = source {
-        evidence.extend(delegations.iter().map(|term| AuthorityEvidence {
-            kind: AuthorityEvidenceKind::Delegation,
-            reference: source.clone(),
-            term: Some(term.clone()),
-        }));
+            "a delegation link has no statement it was made under".to_owned(),
+        ));
     }
+    evidence.extend(
+        delegations
+            .iter()
+            .zip(sources)
+            .map(|(term, source)| AuthorityEvidence {
+                kind: AuthorityEvidenceKind::Delegation,
+                reference: source.clone(),
+                term: Some(term.clone()),
+            }),
+    );
     evidence.extend(approval_evidence);
     Ok((
         term.clone(),

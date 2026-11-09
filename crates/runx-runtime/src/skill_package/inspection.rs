@@ -180,10 +180,28 @@ pub fn inspect_connector_readiness(
     };
     let root_directory = loaded.directory.clone();
     let root_method = method.clone();
+    // The packages a call is made from, as a run would chain them: the root,
+    // then a child that is a package of its own, signed or bundled. Code a
+    // package incorporates is that package's.
+    let identity = |package: &crate::LoadedSkillPackage| {
+        crate::identity::skill_identity(package, env).map_err(SkillInspectionError::Identity)
+    };
+    let link = |identity: &crate::identity::PackageIdentity,
+                package: &crate::LoadedSkillPackage| {
+        crate::identity::ChainLink::of(identity, package).map_err(SkillInspectionError::Identity)
+    };
+    let root = link(&identity(&loaded)?, &loaded)?;
     let mut readiness = Vec::new();
     for (package, method) in
         execution_closure::inspect_method_closure_methods(Arc::clone(&loaded), &method, env)?
     {
+        let mut chain = vec![root.clone()];
+        if package.package_root != loaded.package_root {
+            let own = identity(&package)?;
+            if !own.is_project() {
+                chain.push(link(&own, &package)?);
+            }
+        }
         let Some(manifest) = package.manifest() else {
             continue;
         };
@@ -205,6 +223,7 @@ pub fn inspect_connector_readiness(
             &method_requirements(&manifest.connectors, method),
             &graph.steps,
             authority,
+            &chain,
             env,
             cwd,
         )

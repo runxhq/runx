@@ -565,6 +565,7 @@ impl Fixture {
                 run_id: self.run_id,
                 run_authority,
                 held_by_effects,
+                chain: &[],
             })
             .map(|admission| admission.expect("an operation step is owned by the effect"))
     }
@@ -1027,6 +1028,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
             scopes: vec!["channel.post.read".into()],
             targets: vec!["chat://T123/C456".into()],
             uses: None,
+            packages: Vec::new(),
         },
         expires_at: None,
     });
@@ -1425,6 +1427,7 @@ fn readiness_reports_the_same_unpriced_usage_gate_and_money_refusal_as_admission
         &manifest.connectors,
         &[],
         Some(&limited(10000)),
+        &[],
         &fixture.env,
         fixture.root.path(),
     )
@@ -1503,6 +1506,7 @@ fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval(
                 total: Some(1),
                 per_day: None,
             }),
+            packages: Vec::new(),
         },
         expires_at: None,
     });
@@ -1963,6 +1967,7 @@ fn a_request_whose_path_changes_when_parsed_is_never_sent() {
                     scopes: vec!["repo.read".into()],
                     targets: vec!["acme/*".into()],
                     uses: None,
+                    packages: Vec::new(),
                 },
                 expires_at: None,
             }],
@@ -2246,6 +2251,7 @@ methods:
                 run_id: "run-1",
                 run_authority: None,
                 held_by_effects: false,
+                chain: &[],
             })
             .unwrap()
             .unwrap();
@@ -3161,6 +3167,7 @@ fn a_use_bound_on_another_instance_leaves_one_gate_naming_both_reasons() {
                 total: Some(total),
                 per_day: None,
             }),
+            packages: Vec::new(),
         },
         expires_at: None,
     };

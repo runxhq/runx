@@ -17,7 +17,7 @@ use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AuthorityBounds, AuthorityResourceFamily, AuthoritySubsetComparison, AuthoritySubsetProof,
     AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit,
-    AuthorityVerb, Reference, sha256_hex,
+    AuthorityVerb, PackagePattern, Reference, sha256_hex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -96,11 +96,21 @@ fn bounds_subset(child: &AuthorityBounds, parent: &AuthorityBounds) -> bool {
         scopes,
         targets,
         uses,
+        packages,
     } = child;
     patterns_subset(operations, &parent.operations)
         && items_subset(scopes, &parent.scopes)
         && patterns_subset(targets, &parent.targets)
         && uses_subset(uses.as_ref(), parent.uses.as_ref())
+        && packages_subset(packages, &parent.packages)
+}
+
+/// Every package the child covers is one the parent covers. An empty parent
+/// covers nothing, as every bound does.
+fn packages_subset(child: &[PackagePattern], parent: &[PackagePattern]) -> bool {
+    child
+        .iter()
+        .all(|child| parent.iter().any(|parent| parent.covers(child)))
 }
 
 /// A use limit is no wider than its parent's on each axis the parent bounds.
@@ -376,6 +386,7 @@ mod tests {
                     total: Some(10),
                     per_day: None,
                 }),
+                packages: Vec::new(),
             },
             approvals: vec![approval()],
             expires_at: Some("2026-12-31T00:00:00Z".into()),
@@ -399,6 +410,7 @@ mod tests {
                     total: Some(2),
                     per_day: None,
                 }),
+                packages: Vec::new(),
             },
             expires_at: Some("2026-06-30T00:00:00Z".into()),
         }
@@ -447,6 +459,49 @@ mod tests {
             &ConnectorBoundsComparator
         ));
         Ok(())
+    }
+
+    /// A delegation narrows the packages its parent covers and never widens
+    /// them, and a parent with no packages covers none (D31).
+    #[test]
+    fn packages_narrow_and_never_widen() {
+        let pattern = |value: &str| runx_contracts::PackagePattern::new(value).expect("a package");
+        let with = |term: AuthorityTerm, packages: Vec<runx_contracts::PackagePattern>| {
+            let mut term = term;
+            term.bounds.packages = packages;
+            term
+        };
+        let asking = |packages: &[&str]| {
+            let mut request = delegation();
+            request.bounds.packages = packages.iter().map(|value| pattern(value)).collect();
+            request
+        };
+        let every = with(capability(), runx_contracts::every_package());
+        for narrower in [
+            &["acme/*"][..],
+            &["project:work", "acme/counter"],
+            &["project:*"],
+        ] {
+            assert!(mint(&every, &asking(narrower)).is_ok(), "{narrower:?}");
+        }
+        let acme = with(capability(), vec![pattern("acme/*")]);
+        assert!(mint(&acme, &asking(&["acme/counter"])).is_ok());
+        for wider in [
+            &["*/*"][..],
+            &["project:work"],
+            &["acme/counter", "other/x"],
+        ] {
+            assert_eq!(
+                mint(&acme, &asking(wider)),
+                Err(AttenuationError::ChildNotSubset),
+                "{wider:?}"
+            );
+        }
+        let none = capability();
+        assert_eq!(
+            mint(&none, &asking(&["acme/counter"])),
+            Err(AttenuationError::ChildNotSubset)
+        );
     }
 
     #[test]

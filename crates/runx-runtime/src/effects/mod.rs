@@ -131,6 +131,7 @@ mod tests {
             run_id: "run-1",
             run_authority: None,
             held_by_effects: false,
+            chain: &[],
         });
         assert!(
             matches!(
@@ -174,6 +175,7 @@ mod tests {
             run_id: "run-1",
             run_authority: None,
             held_by_effects: false,
+            chain: &[],
         });
 
         assert!(
@@ -216,6 +218,7 @@ mod tests {
             run_id: "run-1",
             run_authority: None,
             held_by_effects: false,
+            chain: &[],
         });
 
         assert!(

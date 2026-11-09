@@ -820,6 +820,7 @@ mod tests {
             session_principal: None,
             env: &env,
             held: Vec::new(),
+            writer: None,
             access,
             _sealed: Sealed,
         })
@@ -858,6 +859,7 @@ mod tests {
             session_principal: None,
             env: &env,
             held: Vec::new(),
+            writer: None,
             access: OperationAccess::Mutate,
             _sealed: Sealed,
         };

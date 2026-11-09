@@ -975,9 +975,13 @@ fn private_searches_current_entries_and_reads_a_query_as_plain_words() -> TestRe
         "I take my tea with milk now"
     );
     assert!(keys(&search("black")?).is_empty());
-    // FTS5 syntax is plain words, never an error or a fan-out.
-    assert_eq!(keys(&search("coffee OR NEAR(tea)*")?).len(), 0);
-    assert_eq!(keys(&search("\"coffee\" noon")?), vec![json!("coffee")]);
+    // FTS5 syntax is plain words, never an error or a fan-out: OR and NEAR
+    // are words here, and an unbalanced quote or parenthesis is no error.
+    let mut either = keys(&search("coffee OR NEAR(tea)*")?);
+    either.sort_by_key(ToString::to_string);
+    assert_eq!(either, vec![json!("coffee"), json!("tea")]);
+    assert_eq!(keys(&search("NEAR(tea")?), vec![json!("tea")]);
+    assert_eq!(keys(&search("\"coffee noon")?), vec![json!("coffee")]);
     Ok(())
 }
 

@@ -199,6 +199,9 @@ pub(crate) struct AdmittedCall<'a> {
     /// Where the write's answer holds what a purchase bought: runx Connect
     /// answers with the hold's evidence there, never the value.
     pub held: Vec<String>,
+    /// The package the call is made from, which a store records as an
+    /// event's writer; none for a call no package makes.
+    pub writer: Option<&'a crate::identity::ChainLink>,
     access: OperationAccess,
     _sealed: Sealed,
 }
@@ -227,6 +230,7 @@ impl<'a> AdmittedCall<'a> {
             session_principal: None,
             env,
             held: Vec::new(),
+            writer: None,
             access,
             _sealed: Sealed,
         }
@@ -359,6 +363,8 @@ pub(crate) struct OperationAdmission {
     lanes: LaneInputs,
     /// Set when the step is prepared for dispatch.
     attempt: Option<AttemptPlan>,
+    /// The package the call is made from.
+    caller: Option<crate::identity::ChainLink>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -563,6 +569,7 @@ impl RuntimeEffect for OperationEffect {
             held_by_effects: request.held_by_effects,
             store: &store,
             run_id: &lanes.run_id,
+            chain: request.chain,
             context: Context {
                 scope: &scope,
                 instances: &instances,
@@ -613,6 +620,7 @@ impl RuntimeEffect for OperationEffect {
             target_ref,
             lanes,
             attempt: None,
+            caller: request.chain.last().cloned(),
         };
         let admitted = &context.admitted;
         let intent = admitted.intent();
@@ -1330,6 +1338,7 @@ fn dispatch(
                 .collect(),
             _ => Vec::new(),
         },
+        writer: context.caller.as_ref(),
         access: operation.access(),
         _sealed: Sealed,
     };

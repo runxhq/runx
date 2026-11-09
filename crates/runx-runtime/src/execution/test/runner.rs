@@ -95,6 +95,7 @@ impl TestOptions {
             run,
             effect_gate: None,
             packages: None,
+            chain: Vec::new(),
         })
     }
 }

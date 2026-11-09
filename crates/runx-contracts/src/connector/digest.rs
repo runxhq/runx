@@ -52,7 +52,8 @@ struct OperationAuthority<'a> {
     verb: OperationVerb,
     scopes: &'a [NonEmptyString],
     credentials: &'a [CredentialName],
-    target: &'a OperationTarget,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target: Option<&'a OperationTarget>,
     approval: ApprovalFloor,
     idempotency_key_format: IdempotencyKeyFormat,
     guarantees: &'a OperationGuarantees,
@@ -83,7 +84,7 @@ pub fn operation_digest(
         verb: operation.verb,
         scopes: &operation.scopes,
         credentials: &operation.credentials,
-        target: &operation.target,
+        target: operation.target.as_ref(),
         approval: operation.approval,
         idempotency_key_format: operation.idempotency_key_format,
         guarantees: &operation.guarantees,

@@ -196,6 +196,10 @@ pub struct RuntimeOptions {
     /// The packages a bound run admitted, which it executes; none for a
     /// runtime no binding made (a test replay reads packages as they are).
     pub(crate) packages: Option<crate::skill_package::AdmittedPackages>,
+    /// The packages from the root run's to this child run's own, as each
+    /// child step reached its package. Empty for a root run, whose package is
+    /// the one its steps run from.
+    pub(crate) chain: Vec<crate::identity::ChainLink>,
 }
 
 /// The gate a session's calls take where they reach the world: a read shares
@@ -281,6 +285,38 @@ impl RuntimeOptions {
             ),
         })
     }
+
+    /// The chain a step of the package at `directory` calls from: this run's,
+    /// or for a root run, its own package as it binds by itself.
+    pub(crate) fn chain_at(
+        &self,
+        directory: &Path,
+    ) -> Result<Vec<crate::identity::ChainLink>, RuntimeError> {
+        if !self.chain.is_empty() {
+            return Ok(self.chain.clone());
+        }
+        let package = self.package(directory)?;
+        let identity = match self
+            .packages
+            .as_ref()
+            .and_then(|admitted| admitted.identity(&package.package_root))
+        {
+            Some(identity) => identity.clone(),
+            None => crate::identity::skill_identity(&package, &self.env)
+                .map_err(|reason| identity_refused(directory, &reason))?,
+        };
+        crate::identity::ChainLink::of(&identity, &package)
+            .map(|link| vec![link])
+            .map_err(|reason| identity_refused(directory, &reason))
+    }
+}
+
+/// A package whose identity is refused, as the step that would run it.
+pub(crate) fn identity_refused(directory: &Path, reason: &str) -> RuntimeError {
+    RuntimeError::SkillFailed {
+        skill_name: directory.display().to_string(),
+        message: reason.to_owned(),
+    }
 }
 
 impl RuntimeOptions {
@@ -304,6 +340,7 @@ impl RuntimeOptions {
             run,
             effect_gate: None,
             packages: None,
+            chain: Vec::new(),
         }
     }
 

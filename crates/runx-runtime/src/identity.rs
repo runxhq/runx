@@ -90,6 +90,85 @@ impl PackageIdentity {
     }
 }
 
+/// One package of a run's chain (D31): who it is, where its streams live,
+/// and the digest of the exact bytes it runs from. A run's chain runs from
+/// its root's package to its own, and every call it makes is covered by a
+/// `packages` bound only when each link is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ChainLink {
+    /// Who it is: `runx/<name>`, `<publisher>/<name>` or `project:<name>`.
+    pub(crate) package: runx_contracts::PackagePattern,
+    /// Where its `store` and `private` streams live: its identity, or for
+    /// incorporated code the carrying package's owner followed by the
+    /// incorporated package's own name (`acme/foo/github`), so it never meets
+    /// its publisher's own package of that name.
+    pub(crate) owner: String,
+    /// The package root it runs from.
+    pub(crate) root: std::path::PathBuf,
+    /// The digest of the package's exact bytes, which a writer records.
+    pub(crate) digest: String,
+}
+
+impl ChainLink {
+    /// The link of a package bound as itself, under `identity`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is no package name.
+    pub(crate) fn of(
+        identity: &PackageIdentity,
+        loaded: &LoadedSkillPackage,
+    ) -> Result<Self, String> {
+        let name = identity.name();
+        let package = runx_contracts::PackagePattern::new(name.clone())
+            .ok_or_else(|| format!("{name} is not a package name"))?;
+        Ok(Self {
+            package,
+            owner: name,
+            root: loaded.package_root.clone(),
+            digest: loaded.package.package_digest.clone(),
+        })
+    }
+
+    /// The link of the child package `loaded` a step of this package reaches
+    /// by `reference`. A reference's form says what the child is (§4.8): a
+    /// `registry:` dependency is its own `<publisher>/<name>`, verified as
+    /// `signed`, or the person's own copy as it binds by itself; `runx/<name>`
+    /// is the skill this runx bundles; and any other reference is code this
+    /// package incorporates, its streams in this package's namespace.
+    ///
+    /// # Errors
+    ///
+    /// Returns why the child's identity is refused.
+    pub(crate) fn child(
+        &self,
+        reference: &str,
+        loaded: &LoadedSkillPackage,
+        signed: Option<&SignedPackage>,
+        env: &BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        if loaded.package_root == self.root {
+            return Ok(self.clone());
+        }
+        if runx_parser::registry_ref(reference).is_some() {
+            let identity = match signed {
+                Some(signed) => PackageIdentity::Signed(signed.clone()),
+                None => skill_identity(loaded, env)?,
+            };
+            return Self::of(&identity, loaded);
+        }
+        if crate::registry::is_bundled_reference(reference) {
+            return Self::of(&bundled_skill_identity(reference, loaded, env)?, loaded);
+        }
+        Ok(Self {
+            package: self.package.clone(),
+            owner: format!("{}/{}", self.owner, loaded.package.skill.name),
+            root: loaded.package_root.clone(),
+            digest: loaded.package.package_digest.clone(),
+        })
+    }
+}
+
 /// The identity of the skill package `loaded`, bound by itself: from its
 /// signature when it carries one, `runx/<name>` when it is the CLI's own
 /// materialized copy, and otherwise the project's.

@@ -1,8 +1,14 @@
-//! The SQLite backend: the workspace store, or a file an instance names.
+//! The SQLite backend: the workspace store, `private`'s own file in the
+//! runx home, or a file an instance names.
 //!
-//! The database carries its own application id, so it is never the kernel's
-//! protected store or another program's file.
+//! The database carries its own application id, one for `store` and one for
+//! `private`, so it is never the kernel's protected store, another
+//! program's file, or the other connector's: a `store` instance naming the
+//! private file is refused, and so is the reverse. `private`'s file also
+//! keeps a full-text index of each key's newest event, which `keys.search`
+//! ranks with BM25 (SQLite FTS5); an append replaces its key's entry.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -10,53 +16,61 @@ use runx_contracts::JsonObject;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
-use super::model::{self, Appended, EventRecord, Projection, StreamHead};
-use super::request::{Append, ListHeads, ReadEvents, Source};
-use super::{Backend, StoreError, Streams, append_in};
+use super::migration::{self, OldAddress, OldEvent};
+use super::model::{self, Appended, EventRecord, KeyState, Listed, Matched, Writer};
+use super::request::{Append, Key, ListKeys, ReadEvents, SearchKeys};
+use super::{Backend, Holding, StoreError, Streams, append_in};
 
-/// "RUNS": a runx store, distinct from the kernel store's "RUNK".
-const APPLICATION_ID: i64 = 0x5255_4e53;
-const SCHEMA_VERSION: i64 = 2;
+/// "RUNS": a `store` file, distinct from the kernel store's "RUNK".
+const STORE_APPLICATION_ID: i64 = 0x5255_4e53;
+/// "RUNP": a `private` file.
+const PRIVATE_APPLICATION_ID: i64 = 0x5255_4e50;
+/// 0.12 raised it from 2: a released runx refuses a store whose version
+/// isn't its own when it opens it, rather than misreading a changed event.
+const SCHEMA_VERSION: i64 = 3;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SCHEMA: &str = r#"
-CREATE TABLE IF NOT EXISTS runx_events (
-  data_source_uri TEXT NOT NULL,
-  resource TEXT NOT NULL,
-  aggregate_id TEXT NOT NULL,
+CREATE TABLE store_events (
+  stream TEXT NOT NULL,
+  key TEXT NOT NULL,
   version INTEGER NOT NULL,
   idempotency_key TEXT NOT NULL,
-  event_id TEXT NOT NULL,
-  event_type TEXT NOT NULL,
-  event_digest TEXT NOT NULL,
-  event_json TEXT NOT NULL,
+  id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  data TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  PRIMARY KEY (data_source_uri, resource, aggregate_id, version),
-  UNIQUE (data_source_uri, resource, aggregate_id, idempotency_key)
+  writer_package TEXT,
+  writer_digest TEXT,
+  PRIMARY KEY (stream, key, version),
+  UNIQUE (stream, key, idempotency_key)
 );
-CREATE TABLE IF NOT EXISTS runx_stream_heads (
-  data_source_uri TEXT NOT NULL,
-  resource TEXT NOT NULL,
-  aggregate_id TEXT NOT NULL,
+CREATE TABLE store_keys (
+  stream TEXT NOT NULL,
+  key TEXT NOT NULL,
   version INTEGER NOT NULL,
-  event_id TEXT NOT NULL,
-  event_type TEXT NOT NULL,
-  event_digest TEXT NOT NULL,
+  id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  digest TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
-  event_json TEXT NOT NULL,
+  data TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  projection_digest TEXT NOT NULL,
-  PRIMARY KEY (data_source_uri, resource, aggregate_id)
+  writer_package TEXT,
+  writer_digest TEXT,
+  chain_digest TEXT NOT NULL,
+  PRIMARY KEY (stream, key)
 );
-CREATE INDEX IF NOT EXISTS runx_stream_heads_recent
-  ON runx_stream_heads (data_source_uri, resource, committed_at DESC, aggregate_id ASC);
-CREATE INDEX IF NOT EXISTS runx_stream_heads_type_recent
-  ON runx_stream_heads (data_source_uri, resource, event_type, committed_at DESC, aggregate_id ASC);
+CREATE INDEX store_keys_recent ON store_keys (stream, committed_at DESC, key ASC);
+CREATE INDEX store_keys_type_recent ON store_keys (stream, type, committed_at DESC, key ASC);
 "#;
 
+/// `private`'s index of each key's newest event, one row per key by the
+/// key's rowid, shared by every stream so scores compare across streams.
+const SEARCH_SCHEMA: &str = "CREATE VIRTUAL TABLE store_search USING fts5(text);";
+
 /// Version 1 named a record's `data_source_uri` and `event_id` columns
-/// `data_source_ref` and `event_ref`. SQLite carries the renames into the
-/// keys and indexes that name them.
+/// `data_source_ref` and `event_ref`.
 const MIGRATE_FROM_1: &str = r#"
 ALTER TABLE runx_events RENAME COLUMN data_source_ref TO data_source_uri;
 ALTER TABLE runx_events RENAME COLUMN event_ref TO event_id;
@@ -64,12 +78,22 @@ ALTER TABLE runx_stream_heads RENAME COLUMN data_source_ref TO data_source_uri;
 ALTER TABLE runx_stream_heads RENAME COLUMN event_ref TO event_id;
 "#;
 
+/// What version 2 kept, which version 3 replaces once its rows have moved.
+const DROP_VERSION_2: &str = r#"
+DROP TABLE runx_stream_heads;
+DROP TABLE runx_events;
+"#;
+
+const EVENT_COLUMNS: &str =
+    "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest";
+
 pub(super) struct Sqlite {
     connection: Connection,
+    holding: Holding,
 }
 
 impl Sqlite {
-    pub(super) fn open(path: &Path) -> Result<Self, StoreError> {
+    pub(super) fn open(path: &Path, holding: Holding) -> Result<Self, StoreError> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|error| {
                 StoreError::unavailable(format!("creating {}: {error}", parent.display()))
@@ -82,9 +106,19 @@ impl Sqlite {
         connection
             .busy_timeout(BUSY_TIMEOUT)
             .map_err(|error| database("setting the busy timeout", &error))?;
-        let mut store = Self { connection };
+        let mut store = Self {
+            connection,
+            holding,
+        };
         store.ensure_schema()?;
         Ok(store)
+    }
+
+    fn application_id(&self) -> i64 {
+        match self.holding {
+            Holding::Store => STORE_APPLICATION_ID,
+            Holding::Private => PRIVATE_APPLICATION_ID,
+        }
     }
 
     fn ensure_schema(&mut self) -> Result<(), StoreError> {
@@ -95,67 +129,158 @@ impl Sqlite {
         };
         let application_id = pragma(&self.connection, "application_id")?;
         let user_version = pragma(&self.connection, "user_version")?;
+        let own = self.application_id();
+        let foreign = || {
+            StoreError::invalid(match self.holding {
+                Holding::Store => "the file is not a runx store; name a new file or a store",
+                Holding::Private => "the file is not a private store; name a new file or one",
+            })
+        };
         match (application_id, user_version) {
-            (APPLICATION_ID, SCHEMA_VERSION) => return Ok(()),
-            (APPLICATION_ID, 1) => return self.migrate(MIGRATE_FROM_1),
+            (id, SCHEMA_VERSION) if id == own => return Ok(()),
+            // Only `store` was ever written before 0.12.
+            (STORE_APPLICATION_ID, 2) if own == STORE_APPLICATION_ID => {
+                return self.migrate(None);
+            }
+            (STORE_APPLICATION_ID, 1) if own == STORE_APPLICATION_ID => {
+                return self.migrate(Some(MIGRATE_FROM_1));
+            }
             (0, 0) => {}
-            (APPLICATION_ID, version) => {
+            (id, version) if id == own => {
                 return Err(StoreError::corrupt(format!(
                     "the store has schema version {version}, not {SCHEMA_VERSION}"
                 )));
             }
-            _ => {
-                return Err(StoreError::invalid(
-                    "the file is not a runx store; name a new file or a store",
-                ));
-            }
+            _ => return Err(foreign()),
         }
         let objects: i64 = self
             .connection
             .query_row("SELECT count(*) FROM sqlite_schema", [], |row| row.get(0))
             .map_err(|error| database("reading the schema", &error))?;
         if objects != 0 {
-            return Err(StoreError::invalid(
-                "the file is not a runx store; name a new file or a store",
-            ));
+            return Err(foreign());
         }
         self.connection
             .pragma_update(None, "journal_mode", "WAL")
             .map_err(|error| database("enabling the write-ahead log", &error))?;
+        let holding = self.holding;
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| database("starting the schema", &error))?;
+        create(&transaction, holding)?;
         transaction
-            .execute_batch(SCHEMA)
-            .map_err(|error| database("creating the schema", &error))?;
-        transaction
-            .pragma_update(None, "application_id", APPLICATION_ID)
+            .pragma_update(None, "application_id", own)
             .map_err(|error| database("marking the store", &error))?;
-        transaction
-            .pragma_update(None, "user_version", SCHEMA_VERSION)
-            .map_err(|error| database("versioning the store", &error))?;
-        transaction
-            .commit()
-            .map_err(|error| database("committing the schema", &error))
+        version(transaction)
     }
 
-    /// Bring a store of an earlier version to this one in one transaction.
-    fn migrate(&mut self, steps: &str) -> Result<(), StoreError> {
+    /// Bring a store an earlier runx wrote to this version in one
+    /// transaction: its version 1 names first, then every event to the
+    /// stream and key it now belongs to (§6.9).
+    fn migrate(&mut self, from_1: Option<&str>) -> Result<(), StoreError> {
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| database("starting the migration", &error))?;
+        if let Some(steps) = from_1 {
+            transaction
+                .execute_batch(steps)
+                .map_err(|error| database("migrating version 1", &error))?;
+        }
+        let (events, chains) = version_2(&transaction)?;
+        let migrated = migration::migrate(events, &chains)?;
+        create(&transaction, Holding::Store)?;
+        for key in migrated {
+            let at = Key {
+                stream: &key.stream,
+                key: &key.key,
+            };
+            for event in &key.events {
+                insert_event(&transaction, at, event)?;
+            }
+            if let Some(last) = &key.state.last {
+                upsert_key(&transaction, at, last, &key.state)?;
+            }
+        }
         transaction
-            .execute_batch(steps)
-            .map_err(|error| database("migrating the schema", &error))?;
-        transaction
-            .pragma_update(None, "user_version", SCHEMA_VERSION)
-            .map_err(|error| database("versioning the store", &error))?;
-        transaction
-            .commit()
-            .map_err(|error| database("committing the migration", &error))
+            .execute_batch(DROP_VERSION_2)
+            .map_err(|error| database("dropping version 2's tables", &error))?;
+        version(transaction)
     }
+}
+
+/// Every event and stream chain a version 2 store holds.
+fn version_2(
+    transaction: &Transaction<'_>,
+) -> Result<(Vec<OldEvent>, BTreeMap<OldAddress, String>), StoreError> {
+    let read = |error: rusqlite::Error| database("reading version 2's events", &error);
+    let mut statement = transaction
+        .prepare(
+            "SELECT data_source_uri, resource, aggregate_id, version, event_type, event_json, event_digest, idempotency_key, committed_at FROM runx_events",
+        )
+        .map_err(read)?;
+    let events = statement
+        .query_map([], |row| {
+            let data = row.get::<_, String>(5)?;
+            Ok((
+                OldEvent {
+                    data_source_uri: row.get(0)?,
+                    resource: row.get(1)?,
+                    aggregate_id: row.get(2)?,
+                    version: u64::try_from(row.get::<_, i64>(3)?).unwrap_or(0),
+                    event_type: row.get(4)?,
+                    data: JsonObject::new(),
+                    digest: row.get(6)?,
+                    idempotency_key: row.get(7)?,
+                    committed_at: row.get(8)?,
+                },
+                data,
+            ))
+        })
+        .and_then(Iterator::collect::<Result<Vec<_>, _>>)
+        .map_err(read)?
+        .into_iter()
+        .map(|(mut event, data)| {
+            event.data = serde_json::from_str(&data).map_err(|error| {
+                StoreError::corrupt(format!("a version 2 event is not a JSON object: {error}"))
+            })?;
+            Ok(event)
+        })
+        .collect::<Result<Vec<_>, StoreError>>()?;
+    let mut statement = transaction
+        .prepare(
+            "SELECT data_source_uri, resource, aggregate_id, projection_digest FROM runx_stream_heads",
+        )
+        .map_err(read)?;
+    let chains = statement
+        .query_map([], |row| {
+            Ok(((row.get(0)?, row.get(1)?, row.get(2)?), row.get(3)?))
+        })
+        .and_then(Iterator::collect::<Result<BTreeMap<_, _>, _>>)
+        .map_err(read)?;
+    Ok((events, chains))
+}
+
+fn create(transaction: &Transaction<'_>, holding: Holding) -> Result<(), StoreError> {
+    transaction
+        .execute_batch(SCHEMA)
+        .map_err(|error| database("creating the schema", &error))?;
+    if holding == Holding::Private {
+        transaction
+            .execute_batch(SEARCH_SCHEMA)
+            .map_err(|error| database("creating the search index", &error))?;
+    }
+    Ok(())
+}
+
+fn version(transaction: Transaction<'_>) -> Result<(), StoreError> {
+    transaction
+        .pragma_update(None, "user_version", SCHEMA_VERSION)
+        .map_err(|error| database("versioning the store", &error))?;
+    transaction
+        .commit()
+        .map_err(|error| database("committing the schema", &error))
 }
 
 #[cfg(unix)]
@@ -177,11 +302,12 @@ impl Backend for Sqlite {
     }
 
     fn append(&mut self, request: &Append<'_>, committed_at: &str) -> Result<Appended, StoreError> {
+        let holding = self.holding;
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| database("starting the append", &error))?;
-        let mut streams = SqliteStreams(transaction);
+        let mut streams = SqliteStreams(transaction, holding);
         let appended = append_in(&mut streams, request, committed_at)?;
         // SQLite either commits or reports that it did not.
         streams
@@ -191,32 +317,30 @@ impl Backend for Sqlite {
         Ok(appended)
     }
 
-    fn projection(&mut self, source: Source<'_>) -> Result<Projection, StoreError> {
-        projection(&self.connection, source)
+    fn state(&mut self, at: Key<'_>) -> Result<KeyState, StoreError> {
+        state(&self.connection, at)
     }
 
     fn events(&mut self, request: &ReadEvents<'_>) -> Result<(Vec<EventRecord>, bool), StoreError> {
-        let source = request.source;
-        let (sql, limit) = match request.after_version {
-            Some(_) => (
-                "SELECT event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3 AND version > ?4 ORDER BY version ASC LIMIT ?5",
-                request.limit + 1,
-            ),
-            None => (
-                "SELECT event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3 AND version > ?4 ORDER BY version DESC LIMIT ?5",
-                request.limit,
-            ),
+        let at = request.at;
+        let (order, limit) = match request.after_version {
+            Some(_) => ("ASC", request.limit + 1),
+            // The latest page, read newest first and returned in version
+            // order.
+            None => ("DESC", request.limit),
         };
+        let sql = format!(
+            "SELECT {EVENT_COLUMNS} FROM store_events WHERE stream = ?1 AND key = ?2 AND version > ?3 ORDER BY version {order} LIMIT ?4"
+        );
         let mut statement = self
             .connection
-            .prepare(sql)
+            .prepare(&sql)
             .map_err(|error| database("reading events", &error))?;
         let mut events = statement
             .query_map(
                 params![
-                    source.data_source_uri,
-                    source.resource,
-                    source.aggregate_id,
+                    at.stream,
+                    at.key,
                     integer(request.after_version.unwrap_or(0))?,
                     integer(limit as u64)?,
                 ],
@@ -232,190 +356,285 @@ impl Backend for Sqlite {
         Ok((events, has_more))
     }
 
-    fn heads(&mut self, request: &ListHeads<'_>) -> Result<(Vec<StreamHead>, bool), StoreError> {
+    fn keys(&mut self, request: &ListKeys<'_>) -> Result<(Vec<Listed>, bool), StoreError> {
         let cursor = model::decode_cursor(request.cursor)?;
-        let mut sql = String::from(
-            "SELECT aggregate_id, event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_stream_heads WHERE data_source_uri = ? AND resource = ?",
-        );
-        let mut values = vec![
-            SqlValue::Text(request.data_source_uri.to_owned()),
-            SqlValue::Text(request.resource.to_owned()),
-        ];
-        if !request.event_types.is_empty() {
-            sql.push_str(" AND event_type IN (");
-            sql.push_str(&vec!["?"; request.event_types.len()].join(","));
+        let mut sql = format!("SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = ?");
+        let mut values = vec![SqlValue::Text(request.stream.to_owned())];
+        if !request.types.is_empty() {
+            sql.push_str(" AND type IN (");
+            sql.push_str(&vec!["?"; request.types.len()].join(","));
             sql.push(')');
             values.extend(
                 request
-                    .event_types
+                    .types
                     .iter()
                     .map(|value| SqlValue::Text((*value).to_owned())),
             );
         }
         if let Some(cursor) = cursor {
-            sql.push_str(" AND (committed_at < ? OR (committed_at = ? AND aggregate_id > ?))");
+            sql.push_str(" AND (committed_at < ? OR (committed_at = ? AND key > ?))");
             values.push(SqlValue::Text(cursor.committed_at.clone()));
             values.push(SqlValue::Text(cursor.committed_at));
-            values.push(SqlValue::Text(cursor.aggregate_id));
+            values.push(SqlValue::Text(cursor.key));
         }
-        sql.push_str(" ORDER BY committed_at DESC, aggregate_id ASC LIMIT ?");
+        sql.push_str(" ORDER BY committed_at DESC, key ASC LIMIT ?");
         values.push(SqlValue::Integer(integer(request.limit as u64 + 1)?));
         let mut statement = self
             .connection
             .prepare(&sql)
-            .map_err(|error| database("reading stream heads", &error))?;
-        let mut heads = statement
+            .map_err(|error| database("reading keys", &error))?;
+        let mut keys = statement
             .query_map(rusqlite::params_from_iter(values.iter()), |row| {
-                Ok(StreamHead {
-                    aggregate_id: row.get(0)?,
-                    event: record_at(row, 1)?,
+                Ok(Listed {
+                    key: row.get(0)?,
+                    last: record_at(row, 1)?,
                 })
             })
             .and_then(Iterator::collect::<Result<Vec<_>, _>>)
-            .map_err(|error| database("reading stream heads", &error))?;
-        let has_more = heads.len() > request.limit;
-        heads.truncate(request.limit);
-        Ok((heads, has_more))
+            .map_err(|error| database("reading keys", &error))?;
+        let has_more = keys.len() > request.limit;
+        keys.truncate(request.limit);
+        Ok((keys, has_more))
     }
 
-    fn landed(
-        &mut self,
-        source: Source<'_>,
-        idempotency_key: &str,
-    ) -> Result<Option<String>, StoreError> {
-        Ok(existing(&self.connection, source, idempotency_key)?.map(|record| record.event_digest))
+    fn search(&mut self, request: &SearchKeys<'_>) -> Result<(Vec<Matched>, bool), StoreError> {
+        if self.holding != Holding::Private {
+            return Err(StoreError::invalid("only private's streams are searched"));
+        }
+        let Some(query) = model::quoted_query(request.query) else {
+            return Ok((Vec::new(), false));
+        };
+        let cursor = model::decode_search_cursor(request.cursor)?;
+        // BM25 is lower for a better match; an answer's score is higher.
+        let mut sql = format!(
+            "SELECT k.key, -bm25(store_search) AS score, {} FROM store_search JOIN store_keys k ON k.rowid = store_search.rowid WHERE store_search MATCH ? AND k.stream = ?",
+            EVENT_COLUMNS
+                .split(", ")
+                .map(|column| format!("k.{column}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        let mut values = vec![
+            SqlValue::Text(query),
+            SqlValue::Text(request.stream.to_owned()),
+        ];
+        if !request.types.is_empty() {
+            sql.push_str(" AND k.type IN (");
+            sql.push_str(&vec!["?"; request.types.len()].join(","));
+            sql.push(')');
+            values.extend(
+                request
+                    .types
+                    .iter()
+                    .map(|value| SqlValue::Text((*value).to_owned())),
+            );
+        }
+        let mut sql = format!("SELECT * FROM ({sql})");
+        if let Some(cursor) = cursor {
+            sql.push_str(" WHERE score < ? OR (score = ? AND key > ?)");
+            values.push(SqlValue::Real(cursor.score));
+            values.push(SqlValue::Real(cursor.score));
+            values.push(SqlValue::Text(cursor.key));
+        }
+        sql.push_str(" ORDER BY score DESC, key ASC LIMIT ?");
+        values.push(SqlValue::Integer(integer(request.limit as u64 + 1)?));
+        let mut statement = self
+            .connection
+            .prepare(&sql)
+            .map_err(|error| database("searching keys", &error))?;
+        let mut matches = statement
+            .query_map(rusqlite::params_from_iter(values.iter()), |row| {
+                Ok(Matched {
+                    key: row.get(0)?,
+                    score: row.get(1)?,
+                    last: record_at(row, 2)?,
+                })
+            })
+            .and_then(Iterator::collect::<Result<Vec<_>, _>>)
+            .map_err(|error| database("searching keys", &error))?;
+        let has_more = matches.len() > request.limit;
+        matches.truncate(request.limit);
+        Ok((matches, has_more))
+    }
+
+    fn landed(&mut self, at: Key<'_>, idempotency_key: &str) -> Result<Option<String>, StoreError> {
+        Ok(existing(&self.connection, at, idempotency_key)?.map(|record| record.digest))
     }
 }
 
-struct SqliteStreams<'a>(Transaction<'a>);
+struct SqliteStreams<'a>(Transaction<'a>, Holding);
 
 impl Streams for SqliteStreams<'_> {
-    fn projection(&mut self, source: Source<'_>) -> Result<Projection, StoreError> {
-        projection(&self.0, source)
+    fn state(&mut self, at: Key<'_>) -> Result<KeyState, StoreError> {
+        state(&self.0, at)
     }
 
     fn existing(
         &mut self,
-        source: Source<'_>,
+        at: Key<'_>,
         idempotency_key: &str,
     ) -> Result<Option<EventRecord>, StoreError> {
-        existing(&self.0, source, idempotency_key)
+        existing(&self.0, at, idempotency_key)
     }
 
     fn commit_event(
         &mut self,
-        source: Source<'_>,
+        at: Key<'_>,
         record: &EventRecord,
-        projection: &Projection,
+        state: &KeyState,
     ) -> Result<(), StoreError> {
-        let event_json = serde_json::to_string(&record.event)
-            .map_err(|error| StoreError::invalid(format!("encoding the event: {error}")))?;
-        let version = integer(record.version)?;
-        self.0
-            .execute(
-                "INSERT INTO runx_events (data_source_uri, resource, aggregate_id, version, idempotency_key, event_id, event_type, event_digest, event_json, committed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                params![
-                    source.data_source_uri,
-                    source.resource,
-                    source.aggregate_id,
-                    version,
-                    record.idempotency_key,
-                    record.event_id,
-                    record.event_type,
-                    record.event_digest,
-                    event_json,
-                    record.committed_at,
-                ],
-            )
-            .map_err(|error| database("inserting the event", &error))?;
-        self.0
-            .execute(
-                "INSERT INTO runx_stream_heads (data_source_uri, resource, aggregate_id, version, event_id, event_type, event_digest, idempotency_key, event_json, committed_at, projection_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT (data_source_uri, resource, aggregate_id) DO UPDATE SET version = excluded.version, event_id = excluded.event_id, event_type = excluded.event_type, event_digest = excluded.event_digest, idempotency_key = excluded.idempotency_key, event_json = excluded.event_json, committed_at = excluded.committed_at, projection_digest = excluded.projection_digest",
-                params![
-                    source.data_source_uri,
-                    source.resource,
-                    source.aggregate_id,
-                    version,
-                    record.event_id,
-                    record.event_type,
-                    record.event_digest,
-                    record.idempotency_key,
-                    event_json,
-                    record.committed_at,
-                    projection.projection_digest,
-                ],
-            )
-            .map_err(|error| database("moving the stream head", &error))?;
+        insert_event(&self.0, at, record)?;
+        upsert_key(&self.0, at, record, state)?;
+        if self.1 == Holding::Private {
+            // The key's entry is its newest event: an append replaces it.
+            let rowid: i64 = self
+                .0
+                .query_row(
+                    "SELECT rowid FROM store_keys WHERE stream = ?1 AND key = ?2",
+                    params![at.stream, at.key],
+                    |row| row.get(0),
+                )
+                .map_err(|error| database("finding the key to index", &error))?;
+            self.0
+                .execute("DELETE FROM store_search WHERE rowid = ?1", params![rowid])
+                .map_err(|error| database("replacing the key's index entry", &error))?;
+            self.0
+                .execute(
+                    "INSERT INTO store_search (rowid, text) VALUES (?1, ?2)",
+                    params![rowid, model::searchable_text(&record.data)],
+                )
+                .map_err(|error| database("indexing the key", &error))?;
+        }
         Ok(())
     }
 }
 
-fn projection(connection: &Connection, source: Source<'_>) -> Result<Projection, StoreError> {
-    let head = connection
+fn data_json(record: &EventRecord) -> Result<String, StoreError> {
+    serde_json::to_string(&record.data)
+        .map_err(|error| StoreError::invalid(format!("encoding the event: {error}")))
+}
+
+fn writer_columns(record: &EventRecord) -> (Option<&str>, Option<&str>) {
+    record.writer.as_ref().map_or((None, None), |writer| {
+        (Some(writer.package.as_str()), Some(writer.digest.as_str()))
+    })
+}
+
+fn insert_event(
+    connection: &Connection,
+    at: Key<'_>,
+    record: &EventRecord,
+) -> Result<(), StoreError> {
+    let (writer_package, writer_digest) = writer_columns(record);
+    connection
+        .execute(
+            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                at.stream,
+                at.key,
+                integer(record.version)?,
+                record.idempotency_key,
+                record.id,
+                record.event_type,
+                record.digest,
+                data_json(record)?,
+                record.committed_at,
+                writer_package,
+                writer_digest,
+            ],
+        )
+        .map_err(|error| database("inserting the event", &error))?;
+    Ok(())
+}
+
+fn upsert_key(
+    connection: &Connection,
+    at: Key<'_>,
+    record: &EventRecord,
+    state: &KeyState,
+) -> Result<(), StoreError> {
+    let (writer_package, writer_digest) = writer_columns(record);
+    connection
+        .execute(
+            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, chain_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, chain_digest = excluded.chain_digest",
+            params![
+                at.stream,
+                at.key,
+                integer(record.version)?,
+                record.id,
+                record.event_type,
+                record.digest,
+                record.idempotency_key,
+                data_json(record)?,
+                record.committed_at,
+                writer_package,
+                writer_digest,
+                state.chain_digest,
+            ],
+        )
+        .map_err(|error| database("moving the key", &error))?;
+    Ok(())
+}
+
+fn state(connection: &Connection, at: Key<'_>) -> Result<KeyState, StoreError> {
+    let row = connection
         .query_row(
-            "SELECT version, event_id, event_type, event_digest, projection_digest FROM runx_stream_heads WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3",
-            params![source.data_source_uri, source.resource, source.aggregate_id],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                ))
-            },
+            &format!("SELECT chain_digest, {EVENT_COLUMNS} FROM store_keys WHERE stream = ?1 AND key = ?2"),
+            params![at.stream, at.key],
+            |row| Ok((row.get::<_, String>(0)?, record_at(row, 1)?)),
         )
         .optional()
-        .map_err(|error| database("reading the stream projection", &error))?;
-    let Some((version, event_id, event_type, event_digest, projection_digest)) = head else {
-        return model::empty_projection();
+        .map_err(|error| database("reading the key", &error))?;
+    let Some((chain_digest, last)) = row else {
+        return model::empty_state();
     };
-    Ok(Projection {
-        version: u64::try_from(version)
-            .map_err(|_| StoreError::corrupt("a stream head has a negative version"))?,
-        last_event_id: Some(event_id),
-        last_event_type: Some(event_type),
-        last_event_digest: Some(event_digest),
-        projection_digest,
+    Ok(KeyState {
+        version: last.version,
+        last: Some(last),
+        chain_digest,
     })
 }
 
 fn existing(
     connection: &Connection,
-    source: Source<'_>,
+    at: Key<'_>,
     idempotency_key: &str,
 ) -> Result<Option<EventRecord>, StoreError> {
     connection
         .query_row(
-            "SELECT event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3 AND idempotency_key = ?4",
-            params![
-                source.data_source_uri,
-                source.resource,
-                source.aggregate_id,
-                idempotency_key
-            ],
+            &format!("SELECT {EVENT_COLUMNS} FROM store_events WHERE stream = ?1 AND key = ?2 AND idempotency_key = ?3"),
+            params![at.stream, at.key, idempotency_key],
             |row| record_at(row, 0),
         )
         .optional()
         .map_err(|error| database("reading the event under the key", &error))
 }
 
+/// The event whose [`EVENT_COLUMNS`] start at `offset`.
 fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRecord> {
     let corrupt = |index: usize, error: Box<dyn std::error::Error + Send + Sync>| {
         rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, error)
     };
-    let event_json = row.get::<_, String>(offset + 6)?;
-    let event = serde_json::from_str::<JsonObject>(&event_json)
+    let data = row.get::<_, String>(offset + 6)?;
+    let data = serde_json::from_str::<JsonObject>(&data)
         .map_err(|error| corrupt(offset + 6, Box::new(error)))?;
+    let writer = match (
+        row.get::<_, Option<String>>(offset + 7)?,
+        row.get::<_, Option<String>>(offset + 8)?,
+    ) {
+        (Some(package), Some(digest)) => Some(Writer { package, digest }),
+        _ => None,
+    };
     Ok(EventRecord {
-        event_id: row.get(offset)?,
+        id: row.get(offset)?,
         version: u64::try_from(row.get::<_, i64>(offset + 1)?)
             .map_err(|error| corrupt(offset + 1, Box::new(error)))?,
         event_type: row.get(offset + 2)?,
-        event_digest: row.get(offset + 3)?,
+        digest: row.get(offset + 3)?,
         idempotency_key: row.get(offset + 4)?,
         committed_at: row.get(offset + 5)?,
-        event,
+        data,
+        writer,
     })
 }
 

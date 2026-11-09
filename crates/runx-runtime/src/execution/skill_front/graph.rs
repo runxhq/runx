@@ -351,6 +351,7 @@ impl BoundRun {
             run: log.clone(),
             effect_gate,
             packages: Some(self.packages.clone()),
+            chain: Vec::new(),
         };
         let local_artifacts = crate::services::LocalArtifactService::for_run(
             &options.run.store().project_dir(),

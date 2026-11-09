@@ -1,4 +1,10 @@
 //! A store call's arguments, decoded and checked once for every backend.
+//!
+//! The author writes a stream's own name, `accounts`; the stream a call
+//! reaches is the target admission rendered for it, `runx/reddit/accounts`,
+//! under the package the call is made from or, for a read, the package it
+//! names (§4.8). The driver reads only that target, so a call never chooses
+//! another package's stream itself.
 
 use std::collections::BTreeSet;
 
@@ -6,41 +12,50 @@ use runx_contracts::{JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
 use serde::Deserialize;
 
 use super::StoreError;
+use super::model::Writer;
 
-/// The stream an event belongs to.
+/// One key of one stream, the stream full: `<owner>/<stream>`.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Source<'a> {
-    pub data_source_uri: &'a str,
-    pub resource: &'a str,
-    pub aggregate_id: &'a str,
+pub(super) struct Key<'a> {
+    pub stream: &'a str,
+    pub key: &'a str,
 }
 
 /// One store operation, by the operation name the connector declares.
 pub(super) enum Request<'a> {
     Append(Append<'a>),
-    ReadEvents(ReadEvents<'a>),
-    ReadProjection(Source<'a>),
-    ListHeads(ListHeads<'a>),
+    Read(ReadEvents<'a>),
+    Inspect(Key<'a>),
+    List(ListKeys<'a>),
+    Search(SearchKeys<'a>),
 }
 
 pub(super) struct Append<'a> {
-    pub source: Source<'a>,
+    pub at: Key<'a>,
     pub expected_version: u64,
     pub idempotency_key: &'a str,
-    pub event: &'a JsonObject,
-    pub observed_at: Option<&'a str>,
+    pub event_type: &'a str,
+    pub data: &'a JsonObject,
+    pub writer: Writer,
 }
 
 pub(super) struct ReadEvents<'a> {
-    pub source: Source<'a>,
+    pub at: Key<'a>,
     pub limit: usize,
     pub after_version: Option<u64>,
 }
 
-pub(super) struct ListHeads<'a> {
-    pub data_source_uri: &'a str,
-    pub resource: &'a str,
-    pub event_types: Vec<&'a str>,
+pub(super) struct ListKeys<'a> {
+    pub stream: &'a str,
+    pub types: Vec<&'a str>,
+    pub limit: usize,
+    pub cursor: Option<&'a str>,
+}
+
+pub(super) struct SearchKeys<'a> {
+    pub stream: &'a str,
+    pub query: &'a str,
+    pub types: Vec<&'a str>,
     pub limit: usize,
     pub cursor: Option<&'a str>,
 }
@@ -48,58 +63,82 @@ pub(super) struct ListHeads<'a> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AppendInput {
-    data_source_uri: String,
-    resource: String,
-    aggregate_id: String,
+    stream: String,
+    key: String,
     expected_version: u64,
-    event: JsonObject,
-    #[serde(default)]
-    observed_at: Option<String>,
+    #[serde(rename = "type")]
+    event_type: String,
+    data: JsonObject,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct ReadEventsInput {
-    data_source_uri: String,
-    resource: String,
-    aggregate_id: String,
-    #[serde(default = "default_limit")]
-    limit: u64,
+pub(super) struct ReadInput {
+    stream: String,
+    key: String,
     #[serde(default)]
     after_version: Option<u64>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct ReadProjectionInput {
-    data_source_uri: String,
-    resource: String,
-    aggregate_id: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct ListHeadsInput {
-    data_source_uri: String,
-    resource: String,
-    #[serde(default)]
-    event_types: Vec<String>,
-    #[serde(default = "default_limit")]
+    #[serde(default = "read_limit")]
     limit: u64,
     #[serde(default)]
-    cursor: Option<String>,
+    package: Option<String>,
 }
 
-fn default_limit() -> u64 {
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct InspectInput {
+    stream: String,
+    key: String,
+    #[serde(default)]
+    package: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ListInput {
+    stream: String,
+    #[serde(default)]
+    types: Vec<String>,
+    #[serde(default)]
+    cursor: Option<String>,
+    #[serde(default = "list_limit")]
+    limit: u64,
+    #[serde(default)]
+    package: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SearchInput {
+    stream: String,
+    query: String,
+    #[serde(default)]
+    types: Vec<String>,
+    #[serde(default)]
+    cursor: Option<String>,
+    #[serde(default = "search_limit")]
+    limit: u64,
+}
+
+fn read_limit() -> u64 {
+    100
+}
+
+fn list_limit() -> u64 {
     50
+}
+
+fn search_limit() -> u64 {
+    20
 }
 
 /// The decoded arguments of one call, owned so a request can borrow them.
 pub(super) enum Input {
     Append(AppendInput),
-    ReadEvents(ReadEventsInput),
-    ReadProjection(ReadProjectionInput),
-    ListHeads(ListHeadsInput),
+    Read(ReadInput),
+    Inspect(InspectInput),
+    List(ListInput),
+    Search(SearchInput),
 }
 
 impl Input {
@@ -112,9 +151,10 @@ impl Input {
         }
         Ok(match operation {
             "events.append" => Self::Append(decode(arguments)?),
-            "events.read" => Self::ReadEvents(decode(arguments)?),
-            "projection.read" => Self::ReadProjection(decode(arguments)?),
-            "heads.list" => Self::ListHeads(decode(arguments)?),
+            "events.read" => Self::Read(decode(arguments)?),
+            "key.inspect" => Self::Inspect(decode(arguments)?),
+            "keys.list" => Self::List(decode(arguments)?),
+            "keys.search" => Self::Search(decode(arguments)?),
             other => {
                 return Err(StoreError::invalid(format!(
                     "the store has no operation {other}"
@@ -123,34 +163,42 @@ impl Input {
         })
     }
 
-    /// The request, with the key the kernel derived for a write's intent.
-    pub(super) fn request<'a>(&'a self, key: Option<&'a str>) -> Result<Request<'a>, StoreError> {
+    /// The request on `stream`, the full stream admission rendered, with the
+    /// key the kernel derived for a write's intent and the package the call
+    /// is made from as an append's writer.
+    pub(super) fn request<'a>(
+        &'a self,
+        stream: &'a str,
+        idempotency_key: Option<&'a str>,
+        writer: Option<&Writer>,
+    ) -> Result<Request<'a>, StoreError> {
         Ok(match self {
             Self::Append(input) => {
-                let source = source(&input.data_source_uri, &input.resource, &input.aggregate_id)?;
-                let idempotency_key =
-                    key.ok_or_else(|| StoreError::invalid("an append needs an idempotency key"))?;
-                token("idempotency_key", idempotency_key, 256, true)?;
+                let at = key(stream, &input.stream, None, &input.key)?;
+                let idempotency_key = idempotency_key
+                    .ok_or_else(|| StoreError::invalid("an append needs an idempotency key"))?;
+                token("idempotency_key", idempotency_key, 256)?;
                 if input.expected_version >= MAX_PORTABLE_INTEGER {
                     return Err(StoreError::invalid(format!(
                         "expected_version must be less than {MAX_PORTABLE_INTEGER}"
                     )));
                 }
-                if let Some(observed_at) = input.observed_at.as_deref()
-                    && runx_core::policy::parse_rfc3339_moment(observed_at).is_none()
-                {
-                    return Err(StoreError::invalid("observed_at must be RFC 3339"));
-                }
+                validate_type(&input.event_type)?;
+                let writer = writer.cloned().ok_or_else(|| {
+                    StoreError::invalid(
+                        "an append is made from a package's step, and this one is made from none",
+                    )
+                })?;
                 Request::Append(Append {
-                    source,
+                    at,
                     expected_version: input.expected_version,
                     idempotency_key,
-                    event: &input.event,
-                    observed_at: input.observed_at.as_deref(),
+                    event_type: &input.event_type,
+                    data: &input.data,
+                    writer,
                 })
             }
-            Self::ReadEvents(input) => {
-                let source = source(&input.data_source_uri, &input.resource, &input.aggregate_id)?;
+            Self::Read(input) => {
                 if input
                     .after_version
                     .is_some_and(|version| version > MAX_PORTABLE_INTEGER)
@@ -159,58 +207,87 @@ impl Input {
                         "after_version must not exceed {MAX_PORTABLE_INTEGER}"
                     )));
                 }
-                Request::ReadEvents(ReadEvents {
-                    source,
+                Request::Read(ReadEvents {
+                    at: key(stream, &input.stream, input.package.as_deref(), &input.key)?,
                     limit: bounded_limit(input.limit, 500)?,
                     after_version: input.after_version,
                 })
             }
-            Self::ReadProjection(input) => Request::ReadProjection(source(
-                &input.data_source_uri,
-                &input.resource,
-                &input.aggregate_id,
+            Self::Inspect(input) => Request::Inspect(key(
+                stream,
+                &input.stream,
+                input.package.as_deref(),
+                &input.key,
             )?),
-            Self::ListHeads(input) => {
-                token("data_source_uri", &input.data_source_uri, 512, true)?;
-                identifier("resource", &input.resource, false)?;
-                if input.event_types.len() > 20 {
-                    return Err(StoreError::invalid(
-                        "event_types may contain at most 20 values",
-                    ));
+            Self::List(input) => Request::List(ListKeys {
+                stream: full_stream(stream, &input.stream, input.package.as_deref())?,
+                types: types(&input.types)?,
+                limit: bounded_limit(input.limit, 100)?,
+                cursor: input.cursor.as_deref(),
+            }),
+            Self::Search(input) => {
+                if input.query.trim().is_empty() || input.query.len() > 512 {
+                    return Err(StoreError::invalid("a query is 1 to 512 bytes of words"));
                 }
-                let mut seen = BTreeSet::new();
-                let mut event_types = Vec::with_capacity(input.event_types.len());
-                for event_type in &input.event_types {
-                    validate_event_type(event_type)?;
-                    if seen.insert(event_type.as_str()) {
-                        event_types.push(event_type.as_str());
-                    }
-                }
-                Request::ListHeads(ListHeads {
-                    data_source_uri: &input.data_source_uri,
-                    resource: &input.resource,
-                    event_types,
+                Request::Search(SearchKeys {
+                    stream: full_stream(stream, &input.stream, None)?,
+                    query: &input.query,
+                    types: types(&input.types)?,
                     limit: bounded_limit(input.limit, 100)?,
-                    cursor: input.cursor.as_deref().filter(|cursor| !cursor.is_empty()),
+                    cursor: input.cursor.as_deref(),
                 })
             }
         })
     }
 }
 
-fn source<'a>(
-    data_source_uri: &'a str,
-    resource: &'a str,
-    aggregate_id: &'a str,
-) -> Result<Source<'a>, StoreError> {
-    token("data_source_uri", data_source_uri, 512, true)?;
-    identifier("resource", resource, false)?;
-    identifier("aggregate_id", aggregate_id, true)?;
-    Ok(Source {
-        data_source_uri,
-        resource,
-        aggregate_id,
+/// The full stream admission rendered, checked against what the call names:
+/// it ends in the call's own stream, under the package it names when it
+/// names one.
+fn full_stream<'a>(
+    rendered: &'a str,
+    named: &str,
+    package: Option<&str>,
+) -> Result<&'a str, StoreError> {
+    validate_stream(named)?;
+    let owner = rendered
+        .strip_suffix(named)
+        .and_then(|owner| owner.strip_suffix('/'))
+        .filter(|owner| !owner.is_empty() && package.is_none_or(|package| *owner == package));
+    if owner.is_none() || rendered.len() > 512 {
+        return Err(StoreError::invalid(
+            "the call's stream is not the one admission rendered for it",
+        ));
+    }
+    Ok(rendered)
+}
+
+fn key<'a>(
+    rendered: &'a str,
+    named: &str,
+    package: Option<&str>,
+    key: &'a str,
+) -> Result<Key<'a>, StoreError> {
+    validate_key(key)?;
+    Ok(Key {
+        stream: full_stream(rendered, named, package)?,
+        key,
     })
+}
+
+fn types(values: &[String]) -> Result<Vec<&str>, StoreError> {
+    if values.len() > 16 {
+        return Err(StoreError::invalid("types may hold at most 16 values"));
+    }
+    let mut seen = BTreeSet::new();
+    let mut types = Vec::with_capacity(values.len());
+    for value in values {
+        token("types", value, 128)?;
+        if seen.insert(value.as_str()) {
+            types.push(value.as_str());
+        }
+    }
+    Ok(types)
 }
 
 fn bounded_limit(value: u64, maximum: usize) -> Result<usize, StoreError> {
@@ -220,22 +297,45 @@ fn bounded_limit(value: u64, maximum: usize) -> Result<usize, StoreError> {
         .ok_or_else(|| StoreError::invalid(format!("limit must be from 1 to {maximum}")))
 }
 
-pub(super) fn validate_event_type(value: &str) -> Result<(), StoreError> {
-    token("event_type", value, 128, false)
+/// A stream's own name: one segment, never a path, so it never spells
+/// another package's.
+pub(super) fn validate_stream(value: &str) -> Result<(), StoreError> {
+    identifier("stream", value, 128, &['.', '_', ':', '-'])
 }
 
-pub(super) fn validate_aggregate_id(value: &str) -> Result<(), StoreError> {
-    identifier("aggregate_id", value, true)
+pub(super) fn validate_key(value: &str) -> Result<(), StoreError> {
+    identifier("key", value, 192, &['.', '_', ':', '@', '/', '-'])
 }
 
-fn identifier(field: &str, value: &str, aggregate: bool) -> Result<(), StoreError> {
+/// A declared event type: dotted lowercase words, at least two.
+pub(super) fn validate_type(value: &str) -> Result<(), StoreError> {
+    let words = value.split('.').collect::<Vec<_>>();
+    let valid = value.len() <= 128
+        && words.len() >= 2
+        && words.iter().all(|word| {
+            word.bytes().enumerate().all(|(index, byte)| {
+                byte.is_ascii_lowercase() || (index > 0 && (byte.is_ascii_digit() || byte == b'_'))
+            }) && !word.is_empty()
+        });
+    if valid {
+        Ok(())
+    } else {
+        Err(StoreError::invalid(
+            "type must be dotted lowercase words, such as counter.bumped",
+        ))
+    }
+}
+
+fn identifier(
+    field: &str,
+    value: &str,
+    maximum: usize,
+    allowed: &[char],
+) -> Result<(), StoreError> {
     let valid = !value.is_empty()
-        && value.len() <= if aggregate { 192 } else { 128 }
+        && value.len() <= maximum
         && value.chars().enumerate().all(|(index, character)| {
-            character.is_ascii_alphanumeric()
-                || (index > 0
-                    && matches!(character, '.' | '_' | ':' | '-' | '@' | '/')
-                    && (aggregate || character != '@' && character != '/'))
+            character.is_ascii_alphanumeric() || (index > 0 && allowed.contains(&character))
         });
     if valid {
         Ok(())
@@ -246,12 +346,11 @@ fn identifier(field: &str, value: &str, aggregate: bool) -> Result<(), StoreErro
     }
 }
 
-fn token(field: &str, value: &str, maximum: usize, allow_slash: bool) -> Result<(), StoreError> {
+fn token(field: &str, value: &str, maximum: usize) -> Result<(), StoreError> {
     let valid = !value.trim().is_empty()
         && value.trim() == value
         && value.len() <= maximum
-        && !value.chars().any(char::is_control)
-        && (allow_slash || !value.contains('/'));
+        && !value.chars().any(char::is_control);
     if valid {
         Ok(())
     } else {

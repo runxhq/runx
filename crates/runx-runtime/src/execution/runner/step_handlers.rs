@@ -197,6 +197,12 @@ where
         held_by_effects,
         host,
     } = request;
+    // An operation call is admitted against the packages it calls from.
+    let chain = if step.operation().is_some() {
+        runtime.options.chain_at(workflow_dir)?
+    } else {
+        Vec::new()
+    };
     let effect_request = EffectStepRequest {
         step,
         target: ResolvedEffectTarget {
@@ -208,6 +214,7 @@ where
         run_id: runtime.options.run.run_id(),
         run_authority: runtime.options.run_authority.as_ref(),
         held_by_effects,
+        chain: &chain,
     };
     let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
     let authority =
@@ -380,6 +387,7 @@ where
 {
     let skill_name = skill.method.name.clone();
     let admission_refs = request.admission_refs.clone();
+    let chain = child_chain(&request, &skill)?;
     let run = execute_nested_workflow(
         request.runtime,
         request.host,
@@ -393,6 +401,7 @@ where
             env: &env,
             skill_directory: &skill.directory,
             admitted: skill.admitted.as_ref(),
+            chain,
         },
     )?;
     // The step closes as its child sealed: a child that stopped short
@@ -474,6 +483,42 @@ struct NestedWorkflow<'a> {
     /// The packages a load bound for the child, which it executes in place
     /// of its parent's.
     admitted: Option<&'a crate::skill_package::AdmittedPackages>,
+    /// The child run's chain: its parent's, then the package the step
+    /// reached.
+    chain: Vec<crate::identity::ChainLink>,
+}
+
+/// The chain of the child run `skill` starts from the step in `request`: the
+/// parent run's, then the child's package as the step's reference reached it.
+fn child_chain<A>(
+    request: &StepHandlerCtx<'_, A>,
+    skill: &LoadedStepSkill,
+) -> Result<Vec<crate::identity::ChainLink>, RuntimeError> {
+    let options = &request.runtime.options;
+    let mut chain = options.chain_at(request.workflow_dir)?;
+    let package = match &skill.admitted {
+        Some(admitted) => admitted.get(&skill.directory)?,
+        None => options.package(&skill.directory)?,
+    };
+    let reference = request
+        .step
+        .skill()
+        .map_or_else(String::new, |target| target.skill.clone());
+    let parent = chain.last().ok_or_else(|| {
+        crate::execution::runner::identity_refused(request.workflow_dir, "the run has no package")
+    })?;
+    let link = parent
+        .child(
+            &reference,
+            &package,
+            skill.registry.as_ref().map(|registry| &registry.signed),
+            &options.env,
+        )
+        .map_err(|reason| crate::execution::runner::identity_refused(&skill.directory, &reason))?;
+    if link.root != parent.root {
+        chain.push(link);
+    }
+    Ok(chain)
 }
 
 /// Run the child run a nested skill step runs as, or continue it from its
@@ -522,6 +567,7 @@ where
     if let Some(admitted) = nested.admitted {
         child_options.packages = Some(admitted.clone());
     }
+    child_options.chain = nested.chain;
     let child_adapter: Box<dyn SkillAdapter + '_> =
         Box::new(BorrowedSkillAdapter::new(&runtime.configured_adapter));
     let child_runtime = Runtime::with_native_services(
