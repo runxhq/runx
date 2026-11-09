@@ -164,3 +164,12 @@ test("comments need a target, filters stay honest, and page cursors never round"
     /portable integer/,
   );
 });
+
+test("an answer that is not a list fails the read, never reads as no activity", () => {
+  for (const issues of [undefined, null, { message: "Not Found" }, "[]"])
+    assert.throws(
+      () => digest(issues),
+      /GitHub's issue list for runxhq\/runx is not a list/,
+    );
+  assert.deepEqual(digest([]).items, []);
+});

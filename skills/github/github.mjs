@@ -216,14 +216,16 @@ export function activityWindow({ repo, since, page }) {
   };
 }
 
-/** The page the read returned, newest change first, and the next page when GitHub filled this one. */
+/** The page the read returned, newest change first, and the next page when GitHub filled this one. An answer that isn't a list fails the read: it is never no activity. */
 export function digestActivity({
   read_input: read,
   provider_operation: operation,
 }) {
-  const issues = Array.isArray(operation?.result?.issues)
-    ? operation.result.issues
-    : [];
+  const issues = operation?.result?.issues;
+  if (!Array.isArray(issues))
+    throw new Error(
+      `GitHub's issue list for ${read.repository} is not a list, so nothing was read.`,
+    );
   const items = issues
     .map((issue) => activityItem(issue, Date.parse(read.since)))
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
