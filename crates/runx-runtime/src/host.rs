@@ -21,6 +21,13 @@ pub trait Host {
         Ok(())
     }
 
+    /// Whether the model that works this host's turns is known to run on
+    /// this machine, so a turn may carry its `local_only` context entries.
+    /// A host whose model may run anywhere never gets one (memory.md).
+    fn reads_local_only(&self) -> bool {
+        false
+    }
+
     /// Whether this pass only records what a call already did. A stop keeps
     /// a driver from admitting any further step or call, never from
     /// recording what one did, so such a pass re-enters the step it is

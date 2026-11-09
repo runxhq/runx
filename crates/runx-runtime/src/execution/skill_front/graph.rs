@@ -777,6 +777,19 @@ impl RunHost {
 }
 
 impl Host for RunHost {
+    /// Only a managed agent at a loopback endpoint is known to run here; a
+    /// host that works the run's turns from outside may run its model anywhere.
+    fn reads_local_only(&self) -> bool {
+        #[cfg(feature = "agent")]
+        {
+            self.managed.as_ref().is_some_and(|agent| agent.is_local())
+        }
+        #[cfg(not(feature = "agent"))]
+        {
+            false
+        }
+    }
+
     fn report(&mut self, _event: runx_contracts::ExecutionEvent) -> Result<(), RuntimeError> {
         Ok(())
     }

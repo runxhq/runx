@@ -566,6 +566,8 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
         temp.path().join("MEMORY.md"),
         "Ambient memory runx never reads.\n",
     )?;
+    // Kept on this machine: the managed agent's model is served from a
+    // loopback endpoint, so it may read it.
     let memory: runx_contracts::ContextEntry = serde_json::from_value(json!({
         "schema": "runx.context_entry.v1",
         "type": "fieldwork.memory",
@@ -574,7 +576,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
         "labels": {
             "purpose": "confirmed_memory",
             "trust": "person_confirmed",
-            "sharing": "configured_model",
+            "sharing": "local_only",
         },
         "sources": ["conversation:2026-10-20"],
         "origin": {

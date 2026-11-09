@@ -1511,7 +1511,7 @@ fn an_agent_step_is_given_an_earlier_steps_context_entries_with_their_own_labels
   type: "memory.said",
   summary: "Kam's launch date",
   data: { text: "We launch on the third of November." },
-  labels: { purpose: "confirmed_memory", trust: "person_confirmed", sharing: "local_only" },
+  labels: { purpose: "confirmed_memory", trust: "person_confirmed", sharing: "configured_model" },
   sources: ["conversation:2026-10-20"],
   origin: {
     artifact_id: "memory:said:personal#launch@1",
@@ -1544,7 +1544,58 @@ fn an_agent_step_is_given_an_earlier_steps_context_entries_with_their_own_labels
     let labels = object_field(entry, "labels").ok_or("missing labels")?;
     assert_eq!(string_field(labels, "purpose"), Some("confirmed_memory"));
     assert_eq!(string_field(labels, "trust"), Some("person_confirmed"));
-    assert_eq!(string_field(labels, "sharing"), Some("local_only"));
+    assert_eq!(string_field(labels, "sharing"), Some("configured_model"));
+    Ok(())
+}
+
+#[test]
+fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let entry = |summary: &str, sharing: &str| {
+        format!(
+            r#"{{
+  schema: "runx.context_entry.v1",
+  type: "memory.said",
+  summary: "{summary}",
+  data: {{ text: "{summary}" }},
+  labels: {{ purpose: "confirmed_memory", trust: "person_confirmed", sharing: "{sharing}" }},
+  sources: ["conversation:2026-10-20"],
+  origin: {{
+    artifact_id: "memory:{sharing}",
+    run_id: "rx_recall",
+    step_id: null,
+    producer: {{ skill: "runx/memory", method: "index" }},
+    created_at: "2026-10-20T00:00:00Z",
+    digest: "sha256:{sharing}",
+    size_bytes: 12
+  }}
+}}"#
+        )
+    };
+    let skill_dir = write_context_entries_skill(
+        temp.path(),
+        &format!(
+            "export const recall = () => ({{ entries: [{}, {}] }});\n",
+            entry("Shared with the configured model", "configured_model"),
+            entry("Kept on this machine", "local_only"),
+        ),
+    )?;
+
+    // No managed agent works this run, so its host may run its model
+    // anywhere.
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    let output = object(&result.output, "context entries result")?;
+    assert_eq!(string_field(output, "status"), Some("needs_agent"));
+    let rendered = serde_json::to_string(&result.output)?;
+    assert!(
+        rendered.contains("Shared with the configured model"),
+        "{rendered}"
+    );
+    // Neither the entry nor any of its text reaches the host.
+    assert!(!rendered.contains("Kept on this machine"), "{rendered}");
+    assert!(!rendered.contains("memory:local_only"), "{rendered}");
     Ok(())
 }
 

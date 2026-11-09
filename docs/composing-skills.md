@@ -167,6 +167,10 @@ steps:
   step, saying which output it read.
 - The turn reads the entries after its `context.skills`, and before the
   context its run's caller supplied.
+- An entry labelled `sharing: local_only` reaches a turn only when runx's
+  managed agent works it with a model served from this machine, at a loopback
+  endpoint. A turn its host works from outside is given no `local_only` entry,
+  whoever supplied it, because runx can't know where that host's model runs.
 
 ## Run The Test
 

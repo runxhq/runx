@@ -122,6 +122,10 @@ impl Host for AnsweringHost<'_> {
     fn records(&self) -> bool {
         self.host.records()
     }
+
+    fn reads_local_only(&self) -> bool {
+        self.host.reads_local_only()
+    }
 }
 
 #[derive(Clone, Copy)]

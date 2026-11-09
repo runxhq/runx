@@ -141,6 +141,7 @@ pub(crate) fn failed_answer(
 /// # Errors
 ///
 /// Returns an error when the answer isn't an object, or its closure isn't.
+#[cfg(any(feature = "agent", feature = "mcp"))]
 pub(crate) fn with_met_requirements(
     answer: JsonValue,
     met: &[runx_contracts::TurnRequirement],
@@ -192,9 +193,11 @@ mod tests {
 
     use runx_contracts::TurnRequirement;
 
+    #[cfg(any(feature = "agent", feature = "mcp"))]
+    use super::with_met_requirements;
     use super::{
         OutcomeClaimError, agent_answer_outcome_or_completed, check_turn_requirements,
-        failed_answer, with_met_requirements,
+        failed_answer,
     };
 
     #[test]
@@ -227,15 +230,6 @@ mod tests {
             RunOutcome::Completed,
         );
         assert!(unstated.is_err_and(|reason| reason.contains("requires fresh_context")));
-        let stated = with_met_requirements(answer(r#"{"summary": "done"}"#)?, &fresh);
-        assert_eq!(
-            stated.and_then(|stated| check_turn_requirements(
-                &fresh,
-                &stated,
-                RunOutcome::Completed
-            )),
-            Ok(())
-        );
         let unsupported = failed_answer(
             "no subagent".to_owned(),
             Some(TurnRequirement::FreshContext),
@@ -277,6 +271,26 @@ mod tests {
                 &answer(r#"{"summary": "done"}"#)?,
                 RunOutcome::Completed
             ),
+            Ok(())
+        );
+        Ok(())
+    }
+
+    // A driver that works turns states the requirements it met.
+    #[cfg(any(feature = "agent", feature = "mcp"))]
+    #[test]
+    fn a_driver_s_answer_states_the_requirements_it_met() -> Result<(), serde_json::Error> {
+        let fresh = [TurnRequirement::FreshContext];
+        let stated = with_met_requirements(
+            serde_json::from_str::<JsonValue>(r#"{"summary": "done"}"#)?,
+            &fresh,
+        );
+        assert_eq!(
+            stated.and_then(|stated| check_turn_requirements(
+                &fresh,
+                &stated,
+                RunOutcome::Completed
+            )),
             Ok(())
         );
         Ok(())

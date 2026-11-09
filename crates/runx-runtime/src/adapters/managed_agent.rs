@@ -56,6 +56,15 @@ impl ManagedAgent {
         }
     }
 
+    /// Whether the configured model runs on this machine, at a loopback
+    /// endpoint. No configured model, or one that can't be read, is not.
+    pub(crate) fn is_local(&self) -> bool {
+        crate::agent_config::load_managed_agent_config(&self.env, &self.skill_directory)
+            .ok()
+            .flatten()
+            .is_some_and(|config| local_endpoint(&config))
+    }
+
     /// Work `turn` with the configured model; `host` answers what its calls
     /// ask. Returns the act's answer when the model finishes, and `None` when
     /// no model is configured or a call waits on a human.
@@ -348,9 +357,9 @@ fn json_text(value: &impl Serialize) -> Result<String, RuntimeError> {
         .map_err(|source| RuntimeError::json("encoding a turn call", source))
 }
 
-/// A remote model may not see context scoped to stay local.
-fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) -> bool {
-    let local_endpoint = url::Url::parse(&config.endpoint_url)
+/// Whether the configured model is served from this machine.
+fn local_endpoint(config: &ManagedAgentConfig) -> bool {
+    url::Url::parse(&config.endpoint_url)
         .ok()
         .and_then(|endpoint| endpoint.host_str().map(str::to_owned))
         .is_some_and(|host| {
@@ -358,7 +367,12 @@ fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) 
                 || host
                     .parse::<std::net::IpAddr>()
                     .is_ok_and(|address| address.is_loopback())
-        });
+        })
+}
+
+/// A remote model may not see context scoped to stay local.
+fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) -> bool {
+    let local_endpoint = local_endpoint(config);
     let local_only = |sharing: &runx_contracts::ContextSharing| {
         *sharing == runx_contracts::ContextSharing::LocalOnly
     };

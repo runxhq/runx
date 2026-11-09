@@ -1059,6 +1059,15 @@ where
         .current_context
         .extend(runtime.options.current_context.clone());
     invocation.historical_context = runtime.options.historical_context.clone();
+    // A `local_only` entry never reaches a model that may run elsewhere: a
+    // turn whose host can't say its model runs here is given none.
+    if !host.reads_local_only() {
+        let shareable = |entry: &ContextEntry| {
+            entry.labels.sharing != runx_contracts::ContextSharing::LocalOnly
+        };
+        invocation.current_context.retain(shareable);
+        invocation.historical_context.retain(shareable);
+    }
     let request_id = runtime.options.run.address(&step.id);
     // The act's instructions are the manual its run admitted.
     let package = runtime.options.package(&invocation.skill_directory)?;
