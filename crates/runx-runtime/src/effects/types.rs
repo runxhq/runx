@@ -154,6 +154,8 @@ pub struct EffectStepRequest<'a> {
     /// The packages the step calls from, its own last (D31). Empty for a
     /// step no package runs.
     pub(crate) chain: &'a [crate::identity::ChainLink],
+    /// When the run observes the step: what its admission stamps.
+    pub clock: &'a crate::RunClock,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

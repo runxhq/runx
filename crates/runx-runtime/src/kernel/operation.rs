@@ -589,6 +589,7 @@ impl RuntimeEffect for OperationEffect {
                 env: request.env,
                 cwd: request.workflow_dir,
             },
+            clock: request.clock,
         })
         .map_err(|error| match error {
             AdmitError::Refused(refusal) if refusal.check == AdmissionCheck::Cost => {
@@ -2345,7 +2346,11 @@ fn human(
         ApprovalResolution::Approved {
             idempotency_key, ..
         } => Ok(Lane::Approved(Box::new(Approved::new(
-            ApprovalRecord::new(ApprovalActor::Human, idempotency_key),
+            ApprovalRecord::new(
+                ApprovalActor::Human,
+                idempotency_key,
+                admitted.clock().now(),
+            ),
             Vec::new(),
         )))),
         ApprovalResolution::Denied { reason, .. } => {

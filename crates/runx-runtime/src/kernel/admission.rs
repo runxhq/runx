@@ -74,6 +74,9 @@ pub(crate) struct Evaluation<'a> {
     /// own package's unless a read names another.
     pub chain: &'a [crate::identity::ChainLink],
     pub context: Context<'a>,
+    /// When the run observes the call: admission's approvals, derivations
+    /// and proofs are stamped at it.
+    pub clock: &'a crate::RunClock,
 }
 
 /// Whether an admitted call runs now or waits on an approval. A call that
@@ -133,6 +136,8 @@ pub(crate) struct Admitted {
     /// Each reason the gate carries, when it carries more than one.
     pub waits_for: Vec<ApprovalText>,
     term_request: AttenuationRequest,
+    /// The run's clock, which the term an approval admits is derived at.
+    clock: crate::RunClock,
 }
 
 impl Admitted {
@@ -149,20 +154,17 @@ impl Admitted {
         &self.admission.intent_digest
     }
 
+    /// The run's clock, which the call's approval is recorded at.
+    pub(crate) fn clock(&self) -> &crate::RunClock {
+        &self.clock
+    }
+
     /// Derive the execution term with the approval evidence the call now
     /// holds, and admit it.
     pub(crate) fn admit_with(&mut self, approvals: Vec<AuthorityApproval>) -> Result<(), String> {
         if self.admission.decision != AdmissionDecision::NeedsResolution || approvals.is_empty() {
             return Err("the call has no pending resolution with approval evidence".to_owned());
         }
-        let evidence = approvals
-            .iter()
-            .map(|approval| AuthorityEvidence {
-                kind: AuthorityEvidenceKind::Approval,
-                reference: approval.approval_ref.clone(),
-                term: None,
-            })
-            .collect::<Vec<_>>();
         let (term, derivation) = derive(
             &self.capability,
             &self.delegations,
@@ -170,7 +172,7 @@ impl Admitted {
             &self.term_request,
             self.admission.intent_digest.as_str(),
             approvals,
-            evidence,
+            self.clock.now(),
         )
         .map_err(|(_, message)| message)?;
         for reason in &mut self.admission.reasons {
@@ -388,6 +390,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         &instance,
         evaluation.run_authority,
         evaluation.run_id,
+        evaluation.clock,
     ) {
         Ok(delegated) => delegated,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Delegation, detail)),
@@ -422,7 +425,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                 &probe,
                 PROBED_CALL,
                 Vec::new(),
-                Vec::new(),
+                evaluation.clock.now(),
             )
             .is_ok()
         })
@@ -522,7 +525,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         &term_request,
         intent_digest.as_str(),
         Vec::new(),
-        Vec::new(),
+        evaluation.clock.now(),
     ) {
         Ok(derived) => derived,
         Err((parent, detail)) => {
@@ -735,6 +738,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         approval,
         waits_for,
         term_request,
+        clock: evaluation.clock.clone(),
     })
 }
 
@@ -1003,7 +1007,13 @@ fn readiness(
         actor_ref: authority.and_then(|authority| authority.actor_ref.as_ref()),
     }) {
         Ok(capability) => {
-            match delegated_terms(&capability.term, &instance, authority, "inspection") {
+            match delegated_terms(
+                &capability.term,
+                &instance,
+                authority,
+                "inspection",
+                &crate::RunClock::System,
+            ) {
                 Ok(delegated) => {
                     let limits = std::iter::once(&capability.term)
                         .chain(delegated.terms())
@@ -1245,11 +1255,12 @@ fn delegated_terms(
     instance: &ConnectorInstance,
     authority: Option<&RunAuthority>,
     run_id: &str,
+    clock: &crate::RunClock,
 ) -> Result<Delegated, String> {
     let Some(authority) = authority else {
         return Ok(Delegated::default());
     };
-    let now = || IsoDateTime::from(crate::time::now_iso8601());
+    let now = || IsoDateTime::from(clock.now());
     let run = Reference::runx(ReferenceType::Run, run_id);
     let mut delegated = Delegated::default();
     let mut preceding = vec![base.clone()];
@@ -1884,9 +1895,18 @@ fn derive(
     request: &AttenuationRequest,
     intent_digest: &str,
     approvals: Vec<AuthorityApproval>,
-    approval_evidence: Vec<AuthorityEvidence>,
+    at: String,
 ) -> Result<(AuthorityTerm, AuthorityDerivation), (DerivationParent, String)> {
-    let derived_at = IsoDateTime::from(crate::time::now_iso8601());
+    // Each approval is evidence for the term it admits.
+    let approval_evidence = approvals
+        .iter()
+        .map(|approval| AuthorityEvidence {
+            kind: AuthorityEvidenceKind::Approval,
+            reference: approval.approval_ref.clone(),
+            term: None,
+        })
+        .collect::<Vec<_>>();
+    let derived_at = IsoDateTime::from(at);
     let (term, proofs) = derive_execution_term(
         &ExecutionTermRequest {
             capability: &capability.term,

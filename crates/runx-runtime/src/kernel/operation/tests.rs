@@ -577,6 +577,7 @@ impl Fixture {
                 run_authority,
                 held_by_effects,
                 chain,
+                clock: &crate::RunClock::System,
             })
             .map(|admission| admission.expect("an operation step is owned by the effect"))
     }
@@ -2457,6 +2458,7 @@ methods:
                 run_authority: None,
                 held_by_effects: false,
                 chain: &[],
+                clock: &crate::RunClock::System,
             })
             .unwrap()
             .unwrap();

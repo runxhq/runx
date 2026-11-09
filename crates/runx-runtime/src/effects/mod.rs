@@ -130,6 +130,7 @@ mod tests {
             run_authority: None,
             held_by_effects: false,
             chain: &[],
+            clock: &crate::RunClock::System,
         });
         assert!(
             matches!(
@@ -174,6 +175,7 @@ mod tests {
             run_authority: None,
             held_by_effects: false,
             chain: &[],
+            clock: &crate::RunClock::System,
         });
 
         assert!(
@@ -217,6 +219,7 @@ mod tests {
             run_authority: None,
             held_by_effects: false,
             chain: &[],
+            clock: &crate::RunClock::System,
         });
 
         assert!(

@@ -439,7 +439,12 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         method: method.paid.clone(),
         spend: spend.clone(),
     };
-    let approval = ApprovalRecord::new(ApprovalActor::Human, request_digest.clone());
+    // A purchase call carries no run clock: its approval is recorded now.
+    let approval = ApprovalRecord::new(
+        ApprovalActor::Human,
+        request_digest.clone(),
+        crate::time::now_iso8601(),
+    );
     custody
         .attempt_with(
             &Attempt {

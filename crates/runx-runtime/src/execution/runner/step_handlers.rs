@@ -225,6 +225,7 @@ where
         run_authority: runtime.options.run_authority.as_ref(),
         held_by_effects,
         chain: &chain,
+        clock: &runtime.options.clock,
     };
     let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
     let authority =

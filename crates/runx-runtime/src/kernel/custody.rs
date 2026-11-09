@@ -45,11 +45,12 @@ pub(crate) struct ApprovalRecord {
 }
 
 impl ApprovalRecord {
-    pub(crate) fn new(actor: ApprovalActor, key: String) -> Self {
+    /// An approval `actor` gave the intent `key`, recorded at `recorded_at`.
+    pub(crate) fn new(actor: ApprovalActor, key: String, recorded_at: String) -> Self {
         Self {
             actor,
             key,
-            recorded_at: crate::time::now_iso8601(),
+            recorded_at,
         }
     }
 

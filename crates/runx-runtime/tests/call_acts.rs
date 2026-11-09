@@ -175,6 +175,27 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         Some(&term.principal_ref),
         receipt.authority.actor_ref.as_ref()
     );
+    // Admission observes the approval and derives the term at the run's
+    // clock, which a test replay fixes, so the receipt is the same each run.
+    let derivation = receipt
+        .authority
+        .derivations
+        .first()
+        .expect("the term's derivation");
+    let at = receipt.created_at.as_str();
+    assert_eq!(derivation.derived_at.as_str(), at);
+    assert!(
+        derivation
+            .proofs
+            .iter()
+            .all(|proof| proof.checked_at.as_str() == at)
+    );
+    assert!(!term.approvals.is_empty());
+    assert!(
+        term.approvals
+            .iter()
+            .all(|approval| approval.approved_at.as_ref().map(|at| at.as_str()) == Some(at))
+    );
     assert!(
         receipt
             .authority
