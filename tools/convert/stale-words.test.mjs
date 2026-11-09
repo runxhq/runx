@@ -33,6 +33,20 @@ test("the guard fails on runner as a method and harness as a test, and passes th
     run.stdout,
     "crates/runx-runtime/src/skill.rs:1\trunner\trunner\tfn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n" +
       "skills/demo/SKILL.md:1\tharness\tharness\tRun the harness before you publish.\n" +
-      "stale: 1 uses of runner as a method and 1 of harness as a test or run, in 2 files\n",
+      "stale: 1 uses of runner as a method, 1 of harness as a test or run and 0 of graph as a workflow in prose, in 2 files\n",
+  );
+});
+
+test("the guard fails on graph as a workflow in prose, and passes another graph, code and code spans", (t) => {
+  const root = tree(t, {
+    "README.md": "Compose skills into a graph.\nThe Rust crate graph is enforced.\nRun `runx list graphs`.\n\n```yaml\ngraph: demo\n```\n",
+    "crates/runx-parser/src/workflow.rs": "pub struct Method { pub graph: Graph }\n",
+  });
+  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  assert.equal(run.status, 1);
+  assert.equal(
+    run.stdout,
+    "README.md:1\tgraph\tgraph\tCompose skills into a graph.\n" +
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run and 1 of graph as a workflow in prose, in 1 files\n",
   );
 });

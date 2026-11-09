@@ -314,6 +314,16 @@ test("Go's build refuses a rename onto a name its scope already declares", (t) =
   assert.equal(read(root, "demo.go"), code);
 });
 
+test("graph is a workflow in prose alone: another graph, code, code spans, link targets and paths keep it", (t) => {
+  const doc = "# Graphs\n\nCompose skills into a graph. Graphs stay small.\nThe Rust crate graph is enforced.\nRun `runx list graphs` and read [the guide](docs/graph.md).\n\n```yaml\ngraph: demo\n```\n";
+  const code = "pub struct Method {\n    pub graph: Graph,\n}\n";
+  const root = tree(t, { "docs/composing.md": doc, "crates/runx-parser/src/graph.rs": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "docs/composing.md"), doc.replace("# Graphs", "# Workflows").replace("into a graph. Graphs stay", "into a workflow. Workflows stay"));
+  assert.equal(read(root, "crates/runx-parser/src/graph.rs"), code);
+});
+
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
   const generated = "type Purchase struct {\n\tRunner string `json:\"runner\"`\n}\n";
   const root = tree(t, {

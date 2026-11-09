@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// The stale-name guard for 0.12's two retired senses (plan §4.2, §6.1, §6.5):
-// `runner` meaning a skill's method, which is `method` now, and `harness`
-// meaning a scripted test or a run, which are `test` and `run`. It fails on
+// The stale-name guard for 0.12's retired senses (plan §4.2, §6.1, §6.5):
+// `runner` meaning a skill's method, which is `method` now, `harness` meaning
+// a scripted test or a run, which are `test` and `run`, and, in prose, `graph`
+// meaning a method's steps, which is `workflow`. It fails on
 // any use of either word outside what may keep it, which the rename reads
 // too: a name identifiers.tsv decides stays, such as `$RUNNER_OS`, and a bare
 // word one of words.mjs's stays keeps. History documents and signed data
@@ -13,11 +14,16 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { GENERATED, HISTORY, SOURCE, bareWord, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, bareWord, markdownCode, stayFor } from "./words.mjs";
 
-const SCOPE = /^(crates|packages|schemas|skills|connectors|docs|scripts)\//;
+// What the rename reads: everything but the converter, scafld's records and vendored copies.
+const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 const TOKEN = /[A-Za-z_$][A-Za-z0-9_$-]*[A-Za-z0-9]|[A-Za-z]/g;
-const RETIRED = { runner: /(^|[^A-Za-z])(runners?|Runners?|RUNNERS?)($|[^a-z])/, harness: /(^|[^A-Za-z])(harness(es)?|Harness(es)?|HARNESS(ES)?)($|[^a-z])/ };
+const RETIRED = {
+  runner: /(^|[^A-Za-z])(runners?|Runners?|RUNNERS?)($|[^a-z])/,
+  harness: /(^|[^A-Za-z])(harness(es)?|Harness(es)?|HARNESS(ES)?)($|[^a-z])/,
+  graph: /(^|[^A-Za-z])(graphs?|Graphs?|GRAPHS?)($|[^a-z])/,
+};
 const SIGNED = /"signature"\s*:/;
 
 const table = new URL("./identifiers.tsv", import.meta.url);
@@ -29,7 +35,7 @@ function decided(repo) {
 
 function files(root) {
   const listed = execFileSync("git", ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8", maxBuffer: 1 << 28 });
-  return listed.split("\n").filter((file) => file && SCOPE.test(file) && SOURCE.test(file) && !file.includes("node_modules/") && !HISTORY.test(file) && !/(^|\/)vendor\//.test(file) && !GENERATED.test(file) && existsSync(path.join(root, file)));
+  return listed.split("\n").filter((file) => file && !NOT_OURS.test(file) && SOURCE.test(file) && !file.includes("node_modules/") && !HISTORY.test(file) && !GENERATED.test(file) && existsSync(path.join(root, file)));
 }
 
 function main([root, ...rest]) {
@@ -39,16 +45,22 @@ function main([root, ...rest]) {
   }
   const list = rest.includes("--list");
   const names = decided("oss");
-  const found = { runner: 0, harness: 0 };
+  const found = { runner: 0, harness: 0, graph: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
     if (file.endsWith(".json") && SIGNED.test(text)) continue;
+    // A prose-only word is stale only in a Markdown file's prose.
+    const code = file.endsWith(".md") ? markdownCode(text) : undefined;
+    let lineStart = 0;
     text.split("\n").forEach((line, index) => {
+      const start = lineStart;
+      lineStart += line.length + 1;
       for (const match of line.matchAll(TOKEN)) {
         const token = match[0];
         for (const [word, pattern] of Object.entries(RETIRED)) {
           if (!pattern.test(token)) continue;
+          if (PROSE_ONLY.has(word) && (code === undefined || code.some(([from, to]) => start + match.index >= from && start + match.index < to))) continue;
           if (names.get(token) === token) continue;
           if (bareWord(token) === word && stayFor(file, line, match.index, token)) continue;
           found[word] += 1;
@@ -58,8 +70,8 @@ function main([root, ...rest]) {
       }
     });
   }
-  const total = found.runner + found.harness;
-  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method and ${found.harness} of harness as a test or run, in ${byFile.size} files\n`);
+  const total = found.runner + found.harness + found.graph;
+  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run and ${found.graph} of graph as a workflow in prose, in ${byFile.size} files\n`);
   return total === 0 ? 0 : 1;
 }
 

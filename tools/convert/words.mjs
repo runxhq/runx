@@ -1,13 +1,47 @@
-// The two bare words 0.12 retires in one sense and keeps in another, and the
+// The bare words 0.12 retires in one sense and keeps in another, and the
 // short, exact list of where each keeps it (plan §4.2, §6.1, §6.5). Every
 // other use is renamed: `runner` meaning a skill's method becomes `method`,
-// and `harness` meaning a scripted test becomes `test`, or `run` in its run
-// sense. rename.mjs applies it, and stale-words.mjs fails on what's left.
+// `harness` meaning a scripted test becomes `test`, or `run` in its run
+// sense, and `graph` meaning a method's steps becomes `workflow`
+// (vocabulary-and-loops.md §2). rename.mjs applies it, and stale-words.mjs
+// fails on what's left.
 
 export const WORDS = {
   runner: { runner: "method", runners: "methods" },
   harness: { harness: "test", harnesses: "tests" },
+  graph: { graph: "workflow", graphs: "workflows" },
 };
+
+// A word renamed in prose alone: Markdown outside its code. In code, a graph
+// is an identifier the table decides, a path stays where it is, and an inline
+// or fenced code span quotes code, a command or a file as it is.
+export const PROSE_ONLY = new Set(["graph"]);
+
+/** Each fenced code block in a Markdown text: the span between its fences. */
+export function fencedBlocks(text) {
+  const blocks = [];
+  let open;
+  for (const fence of text.matchAll(/^ {0,3}(`{3,}|~{3,})([^\n]*)$/gm)) {
+    const [, marks, info] = fence;
+    if (!open) {
+      if (marks[0] === "`" && info.includes("`")) continue;
+      open = { mark: marks[0], length: marks.length, start: fence.index + fence[0].length + 1 };
+    } else if (marks[0] === open.mark && marks.length >= open.length && info.trim() === "") {
+      blocks.push([open.start, fence.index]);
+      open = undefined;
+    }
+  }
+  return blocks;
+}
+
+/** The spans of a Markdown text that are code, not prose: fenced blocks, inline code and link targets. */
+export function markdownCode(text) {
+  const spans = fencedBlocks(text);
+  const blanked = spans.reduce((out, [from, to]) => out.slice(0, from) + " ".repeat(to - from) + out.slice(to), text);
+  for (const m of blanked.matchAll(/(`+)(?:(?!\1)[\s\S])*?\1/g)) spans.push([m.index, m.index + m[0].length]);
+  for (const m of blanked.matchAll(/\]\(([^)\s]*)|^\s*\[[^\]]+\]:\s*(\S+)|<(https?:[^>\s]+)>/gm)) spans.push([m.index, m.index + m[0].length]);
+  return spans;
+}
 
 // A bare form of a retired word, in any case, and the word it is.
 export function bareWord(token) {
@@ -62,6 +96,13 @@ export const STAYS = [
   { word: "runner", why: "a GPU job runner", before: /\bGPU job $/ },
   { word: "runner", why: "the code-execution sandbox's own runner", file: /^docs\/plans\/code-execution\.md$/ },
   { word: "runner", why: "the buyer canary's own driver, and GitHub's runner limit", file: /^scripts\/buyer-canary(\.test)?\.mjs$/ },
+  // graph: another graph than a method's steps, which keeps the word.
+  { word: "graph", why: "a dependency graph", before: /\b(crate|package|dependency|module|import)s? $/i },
+  { word: "graph", why: "a call graph", before: /\bcall $/i },
+  { word: "graph", why: "a knowledge graph", before: /\b(knowledge|claim|entity|semantic) $/i },
+  { word: "graph", why: "a graph of receipts", before: /\breceipt $/i },
+  { word: "graph", why: "a graph database", after: /^ (database|databases|db|store|query)\b/i },
+  { word: "graph", why: "a chart", before: /\b(bar|line|pie|time-series|latency|throughput) $/i },
   // harness: a receipt's harness reference, whose words receipts keep (§4.6):
   // its type, the runx:harness: references a run's receipts carry, and the
   // fixtures and tests that hold them.
@@ -104,8 +145,9 @@ export function decisionsFor(rows, file, line, index, token) {
 export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|(harness|test)\/runner\.rs$)|^fixtures\/kernel\/runner\//;
 
 // Files a generator writes, regenerated after a rename and never edited.
-// Cloud's two API schema modules are scripts/generate-public-schemas.ts's.
-export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json|packages\/api\/src\/generated\/(public-protocol-schemas|purchase-schemas)\.ts)$|\.gen\.go$|^contracts\/generated\//;
+// Cloud's two API schema modules are scripts/generate-public-schemas.ts's, and
+// docs/api-surface.md is scripts/gen-api-index.ts's.
+export const GENERATED = /^(schemas\/[^/]+\.schema\.json|docs\/api-surface\.md|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json|packages\/api\/src\/generated\/(public-protocol-schemas|purchase-schemas)\.ts)$|\.gen\.go$|^contracts\/generated\//;
 
 // The sources a rename reads, and the guard with it: code, data and prose
 // by extension, Go and stylesheets among them, and Makefiles by name. A

@@ -23,7 +23,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, SOURCE, STAYING_PATHS, bareWord, decisionsFor, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, PROSE_ONLY, SOURCE, STAYING_PATHS, bareWord, decisionsFor, fencedBlocks, markdownCode, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -238,23 +238,6 @@ const PINNED = {
 function sqlNames(text) {
   const code = text.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'/g, " ");
   return new Set(code.match(TOKEN) ?? []);
-}
-
-/** Each fenced code block in a Markdown text: the span between its fences. */
-function fencedBlocks(text) {
-  const blocks = [];
-  let open;
-  for (const fence of text.matchAll(/^ {0,3}(`{3,}|~{3,})([^\n]*)$/gm)) {
-    const [, marks, info] = fence;
-    if (!open) {
-      if (marks[0] === "`" && info.includes("`")) continue;
-      open = { mark: marks[0], length: marks.length, start: fence.index + fence[0].length + 1 };
-    } else if (marks[0] === open.mark && marks.length >= open.length && info.trim() === "") {
-      blocks.push([open.start, fence.index]);
-      open = undefined;
-    }
-  }
-  return blocks;
 }
 
 /** The spans a file's pins mask: each literal's every occurrence, and each pinned block. */
@@ -503,6 +486,9 @@ function apply(repo, root, write, list, showStays) {
     // none counts among the names its file holds.
     const pinned = pinnedSpans(pins.filter((pin) => pin.file === file), original);
     const inPin = (at) => pinned.some(([from, to]) => at >= from && at < to);
+    // A prose-only word renames in a Markdown file's prose, outside its code.
+    const code = file.endsWith(".md") ? markdownCode(original) : undefined;
+    const inProse = (at) => code !== undefined && !code.some(([from, to]) => at >= from && at < to);
     const held = new Set([...original.matchAll(TOKEN)].filter((m) => !inPin(m.index)).map((m) => m[0]));
     let count = 0;
     const edits = [];
@@ -534,6 +520,17 @@ function apply(repo, root, write, list, showStays) {
             edits.push({ at, from: token, to: rows[0].becomes });
             return rows[0].becomes;
           }
+          // Outside prose a prose-only word keeps its bytes, unless a row
+          // decides it: a tagline in a text block, or a product's description.
+          if (PROSE_ONLY.has(bareWord(token)) && !inProse(at)) {
+            const rows = decisionsFor(decisions, file, line, index, token);
+            if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
+            if (rows.length === 0) return token;
+            count += 1;
+            decided.push(`${site}\t${rows[0].why}\t${token} -> ${rows[0].becomes}\t${shown}`);
+            edits.push({ at, from: token, to: rows[0].becomes });
+            return rows[0].becomes;
+          }
           const stay = stayFor(file, line, index, token);
           if (stay) {
             stays.push(`${site}\t${stay.why}\t${shown}`);
@@ -541,7 +538,7 @@ function apply(repo, root, write, list, showStays) {
           }
           count += 1;
           bare += 1;
-          bareRenamed.add(token.toLowerCase());
+          if (!PROSE_ONLY.has(bareWord(token))) bareRenamed.add(token.toLowerCase());
           const rows = decisionsFor(decisions, file, line, index, token);
           if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
           if (rows.length > 0) {
@@ -606,7 +603,7 @@ function apply(repo, root, write, list, showStays) {
       const stem = dot > 0 ? part.slice(0, dot) : part;
       let to = renames.get(stem);
       const upTo = parts.slice(0, index + 1).join("/") + (last ? "" : "/");
-      if (to === undefined && bareWord(stem) !== undefined && !STAYING_PATHS.test(upTo)) to = renamedBare(stem, "");
+      if (to === undefined && bareWord(stem) !== undefined && !PROSE_ONLY.has(bareWord(stem)) && !STAYING_PATHS.test(upTo)) to = renamedBare(stem, "");
       return to === undefined ? part : to + (dot > 0 ? part.slice(dot) : "");
     });
     const target = renamed.join("/");
