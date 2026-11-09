@@ -1316,6 +1316,374 @@ fn the_same_act_through_two_wrappers_gets_one_provider_key() -> TestResult {
     Ok(())
 }
 
+// Saved authorities (authority.md): saved in the runx home by a command the
+// person runs, for the workspaces it lists, and applied only where a run or
+// a server names it.
+
+impl Project {
+    /// `runx authority save <name> <file>`, for `workspaces` or, with none,
+    /// the workspace it's made in.
+    fn save_authority(
+        &self,
+        name: &str,
+        authority: &Value,
+        workspaces: &[&Path],
+    ) -> TestResult<Output> {
+        let file = self.write(&format!("{name}.authority.json"), &authority.to_string())?;
+        let mut command = self.runx()?;
+        command.args(["authority", "save", name]).arg(&file);
+        for workspace in workspaces {
+            command.arg("--workspace").arg(workspace);
+        }
+        Ok(command.arg("--json").output()?)
+    }
+
+    /// `runx skill <reference> -i ... --authority <name>`.
+    fn run_named(
+        &self,
+        reference: &str,
+        inputs: &[(&str, &str)],
+        name: &str,
+    ) -> TestResult<Output> {
+        let mut command = self.runx()?;
+        command.args(["skill", reference]);
+        for (key, value) in inputs {
+            command.args(["-i", &format!("{key}={value}")]);
+        }
+        Ok(command.args(["--authority", name, "--json"]).output()?)
+    }
+}
+
+const SEEN: [(&str, &str); 3] = [
+    ("key", "tea"),
+    ("text", "takes tea black"),
+    ("attempt", "seen"),
+];
+
+#[test]
+fn a_saved_authority_applies_only_where_it_is_named() -> TestResult {
+    let project = Project::new("runx-authority-saved")?;
+    project.skill("notes", NOTES)?;
+    let saved = json(
+        &project.save_authority("notes", &memory_authority(), &[])?,
+        0,
+    )?;
+    assert_eq!(saved["name"], "notes", "{saved}");
+    let workspaces = saved["workspaces"]
+        .as_array()
+        .ok_or("workspaces is a list")?;
+    assert_eq!(workspaces.len(), 1, "the workspace it was made in: {saved}");
+    assert!(
+        workspaces[0]
+            .as_str()
+            .is_some_and(|id| id.starts_with("ws_")),
+        "{saved}"
+    );
+    assert_eq!(saved["authority"], memory_authority(), "{saved}");
+    let listed = json(
+        &project
+            .runx()?
+            .args(["authority", "list", "--json"])
+            .output()?,
+        0,
+    )?;
+    assert_eq!(listed["authorities"][0]["name"], "notes", "{listed}");
+    let shown = json(
+        &project
+            .runx()?
+            .args(["authority", "show", "notes", "--json"])
+            .output()?,
+        0,
+    )?;
+    assert_eq!(shown, saved);
+
+    // Named, it gives the run its terms.
+    let observed = json(
+        &project.run_named("skills/notes#observe", &SEEN, "notes")?,
+        0,
+    )?;
+    assert_eq!(store_result(&observed)["status"], "committed", "{observed}");
+    // Unnamed, nothing applies it, and private says how to give one.
+    let unnamed = project.run("skills/notes#observe", &SEEN, None)?;
+    assert!(!unnamed.status.success(), "{}", printed(&unnamed));
+    assert!(
+        printed(&unnamed).contains("--authority"),
+        "{}",
+        printed(&unnamed)
+    );
+    // Inspection projects readiness under it.
+    let inspected = json(
+        &project
+            .runx()?
+            .args([
+                "skill",
+                "inspect",
+                "skills/notes#observe",
+                "--authority",
+                "notes",
+                "--json",
+            ])
+            .output()?,
+        0,
+    )?;
+    let private = inspected["connector_readiness"]
+        .as_array()
+        .ok_or("readiness is a list")?
+        .iter()
+        .filter(|entry| entry["connector"] == "private")
+        .collect::<Vec<_>>();
+    assert!(
+        !private.is_empty() && private.iter().all(|entry| entry["ready"] == true),
+        "{inspected}"
+    );
+    // A saved authority and an inline one never mix.
+    let both = project
+        .runx()?
+        .args([
+            "skill",
+            "skills/notes#recall",
+            "-i",
+            "key=tea",
+            "--authority",
+            "notes",
+        ])
+        .args(["--run-authority", &memory_authority().to_string(), "--json"])
+        .output()?;
+    assert!(!both.status.success(), "{}", printed(&both));
+
+    // An explicit empty authority stays empty.
+    json(&project.save_authority("empty", &json!({}), &[])?, 0)?;
+    let empty = project.run_named("skills/notes#recall", &[("key", "tea")], "empty")?;
+    assert!(!empty.status.success(), "{}", printed(&empty));
+
+    // Removed, it names nothing.
+    json(
+        &project
+            .runx()?
+            .args(["authority", "remove", "notes", "--json"])
+            .output()?,
+        0,
+    )?;
+    let removed = project.run_named("skills/notes#recall", &[("key", "tea")], "notes")?;
+    assert!(!removed.status.success(), "{}", printed(&removed));
+    assert!(printed(&removed).contains("notes"), "{}", printed(&removed));
+    Ok(())
+}
+
+#[test]
+fn a_saved_authority_applies_only_in_the_workspaces_it_lists() -> TestResult {
+    let project = Project::new("runx-authority-workspaces")?;
+    project.skill("notes", NOTES)?;
+    let elsewhere = Project::new("runx-authority-elsewhere")?;
+    elsewhere.skill("notes", NOTES)?;
+    let from_elsewhere = |name: &str| -> TestResult<Output> {
+        let mut command = crate::support::unsigned_runx_command_at(&elsewhere.root);
+        Ok(command
+            .env("RUNX_CWD", &elsewhere.root)
+            .env("RUNX_HOME", project.root.join("home"))
+            .args([
+                "skill",
+                "skills/notes#recall",
+                "-i",
+                "key=tea",
+                "--authority",
+                name,
+                "--json",
+            ])
+            .output()?)
+    };
+    json(
+        &project.save_authority("here", &memory_authority(), &[])?,
+        0,
+    )?;
+    // A repository's .mcp.json can name one, so another workspace naming it is refused.
+    let refused = from_elsewhere("here")?;
+    assert!(!refused.status.success(), "{}", printed(&refused));
+    assert!(
+        printed(&refused).contains("workspace"),
+        "{}",
+        printed(&refused)
+    );
+    // Saved for both, it applies in both.
+    json(
+        &project.save_authority(
+            "both",
+            &memory_authority(),
+            &[project.root.as_path(), elsewhere.root.as_path()],
+        )?,
+        0,
+    )?;
+    assert_eq!(json(&from_elsewhere("both")?, 0)?["outcome"], "completed");
+    json(
+        &project.run_named("skills/notes#recall", &[("key", "tea")], "both")?,
+        0,
+    )?;
+    Ok(())
+}
+
+#[test]
+fn saving_an_authority_checks_it_resolves() -> TestResult {
+    let project = Project::new("runx-authority-resolves")?;
+    project.skill("notes", NOTES)?;
+    let mut nowhere = memory_authority();
+    nowhere["delegations"][0]["connector"] = json!("no-such-connector");
+    let mut stated = memory_authority();
+    stated["delegations"][0]["resource_ref"] =
+        json!({"type": "connector_instance", "uri": "runx:connector_instance:abc"});
+    for (name, authority) in [("nowhere", nowhere), ("stated", stated)] {
+        let refused = project.save_authority(name, &authority, &[])?;
+        assert!(!refused.status.success(), "{name}: {}", printed(&refused));
+    }
+    let refused = project.save_authority("Not A Name", &memory_authority(), &[])?;
+    assert!(!refused.status.success(), "{}", printed(&refused));
+    let listed = json(
+        &project
+            .runx()?
+            .args(["authority", "list", "--json"])
+            .output()?,
+        0,
+    )?;
+    assert_eq!(listed["authorities"], json!([]), "{listed}");
+    Ok(())
+}
+
+/// With `HOME` and `USERPROFILE` unset, the home is the workspace's, which a
+/// repository can ship: it keeps no saved authority, and one planted there
+/// is never read (D30).
+#[test]
+fn a_home_that_fell_back_keeps_no_saved_authority() -> TestResult {
+    let project = Project::new("runx-authority-fallback")?;
+    project.skill("notes", NOTES)?;
+    let fell_back = || {
+        let mut command = crate::support::unsigned_runx_command_with_inherited_cwd();
+        command
+            .current_dir(&project.root)
+            .env("RUNX_CWD", &project.root);
+        command
+    };
+    let file = project.write("notes.authority.json", &memory_authority().to_string())?;
+    let saved = fell_back()
+        .args(["authority", "save", "notes"])
+        .arg(&file)
+        .arg("--json")
+        .output()?;
+    assert!(!saved.status.success(), "{}", printed(&saved));
+    assert!(printed(&saved).contains("HOME"), "{}", printed(&saved));
+    project.write(
+        ".runx/authorities/notes.json",
+        &json!({"workspaces": ["ws_00000000000000000000000000000000"], "authority": memory_authority()}).to_string(),
+    )?;
+    let ran = fell_back()
+        .args([
+            "skill",
+            "skills/notes#recall",
+            "-i",
+            "key=tea",
+            "--authority",
+            "notes",
+            "--json",
+        ])
+        .output()?;
+    assert!(!ran.status.success(), "{}", printed(&ran));
+    assert!(printed(&ran).contains("HOME"), "{}", printed(&ran));
+    Ok(())
+}
+
+/// `runx mcp <ref> --authority <name>`'s answer to one call of `tool`, read
+/// line by line as the server writes it.
+fn served_call(
+    project: &Project,
+    reference: &str,
+    authority: Option<&str>,
+    tool: &str,
+    arguments: &Value,
+) -> TestResult<Value> {
+    use std::io::{BufRead, BufReader, Write};
+    let mut command = project.runx()?;
+    command.args(["mcp", reference]);
+    if let Some(name) = authority {
+        command.args(["--authority", name]);
+    }
+    let mut child = command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    let mut stdin = child.stdin.take().ok_or("the server's stdin")?;
+    let mut lines = BufReader::new(child.stdout.take().ok_or("the server's stdout")?).lines();
+    let mut answer = |id: i64| -> TestResult<Value> {
+        for line in lines.by_ref() {
+            let message: Value = serde_json::from_str(&line?)?;
+            if message["id"] == id {
+                return Ok(message);
+            }
+        }
+        Err(format!("the server ended before answering {id}").into())
+    };
+    let frame = |message: Value| format!("{message}\n");
+    stdin.write_all(
+        frame(
+            json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                "protocolVersion": "2025-06-18", "capabilities": {},
+                "clientInfo": {"name": "store-test", "version": "0.0.0"},
+            }}),
+        )
+        .as_bytes(),
+    )?;
+    stdin.flush()?;
+    answer(1)?;
+    stdin.write_all(
+        frame(json!({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}))
+            .as_bytes(),
+    )?;
+    stdin.write_all(
+        frame(json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments}}))
+        .as_bytes(),
+    )?;
+    stdin.flush()?;
+    let called = answer(2)?;
+    drop(stdin);
+    child.wait()?;
+    Ok(called)
+}
+
+/// With authority given at startup, `runx mcp <skill>` reads memory; with
+/// none, it refuses and says how (authority.md).
+#[test]
+fn runx_mcp_reads_memory_under_the_authority_it_names() -> TestResult {
+    let project = Project::new("runx-authority-mcp")?;
+    project.skill("notes", NOTES)?;
+    json(
+        &project.save_authority("notes", &memory_authority(), &[])?,
+        0,
+    )?;
+    let arguments = json!({"key": "tea", "text": "takes tea black", "attempt": "served"});
+    let served = served_call(
+        &project,
+        "skills/notes#observe",
+        Some("notes"),
+        "notes",
+        &arguments,
+    )?;
+    assert_eq!(served["result"]["isError"], false, "{served}");
+    assert_eq!(
+        served["result"]["structuredContent"]["runx"]["status"], "sealed",
+        "{served}"
+    );
+    let refused = served_call(&project, "skills/notes#observe", None, "notes", &arguments)?;
+    assert_eq!(refused["result"]["isError"], true, "{refused}");
+    assert!(refused.to_string().contains("--authority"), "{refused}");
+    // A server can't be started under an authority it can't name.
+    let unnamed = project
+        .runx()?
+        .args(["mcp", "skills/notes#observe", "--authority", "nobody"])
+        .stdin(std::process::Stdio::null())
+        .output()?;
+    assert!(!unnamed.status.success(), "{}", printed(&unnamed));
+    Ok(())
+}
+
 // Nobody can publish under `project`.
 
 #[test]
