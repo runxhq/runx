@@ -1,16 +1,17 @@
-//! Credential delivery contracts: the non-secret observation a receipt records.
-use serde::{Deserialize, Serialize};
+//! What the runtime observed of one credential delivery: the non-secret
+//! record of what it handed an invocation. It lives in the process only; a
+//! receipt seals only its `credential_refs`, so it is no published contract.
+use runx_contracts::Reference;
+use runx_contracts::schema::{IsoDateTime, NonEmptyString};
+use serde::Serialize;
 
-use crate::Reference;
-use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialDeliveryMode {
     ProcessEnv,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialDeliveryPurpose {
     ProviderApi,
@@ -19,7 +20,7 @@ pub enum CredentialDeliveryPurpose {
     WebhookVerification,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialMaterialRole {
     PersonalToken,
@@ -28,7 +29,7 @@ pub enum CredentialMaterialRole {
     SessionToken,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialDeliveryObservationStatus {
     Delivered,
@@ -36,15 +37,13 @@ pub enum CredentialDeliveryObservationStatus {
     NotDelivered,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum CredentialDeliveryObservationSchema {
     #[serde(rename = "runx.credential_delivery.observation.v1")]
     V1,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.credential_delivery.observation.v1")]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CredentialDeliveryObservation {
     pub schema: CredentialDeliveryObservationSchema,
     pub observation_id: NonEmptyString,

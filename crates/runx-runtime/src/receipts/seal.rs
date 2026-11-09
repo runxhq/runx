@@ -865,11 +865,11 @@ mod tests {
 
     use super::*;
     use crate::adapter::InvocationStatus;
-    use runx_contracts::{
+    use crate::credentials::{
         CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
         CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
-        JsonValue, ProofKind,
     };
+    use runx_contracts::{JsonValue, ProofKind};
 
     /// Concrete error type for fallible tests, so `?` propagates the receipt and
     /// serialization errors a test exercises without erasing them behind a trait

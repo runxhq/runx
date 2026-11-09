@@ -14,7 +14,6 @@ pub mod connector;
 pub mod connector_instance;
 pub mod conversation_source;
 pub mod copyable_command;
-pub mod credential_delivery;
 pub mod decision;
 pub mod decision_adapter;
 pub mod digest;
@@ -91,10 +90,6 @@ pub use connector::{
 pub use connector_instance::{ConnectorInstance, InstanceAuthority};
 pub use conversation_source::{ConversationObservation, ConversationPage};
 pub use copyable_command::{CommandShell, CopyableCommand, render_posix_command};
-pub use credential_delivery::{
-    CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
-    CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
-};
 pub use decision::{Decision, DecisionChoice};
 pub use decision_adapter::{DecisionObservation, DecisionOrigin};
 pub use digest::{ContentDigest, DigestAlgorithm, hex_lower, sha256_hex, sha256_prefixed};

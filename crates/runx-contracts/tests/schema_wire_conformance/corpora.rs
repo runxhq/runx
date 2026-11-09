@@ -897,51 +897,6 @@ pub(super) fn set_field(mut value: Value, field: &str, replacement: Value) -> Va
     value
 }
 
-pub(super) fn credential_delivery_observation_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.credential_delivery.observation.v1",
-        "observation_id": "obs_1",
-        "request_id": "req_1",
-        "status": "delivered",
-        "run_ref": a_ref(),
-        "profile_id": "github-env",
-        "provider": "github",
-        "purpose": "provider_api",
-        "credential_refs": [a_ref()],
-        "delivered_roles": ["api_key"],
-        "observed_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        (
-            "missing observation_id",
-            drop_field(valid.clone(), "observation_id"),
-        ),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "empty observation_id",
-            set_field(valid.clone(), "observation_id", json!("")),
-        ),
-        (
-            "empty profile_id",
-            set_field(valid.clone(), "profile_id", json!("")),
-        ),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("nope")),
-        ),
-        (
-            "malformed observed_at",
-            set_field(valid.clone(), "observed_at", json!("nope")),
-        ),
-        ("missing run_ref", drop_field(valid.clone(), "run_ref")),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 pub(super) fn question_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({ "id": "q1", "prompt": "What?", "required": true, "type": "string" });
     vec![

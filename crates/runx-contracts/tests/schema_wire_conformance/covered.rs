@@ -1,7 +1,6 @@
 use runx_contracts::agent_context::AgentContextEnvelope;
 use runx_contracts::artifact::Artifact;
 use runx_contracts::authority::{AuthoritySubsetProof, AuthorityTerm};
-use runx_contracts::credential_delivery::CredentialDeliveryObservation;
 use runx_contracts::decision::Decision;
 use runx_contracts::doctor::DoctorReport;
 use runx_contracts::host_protocol::{
@@ -64,11 +63,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "decision.schema.json",
             emitted: Decision::json_schema(),
             corpus: decision_corpus(),
-        },
-        Covered {
-            file_name: "credential-delivery-observation.schema.json",
-            emitted: CredentialDeliveryObservation::json_schema(),
-            corpus: credential_delivery_observation_corpus(),
         },
         Covered {
             file_name: "question.schema.json",

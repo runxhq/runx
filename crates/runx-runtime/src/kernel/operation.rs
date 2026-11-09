@@ -868,7 +868,7 @@ pub(crate) struct OperationOutcome {
 #[derive(Debug)]
 pub(crate) struct Dispatched {
     pub boundary: ExecutionBoundaryKind,
-    pub credential: Option<runx_contracts::CredentialDeliveryObservation>,
+    pub credential: Option<crate::credentials::CredentialDeliveryObservation>,
 }
 
 impl Dispatched {
@@ -1582,7 +1582,7 @@ fn private_driver(
 #[cfg(feature = "mcp")]
 fn stdio_server_delivery(
     context: &OperationAdmission,
-) -> Option<runx_contracts::CredentialDeliveryObservation> {
+) -> Option<crate::credentials::CredentialDeliveryObservation> {
     let admitted = &context.admitted;
     let instance = &admitted.instance;
     let manifest = &admitted.connector.manifest;

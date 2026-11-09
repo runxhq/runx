@@ -6,7 +6,6 @@ import {
   agentContextEnvelopeSchema,
   turnInvocationSchema,
   approvalGateSchema,
-  credentialDeliveryObservationV1Schema,
   storeResultV1Schema,
   doctorV1Schema,
   listV1Schema,
@@ -61,7 +60,6 @@ describe("@runxhq/contracts", () => {
     expect(approvalGateSchema).toBe(runxContractSchemas.approvalGate);
     expect(resolutionRequestSchema).toBe(runxContractSchemas.resolutionRequest);
     expect(resolutionResponseSchema).toBe(runxContractSchemas.resolutionResponse);
-    expect(credentialDeliveryObservationV1Schema).toBe(runxContractSchemas.credentialDeliveryObservation);
     expect(storeResultV1Schema).toBe(runxContractSchemas.storeResult);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);

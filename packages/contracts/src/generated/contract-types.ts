@@ -680,33 +680,6 @@ export type CredentialDeliveryContract = {
   readonly env: string;
 };
 
-export type CredentialDeliveryModeContract = "process_env";
-
-export type CredentialDeliveryObservationContract = {
-  readonly credential_refs: readonly ReferenceContract[];
-  readonly delivered_roles: readonly CredentialMaterialRoleContract[];
-  readonly delivery_mode?: CredentialDeliveryModeContract;
-  readonly host_ref?: ReferenceContract;
-  readonly material_id_digest?: string;
-  readonly observation_id: string;
-  readonly observed_at: string;
-  readonly profile_id: string;
-  readonly provider: string;
-  readonly purpose: CredentialDeliveryPurposeContract;
-  readonly redaction_refs?: readonly ReferenceContract[];
-  readonly request_id: string;
-  readonly response_id?: string;
-  readonly run_ref: ReferenceContract;
-  readonly schema: CredentialDeliveryObservationSchemaContract;
-  readonly status: CredentialDeliveryObservationStatusContract;
-};
-
-export type CredentialDeliveryObservationSchemaContract = "runx.credential_delivery.observation.v1";
-
-export type CredentialDeliveryObservationStatusContract = "delivered" | "denied" | "not_delivered";
-
-export type CredentialDeliveryPurposeContract = "provider_api" | "registry" | "artifact_store" | "webhook_verification";
-
 export type CredentialFieldContract = {
   readonly label?: string;
   readonly name: string;
@@ -715,8 +688,6 @@ export type CredentialFieldContract = {
   readonly required?: false;
   readonly secret?: false;
 };
-
-export type CredentialMaterialRoleContract = "personal_token" | "api_key" | "client_secret" | "session_token";
 
 /** A fixed set of checks a verdict answers. Deterministic steps produce it, bound to the subject's revision, or a person writes it, and whoever produced the subject can't change it. */
 export type CriteriaContract = {

@@ -8,11 +8,6 @@ const RESOLUTION_REQUEST_SCHEMA: &str =
     include_str!("../../../schemas/resolution-request.schema.json");
 const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
     FixtureSchemaMapping::new(
-        "fixtures/contracts/credential-delivery/observation.json",
-        "/expected",
-        "credential-delivery-observation.schema.json",
-    ),
-    FixtureSchemaMapping::new(
         "fixtures/contracts/run-spine/receipt-abnormal.json",
         "/expected",
         "receipt.schema.json",

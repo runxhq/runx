@@ -188,11 +188,6 @@ export {
 } from "./schemas/skill-authoring.js";
 
 export {
-  credentialDeliveryObservationV1Schema,
-  validateCredentialDeliveryObservationContract,
-} from "./schemas/credential-delivery.js";
-
-export {
   storeResultV1Schema,
   validateStoreResultContract,
 } from "./schemas/store-result.js";
@@ -450,7 +445,6 @@ export const runxContractSchemas = {
   approvalGate: runxSchemaArtifacts["approval-gate.schema.json"],
   resolutionRequest: runxSchemaArtifacts["resolution-request.schema.json"],
   resolutionResponse: runxSchemaArtifacts["resolution-response.schema.json"],
-  credentialDeliveryObservation: runxSchemaArtifacts["credential-delivery-observation.schema.json"],
   storeResult: storeResultV1Schema,
   doctor: runxSchemaArtifacts["doctor.schema.json"],
   list: runxSchemaArtifacts["list.schema.json"],

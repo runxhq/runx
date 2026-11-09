@@ -7,13 +7,18 @@ use std::sync::Arc;
 
 use base64::Engine as _;
 use runx_contracts::{
-    CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationStatus,
-    CredentialDeliveryPurpose, JsonObject, JsonValue, ProofKind, Reference, ReferenceType,
-    sha256_hex, sha256_prefixed,
+    JsonObject, JsonValue, ProofKind, Reference, ReferenceType, sha256_hex, sha256_prefixed,
 };
 use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::Zeroize;
+
+mod observation;
+
+pub use observation::{
+    CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
+    CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
+};
 
 const REDACTED_CREDENTIAL: &str = "[redacted-credential]";
 const MAX_STRUCTURED_REDACTION_DEPTH: usize = 128;
@@ -78,7 +83,7 @@ pub struct CredentialDelivery {
 struct CredentialDeliveryState {
     secret_env: SecretEnv,
     secret_taint: SecretTaint,
-    public_observation: Option<runx_contracts::CredentialDeliveryObservation>,
+    public_observation: Option<CredentialDeliveryObservation>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -362,7 +367,7 @@ impl CredentialDelivery {
 
     fn from_parts(
         secret_env: SecretEnv,
-        public_observation: Option<runx_contracts::CredentialDeliveryObservation>,
+        public_observation: Option<CredentialDeliveryObservation>,
     ) -> Self {
         let secret_taint = SecretTaint::from_secret_env(&secret_env);
         Self {
@@ -435,7 +440,7 @@ impl CredentialDelivery {
     }
 
     #[must_use]
-    pub fn public_observation(&self) -> Option<&runx_contracts::CredentialDeliveryObservation> {
+    pub fn public_observation(&self) -> Option<&CredentialDeliveryObservation> {
         self.inner.public_observation.as_ref()
     }
 
@@ -491,7 +496,7 @@ pub(crate) fn build_local_provision_observation(
     let material_id_digest = digest_material_id(material_id);
     let material_id_hex = sha256_hex(material_id.as_bytes());
     CredentialDeliveryObservation {
-        schema: runx_contracts::CredentialDeliveryObservationSchema::V1,
+        schema: CredentialDeliveryObservationSchema::V1,
         observation_id: format!("local-credential-delivery/{material_id_hex}").into(),
         request_id: format!("local-credential-provision/{material_id_hex}").into(),
         response_id: None,
@@ -518,7 +523,7 @@ pub(crate) fn build_local_provision_observation(
             proof_kind: Some(ProofKind::CredentialResolution),
         }],
         material_id_digest: Some(material_id_digest.into()),
-        delivered_roles: vec![runx_contracts::CredentialMaterialRole::ApiKey],
+        delivered_roles: vec![CredentialMaterialRole::ApiKey],
         redaction_refs: None,
         observed_at: crate::time::now_iso8601().into(),
     }

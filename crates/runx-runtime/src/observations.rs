@@ -9,7 +9,9 @@
 
 use std::collections::BTreeMap;
 
-use runx_contracts::{CredentialDeliveryObservation, ExecutionBoundaryKind, Reference};
+use runx_contracts::{ExecutionBoundaryKind, Reference};
+
+use crate::credentials::CredentialDeliveryObservation;
 
 use crate::RuntimeError;
 
