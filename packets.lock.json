@@ -111,7 +111,7 @@
     },
     {
       "id": "runx/message-send.notification_plan.v1",
-      "digest": "sha256:6b74cf5faac4ce14c267e1a089f1d4277828ce6952ad0657fe8c28b4078f3943"
+      "digest": "sha256:48b829d1b58690b8b463c3de0d947eed5ffe7ae8413ed7631f3ee487e5af7142"
     },
     {
       "id": "runx/message-send.plan.v1",
@@ -215,7 +215,7 @@
     },
     {
       "id": "runx/team-delegate.delegation.v1",
-      "digest": "sha256:d23ad0da7b657db2dd64aa877c1e848af1d1793eb99f8742d8720ab1a17f031c"
+      "digest": "sha256:b752babac69424d7e20e09326b6fa5d0cbdec9f8802d58fceed9f06c8fea6a30"
     },
     {
       "id": "runx/twitter.evidence.v1",
