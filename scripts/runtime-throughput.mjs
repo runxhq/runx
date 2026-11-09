@@ -544,7 +544,7 @@ function workloadNameFromEstimatePath(estimatesPath) {
 }
 
 function measureNativeCliLaunch(options) {
-  return measureRequests(nativeCliProbe(), options, { spawn_count: 1 });
+  return measureRequests(nativeCliProbe(), options);
 }
 
 function measureCliFileInput(options) {
@@ -603,7 +603,7 @@ methods:
       cwd: root,
       env: { RUNX_CWD: root },
     };
-    return measureRequests(probe, options, { spawn_count: 1 });
+    return measureRequests(probe, options);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -644,10 +644,15 @@ function nativeCliProbe() {
 }
 
 // How one request ended: it completed, failed, or ran past its timeout.
-function runNativeCliProbe(probe) {
+// With `countsPath`, the process writes the work it counted there at exit.
+function runNativeCliProbe(probe, countsPath) {
   const result = spawnSync(probe.command, probe.args, {
     cwd: probe.cwd ?? repoRoot,
-    env: probe.env ? { ...process.env, ...probe.env } : process.env,
+    env: {
+      ...process.env,
+      ...(probe.env ?? {}),
+      ...(countsPath ? { RUNX_PERF_COUNTS_PATH: countsPath } : {}),
+    },
     stdio: "ignore",
     timeout: requestTimeoutMs,
   });
@@ -661,10 +666,19 @@ function runNativeCliProbe(probe) {
 // i-th request is due at start + i / rate, and its latency runs from when it
 // was due to when it ended, so a stall shows in every request it delays.
 // Errors and timeouts are counted, and percentiles come from the completed
-// requests' own timings.
-function measureRequests(probe, options, counters) {
-  for (let index = 0; index < nativeCliWarmupCount; index += 1) {
-    runNativeCliProbe(probe);
+// requests' own timings. The untimed warm-up requests count the processes
+// runx spawns for one, so the timed ones carry no counting.
+function measureRequests(probe, options) {
+  const countsRoot = mkdtempSync(path.join(tmpdir(), "runx-request-counts-"));
+  let spawnCount = 0;
+  try {
+    for (let index = 0; index < nativeCliWarmupCount; index += 1) {
+      const countsPath = path.join(countsRoot, `${index}.json`);
+      runNativeCliProbe(probe, countsPath);
+      spawnCount = Math.max(spawnCount, readJson(countsPath).process_spawns);
+    }
+  } finally {
+    rmSync(countsRoot, { recursive: true, force: true });
   }
   const arrivalPerSecond = Number(options.arrivalRate ?? defaultArrivalPerSecond);
   const intervalMs = 1_000 / arrivalPerSecond;
@@ -693,7 +707,8 @@ function measureRequests(probe, options, counters) {
     requests: nativeCliSampleCount,
     errors,
     timeouts,
-    ...counters,
+    // The child processes runx spawned for one request, as it counted them.
+    spawn_count: spawnCount,
   });
 }
 

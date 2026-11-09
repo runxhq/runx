@@ -32,6 +32,10 @@ fn main() -> ExitCode {
         None => runx_cli::router::route_args(args),
     };
     let exit_code = dispatch(action, workspace.as_ref());
+    // A probe names where this process's work counts go (performance.md).
+    if let Err(error) = runx_runtime::work_counts::record_from_process_env() {
+        let _ignored = write_stderr_line(&format!("runx: couldn't record work counts: {error}"));
+    }
     if runx_runtime::interrupt::was_interrupted() {
         ExitCode::from(130)
     } else if runx_runtime::interrupt::was_stopped() {

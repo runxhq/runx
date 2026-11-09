@@ -60,6 +60,7 @@ pub use process::detached::{
 pub use time::now_iso8601;
 pub mod saved_authorities;
 pub mod tool_catalogs;
+pub mod work_counts;
 pub mod workspace_ids;
 
 pub use execution::orchestrator;

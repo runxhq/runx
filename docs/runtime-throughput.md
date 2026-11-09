@@ -110,9 +110,11 @@ runs from when it was due to when it ended. A request that runs past its slot
 delays the next, and the next one's latency counts that wait, so a stall shows
 in every request it holds up instead of averaging away. Failed and timed-out
 requests are counted, and a request workload with any is refused. These rows
-record `spawn_count` 1, since the probe launches one process per request. The
-native launch gate requires `spawn_count <= 1` and no p99 regression above the
-declared budget.
+record `spawn_count`: the child processes runx spawned for one request, as the
+runtime counts them at its shared spawn point and writes them where
+`RUNX_PERF_COUNTS_PATH` names, read from the untimed warm-up requests so the
+timed ones carry no counting. A launch and a native digest spawn none, so their
+gates require `spawn_count` 0 and no p99 regression above the declared budget.
 Deterministic JavaScript owns a runtime-scoped bounded worker pool with a fresh
 engine context per invocation. The pool ceiling is four processes. Each process
 has a 160 MiB working-set ceiling, so the explicit aggregate JavaScript
@@ -184,7 +186,7 @@ New production-path workloads compare repeat captures against
 85% of baseline throughput; a request workload among them permits at most 25%
 p99 variance. Provider finality
 requires zero child-process spawns, and native artifact work holds no worker
-session at all; the canonical CLI input path permits one CLI process. The wider tolerance reflects real durable
+session at all; the canonical CLI input path spawns no process. The wider tolerance reflects real durable
 filesystem and process variance; it does not excuse removing attempt
 persistence, bounded continuation, readback, finality, or receipt sealing from
 the measured paths.
@@ -240,8 +242,8 @@ pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.j
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads provider_effect_finality --min-throughput-ratio 0.85 --max-spawn-count 0
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_admission --min-throughput-ratio 0.85
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_page_continuation,twitter_archive_selection --min-throughput-ratio 0.85 --max-growth-exponent 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_cli_launch --max-spawn-count 1 --max-p99-regression 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads cli_file_input --max-p99-regression 1.25 --max-spawn-count 1
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_cli_launch --max-spawn-count 0 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads cli_file_input --max-p99-regression 1.25 --max-spawn-count 0
 ```
 
 ## Evidence ownership

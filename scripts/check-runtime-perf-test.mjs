@@ -120,7 +120,7 @@ function runMeanCheck(baselinePath, candidatePath) {
 function runRequestCheck(baselinePath, candidatePath) {
   return runChecks(baselinePath, candidatePath, "native_cli_launch", [
     "--max-spawn-count",
-    "1",
+    "0",
     "--max-p99-regression",
     "1.10",
   ]);
@@ -180,7 +180,7 @@ function criterion({ throughput, mean_ns }) {
 }
 
 /** A request workload as a capture reports it: each request timed on its own. */
-function requests({ p99_ns, spawn_count = 1, errors = 0, timeouts = 0 }) {
+function requests({ p99_ns, spawn_count = 0, errors = 0, timeouts = 0 }) {
   const metric = {
     source: "requests",
     unit: "nanoseconds",

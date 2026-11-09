@@ -40,7 +40,7 @@ impl OwnedProcess {
             super::ensure_windows_host_job()?;
             let mut wrapped = CommandWrap::from(command);
             wrapped.wrap(JobObject);
-            wrapped.spawn().map(|child| Self { child })
+            crate::work_counts::counted_spawn(wrapped.spawn()).map(|child| Self { child })
         }
     }
 

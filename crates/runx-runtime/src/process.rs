@@ -133,7 +133,8 @@ mod tests {
 /// Keep concurrent launches from inheriting another child's transient pipes.
 /// Apple's std pipe implementation sets CLOEXEC after pipe creation; the lock
 /// covers pipe setup and spawn only, never a handshake, wait, or invocation.
-/// All runtime process owners must share this lock rather than lock per pool.
+/// All runtime process owners must share this lock rather than lock per pool,
+/// and each spawn it covers is counted (`work_counts`).
 #[inline]
 pub(crate) fn with_spawn_lock<T>(spawn: impl FnOnce() -> std::io::Result<T>) -> std::io::Result<T> {
     #[cfg(target_vendor = "apple")]
@@ -143,7 +144,7 @@ pub(crate) fn with_spawn_lock<T>(spawn: impl FnOnce() -> std::io::Result<T>) -> 
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     };
-    spawn()
+    crate::work_counts::counted_spawn(spawn())
 }
 
 #[cfg(not(windows))]
