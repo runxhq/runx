@@ -17,8 +17,8 @@ use thiserror::Error;
 use crate::canonical_json::canonical_stable_json;
 use crate::connector::{CredentialName, Template};
 use crate::purchase::{
-    CurrencyCode, EmbeddedOfferVersionBinding, OfferVersionBinding, PortableAmountMinor,
-    PrincipalReference, SettlementFamilies,
+    CurrencyCode, EmbeddedOfferVersionBinding, PortableAmountMinor, PrincipalReference,
+    SettlementFamilies,
 };
 use crate::schema::{NamedSchemas, NonEmptyString, RunxSchema, record_named};
 use crate::{Digest, JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
@@ -425,20 +425,6 @@ pub struct PaidSkillMethodOffer {
     pub accepts: SettlementFamilies,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_lease: Option<RequiredLease>,
-}
-
-impl PaidSkillMethodOffer {
-    /// The registry-resolved offer for author terms under `offer_version`.
-    #[must_use]
-    pub fn from_terms(offer_version: OfferVersionBinding, terms: &PaidSkillOfferTerms) -> Self {
-        Self {
-            offer_version: offer_version.into(),
-            price: terms.price.clone(),
-            currency: terms.currency.clone(),
-            accepts: terms.accepts.clone(),
-            requires_lease: terms.requires_lease.clone(),
-        }
-    }
 }
 
 /// One to sixty-four method offers keyed by unique method name.
