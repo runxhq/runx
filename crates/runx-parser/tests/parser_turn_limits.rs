@@ -23,7 +23,7 @@ fn allowance(manifest: &SkillMethodManifest, method: &str) -> Result<TurnAllowan
     let step = manifest
         .methods
         .get(method)
-        .and_then(|method| method.graph.steps.first())
+        .and_then(|method| method.workflow.steps.first())
         .ok_or_else(|| format!("method {method} has no step"))?;
     match &step.kind {
         StepKind::Agent(agent) => Ok(agent.allowance.clone()),
@@ -79,7 +79,7 @@ methods:
         skills: vec![SkillAllowance::Skill("./label".into())],
         asks: true,
     };
-    for step in &manifest.methods["review"].graph.steps {
+    for step in &manifest.methods["review"].workflow.steps {
         let StepKind::Agent(agent) = &step.kind else {
             return Err("expected agent steps".to_owned());
         };
@@ -115,7 +115,7 @@ methods:
     let manifest = manifest("answer", source)?;
 
     let method = &manifest.methods["reply"];
-    let [step] = method.graph.steps.as_slice() else {
+    let [step] = method.workflow.steps.as_slice() else {
         return Err("expected one step".to_owned());
     };
     assert_eq!(step.id, "reply");
@@ -131,7 +131,7 @@ methods:
             .as_ref()
             .is_some_and(|outputs| outputs.contains_key("answer"))
     );
-    assert_eq!(method.graph.result_from, ["reply"]);
+    assert_eq!(method.workflow.result_from, ["reply"]);
     assert_eq!(allowance(&manifest, "reply")?.tools, ["fs.read"]);
 
     // The method without steps is refused, by name.
@@ -291,7 +291,7 @@ methods:
     );
     assert!(allowance(&manifest, "omitted")?.operations.is_empty());
     assert!(matches!(
-        manifest.methods["graph"].graph.steps[0].kind,
+        manifest.methods["graph"].workflow.steps[0].kind,
         StepKind::Operation(_)
     ));
     // A requirement lists exactly the operations the steps name, once each.

@@ -13,7 +13,7 @@ import {
 
 type SkillMethod = {
   readonly name: string;
-  readonly graph: { readonly steps: readonly unknown[] };
+  readonly workflow: { readonly steps: readonly unknown[] };
 };
 
 type SkillMethodManifest = {

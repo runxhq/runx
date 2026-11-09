@@ -294,7 +294,7 @@ fn package_path<'a>(
         })
 }
 
-/// Assign slots by walking declared graph edges from the root. Filesystem
+/// Assign slots by walking declared workflow edges from the root. Filesystem
 /// paths never determine published paths, and distinct source bindings remain
 /// distinct even when their package bytes are identical. The existing digest
 /// commits all files and the complete edge descriptor.
@@ -319,13 +319,13 @@ fn portable_package_paths(
             .iter()
             .filter(|edge| edge.source_package_root == source)
             .map(|edge| {
-                let graph = edge.workflow_directory.strip_prefix(&source).map_err(|_| {
+                let workflow = edge.workflow_directory.strip_prefix(&source).map_err(|_| {
                     RegistryPublishPackageError::invalid(
                         "publish workflow directory is outside its source package",
                     )
                 })?;
                 Ok((
-                    graph.to_string_lossy().replace('\\', "/"),
+                    workflow.to_string_lossy().replace('\\', "/"),
                     &edge.reference,
                     edge,
                 ))

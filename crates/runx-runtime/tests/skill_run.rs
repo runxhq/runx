@@ -744,7 +744,7 @@ methods:
         managed_agent: Default::default(),
     })?;
 
-    // The step's packet violation fails the step; the graph seals that
+    // The step's packet violation fails the step; the workflow seals that
     // failure rather than a result.
     let output = object(&result.output, "skill run result")?;
     assert_eq!(string_field(output, "outcome"), Some("failed"));

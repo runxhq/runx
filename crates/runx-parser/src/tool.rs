@@ -4,7 +4,7 @@ use runx_contracts::tools::ToolManifestSchema;
 use runx_contracts::{JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
-use crate::graph::{ProcessTool, output_artifacts, validate_process_tool};
+use crate::workflow::{ProcessTool, output_artifacts, validate_process_tool};
 use crate::skill::{OutputArtifacts, SkillInput, validate_input_fields};
 use crate::{
     ParseError, ValidationError, assert_yaml_supported_subset, json_fields::JsonFieldReader,

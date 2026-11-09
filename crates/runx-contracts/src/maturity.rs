@@ -1,6 +1,6 @@
 //! Skill maturity tier.
 //!
-//! Maturity describes how ready a *skill* is (tests, graph integration). It is
+//! Maturity describes how ready a *skill* is (tests, workflow integration). It is
 //! orthogonal to trust, which describes the *author*. The registry computes
 //! the tier from test signals when a version is published and stores it on
 //! the record; readers never recompute it.
@@ -17,6 +17,6 @@ pub enum MaturityTier {
     /// Every declared test case passes.
     Beta,
     /// Every declared case passes and at least one passing case proves the
-    /// skill runs inside a graph.
+    /// skill runs inside a workflow.
     Stable,
 }

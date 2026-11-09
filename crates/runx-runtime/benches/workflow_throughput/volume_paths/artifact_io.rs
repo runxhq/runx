@@ -136,7 +136,7 @@ impl ArtifactFixture {
     }
 }
 
-/// Native tool calls as every caller makes them: each a one-step graph on a
+/// Native tool calls as every caller makes them: each a one-step workflow on a
 /// run of its own, admitted, dispatched and sealed.
 struct ToolCalls {
     directory: TempDir,
@@ -186,7 +186,7 @@ impl ToolCalls {
     /// The step contract `tool` produced from `inputs`.
     fn call(&self, tool: &str, inputs: JsonObject) -> Result<JsonObject, Box<dyn Error>> {
         let run_id = format!("run_artifact_{}", self.runs.fetch_add(1, Ordering::Relaxed));
-        let graph = validate_method_manifest(
+        let workflow = validate_method_manifest(
             "artifact-io",
             parse_method_manifest_yaml(&serde_json::to_string(&serde_json::json!({
                 "minimum_runx": "0.12.0",
@@ -197,12 +197,12 @@ impl ToolCalls {
         )?
         .methods
         .remove("call")
-        .map(|method| method.graph)
+        .map(|method| method.workflow)
         .ok_or("the artifact call has its method")?;
         let mut run = self
             .runtime
             .for_run(Self::evaluation(&self.store, &run_id)?)
-            .run_workflow_with_host(self.root(), graph, &mut NoopHost)?;
+            .run_workflow_with_host(self.root(), workflow, &mut NoopHost)?;
         let step = run
             .steps
             .pop()

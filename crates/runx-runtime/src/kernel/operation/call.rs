@@ -65,7 +65,7 @@ pub(crate) struct CallResult {
     #[serde(default)]
     pub equals: Option<JsonObject>,
     /// Nested result paths delivered only to the immediate caller: their
-    /// values stay out of graph state and receipts.
+    /// values stay out of workflow state and receipts.
     #[serde(default)]
     pub ephemeral: Option<Vec<String>>,
 }

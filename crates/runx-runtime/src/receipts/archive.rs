@@ -53,7 +53,7 @@ pub struct ReceiptRow {
     pub receipt_uri: String,
     /// The signed subject: the run, or one node of it.
     pub subject_uri: String,
-    /// The graph that ran.
+    /// The workflow that ran.
     pub name: String,
     /// How the receipt's subject ended.
     pub outcome: String,

@@ -21,7 +21,7 @@ use runx_parser::{AskGate, OutputArtifacts, StepKind, ToolTarget, WorkflowStep};
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
-use super::super::graph::{
+use super::super::workflow::{
     LoadedStepSkill, StepSkillLoadOptions, bind_run_inputs, load_step_skill,
 };
 use super::super::skill_context::load_context_skills;
@@ -241,7 +241,7 @@ where
     })
 }
 
-// A child skill always runs its method's graph, nested under this step, with
+// A child skill always runs its method's workflow, nested under this step, with
 // its declared inputs materialized from the step's.
 fn run_loaded_skill_step<A>(
     skill: LoadedStepSkill,
@@ -397,7 +397,7 @@ where
         NestedWorkflow {
             step: request.step,
             skill: &skill_name,
-            graph: skill.method.graph,
+            workflow: skill.method.workflow,
             inputs: &request.inputs,
             act: request.child_act.as_ref(),
             provenance: &request.provenance,
@@ -469,12 +469,12 @@ where
     )
 }
 
-/// A child skill's graph and what it runs with.
+/// A child skill's workflow and what it runs with.
 struct NestedWorkflow<'a> {
     /// The parent step the child runs as.
     step: &'a WorkflowStep,
     skill: &'a str,
-    graph: runx_parser::Workflow,
+    workflow: runx_parser::Workflow,
     inputs: &'a JsonObject,
     /// The act the parent step gives the child.
     act: Option<&'a CallAct>,
@@ -541,10 +541,10 @@ where
     A: SkillAdapter,
 {
     let inherited =
-        crate::execution::graph::inherited_step_provenance(&nested.graph, nested.provenance);
+        crate::execution::workflow::inherited_step_provenance(&nested.workflow, nested.provenance);
     let log = runtime.options.run.child(&nested.step.id)?;
-    let graph = bind_run_inputs(
-        nested.graph,
+    let workflow = bind_run_inputs(
+        nested.workflow,
         nested.inputs,
         nested.act,
         log.run_id(),
@@ -568,13 +568,13 @@ where
         &runtime.options.clock.now(),
     )?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
-        return super::sealed_workflow_run(graph, record);
+        return super::sealed_workflow_run(workflow, record);
     }
     let mut child_options = runtime.options.as_ref().clone();
     // A child holds what its parent step does, narrowed by its own method.
     child_options.run_authority = crate::RunAuthority::of_method(
         crate::RunAuthority::of_step(child_options.run_authority.take(), nested.step),
-        &graph,
+        &workflow,
     );
     child_options.env = nested.env.clone();
     child_options.run = log.clone();
@@ -591,7 +591,7 @@ where
         runtime.local_artifacts.clone(),
     )
     .with_inherited_provenance(inherited);
-    match child_runtime.run_workflow_with_host(nested.skill_directory, graph.clone(), host) {
+    match child_runtime.run_workflow_with_host(nested.skill_directory, workflow.clone(), host) {
         Ok(run) => {
             log.record_sealed(&run.receipt, None)?;
             Ok(run)
@@ -611,17 +611,17 @@ where
         // step it ran, and its parent step closes over it. What leaves the
         // child open leaves its parent open.
         Err(error) => {
-            let stopped = child_runtime.seal_stop(graph, error, host)?;
+            let stopped = child_runtime.seal_stop(workflow, error, host)?;
             log.record_sealed(&stopped.run.receipt, Some(&stopped.result))?;
             Ok(stopped.run)
         }
     }
 }
 
-/// A nested graph exposes the same canonical public result that a top-level
-/// graph returns, and which of its outputs are artifacts. This keeps
+/// A nested workflow exposes the same canonical public result that a top-level
+/// workflow returns, and which of its outputs are artifacts. This keeps
 /// composition and direct invocation on one output contract without
-/// re-reading the nested graph's diagnostic step state.
+/// re-reading the nested workflow's diagnostic step state.
 fn adopt_nested_workflow_result(
     result: &JsonValue,
     artifacts: &BTreeSet<String>,
@@ -2064,7 +2064,7 @@ mod step_requirements {
     #[test]
     fn a_worker_step_projects_its_environment_without_interpretation()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "worker-requirements",
             r#"
 minimum_runx: 0.12.0
@@ -2079,7 +2079,7 @@ methods:
             optional: [TRACE_LABEL]
 "#,
         )?;
-        let step = graph.steps.first().ok_or("missing step")?;
+        let step = workflow.steps.first().ok_or("missing step")?;
         let StepKind::Tool(ToolTarget::Worker(worker)) = &step.kind else {
             return Err("expected a worker step".into());
         };

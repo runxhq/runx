@@ -182,11 +182,11 @@ fn drive_state_machine(
     steps: &[SequentialWorkflowStepDefinition],
     step_index: &SequentialWorkflowStepIndex,
 ) -> usize {
-    let mut graph = create_sequential_workflow("throughput_workflow", steps);
+    let mut workflow = create_sequential_workflow("throughput_workflow", steps);
     let mut completed = 0usize;
     let mut planning_cursor = 0usize;
     loop {
-        while graph.steps.get(planning_cursor).is_some_and(|step| {
+        while workflow.steps.get(planning_cursor).is_some_and(|step| {
             matches!(
                 step.state,
                 runx_core::state_machine::WorkflowStepState::Succeeded
@@ -196,7 +196,7 @@ fn drive_state_machine(
             planning_cursor += 1;
         }
         let plan = plan_sequential_workflow_transition_indexed_from(
-            &graph,
+            &workflow,
             steps,
             step_index,
             planning_cursor,
@@ -205,17 +205,17 @@ fn drive_state_machine(
             SequentialWorkflowPlan::RunStep {
                 step_id, attempt, ..
             } => {
-                graph = start_step(graph, &step_id, step_index);
-                graph = succeed_step(graph, &step_id, attempt, step_index);
+                workflow = start_step(workflow, &step_id, step_index);
+                workflow = succeed_step(workflow, &step_id, attempt, step_index);
                 completed += 1;
             }
             SequentialWorkflowPlan::Complete => {
                 apply_sequential_workflow_event_owned_indexed(
-                    &mut graph,
+                    &mut workflow,
                     SequentialWorkflowEvent::Complete,
                     step_index,
                 );
-                return completed + usize::from(graph.state == WorkflowState::Succeeded);
+                return completed + usize::from(workflow.state == WorkflowState::Succeeded);
             }
             SequentialWorkflowPlan::Blocked { .. } | SequentialWorkflowPlan::Failed { .. } => {
                 return completed;
@@ -225,23 +225,23 @@ fn drive_state_machine(
 }
 
 fn start_step(
-    mut graph: runx_core::state_machine::SequentialWorkflow,
+    mut workflow: runx_core::state_machine::SequentialWorkflow,
     step_id: &str,
     step_index: &SequentialWorkflowStepIndex,
 ) -> runx_core::state_machine::SequentialWorkflow {
-    start_sequential_workflow_step_indexed(&mut graph, step_id, CREATED_AT.to_owned(), step_index);
-    graph
+    start_sequential_workflow_step_indexed(&mut workflow, step_id, CREATED_AT.to_owned(), step_index);
+    workflow
 }
 
 fn succeed_step(
-    mut graph: runx_core::state_machine::SequentialWorkflow,
+    mut workflow: runx_core::state_machine::SequentialWorkflow,
     step_id: &str,
     attempt: u32,
     step_index: &SequentialWorkflowStepIndex,
 ) -> runx_core::state_machine::SequentialWorkflow {
     let receipt_id = format!("sha256:{step_id}_{attempt}");
     succeed_sequential_workflow_step_indexed(
-        &mut graph,
+        &mut workflow,
         CREATED_AT.to_owned(),
         StepAdmissionWitness::local_runtime(step_id, receipt_id),
         Some(object([(
@@ -250,7 +250,7 @@ fn succeed_step(
         )])),
         step_index,
     );
-    graph
+    workflow
 }
 
 /// The public fixture identity a benchmark seals under, as a replayed run is.

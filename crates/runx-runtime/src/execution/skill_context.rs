@@ -80,7 +80,7 @@ fn load_context_skill(
     if runx_parser::registry_ref(reference).is_some() {
         let paths = crate::paths::RunxPaths::resolve(env, workflow_dir);
         if let Some(directory) =
-            crate::execution::graph::installed_registry_skill(reference, &paths)?
+            crate::execution::workflow::installed_registry_skill(reference, &paths)?
         {
             return load_context_skill_directory(
                 step_id, reference, &directory, true, env, created_at,
@@ -110,7 +110,7 @@ pub(crate) fn registry_holds_context_skill(
     env: &BTreeMap<String, String>,
 ) -> Result<bool, RuntimeError> {
     let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
-    Ok(crate::execution::graph::installed_registry_skill(reference, &paths)?.is_some())
+    Ok(crate::execution::workflow::installed_registry_skill(reference, &paths)?.is_some())
 }
 
 /// A context skill read from a package directory: a local path, or the
@@ -148,7 +148,7 @@ fn load_context_skill_directory(
             insert_string(&mut data, "skill_id", &signed.name);
             insert_string(&mut data, "version", &signed.version);
             insert_string(&mut data, "digest", &package.package.manual_digest);
-            if let Some(bundle_digest) = crate::execution::graph::package_files_digest(&package) {
+            if let Some(bundle_digest) = crate::execution::workflow::package_files_digest(&package) {
                 insert_string(&mut data, "bundle_digest", &bundle_digest);
             }
         }

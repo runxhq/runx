@@ -4,7 +4,7 @@
 //! One flat artifact, each top-level key answering one question: integrity
 //! (envelope), what ran and the digest of its outcome (subject), what allowed
 //! it (authority), the choices made (`decisions[]`), what was done
-//! (`acts[]`), the outcome (seal), and graph lineage. A receipt holds only
+//! (`acts[]`), the outcome (seal), and workflow lineage. A receipt holds only
 //! what its issuer observed or was given, each value once, as typed facts:
 //! the runtime writes no prose. The acts (intent, the caller's reason, the
 //! checks bound to them) are inline; the bulky per-act execution I/O (the
@@ -52,12 +52,12 @@ pub enum ReceiptSchema {
     V1,
 }
 
-/// What a receipt seals: one step's attempt, or the whole graph a run ran.
+/// What a receipt seals: one step's attempt, or the whole workflow a run ran.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SubjectKind {
     Step,
-    Graph,
+    Workflow,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -187,15 +187,15 @@ pub enum SealReason {
     PreflightRefused,
     /// A test case's inputs do not satisfy the method's input contract.
     InputContractInvalid,
-    /// The graph stopped because one of its steps failed.
+    /// The workflow stopped because one of its steps failed.
     WorkflowStepFailed,
-    /// The graph stopped at a step that could not proceed.
+    /// The workflow stopped at a step that could not proceed.
     WorkflowBlocked,
     /// A call's authority did not admit it.
     AuthorityDenied,
     /// A call would spend more than is left of the run's money limit.
     CostLimitExceeded,
-    /// The graph waits on a step's request its host has not yet answered.
+    /// The workflow waits on a step's request its host has not yet answered.
     ResolutionPending,
     /// The managed agent's provider request failed.
     ManagedAgentProviderFailed,

@@ -770,7 +770,7 @@ fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn 
     Ok(())
 }
 
-/// A graph's registry step arrives when the graph runs: `runx skill` fetches
+/// A workflow's registry step arrives when the workflow runs: `runx skill` fetches
 /// it as it fetches a top-level ref, into the project's skills, and the run
 /// resolves the step from there.
 #[test]
@@ -778,14 +778,14 @@ fn a_workflow_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn 
 {
     let root = crate::support::temp_root("runx-skill-registry-nested");
     let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
-    let graph = root.join("project").join("nested");
-    fs::create_dir_all(&graph)?;
+    let workflow = root.join("project").join("nested");
+    fs::create_dir_all(&workflow)?;
     fs::write(
-        graph.join("SKILL.md"),
+        workflow.join("SKILL.md"),
         "---\nname: nested\ndescription: Run the echo registry skill as a step.\n---\n\nRun echo as a step.\n",
     )?;
     fs::write(
-        graph.join("run.yaml"),
+        workflow.join("run.yaml"),
         "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
     )?;
 
@@ -793,7 +793,7 @@ fn a_workflow_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn 
         let output = registry_runx_command(&root, &registry)?
             .args([
                 "skill",
-                graph.to_str().ok_or("non-utf8 workflow dir")?,
+                workflow.to_str().ok_or("non-utf8 workflow dir")?,
                 "--registry",
                 &registry.url,
                 "--json",
@@ -930,7 +930,7 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
 }
 
 /// A tool whose program is missing fails its step once: the failure names
-/// the program, and the run's tree is the graph and that one step.
+/// the program, and the run's tree is the workflow and that one step.
 #[cfg(unix)]
 #[test]
 fn a_missing_program_fails_its_step_once_and_is_named() -> Result<(), Box<dyn std::error::Error>> {
@@ -986,10 +986,10 @@ fn a_missing_program_fails_its_step_once_and_is_named() -> Result<(), Box<dyn st
             .filter(|receipt| receipt["subject"]["kind"] == kind)
             .collect::<Vec<_>>()
     };
-    let (graphs, steps) = (kinds("graph"), kinds("step"));
-    assert_eq!((graphs.len(), steps.len()), (1, 1), "{receipts:?}");
+    let (workflows, steps) = (kinds("workflow"), kinds("step"));
+    assert_eq!((workflows.len(), steps.len()), (1, 1), "{receipts:?}");
     let step_id = steps[0]["id"].as_str().ok_or("step receipt has no id")?;
-    let children = graphs[0]["lineage"]["children"]
+    let children = workflows[0]["lineage"]["children"]
         .as_array()
         .ok_or("workflow receipt has no children")?;
     assert_eq!(children.len(), 1, "{children:?}");

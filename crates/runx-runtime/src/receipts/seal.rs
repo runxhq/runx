@@ -204,7 +204,7 @@ pub(crate) struct StepSeal<'a> {
     /// What admitted the step: the approvals that let it run, and the
     /// artifacts its inputs were given by, each labeled with its input.
     pub(crate) admission_refs: Vec<Reference>,
-    /// Direct child receipts for a composed step such as a nested graph. The
+    /// Direct child receipts for a composed step such as a nested workflow. The
     /// step receipt commits their ids and digests; their descendants remain
     /// reachable through the child receipt tree.
     pub(crate) child_receipts: &'a [Receipt],
@@ -274,7 +274,7 @@ pub(crate) fn seal_step(
 }
 
 /// The single runtime-outcome criterion a step receipt seals on, independent
-/// of whether the producer was a process, native value, approval, or graph.
+/// of whether the producer was a process, native value, approval, or workflow.
 fn step_outcome_criterion(output: &InvocationOutput, evidence: &StepEvidence) -> CriterionBinding {
     CriterionBinding {
         criterion_id: Criterion::StepOutcome,
@@ -425,8 +425,8 @@ fn build_workflow_receipt(
     Ok(build_unsealed_receipt(BuildReceipt {
         issuer,
         scope,
-        node: Node::Graph,
-        kind: SubjectKind::Graph,
+        node: Node::Workflow,
+        kind: SubjectKind::Workflow,
         outcome_digest: digest,
         created_at,
         decisions: Vec::new(),
@@ -442,8 +442,8 @@ fn build_workflow_receipt(
 }
 
 // A subject's outcome digest binds how it ended (its seal's outcome, the one
-// rule for steps and graphs alike), the claim it sealed (the outputs it
-// declared; a graph declares none) and the ids of its direct child receipts.
+// rule for steps and workflows alike), the claim it sealed (the outputs it
+// declared; a workflow declares none) and the ids of its direct child receipts.
 // Raw transport values, diagnostics, and child proof envelopes remain
 // excluded: a replay of the same declared claim and child identities keeps
 // its digest, while a changed nested execution propagates to every ancestor.
@@ -509,7 +509,7 @@ fn validate_receipt_tree_with_policy<'a>(
     .map_err(receipt_error)
 }
 
-/// The run a receipt belongs to, and the graph it ran.
+/// The run a receipt belongs to, and the workflow it ran.
 #[derive(Clone, Copy, Debug)]
 pub struct RunScope<'a> {
     pub run_id: &'a str,
@@ -519,8 +519,8 @@ pub struct RunScope<'a> {
 /// The part of a run a receipt seals.
 #[derive(Clone, Copy, Debug)]
 enum Node<'a> {
-    /// The whole graph.
-    Graph,
+    /// The whole workflow.
+    Workflow,
     /// One step's attempt.
     Step { step_id: &'a str, attempt: u32 },
 }
@@ -530,7 +530,7 @@ impl Node<'_> {
     /// the first attempt).
     fn uri(self, run_id: &str) -> String {
         match self {
-            Self::Graph => format!("runx:run:{run_id}"),
+            Self::Workflow => format!("runx:run:{run_id}"),
             Self::Step { step_id, attempt } if attempt <= 1 => {
                 format!("runx:run:{run_id}#{step_id}")
             }
@@ -636,7 +636,7 @@ fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision
     }
 }
 
-/// The run node a receipt seals, labelled with the graph that ran.
+/// The run node a receipt seals, labelled with the workflow that ran.
 fn subject(scope: RunScope<'_>, uri: String, kind: SubjectKind, outcome_digest: Digest) -> Subject {
     let mut reference = Reference::with_uri(ReferenceType::Run, uri);
     reference.label = Some(scope.workflow_name.into());

@@ -1,7 +1,7 @@
 // Module rationale: the skill front owns run preparation and the shared
 // sealed-output projection for every method.
 //! The skill front: compiles a skill-run request into a run of the method's
-//! graph and seals it through the shared act engine (`execution::runner`),
+//! workflow and seals it through the shared act engine (`execution::runner`),
 //! which owns admit -> execute -> seal.
 
 use std::collections::BTreeMap;
@@ -24,7 +24,7 @@ use crate::receipts::{
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
 mod executable_adapter;
-mod graph;
+mod workflow;
 pub(crate) mod method_manifest;
 mod resolution_answers;
 mod turn_session;

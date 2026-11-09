@@ -8,7 +8,7 @@ pub const PROTOCOL_VERSION: u16 = 3;
 
 /// Authority-free helpers exposed by every matching supervised worker.
 /// Profiles declare the helpers they need so unsupported runtimes reject them
-/// during graph admission, before any step executes.
+/// during workflow admission, before any step executes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WorkerApi {

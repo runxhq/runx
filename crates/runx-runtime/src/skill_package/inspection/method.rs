@@ -75,10 +75,10 @@ fn result_steps(
     method: &SkillMethodDefinition,
 ) -> impl Iterator<Item = &runx_parser::WorkflowStep> {
     method
-        .graph
+        .workflow
         .steps
         .iter()
-        .filter(|step| method.graph.result_from.contains(&step.id))
+        .filter(|step| method.workflow.result_from.contains(&step.id))
 }
 
 fn inspect_input(name: &str, input: &SkillInput) -> InspectedInput {

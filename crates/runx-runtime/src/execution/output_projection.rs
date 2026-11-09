@@ -11,9 +11,9 @@ pub(crate) struct StepOutputProjection {
     pub(crate) artifact_outputs: BTreeSet<String>,
 }
 
-/// Build the durable graph/receipt projection from one already-verified claim.
+/// Build the durable workflow/receipt projection from one already-verified claim.
 ///
-/// Raw adapter values and diagnostics never enter this boundary, so graph
+/// Raw adapter values and diagnostics never enter this boundary, so workflow
 /// state and receipt identity share one exact surface. `artifacts` is the
 /// artifact contract the claim was projected under. A claim is never read for
 /// references: what a receipt references is declared or admitted.

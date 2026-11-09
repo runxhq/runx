@@ -80,7 +80,7 @@ RUNX_VITEST_BATCH=cli-package pnpm vitest run tests/cli-package.test.ts
 Use checked-in fixtures when a behavior should remain stable:
 
 - `fixtures/skills/` for reusable skill packages
-- `fixtures/graphs/` for workflow execution shapes
+- `fixtures/workflows/` for workflow execution shapes
 - `fixtures/test/` for test-level contracts
 - `examples/` for public docs examples that should also be executable
 

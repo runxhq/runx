@@ -1674,7 +1674,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
 }
 
 /// Every request a paused run waits on, each by its address: where its step
-/// is held, following the child runs graph steps hold; and at an agent turn,
+/// is held, following the child runs workflow steps hold; and at an agent turn,
 /// what each call of the turn waits on, following the child runs skill calls
 /// started. Empty unless the run is paused: once a host has answered, the
 /// run waits on its own continuation, not on the host.
@@ -1731,7 +1731,7 @@ struct Held {
     request: PendingRequest,
 }
 
-/// Where `run_id` is held, following the child runs graph steps hold down to
+/// Where `run_id` is held, following the child runs workflow steps hold down to
 /// the step that asked.
 fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordError> {
     let mut current = run_id.to_owned();

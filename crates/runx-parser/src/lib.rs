@@ -4,7 +4,7 @@ pub mod connector;
 pub mod data;
 pub mod error;
 pub mod eval;
-pub mod graph;
+pub mod workflow;
 pub mod install;
 mod json_fields;
 pub mod manifest;
@@ -22,7 +22,7 @@ pub use connector::{
 };
 pub use error::{ParseError, ValidationError};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
-pub use graph::{
+pub use workflow::{
     AgentTask, AskGate, Binding, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
     SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow, WorkflowStep,
     WorkflowWhen, validate_process_tool,

@@ -17,7 +17,7 @@ use runx_parser::{SkillMethodDefinition, Workflow};
 use crate::RuntimeError;
 #[cfg(test)]
 use crate::adapter::SkillInvocation;
-use crate::execution::graph::bind_run_inputs;
+use crate::execution::workflow::bind_run_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
@@ -177,7 +177,7 @@ impl BoundRun {
         });
         // The run holds what its host gave it, narrowed by its method's own
         // effects and reach.
-        let run_authority = RunAuthority::of_method(run_authority, &self.method.graph);
+        let run_authority = RunAuthority::of_method(run_authority, &self.method.workflow);
         let runtime = self.runtime(
             &log,
             run_context,
@@ -185,12 +185,12 @@ impl BoundRun {
             prepared.as_ref(),
             host.gate.clone(),
         )?;
-        let graph = self.graph(&workflow_inputs, run_act.as_ref(), log.run_id())?;
+        let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
             bound: self,
             log: &log,
             runtime: &runtime,
-            graph: &graph,
+            workflow: &workflow,
         };
         let suspension = existing
             .as_ref()
@@ -246,7 +246,7 @@ impl BoundRun {
                 Hold::Request(_) | Hold::Child(_) => {}
             }
         }
-        match runtime.run_workflow_with_host(&self.skill_dir, graph.clone(), host) {
+        match runtime.run_workflow_with_host(&self.skill_dir, workflow.clone(), host) {
             Ok(completed) => run.seal_completed(completed),
             Err(RuntimeError::ResolutionPending { .. }) => self.paused(&log),
             // The mutation may be applied and its readback is pending. The
@@ -300,23 +300,23 @@ impl BoundRun {
         self.method.offer.is_some().then_some(reference)
     }
 
-    /// The graph the run drives: the method's own, or for a purchase one step
+    /// The workflow the run drives: the method's own, or for a purchase one step
     /// that calls the method through the registry, which the kernel buys as
     /// it buys any call.
-    fn graph(
+    fn workflow(
         &self,
         inputs: &JsonObject,
         act: Option<&CallAct>,
         run_id: &str,
     ) -> Result<Workflow, RuntimeError> {
         match self.purchase() {
-            Some(reference) => Ok(crate::execution::graph::purchase_workflow(
+            Some(reference) => Ok(crate::execution::workflow::purchase_workflow(
                 reference,
                 &self.method.name,
                 inputs,
             )),
             None => bind_run_inputs(
-                self.method.graph.clone(),
+                self.method.workflow.clone(),
                 inputs,
                 act,
                 run_id,
@@ -415,8 +415,8 @@ impl BoundRun {
             .sealed
             .clone()
             .ok_or_else(|| invalid("the run has no seal"))?;
-        let graph = self.graph(&record.inputs, record.act.as_ref(), log.run_id())?;
-        let run = sealed_workflow_run(graph, record)?;
+        let workflow = self.workflow(&record.inputs, record.act.as_ref(), log.run_id())?;
+        let run = sealed_workflow_run(workflow, record)?;
         write_workflow_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
         let result = match sealed.terminal_result {
             Some(result) => result,
@@ -494,7 +494,7 @@ struct Driven<'a> {
     bound: &'a BoundRun,
     log: &'a RunLog,
     runtime: &'a Runtime<ExecutableAdapter>,
-    graph: &'a Workflow,
+    workflow: &'a Workflow,
 }
 
 impl Driven<'_> {
@@ -528,7 +528,7 @@ impl Driven<'_> {
         let mut host = RunHost::new(ResolutionAnswers::default());
         let crate::execution::runner::Stopped { run, result } =
             self.runtime
-                .seal_stop(self.graph.clone(), error, &mut host)?;
+                .seal_stop(self.workflow.clone(), error, &mut host)?;
         let refusal = run.refusal.clone();
         self.log.record_sealed(&run.receipt, Some(&result))?;
         write_workflow_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
@@ -983,7 +983,7 @@ mod tests {
     #[test]
     fn terminal_skill_failure_uses_only_an_exact_workflow_step_identity()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "authoring",
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: apply\n        skill: ./apply\n",
         )?;
@@ -997,11 +997,11 @@ mod tests {
         };
 
         assert_eq!(
-            crate::execution::runner::failed_step_id(&graph, &owned).as_deref(),
+            crate::execution::runner::failed_step_id(&workflow, &owned).as_deref(),
             Some("apply")
         );
         assert_eq!(
-            crate::execution::runner::failed_step_id(&graph, &nested),
+            crate::execution::runner::failed_step_id(&workflow, &nested),
             None
         );
         Ok(())
@@ -1064,7 +1064,7 @@ mod tests {
                 crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
                 temp.path().join(".runx").display().to_string(),
             )]);
-            let graph = crate::execution::graph::testing::method_workflow(
+            let workflow = crate::execution::workflow::testing::method_workflow(
                 "managed-agent-workflow-failure",
                 r#"
 minimum_runx: 0.12.0
@@ -1130,7 +1130,7 @@ methods:
                     .at_workflow_step("compose");
             let mut host = RunHost::new(ResolutionAnswers::default());
             let run = runtime.seal_failed_with_host(
-                graph,
+                workflow,
                 "compose",
                 runtime_error,
                 crate::receipts::WorkflowEnding {

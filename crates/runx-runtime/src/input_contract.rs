@@ -55,7 +55,7 @@ pub(crate) fn materialize_tool_inputs(
 }
 
 /// Materialize the declared boundary of a nested method from the parent
-/// graph's ambient parameter map. Parent-only parameters are not child input;
+/// workflow's ambient parameter map. Parent-only parameters are not child input;
 /// explicitly mapped values still receive the child's complete validation.
 pub(crate) fn materialize_nested_method_inputs(
     declared: &BTreeMap<String, SkillInput>,

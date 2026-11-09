@@ -18,7 +18,7 @@ use crate::tool_catalogs::ToolCatalogError;
 
 mod local;
 
-/// The context needed to resolve and invoke one tool. Graph steps and managed
+/// The context needed to resolve and invoke one tool. Workflow steps and managed
 /// agents share this exact native-or-local dispatch path.
 pub(crate) struct ToolDispatchRequest<'a> {
     pub tool: Cow<'a, str>,
@@ -73,7 +73,7 @@ pub(crate) fn resolve_tool_result(
 }
 
 /// Dispatch one tool through the native registry, then the local manifest
-/// catalog. This is the only execution owner shared by graph steps and
+/// catalog. This is the only execution owner shared by workflow steps and
 /// managed-agent calls.
 pub(crate) fn dispatch_tool(
     mut request: ToolDispatchRequest<'_>,

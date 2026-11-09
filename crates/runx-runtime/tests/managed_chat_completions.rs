@@ -304,8 +304,8 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     assert_eq!(output["result"]["status"], "done", "{output}");
     let receipt_id = output["receipt_id"].as_str().ok_or("missing receipt_id")?;
     let receipts = temp.path().join("receipts");
-    let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
-    let step = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
+    let workflow = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
+    let step = crate::support::read_test_first_step_receipt(&receipts, &workflow)?;
     assert_eq!(
         step.lineage.children.len(),
         1,
@@ -733,8 +733,8 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
     assert_eq!(output["outcome"], "failed", "{output}");
     let receipt_id = output["receipt_id"].as_str().ok_or("missing receipt_id")?;
     let receipts = temp.path().join("receipts");
-    let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
-    let step = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
+    let workflow = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
+    let step = crate::support::read_test_first_step_receipt(&receipts, &workflow)?;
     assert_eq!(
         step.lineage.children.len(),
         1,
@@ -816,16 +816,16 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     // The parent fails for the reason its child did, which its child's
     // receipt names too.
     let receipts = temp.path().join("receipts");
-    let graph = crate::support::read_test_signed_receipt(
+    let workflow = crate::support::read_test_signed_receipt(
         &receipts,
         output["receipt_id"].as_str().ok_or("missing receipt_id")?,
     )?;
-    let invoke = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
+    let invoke = crate::support::read_test_first_step_receipt(&receipts, &workflow)?;
     let child = crate::support::read_test_first_step_receipt(&receipts, &invoke)?;
     let reason = child.seal.reason.ok_or("the child names why it failed")?;
     assert_ne!(reason, runx_contracts::SealReason::WorkflowStepFailed);
     assert_eq!(invoke.seal.reason, Some(reason));
-    assert_eq!(graph.seal.reason, Some(reason));
+    assert_eq!(workflow.seal.reason, Some(reason));
     assert_eq!(output["seal_reason"], reason.label(), "{output}");
     Ok(())
 }

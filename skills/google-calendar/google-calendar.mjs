@@ -266,7 +266,7 @@ export function prepareAssistantWindow(input) {
     );
   }
   // The host owns scheduling and the observation time; the worker has no
-  // ambient clock. Checkpoint this exact upcoming window in the graph.
+  // ambient clock. Checkpoint this exact upcoming window in the workflow.
   const start = Math.max(dueSeconds * 1000, Date.parse(input.observed_at));
   const end = start + hours * 3600000;
   if (!Number.isSafeInteger(end) || end > 8.64e15) {

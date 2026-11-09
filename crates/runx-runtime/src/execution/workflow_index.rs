@@ -43,12 +43,12 @@ impl StepPositionIndex {
 impl ExecutionWorkflowIndex {
     #[must_use]
     pub(crate) fn new(
-        graph: &Workflow,
+        workflow: &Workflow,
         definitions: Vec<SequentialWorkflowStepDefinition>,
     ) -> Self {
         let planner_index = create_sequential_workflow_step_index(&definitions);
         let mut step_positions = StepPositionIndex::new();
-        for (index, step) in graph.steps.iter().enumerate() {
+        for (index, step) in workflow.steps.iter().enumerate() {
             step_positions.insert(&step.id, index);
         }
         Self {
@@ -101,10 +101,10 @@ impl ExecutionWorkflowIndex {
 
     pub(crate) fn find_step<'a>(
         &self,
-        graph: &'a Workflow,
+        workflow: &'a Workflow,
         step_id: &str,
     ) -> Result<&'a WorkflowStep, RuntimeError> {
-        graph
+        workflow
             .steps
             .get(self.step_positions.position(step_id).ok_or_else(|| {
                 RuntimeError::StepMissing {

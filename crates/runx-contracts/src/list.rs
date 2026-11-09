@@ -49,7 +49,7 @@ pub enum RunxListStatus {
 }
 
 /// Whether a host may offer a skill to a person or an agent. An internal
-/// skill, such as a graph stage, runs only as part of the skill that owns it.
+/// skill, such as a workflow stage, runs only as part of the skill that owns it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RunxListVisibility {

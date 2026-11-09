@@ -21,7 +21,7 @@ fn method_with(extra: &str, steps: &str) -> Result<runx_parser::SkillMethodDefin
 }
 
 fn only_step(method: &runx_parser::SkillMethodDefinition) -> &runx_parser::WorkflowStep {
-    &method.graph.steps[0]
+    &method.workflow.steps[0]
 }
 
 #[test]
@@ -255,7 +255,7 @@ fn an_agent_step_is_given_context_entries_only_from_an_earlier_steps_output() ->
     let parsed = method(&format!(
         "{recall}      - id: answer\n        agent: answer\n        context: {{entries: [$steps.recall.entries]}}\n"
     ))?;
-    let answer = &parsed.graph.steps[1];
+    let answer = &parsed.workflow.steps[1];
     let StepKind::Agent(task) = &answer.kind else {
         return Err("expected an agent step".to_owned());
     };
@@ -324,7 +324,7 @@ fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
     let yaml = "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: post\n        operation: slack/channel.post\n        idempotency_key: $input.key\n        inputs: {channel_locator: $input.channel}\n        result:\n          required: [message_locator]\n";
     let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
     let manifest = validate_method_manifest("demo", raw).map_err(|error| error.to_string())?;
-    let step = &manifest.methods["main"].graph.steps[0];
+    let step = &manifest.methods["main"].workflow.steps[0];
     assert!(step.inputs.contains_key("inputs"));
     assert!(step.inputs.contains_key("result"));
     assert_eq!(
@@ -361,9 +361,9 @@ fn a_method_result_defaults_to_its_last_step() -> Result<(), String> {
     let method = method(
         "      - id: first\n        tool: {module: one.mjs}\n      - id: second\n        tool: {module: two.mjs}\n",
     )?;
-    assert_eq!(method.graph.result_from, ["second"]);
-    // The graph carries its skill's identity, not the method's.
-    assert_eq!(method.graph.name, "demo");
+    assert_eq!(method.workflow.result_from, ["second"]);
+    // The workflow carries its skill's identity, not the method's.
+    assert_eq!(method.workflow.name, "demo");
     Ok(())
 }
 

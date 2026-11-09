@@ -1,7 +1,7 @@
 // Module rationale: transitive preflight discovery keeps traversal,
 // admission provenance, limits, and its focused fixtures in one auditable module.
 //! Runtime-owned preflight expansion for the complete skill chain shown to an
-//! operator before execution. Discovery uses the same validated graph, child
+//! operator before execution. Discovery uses the same validated workflow, child
 //! skill, registry admission, and context-skill loaders as execution.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,7 +22,7 @@ use crate::RuntimeError;
 use crate::services::{WorkspaceEnv, merge_inferred_tool_roots};
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
-use super::graph::{
+use super::workflow::{
     LoadedStepSkill, LoadedStepSkillRegistryProvenance, StepSkillLoadOptions, child_skill_steps,
     load_step_skill,
 };
@@ -323,17 +323,17 @@ impl ExpansionState {
         )?;
         let raw = JsonValue::Object(input.method.raw.clone());
         self.add_bytes(serialized_bytes(&raw)?)?;
-        let graph = &input.method.graph;
-        let tool_names = referenced_tools(graph);
+        let workflow = &input.method.workflow;
+        let tool_names = referenced_tools(workflow);
         let tools = self.load_tools(&input.skill_dir, &tool_names, &input.env)?;
         let steps = self.expand_workflow_steps(
             &input.node_path,
             &input.skill_dir,
-            graph,
+            workflow,
             &input.env,
             input.depth,
         )?;
-        validate_workflow_result_contracts(&input.node_path, graph, &steps, &tools)?;
+        validate_workflow_result_contracts(&input.node_path, workflow, &steps, &tools)?;
         Ok(SkillOperatorContextNode {
             node_path: input.node_path.clone(),
             package: input.package.clone(),
@@ -348,11 +348,11 @@ impl ExpansionState {
         &mut self,
         parent_path: &str,
         workflow_dir: &Path,
-        graph: &Workflow,
+        workflow: &Workflow,
         env: &BTreeMap<String, String>,
         depth: usize,
     ) -> Result<Vec<SkillOperatorContextStep>, SkillRunError> {
-        graph
+        workflow
             .steps
             .iter()
             .map(|step| self.expand_workflow_step(parent_path, workflow_dir, step, env, depth))
@@ -642,11 +642,11 @@ const fn boundary(kind: ExecutionBoundaryKind) -> ExecutionBoundaryObservation {
 
 fn validate_workflow_result_contracts(
     node_path: &str,
-    graph: &Workflow,
+    workflow: &Workflow,
     steps: &[SkillOperatorContextStep],
     tools: &[SkillOperatorContextTool],
 ) -> Result<(), SkillRunError> {
-    for result_step_id in &graph.result_from {
+    for result_step_id in &workflow.result_from {
         let step = steps
             .iter()
             .find(|step| step.definition.id == *result_step_id)
@@ -672,7 +672,7 @@ fn step_declares_result(
     let definition = &step.definition;
     match &definition.kind {
         // An ask resolves to its decision; an operation always emits its
-        // `runx.provider.operation.v1` packet; a child skill's own graph was
+        // `runx.provider.operation.v1` packet; a child skill's own workflow was
         // validated to declare its result when it was expanded.
         StepKind::Ask(_) | StepKind::Operation(_) | StepKind::Skill(_) | StepKind::Load(_) => true,
         StepKind::Agent(_) | StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_)) => {
@@ -758,8 +758,8 @@ fn node_identity(
     Ok(format!("local:{}:{method_name}", canonical.display()))
 }
 
-fn referenced_tools(graph: &Workflow) -> BTreeSet<String> {
-    graph.steps.iter().flat_map(step_tools).collect()
+fn referenced_tools(workflow: &Workflow) -> BTreeSet<String> {
+    workflow.steps.iter().flat_map(step_tools).collect()
 }
 
 fn step_tools(step: &WorkflowStep) -> Vec<String> {

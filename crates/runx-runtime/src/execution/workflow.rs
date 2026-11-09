@@ -1,4 +1,4 @@
-// Module rationale: graph loading keeps stage, registry, and local skill resolution together.
+// Module rationale: workflow loading keeps stage, registry, and local skill resolution together.
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -109,18 +109,18 @@ impl<'a> StepSkillLoadOptions<'a> {
     }
 }
 
-/// The parent step's provenance, carried to the nested graph's steps that
+/// The parent step's provenance, carried to the nested workflow's steps that
 /// read the same values from the run's input, under the name each binds it
-/// to. Values a nested step reads from its own graph's steps keep their own
+/// to. Values a nested step reads from its own workflow's steps keep their own
 /// provenance.
 pub(crate) fn inherited_step_provenance(
-    graph: &Workflow,
+    workflow: &Workflow,
     parent: &[runx_contracts::ProvenanceEntry],
 ) -> BTreeMap<String, Vec<runx_contracts::ProvenanceEntry>> {
     if parent.is_empty() {
         return BTreeMap::new();
     }
-    graph
+    workflow
         .steps
         .iter()
         .map(|step| {
@@ -171,11 +171,11 @@ fn inherit_provenance(
 /// Bind only caller-supplied input facts for inspection. Run identity, acts
 /// and preceding step outputs are deliberately unknown before execution.
 pub(crate) fn bind_known_inputs(
-    mut graph: Workflow,
+    mut workflow: Workflow,
     inputs: &JsonObject,
 ) -> Result<Workflow, RuntimeError> {
     let input = JsonValue::Object(inputs.clone());
-    for step in &mut graph.steps {
+    for step in &mut workflow.steps {
         step.bindings = bind_invoked(
             &step.id,
             &mut step.inputs,
@@ -185,7 +185,7 @@ pub(crate) fn bind_known_inputs(
                 _ => None,
             },
         )?;
-        // Raw graph references remain strings until execution binds them.
+        // Raw workflow references remain strings until execution binds them.
         // They are unknown facts here, never literal provider arguments.
         for binding in &step.bindings {
             if binding.at.is_empty() {
@@ -195,7 +195,7 @@ pub(crate) fn bind_known_inputs(
             }
         }
     }
-    Ok(graph)
+    Ok(workflow)
 }
 
 /// Bind what the run was invoked as into every step: each reference to the
@@ -205,14 +205,14 @@ pub(crate) fn bind_known_inputs(
 /// step without one. References to earlier steps stay for the step to bind
 /// when it runs.
 pub(crate) fn bind_run_inputs(
-    mut graph: Workflow,
+    mut workflow: Workflow,
     workflow_inputs: &JsonObject,
     act: Option<&CallAct>,
     run_id: &str,
     workspace: Option<&crate::paths::RunxPaths>,
 ) -> Result<Workflow, RuntimeError> {
     let run_input = JsonValue::Object(workflow_inputs.clone());
-    let workspace_id = run_workspace_id(&graph, workspace)?;
+    let workspace_id = run_workspace_id(&workflow, workspace)?;
     let run_act = act
         .map(JsonValue::from_serialize)
         .transpose()
@@ -232,7 +232,7 @@ pub(crate) fn bind_run_inputs(
         Source::WorkspaceId => Some(Some(workspace_id.clone())),
         Source::Step { .. } => None,
     };
-    for step in &mut graph.steps {
+    for step in &mut workflow.steps {
         step.bindings = bind_invoked(
             &step.id,
             &mut step.inputs,
@@ -262,22 +262,22 @@ pub(crate) fn bind_run_inputs(
             bind_operand(&mut condition.value, &run_input, &workspace_id);
         }
     }
-    Ok(graph)
+    Ok(workflow)
 }
 
 /// The id of the workspace the run runs in, as `$run.workspace_id` reads it:
 /// minted in the runx home the first time it's read there, and `null` where
 /// there's no workspace. Read only when a step reads it, so a run that never
-/// does mints nothing. A run with no runx paths, as a test's fixture graph
+/// does mints nothing. A run with no runx paths, as a test's fixture workflow
 /// has, has no workspace.
 fn run_workspace_id(
-    graph: &Workflow,
+    workflow: &Workflow,
     workspace: Option<&crate::paths::RunxPaths>,
 ) -> Result<JsonValue, RuntimeError> {
     let reads = |source: &Source| matches!(source, Source::WorkspaceId);
     let operand_reads =
         |operand: &Operand| matches!(operand, Operand::Reference(Source::WorkspaceId));
-    let Some(reader) = graph.steps.iter().find(|step| {
+    let Some(reader) = workflow.steps.iter().find(|step| {
         step.bindings
             .iter()
             .chain(step.act.iter().flat_map(|act| &act.bindings))
@@ -530,7 +530,7 @@ pub(crate) fn step_skill(
     Ok(loaded)
 }
 
-/// The graph a purchase runs: one step that calls `method` of `skill`, the
+/// The workflow a purchase runs: one step that calls `method` of `skill`, the
 /// registry selector the skill was reached by, with the run's inputs. The
 /// step reaches a method the registry sells, so the kernel buys it (S10).
 pub(crate) fn purchase_workflow(skill: &str, method: &str, inputs: &JsonObject) -> Workflow {
@@ -561,7 +561,7 @@ pub(crate) fn purchase_workflow(skill: &str, method: &str, inputs: &JsonObject) 
     }
 }
 
-/// The one step of a purchase's graph.
+/// The one step of a purchase's workflow.
 pub(crate) const PURCHASE_STEP: &str = "purchase";
 
 /// The child skills `step` may run, each as the skill step that runs it: a
@@ -694,8 +694,8 @@ pub(crate) fn select_step_method<'a>(
         })
 }
 
-pub(crate) fn step_definitions(graph: &Workflow) -> Vec<SequentialWorkflowStepDefinition> {
-    graph
+pub(crate) fn step_definitions(workflow: &Workflow) -> Vec<SequentialWorkflowStepDefinition> {
+    workflow
         .steps
         .iter()
         .map(|step| SequentialWorkflowStepDefinition {
@@ -994,7 +994,7 @@ pub(crate) mod testing {
         let manifest = validate_method_manifest(skill, raw).map_err(|error| error.to_string())?;
         manifest
             .default_method()
-            .map(|method| method.graph.clone())
+            .map(|method| method.workflow.clone())
             .ok_or_else(|| format!("{skill}'s run.yaml declares one method"))
     }
 }
@@ -1006,7 +1006,7 @@ mod tests {
 
     use super::bind_run_inputs;
 
-    fn graph(source: &str) -> Result<Workflow, String> {
+    fn workflow(source: &str) -> Result<Workflow, String> {
         super::testing::method_workflow("bindings", source)
     }
 
@@ -1101,7 +1101,7 @@ methods:
     #[test]
     fn a_step_receives_only_what_it_binds() -> Result<(), String> {
         let bound = bind_run_inputs(
-            graph(BINDINGS)?,
+            workflow(BINDINGS)?,
             &object(serde_json::json!({
                 "mode": "apply",
                 "retry": {"key": "campaign-42"},
@@ -1138,7 +1138,7 @@ methods:
     #[test]
     fn a_whole_input_must_be_an_object_and_an_absent_item_leaves_itself_out() -> Result<(), String>
     {
-        let whole = graph(
+        let whole = workflow(
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: take\n        tool: {module: take.mjs}\n        inputs: $input.payload\n",
         )?;
         let error = bind_run_inputs(
@@ -1152,7 +1152,7 @@ methods:
         .ok_or("a whole input that is not an object binds nothing")?;
         assert!(error.to_string().contains("must be an object"), "{error}");
 
-        let list = graph(
+        let list = workflow(
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: take\n        tool: {module: take.mjs}\n        inputs: {ids: [$input.first, $input.second, $input.third]}\n",
         )?;
         let bound = bind_run_inputs(
@@ -1172,7 +1172,7 @@ methods:
         );
 
         // A step reference after an absent item still names its own item.
-        let mixed = graph(
+        let mixed = workflow(
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: discover\n        tool: {module: discover.mjs}\n        outputs: {id: {type: string}}\n      - id: take\n        tool: {module: take.mjs}\n        inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
         )?;
         let bound = bind_run_inputs(mixed, &JsonObject::new(), None, "run", None)
@@ -1211,7 +1211,7 @@ methods:
 "#;
         let inputs = object(serde_json::json!({"seconds": 3600}));
         let key = |run_id: &str| -> Result<Option<JsonValue>, String> {
-            let bound = bind_run_inputs(graph(source)?, &inputs, None, run_id, None)
+            let bound = bind_run_inputs(workflow(source)?, &inputs, None, run_id, None)
                 .map_err(|error| error.to_string())?;
             assert!(
                 bound.steps[0].bindings.is_empty(),
@@ -1234,7 +1234,7 @@ methods:
     #[test]
     fn a_bound_value_is_never_read_again_as_a_reference() -> Result<(), String> {
         let bound = bind_run_inputs(
-            graph(BINDINGS)?,
+            workflow(BINDINGS)?,
             &object(serde_json::json!({"mode": "apply", "label": "$steps.produce.value"})),
             None,
             "run",

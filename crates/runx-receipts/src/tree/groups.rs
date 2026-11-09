@@ -17,7 +17,7 @@ pub struct ReceiptTreeGroup {
 }
 
 /// The trees `receipts` form, by root id. Runtime receipts form an immutable
-/// parent-to-child graph: a parent names its children, and a child shared by
+/// parent-to-child workflow: a parent names its children, and a child shared by
 /// several roots belongs to each. A cycle has no natural root, so each
 /// receipt no tree reaches anchors one, and tree verification reports it.
 #[must_use]

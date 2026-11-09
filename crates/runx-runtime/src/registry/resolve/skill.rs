@@ -109,7 +109,7 @@ pub struct ResolvedSkillRef {
     pub newest_unread: Option<UnreadVersion>,
 }
 
-/// A graph nests skills at most this deep; deeper is a cycle, not a graph.
+/// A workflow nests skills at most this deep; deeper is a cycle, not a workflow.
 const MAX_NESTED_FETCH_DEPTH: usize = 16;
 
 /// The package `skill_ref` names, with every registry skill it names

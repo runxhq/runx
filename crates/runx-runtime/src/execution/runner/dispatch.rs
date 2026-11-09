@@ -5,7 +5,7 @@ use std::path::Path;
 use runx_contracts::Reference;
 use runx_parser::WorkflowStep;
 
-use super::super::graph::{
+use super::super::workflow::{
     LoadedStepSkill, materialize_step_act_with_index, materialize_step_context_entries_with_index,
     materialize_step_invocation_inputs_with_index,
     materialize_step_invocation_provenance_with_index,

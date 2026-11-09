@@ -726,7 +726,7 @@ fn mcp_server_uses_typed_outcome_even_when_json_claims_success()
             .contains("step draft: claim not cited")
     );
 
-    // Readback-pending graphs are sealed Deferred without an agent request.
+    // Readback-pending workflows are sealed Deferred without an agent request.
     // They need reconciliation, not a fresh mutation or an invented resume file.
     let deferred = mcp_tool_result_from_run_result(
         runx_runtime::execution::orchestrator::RunResult {

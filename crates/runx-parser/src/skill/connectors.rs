@@ -18,7 +18,7 @@ use runx_contracts::connector::{Digest, OperationName, is_connector_name};
 use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
-use crate::graph::Workflow;
+use crate::workflow::Workflow;
 
 use super::SkillMethodDefinition;
 
@@ -77,7 +77,7 @@ pub(crate) fn connector_requirements(
     };
     let mut requirements = BTreeMap::<String, ConnectorRequirement>::new();
     for method in methods.values() {
-        for (requirement, operation) in named_operations(&method.graph) {
+        for (requirement, operation) in named_operations(&method.workflow) {
             let entry = requirements
                 .entry(requirement)
                 .or_insert_with(|| ConnectorRequirement {
@@ -171,9 +171,9 @@ pub(crate) fn connector_requirements(
 
 /// Every operation a workflow's steps name: an operation step's, each a
 /// per-run choice may take, and each an agent step's turn may call.
-fn named_operations(graph: &Workflow) -> Vec<(String, OperationName)> {
+fn named_operations(workflow: &Workflow) -> Vec<(String, OperationName)> {
     let mut named = Vec::new();
-    for step in &graph.steps {
+    for step in &workflow.steps {
         match &step.kind {
             crate::StepKind::Operation(target) => {
                 named.extend(
@@ -206,7 +206,7 @@ pub(crate) fn bind_operation_steps(
     requirements: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<(), ValidationError> {
     for (name, method) in methods {
-        for step in &mut method.graph.steps {
+        for step in &mut method.workflow.steps {
             let field = format!("methods.{name}.steps.{}.operation", step.id);
             match &mut step.kind {
                 crate::StepKind::Agent(agent) => {
@@ -250,9 +250,9 @@ pub(crate) fn bind_operation_steps(
                             .collect();
                         step.inputs
                             .insert("connector".to_owned(), JsonValue::String(choose.clone()));
-                        step.bindings.push(crate::graph::Binding {
+                        step.bindings.push(crate::workflow::Binding {
                             at: vec!["connector".to_owned()],
-                            source: crate::graph::Source::Input { path },
+                            source: crate::workflow::Source::Input { path },
                         });
                     }
                     target.declared = Some(requirement.clone());

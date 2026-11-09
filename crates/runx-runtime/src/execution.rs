@@ -1,13 +1,13 @@
 //! Execution cluster.
 //!
-//! - `runner`: the `Runtime` graph engine and step orchestrator.
-//! - `graph`: graph loading and step lookup helpers.
+//! - `runner`: the `Runtime` workflow engine and step orchestrator.
+//! - `workflow`: workflow loading and step lookup helpers.
 //! - `test`: test fixture replay and assertion engine.
-//! - `orchestrator`: canonical entrypoint for local skill, graph, and test
+//! - `orchestrator`: canonical entrypoint for local skill, workflow, and test
 //!   execution.
 //! - `skill_front`: the skill front; compiles a skill run into an execution and seals it through the act engine.
 
-pub(crate) mod graph;
+pub(crate) mod workflow;
 pub(crate) mod operator_context;
 pub mod orchestrator;
 pub(crate) mod outcome;

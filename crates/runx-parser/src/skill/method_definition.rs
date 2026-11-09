@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::ValidationError;
-use crate::graph::validate_workflow_document;
+use crate::workflow::validate_workflow_document;
 
 use super::{FIELDS, SkillMethodDefinition, validate_input_fields};
 
@@ -72,7 +72,7 @@ pub(crate) fn validate_method_definition(
         inputs,
         input_constraints,
         examples,
-        graph: method_workflow(skill, name, &method)?,
+        workflow: method_workflow(skill, name, &method)?,
         raw: method,
     })
 }
@@ -378,8 +378,8 @@ mod tests {
             &JsonObject::new(),
         )
         .map_err(|error| error.to_string())?;
-        assert_eq!(definition.graph.effects, Some(Effects::None));
-        assert_eq!(definition.graph.reach, Some(Reach::Workspace));
+        assert_eq!(definition.workflow.effects, Some(Effects::None));
+        assert_eq!(definition.workflow.reach, Some(Reach::Workspace));
 
         let refused = validate_method_definition(
             "demo",

@@ -405,7 +405,7 @@ pub(super) fn stage_installed_registry_skills(
         .map_err(|error| error.to_string())?
     {
         if let Some(directory) =
-            crate::execution::graph::installed_registry_skill(&reference, &source)
+            crate::execution::workflow::installed_registry_skill(&reference, &source)
                 .map_err(|error| error.to_string())?
         {
             crate::registry::copy_installed_skill(&source, &target, &directory)?;

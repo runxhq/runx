@@ -18,7 +18,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use runx_contracts::{JsonObject, ResolutionRequest, TurnCallResult, TurnStatus};
 
-use super::graph::{RunHost, TurnAct, TurnActed, TurnAction};
+use super::workflow::{RunHost, TurnAct, TurnActed, TurnAction};
 use super::{BoundRun, SkillRunError, invalid};
 use crate::RuntimeError;
 use crate::execution::orchestrator::RunResult;

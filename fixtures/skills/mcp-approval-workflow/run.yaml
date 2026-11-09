@@ -6,4 +6,4 @@ methods:
       - approve
     steps:
       - id: approve
-        ask: {gate: mcp-approval, reason: Approve the MCP graph run.}
+        ask: {gate: mcp-approval, reason: Approve the MCP workflow run.}

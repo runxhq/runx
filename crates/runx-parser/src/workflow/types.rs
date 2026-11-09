@@ -123,7 +123,7 @@ pub enum ToolTarget {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkerTool {
-    /// Helpers the module requires; unsupported names fail graph admission.
+    /// Helpers the module requires; unsupported names fail workflow admission.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requires: Vec<runx_contracts::javascript_worker::WorkerApi>,
     /// Relative ECMAScript module path inside the package.
@@ -307,7 +307,7 @@ pub struct OperationStepTarget {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub from: Vec<OperationName>,
     /// The requirement as the enclosing skill declares it, bound when the
-    /// skill is parsed, or as a load of the turn bound it. A graph outside a
+    /// skill is parsed, or as a load of the turn bound it. A workflow outside a
     /// skill has none, and its operation steps are refused at admission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared: Option<crate::ConnectorRequirement>,

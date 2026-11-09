@@ -47,7 +47,7 @@ pub(crate) fn method_workflow(
         .methods
         .get(method)
         .ok_or_else(|| format!("the package declares method {method}"))?
-        .graph
+        .workflow
         .clone())
 }
 
@@ -64,7 +64,7 @@ pub(crate) fn run_yaml_workflow(
     Ok(manifest
         .default_method()
         .ok_or_else(|| format!("{skill}'s run.yaml declares one method"))?
-        .graph
+        .workflow
         .clone())
 }
 
@@ -187,7 +187,7 @@ pub(crate) fn read_test_signed_receipt(
         .read_exact(receipt_id, signature_config.signature_policy())?)
 }
 
-/// The graph receipt's first step receipt: where a one-step method's act lives.
+/// The workflow receipt's first step receipt: where a one-step method's act lives.
 pub(crate) fn read_test_first_step_receipt(
     receipt_dir: &Path,
     workflow_receipt: &Receipt,

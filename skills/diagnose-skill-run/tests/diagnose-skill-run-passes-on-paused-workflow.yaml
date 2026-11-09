@@ -10,7 +10,7 @@ inputs:
   receipt_details:
     - id: rcpt_paused
       receipt_uri: runx:receipt:rcpt_paused
-      subject_kind: graph
+      subject_kind: workflow
       subject_uri: skills/research
       created_at: 2026-07-16T00:00:00Z
       outcome: deferred

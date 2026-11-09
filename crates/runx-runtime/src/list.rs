@@ -242,7 +242,7 @@ fn skill_profile_list_item(
             manifest
                 .methods
                 .values()
-                .map(|method| method.graph.steps.len() as u64)
+                .map(|method| method.workflow.steps.len() as u64)
                 .sum(),
         ),
     }
@@ -253,7 +253,7 @@ fn skill_packets(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<Runx
     for step in manifest
         .methods
         .values()
-        .flat_map(|method| method.graph.steps.iter())
+        .flat_map(|method| method.workflow.steps.iter())
     {
         if let Some(artifacts) = step.artifacts.as_ref() {
             packets.extend(

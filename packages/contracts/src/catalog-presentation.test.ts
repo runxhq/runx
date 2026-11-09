@@ -73,7 +73,7 @@ describe("readCatalogPresentation", () => {
     refusal(`${PRESENTATION}\n${"x".repeat(4_001)}\n`, "overview");
     // References resolve against what the package declares, not only their form.
     refusal(PRESENTATION.replace("skill: ../research", "skill: ../elsewhere"), "approach[1].skill");
-    // Only a sibling or publisher/name: a package-internal graph has no page to link.
+    // Only a sibling or publisher/name: a package-internal workflow has no page to link.
     refusal(PRESENTATION.replace("skill: ../research", "skill: ./graph/plan"), "approach[1].skill");
     refusal(PRESENTATION.replace("input: question", "input: topic"), "inputs[0].input");
     refusal(PRESENTATION.replace("schema: runx.catalog-presentation.v1", "schema: runx.catalog-presentation.v2"), "schema");

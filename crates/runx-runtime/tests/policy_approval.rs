@@ -13,11 +13,11 @@ const CREATED_AT: &str = "2026-08-27T00:00:00Z";
 fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let graph = policy_write_workflow(workspace.path(), true)?;
+    let workflow = policy_write_workflow(workspace.path(), true)?;
     let runtime = runtime(workspace.path(), "run_explicit_guard")?;
     let mut host = ApprovalHost::new(true);
 
-    let run = runtime.run_workflow_with_host(workspace.path(), graph, &mut host)?;
+    let run = runtime.run_workflow_with_host(workspace.path(), workflow, &mut host)?;
     assert_eq!(
         std::fs::read_to_string(workspace.path().join("approved.txt"))?,
         "approved"

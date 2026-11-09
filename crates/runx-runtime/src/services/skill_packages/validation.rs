@@ -286,7 +286,7 @@ fn safe_test_execution(candidate: &Path) -> bool {
     crate::load_validated_skill_package(candidate).is_ok_and(|loaded| {
         loaded.manifest().is_none_or(|manifest| {
             manifest.methods.values().all(|method| {
-                method.graph.steps.iter().all(|step| {
+                method.workflow.steps.iter().all(|step| {
                     !matches!(
                         step.kind,
                         runx_parser::StepKind::Tool(runx_parser::ToolTarget::Process(_))

@@ -48,7 +48,7 @@ fn workflow_context_materialization_reaches_the_target_invocation()
         crate::support::fixture_runtime_options(std::env::vars().collect(), run)?,
     );
     let package = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/graphs/sequential")
+        .join("../../fixtures/workflows/sequential")
         .canonicalize()?;
     let workflow = crate::support::method_workflow(&package, "run")?;
 

@@ -426,7 +426,7 @@ impl Fixture {
         )
         .unwrap();
         let steps = manifest.methods["run"]
-            .graph
+            .workflow
             .steps
             .iter()
             .map(|step| (step.id.clone(), step.clone()))
@@ -2406,7 +2406,7 @@ methods:
         .unwrap(),
     )
     .unwrap();
-    let step = manifest.methods["run"].graph.steps[0].clone();
+    let step = manifest.methods["run"].workflow.steps[0].clone();
     let env = BTreeMap::from([
         ("PATH".to_owned(), std::env::var("PATH").unwrap_or_default()),
         ("HOME".to_owned(), "/operator/home".to_owned()),

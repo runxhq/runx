@@ -138,7 +138,7 @@ export function checkCanonicalParserOwnership(findings) {
       findings.push(`${relative(packetCatalogPath)} lacks canonical packet catalog token ${token}`);
     }
   }
-  const workflowTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/graph/types.rs");
+  const workflowTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/workflow/types.rs");
   const workflowTypes = existsSync(workflowTypesPath) ? readFileSync(workflowTypesPath, "utf8") : "";
   if (!/pub\s+artifacts:\s+Option<OutputArtifacts>/u.test(workflowTypes)) {
     findings.push(`${relative(workflowTypesPath)} must expose parser-validated workflow artifact contracts`);

@@ -193,7 +193,7 @@ fn registry_skills(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     let mut refs = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
         for method in manifest.methods.values() {
-            for step in &method.graph.steps {
+            for step in &method.workflow.steps {
                 match &step.kind {
                     runx_parser::StepKind::Skill(target) => {
                         refs.insert(target.skill.clone());

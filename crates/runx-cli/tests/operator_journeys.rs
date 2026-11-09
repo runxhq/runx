@@ -229,7 +229,7 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
     let completed_receipt = json_string(&completed["runx"], "receipt_id")?;
     assert_receipt_verifies(&root, &receipts, completed_receipt)?;
 
-    // A graph receipt binds its child receipts, never an invented merged claim.
+    // A workflow receipt binds its child receipts, never an invented merged claim.
     let next = assert_json(
         &command(&root)
             .arg("skill")
@@ -257,11 +257,11 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
             "input": {"receipt_id": completed_receipt},
         }),
     )?;
-    let graph = &root_read["outcome"]["output"]["receipt_read"]["data"];
-    assert_eq!(graph["status"], "not_a_step", "{root_read}");
-    assert!(graph["value"].is_null());
+    let workflow = &root_read["outcome"]["output"]["receipt_read"]["data"];
+    assert_eq!(workflow["status"], "not_a_step", "{root_read}");
+    assert!(workflow["value"].is_null());
     assert!(
-        graph["children"]
+        workflow["children"]
             .as_array()
             .is_some_and(|children| !children.is_empty())
     );

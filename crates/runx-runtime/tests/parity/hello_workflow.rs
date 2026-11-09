@@ -35,7 +35,7 @@ fn hello_workflow_matches_post_cutover_fixture() -> Result<(), Box<dyn std::erro
     let workflow = crate::support::method_workflow(&package, "default")?;
     let run = runtime.run_workflow_with_host(&package, workflow, &mut runx_runtime::NoopHost)?;
 
-    assert_eq!(run.graph.name, expected.workflow_name);
+    assert_eq!(run.workflow.name, expected.workflow_name);
     assert_eq!(status_name(&run.progress.state), expected.state);
     assert_eq!(
         run.steps

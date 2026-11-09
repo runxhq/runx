@@ -24,7 +24,7 @@ use runx_parser::{
     SkillTarget, StepKind, ToolTarget, WorkflowStep,
 };
 
-use super::super::graph::{
+use super::super::workflow::{
     LoadedStepSkill, LoadedStepSkillPackage, StepSkillLoadOptions, load_step_skill, step_skill,
     turn_skill_target,
 };

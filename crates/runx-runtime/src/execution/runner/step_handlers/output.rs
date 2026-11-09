@@ -1,6 +1,6 @@
 //! Step output projection helpers. Translate the invocation's typed claim and
 //! declared run-outputs / artifact-emits into the typed step projection that
-//! downstream graph state machines and receipt sealers consume.
+//! downstream workflow state machines and receipt sealers consume.
 
 use runx_contracts::JsonObject;
 use runx_parser::{OutputArtifacts, WorkflowStep};
@@ -40,7 +40,7 @@ pub(super) fn build_step_output_projection(
 
 /// Return only the step outputs declared by its method or artifact contract.
 /// Effect supervisors must inspect this same addressable surface that downstream
-/// graph steps consume, never the adapter's transport-level stdout shape.
+/// workflow steps consume, never the adapter's transport-level stdout shape.
 pub(super) fn contract_output_claim(projection: &StepOutputProjection) -> &JsonObject {
     &projection.outputs
 }
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn successful_invocation_may_omit_an_optional_declared_output()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "optional-output-contract",
             r#"
 minimum_runx: 0.12.0
@@ -142,7 +142,7 @@ methods:
             optional: true
 "#,
         )?;
-        let step = graph
+        let step = workflow
             .steps
             .into_iter()
             .next()
@@ -156,7 +156,7 @@ methods:
     }
 
     fn declared_output_step() -> Result<WorkflowStep, Box<dyn std::error::Error>> {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "output-contract",
             r#"
 minimum_runx: 0.12.0
@@ -169,7 +169,7 @@ methods:
           result: {type: object}
 "#,
         )?;
-        graph
+        workflow
             .steps
             .into_iter()
             .next()

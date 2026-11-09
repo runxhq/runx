@@ -1,6 +1,6 @@
 # runx
 
-> A skill is expertise published as a portable `SKILL.md`: an operating manual that a human can understand and an agent can act from. Skills compose into graphs and real work without bespoke glue code. Runx supplies the boundary: it admits each act under explicit authority, delivers credentials without turning them into prompt material, supervises execution, and seals the result into a verifiable receipt.
+> A skill is expertise published as a portable `SKILL.md`: an operating manual that a human can understand and an agent can act from. Skills compose into workflows and real work without bespoke glue code. Runx supplies the boundary: it admits each act under explicit authority, delivers credentials without turning them into prompt material, supervises execution, and seals the result into a verifiable receipt.
 
 ## Docs
 

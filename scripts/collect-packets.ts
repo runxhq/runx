@@ -55,7 +55,7 @@ interface StepDeclaration {
 
 interface MethodDeclaration {
   readonly inputs?: Readonly<Record<string, { readonly packet?: string }>>;
-  readonly graph: { readonly steps: readonly StepDeclaration[] };
+  readonly workflow: { readonly steps: readonly StepDeclaration[] };
 }
 
 interface MethodManifest {
@@ -215,7 +215,7 @@ async function readDeclarations(): Promise<
       for (const input of Object.values(method.inputs ?? {})) {
         if (input.packet) declared.ids.add(input.packet);
       }
-      for (const step of method.graph.steps) {
+      for (const step of method.workflow.steps) {
         const artifacts = step.artifacts;
         if (!artifacts) continue;
         for (const packet of Object.values(artifacts.packets ?? {})) declared.ids.add(packet);

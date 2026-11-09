@@ -46,12 +46,12 @@ impl SequentialWorkflowStepIndex {
 
     pub(super) fn step_for<'a>(
         &self,
-        graph: &'a SequentialWorkflow,
+        workflow: &'a SequentialWorkflow,
         step_id: &str,
     ) -> Option<&'a SequentialWorkflowStep> {
         self.positions
             .get(step_id)
-            .and_then(|index| graph.steps.get(*index))
+            .and_then(|index| workflow.steps.get(*index))
             .filter(|step| step.step_id == step_id)
     }
 
@@ -61,15 +61,15 @@ impl SequentialWorkflowStepIndex {
 
     pub(super) fn step_at<'a>(
         &self,
-        graph: &'a SequentialWorkflow,
+        workflow: &'a SequentialWorkflow,
         position: usize,
         step_id: &str,
     ) -> Option<&'a SequentialWorkflowStep> {
-        graph
+        workflow
             .steps
             .get(position)
             .filter(|step| step.step_id == step_id)
-            .or_else(|| self.step_for(graph, step_id))
+            .or_else(|| self.step_for(workflow, step_id))
     }
 
     pub(super) fn context_sources_at(

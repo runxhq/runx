@@ -452,8 +452,8 @@ expect:
 
 #[test]
 fn skill_package_consumes_conventional_workflow_test_closure() {
-    // A graph a test ran is a fixture package under fixtures/, as the
-    // converter writes it, with the script beside the graph staged with the
+    // A workflow a test ran is a fixture package under fixtures/, as the
+    // converter writes it, with the script beside the workflow staged with the
     // rest of fixtures/.
     let source = package([
         ("SKILL.md", manual_with_tasks("operator", &["inspect"])),

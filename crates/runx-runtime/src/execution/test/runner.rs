@@ -1,5 +1,5 @@
 // Module rationale: test replay owns fixture loading,
-// adapter invocation, receipt assertion, and graph replay sealing as one
+// adapter invocation, receipt assertion, and workflow replay sealing as one
 // deterministic proof path until MCP replay creates a separate module boundary.
 
 use std::collections::BTreeMap;
@@ -14,7 +14,7 @@ use runx_contracts::{
 use runx_parser::{SkillMethodDefinition, SkillMethodManifest};
 use thiserror::Error;
 
-use super::super::graph::bind_run_inputs;
+use super::super::workflow::bind_run_inputs;
 use super::assertions::{assert_exchanges_requested, assert_expectations, status_from_outcome};
 use super::fixtures::{TestExpectedStatus, TestFixture, TestFixtureError, load_test_fixture};
 use crate::RuntimeError;
@@ -239,7 +239,7 @@ pub fn replay_test_fixture(
 }
 
 /// Run one case, a fixture file's or a method's inline case, against the
-/// skill or graph at `target_path`, and assert what it expects. Both kinds
+/// skill or workflow at `target_path`, and assert what it expects. Both kinds
 /// run here, through one engine.
 pub(crate) fn run_test_case_with_adapter<A>(
     fixture: TestFixture,
@@ -446,7 +446,7 @@ fn wire_operations(
 /// Every connector the case's run binds through its whole closure, for its
 /// provider grant to reach: walked in the case's environment, so its registry
 /// children are materialized where the run finds them. None without a grant,
-/// or for a graph in no package.
+/// or for a workflow in no package.
 fn granted_closure(
     fixture: &TestFixture,
     target_path: &Path,
@@ -483,7 +483,7 @@ fn granted_closure(
 /// resolves it: each session as `runx connector use <connector> --session`
 /// would, and each credential bound to the variable the case sets, as
 /// `runx connector use <connector>` would with that variable set. They are
-/// confirmed from `skill_dir`, the directory of a graph case's file.
+/// confirmed from `skill_dir`, the directory of a workflow case's file.
 fn seed_test_instances(
     fixture: &TestFixture,
     target_path: &Path,
@@ -688,7 +688,7 @@ fn seal_admission_failure(
     })
 }
 
-// Function rationale: the fixture graph turn keeps materialize,
+// Function rationale: the fixture workflow turn keeps materialize,
 // run, and act-receipt minting in one path so it seals under the same instant and
 // signature policy as the production and inline fronts.
 fn run_workflow_skill_fixture<A>(
@@ -707,8 +707,8 @@ where
         .entry(crate::execution::runner::RUNX_RUN_ID_ENV.to_owned())
         .or_insert_with(|| test_run_id(&fixture.name))
         .clone();
-    let graph = bind_run_inputs(
-        target.method.graph.clone(),
+    let workflow = bind_run_inputs(
+        target.method.workflow.clone(),
         &inputs,
         fixture.host.act.as_ref(),
         &run_id,
@@ -717,10 +717,10 @@ where
     let mut options = options.runtime(&run_id, fixture, &target.skill_dir)?;
     // The run holds its method's effects and reach, as any run of it does.
     options.run_authority =
-        crate::RunAuthority::of_method(options.run_authority.take(), &target.method.graph);
+        crate::RunAuthority::of_method(options.run_authority.take(), &target.method.workflow);
     let runtime = Runtime::new(adapter, options);
     let mut host = FixtureHost::new(fixture);
-    let workflow_run = runtime.run_workflow_for_test(&target.skill_dir, graph, &mut host)?;
+    let workflow_run = runtime.run_workflow_for_test(&target.skill_dir, workflow, &mut host)?;
     let (replayed_answers, unanswered) = host.finish();
     let mut output =
         replay_output_from_workflow(fixture, workflow_run, replayed_answers, unanswered);

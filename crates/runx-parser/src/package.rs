@@ -55,7 +55,7 @@ pub struct SkillPackageSource {
 pub const PROFILE_FILE: &str = "run.yaml";
 
 /// The package-relative directory a profile path names: empty for the root
-/// profile, `graph/plan` for `graph/plan/run.yaml`, and `None` for a path that
+/// profile, `workflow/plan` for `workflow/plan/run.yaml`, and `None` for a path that
 /// is not a profile.
 #[must_use]
 pub fn profile_directory(profile_path: &str) -> Option<&str> {
@@ -115,7 +115,7 @@ pub struct PackagePacket {
 pub struct ValidatedSkillPackage {
     pub skill: ValidatedSkill,
     /// Every execution profile owned by this manual, keyed by package-relative
-    /// path (`run.yaml` for the root profile, `graph/plan/run.yaml` for a stage).
+    /// path (`run.yaml` for the root profile, `workflow/plan/run.yaml` for a stage).
     pub profiles: BTreeMap<String, SkillMethodManifest>,
     /// Exact `SKILL.md` bytes presented to an operating agent.
     pub manual_markdown: String,

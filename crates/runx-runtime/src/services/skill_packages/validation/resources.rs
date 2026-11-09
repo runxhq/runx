@@ -31,7 +31,7 @@ fn classify_method(
     method: &runx_parser::SkillMethodDefinition,
     usage: &mut CandidateResourceUsage,
 ) {
-    for step in &method.graph.steps {
+    for step in &method.workflow.steps {
         match &step.kind {
             // Every operation is external I/O.
             StepKind::Operation(_) => usage.network = true,

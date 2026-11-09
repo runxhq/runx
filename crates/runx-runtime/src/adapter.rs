@@ -71,7 +71,7 @@ pub struct SkillInvocation {
     pub reach: runx_contracts::Reach,
     pub historical_context: Vec<ContextEntry>,
     pub skill_name: String,
-    /// Graph step identity when the invocation is owned by a graph act.
+    /// Workflow step identity when the invocation is owned by a workflow act.
     pub step_id: Option<String>,
     pub executable: Executable,
     /// Complete output declarations the invocation's result must satisfy.
@@ -83,7 +83,7 @@ pub struct SkillInvocation {
     pub inputs: JsonObject,
     pub resolved_inputs: JsonObject,
     pub current_context: Vec<ContextEntry>,
-    /// Exact graph context edges that supplied invocation inputs.
+    /// Exact workflow context edges that supplied invocation inputs.
     pub provenance: Vec<ProvenanceEntry>,
     pub skill_directory: PathBuf,
     pub env: BTreeMap<String, String>,
@@ -158,7 +158,7 @@ pub struct InvocationOutput {
     #[serde(skip, default)]
     pub(crate) observations: Observations,
     /// Caller-only output that may cross the immediate process boundary but is
-    /// never serialized, checkpointed, sealed, or admitted into graph context.
+    /// never serialized, checkpointed, sealed, or admitted into workflow context.
     #[serde(skip, default)]
     pub(crate) ephemeral: EphemeralValue,
 }

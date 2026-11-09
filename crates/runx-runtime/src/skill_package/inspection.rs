@@ -214,14 +214,14 @@ pub fn inspect_connector_readiness(
         } else {
             None
         };
-        let graph = crate::execution::graph::bind_known_inputs(
-            method.graph.clone(),
+        let workflow = crate::execution::workflow::bind_known_inputs(
+            method.workflow.clone(),
             known.unwrap_or(&unknown),
         )?;
         let projected = crate::kernel::admission::skill_readiness(
             &package.directory,
             &method_requirements(&manifest.connectors, method),
-            &graph.steps,
+            &workflow.steps,
             authority,
             &chain,
             env,
@@ -251,7 +251,7 @@ fn method_requirements(
 ) -> BTreeMap<String, runx_parser::ConnectorRequirement> {
     let mut used = BTreeMap::<String, runx_parser::ConnectorRequirement>::new();
     let targets = method
-        .graph
+        .workflow
         .steps
         .iter()
         .filter_map(runx_parser::WorkflowStep::operation);
@@ -348,7 +348,7 @@ pub(crate) fn inspect_loaded_skill_package(
             &method.name,
         ));
         output.resume = Some(InspectionResume {
-            may_pause: method.graph.steps.iter().any(|step| {
+            may_pause: method.workflow.steps.iter().any(|step| {
                 !matches!(
                     step.kind,
                     StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_))
@@ -388,7 +388,7 @@ pub(crate) fn method_makes_calls(
                     .manifest()
                     .and_then(|manifest| manifest.methods.get(&method))
                     .is_some_and(|method| {
-                        method.graph.steps.iter().any(|step| {
+                        method.workflow.steps.iter().any(|step| {
                             matches!(
                                 &step.kind,
                                 runx_parser::StepKind::Agent(agent) if !agent.allowance.is_empty()

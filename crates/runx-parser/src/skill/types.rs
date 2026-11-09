@@ -148,7 +148,7 @@ pub struct SkillMethodDefinition {
     pub offer: Option<runx_contracts::PaidSkillOfferTerms>,
     /// The method's steps, as the workflow the engine runs. Its name is the
     /// skill's.
-    pub graph: crate::Workflow,
+    pub workflow: crate::Workflow,
     pub raw: JsonObject,
 }
 
@@ -166,7 +166,7 @@ impl SkillMethodDefinition {
     #[must_use]
     pub fn output_schema(&self) -> JsonObject {
         if let Some(fields) = self
-            .graph
+            .workflow
             .outputs
             .as_ref()
             .and_then(|outputs| runx_contracts::parse_output_contract(outputs).ok())
@@ -176,10 +176,10 @@ impl SkillMethodDefinition {
             return schema;
         }
         let mut results = self
-            .graph
+            .workflow
             .steps
             .iter()
-            .filter(|step| self.graph.result_from.contains(&step.id))
+            .filter(|step| self.workflow.result_from.contains(&step.id))
             .map(|step| {
                 let fields = step
                     .outputs
@@ -224,10 +224,10 @@ impl SkillMethodDefinition {
     /// public result.
     #[must_use]
     pub fn result_artifacts(&self) -> Vec<&OutputArtifacts> {
-        self.graph
+        self.workflow
             .steps
             .iter()
-            .filter(|step| self.graph.result_from.contains(&step.id))
+            .filter(|step| self.workflow.result_from.contains(&step.id))
             .filter_map(|step| step.artifacts.as_ref())
             .collect()
     }
@@ -236,7 +236,7 @@ impl SkillMethodDefinition {
     #[must_use]
     pub fn environment(&self) -> EnvironmentRequirements {
         let mut environment = EnvironmentRequirements::default();
-        for step in &self.graph.steps {
+        for step in &self.workflow.steps {
             match &step.kind {
                 crate::StepKind::Tool(crate::ToolTarget::Process(process)) => {
                     environment.extend(&process.environment);

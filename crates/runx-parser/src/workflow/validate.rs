@@ -161,7 +161,7 @@ fn validate_ask_addresses(
 }
 
 /// A step with no gate of its own that reads a gated step's output can never
-/// run when that step is skipped, so the graph would block there instead of
+/// run when that step is skipped, so the workflow would block there instead of
 /// finishing. It must carry a gate.
 fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), ValidationError> {
     let gated = steps
@@ -191,7 +191,7 @@ fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), Validatio
 mod tests {
     #[test]
     fn a_step_reads_earlier_steps_and_the_run_input_by_reference() -> Result<(), String> {
-        let graph = validate_yaml(
+        let workflow = validate_yaml(
             r#"
 minimum_runx: 0.12.0
 methods:
@@ -208,7 +208,7 @@ methods:
           url: https://example.com/a.b
 "#,
         )?;
-        let review = &graph.steps[1];
+        let review = &workflow.steps[1];
         assert_eq!(review.reads(), ["select"]);
         assert_eq!(review.bindings.len(), 2);
         assert_eq!(
@@ -263,7 +263,7 @@ methods:
 
     #[test]
     fn typed_workflow_ir_preserves_step_output_contracts() -> Result<(), String> {
-        let graph = validate_yaml(
+        let workflow = validate_yaml(
             r#"
 minimum_runx: 0.12.0
 methods:
@@ -277,7 +277,7 @@ methods:
             enum: [ready, blocked]
 "#,
         )?;
-        let outputs = graph.steps[0]
+        let outputs = workflow.steps[0]
             .outputs
             .as_ref()
             .ok_or_else(|| "typed workflow step omitted outputs".to_owned())?;
@@ -322,7 +322,7 @@ methods:
 
     #[test]
     fn a_step_reading_a_gated_step_carries_a_gate() -> Result<(), String> {
-        let graph = |consumer_when: &str| {
+        let workflow = |consumer_when: &str| {
             format!(
                 r#"
 minimum_runx: 0.12.0
@@ -341,12 +341,12 @@ methods:
 "#
             )
         };
-        let error = validate_err(&graph(""))?;
+        let error = validate_err(&workflow(""))?;
         assert!(
             error.contains("steps.2 (finalize) reads gated step 'draft'"),
             "{error}"
         );
-        validate_yaml(&graph(
+        validate_yaml(&workflow(
             "\n        when: {value: $steps.admit.result.decision, equals: ready}",
         ))?;
         Ok(())
@@ -373,7 +373,7 @@ methods:
 
     #[test]
     fn an_ask_gate_cannot_share_a_step_address() -> Result<(), String> {
-        let graph = |gate: &str| {
+        let workflow = |gate: &str| {
             format!(
                 r#"
 minimum_runx: 0.12.0
@@ -389,28 +389,28 @@ methods:
 "#
             )
         };
-        let error = validate_err(&graph("send"))?;
+        let error = validate_err(&workflow("send"))?;
         assert!(
             error.contains("steps.0.ask.gate 'send' names a step"),
             "{error}"
         );
-        validate_yaml(&graph("send.approval"))?;
+        validate_yaml(&workflow("send.approval"))?;
         Ok(())
     }
 
     #[test]
     fn two_asks_cannot_share_a_gate() -> Result<(), String> {
-        let graph = |second: &str| {
+        let workflow = |second: &str| {
             format!(
                 "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: first\n        ask: {{gate: approve.send, reason: Send it?}}\n      - id: second\n        ask: {{gate: {second}, reason: Send it again?}}\n"
             )
         };
-        let error = validate_err(&graph("approve.send"))?;
+        let error = validate_err(&workflow("approve.send"))?;
         assert!(
             error.contains("steps.1.ask.gate 'approve.send' is already another ask's gate"),
             "{error}"
         );
-        validate_yaml(&graph("approve.resend"))?;
+        validate_yaml(&workflow("approve.resend"))?;
         Ok(())
     }
 
@@ -423,14 +423,14 @@ methods:
             message.contains("reason is text, not a reference"),
             "{message}"
         );
-        let graph = validate_yaml(
+        let workflow = validate_yaml(
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: approve\n        ask: {gate: approve.send, reason: $$5 to send}\n        inputs: {title: $input.title}\n",
         )?;
-        let crate::StepKind::Ask(ask) = &graph.steps[0].kind else {
+        let crate::StepKind::Ask(ask) = &workflow.steps[0].kind else {
             return Err("an ask step".to_owned());
         };
         assert_eq!(ask.reason, "$5 to send");
-        assert_eq!(graph.steps[0].bindings.len(), 1);
+        assert_eq!(workflow.steps[0].bindings.len(), 1);
         Ok(())
     }
 
@@ -442,7 +442,7 @@ methods:
             crate::validate_method_manifest("demo", raw).map_err(|error| error.to_string())?;
         manifest
             .default_method()
-            .map(|method| method.graph.clone())
+            .map(|method| method.workflow.clone())
             .ok_or_else(|| "the run.yaml declares one method".to_owned())
     }
 
@@ -471,8 +471,8 @@ methods:
           channel_locator: slack://acme/C1
           text: hello
 "#;
-        let graph = validate_yaml(source)?;
-        let step = &graph.steps[0];
+        let workflow = validate_yaml(source)?;
+        let step = &workflow.steps[0];
         let operation = step.operation().ok_or("expected an operation")?;
         assert_eq!(operation.requirement, "slack");
         assert_eq!(
@@ -490,7 +490,7 @@ methods:
 
     #[test]
     fn an_operation_chosen_at_run_time_is_its_choice() -> Result<(), String> {
-        let graph = validate_yaml(
+        let workflow = validate_yaml(
             r#"
 minimum_runx: 0.12.0
 methods:
@@ -506,12 +506,12 @@ methods:
 "#,
         )?;
         assert_eq!(
-            graph.steps[1]
+            workflow.steps[1]
                 .operation()
                 .map(|target| target.operation.is_none()),
             Some(true)
         );
-        assert_eq!(graph.steps[1].reads(), ["plan"]);
+        assert_eq!(workflow.steps[1].reads(), ["plan"]);
         let message = validate_err(
             r#"
 minimum_runx: 0.12.0
@@ -594,7 +594,7 @@ methods:
 
     #[test]
     fn a_method_and_its_steps_read_effects_and_reach_as_written() -> Result<(), String> {
-        let graph = validate_yaml(
+        let workflow = validate_yaml(
             r#"
 minimum_runx: 0.12.0
 methods:
@@ -616,14 +616,14 @@ methods:
         inputs: {value: 3}
 "#,
         )?;
-        assert_eq!(graph.effects, Some(runx_contracts::Effects::Ask));
-        assert_eq!(graph.reach, Some(runx_contracts::Reach::Workspace));
-        assert_eq!(graph.steps[0].effects, Some(runx_contracts::Effects::None));
-        assert_eq!(graph.steps[0].reach, None);
+        assert_eq!(workflow.effects, Some(runx_contracts::Effects::Ask));
+        assert_eq!(workflow.reach, Some(runx_contracts::Reach::Workspace));
+        assert_eq!(workflow.steps[0].effects, Some(runx_contracts::Effects::None));
+        assert_eq!(workflow.steps[0].reach, None);
         // A value wider than its run's parses; it only never widens.
-        assert_eq!(graph.steps[1].effects, Some(runx_contracts::Effects::Allow));
-        assert_eq!(graph.steps[1].reach, Some(runx_contracts::Reach::Inputs));
-        assert_eq!((graph.steps[2].effects, graph.steps[2].reach), (None, None));
+        assert_eq!(workflow.steps[1].effects, Some(runx_contracts::Effects::Allow));
+        assert_eq!(workflow.steps[1].reach, Some(runx_contracts::Reach::Inputs));
+        assert_eq!((workflow.steps[2].effects, workflow.steps[2].reach), (None, None));
 
         for (source, expected) in [
             (

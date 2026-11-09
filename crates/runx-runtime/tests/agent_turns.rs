@@ -268,8 +268,8 @@ impl Paused {
         let output = object(&sealed.output)?;
         assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
         let receipt_id = text(output, "receipt_id").ok_or("missing receipt_id")?;
-        let graph = crate::support::read_test_signed_receipt(&self.receipts, receipt_id)?;
-        let step = crate::support::read_test_first_step_receipt(&self.receipts, &graph)?;
+        let workflow = crate::support::read_test_signed_receipt(&self.receipts, receipt_id)?;
+        let step = crate::support::read_test_first_step_receipt(&self.receipts, &workflow)?;
         Ok(step.lineage.children.len())
     }
 }
@@ -626,9 +626,9 @@ fn a_run_answered_later_seals_at_the_time_it_closes() -> TestResult {
         .complete(TURN, input(serde_json::json!({"answer": "later"}))?)?;
     let output = object(&sealed.output)?;
     let receipt_id = text(output, "receipt_id").ok_or("missing receipt_id")?;
-    let graph = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id)?;
-    let step = crate::support::read_test_first_step_receipt(&paused.receipts, &graph)?;
-    for receipt in [&graph, &step] {
+    let workflow = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id)?;
+    let step = crate::support::read_test_first_step_receipt(&paused.receipts, &workflow)?;
+    for receipt in [&workflow, &step] {
         assert!(
             receipt.created_at.as_str() >= answered_at.as_str(),
             "sealed {} before the answer at {answered_at}",
@@ -1294,7 +1294,7 @@ fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
         "{refused:?}"
     );
 
-    // A graph's skill step starts a child run too.
+    // A workflow's skill step starts a child run too.
     let other = tempdir()?;
     let parent = write_parent_skill(other.path())?;
     let sealed = start_bounded(other.path(), parent, bounded(None, Some(0)))?;

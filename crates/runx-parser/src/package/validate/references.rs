@@ -17,7 +17,7 @@ pub(super) fn collect_package_references(
             collect_workflow_references(
                 &format!("{profile_path}.methods.{name}"),
                 profile_dir,
-                &method.graph,
+                &method.workflow,
                 &mut references,
             )?;
         }
@@ -106,10 +106,10 @@ fn process_script_path(profile_dir: &str, value: &str) -> Option<String> {
 fn collect_workflow_references(
     field: &str,
     profile_dir: &str,
-    graph: &Workflow,
+    workflow: &Workflow,
     references: &mut PackageReferences,
 ) -> Result<(), SkillPackageError> {
-    for (index, step) in graph.steps.iter().enumerate() {
+    for (index, step) in workflow.steps.iter().enumerate() {
         let step_field = format!("{field}.steps[{index}]");
         collect_step_context_refs(
             &step_field,

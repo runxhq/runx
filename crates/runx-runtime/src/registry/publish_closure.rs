@@ -27,7 +27,7 @@ use super::source_authority::{
 use super::types::RegistrySkillVersion;
 use crate::http::RuntimeHttpTransport;
 
-/// A closure deeper than this is a cycle or a fault, not a real graph.
+/// A closure deeper than this is a cycle or a fault, not a real workflow.
 const MAX_CLOSURE_DEPTH: usize = 16;
 
 #[derive(Debug, thiserror::Error)]

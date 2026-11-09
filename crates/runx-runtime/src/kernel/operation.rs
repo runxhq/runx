@@ -1,6 +1,6 @@
 //! Operation steps: the kernel's one path for every connector call.
 //!
-//! The graph engine admits an operation step through [`OperationEffect`]:
+//! The workflow engine admits an operation step through [`OperationEffect`]:
 //! admission ([`super::admission`]) proves the call, approval evidence is
 //! gathered when its floor requires it, custody records the attempt, the
 //! instance's placement executes it, and the readback becomes the step's

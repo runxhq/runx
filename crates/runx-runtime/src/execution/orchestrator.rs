@@ -2,7 +2,7 @@
 // types and prepared/unprepared execution dispatch in one reviewable boundary.
 //! Canonical local orchestration entrypoint.
 //!
-//! CLI commands and TypeScript wrappers should enter local skill, graph, and
+//! CLI commands and TypeScript wrappers should enter local skill, workflow, and
 //! test execution through this module instead of calling narrower execution
 //! helpers directly.
 

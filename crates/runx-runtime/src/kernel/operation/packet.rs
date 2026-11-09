@@ -150,7 +150,7 @@ impl Readback {
 }
 
 /// Move the caller-only result paths out of a packet's result. Their values
-/// reach the immediate caller and never graph state or receipts; the result
+/// reach the immediate caller and never workflow state or receipts; the result
 /// digest still covers them.
 pub(crate) fn split_ephemeral(
     packet: &mut ProviderOperationPacket,

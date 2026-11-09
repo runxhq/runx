@@ -57,7 +57,7 @@ fn hosted_workflow_receipt_commits_immutable_children_and_verifies_tree()
         &verifier,
     )?];
 
-    let graph = workflow_receipt(
+    let workflow = workflow_receipt(
         scope("prod_workflow"),
         &steps,
         CREATED_AT,
@@ -68,11 +68,11 @@ fn hosted_workflow_receipt_commits_immutable_children_and_verifies_tree()
         .map(|step| step.receipt.clone())
         .collect::<Vec<_>>();
 
-    assert!(graph.signature.value.starts_with("base64:"));
+    assert!(workflow.signature.value.starts_with("base64:"));
     assert!(children[0].signature.value.starts_with("base64:"));
     assert!(
         runx_runtime::receipts::tree::validate_runtime_receipt_tree(
-            &graph,
+            &workflow,
             children,
             runx_receipts::ReceiptTreeConfig::default(),
             RuntimeReceiptSignaturePolicy::verifying(&verifier),
@@ -98,14 +98,14 @@ fn local_step_and_workflow_receipts_use_real_ed25519() -> Result<(), Box<dyn Err
         CREATED_AT,
         config.signature_policy(),
     )?;
-    let graph = workflow_receipt(
+    let workflow = workflow_receipt(
         scope("local_workflow"),
         &[step_run("plan", step.clone())],
         CREATED_AT,
         config.signature_policy(),
     )?;
 
-    for receipt in [&step, &graph] {
+    for receipt in [&step, &workflow] {
         assert_eq!(receipt.issuer.issuer_type, ReceiptIssuerType::Local);
         assert!(receipt.issuer.kid.starts_with("local-"));
         assert!(receipt.signature.value.starts_with("base64:"));
@@ -113,7 +113,7 @@ fn local_step_and_workflow_receipts_use_real_ed25519() -> Result<(), Box<dyn Err
     let verifier = receipt_verifier(&env, &paths, ReceiptTrust::HomeAndConfigured)?;
     assert!(
         runx_runtime::validate_runtime_receipt_tree(
-            &graph,
+            &workflow,
             vec![step],
             runx_receipts::ReceiptTreeConfig::default(),
             RuntimeReceiptSignaturePolicy::verifying(&verifier),

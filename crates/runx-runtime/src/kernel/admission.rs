@@ -1,5 +1,5 @@
 //! The admission evaluator: the one place that decides whether an operation
-//! call may run. Every surface (the graph engine, `runx skill inspect`, the
+//! call may run. Every surface (the workflow engine, `runx skill inspect`, the
 //! MCP server, the assistant) reads its answer instead of re-deciding.
 //!
 //! An exact call gets an [`Admission`]: its checks run in order, each

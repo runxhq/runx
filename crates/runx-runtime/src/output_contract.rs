@@ -30,7 +30,7 @@ pub(crate) fn declares_output_contract(
 
 /// Project the exact semantic claim a successful producer declared.
 ///
-/// The claim is one shared contract surface for graph state, effect admission,
+/// The claim is one shared contract surface for workflow state, effect admission,
 /// test replay, and receipt identity. Raw process output, diagnostics, and
 /// transport envelopes never enter it. Callers that normalize a provider
 /// protocol must pass that already-normalized payload explicitly.

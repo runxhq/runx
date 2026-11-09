@@ -221,9 +221,9 @@ jobs:
         # fixture generators or the workspace-wide Rust corpora.
         run: cargo build -p runx-js-worker -p runx-cli --manifest-path crates/Cargo.toml
 
-      - name: Heavy graph scenarios
+      - name: Heavy workflow scenarios
         if: needs.classify.outputs.full == 'true'
-        run: pnpm test:heavy:graph
+        run: pnpm test:heavy:workflow
 
       - name: Full Rust checks
         if: needs.classify.outputs.full == 'true'

@@ -150,13 +150,13 @@ fn workflow(run_yaml: &str) -> Result<runx_parser::Workflow, String> {
     let manifest = validate_method_manifest("workflow", raw).map_err(|error| error.to_string())?;
     manifest
         .default_method()
-        .map(|method| method.graph.clone())
+        .map(|method| method.workflow.clone())
         .ok_or_else(|| "the run.yaml declares one method".to_owned())
 }
 
 #[test]
 fn workflow_agent_task_accepts_context_skills() -> Result<(), String> {
-    let graph = workflow(
+    let workflow = workflow(
         r#"
 minimum_runx: 0.12.0
 methods:
@@ -171,7 +171,7 @@ methods:
     )?;
 
     assert_eq!(
-        graph.steps[0].context_skills,
+        workflow.steps[0].context_skills,
         vec!["registry:runx/taste-profile@1.0.0"]
     );
     Ok(())

@@ -220,7 +220,7 @@ impl PreparedSkillRun {
 
     /// Bind the exact prepared context without fabricating action approval.
     ///
-    /// Consequential actions are approved by their owning graph gate or
+    /// Consequential actions are approved by their owning workflow gate or
     /// effect boundary after the exact action is known. Preparation binds
     /// context and artifact drift only.
     pub fn bind_context(&mut self) -> Result<(), SkillRunError> {
@@ -1397,7 +1397,7 @@ methods:
     #[test]
     fn prepared_skill_execution_rejects_child_drift_at_load_boundary() -> Result<(), Box<dyn Error>>
     {
-        use crate::execution::graph::{StepSkillLoadOptions, load_step_skill};
+        use crate::execution::workflow::{StepSkillLoadOptions, load_step_skill};
 
         let temp = tempdir()?;
         let entry = temp.path().join("entry");
@@ -1426,7 +1426,7 @@ methods:
             child.join("run.yaml"),
             "minimum_runx: 0.12.0\nmethods:\n  child:\n    steps:\n      - id: child\n        agent: after\n        outputs:\n          result: {type: object}\n",
         )?;
-        let step = &prepared.method.graph.steps[0];
+        let step = &prepared.method.workflow.steps[0];
         let error = match load_step_skill(
             &entry,
             step,

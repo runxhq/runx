@@ -220,14 +220,14 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
 
     // The parent's step closes over the child's receipt, which names both
     // of the child's steps.
-    let graph = receipt(
+    let workflow = receipt(
         root,
         output
             .get("receipt_id")
             .and_then(JsonValue::as_str)
             .ok_or("a receipt id")?,
     )?;
-    let [invoke] = children(root, &graph)?
+    let [invoke] = children(root, &workflow)?
         .try_into()
         .map_err(|_| "one parent step")?;
     assert_eq!(invoke.seal.outcome, RunOutcome::Failed);

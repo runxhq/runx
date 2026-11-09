@@ -116,7 +116,7 @@ pub(super) fn validate_agent_task_sections(
         return Ok(());
     };
     for (name, method) in &manifest.methods {
-        for step in &method.graph.steps {
+        for step in &method.workflow.steps {
             if let crate::StepKind::Agent(agent) = &step.kind
                 && !sections.contains_key(agent.task.as_str())
             {

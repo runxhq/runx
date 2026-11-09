@@ -60,13 +60,13 @@ pub enum RuntimeError {
         child: Option<String>,
     },
     /// A step sealed a governed outcome other than `completed`: an agent act
-    /// that declined, deferred, blocked, or was superseded. The graph stops
+    /// that declined, deferred, blocked, or was superseded. The workflow stops
     /// there with that outcome; it is an outcome, not a fault.
     #[error("workflow step '{step_id}' ended {}: {summary}", outcome.label())]
     StepClosed {
         step_id: String,
         outcome: runx_contracts::RunOutcome,
-        /// The step receipt's own seal reason, which the graph seal keeps.
+        /// The step receipt's own seal reason, which the workflow seal keeps.
         reason: Option<runx_contracts::SealReason>,
         summary: String,
         /// Why a guard or an authority refused the child run the step ran,
@@ -211,7 +211,7 @@ impl RuntimeError {
     }
 
     pub(crate) fn engine(context: &'static str, source: RuntimeError) -> Self {
-        // Never absorb a governed flow outcome: the graph engine and refusal
+        // Never absorb a governed flow outcome: the workflow engine and refusal
         // sealing match on these exact variants, so wrapping one would turn a
         // provable denial into an anonymous engine fault.
         match source {
@@ -447,10 +447,10 @@ impl RuntimeError {
         }
     }
 
-    /// Bind every sealable failure to the graph step that owns the act.
+    /// Bind every sealable failure to the workflow step that owns the act.
     ///
     /// Nested skills and adapters may name their own capability, which is useful
-    /// diagnostic context but is not necessarily the outer graph step id. The
+    /// diagnostic context but is not necessarily the outer workflow step id. The
     /// dispatch chokepoint owns that identity, so it preserves governed control
     /// outcomes and normalizes all other sealable faults into one step-scoped
     /// failure before terminal receipt sealing.

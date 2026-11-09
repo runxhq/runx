@@ -1,11 +1,11 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 //! Conformance for the uniform-governance seal invariant.
 //!
-//! Every registered graph step is admitted centrally and its admission witness is
+//! Every registered workflow step is admitted centrally and its admission witness is
 //! sealed in one central place (`run_registered_step`). So an admitted step records
 //! which authority admitted the act, and an unadmitted step falls back to a
 //! local-runtime witness rather than fabricating one. Because the seal is central
-//! and step-type-agnostic, exercising one real graph proves the invariant for every
+//! and step-type-agnostic, exercising one real workflow proves the invariant for every
 //! step type, so this is two focused end-to-end checks rather than one per type.
 
 use std::path::Path;

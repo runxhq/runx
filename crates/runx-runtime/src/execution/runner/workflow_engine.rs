@@ -1,4 +1,4 @@
-// The graph engine owns state transitions and step commits, and records each
+// The workflow engine owns state transitions and step commits, and records each
 // into the run's stream as it happens. Step behavior itself enters through
 // dispatch.
 use std::collections::BTreeMap;
@@ -11,7 +11,7 @@ use runx_core::state_machine::{
 };
 use runx_parser::{Operand, Source, StepKind, Workflow, WorkflowStep};
 
-use super::super::graph::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
+use super::super::workflow::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
 use super::super::run_record::{
     Answer, Hold, PendingRequest, Replayed, RunRecord, Suspension, request_digest,
 };
@@ -46,7 +46,7 @@ pub(super) struct WorkflowExecution {
 struct StepPlanTarget<'a, A> {
     runtime: &'a Runtime<A>,
     workflow_dir: &'a Path,
-    graph: &'a Workflow,
+    workflow: &'a Workflow,
     step: &'a WorkflowStep,
     plan: StepExecutionPlan<'a>,
 }
@@ -137,17 +137,17 @@ pub(super) struct StepExecutionPlan<'a> {
 struct StepExecutionContext<'a, A> {
     runtime: &'a Runtime<A>,
     workflow_dir: &'a Path,
-    graph: &'a Workflow,
+    workflow: &'a Workflow,
     step: &'a WorkflowStep,
     host: &'a mut dyn Host,
     plan: StepExecutionPlan<'a>,
 }
 
 impl WorkflowExecution {
-    pub(super) fn new(graph: &Workflow) -> Self {
-        let definitions = super::super::graph::step_definitions(graph);
-        let progress = create_sequential_workflow(graph.name.clone(), &definitions);
-        let workflow_index = ExecutionWorkflowIndex::new(graph, definitions);
+    pub(super) fn new(workflow: &Workflow) -> Self {
+        let definitions = super::super::workflow::step_definitions(workflow);
+        let progress = create_sequential_workflow(workflow.name.clone(), &definitions);
+        let workflow_index = ExecutionWorkflowIndex::new(workflow, definitions);
         Self {
             workflow_index,
             planning_cursor: 0,
@@ -167,9 +167,9 @@ impl WorkflowExecution {
 
     /// Rebuild a run's execution state from its record, applying each
     /// recorded fact as the engine applied it.
-    pub(super) fn from_record(graph: &Workflow, record: &RunRecord) -> Result<Self, RuntimeError> {
+    pub(super) fn from_record(workflow: &Workflow, record: &RunRecord) -> Result<Self, RuntimeError> {
         let at = &record.created_at;
-        let mut execution = Self::new(graph);
+        let mut execution = Self::new(workflow);
         for fact in &record.facts {
             match fact {
                 Replayed::Step(run) => {
@@ -229,7 +229,7 @@ impl WorkflowExecution {
     }
 
     /// The final state of a sealed run: a run sealed `completed` completed
-    /// its graph.
+    /// its workflow.
     pub(super) fn seal_state(&mut self, outcome: runx_contracts::RunOutcome) {
         if outcome == runx_contracts::RunOutcome::Completed {
             self.complete_workflow();
@@ -240,7 +240,7 @@ impl WorkflowExecution {
         &mut self,
         runtime: &Runtime<A>,
         workflow_dir: &Path,
-        graph: &Workflow,
+        workflow: &Workflow,
         host: &mut dyn Host,
     ) -> Result<(), RuntimeError>
     where
@@ -256,15 +256,15 @@ impl WorkflowExecution {
                     step_id: step_id.clone(),
                 })?
                 .attempts;
-            self.run_one_step(runtime, workflow_dir, graph, &step_id, attempt, host)?;
+            self.run_one_step(runtime, workflow_dir, workflow, &step_id, attempt, host)?;
         }
         loop {
-            self.mark_when_skipped_steps(runtime, graph)?;
+            self.mark_when_skipped_steps(runtime, workflow)?;
             self.advance_planning_cursor();
             let plan = self
                 .workflow_index
                 .plan_transition(&self.progress, self.planning_cursor);
-            if self.apply_plan(runtime, workflow_dir, graph, host, plan)? {
+            if self.apply_plan(runtime, workflow_dir, workflow, host, plan)? {
                 break;
             }
         }
@@ -276,13 +276,13 @@ impl WorkflowExecution {
     }
 
     /// Mark every step whose `when` condition the runtime has resolved to false
-    /// as `Skipped`, so the planner walks past it and graph completion treats it
+    /// as `Skipped`, so the planner walks past it and workflow completion treats it
     /// as terminal. Evaluated against the runs so far, so a branch is only
     /// selected out once the step it reads from has produced its output.
     fn mark_when_skipped_steps<A>(
         &mut self,
         runtime: &Runtime<A>,
-        graph: &Workflow,
+        workflow: &Workflow,
     ) -> Result<(), RuntimeError> {
         let already_skipped = self
             .progress
@@ -292,7 +292,7 @@ impl WorkflowExecution {
             .map(|step| step.step_id.clone())
             .collect();
         let mut skipped = Vec::new();
-        for step_id in when_skipped_steps(graph, &self.runs, &already_skipped) {
+        for step_id in when_skipped_steps(workflow, &self.runs, &already_skipped) {
             let is_pending =
                 self.progress.steps.iter().any(|step| {
                     step.step_id == step_id && step.state == WorkflowStepState::Pending
@@ -313,7 +313,7 @@ impl WorkflowExecution {
         &mut self,
         runtime: &Runtime<A>,
         workflow_dir: &Path,
-        graph: &Workflow,
+        workflow: &Workflow,
         host: &mut dyn Host,
         plan: SequentialWorkflowPlan,
     ) -> Result<bool, RuntimeError>
@@ -324,7 +324,7 @@ impl WorkflowExecution {
             SequentialWorkflowPlan::RunStep {
                 step_id, attempt, ..
             } => {
-                self.run_one_step(runtime, workflow_dir, graph, &step_id, attempt, host)?;
+                self.run_one_step(runtime, workflow_dir, workflow, &step_id, attempt, host)?;
                 Ok(false)
             }
             SequentialWorkflowPlan::Complete => Ok(self.complete_workflow()),
@@ -357,7 +357,7 @@ impl WorkflowExecution {
         &mut self,
         runtime: &Runtime<A>,
         workflow_dir: &Path,
-        graph: &Workflow,
+        workflow: &Workflow,
         step_id: &str,
         attempt: u32,
         host: &mut dyn Host,
@@ -376,13 +376,13 @@ impl WorkflowExecution {
             });
         }
         let plan = StepExecutionPlan { step_id, attempt };
-        let step = self.find_step(graph, plan.step_id)?;
+        let step = self.find_step(workflow, plan.step_id)?;
         let loaded_skill = self.cached_step_skill(runtime, workflow_dir, step);
         self.run_loaded_step(
             StepExecutionContext {
                 runtime,
                 workflow_dir,
-                graph,
+                workflow,
                 step,
                 host,
                 plan,
@@ -402,7 +402,7 @@ impl WorkflowExecution {
         enforce_condition(context.step, &self.runs)?;
         enforce_guards(context.step, &self.runs)?;
         let admission_refs =
-            verified_approval_references(context.runtime, context.graph, context.step, &self.runs)?;
+            verified_approval_references(context.runtime, context.workflow, context.step, &self.runs)?;
         let resumed_hold = if let Some(pending) = self.suspended_step.take() {
             if pending != context.plan.step_id {
                 return Err(RuntimeError::EngineInvariant {
@@ -479,7 +479,7 @@ impl WorkflowExecution {
                     StepPlanTarget {
                         runtime: context.runtime,
                         workflow_dir: context.workflow_dir,
-                        graph: context.graph,
+                        workflow: context.workflow,
                         step: context.step,
                         plan: context.plan,
                     },
@@ -549,7 +549,7 @@ impl WorkflowExecution {
         {
             return Ok(super::floor::Admitted::Free);
         }
-        let inputs = super::super::graph::materialize_step_invocation_inputs_with_index(
+        let inputs = super::super::workflow::materialize_step_invocation_inputs_with_index(
             step,
             &PriorRunIndex::from_positions(&self.runs, &self.run_positions),
         )?;
@@ -572,7 +572,7 @@ impl WorkflowExecution {
             LoadedStepExecutionRequest {
                 runtime: context.runtime,
                 workflow_dir: context.workflow_dir,
-                workflow_name: &context.graph.name,
+                workflow_name: &context.workflow.name,
                 step: context.step,
                 attempt: context.plan.attempt,
                 loaded_skill: loaded_skill?,
@@ -674,7 +674,7 @@ impl WorkflowExecution {
         });
     }
 
-    /// Fail the graph in place at `step_id`. A step whose dispatch faulted
+    /// Fail the workflow in place at `step_id`. A step whose dispatch faulted
     /// has no run yet; `fault_run` records it so the sealed trace holds it.
     pub(super) fn fail_workflow_at<A>(
         &mut self,
@@ -765,9 +765,9 @@ impl WorkflowExecution {
         self.record(host, event.into_execution_event())
     }
 
-    pub(super) fn finish(self, graph: Workflow, receipt: runx_contracts::Receipt) -> WorkflowRun {
+    pub(super) fn finish(self, workflow: Workflow, receipt: runx_contracts::Receipt) -> WorkflowRun {
         WorkflowRun {
-            graph,
+            workflow,
             progress: self.progress,
             steps: self.runs,
             receipt,
@@ -779,13 +779,13 @@ impl WorkflowExecution {
     /// A run a governed stop sealed: it keeps why it stopped.
     pub(super) fn finish_stopped(
         self,
-        graph: Workflow,
+        workflow: Workflow,
         receipt: runx_contracts::Receipt,
         stop: String,
     ) -> WorkflowRun {
         WorkflowRun {
             stop: Some(stop),
-            ..self.finish(graph, receipt)
+            ..self.finish(workflow, receipt)
         }
     }
 
@@ -825,17 +825,17 @@ impl WorkflowExecution {
 
     fn find_step<'a>(
         &self,
-        graph: &'a Workflow,
+        workflow: &'a Workflow,
         step_id: &str,
     ) -> Result<&'a WorkflowStep, RuntimeError> {
-        // `workflow_index` is built from exactly this `graph` (see `WorkflowExecution::new`
+        // `workflow_index` is built from exactly this `workflow` (see `WorkflowExecution::new`
         // / `from_record`), which is immutable for the run, so the index position
-        // map is always in sync with `graph.steps`. The index's `StepMissing` is the
+        // map is always in sync with `workflow.steps`. The index's `StepMissing` is the
         // authoritative answer for a genuinely-missing step; a linear re-scan over the
-        // same `graph.steps` could never find a step the index legitimately missed, it
-        // would only silently paper over an index/graph desync. Return the index result
+        // same `workflow.steps` could never find a step the index legitimately missed, it
+        // would only silently paper over an index/workflow desync. Return the index result
         // directly so such a desync surfaces instead of being absorbed by an O(n) scan.
-        self.workflow_index.find_step(graph, step_id)
+        self.workflow_index.find_step(workflow, step_id)
     }
 }
 
@@ -974,7 +974,7 @@ fn approval_decision_of(operand: &Operand) -> Option<&str> {
 
 fn verified_approval_references<A>(
     runtime: &Runtime<A>,
-    graph: &Workflow,
+    workflow: &Workflow,
     step: &WorkflowStep,
     runs: &[StepRun],
 ) -> Result<Vec<Reference>, RuntimeError>
@@ -990,7 +990,7 @@ where
         let Some(approval_step_id) = approval_decision_of(&guard.value) else {
             continue;
         };
-        let Some(approval_step) = graph
+        let Some(approval_step) = workflow
             .steps
             .iter()
             .find(|candidate| candidate.id == approval_step_id)
@@ -1052,9 +1052,9 @@ pub(super) fn operand_value<'a>(
         Operand::Reference(Source::Step { step, path }) => {
             let run = runs.iter().rev().find(|run| run.step_id == *step)?;
             let (first, rest) = path.split_first()?;
-            crate::execution::graph::value_at(run.output(first)?, rest)
+            crate::execution::workflow::value_at(run.output(first)?, rest)
         }
-        // The run's input and workspace id are bound before the graph runs,
+        // The run's input and workspace id are bound before the workflow runs,
         // so an input field still unbound is absent; no condition or guard
         // reads the invoker's act or the run's id.
         Operand::Reference(
@@ -1078,16 +1078,16 @@ pub(super) fn display_json(value: &JsonValue) -> String {
 /// A pending predicate source leaves the branch pending. A step selected out
 /// makes every step that reads it (its condition, its values or its act)
 /// unreachable, so selection propagates transitively instead of leaving the
-/// graph blocked.
+/// workflow blocked.
 pub(super) fn when_skipped_steps(
-    graph: &Workflow,
+    workflow: &Workflow,
     runs: &[StepRun],
     already_skipped: &std::collections::BTreeSet<String>,
 ) -> std::collections::BTreeSet<String> {
     let mut skipped = already_skipped.clone();
     loop {
         let previous_len = skipped.len();
-        for step in &graph.steps {
+        for step in &workflow.steps {
             let condition_source = step.when.as_ref().and_then(|when| when.value.step());
             if step
                 .reads()
@@ -1176,7 +1176,7 @@ mod tests {
 
     #[test]
     fn skipped_branch_predicates_propagate_to_unreachable_descendants() {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "conditional-propagation",
             r#"
 minimum_runx: 0.12.0
@@ -1197,14 +1197,14 @@ methods:
 "#,
         )
         .expect("fixture method should validate");
-        let skipped = when_skipped_steps(&graph, &[], &BTreeSet::from(["inspect".to_owned()]));
+        let skipped = when_skipped_steps(&workflow, &[], &BTreeSet::from(["inspect".to_owned()]));
 
         assert!(skipped.contains("reject"));
     }
 
     #[test]
     fn a_step_that_reads_a_skipped_step_is_skipped_whatever_it_reads_it_through() {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "read-propagation",
             r#"
 minimum_runx: 0.12.0
@@ -1222,14 +1222,14 @@ methods:
 "#,
         )
         .expect("fixture method should validate");
-        let skipped = when_skipped_steps(&graph, &[], &BTreeSet::from(["inspect".to_owned()]));
+        let skipped = when_skipped_steps(&workflow, &[], &BTreeSet::from(["inspect".to_owned()]));
 
         assert!(skipped.contains("publish"));
     }
 
     #[test]
     fn a_condition_that_reads_nothing_never_lets_its_step_run() {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "misspelled-condition",
             r#"
 minimum_runx: 0.12.0
@@ -1245,14 +1245,14 @@ methods:
 "#,
         )
         .expect("fixture method should validate");
-        let send = &graph.steps[1];
+        let send = &workflow.steps[1];
         let error = super::enforce_condition(send, &[]).expect_err("unresolved");
         assert!(error.to_string().contains("resolves to nothing"), "{error}");
     }
 
     #[test]
     fn a_branch_on_the_run_input_is_decided_before_any_step_runs() {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "input-branch",
             r#"
 minimum_runx: 0.12.0
@@ -1272,16 +1272,16 @@ methods:
             "mode".to_owned(),
             runx_contracts::JsonValue::String("preview".to_owned()),
         )]);
-        let graph = crate::execution::graph::bind_run_inputs(graph, &inputs, None, "run", None)
+        let workflow = crate::execution::workflow::bind_run_inputs(workflow, &inputs, None, "run", None)
             .expect("the run input binds");
-        let skipped = when_skipped_steps(&graph, &[], &BTreeSet::new());
+        let skipped = when_skipped_steps(&workflow, &[], &BTreeSet::new());
 
         assert_eq!(skipped, BTreeSet::from(["apply".to_owned()]));
     }
 
     #[test]
     fn an_absent_input_satisfies_no_condition_and_passes_no_guard() {
-        let graph = crate::execution::graph::testing::method_workflow(
+        let workflow = crate::execution::workflow::testing::method_workflow(
             "absent-input",
             r#"
 minimum_runx: 0.12.0
@@ -1298,8 +1298,8 @@ methods:
 "#,
         )
         .expect("fixture method should validate");
-        let graph = crate::execution::graph::bind_run_inputs(
-            graph,
+        let workflow = crate::execution::workflow::bind_run_inputs(
+            workflow,
             &runx_contracts::JsonObject::new(),
             None,
             "run",
@@ -1308,12 +1308,12 @@ methods:
         .expect("the run input binds");
 
         assert!(
-            when_skipped_steps(&graph, &[], &BTreeSet::new()).is_empty(),
+            when_skipped_steps(&workflow, &[], &BTreeSet::new()).is_empty(),
             "an absent input decides no branch"
         );
-        let error = super::enforce_condition(&graph.steps[0], &[]).expect_err("absent");
+        let error = super::enforce_condition(&workflow.steps[0], &[]).expect_err("absent");
         assert!(error.to_string().contains("resolves to nothing"), "{error}");
-        let error = super::enforce_guards(&graph.steps[1], &[]).expect_err("absent");
+        let error = super::enforce_guards(&workflow.steps[1], &[]).expect_err("absent");
         assert!(
             error
                 .to_string()

@@ -250,7 +250,7 @@ function findAddedSkillPath(skillsDir: string, skillId: string): string {
         existsSync(path.join(entryPath, "run.yaml")) &&
         entryPath.includes(`${path.sep}${owner}${path.sep}${name}${path.sep}`)
       ) {
-        // A package root; its graph stages below are part of it.
+        // A package root; its workflow stages below are part of it.
         matches.push(entryPath);
         continue;
       }

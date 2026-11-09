@@ -1,4 +1,4 @@
-//! The configured executable adapter shared by graph steps and test
+//! The configured executable adapter shared by workflow steps and test
 //! replay: trusted host processes, with credential evidence recorded the same
 //! way at every entry point. Worker tools run on the runtime's worker session.
 

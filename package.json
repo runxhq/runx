@@ -46,7 +46,7 @@
     "test": "node scripts/test-workspace.mjs",
     "test:product": "node scripts/test-workspace.mjs --product",
     "test:fast": "vitest run --config vitest.fast.config.ts",
-    "test:heavy:graph": "node scripts/test-workspace.mjs --testTimeout 30000 --hookTimeout 30000 tests/examples/hello-workflow.test.ts",
+    "test:heavy:workflow": "node scripts/test-workspace.mjs --testTimeout 30000 --hookTimeout 30000 tests/examples/hello-workflow.test.ts",
     "boundary:check": "node scripts/check-boundaries.mjs",
     "test:boundary": "node scripts/test-boundaries.mjs",
     "test:skills": "node --test \"skills/**/*.test.mjs\" \"connectors/**/*.test.mjs\"",

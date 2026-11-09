@@ -33,7 +33,7 @@ fn test_blocks_ending_and_seals_workflow_receipt() -> Result<(), Box<dyn std::er
     assert_eq!(output.step_receipts[0].seal.outcome, RunOutcome::Completed);
     assert_eq!(adapter.calls()?, vec!["act".to_owned()]);
 
-    // Each step ran its child skill as a nested graph; the tree holds the
+    // Each step ran its child skill as a nested workflow; the tree holds the
     // step receipts and every receipt beneath them.
     let children = output
         .steps

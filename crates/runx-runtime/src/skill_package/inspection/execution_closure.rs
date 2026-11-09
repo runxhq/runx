@@ -291,7 +291,7 @@ pub(crate) enum CaseClosureTarget<'a> {
 }
 
 /// Every connector a test case's run binds, each as the package that
-/// declares it resolves it: the whole closure of the case's method or graph,
+/// declares it resolves it: the whole closure of the case's method or workflow,
 /// its registry children materialized into the case's project as the run
 /// materializes them. A child no registry holds is the run's to refuse.
 pub(super) fn case_closure_connectors(
@@ -325,7 +325,7 @@ fn load_rule_label(rule: &runx_contracts::CatalogRule) -> String {
     }
 }
 
-/// The registry refs a package's methods and test graphs name that the
+/// The registry refs a package's methods and test workflows name that the
 /// environment's project does not hold: what is fetched into it before the
 /// package's closure can be bound.
 pub(super) fn unheld_registry_refs(
@@ -352,7 +352,7 @@ pub(super) fn unheld_registry_refs(
         .collect())
 }
 
-/// Every registry ref a package's methods and test graphs name, through
+/// Every registry ref a package's methods and test workflows name, through
 /// the children `env`'s project holds: the registry skills a run of it in
 /// that project reads.
 pub(super) fn closure_registry_refs(
@@ -365,7 +365,7 @@ pub(super) fn closure_registry_refs(
         .collect())
 }
 
-/// The closure of each of a package's methods and test graphs, walked in
+/// The closure of each of a package's methods and test workflows, walked in
 /// `env`, with registry refs it does not hold reported.
 fn closure_accumulators(
     loaded: Arc<LoadedSkillPackage>,
@@ -768,7 +768,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 edge_depth,
                 materialize_local,
             },
-            &method.graph,
+            &method.workflow,
             walk,
         )?;
         Ok(())
@@ -778,19 +778,19 @@ impl<'a> ExecutionClosureInspector<'a> {
         &mut self,
         loaded: Arc<LoadedSkillPackage>,
         context: WorkflowWalkContext<'_>,
-        graph: &runx_parser::Workflow,
+        workflow: &runx_parser::Workflow,
         walk: &mut ExecutionWalkState<'_>,
     ) -> Result<(), SkillInspectionError> {
         if context.materialize_local {
             let package_root = canonical_directory(&loaded.package_root, "bound workflow package")?;
             let packet_ids = walk.closure.local_packages.entry(package_root).or_default();
-            for step in &graph.steps {
+            for step in &workflow.steps {
                 packet_ids.extend(crate::packet_schemas::declared_artifact_packet_ids(
                     step.artifacts.as_ref(),
                 ));
             }
         }
-        for step in &graph.steps {
+        for step in &workflow.steps {
             let context_registry_refs = step
                 .context_skills
                 .iter()
@@ -862,7 +862,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 }
                 StepKind::Ask(_) | StepKind::Skill(_) | StepKind::Load(_) => {}
             }
-            for child in crate::execution::graph::child_skill_steps(step) {
+            for child in crate::execution::workflow::child_skill_steps(step) {
                 let step = child.as_ref();
                 let Some(resolved) =
                     self.resolve_step_skill(context.directory, context.profile_path, step)?
@@ -982,7 +982,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         let env = self.env.unwrap_or(&empty_env);
         if self.unheld_registry_refs == UnheldRegistryRefs::Report
             && runx_parser::registry_ref(reference).is_some()
-            && !crate::execution::graph::registry_holds_step_skill(reference, env)?
+            && !crate::execution::workflow::registry_holds_step_skill(reference, env)?
         {
             return Ok(Some(ResolvedStepSkill {
                 edge: format!("{reference}#{requested_method}"),
@@ -990,10 +990,10 @@ impl<'a> ExecutionClosureInspector<'a> {
                 nested: None,
             }));
         }
-        let loaded_step = crate::execution::graph::load_step_skill_package(
+        let loaded_step = crate::execution::workflow::load_step_skill_package(
             workflow_directory,
             step,
-            crate::execution::graph::StepSkillLoadOptions::from_disk(env),
+            crate::execution::workflow::StepSkillLoadOptions::from_disk(env),
         )?;
         let signed = loaded_step.registry.map(|registry| registry.signed);
         let nested = loaded_step.package;
@@ -1005,7 +1005,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     path: nested.directory.clone(),
                 })?;
         let nested_method =
-            crate::execution::graph::select_step_method(manifest, target.method.as_deref())?
+            crate::execution::workflow::select_step_method(manifest, target.method.as_deref())?
                 .name
                 .clone();
         let nested_profile = if runx_parser::registry_ref(reference).is_some()

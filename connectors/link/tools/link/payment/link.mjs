@@ -9,7 +9,7 @@ export const CLI_VERSION = "0.29.0";
 const MAX_BYTES = 262144;
 
 // The official CLI alone owns auth storage, refresh and credential retrieval.
-// Raw CLI stderr and unexpected output are never exposed to the graph.
+// Raw CLI stderr and unexpected output are never exposed to the workflow.
 export async function runCli(args) {
   let stdout;
   try {

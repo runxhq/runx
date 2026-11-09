@@ -15,7 +15,7 @@ fn loads_active_test_fixtures() -> Result<(), Box<dyn std::error::Error>> {
             RunOutcome::Completed,
         ),
         (
-            "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
+            "fixtures/workflows/sequential/tests/sequential-workflow.yaml",
             TestExpectedStatus::Sealed,
             RunOutcome::Completed,
         ),
@@ -56,7 +56,7 @@ fn parses_test_skill_fixture_contract() -> Result<(), Box<dyn std::error::Error>
 #[test]
 fn parses_test_workflow_fixture_contract() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = load_test_fixture(fixture_path(
-        "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
+        "fixtures/workflows/sequential/tests/sequential-workflow.yaml",
     ))?;
 
     assert_eq!(fixture.name, "sequential-workflow");
@@ -113,7 +113,7 @@ fn replays_active_test_skill_fixture() -> Result<(), Box<dyn std::error::Error>>
 
 #[test]
 fn replays_active_test_workflow_fixture() -> Result<(), Box<dyn std::error::Error>> {
-    let output = run_fixture("fixtures/graphs/sequential/tests/sequential-workflow.yaml")?;
+    let output = run_fixture("fixtures/workflows/sequential/tests/sequential-workflow.yaml")?;
 
     assert_eq!(output.status, TestExpectedStatus::Sealed);
     assert_eq!(
@@ -152,18 +152,18 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
         &canonical_receipt_json(&echo.step_receipts[0])?,
     )?;
 
-    let graph = run_fixture("fixtures/graphs/sequential/tests/sequential-workflow.yaml")?;
+    let workflow = run_fixture("fixtures/workflows/sequential/tests/sequential-workflow.yaml")?;
     assert_oracle(
         "fixtures/test/oracle/sequential-workflow.receipt.json",
-        &canonical_receipt_json(&graph.receipt)?,
+        &canonical_receipt_json(&workflow.receipt)?,
     )?;
     assert_oracle(
         "fixtures/test/oracle/sequential-workflow.first.json",
-        &canonical_receipt_json(&graph.step_receipts[0])?,
+        &canonical_receipt_json(&workflow.step_receipts[0])?,
     )?;
     assert_oracle(
         "fixtures/test/oracle/sequential-workflow.second.json",
-        &canonical_receipt_json(&graph.step_receipts[1])?,
+        &canonical_receipt_json(&workflow.step_receipts[1])?,
     )?;
 
     Ok(())

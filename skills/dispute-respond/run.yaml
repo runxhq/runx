@@ -329,7 +329,7 @@ methods:
         outputs:
           filing_result: {type: object, packet: runx/dispute-respond.filing.v1}
   capture:
-    description: Read the exact selected merchant dispute and original charge once. Return case_context and actual native source packets for a graph; no drafting or submission.
+    description: Read the exact selected merchant dispute and original charge once. Return case_context and actual native source packets for a workflow; no drafting or submission.
     inputs:
       account_id:
         type: string

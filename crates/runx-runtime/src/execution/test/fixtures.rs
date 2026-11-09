@@ -35,7 +35,7 @@ const TEST_FIXTURE_CASES: &[TestFixtureCase] = &[
     },
     TestFixtureCase {
         name: "sequential-workflow",
-        fixture_path: "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
+        fixture_path: "fixtures/workflows/sequential/tests/sequential-workflow.yaml",
         root_oracle_path: "fixtures/test/oracle/sequential-workflow.receipt.json",
         step_oracles: &[
             TestFixtureStepOracle {

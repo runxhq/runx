@@ -268,7 +268,7 @@ fn change<A>(
 
 /// What `step` with `inputs` would change or run, when it is a local effect:
 /// a core tool that changes something, describing itself; a catalog tool runx
-/// runs as a process; a graph's process step.
+/// runs as a process; a workflow's process step.
 fn local_effect<A>(
     runtime: &Runtime<A>,
     workflow_dir: &Path,

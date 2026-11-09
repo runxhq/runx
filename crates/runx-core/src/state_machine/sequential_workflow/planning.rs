@@ -6,20 +6,20 @@ use super::step_readiness::{missing_context_at, step_failed};
 
 #[must_use]
 pub fn plan_sequential_workflow_transition(
-    graph: &SequentialWorkflow,
+    workflow: &SequentialWorkflow,
     steps: &[SequentialWorkflowStepDefinition],
 ) -> SequentialWorkflowPlan {
     let step_index = SequentialWorkflowStepIndex::new(steps);
-    plan_sequential_workflow_transition_indexed(graph, steps, &step_index)
+    plan_sequential_workflow_transition_indexed(workflow, steps, &step_index)
 }
 
 #[must_use]
 pub fn plan_sequential_workflow_transition_indexed(
-    graph: &SequentialWorkflow,
+    workflow: &SequentialWorkflow,
     steps: &[SequentialWorkflowStepDefinition],
     step_index: &SequentialWorkflowStepIndex,
 ) -> SequentialWorkflowPlan {
-    if let Some(running_step) = graph
+    if let Some(running_step) = workflow
         .steps
         .iter()
         .find(|step| step.state == WorkflowStepState::Running)
@@ -30,7 +30,7 @@ pub fn plan_sequential_workflow_transition_indexed(
         };
     }
 
-    plan_sequential_workflow_transition_indexed_from(graph, steps, step_index, 0)
+    plan_sequential_workflow_transition_indexed_from(workflow, steps, step_index, 0)
 }
 
 /// Plan from a cursor whose preceding steps are known to be terminal.
@@ -40,18 +40,18 @@ pub fn plan_sequential_workflow_transition_indexed(
 /// that invariant must use [`plan_sequential_workflow_transition_indexed`].
 #[must_use]
 pub fn plan_sequential_workflow_transition_indexed_from(
-    graph: &SequentialWorkflow,
+    workflow: &SequentialWorkflow,
     steps: &[SequentialWorkflowStepDefinition],
     step_index: &SequentialWorkflowStepIndex,
     start_index: usize,
 ) -> SequentialWorkflowPlan {
-    debug_assert!(graph.steps.iter().take(start_index).all(|step| matches!(
+    debug_assert!(workflow.steps.iter().take(start_index).all(|step| matches!(
         step.state,
         WorkflowStepState::Succeeded | WorkflowStepState::Skipped
     )));
 
     for (index, step_definition) in steps.iter().enumerate().skip(start_index) {
-        if let Some(plan) = plan_step(graph, step_index, index, step_definition) {
+        if let Some(plan) = plan_step(workflow, step_index, index, step_definition) {
             return plan;
         }
     }
@@ -59,12 +59,12 @@ pub fn plan_sequential_workflow_transition_indexed_from(
 }
 
 fn plan_step(
-    graph: &SequentialWorkflow,
+    workflow: &SequentialWorkflow,
     step_index: &SequentialWorkflowStepIndex,
     definition_index: usize,
     step_definition: &SequentialWorkflowStepDefinition,
 ) -> Option<SequentialWorkflowPlan> {
-    let Some(step) = step_index.step_at(graph, definition_index, &step_definition.id) else {
+    let Some(step) = step_index.step_at(workflow, definition_index, &step_definition.id) else {
         return Some(SequentialWorkflowPlan::Failed {
             step_id: step_definition.id.clone(),
             reason: "step state is missing".to_owned(),
@@ -93,7 +93,7 @@ fn plan_step(
         });
     }
     if let Some(missing_context) =
-        missing_context_at(graph, step_index, definition_index, step_definition)
+        missing_context_at(workflow, step_index, definition_index, step_definition)
     {
         return Some(SequentialWorkflowPlan::Blocked {
             step_id: step_definition.id.clone(),
@@ -128,12 +128,12 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let index = create_sequential_workflow_step_index(&definitions);
-        let mut graph = create_sequential_workflow("graph", &definitions);
-        graph.steps[0].state = WorkflowStepState::Succeeded;
+        let mut workflow = create_sequential_workflow("graph", &definitions);
+        workflow.steps[0].state = WorkflowStepState::Succeeded;
 
-        let canonical = plan_sequential_workflow_transition_indexed(&graph, &definitions, &index);
+        let canonical = plan_sequential_workflow_transition_indexed(&workflow, &definitions, &index);
         let from_cursor =
-            plan_sequential_workflow_transition_indexed_from(&graph, &definitions, &index, 1);
+            plan_sequential_workflow_transition_indexed_from(&workflow, &definitions, &index, 1);
 
         assert_eq!(from_cursor, canonical);
     }

@@ -56,7 +56,7 @@ expect:
                 .is_some_and(|name| name.starts_with("sha256-") && name.ends_with(".json"))
         })
         .count();
-    // Each case seals its graph receipt and its one step receipt.
+    // Each case seals its workflow receipt and its one step receipt.
     assert_eq!(stored_receipts, 4, "every test's receipts persist");
     Ok(())
 }

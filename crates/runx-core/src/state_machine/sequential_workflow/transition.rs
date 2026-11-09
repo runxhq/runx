@@ -8,102 +8,102 @@ use super::index::SequentialWorkflowStepIndex;
 
 #[must_use]
 pub fn transition_sequential_workflow(
-    graph: &SequentialWorkflow,
+    workflow: &SequentialWorkflow,
     event: &SequentialWorkflowEvent,
 ) -> SequentialWorkflow {
-    let mut next = graph.clone();
+    let mut next = workflow.clone();
     apply_sequential_workflow_event(&mut next, event);
     next
 }
 
 pub fn apply_sequential_workflow_event(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     event: &SequentialWorkflowEvent,
 ) {
-    apply_sequential_workflow_event_owned_with_index(graph, event.clone(), None);
+    apply_sequential_workflow_event_owned_with_index(workflow, event.clone(), None);
 }
 
 /// Apply an owned event without cloning its payload.
 ///
 /// Runtime executors construct an event for immediate application. Consuming
-/// that event lets large step outputs and error strings move into graph state;
+/// that event lets large step outputs and error strings move into workflow state;
 /// the borrowed APIs remain available for callers that need to retain an
 /// event for replay.
 pub fn apply_sequential_workflow_event_owned_indexed(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     event: SequentialWorkflowEvent,
     step_index: &SequentialWorkflowStepIndex,
 ) {
-    apply_sequential_workflow_event_owned_with_index(graph, event, Some(step_index));
+    apply_sequential_workflow_event_owned_with_index(workflow, event, Some(step_index));
 }
 
 fn apply_sequential_workflow_event_owned_with_index(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     event: SequentialWorkflowEvent,
     step_index: Option<&SequentialWorkflowStepIndex>,
 ) {
     match event {
         SequentialWorkflowEvent::StartStep { step_id, at } => {
-            start_sequential_workflow_step(graph, &step_id, at, step_index);
+            start_sequential_workflow_step(workflow, &step_id, at, step_index);
         }
         SequentialWorkflowEvent::StepSucceeded {
             at,
             admission_witness,
             outputs,
-        } => succeed_sequential_workflow_step(graph, at, *admission_witness, outputs, step_index),
+        } => succeed_sequential_workflow_step(workflow, at, *admission_witness, outputs, step_index),
         SequentialWorkflowEvent::StepFailed { step_id, at, error } => {
-            update_step_in_place(graph, &step_id, step_index, |step| {
+            update_step_in_place(workflow, &step_id, step_index, |step| {
                 fail_step_in_place(step, at, error);
             });
         }
         SequentialWorkflowEvent::StepSkipped { step_id, at } => {
-            update_step_in_place(graph, &step_id, step_index, |step| {
+            update_step_in_place(workflow, &step_id, step_index, |step| {
                 skip_step_in_place(step, at);
             });
         }
-        SequentialWorkflowEvent::Complete if is_workflow_complete(graph) => {
-            graph.state = WorkflowState::Succeeded;
+        SequentialWorkflowEvent::Complete if is_workflow_complete(workflow) => {
+            workflow.state = WorkflowState::Succeeded;
         }
         SequentialWorkflowEvent::Complete => {}
         SequentialWorkflowEvent::FailWorkflow { .. } => {
-            graph.state = WorkflowState::Failed;
+            workflow.state = WorkflowState::Failed;
         }
     }
 }
 
 pub fn start_sequential_workflow_step_indexed(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     step_id: &str,
     at: String,
     step_index: &SequentialWorkflowStepIndex,
 ) {
-    start_sequential_workflow_step(graph, step_id, at, Some(step_index));
+    start_sequential_workflow_step(workflow, step_id, at, Some(step_index));
 }
 
 pub fn succeed_sequential_workflow_step_indexed(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     at: String,
     admission_witness: StepAdmissionWitness,
     outputs: Option<JsonObject>,
     step_index: &SequentialWorkflowStepIndex,
 ) {
-    succeed_sequential_workflow_step(graph, at, admission_witness, outputs, Some(step_index));
+    succeed_sequential_workflow_step(workflow, at, admission_witness, outputs, Some(step_index));
 }
 
 fn start_sequential_workflow_step(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     step_id: &str,
     at: String,
     step_index: Option<&SequentialWorkflowStepIndex>,
 ) {
-    update_step_in_place(graph, step_id, step_index, |step| {
+    update_step_in_place(workflow, step_id, step_index, |step| {
         start_step_in_place(step, at);
     });
-    graph.state = WorkflowState::Running;
+    workflow.state = WorkflowState::Running;
 }
 
 fn succeed_sequential_workflow_step(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     at: String,
     admission_witness: StepAdmissionWitness,
     outputs: Option<JsonObject>,
@@ -117,7 +117,7 @@ fn succeed_sequential_workflow_step(
         receipt_id,
         ..
     } = admission_witness;
-    update_step_in_place(graph, &step_id, step_index, |step| {
+    update_step_in_place(workflow, &step_id, step_index, |step| {
         succeed_step_in_place(step, at, receipt_id, outputs);
     });
 }
@@ -174,18 +174,18 @@ fn skip_step_in_place(step: &mut SequentialWorkflowStep, at: String) {
 }
 
 fn update_step_in_place(
-    graph: &mut SequentialWorkflow,
+    workflow: &mut SequentialWorkflow,
     step_id: &str,
     step_index: Option<&SequentialWorkflowStepIndex>,
     update: impl FnOnce(&mut SequentialWorkflowStep),
 ) {
     let position = step_index.and_then(|index| index.position(step_id));
     let step = match position {
-        Some(position) => graph
+        Some(position) => workflow
             .steps
             .get_mut(position)
             .filter(|step| step.step_id == step_id),
-        None if step_index.is_none() => graph.steps.iter_mut().find(|step| step.step_id == step_id),
+        None if step_index.is_none() => workflow.steps.iter_mut().find(|step| step.step_id == step_id),
         None => None,
     };
     if let Some(step) = step {
@@ -193,8 +193,8 @@ fn update_step_in_place(
     }
 }
 
-fn is_workflow_complete(graph: &SequentialWorkflow) -> bool {
-    graph.steps.iter().all(|step| {
+fn is_workflow_complete(workflow: &SequentialWorkflow) -> bool {
+    workflow.steps.iter().all(|step| {
         !matches!(
             step.state,
             WorkflowStepState::Pending | WorkflowStepState::Running

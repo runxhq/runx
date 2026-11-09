@@ -5,7 +5,7 @@
 //! - `stdio_transport`: MCP's bounded newline-delimited stdio framing, shared
 //!   with the connector driver's stdio client.
 //! - `server`: `serve_mcp_json_rpc` and host-result projections.
-//! - `server_skill`: server-side skill and graph execution.
+//! - `server_skill`: server-side skill and workflow execution.
 //! - `server_turn`: an open agent turn served as MCP tools.
 //! - `http_server`: the server over streamable HTTP.
 

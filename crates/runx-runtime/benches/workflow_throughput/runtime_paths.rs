@@ -42,11 +42,11 @@ pub(super) fn register(c: &mut Criterion) {
     c.bench_function("native_capability_dispatch", |b| {
         b.iter_batched(
             || fixtures.native_workflow.clone(),
-            |graph| {
+            |workflow| {
                 run_workflow(
                     &fixtures.next_run(&fixtures.context_runtime),
                     fixtures.root(),
-                    graph,
+                    workflow,
                 )
             },
             BatchSize::SmallInput,
@@ -56,11 +56,11 @@ pub(super) fn register(c: &mut Criterion) {
     c.bench_function("workflow_context_to_module", |b| {
         b.iter_batched(
             || fixtures.context_workflow.clone(),
-            |graph| {
+            |workflow| {
                 run_workflow(
                     &fixtures.next_run(&fixtures.context_runtime),
                     fixtures.root(),
-                    graph,
+                    workflow,
                 )
             },
             BatchSize::SmallInput,
@@ -99,12 +99,12 @@ pub(super) fn register(c: &mut Criterion) {
     c.bench_function("provider_effect_finality", |b| {
         b.iter_batched(
             || fixtures.provider_workflow.clone(),
-            |graph| {
+            |workflow| {
                 run_provider_workflow(
                     &fixtures.next_run(&fixtures.provider_runtime),
                     &fixtures.provider_transport,
                     fixtures.root(),
-                    graph,
+                    workflow,
                 )
                 .expect("production provider-effect benchmark sample must reach sealed finality")
             },
@@ -318,18 +318,18 @@ fn method_workflow(skill: &str, run_yaml: &str) -> Result<Workflow, Box<dyn Erro
     Ok(manifest
         .default_method()
         .ok_or_else(|| format!("{skill}'s run.yaml declares one method"))?
-        .graph
+        .workflow
         .clone())
 }
 
 fn run_workflow<A: SkillAdapter>(
     runtime: &Runtime<A>,
     workflow_dir: &Path,
-    graph: Workflow,
+    workflow: Workflow,
 ) -> Result<usize, runx_runtime::RuntimeError> {
     let mut host = NoopHost;
     runtime
-        .run_workflow_with_host(workflow_dir, graph, &mut host)
+        .run_workflow_with_host(workflow_dir, workflow, &mut host)
         .map(|run| black_box(run.steps.len()))
 }
 
@@ -337,11 +337,11 @@ fn run_provider_workflow<A: SkillAdapter>(
     runtime: &Runtime<A>,
     transport: &ProviderBenchmarkTransport,
     workflow_dir: &Path,
-    graph: Workflow,
+    workflow: Workflow,
 ) -> Result<usize, Box<dyn Error>> {
     let attempts_before = transport.operation_attempts();
     let mut host = ProviderBenchmarkHost;
-    let run = runtime.run_workflow_with_host(workflow_dir, graph, &mut host)?;
+    let run = runtime.run_workflow_with_host(workflow_dir, workflow, &mut host)?;
     if transport.operation_attempts() != attempts_before.saturating_add(1) {
         return Err(std::io::Error::other(
             "provider benchmark sample did not attempt exactly one provider operation",

@@ -40,7 +40,7 @@ pub trait RuntimeEffect: Send + Sync {
     fn family(&self) -> &'static str;
 
     /// Return true only when this effect family owns the step's execution
-    /// target. Graph authors never select a family: the runtime supplies the
+    /// target. Workflow authors never select a family: the runtime supplies the
     /// step and its catalog tool identity.
     fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
         let _ = request;
@@ -49,7 +49,7 @@ pub trait RuntimeEffect: Send + Sync {
 
     /// Native catalog contracts implemented by this effect family. Keeping the
     /// contract beside the effect prevents the generic runtime from acquiring
-    /// provider- or domain-specific tool knowledge while still giving graphs,
+    /// provider- or domain-specific tool knowledge while still giving workflows,
     /// managed agents, and operator discovery one typed catalog surface.
     fn capabilities(&self) -> &'static [&'static dyn CapabilityContract] {
         &[]
