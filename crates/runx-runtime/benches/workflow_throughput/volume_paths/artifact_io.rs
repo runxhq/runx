@@ -18,7 +18,13 @@ const SMALL_BYTES: usize = 256 * 1024;
 const LARGE_BYTES: usize = 8 * 1024 * 1024;
 const PAGE_BYTES: u64 = 64 * 1024;
 
+#[allow(clippy::expect_used)]
 pub(super) fn register(c: &mut Criterion) {
+    crate::record_journey(
+        "7",
+        artifacts_journey().expect("the artifacts journey must read and copy each artifact"),
+    )
+    .expect("the artifacts journey must be recorded");
     register_admission(c, "artifact_admission", LARGE_BYTES);
     register_continuation(c, "artifact_page_continuation", LARGE_BYTES);
     register_continuation(c, "artifact_page_continuation_scale_small", SMALL_BYTES);
@@ -224,4 +230,263 @@ fn admit(calls: &ToolCalls, input: &JsonObject) -> Result<String, Box<dyn Error>
             _ => None,
         })
         .ok_or_else(|| std::io::Error::other("artifact admission omitted its reference").into())
+}
+
+/// Journey 7's sizes.
+const JOURNEY_SIZES: [(&str, usize); 3] = [
+    ("1KiB", 1024),
+    ("1MiB", 1024 * 1024),
+    ("64MiB", 64 * 1024 * 1024),
+];
+
+/// performance.md's journey 7, artifacts, counted at each size. A page read
+/// is an `artifact.read` of 64 KiB, and what it reads from the store past
+/// the bytes its page holds is past its range. A byte's copies are counted at
+/// each point from the store to a worker: copied into the store, read from
+/// it, and handed to the worker in a page, as a module reads a JSON array
+/// artifact page by page; over the artifact's bytes, a bounded number of
+/// copies reads the same at every size.
+fn artifacts_journey() -> Result<JsonValue, Box<dyn Error>> {
+    let reads = ToolCalls::new()?;
+    let worker = PagedWorker::new()?;
+    let mut copies_per_byte = JsonObject::new();
+    let mut beyond_range = 0_u64;
+    let mut sizes = JsonObject::new();
+    for (label, bytes) in JOURNEY_SIZES {
+        let pages = page_reads(&reads, bytes)?;
+        beyond_range = beyond_range.max(pages.beyond_range);
+        let copied = worker.count(bytes)?;
+        copies_per_byte.insert(label.to_owned(), JsonValue::Number(copied.per_byte()));
+        sizes.insert(
+            label.to_owned(),
+            JsonValue::Object(JsonObject::from([
+                ("pages".to_owned(), count(pages.pages)),
+                (
+                    "page_store_bytes_read".to_owned(),
+                    count(pages.store_bytes_read),
+                ),
+                (
+                    "page_bytes_returned".to_owned(),
+                    count(pages.bytes_returned),
+                ),
+                (
+                    "most_page_bytes_read_beyond_range".to_owned(),
+                    count(pages.beyond_range),
+                ),
+                ("artifact_bytes".to_owned(), count(copied.bytes)),
+                ("bytes_admitted".to_owned(), count(copied.admitted)),
+                ("store_bytes_read".to_owned(), count(copied.store_read)),
+                ("bytes_to_worker".to_owned(), count(copied.to_worker)),
+            ])),
+        );
+    }
+    Ok(JsonValue::Object(JsonObject::from([
+        (
+            "copies_per_byte".to_owned(),
+            JsonValue::Object(copies_per_byte),
+        ),
+        (
+            "page_bytes_read_beyond_range".to_owned(),
+            count(beyond_range),
+        ),
+        ("sizes".to_owned(), JsonValue::Object(sizes)),
+    ])))
+}
+
+fn count(value: u64) -> JsonValue {
+    JsonValue::Number(JsonNumber::U64(value))
+}
+
+struct PageReads {
+    pages: u64,
+    store_bytes_read: u64,
+    bytes_returned: u64,
+    beyond_range: u64,
+}
+
+/// An artifact of `bytes` read whole in 64 KiB pages, each counted.
+fn page_reads(calls: &ToolCalls, bytes: usize) -> Result<PageReads, Box<dyn Error>> {
+    fs::write(calls.root().join("journey.txt"), vec![b'x'; bytes])?;
+    let reference = admit(
+        calls,
+        &JsonObject::from([
+            (
+                "path".to_owned(),
+                JsonValue::String("journey.txt".to_owned()),
+            ),
+            (
+                "media_type".to_owned(),
+                JsonValue::String("text/plain".to_owned()),
+            ),
+        ]),
+    )?;
+    let mut read = PageReads {
+        pages: 0,
+        store_bytes_read: 0,
+        bytes_returned: 0,
+        beyond_range: 0,
+    };
+    let mut offset = 0_u64;
+    loop {
+        let before = runx_runtime::work_counts::snapshot();
+        let page = wrapped_data(
+            calls.call(
+                "artifact.read",
+                JsonObject::from([
+                    ("ref".to_owned(), JsonValue::String(reference.clone())),
+                    ("offset".to_owned(), count(offset)),
+                    ("max_bytes".to_owned(), count(PAGE_BYTES)),
+                    ("encoding".to_owned(), JsonValue::String("utf8".to_owned())),
+                ]),
+            )?,
+            "artifact_page",
+        )?;
+        let after = runx_runtime::work_counts::snapshot();
+        let next = u64_field(&page, "next_offset")?;
+        let length = next.saturating_sub(offset);
+        let store = after.artifact_store_bytes_read - before.artifact_store_bytes_read;
+        read.pages += 1;
+        read.store_bytes_read += store;
+        read.bytes_returned += length;
+        read.beyond_range = read.beyond_range.max(store.saturating_sub(length));
+        offset = next;
+        if bool_field(&page, "eof")? {
+            break;
+        }
+    }
+    if offset != bytes as u64 {
+        return Err(
+            std::io::Error::other("the journey's page reads did not cover the artifact").into(),
+        );
+    }
+    Ok(read)
+}
+
+struct Copied {
+    bytes: u64,
+    admitted: u64,
+    store_read: u64,
+    to_worker: u64,
+}
+
+impl Copied {
+    fn per_byte(&self) -> JsonNumber {
+        let copies = self.admitted + self.store_read + self.to_worker;
+        if copies.is_multiple_of(self.bytes) {
+            JsonNumber::U64(copies / self.bytes)
+        } else {
+            JsonNumber::F64(copies as f64 / self.bytes as f64)
+        }
+    }
+}
+
+/// The method that counts `records.json`'s records, as the package declares
+/// it.
+const COUNT_PROFILE: &str = "minimum_runx: 0.12.0\nmethods:\n  count:\n    steps:\n      - id: count\n        tool:\n          module: count.mjs\n          paged_input: {path: source, media_type: application/json, framing: json_array}\n        inputs:\n          source: records.json\n        outputs:\n          records: {type: number}\n";
+
+/// A module that counts a JSON array artifact's records, page by page, as a
+/// package's own worker step reads an artifact.
+struct PagedWorker {
+    directory: TempDir,
+    store: Arc<KernelStore>,
+    runtime: Runtime<JavaScriptAdapter>,
+    runs: AtomicU64,
+}
+
+impl PagedWorker {
+    fn new() -> Result<Self, Box<dyn Error>> {
+        let directory = TempDir::new()?;
+        let package = directory.path().join("package");
+        fs::create_dir_all(&package)?;
+        fs::create_dir_all(directory.path().join("workspace"))?;
+        fs::write(
+            package.join("SKILL.md"),
+            "---\nname: artifact-journey\ndescription: Count a JSON array artifact's records.\n---\n# Artifact journey\n",
+        )?;
+        fs::write(
+            package.join("count.mjs"),
+            "export default ({ runx_page: page }) => {\n  const seen = (page.state?.seen ?? 0) + page.records.length;\n  if (!page.eof) return { runx_page: { state: { seen } } };\n  return { runx_page: { state: { seen }, done: true }, records: seen };\n};\n",
+        )?;
+        fs::write(package.join("run.yaml"), COUNT_PROFILE)?;
+        let store = KernelStore::open(&directory.path().join(".runx"))?;
+        // The records are the workspace's, beside the package that reads them.
+        let env = BTreeMap::from([(
+            "RUNX_CWD".to_owned(),
+            directory
+                .path()
+                .join("workspace")
+                .to_string_lossy()
+                .into_owned(),
+        )]);
+        let runtime = Runtime::new(
+            JavaScriptAdapter::default(),
+            RuntimeOptions::new(
+                env,
+                crate::fixture_signature(),
+                ToolCalls::evaluation(&store, "run_artifact_journey")?,
+            ),
+        );
+        Ok(Self {
+            directory,
+            store,
+            runtime,
+            runs: AtomicU64::new(0),
+        })
+    }
+
+    /// A JSON array of about `bytes`, counted record by record, and what
+    /// each copy point copied.
+    fn count(&self, bytes: usize) -> Result<Copied, Box<dyn Error>> {
+        let record = "x".repeat((bytes / 16).clamp(8, 1000));
+        let mut array = String::from("[");
+        let mut records = 0_u64;
+        while array.len() + record.len() + 4 < bytes {
+            if records > 0 {
+                array.push(',');
+            }
+            array.push('"');
+            array.push_str(&record);
+            array.push('"');
+            records += 1;
+        }
+        array.push(']');
+        fs::write(self.directory.path().join("workspace/records.json"), &array)?;
+        let workflow = validate_method_manifest(
+            "artifact-journey",
+            parse_method_manifest_yaml(COUNT_PROFILE)?,
+        )?
+        .methods
+        .remove("count")
+        .map(|method| method.workflow)
+        .ok_or("the journey's method")?;
+        let run_id = format!(
+            "run_artifact_journey_{}",
+            self.runs.fetch_add(1, Ordering::Relaxed)
+        );
+        let before = runx_runtime::work_counts::snapshot();
+        let mut run = self
+            .runtime
+            .for_run(ToolCalls::evaluation(&self.store, &run_id)?)
+            .run_workflow_with_host(
+                &self.directory.path().join("package"),
+                workflow,
+                &mut NoopHost,
+            )?;
+        let after = runx_runtime::work_counts::snapshot();
+        let step = run.steps.pop().ok_or("the count step did not run")?;
+        let counted = step.contract.get("records").and_then(JsonValue::as_u64);
+        if !step.outcome.succeeded() || counted != Some(records) {
+            return Err(std::io::Error::other(format!(
+                "the journey's worker counted {counted:?} of {records} records: {}",
+                step.outcome.failure_message().unwrap_or_default()
+            ))
+            .into());
+        }
+        Ok(Copied {
+            bytes: array.len() as u64,
+            admitted: after.artifact_bytes_admitted - before.artifact_bytes_admitted,
+            store_read: after.artifact_store_bytes_read - before.artifact_store_bytes_read,
+            to_worker: after.artifact_bytes_to_worker - before.artifact_bytes_to_worker,
+        })
+    }
 }

@@ -233,10 +233,12 @@ A probe counts what the runtime counted, never what it timed. The runtime
 counts its work as it does it (`runx_runtime::work_counts`): the processes it
 spawns, its network requests, the package sources it assembles and verifies,
 by identity, the kernel store's committed writes, the operations it dispatches
-to providers, and whether a store transaction was open across one, and each
+to providers, and whether a store transaction was open across one, each
 time it takes a run whole, replaying the run's record or sealing every call
-into its receipt. A CLI process writes these where `RUNX_PERF_COUNTS_PATH`
-names at exit, and a bench reads them in process.
+into its receipt, and an artifact's bytes at each point they're copied: into
+the artifact store, out of it, to a worker, and into a page a read returns. A
+CLI process writes these where `RUNX_PERF_COUNTS_PATH` names at exit, and a
+bench reads them in process.
 
 - **Journey 1, cold start.** The capture launches `runx skill inspect` on one
   skill in workspaces of 1, 10, 100 and 1,000 alike packages, each a new
@@ -252,6 +254,12 @@ names at exit, and a bench reads them in process.
   every size. The bench records that at 10, 100 and 1,000 calls, the most
   times per call a call took the run whole, and the provider calls a
   transaction was held open across, with each run's raw counts beside them.
+- **Journey 7, artifacts.** The runtime bench takes artifacts of 1 KiB, 1 MiB
+  and 64 MiB. It reads each whole with `artifact.read` in 64 KiB pages and
+  records the most any page read from the store past the bytes it returned.
+  It has a module count each one's records as a JSON array, page by page, and
+  records the bytes copied into the store, read from it and handed to the
+  worker, over the artifact's bytes, which must be the same at every size.
 
 The S-tier final gate captures all runtime-owned workloads into
 `.scafld/perf/oss-runtime-s-tier-final.json` and compares them against

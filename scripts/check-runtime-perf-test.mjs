@@ -250,7 +250,7 @@ function journeys() {
       package_bodies_read: 0,
     },
     7: {
-      copies_per_byte: { "1KiB": 2, "64MiB": 2 },
+      copies_per_byte: { "1KiB": 2, "1MiB": 2, "64MiB": 2 },
       page_bytes_read_beyond_range: 0,
     },
     8: {

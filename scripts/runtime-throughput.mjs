@@ -238,9 +238,9 @@ function capture(workloads, options) {
     hardware: hardwareIdentity(),
     workloads: metrics,
     // Each journey's structural measurements, from the probes that count
-    // them: journey 1 from launches of the CLI, journey 2 from the runtime
-    // bench, which runs it on the runtime its fixtures warmed. A journey no
-    // probe measures is absent, and the quality gate fails it.
+    // them: journey 1 from launches of the CLI, journeys 2 and 7 from the
+    // runtime bench, which runs them on the runtime its fixtures warmed. A
+    // journey no probe measures is absent, and the quality gate fails it.
     journeys: {
       ...(existsSync(runtimeResourceMetricsPath)
         ? readJson(runtimeResourceMetricsPath).journeys ?? {}
@@ -972,7 +972,7 @@ function journeyBudgets() {
       journey: 7,
       name: "Artifacts",
       budgets: [
-        { id: "bounded_byte_copies", says: "Each byte copied a bounded number of times, the same from 1 KiB to 64 MiB.", holds: (m) => flatAcross(m.copies_per_byte, ["1KiB", "64MiB"]) },
+        { id: "bounded_byte_copies", says: "Each byte copied a bounded number of times, the same at 1 KiB, 1 MiB and 64 MiB.", holds: (m) => flatAcross(m.copies_per_byte, ["1KiB", "1MiB", "64MiB"]) },
         { id: "page_read_touches_its_range", says: "A page read touches only its range.", holds: (m) => exactly(m.page_bytes_read_beyond_range, 0) },
       ],
     },

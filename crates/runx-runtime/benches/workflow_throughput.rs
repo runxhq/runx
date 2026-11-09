@@ -109,6 +109,23 @@ fn record_resource_metric(name: &str, metric: JsonValue) -> Result<(), Box<dyn s
     record_resource_metrics(&metrics)
 }
 
+/// Record `measured` as `journey`'s, beside the journeys already recorded.
+fn record_journey(journey: &str, measured: JsonValue) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(path) = std::env::var_os("RUNX_PERF_RESOURCE_METRICS_PATH") else {
+        return Ok(());
+    };
+    let mut journeys = match fs::read(&path) {
+        Ok(bytes) => match serde_json::from_slice::<JsonObject>(&bytes)?.remove("journeys") {
+            Some(JsonValue::Object(journeys)) => journeys,
+            _ => JsonObject::new(),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => JsonObject::new(),
+        Err(error) => return Err(error.into()),
+    };
+    journeys.insert(journey.to_owned(), measured);
+    record_resource_metric("journeys", JsonValue::Object(journeys))
+}
+
 fn register_receipt_store_append(c: &mut Criterion, name: &str, count: usize) {
     c.bench_function(name, |b| {
         let signature = fixture_signature();
