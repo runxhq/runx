@@ -52,14 +52,11 @@ fn turn_call(runx: Command, run: &str, turn: &str, tool: &str, input: Value) -> 
 
 // D19: a turn's own call never writes to store.
 
-/// contact-consent-review's stream of consent decisions, addressed as its
-/// own runs address it (skills/contact-consent-review/run.yaml).
+/// A consent key, named as contact-consent-review's runs name it
+/// (skills/contact-consent-review/run.yaml). A turn's call reaches only its
+/// own package's stream of that name: another's can't be spelled.
 fn consent_stream() -> Value {
-    json!({
-        "data_source_uri": "local://contact-consent-review/current",
-        "resource": "contact_consent_events",
-        "aggregate_id": "contact:probe",
-    })
+    json!({"stream": "consent", "key": "contact:probe"})
 }
 
 #[test]
@@ -75,12 +72,21 @@ fn a_turns_own_call_never_appends_to_a_stream_at_any_effects() -> TestResult {
 
         let mut forged = consent_stream();
         forged["expected_version"] = json!(0);
-        forged["event"] =
-            json!({"type": "contact_consent.granted", "contact": "probe@example.invalid"});
+        forged["type"] = json!("list_hygiene.consent_transitioned");
+        forged["data"] = json!({"new_state": "re_permission", "contact": "probe@example.invalid"});
         let appended = call(
             "store__events_append",
             json!({"idempotency_key": "forged-consent", "input": forged}),
         )?;
+        // Naming the skill's package is no way round it: a write has no
+        // package field.
+        let mut named = forged.clone();
+        named["package"] = json!("runx/contact-consent-review");
+        let spelled = call(
+            "store__events_append",
+            json!({"idempotency_key": "forged-named", "input": named}),
+        )?;
+        assert_ne!(spelled["status"], "completed", "{spelled}");
         let read = call("store__events_read", json!({"input": consent_stream()}))?;
         let events = &read["output"]["provider_operation"]["data"]["result"]["events"];
 

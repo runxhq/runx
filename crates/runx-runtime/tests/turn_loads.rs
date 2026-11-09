@@ -919,15 +919,14 @@ fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
             .any(|binding| binding.connector.as_str() == "store")
     );
     let names = tool_names(&turn)?;
-    assert!(names.contains(&"store__heads_list".to_owned()), "{names:?}");
+    assert!(names.contains(&"store__keys_list".to_owned()), "{names:?}");
 
+    // The turn lists its own package's stream, with no naming.
     let heads = turn.call(
         TURN,
-        "store__heads_list",
+        "store__keys_list",
         None,
-        input(
-            serde_json::json!({"input": {"data_source_uri": "local://board", "resource": "items"}}),
-        )?,
+        input(serde_json::json!({"input": {"stream": "items"}}))?,
     )?;
     assert!(
         matches!(heads.outcome, TurnCallOutcome::Completed { .. }),
@@ -1027,7 +1026,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
         .ok_or("a connector inspection lists its operations")?;
     assert!(
         operations.iter().any(
-            |operation| operation["operation"] == "heads.list" && operation["access"] == "read"
+            |operation| operation["operation"] == "keys.list" && operation["access"] == "read"
         ),
         "{operations:?}"
     );

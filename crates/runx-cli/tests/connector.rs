@@ -392,23 +392,21 @@ const LEDGER: &str = r#"minimum_runx: 0.12.0
 methods:
   append_event:
     inputs:
-      data_source_uri: {type: string}
-      resource: {type: string}
-      aggregate_id: {type: string}
+      key: {type: string}
       expected_version: {type: number}
       idempotency_key: {type: string}
-      event: {}
+      data: {}
     result_from: [append]
     steps:
       - id: append
         operation: store/events.append
         idempotency_key: $input.idempotency_key
         inputs:
-          data_source_uri: $input.data_source_uri
-          resource: $input.resource
-          aggregate_id: $input.aggregate_id
+          stream: items
+          key: $input.key
           expected_version: $input.expected_version
-          event: $input.event
+          type: item.created
+          data: $input.data
 "#;
 
 /// Append one event through the store's `events.append`.
@@ -431,17 +429,13 @@ fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn s
             "skill",
             &method,
             "-i",
-            "data_source_uri=local://board",
-            "-i",
-            "resource=items",
-            "-i",
-            "aggregate_id=a",
+            "key=a",
             "-i",
             "expected_version=0",
             "-i",
             &key,
             "-i",
-            r#"event={"type":"item.created"}"#,
+            r#"data={"label":"created"}"#,
         ],
         None,
     )
