@@ -4,8 +4,22 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::schema::RunxSchema;
+use crate::json::MAX_PORTABLE_INTEGER;
+use crate::schema::{
+    BoundedString, BoundedU64, BoundedVec, IsoDateTime, NonEmptyString, RunxSchema,
+};
 use crate::{Digest, JsonObject};
+
+/// A key's version: an integer every JSON reader keeps exactly, so at most
+/// 2^53 - 1, which the store refuses to pass.
+pub type StoreVersion = BoundedU64<0, MAX_PORTABLE_INTEGER>;
+/// A full stream, `<package>/<stream>`: non-empty, and within the 512
+/// characters admission allows a rendered target.
+pub type StoreStream = BoundedString<512>;
+/// A key, within the 192 characters an operation's input allows.
+pub type StoreKey = BoundedString<192>;
+/// An event's type, within the 128 characters an append's input allows.
+pub type StoreEventType = BoundedString<128>;
 
 /// One shape per operation, so an answer says only what its operation does.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -102,7 +116,7 @@ pub struct StoreEventRef {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StoreWriter {
-    pub package: String,
+    pub package: NonEmptyString,
     pub digest: Digest,
 }
 
@@ -111,18 +125,18 @@ pub struct StoreWriter {
 #[serde(deny_unknown_fields)]
 pub struct StoreEvent {
     /// A length-delimited encoding of stream, key and version.
-    pub id: String,
-    pub version: u64,
+    pub id: NonEmptyString,
+    pub version: StoreVersion,
     /// Declared by the writer, never guessed.
     #[serde(rename = "type")]
-    pub event_type: String,
+    pub event_type: StoreEventType,
     pub data: JsonObject,
     /// Covers the writer, the type and the data; an event written before
     /// writers were recorded covers its data alone.
     pub digest: Digest,
-    pub idempotency_key: String,
+    pub idempotency_key: NonEmptyString,
     /// When the store committed it; a fact's own date is in its data.
-    pub committed_at: String,
+    pub committed_at: IsoDateTime,
     /// Absent on an event written before 0.12.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub writer: Option<StoreWriter>,
@@ -135,13 +149,13 @@ pub struct StoreAppended {
     pub schema: StoreResultSchema,
     pub operation: StoreAppendOperation,
     /// The full stream, `<package>/<stream>`.
-    pub stream: String,
-    pub key: String,
+    pub stream: StoreStream,
+    pub key: StoreKey,
     pub backend: StoreBackend,
     pub result_digest: Digest,
     pub status: StoreAppliedStatus,
-    pub before_version: u64,
-    pub version: u64,
+    pub before_version: StoreVersion,
+    pub version: StoreVersion,
     pub event: StoreEventRef,
     pub chain_digest: Digest,
 }
@@ -152,13 +166,13 @@ pub struct StoreAppended {
 pub struct StoreConflicted {
     pub schema: StoreResultSchema,
     pub operation: StoreAppendOperation,
-    pub stream: String,
-    pub key: String,
+    pub stream: StoreStream,
+    pub key: StoreKey,
     pub backend: StoreBackend,
     pub result_digest: Digest,
     pub status: StoreConflictStatus,
-    pub before_version: u64,
-    pub version: u64,
+    pub before_version: StoreVersion,
+    pub version: StoreVersion,
     pub chain_digest: Digest,
 }
 
@@ -168,16 +182,17 @@ pub struct StoreConflicted {
 pub struct StoreRead {
     pub schema: StoreResultSchema,
     pub operation: StoreReadOperation,
-    pub stream: String,
-    pub key: String,
+    pub stream: StoreStream,
+    pub key: StoreKey,
     pub backend: StoreBackend,
     pub result_digest: Digest,
     /// The key's version.
-    pub version: u64,
-    pub events: Vec<StoreEvent>,
+    pub version: StoreVersion,
+    /// At most 500, a read's largest page.
+    pub events: BoundedVec<StoreEvent, 0, 500>,
     /// The last version in this page, which the next read passes as
     /// `after_version`; with no events, the version read after.
-    pub last_version: u64,
+    pub last_version: StoreVersion,
     pub has_more: bool,
     pub chain_digest: Digest,
 }
@@ -188,11 +203,11 @@ pub struct StoreRead {
 pub struct StoreInspected {
     pub schema: StoreResultSchema,
     pub operation: StoreInspectOperation,
-    pub stream: String,
-    pub key: String,
+    pub stream: StoreStream,
+    pub key: StoreKey,
     pub backend: StoreBackend,
     pub result_digest: Digest,
-    pub version: u64,
+    pub version: StoreVersion,
     /// The key's newest event, or null at version 0.
     pub last_event: Option<StoreEvent>,
     pub chain_digest: Digest,
@@ -202,7 +217,7 @@ pub struct StoreInspected {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StoreListedKey {
-    pub key: String,
+    pub key: StoreKey,
     pub last_event: StoreEvent,
 }
 
@@ -212,10 +227,11 @@ pub struct StoreListedKey {
 pub struct StoreListed {
     pub schema: StoreResultSchema,
     pub operation: StoreListOperation,
-    pub stream: String,
+    pub stream: StoreStream,
     pub backend: StoreBackend,
     pub result_digest: Digest,
-    pub keys: Vec<StoreListedKey>,
+    /// At most 100, a listing's largest page.
+    pub keys: BoundedVec<StoreListedKey, 0, 100>,
     /// Where the next page starts, or null when there's no further page.
     pub next_cursor: Option<String>,
 }
@@ -224,7 +240,7 @@ pub struct StoreListed {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StoreMatch {
-    pub key: String,
+    pub key: StoreKey,
     pub score: f64,
     pub last_event: StoreEvent,
 }
@@ -236,10 +252,11 @@ pub struct StoreMatch {
 pub struct StoreSearched {
     pub schema: StoreResultSchema,
     pub operation: StoreSearchOperation,
-    pub stream: String,
+    pub stream: StoreStream,
     pub backend: StoreBackend,
     pub result_digest: Digest,
-    pub matches: Vec<StoreMatch>,
+    /// At most 100, a search's largest page.
+    pub matches: BoundedVec<StoreMatch, 0, 100>,
     pub next_cursor: Option<String>,
 }
 

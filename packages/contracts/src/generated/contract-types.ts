@@ -3987,6 +3987,7 @@ export type StoreInspectOperationContract = "key.inspect";
 /** One page of a stream's keys, newest commit first. */
 export type StoreListedContract = {
   readonly backend: StoreBackendContract;
+  /** At most 100, a listing's largest page. */
   readonly keys: readonly StoreListedKeyContract[];
   /** Where the next page starts, or null when there's no further page. */
   readonly next_cursor: string | null;
@@ -4015,6 +4016,7 @@ export type StoreMatchContract = {
 export type StoreReadContract = {
   readonly backend: StoreBackendContract;
   readonly chain_digest: string;
+  /** At most 500, a read's largest page. */
   readonly events: readonly StoreEventContract[];
   readonly has_more: boolean;
   readonly key: string;
@@ -4039,6 +4041,7 @@ export type StoreResultSchemaContract = "runx.store.result.v1";
 /** One page of a search of one stream's current entries, in score order with ties by key. */
 export type StoreSearchedContract = {
   readonly backend: StoreBackendContract;
+  /** At most 100, a search's largest page. */
   readonly matches: readonly StoreMatchContract[];
   readonly next_cursor: string | null;
   readonly operation: StoreSearchOperationContract;

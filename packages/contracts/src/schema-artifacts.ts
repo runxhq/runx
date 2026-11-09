@@ -39124,6 +39124,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "before_version": {
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           },
@@ -39153,6 +39154,8 @@ export const runxSchemaArtifacts = {
             "type": "object"
           },
           "key": {
+            "maxLength": 192,
+            "minLength": 1,
             "type": "string"
           },
           "operation": {
@@ -39186,9 +39189,12 @@ export const runxSchemaArtifacts = {
           },
           "stream": {
             "description": "The full stream, `<package>/<stream>`.",
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           },
           "version": {
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           }
@@ -39224,6 +39230,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "before_version": {
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           },
@@ -39233,6 +39240,8 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "key": {
+            "maxLength": 192,
+            "minLength": 1,
             "type": "string"
           },
           "operation": {
@@ -39265,9 +39274,12 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "stream": {
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           },
           "version": {
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           }
@@ -39307,12 +39319,15 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "events": {
+            "description": "At most 500, a read's largest page.",
             "items": {
               "additionalProperties": false,
               "description": "One event of a key.",
               "properties": {
                 "committed_at": {
                   "description": "When the store committed it; a fact's own date is in its data.",
+                  "minLength": 1,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
                   "type": "string"
                 },
                 "data": {
@@ -39327,16 +39342,21 @@ export const runxSchemaArtifacts = {
                 },
                 "id": {
                   "description": "A length-delimited encoding of stream, key and version.",
+                  "minLength": 1,
                   "type": "string"
                 },
                 "idempotency_key": {
+                  "minLength": 1,
                   "type": "string"
                 },
                 "type": {
                   "description": "Declared by the writer, never guessed.",
+                  "maxLength": 128,
+                  "minLength": 1,
                   "type": "string"
                 },
                 "version": {
+                  "maximum": 9007199254740991,
                   "minimum": 0,
                   "type": "integer"
                 },
@@ -39350,6 +39370,7 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "package": {
+                      "minLength": 1,
                       "type": "string"
                     }
                   },
@@ -39373,16 +39394,21 @@ export const runxSchemaArtifacts = {
               "title": "StoreEvent",
               "type": "object"
             },
+            "maxItems": 500,
+            "minItems": 0,
             "type": "array"
           },
           "has_more": {
             "type": "boolean"
           },
           "key": {
+            "maxLength": 192,
+            "minLength": 1,
             "type": "string"
           },
           "last_version": {
             "description": "The last version in this page, which the next read passes as `after_version`; with no events, the version read after.",
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           },
@@ -39407,10 +39433,13 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "stream": {
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           },
           "version": {
             "description": "The key's version.",
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           }
@@ -39451,6 +39480,8 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "key": {
+            "maxLength": 192,
+            "minLength": 1,
             "type": "string"
           },
           "last_event": {
@@ -39461,6 +39492,8 @@ export const runxSchemaArtifacts = {
                 "properties": {
                   "committed_at": {
                     "description": "When the store committed it; a fact's own date is in its data.",
+                    "minLength": 1,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
                     "type": "string"
                   },
                   "data": {
@@ -39475,16 +39508,21 @@ export const runxSchemaArtifacts = {
                   },
                   "id": {
                     "description": "A length-delimited encoding of stream, key and version.",
+                    "minLength": 1,
                     "type": "string"
                   },
                   "idempotency_key": {
+                    "minLength": 1,
                     "type": "string"
                   },
                   "type": {
                     "description": "Declared by the writer, never guessed.",
+                    "maxLength": 128,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "version": {
+                    "maximum": 9007199254740991,
                     "minimum": 0,
                     "type": "integer"
                   },
@@ -39498,6 +39536,7 @@ export const runxSchemaArtifacts = {
                         "type": "string"
                       },
                       "package": {
+                        "minLength": 1,
                         "type": "string"
                       }
                     },
@@ -39548,9 +39587,12 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "stream": {
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           },
           "version": {
+            "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
           }
@@ -39584,11 +39626,14 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "keys": {
+            "description": "At most 100, a listing's largest page.",
             "items": {
               "additionalProperties": false,
               "description": "A listed key and its newest event.",
               "properties": {
                 "key": {
+                  "maxLength": 192,
+                  "minLength": 1,
                   "type": "string"
                 },
                 "last_event": {
@@ -39597,6 +39642,8 @@ export const runxSchemaArtifacts = {
                   "properties": {
                     "committed_at": {
                       "description": "When the store committed it; a fact's own date is in its data.",
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
                       "type": "string"
                     },
                     "data": {
@@ -39611,16 +39658,21 @@ export const runxSchemaArtifacts = {
                     },
                     "id": {
                       "description": "A length-delimited encoding of stream, key and version.",
+                      "minLength": 1,
                       "type": "string"
                     },
                     "idempotency_key": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "type": {
                       "description": "Declared by the writer, never guessed.",
+                      "maxLength": 128,
+                      "minLength": 1,
                       "type": "string"
                     },
                     "version": {
+                      "maximum": 9007199254740991,
                       "minimum": 0,
                       "type": "integer"
                     },
@@ -39634,6 +39686,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "package": {
+                          "minLength": 1,
                           "type": "string"
                         }
                       },
@@ -39665,6 +39718,8 @@ export const runxSchemaArtifacts = {
               "title": "StoreListedKey",
               "type": "object"
             },
+            "maxItems": 100,
+            "minItems": 0,
             "type": "array"
           },
           "next_cursor": {
@@ -39699,6 +39754,8 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "stream": {
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -39729,11 +39786,14 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "matches": {
+            "description": "At most 100, a search's largest page.",
             "items": {
               "additionalProperties": false,
               "description": "A key a search matched, by its newest event.",
               "properties": {
                 "key": {
+                  "maxLength": 192,
+                  "minLength": 1,
                   "type": "string"
                 },
                 "last_event": {
@@ -39742,6 +39802,8 @@ export const runxSchemaArtifacts = {
                   "properties": {
                     "committed_at": {
                       "description": "When the store committed it; a fact's own date is in its data.",
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
                       "type": "string"
                     },
                     "data": {
@@ -39756,16 +39818,21 @@ export const runxSchemaArtifacts = {
                     },
                     "id": {
                       "description": "A length-delimited encoding of stream, key and version.",
+                      "minLength": 1,
                       "type": "string"
                     },
                     "idempotency_key": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "type": {
                       "description": "Declared by the writer, never guessed.",
+                      "maxLength": 128,
+                      "minLength": 1,
                       "type": "string"
                     },
                     "version": {
+                      "maximum": 9007199254740991,
                       "minimum": 0,
                       "type": "integer"
                     },
@@ -39779,6 +39846,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "package": {
+                          "minLength": 1,
                           "type": "string"
                         }
                       },
@@ -39814,6 +39882,8 @@ export const runxSchemaArtifacts = {
               "title": "StoreMatch",
               "type": "object"
             },
+            "maxItems": 100,
+            "minItems": 0,
             "type": "array"
           },
           "next_cursor": {
@@ -39847,6 +39917,8 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "stream": {
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           }
         },
