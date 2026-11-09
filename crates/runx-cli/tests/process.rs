@@ -163,11 +163,9 @@ fn process(root: &Path, args: &[&str]) -> TestResult<serde_json::Value> {
 
 /// Read process `id`'s log until what it wrote holds `text`. A detached
 /// process is read by cursor, so this reads again until the text is there,
-/// and fails once the process has exited without writing it. Its exit is
-/// recorded once its output is all in the log, so the read after one that
-/// says it exited holds everything it wrote.
+/// and fails on a read that says the process exited without it: such a read
+/// holds everything it wrote.
 fn read_until(root: &Path, id: &str, text: &str) -> TestResult<String> {
-    let mut whole = false;
     loop {
         let read = process(root, &["read", id])?;
         let written = read["chunks"]
@@ -179,10 +177,9 @@ fn read_until(root: &Path, id: &str, text: &str) -> TestResult<String> {
         if written.contains(text) {
             return Ok(written);
         }
-        if whole {
+        if read["state"] == "exited" {
             return Err(format!("{id} exited without writing {text:?}: {written:?}").into());
         }
-        whole = read["state"] == "exited";
     }
 }
 

@@ -187,7 +187,10 @@ impl Processes {
         after: u64,
         max_bytes: usize,
     ) -> Result<ProcessOutput, ProcessError> {
-        self.find(id, reach)?;
+        // The state is read before the output. A process's exit is recorded
+        // once all it wrote is in its log, so a read whose state says it
+        // exited holds everything after `after`.
+        let process = self.find(id, reach)?.view();
         let read = log::read(
             &self.directory(id)?.join("output"),
             after,
@@ -197,8 +200,6 @@ impl Processes {
             std::io::ErrorKind::InvalidInput => ProcessError::Refused(error.to_string()),
             _ => ProcessError::from(error),
         })?;
-        // Read after the output, so an exited process's output is all there.
-        let process = self.find(id, reach)?.view();
         Ok(ProcessOutput {
             process_id: process.process_id,
             state: process.state,
