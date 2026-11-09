@@ -14,7 +14,6 @@ import type {
   CriterionStatusContract,
   DecisionChoiceContract,
   DecisionContract,
-  DigestCommitmentContract,
   IntentContract,
   ProofKindContract,
   ReceiptActContract,
@@ -37,7 +36,6 @@ export const artifactSchema = generatedSchema<ArtifactContract>("artifact.schema
 export const referenceTypeSchema = generatedDefinition<ReferenceTypeContract>("ReferenceType");
 export const actAddressSchema = generatedDefinition<ActAddressContract>("ActAddress");
 export const proofKindSchema = generatedDefinition<ProofKindContract>("ProofKind");
-export const digestCommitmentSchema = generatedDefinition<DigestCommitmentContract>("DigestCommitment");
 export const authorityBoundsSchema = generatedDefinition<AuthorityBoundsContract>("AuthorityBounds");
 export const authorityVerbSchema = generatedDefinition<AuthorityVerbContract>("AuthorityVerb");
 export const authorityApprovalSchema = generatedDefinition<AuthorityApprovalContract>("AuthorityApproval");

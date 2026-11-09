@@ -310,7 +310,7 @@ pub struct ApprovalGate {
     /// What executes, when it is larger: a project artifact whose bytes are
     /// its canonical JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub payload_artifact: Option<crate::ProjectArtifact>,
+    pub payload_artifact: Option<crate::Artifact>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -644,7 +644,7 @@ pub enum TurnCallOutcome {
         /// Each packet output as a project artifact of the run, by output
         /// name: a reference a later call passes in place of the packet.
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-        artifacts: BTreeMap<String, crate::ProjectArtifact>,
+        artifacts: BTreeMap<String, crate::Artifact>,
     },
     /// The call ran and failed, with its receipt; or it failed before it
     /// could run.

@@ -26,8 +26,8 @@ function select(artifactUri: string) {
       blockers: [],
     },
     runx_page: {
-      artifact_uri: artifactUri,
-      whole_digest: "sha256:archive-content",
+      ref: artifactUri,
+      digest: "sha256:archive-content",
       records: [
         JSON.stringify({
           tweet: {

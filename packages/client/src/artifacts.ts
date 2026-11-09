@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
-import { validateProjectArtifactContract } from "@runxhq/contracts";
+import { validateSpineArtifactContract } from "@runxhq/contracts";
 import { RunxClientError } from "./process.js";
 
 export async function readBoundedJson(file: string, root: string, maximum: number): Promise<{ bytes: Buffer; value: unknown }> {
@@ -48,12 +48,12 @@ function parseExactJson(text: string): unknown {
 
 export async function readProjectArtifact(reference: unknown, projectDir: string, maximum: number): Promise<unknown> {
   try {
-    const artifact = validateProjectArtifactContract(reference);
-    if (!Number.isSafeInteger(artifact.bytes) || artifact.bytes <= 0 || !/^sha256:[0-9a-f]{64}$/u.test(artifact.digest) || artifact.uri !== `runx:project-artifact:${artifact.digest}` || artifact.media_type !== "application/json") {
+    const artifact = validateSpineArtifactContract(reference, "project artifact");
+    if (!Number.isSafeInteger(artifact.size_bytes) || artifact.size_bytes <= 0 || !/^sha256:[0-9a-f]{64}$/u.test(artifact.digest) || artifact.ref !== `runx:project-artifact:${artifact.digest}` || artifact.media_type !== "application/json" || !artifact.path) {
       throw new Error("Invalid project artifact content address.");
     }
     const result = await readBoundedJson(artifact.path, path.join(projectDir, "artifacts"), maximum);
-    if (artifact.bytes !== result.bytes.byteLength || artifact.digest !== `sha256:${createHash("sha256").update(result.bytes).digest("hex")}`) {
+    if (artifact.size_bytes !== result.bytes.byteLength || artifact.digest !== `sha256:${createHash("sha256").update(result.bytes).digest("hex")}`) {
       throw new Error("Project artifact digest or byte count differs from its descriptor.");
     }
     return result.value;

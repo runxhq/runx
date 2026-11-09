@@ -13,8 +13,9 @@ use std::time::Instant;
 use output::{build_ephemeral_step_output, build_step_output_projection, contract_output_claim};
 
 use runx_contracts::{
-    ApprovalGate, CallAct, ContextEntry, ExecutionEvent, JsonObject, JsonValue, ProvenanceEntry,
-    Receipt, Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
+    ApprovalGate, ArtifactLabels, CallAct, ContextEntry, ExecutionEvent, JsonObject, JsonValue,
+    ProvenanceEntry, Receipt, Reference, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor, RunOutcome,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{AskGate, AskReason, OutputArtifacts, StepKind, ToolTarget, WorkflowStep};
@@ -1075,6 +1076,14 @@ where
     // A `local_only` entry never reaches a model that may run elsewhere: a
     // turn whose host can't say its model runs here is given none.
     if !host.reads_local_only() {
+        // Nor is a `local_only` artifact. An input isn't dropped, since the
+        // act would then ask something else: the step is refused.
+        if ArtifactLabels::of_value(&JsonValue::Object(invocation.inputs.clone())).is_local_only() {
+            return Err(RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason: "a local_only artifact is among its inputs, and its host can't say its model runs on this machine".to_owned(),
+            });
+        }
         let shareable = |entry: &ContextEntry| {
             entry.labels.sharing != runx_contracts::ContextSharing::LocalOnly
         };

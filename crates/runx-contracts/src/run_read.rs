@@ -3,10 +3,10 @@
 //! from this read alone, without a checkpoint reader or an output stream.
 use serde::{Deserialize, Serialize};
 
+use crate::Artifact;
 use crate::host_protocol::{ResolutionRequest, ResolutionResponseActor, TurnTarget};
 use crate::receipt::RunOutcome;
 use crate::schema::{NonEmptyString, RunxSchema};
-use crate::skill_output::ProjectArtifact;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum RunReadSchema {
@@ -249,7 +249,7 @@ pub struct RunCallOutput {
     /// other outputs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<NonEmptyString>,
-    pub artifact: ProjectArtifact,
+    pub artifact: Artifact,
 }
 
 #[cfg(test)]

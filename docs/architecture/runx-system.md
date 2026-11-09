@@ -187,8 +187,8 @@ not parse a bootstrap script for every invocation; package source is the only
 JavaScript parsed on the execution hot path.
 
 
-Retained derived values use the existing `runx.project_artifact.v1` descriptor.
-`artifact.store` writes one explicitly selected canonical JSON value through
+Retained derived values are `runx.artifact.v1` artifacts, the one descriptor
+every artifact tool gives and takes. `artifact.store` writes one explicitly selected canonical JSON value through
 the project artifact writer, using the native run identity and the existing
 blob byte ceiling. It is immutable result custody, not application state or a
 user-selected filesystem mutation. Repeating the same call and value reuses
@@ -201,9 +201,18 @@ Store and open require `artifact.write` or `artifact.read` respectively and
 `reach: inputs`. The existing `artifact.read` page tool requires `fs.read` and
 reads invocation-scoped snapshots from either admission path. Runs with
 `reach: workspace` cannot read or write retained operator
-state through them; that refusal occurs before filesystem access. The
-existing ProjectArtifact descriptor is a locator and digest, not authority or
-proof of who produced its contents. Custom project roots follow RunxPaths;
+state through them; that refusal occurs before filesystem access. An
+artifact's descriptor is a locator and digest, not authority or proof of who
+produced its contents.
+
+An artifact carries its sharing label, `labels.sharing`, in a context entry's
+own words: `local_only` or `configured_model`. What `artifact.store` retains
+from a value with any `local_only` artifact in it is `local_only` unless the
+step says otherwise, and so is what a turn's call makes when the call was given
+one; `artifact.open` keeps the label it opens. That's a default and not a wall.
+A `local_only` artifact reaches a turn only where a `local_only` context entry
+can: runx's managed agent at a loopback endpoint. An agent step given one on any
+other host is refused, never given the step without it. Custom project roots follow RunxPaths;
 foreign roots, stale sizes, file symlinks and digest mismatches are refused.
 Large workflows retain bounded immutable parts and a compact cursor, rather
 than pass a growing completed-history array to the next turn. The host owns

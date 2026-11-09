@@ -66,7 +66,7 @@ pub use agent_context::{
     ExecutionLocation, ProfileFile, ProvenanceEntry,
 };
 pub use artifact::{
-    ARTIFACT_SCHEMA, Artifact, ArtifactProducedBy, ArtifactSchema, DigestCommitment,
+    ARTIFACT_SCHEMA, Artifact, ArtifactLabels, ArtifactPage, ArtifactProducedBy, ArtifactSchema,
 };
 pub use authority::{
     AuthorityApproval, AuthorityBounds, AuthorityDerivation, AuthorityEvidence,
@@ -138,15 +138,15 @@ pub use native_packets::{
     FileBundleWrite, FileDeleteStatus, FileEdit, FileEntryKind, FileInverseBundle, FileList,
     FileListEntry, FileRead, FileReadBundle, FileSearch, FileSearchMatch, FileWrite,
     GIT_LOG_MAX_COMMITS, GitBlobDigest, GitBranch, GitCommit, GitDiff, GitLog, GitPatch, GitShow,
-    GitStatus, InspectedOperation, LocalArtifact, LocalArtifactPage, MatchedReceipt, MissingFile,
-    PROCESS_ENV_NAME_PATTERN, PolicyLint, PolicyLintEngine, PolicyLintStatus, ProcessEnvName,
-    ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk,
-    ProcessState, ProcessStream, ProviderNotCalled, RECEIPT_TOOL_MAX_RECEIPTS, RUN_LIST_MAX_RUNS,
-    ReceiptProof, ReceiptProofDecision, ReceiptProofSchema, ReceiptProofStore,
-    ReceiptProofVerification, ReceiptQuery, ReceiptQuerySchema, ReceiptQuerySource,
-    ReceiptQueryVerification, ReceiptRead, ReceiptReadSchema, ReceiptReadStatus,
-    RegistryInspection, RegistrySearchPacket, RunContext, RunList, RunListEntry, RunListSchema,
-    RuntimeSealPending, RunxProcess, TerminalSize, UnreadableRun,
+    GitStatus, InspectedOperation, MatchedReceipt, MissingFile, PROCESS_ENV_NAME_PATTERN,
+    PolicyLint, PolicyLintEngine, PolicyLintStatus, ProcessEnvName, ProcessExit, ProcessExitReason,
+    ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk, ProcessState, ProcessStream,
+    ProviderNotCalled, RECEIPT_TOOL_MAX_RECEIPTS, RUN_LIST_MAX_RUNS, ReceiptProof,
+    ReceiptProofDecision, ReceiptProofSchema, ReceiptProofStore, ReceiptProofVerification,
+    ReceiptQuery, ReceiptQuerySchema, ReceiptQuerySource, ReceiptQueryVerification, ReceiptRead,
+    ReceiptReadSchema, ReceiptReadStatus, RegistryInspection, RegistrySearchPacket, RunContext,
+    RunList, RunListEntry, RunListSchema, RuntimeSealPending, RunxProcess, TerminalSize,
+    UnreadableRun,
 };
 pub use native_packets::{
     StoreAppendOperation, StoreAppended, StoreAppliedStatus, StoreBackend, StoreConflictStatus,
@@ -283,4 +283,4 @@ pub use skill_inspection::{
     MethodInspectionEntry, MethodSchemas, SkillCatalog, SkillInspection, SkillInspectionSchema,
     SkillInspectionStatus,
 };
-pub use skill_output::{ProjectArtifact, SkillOutput};
+pub use skill_output::SkillOutput;

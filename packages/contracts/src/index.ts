@@ -339,7 +339,6 @@ export {
   proofKindSchema,
   referenceSchema,
   actAddressSchema,
-  digestCommitmentSchema,
   authorityBoundsSchema,
   authorityApprovalSchema,
   authorityTermSchema,
@@ -359,9 +358,7 @@ export {
 
 export {
   skillOutputV1Schema,
-  projectArtifactV1Schema,
   validateSkillOutputContract,
-  validateProjectArtifactContract,
 } from "./schemas/skill-output.js";
 
 import {

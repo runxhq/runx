@@ -14,10 +14,10 @@ use std::path::Path;
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
-    AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject, JsonValue, LoadedPackage,
-    ProjectArtifact, ProjectBinding, ProvenanceEntry, Reference, ReferenceType, ResolutionRequest,
-    RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad, TurnLocator,
-    TurnReadPage, TurnStatus, TurnTarget, TurnTool, TurnView,
+    AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, InputDefinition, JsonObject,
+    JsonValue, LoadedPackage, ProjectBinding, ProvenanceEntry, Reference, ReferenceType,
+    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad,
+    TurnLocator, TurnReadPage, TurnStatus, TurnTarget, TurnTool, TurnView,
 };
 use runx_parser::{
     AgentTask, AskGate, AskReason, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
@@ -717,7 +717,7 @@ where
         answers: &[Answer],
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         let outputs = match &outcome {
-            CallOutcome::Completed(run) => self.output_artifacts(made.index, run)?,
+            CallOutcome::Completed(run) => self.output_artifacts(made, run)?,
             _ => Vec::new(),
         };
         self.scope.runtime.options.run.record_call(&CallRecord {
@@ -755,16 +755,18 @@ where
     /// A completed call's output as project artifacts of its run: one per
     /// packet output, holding the packet's data, and one for the rest. Each
     /// is content-addressed, so a host reads the call's outcome from the
-    /// run's record alone.
+    /// run's record alone. Each is `local_only` when any artifact the call
+    /// was given is, or any artifact in it is.
     fn output_artifacts(
         &self,
-        index: u32,
+        made: &Made,
         run: &StepRun,
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         let options = &self.scope.runtime.options;
         let artifacts =
             crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
-        let label = call_step_id(self.scope.step_id, index);
+        let label = call_step_id(self.scope.step_id, made.index);
+        let given = ArtifactLabels::of_value(&JsonValue::Object(made.input.clone()));
         let persist = |label: &str, value: &JsonValue| {
             crate::services::persist_json_artifact(
                 &artifacts,
@@ -772,12 +774,8 @@ where
                 "calls",
                 label,
                 value,
+                ArtifactLabels::derived_from([&given, &ArtifactLabels::of_value(value)]),
             )
-            .and_then(|reference| {
-                serde_json::to_value(reference)
-                    .and_then(serde_json::from_value::<ProjectArtifact>)
-                    .map_err(|error| error.to_string())
-            })
             .map_err(|message| RuntimeError::effect_state("persisting a call's output", message))
         };
         let mut outputs = Vec::new();
@@ -1075,7 +1073,7 @@ where
         let given = step
             .inputs
             .iter()
-            .filter(|(_, value)| is_artifact_ref(value))
+            .filter(|(_, value)| crate::services::is_project_artifact(value))
             .map(|(name, _)| name.clone())
             .collect::<Vec<_>>();
         if given.is_empty() {
@@ -1095,7 +1093,7 @@ where
             };
             let named = step.inputs[&name]
                 .clone()
-                .deserialize_into::<ProjectArtifact>()
+                .deserialize_into::<Artifact>()
                 .map_err(|error| {
                     format!("input {name} is not a project artifact reference: {error}")
                 })?;
@@ -1129,11 +1127,8 @@ where
                 })
             });
             let reference = produced.map_or(&named, |(_, _, _, artifact)| artifact);
-            let packet = JsonValue::from_serialize(reference)
-                .map_err(|error| error.to_string())
-                .and_then(|recorded| crate::services::read_json_artifact(&artifacts, &recorded))
+            let value = crate::services::read_json_artifact(&artifacts, reference)
                 .map_err(|error| format!("input {name}: {error}"))?;
-            let value = packet;
             crate::input_contract::admit_input_value(declared_by, &name, input, &value)
                 .map_err(|error| error.to_string())?;
             step.inputs.insert(name.clone(), value);
@@ -1142,14 +1137,14 @@ where
                     input: name.clone().into(),
                     output: output.clone(),
                     from_step: Some(call_step_id(self.scope.step_id, call.index)),
-                    artifact_id: Some(reference.digest.clone()),
+                    artifact_id: Some(reference.digest.as_str().to_owned()),
                     receipt_id: Some(run.receipt.id.to_string()),
                 }),
                 artifact: Reference {
                     provider: Some("runx".into()),
-                    locator: Some(reference.digest.clone().into()),
+                    locator: Some(reference.digest.as_str().into()),
                     label: Some(name.into()),
-                    ..Reference::with_uri(ReferenceType::Artifact, reference.uri.clone())
+                    ..Reference::with_uri(ReferenceType::Artifact, reference.reference.as_str())
                 },
             });
         }
@@ -1690,15 +1685,6 @@ pub(super) fn retry_acknowledgement() -> JsonValue {
         "retry".to_owned(),
         JsonValue::Bool(true),
     )]))
-}
-
-/// Whether a value is given as a project artifact reference.
-fn is_artifact_ref(value: &JsonValue) -> bool {
-    value
-        .as_object()
-        .and_then(|object| object.get("schema"))
-        .and_then(JsonValue::as_str)
-        == Some("runx.project_artifact.v1")
 }
 
 fn reason(text: String) -> NonEmptyString {

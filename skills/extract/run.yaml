@@ -176,7 +176,7 @@ methods:
     - id: read
       tool: artifact.read
       inputs:
-        artifact_uri: $steps.admit.local_artifact.artifact_uri
+        ref: $steps.admit.artifact.ref
         encoding: utf8
         max_bytes: $input.max_bytes
     - id: complete

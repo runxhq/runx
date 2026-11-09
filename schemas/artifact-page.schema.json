@@ -1,15 +1,20 @@
 {
-  "$id": "https://schemas.runx.ai/runx/local-artifact/page/v1.json",
+  "$id": "https://schemas.runx.ai/runx/artifact-page/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "One bounded page read of an artifact.",
   "properties": {
-    "artifact_uri": {
-      "type": "string"
-    },
     "data": {
       "type": "string"
     },
+    "digest": {
+      "description": "The digest of the whole artifact's bytes.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "encoding": {
+      "minLength": 1,
       "type": "string"
     },
     "eof": {
@@ -18,9 +23,6 @@
     "length": {
       "minimum": 0,
       "type": "integer"
-    },
-    "media_type": {
-      "type": "string"
     },
     "next_offset": {
       "minimum": 0,
@@ -31,6 +33,9 @@
       "type": "integer"
     },
     "range_digest": {
+      "description": "The digest of this page's bytes.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
     "records": {
@@ -40,23 +45,24 @@
       "minItems": 1,
       "type": "array"
     },
-    "whole_digest": {
+    "ref": {
+      "description": "The artifact the page is of.",
+      "minLength": 1,
       "type": "string"
     }
   },
   "required": [
-    "artifact_uri",
-    "media_type",
+    "ref",
     "offset",
     "length",
     "next_offset",
     "eof",
     "range_digest",
-    "whole_digest",
+    "digest",
     "encoding"
   ],
-  "title": "LocalArtifactPage",
+  "title": "ArtifactPage",
   "type": "object",
   "x-runx-packet": true,
-  "x-runx-schema": "runx.local_artifact.page.v1"
+  "x-runx-schema": "runx.artifact_page.v1"
 }

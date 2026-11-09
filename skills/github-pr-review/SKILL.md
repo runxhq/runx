@@ -58,7 +58,7 @@ evidence; they do not establish that the change is safe.
 
 ## Reuse in a workflow
 
-- `capture` acquires the source once and returns a native `project_artifact`
+- `capture` acquires the source once and returns a native `artifact`
   descriptor. The default result also includes this descriptor.
 - `select-context` reads that retained snapshot and returns the owned
   `runx/github-pr-review.context.v1` packet. It makes no provider call.

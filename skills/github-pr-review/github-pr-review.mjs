@@ -240,7 +240,7 @@ export function selectFilePage({
   if (
     !sha(snapshot.diff_base_sha) ||
     snapshot.decision !== "ready" ||
-    page.whole_digest !== snapshot.files_artifact?.digest
+    page.digest !== snapshot.files_artifact?.digest
   ) {
     throw new Error(
       "File page does not belong to the ready immutable comparison snapshot.",

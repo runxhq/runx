@@ -177,6 +177,20 @@
       "title": "ArtifactImplementation",
       "type": "object"
     },
+    "ArtifactLabels": {
+      "additionalProperties": false,
+      "description": "Where an artifact may be shared, in a context entry's own words: a `local_only` artifact reaches only a model that runs on this machine.",
+      "properties": {
+        "sharing": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextSharing"
+        }
+      },
+      "required": [
+        "sharing"
+      ],
+      "title": "ArtifactLabels",
+      "type": "object"
+    },
     "ArtifactProducedBy": {
       "additionalProperties": false,
       "properties": {
@@ -190,9 +204,6 @@
           "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
         },
         "run_ref": {
-          "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-        },
-        "signal_ref": {
           "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
         }
       },
@@ -1714,30 +1725,6 @@
       ],
       "title": "DigestAlgorithm",
       "type": "string"
-    },
-    "DigestCommitment": {
-      "additionalProperties": false,
-      "description": "An artifact's digest and how its bytes were canonicalized for it.",
-      "properties": {
-        "algorithm": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DigestAlgorithm"
-        },
-        "canonicalization": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "value": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "algorithm",
-        "value",
-        "canonicalization"
-      ],
-      "title": "DigestCommitment",
-      "type": "object"
     },
     "DoctorDiagnostic": {
       "additionalProperties": false,
@@ -5245,13 +5232,6 @@
       "title": "ProfileFile",
       "type": "object"
     },
-    "ProjectArtifactSchema": {
-      "enum": [
-        "runx.project_artifact.v1"
-      ],
-      "title": "ProjectArtifactSchema",
-      "type": "string"
-    },
     "ProjectBinding": {
       "additionalProperties": false,
       "description": "A skill package of the person's own, as a run binds it (D30): it is `project:<name>`, and one directory is that package in the run.",
@@ -6455,7 +6435,7 @@
       "description": "A project artifact holding part of a call's output.",
       "properties": {
         "artifact": {
-          "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+          "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
         },
         "output": {
           "description": "The packet output it holds; absent on the artifact of the call's other outputs.",
@@ -9038,7 +9018,7 @@
           "properties": {
             "artifacts": {
               "additionalProperties": {
-                "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+                "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
               },
               "description": "Each packet output as a project artifact of the run, by output name: a reference a later call passes in place of the packet.",
               "minProperties": 1,

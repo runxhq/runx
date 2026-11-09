@@ -5,7 +5,7 @@
   "properties": {
     "artifacts": {
       "items": {
-        "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+        "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
       },
       "type": "array"
     },
@@ -13,7 +13,7 @@
       "description": "The run's operator context and step trace, written only with `--diagnostics`; otherwise they live behind `diagnostics_artifact`."
     },
     "diagnostics_artifact": {
-      "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+      "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
     },
     "entry_provenance": {
       "additionalProperties": {},
@@ -45,7 +45,7 @@
       "type": "object"
     },
     "request_set_artifact": {
-      "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+      "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
     },
     "requests": {
       "items": {},

@@ -190,18 +190,15 @@ pub(crate) fn carry_payload(
         gate.payload = Some(value);
         return Ok(());
     }
-    let reference = crate::services::persist_canonical_json_artifact(
+    let labels = runx_contracts::ArtifactLabels::of_value(&value);
+    gate.payload_artifact = Some(crate::services::persist_canonical_json_artifact(
         artifacts,
         run_id,
         "approvals",
         gate.id.as_str(),
         &value,
-    )?;
-    gate.payload_artifact = Some(
-        serde_json::to_value(reference)
-            .and_then(serde_json::from_value)
-            .map_err(|error| error.to_string())?,
-    );
+        labels,
+    )?);
     Ok(())
 }
 

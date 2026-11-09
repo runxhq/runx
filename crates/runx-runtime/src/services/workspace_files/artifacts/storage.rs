@@ -9,14 +9,17 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 
+use super::MAX_ARTIFACT_BYTES;
 use super::reader::SnapshotReader;
-use super::{LocalArtifact, MAX_ARTIFACT_BYTES};
 use crate::services::{WorkspaceFile, WorkspaceFileError};
-use runx_contracts::Reach;
+use runx_contracts::schema::NonEmptyString;
+use runx_contracts::{Artifact, ArtifactLabels, ArtifactSchema, Reach};
 
 pub(super) const SNAPSHOT_CHUNK_BYTES: usize = 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
-const SNAPSHOT_FORMAT: &str = "runx.local-artifact-snapshot.v1";
+const SNAPSHOT_FORMAT: &str = "runx.artifact_snapshot.v1";
+/// The format a snapshot had before runx 0.12, which is refused by name.
+const SNAPSHOT_FORMAT_BEFORE_THIS_RUNX: &str = "runx.local-artifact-snapshot.v1";
 const REFERENCE_PREFIX: &str = "runx:local-artifact:sha256:";
 
 enum Scope {
@@ -42,12 +45,22 @@ struct SnapshotManifest {
     format: String,
     media_type: String,
     bytes: u64,
-    whole_digest: String,
+    whole_digest: runx_contracts::Digest,
     chunks: Vec<String>,
+    /// Where the snapshot may be shared: its source's labels, kept with the
+    /// bytes so every later read carries them.
+    labels: ArtifactLabels,
+}
+
+/// Only a record's format, read first so a snapshot of another format is
+/// named before its fields are.
+#[derive(Deserialize)]
+struct SnapshotFormat {
+    format: String,
 }
 
 pub(super) struct StoredArtifact {
-    pub(super) descriptor: LocalArtifact,
+    pub(super) descriptor: Artifact,
     root: PathBuf,
     name: String,
     manifest: SnapshotManifest,
@@ -111,8 +124,9 @@ impl SnapshotStore {
         &self,
         source: WorkspaceFile,
         media_type: &str,
-        expected: Option<&runx_contracts::ProjectArtifact>,
-    ) -> Result<LocalArtifact, WorkspaceFileError> {
+        expected: Option<&Artifact>,
+        labels: ArtifactLabels,
+    ) -> Result<Artifact, WorkspaceFileError> {
         let media_type = media_type.trim();
         if media_type.is_empty() {
             return Err(WorkspaceFileError::InvalidMediaType);
@@ -130,7 +144,7 @@ impl SnapshotStore {
         let (bytes, whole_digest) = source
             .copy_and_digest(
                 &mut indexed,
-                expected.map_or(MAX_ARTIFACT_BYTES, |artifact| artifact.bytes),
+                expected.map_or(MAX_ARTIFACT_BYTES, |artifact| artifact.size_bytes),
             )
             .map_err(|error| match error {
                 WorkspaceFileError::TooLarge { path, max_bytes } => {
@@ -139,9 +153,9 @@ impl SnapshotStore {
                 other => other,
             })?;
         let chunks = indexed.finish();
-        if expected.is_some_and(|artifact| {
-            artifact.bytes != bytes || artifact.digest != whole_digest.as_str()
-        }) {
+        if expected
+            .is_some_and(|artifact| artifact.size_bytes != bytes || artifact.digest != whole_digest)
+        {
             return Err(WorkspaceFileError::ArtifactDescriptorMismatch);
         }
         snapshot
@@ -152,8 +166,9 @@ impl SnapshotStore {
             format: SNAPSHOT_FORMAT.to_owned(),
             media_type: media_type.to_owned(),
             bytes,
-            whole_digest: whole_digest.into_string(),
+            whole_digest,
             chunks,
+            labels,
         };
         let encoded = crate::services::bounded_json_bytes(&manifest, MAX_MANIFEST_BYTES)
             .map_err(|_| WorkspaceFileError::ArtifactStoreUnavailable)?;
@@ -200,6 +215,11 @@ impl SnapshotStore {
         if encoded.len() as u64 > MAX_MANIFEST_BYTES {
             return Err(WorkspaceFileError::SnapshotIntegrity);
         }
+        if serde_json::from_slice::<SnapshotFormat>(&encoded)
+            .is_ok_and(|record| record.format == SNAPSHOT_FORMAT_BEFORE_THIS_RUNX)
+        {
+            return Err(WorkspaceFileError::SnapshotBeforeThisRunx);
+        }
         let manifest: SnapshotManifest =
             serde_json::from_slice(&encoded).map_err(|_| WorkspaceFileError::SnapshotIntegrity)?;
         let canonical = crate::services::bounded_json_bytes(&manifest, MAX_MANIFEST_BYTES)
@@ -208,7 +228,6 @@ impl SnapshotStore {
             || manifest.media_type.is_empty()
             || manifest.bytes > MAX_ARTIFACT_BYTES
             || manifest.chunks.len() as u64 != manifest.bytes.div_ceil(SNAPSHOT_CHUNK_BYTES as u64)
-            || runx_contracts::Digest::new(&manifest.whole_digest).is_none()
             || manifest
                 .chunks
                 .iter()
@@ -226,12 +245,21 @@ impl SnapshotStore {
     }
 }
 
-fn descriptor(reference: &str, manifest: &SnapshotManifest) -> LocalArtifact {
-    LocalArtifact {
-        reference: reference.to_owned(),
-        media_type: manifest.media_type.clone(),
-        bytes: manifest.bytes,
-        whole_digest: manifest.whole_digest.clone(),
+/// A snapshot as the artifact it is. Its bytes are never in the project, so
+/// it names no path.
+fn descriptor(reference: &str, manifest: &SnapshotManifest) -> Artifact {
+    Artifact {
+        schema: ArtifactSchema::V1,
+        reference: NonEmptyString::from(reference),
+        digest: manifest.whole_digest.clone(),
+        size_bytes: manifest.bytes,
+        media_type: NonEmptyString::from(manifest.media_type.as_str()),
+        created_at: None,
+        produced_by: None,
+        path: None,
+        summary: None,
+        sources: Vec::new(),
+        labels: manifest.labels,
     }
 }
 

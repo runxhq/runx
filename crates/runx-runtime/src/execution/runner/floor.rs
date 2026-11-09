@@ -438,10 +438,7 @@ pub(crate) fn covers(
             let payload = match (&gate.payload, &gate.payload_artifact) {
                 (Some(payload), _) => payload.clone(),
                 (None, Some(reference)) => crate::services::read_json_artifact(
-                    artifacts,
-                    &JsonValue::from_serialize(reference).map_err(|error| {
-                        RuntimeError::effect_state("reading a local effect", error.to_string())
-                    })?,
+                    artifacts, reference,
                 )
                 .map_err(|message| RuntimeError::effect_state("reading a local effect", message))?,
                 (None, None) => return Ok(false),

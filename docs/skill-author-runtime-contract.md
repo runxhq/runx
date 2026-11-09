@@ -89,8 +89,8 @@ the contained file to an immutable snapshot, and calls the export repeatedly.
 The run's `reach` bounds the read, and native admission preserves the caller's
 bounds: agent-bound runs refuse secret files and Runx state, including symlink
 aliases.
-Each call receives `runx_page` with `artifact_uri`, media type, whole digest,
-source byte count, page index, exact offsets, range digest, `eof`, complete
+Each call receives `runx_page` with the artifact's `ref`, `media_type`,
+`digest` and `size_bytes`, the page index, exact offsets, range digest, `eof`, complete
 encoded records, and the prior continuation `state`. An intermediate result may
 contain only `{ runx_page: { state, done? } }`; the final call also returns the
 declared domain output. A failed page reports its index and byte offset and
@@ -105,33 +105,33 @@ private artifact path. For example, after a GitHub `commits.compare` step:
   inputs: {value: $steps.compare.provider_operation.result.comparison.files}
 - id: open
   tool: artifact.open
-  inputs: {artifact: $steps.files.project_artifact}
+  inputs: {artifact: $steps.files.artifact}
 - id: select
-  inputs: {files_source: $steps.open.local_artifact.artifact_uri}
+  inputs: {files_source: $steps.open.artifact.ref}
   tool:
     module: review.mjs
     paged_input: {artifact: files_source, framing: json_array, page_bytes: 524288}
 ```
 
-`artifact` names an input containing the opaque URI from `artifact.admit` or
+`artifact` names an input containing the opaque `ref` from `artifact.admit` or
 `artifact.open` in this logical run. Its media type and bytes are already bound,
 so don't also declare `path`, `path_scope` or `media_type`. The adapter looks up
 that immutable snapshot and uses the same bounded page loop. It never opens a
-caller-supplied URI as a path. Unknown references and references from a
+caller-supplied reference as a path. Unknown references and references from a
 different logical run or project refuse. `artifact.open` keeps its own operator,
 root and descriptor checks.
 
 The admitted snapshot survives process exit and pause/resume within the same
 logical run, including moving its project state to another path. Continue with
-the original reference and offset. Use the retained ProjectArtifact descriptor
+the original reference and offset. Use the retained project artifact
 for a separate run, where `artifact.open` admits that content under the new run.
 
-The two artifact identities have different jobs. `artifact_uri` is an opaque,
+The two artifact identities have different jobs. `ref` is an opaque,
 logical-run-scoped reference for reading the admitted snapshot; it survives
 runtime restarts and belongs in receipt provenance, not in a
-domain plan or idempotency digest. `whole_digest` is the stable content identity
+domain plan or idempotency digest. `digest` is the stable content identity
 to carry into deterministic domain output. Two runs over identical bytes must
-produce the same semantic plan even though their `artifact_uri` values differ.
+produce the same semantic plan even though their `ref` values differ.
 
 Artifact admission is capped at 512 MiB. Pages default to 1 MiB and may be
 configured up to 4 MiB; continuation state is capped at 2 MiB and one execution

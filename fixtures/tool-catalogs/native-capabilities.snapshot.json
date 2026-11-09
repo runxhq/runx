@@ -9,8 +9,8 @@
       "approval": "none",
       "artifacts": {
         "kind": "wrapped",
-        "output": "local_artifact",
-        "packet": "runx.local_artifact.v1"
+        "output": "artifact",
+        "packet": "runx.artifact.v1"
       },
       "execution_boundary": "native_capability"
     },
@@ -21,8 +21,8 @@
       "approval": "none",
       "artifacts": {
         "kind": "wrapped",
-        "output": "local_artifact",
-        "packet": "runx.local_artifact.v1"
+        "output": "artifact",
+        "packet": "runx.artifact.v1"
       },
       "execution_boundary": "native_capability"
     },
@@ -34,7 +34,7 @@
       "artifacts": {
         "kind": "wrapped",
         "output": "artifact_page",
-        "packet": "runx.local_artifact.page.v1"
+        "packet": "runx.artifact_page.v1"
       },
       "execution_boundary": "native_capability"
     },
@@ -45,8 +45,8 @@
       "approval": "none",
       "artifacts": {
         "kind": "wrapped",
-        "output": "project_artifact",
-        "packet": "runx.project_artifact.v1"
+        "output": "artifact",
+        "packet": "runx.artifact.v1"
       },
       "execution_boundary": "native_capability"
     },

@@ -27,7 +27,7 @@
     },
     {
       "id": "runx/cve-audit.audit.v1",
-      "digest": "sha256:df04be72b7d2031066797c7b394b8b4916974dc6630195346786ccf859561b8f"
+      "digest": "sha256:4e78bc6403e773d8dc132f8ddec4bfb4a9437345c011cabbb90a0b00aa1ed166"
     },
     {
       "id": "runx/cve-audit.locations.v1",
@@ -35,7 +35,7 @@
     },
     {
       "id": "runx/cve-audit.part.v1",
-      "digest": "sha256:32ad3317202643aed94e22cd9312784fbf7ff3af0123f879e109d60191b5788a"
+      "digest": "sha256:0500694743b38646f73506c5874863b788bffec265f56eec585a7cb745f89d79"
     },
     {
       "id": "runx/diagnose-skill-run.diagnosis.v1",

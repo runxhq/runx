@@ -2,41 +2,38 @@
   "$id": "https://schemas.runx.ai/runx/artifact/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "One retained value: where it is, what it is, where it came from, and where it may be shared.",
   "properties": {
-    "artifact_id": {
-      "minLength": 1,
-      "type": "string"
-    },
-    "artifact_ref": {
-      "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-    },
     "created_at": {
       "minLength": 1,
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
       "type": "string"
     },
-    "data_ref": {
-      "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-    },
     "digest": {
-      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DigestCommitment"
+      "description": "The digest of its bytes.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
     },
-    "extensions": {
-      "additionalProperties": {},
-      "type": "object"
+    "labels": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ArtifactLabels"
     },
     "media_type": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "path": {
+      "description": "Its path, when it lives in the project.",
       "minLength": 1,
       "type": "string"
     },
     "produced_by": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ArtifactProducedBy"
     },
-    "redaction_refs": {
-      "items": {
-        "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-      },
-      "type": "array"
+    "ref": {
+      "description": "Where it is: an opaque reference a native artifact tool resolves. It names the store and the content, and grants no authority.",
+      "minLength": 1,
+      "type": "string"
     },
     "schema": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ArtifactSchema"
@@ -45,10 +42,11 @@
       "minimum": 0,
       "type": "integer"
     },
-    "source_refs": {
+    "sources": {
       "items": {
         "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
       },
+      "minItems": 1,
       "type": "array"
     },
     "summary": {
@@ -58,15 +56,14 @@
   },
   "required": [
     "schema",
-    "artifact_id",
-    "artifact_ref",
-    "produced_by",
-    "media_type",
-    "created_at",
+    "ref",
+    "digest",
     "size_bytes",
-    "digest"
+    "media_type",
+    "labels"
   ],
   "title": "Artifact",
   "type": "object",
+  "x-runx-packet": true,
   "x-runx-schema": "runx.artifact.v1"
 }

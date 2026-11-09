@@ -1599,6 +1599,98 @@ fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
     Ok(())
 }
 
+/// A skill whose first step makes an artifact labelled `sharing`, and whose
+/// agent step is given it as an input.
+fn write_artifact_input_skill(
+    root: &Path,
+    sharing: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("artifact-input");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: artifact-input\ndescription: An answer given an earlier step's artifact.\n---\n# Artifact input\n\n## Agent task: answer\n\nAnswer from the artifact.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  main:
+    steps:
+      - id: make
+        tool: {module: make.mjs, export: make}
+        outputs:
+          artifact: {type: object}
+      - id: answer
+        agent: answer
+        inputs:
+          source: $steps.make.artifact
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    let digest = format!("sha256:{}", "c".repeat(64));
+    fs::write(
+        skill_dir.join("make.mjs"),
+        format!(
+            r#"export const make = () => ({{ artifact: {{
+  schema: "runx.artifact.v1",
+  ref: "runx:project-artifact:{digest}",
+  digest: "{digest}",
+  size_bytes: 24,
+  media_type: "application/json",
+  summary: "The {sharing} notes",
+  labels: {{ sharing: "{sharing}" }}
+}} }});
+"#
+        ),
+    )?;
+    Ok(skill_dir)
+}
+
+#[test]
+fn a_turn_whose_host_may_run_its_model_elsewhere_is_refused_a_local_only_artifact()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_artifact_input_skill(temp.path(), "local_only")?;
+
+    // No managed agent works this run, so its host may run its model
+    // anywhere.
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    let output = object(&result.output, "artifact input result")?;
+    assert_ne!(string_field(output, "status"), Some("needs_agent"));
+    let rendered = serde_json::to_string(&result.output)?;
+    assert!(
+        rendered.contains("a local_only artifact is among its inputs"),
+        "{rendered}"
+    );
+    // No turn is asked, so the host is given nothing of the artifact.
+    assert!(
+        array_field(output, "requests").is_none_or(|requests| requests.is_empty()),
+        "{rendered}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_turn_is_given_an_artifact_its_configured_model_may_see()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = write_artifact_input_skill(temp.path(), "configured_model")?;
+
+    let result = run_context_entries_skill(temp.path(), skill_dir)?;
+
+    let output = object(&result.output, "artifact input result")?;
+    assert_eq!(string_field(output, "status"), Some("needs_agent"));
+    let rendered = serde_json::to_string(&result.output)?;
+    assert!(
+        rendered.contains("The configured_model notes"),
+        "{rendered}"
+    );
+    Ok(())
+}
+
 #[test]
 fn an_agent_step_refuses_an_earlier_output_that_isnt_context_entries()
 -> Result<(), Box<dyn std::error::Error>> {

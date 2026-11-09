@@ -15,6 +15,7 @@ fn run_scoped_artifacts_survive_service_restart_without_reopening_the_source()
         Path::new("source.txt"),
         "text/plain",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
     drop(first);
     std::fs::write(workspace.path().join("source.txt"), "changed source")?;
@@ -62,6 +63,7 @@ fn run_scoped_artifacts_verify_chunks_and_bound_the_integrity_manifest()
         Path::new("source.txt"),
         "text/plain",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
     let mut offset = 0;
     let mut actual = String::new();
@@ -115,6 +117,48 @@ fn run_scoped_artifacts_verify_chunks_and_bound_the_integrity_manifest()
 }
 
 #[test]
+fn a_snapshot_from_before_this_runx_is_refused_by_name() -> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let project = workspace.path().join("state");
+    std::fs::create_dir(&project)?;
+    std::fs::write(workspace.path().join("source.txt"), "kept before 0.12")?;
+    let service = LocalArtifactService::for_run(&project, "run-one");
+    let artifact = service.admit(
+        workspace.path(),
+        Path::new("source.txt"),
+        "text/plain",
+        runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+    )?;
+    let namespace = std::fs::read_dir(project.join(crate::paths::ARTIFACTS_DIR).join("snapshots"))?
+        .next()
+        .ok_or("snapshot namespace")??
+        .path();
+    let name = artifact
+        .reference
+        .rsplit(':')
+        .next()
+        .ok_or("snapshot name")?;
+    // The record as runx wrote it before 0.12: its own format, and no labels.
+    let record = namespace.join(format!("{name}.json"));
+    let mut manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(&record)?)?;
+    manifest["format"] = serde_json::json!("runx.local-artifact-snapshot.v1");
+    if let Some(fields) = manifest.as_object_mut() {
+        fields.remove("labels");
+    }
+    std::fs::write(record, serde_json::to_vec(&manifest)?)?;
+    let error = LocalArtifactService::for_run(&project, "run-one")
+        .descriptor(&artifact.reference)
+        .err()
+        .ok_or("a snapshot from before 0.12 must be refused")?;
+    assert!(
+        error.to_string().contains("from before runx 0.12"),
+        "{error}"
+    );
+    Ok(())
+}
+
+#[test]
 fn volume_independent_artifacts_snapshot_is_immutable_and_pages_are_contiguous()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = tempfile::tempdir()?;
@@ -125,6 +169,7 @@ fn volume_independent_artifacts_snapshot_is_immutable_and_pages_are_contiguous()
         Path::new("source.txt"),
         "text/plain; charset=utf-8",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
     let other_service = LocalArtifactService::default();
     let other_artifact = other_service.admit(
@@ -132,6 +177,7 @@ fn volume_independent_artifacts_snapshot_is_immutable_and_pages_are_contiguous()
         Path::new("source.txt"),
         "text/plain; charset=utf-8",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
     std::fs::write(root.path().join("source.txt"), "replacement")?;
 
@@ -145,8 +191,8 @@ fn volume_independent_artifacts_snapshot_is_immutable_and_pages_are_contiguous()
 
     assert_eq!(format!("{}{}", first.data, second.data), "a🙂bc");
     assert!(second.eof);
-    assert_eq!(first.artifact.whole_digest, artifact.whole_digest);
-    assert_eq!(artifact.whole_digest, other_artifact.whole_digest);
+    assert_eq!(first.artifact.digest, artifact.digest);
+    assert_eq!(artifact.digest, other_artifact.digest);
     assert!(!artifact.reference.contains("source.txt"));
     assert_ne!(artifact.reference, other_artifact.reference);
     assert!(
@@ -171,6 +217,7 @@ fn volume_independent_artifacts_json_array_pages_preserve_every_record_once()
         Path::new("archive.js"),
         "application/javascript",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
     let mut offset = 0;
     let mut records = Vec::new();
@@ -208,6 +255,7 @@ fn volume_independent_artifacts_reject_a_record_before_it_exceeds_the_page_bound
         Path::new("archive.js"),
         "application/javascript",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
 
     let error = service
@@ -235,6 +283,7 @@ fn volume_independent_artifacts_bound_whitespace_only_continuation_pages()
         Path::new("archive.json"),
         "application/json",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
 
     let mut offset = 0;
@@ -269,6 +318,7 @@ fn volume_independent_artifacts_allow_pages_beyond_one_mib_up_to_the_runtime_cei
         Path::new("large.bin"),
         "application/octet-stream",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
 
     let page = service.read_page(

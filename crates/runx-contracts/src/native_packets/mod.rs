@@ -3,7 +3,6 @@
 //! generated from it.
 
 mod approval;
-mod artifacts;
 mod attestation;
 mod cli;
 mod command;
@@ -19,7 +18,6 @@ mod runs;
 mod store;
 
 pub use approval::{ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus};
-pub use artifacts::{LocalArtifact, LocalArtifactPage};
 pub use attestation::{
     ATTESTATION_MAX_ACTION_BYTES, ATTESTATION_MAX_CLAIM_BYTES, ATTESTATION_MAX_EVIDENCE,
     ATTESTATION_MAX_LOCATOR_BYTES, ATTESTATION_MAX_PRINCIPAL_BYTES, ATTESTATION_MAX_PROVES_BYTES,

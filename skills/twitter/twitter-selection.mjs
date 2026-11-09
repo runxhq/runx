@@ -106,7 +106,7 @@ export function selectArchivePage(inputs) {
     ...selectionDraft(context, {
       acts,
       scanned,
-      evidenceLocators: [text(page.whole_digest)],
+      evidenceLocators: [text(page.digest)],
       actLabel: "delete",
       blockers: [],
       truncated,

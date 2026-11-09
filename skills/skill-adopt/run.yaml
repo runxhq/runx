@@ -111,7 +111,7 @@ methods:
         inputs:
           project_context: $input.project_context
           provenance: $input.provenance
-          source_artifact: $steps.source-store.project_artifact
+          source_artifact: $steps.source-store.artifact
           source_validation: $steps.source-check.validation
           source_file_count: $input.source_snapshot.file_count
           source_bytes: $input.source_snapshot.total_bytes

@@ -231,34 +231,61 @@ methods:
                         source_artifact:
                           additionalProperties: false
                           properties:
-                            bytes:
-                              minimum: 0
-                              type: integer
-                            digest:
+                            created_at:
                               type: string
+                            digest:
+                              pattern: "^sha256:[0-9a-f]{64}$"
+                              type: string
+                            labels:
+                              additionalProperties: false
+                              properties:
+                                sharing:
+                                  enum:
+                                    - local_only
+                                    - configured_model
+                                  type: string
+                              required:
+                                - sharing
+                              type: object
                             media_type:
+                              minLength: 1
                               type: string
                             path:
+                              minLength: 1
+                              type: string
+                            produced_by:
+                              additionalProperties: true
+                              type: object
+                            ref:
+                              description: "Where it is: an opaque reference a native artifact tool resolves."
+                              minLength: 1
                               type: string
                             schema:
                               enum:
-                                - runx.project_artifact.v1
-                              title: ProjectArtifactSchema
+                                - runx.artifact.v1
                               type: string
-                            uri:
-                              description: "`runx:project-artifact:` and the artifact's digest."
+                            size_bytes:
+                              minimum: 0
+                              type: integer
+                            sources:
+                              items:
+                                additionalProperties: true
+                                type: object
+                              type: array
+                            summary:
+                              minLength: 1
                               type: string
                           required:
                             - schema
-                            - uri
+                            - ref
                             - digest
-                            - bytes
+                            - size_bytes
                             - media_type
-                            - path
-                          title: ProjectArtifact
+                            - labels
+                          title: Artifact
                           type: object
                           x-runx-packet: true
-                          x-runx-schema: runx.project_artifact.v1
+                          x-runx-schema: runx.artifact.v1
                       additionalProperties: false
               comparison:
                 type:
@@ -588,7 +615,7 @@ methods:
     description: Reuse one retained PostHog insight.read packet artifact. Validate cached definitions and normalize actual funnel or mature retention counts without provider calls.
     inputs:
       artifact:
-        packet: runx.project_artifact.v1
+        packet: runx.artifact.v1
         description: Exact native artifact of the completed PostHog insight.read packet.
       name:
         type: string
@@ -607,7 +634,7 @@ methods:
       - id: provider-read
         tool: artifact.read
         inputs:
-          artifact_uri: $steps.provider-open.local_artifact.artifact_uri
+          ref: $steps.provider-open.artifact.ref
           encoding: utf8
           offset: 0
           max_bytes: 2097152
@@ -799,34 +826,61 @@ methods:
                           source_artifact:
                             additionalProperties: false
                             properties:
-                              bytes:
-                                minimum: 0
-                                type: integer
-                              digest:
+                              created_at:
                                 type: string
+                              digest:
+                                pattern: "^sha256:[0-9a-f]{64}$"
+                                type: string
+                              labels:
+                                additionalProperties: false
+                                properties:
+                                  sharing:
+                                    enum:
+                                      - local_only
+                                      - configured_model
+                                    type: string
+                                required:
+                                  - sharing
+                                type: object
                               media_type:
+                                minLength: 1
                                 type: string
                               path:
+                                minLength: 1
+                                type: string
+                              produced_by:
+                                additionalProperties: true
+                                type: object
+                              ref:
+                                description: "Where it is: an opaque reference a native artifact tool resolves."
+                                minLength: 1
                                 type: string
                               schema:
                                 enum:
-                                  - runx.project_artifact.v1
-                                title: ProjectArtifactSchema
+                                  - runx.artifact.v1
                                 type: string
-                              uri:
-                                description: "`runx:project-artifact:` and the artifact's digest."
+                              size_bytes:
+                                minimum: 0
+                                type: integer
+                              sources:
+                                items:
+                                  additionalProperties: true
+                                  type: object
+                                type: array
+                              summary:
+                                minLength: 1
                                 type: string
                             required:
                               - schema
-                              - uri
+                              - ref
                               - digest
-                              - bytes
+                              - size_bytes
                               - media_type
-                              - path
-                            title: ProjectArtifact
+                              - labels
+                            title: Artifact
                             type: object
                             x-runx-packet: true
-                            x-runx-schema: runx.project_artifact.v1
+                            x-runx-schema: runx.artifact.v1
                         additionalProperties: false
                     anyOf:
                       - required:
@@ -873,44 +927,72 @@ methods:
                   artifact:
                     additionalProperties: false
                     properties:
-                      bytes:
-                        minimum: 0
-                        type: integer
-                      digest:
+                      created_at:
                         type: string
+                      digest:
+                        pattern: "^sha256:[0-9a-f]{64}$"
+                        type: string
+                      labels:
+                        additionalProperties: false
+                        properties:
+                          sharing:
+                            enum:
+                              - local_only
+                              - configured_model
+                            type: string
+                        required:
+                          - sharing
+                        type: object
                       media_type:
+                        minLength: 1
                         type: string
                       path:
+                        minLength: 1
+                        type: string
+                      produced_by:
+                        additionalProperties: true
+                        type: object
+                      ref:
+                        description: "Where it is: an opaque reference a native artifact tool resolves."
+                        minLength: 1
                         type: string
                       schema:
                         enum:
-                          - runx.project_artifact.v1
-                        title: ProjectArtifactSchema
+                          - runx.artifact.v1
                         type: string
-                      uri:
-                        description: "`runx:project-artifact:` and the artifact's digest."
+                      size_bytes:
+                        minimum: 0
+                        type: integer
+                      sources:
+                        items:
+                          additionalProperties: true
+                          type: object
+                        type: array
+                      summary:
+                        minLength: 1
                         type: string
                     required:
                       - schema
-                      - uri
+                      - ref
                       - digest
-                      - bytes
+                      - size_bytes
                       - media_type
-                      - path
-                    title: ProjectArtifact
+                      - labels
+                    title: Artifact
                     type: object
                     x-runx-packet: true
-                    x-runx-schema: runx.project_artifact.v1
+                    x-runx-schema: runx.artifact.v1
                 additionalProperties: false
             additionalProperties: false
     examples:
       - artifact:
-          schema: runx.project_artifact.v1
-          uri: runx:project-artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          schema: runx.artifact.v1
+          ref: runx:project-artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          bytes: 1234
+          size_bytes: 1234
           media_type: application/json
           path: /workspace/.runx/artifacts/insight.json
+          labels: {sharing: configured_model}
         name: current
         return_interval: 1
   read-posthog:
@@ -944,7 +1026,7 @@ methods:
       - id: normalize
         skill: .#normalize-posthog
         inputs:
-          artifact: $steps.save.project_artifact
+          artifact: $steps.save.artifact
           name: $input.name
           return_interval: $input.return_interval
     examples:
@@ -1086,12 +1168,13 @@ methods:
       - objective: Review activation using this retained provider read.
         selection:
           current:
-            schema: runx.project_artifact.v1
-            uri: runx:project-artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            schema: runx.artifact.v1
+            ref: runx:project-artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            bytes: 1234
+            size_bytes: 1234
             media_type: application/json
             path: /workspace/.runx/artifacts/insight.json
+            labels: {sharing: configured_model}
           baseline: null
           notes: []
         return_interval: 1
@@ -1169,67 +1252,121 @@ methods:
                 anyOf:
                   - additionalProperties: false
                     properties:
-                      bytes:
-                        minimum: 0
-                        type: integer
-                      digest:
+                      created_at:
                         type: string
+                      digest:
+                        pattern: "^sha256:[0-9a-f]{64}$"
+                        type: string
+                      labels:
+                        additionalProperties: false
+                        properties:
+                          sharing:
+                            enum:
+                              - local_only
+                              - configured_model
+                            type: string
+                        required:
+                          - sharing
+                        type: object
                       media_type:
+                        minLength: 1
                         type: string
                       path:
+                        minLength: 1
+                        type: string
+                      produced_by:
+                        additionalProperties: true
+                        type: object
+                      ref:
+                        description: "Where it is: an opaque reference a native artifact tool resolves."
+                        minLength: 1
                         type: string
                       schema:
                         enum:
-                          - runx.project_artifact.v1
-                        title: ProjectArtifactSchema
+                          - runx.artifact.v1
                         type: string
-                      uri:
-                        description: "`runx:project-artifact:` and the artifact's digest."
+                      size_bytes:
+                        minimum: 0
+                        type: integer
+                      sources:
+                        items:
+                          additionalProperties: true
+                          type: object
+                        type: array
+                      summary:
+                        minLength: 1
                         type: string
                     required:
                       - schema
-                      - uri
+                      - ref
                       - digest
-                      - bytes
+                      - size_bytes
                       - media_type
-                      - path
-                    title: ProjectArtifact
+                      - labels
+                    title: Artifact
                     type: object
                     x-runx-packet: true
-                    x-runx-schema: runx.project_artifact.v1
+                    x-runx-schema: runx.artifact.v1
                   - type: "null"
               baseline:
                 anyOf:
                   - additionalProperties: false
                     properties:
-                      bytes:
-                        minimum: 0
-                        type: integer
-                      digest:
+                      created_at:
                         type: string
+                      digest:
+                        pattern: "^sha256:[0-9a-f]{64}$"
+                        type: string
+                      labels:
+                        additionalProperties: false
+                        properties:
+                          sharing:
+                            enum:
+                              - local_only
+                              - configured_model
+                            type: string
+                        required:
+                          - sharing
+                        type: object
                       media_type:
+                        minLength: 1
                         type: string
                       path:
+                        minLength: 1
+                        type: string
+                      produced_by:
+                        additionalProperties: true
+                        type: object
+                      ref:
+                        description: "Where it is: an opaque reference a native artifact tool resolves."
+                        minLength: 1
                         type: string
                       schema:
                         enum:
-                          - runx.project_artifact.v1
-                        title: ProjectArtifactSchema
+                          - runx.artifact.v1
                         type: string
-                      uri:
-                        description: "`runx:project-artifact:` and the artifact's digest."
+                      size_bytes:
+                        minimum: 0
+                        type: integer
+                      sources:
+                        items:
+                          additionalProperties: true
+                          type: object
+                        type: array
+                      summary:
+                        minLength: 1
                         type: string
                     required:
                       - schema
-                      - uri
+                      - ref
                       - digest
-                      - bytes
+                      - size_bytes
                       - media_type
-                      - path
-                    title: ProjectArtifact
+                      - labels
+                    title: Artifact
                     type: object
                     x-runx-packet: true
-                    x-runx-schema: runx.project_artifact.v1
+                    x-runx-schema: runx.artifact.v1
                   - type: "null"
               notes:
                 type: array
@@ -1402,34 +1539,61 @@ shared_inputs:
             source_artifact:
               additionalProperties: false
               properties:
-                bytes:
-                  minimum: 0
-                  type: integer
-                digest:
+                created_at:
                   type: string
+                digest:
+                  pattern: "^sha256:[0-9a-f]{64}$"
+                  type: string
+                labels:
+                  additionalProperties: false
+                  properties:
+                    sharing:
+                      enum:
+                        - local_only
+                        - configured_model
+                      type: string
+                  required:
+                    - sharing
+                  type: object
                 media_type:
+                  minLength: 1
                   type: string
                 path:
+                  minLength: 1
+                  type: string
+                produced_by:
+                  additionalProperties: true
+                  type: object
+                ref:
+                  description: "Where it is: an opaque reference a native artifact tool resolves."
+                  minLength: 1
                   type: string
                 schema:
                   enum:
-                    - runx.project_artifact.v1
-                  title: ProjectArtifactSchema
+                    - runx.artifact.v1
                   type: string
-                uri:
-                  description: "`runx:project-artifact:` and the artifact's digest."
+                size_bytes:
+                  minimum: 0
+                  type: integer
+                sources:
+                  items:
+                    additionalProperties: true
+                    type: object
+                  type: array
+                summary:
+                  minLength: 1
                   type: string
               required:
                 - schema
-                - uri
+                - ref
                 - digest
-                - bytes
+                - size_bytes
                 - media_type
-                - path
-              title: ProjectArtifact
+                - labels
+              title: Artifact
               type: object
               x-runx-packet: true
-              x-runx-schema: runx.project_artifact.v1
+              x-runx-schema: runx.artifact.v1
           additionalProperties: false
       anyOf:
         - required:
@@ -1449,67 +1613,121 @@ shared_inputs:
         anyOf:
           - additionalProperties: false
             properties:
-              bytes:
-                minimum: 0
-                type: integer
-              digest:
+              created_at:
                 type: string
+              digest:
+                pattern: "^sha256:[0-9a-f]{64}$"
+                type: string
+              labels:
+                additionalProperties: false
+                properties:
+                  sharing:
+                    enum:
+                      - local_only
+                      - configured_model
+                    type: string
+                required:
+                  - sharing
+                type: object
               media_type:
+                minLength: 1
                 type: string
               path:
+                minLength: 1
+                type: string
+              produced_by:
+                additionalProperties: true
+                type: object
+              ref:
+                description: "Where it is: an opaque reference a native artifact tool resolves."
+                minLength: 1
                 type: string
               schema:
                 enum:
-                  - runx.project_artifact.v1
-                title: ProjectArtifactSchema
+                  - runx.artifact.v1
                 type: string
-              uri:
-                description: "`runx:project-artifact:` and the artifact's digest."
+              size_bytes:
+                minimum: 0
+                type: integer
+              sources:
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+              summary:
+                minLength: 1
                 type: string
             required:
               - schema
-              - uri
+              - ref
               - digest
-              - bytes
+              - size_bytes
               - media_type
-              - path
-            title: ProjectArtifact
+              - labels
+            title: Artifact
             type: object
             x-runx-packet: true
-            x-runx-schema: runx.project_artifact.v1
+            x-runx-schema: runx.artifact.v1
           - type: "null"
       baseline:
         anyOf:
           - additionalProperties: false
             properties:
-              bytes:
-                minimum: 0
-                type: integer
-              digest:
+              created_at:
                 type: string
+              digest:
+                pattern: "^sha256:[0-9a-f]{64}$"
+                type: string
+              labels:
+                additionalProperties: false
+                properties:
+                  sharing:
+                    enum:
+                      - local_only
+                      - configured_model
+                    type: string
+                required:
+                  - sharing
+                type: object
               media_type:
+                minLength: 1
                 type: string
               path:
+                minLength: 1
+                type: string
+              produced_by:
+                additionalProperties: true
+                type: object
+              ref:
+                description: "Where it is: an opaque reference a native artifact tool resolves."
+                minLength: 1
                 type: string
               schema:
                 enum:
-                  - runx.project_artifact.v1
-                title: ProjectArtifactSchema
+                  - runx.artifact.v1
                 type: string
-              uri:
-                description: "`runx:project-artifact:` and the artifact's digest."
+              size_bytes:
+                minimum: 0
+                type: integer
+              sources:
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+              summary:
+                minLength: 1
                 type: string
             required:
               - schema
-              - uri
+              - ref
               - digest
-              - bytes
+              - size_bytes
               - media_type
-              - path
-            title: ProjectArtifact
+              - labels
+            title: Artifact
             type: object
             x-runx-packet: true
-            x-runx-schema: runx.project_artifact.v1
+            x-runx-schema: runx.artifact.v1
           - type: "null"
       notes:
         type: array

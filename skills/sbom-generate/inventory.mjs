@@ -29,7 +29,7 @@ export function fromFile(inputs) {
   return fromSource({
     ...inputs,
     source_text: page.data,
-    source_digest: page.whole_digest,
+    source_digest: page.digest,
     source_bytes: page.length,
     digest_encoding: "source_bytes",
   });

@@ -200,12 +200,13 @@ test("validation failures keep the operator verdict consistent with the review",
 
 test("paged locations remain references rather than invented empty path arrays", () => {
   const ref = {
-    schema: "runx.project_artifact.v1",
+    schema: "runx.artifact.v1",
     digest: D,
-    uri: "runx:project-artifact:" + D,
-    bytes: 10,
+    ref: "runx:project-artifact:" + D,
+    size_bytes: 10,
     media_type: "application/json",
     path: "/synthetic",
+    labels: { sharing: "configured_model" },
   };
   const finding = {
     ...f,

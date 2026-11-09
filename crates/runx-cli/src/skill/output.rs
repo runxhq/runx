@@ -2,9 +2,8 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-use runx_contracts::{JsonObject, JsonValue, RunOutcome, sha256_prefixed};
+use runx_contracts::{ArtifactLabels, JsonObject, JsonValue, RunOutcome, sha256_prefixed};
 
-use runx_runtime::persist_json_artifact;
 #[cfg(test)]
 use runx_runtime::read_json_artifact;
 
@@ -129,7 +128,7 @@ fn project_json_output_value(
         }
     }
     if !diagnostic_payload.is_empty() {
-        let reference = persist_json_artifact(
+        let reference = persist(
             artifacts,
             &run_id,
             "diagnostics",
@@ -147,7 +146,7 @@ fn project_json_output_value(
         let mut request_summaries = Vec::with_capacity(requests.len());
         let mut refs = Vec::with_capacity(requests.len());
         for request in &requests {
-            let reference = persist_json_artifact(
+            let reference = persist(
                 artifacts,
                 &run_id,
                 "requests",
@@ -167,7 +166,7 @@ fn project_json_output_value(
     }
 
     let result_reference = if let Some(result) = object.get("result").cloned() {
-        let reference = persist_json_artifact(artifacts, &run_id, "results", "result", &result)?;
+        let reference = persist(artifacts, &run_id, "results", "result", &result)?;
         let schema = result_schema(&result).to_owned();
         object.insert(
             "result".to_owned(),
@@ -194,9 +193,7 @@ fn project_json_output_value(
                 .is_some_and(|requests| !requests.is_empty())
         })
         .cloned()
-        .map(|requests| {
-            persist_json_artifact(artifacts, &run_id, "requests", "request-set", &requests)
-        })
+        .map(|requests| persist(artifacts, &run_id, "requests", "request-set", &requests))
         .transpose()?;
     if let Some(reference) = &request_set_reference {
         object.insert("requests".to_owned(), JsonValue::Array(Vec::new()));
@@ -207,8 +204,7 @@ fn project_json_output_value(
         return Ok(JsonValue::Object(object));
     }
 
-    let full_output_reference =
-        persist_json_artifact(artifacts, &run_id, "diagnostics", "full-output", value)?;
+    let full_output_reference = persist(artifacts, &run_id, "diagnostics", "full-output", value)?;
     let mut minimal = compact_identity(&object);
     if let Some(result) = object.get("result") {
         minimal.insert("result".to_owned(), result.clone());
@@ -234,6 +230,26 @@ fn project_json_output_value(
         return Err("compact skill result exceeded the 16 KiB envelope bound".to_owned());
     }
     Ok(minimal)
+}
+
+/// Retain `value` as a project artifact of run `run_id`, and give its
+/// descriptor. It is `local_only` when any artifact in it is.
+fn persist(
+    artifacts: &Path,
+    run_id: &str,
+    kind: &str,
+    label: &str,
+    value: &JsonValue,
+) -> Result<JsonValue, String> {
+    let artifact = runx_runtime::persist_json_artifact(
+        artifacts,
+        run_id,
+        kind,
+        label,
+        value,
+        ArtifactLabels::of_value(value),
+    )?;
+    JsonValue::from_serialize(&artifact).map_err(|error| error.to_string())
 }
 
 /// The digest an answer to `request` binds to, as the run record keeps it.
@@ -697,10 +713,15 @@ mod tests {
     use runx_contracts::{JsonObject, JsonValue};
 
     use super::{
-        ResumeHint, answers_template, persist_json_artifact, read_json_artifact,
-        run_outcome_exit_code, run_result_exit_code, serialize_json_output, write_purchase,
-        write_skill_text,
+        ResumeHint, answers_template, persist, read_json_artifact, run_outcome_exit_code,
+        run_result_exit_code, serialize_json_output, write_purchase, write_skill_text,
     };
+
+    fn descriptor(
+        value: &JsonValue,
+    ) -> Result<runx_contracts::Artifact, Box<dyn std::error::Error>> {
+        Ok(value.clone().deserialize_into()?)
+    }
 
     #[cfg(unix)]
     #[test]
@@ -716,7 +737,7 @@ mod tests {
         ));
         fs::create_dir(&workspace)?;
         let runx_dir = workspace.join(".runx");
-        let reference = persist_json_artifact(
+        let reference = persist(
             &runx_dir.join("artifacts"),
             "run_private",
             "results",
@@ -744,7 +765,7 @@ mod tests {
             fs::Permissions::from_mode(0o755),
         )?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o644))?;
-        persist_json_artifact(
+        persist(
             &runx_dir.join("artifacts"),
             "run_private",
             "results",
@@ -776,15 +797,18 @@ mod tests {
         fs::create_dir(&workspace)?;
         let artifacts = workspace.join(".runx").join("artifacts");
         let exact = JsonValue::String("exact private update".to_owned());
-        let reference = persist_json_artifact(&artifacts, "skill", "skill", "intent", &exact)?;
-        assert_eq!(read_json_artifact(&artifacts, &reference)?, exact);
+        let reference = persist(&artifacts, "skill", "skill", "intent", &exact)?;
+        assert_eq!(
+            read_json_artifact(&artifacts, &descriptor(&reference)?)?,
+            exact
+        );
         let path = reference
             .as_object()
             .and_then(|item| item.get("path"))
             .and_then(JsonValue::as_str)
             .ok_or("artifact has no path")?;
         fs::write(path, b"\"changed\"")?;
-        assert!(read_json_artifact(&artifacts, &reference).is_err());
+        assert!(read_json_artifact(&artifacts, &descriptor(&reference)?).is_err());
         let mut escaped = reference.clone();
         let JsonValue::Object(ref mut fields) = escaped else {
             unreachable!()
@@ -799,7 +823,7 @@ mod tests {
             ),
         );
         fs::write(workspace.join("outside.json"), b"\"exact private update\"")?;
-        assert!(read_json_artifact(&artifacts, &escaped).is_err());
+        assert!(read_json_artifact(&artifacts, &descriptor(&escaped)?).is_err());
         fs::remove_dir_all(workspace)?;
         Ok(())
     }

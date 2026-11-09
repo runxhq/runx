@@ -572,12 +572,12 @@ function parseJson(value, context) {
 }
 
 function readArtifact(reference) {
-  if (reference?.schema !== "runx.project_artifact.v1") {
+  if (reference?.schema !== "runx.artifact.v1" || !reference.ref?.startsWith("runx:project-artifact:")) {
     throw new Error("candidate omitted the expected project artifact reference");
   }
   const bytes = readFileSync(path.resolve(root, reference.path));
   const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-  if (bytes.length !== reference.bytes || digest !== reference.digest) {
+  if (bytes.length !== reference.size_bytes || digest !== reference.digest) {
     throw new Error("candidate artifact content does not match its reference");
   }
   return parseJson(bytes.toString("utf8"), "candidate artifact");

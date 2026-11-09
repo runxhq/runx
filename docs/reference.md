@@ -261,7 +261,7 @@ or one an earlier run left. Runx reads it from the project's artifact store
 digest and the input's packet schema, gives the input its content, and names
 the artifact, labeled with the input, in the call's receipt; a reference whose
 digest is not its content's, or that leaves the artifact store, is refused.
-An input explicitly typed `runx.project_artifact.v1` receives the descriptor
+An input explicitly typed `runx.artifact.v1` receives the descriptor
 itself; it is not automatically dereferenced. The child can then open its exact
 retained content through `artifact.open` with the required scope and bounds.
 A skill call states its `act` beside
@@ -562,8 +562,11 @@ term.
 Large local inputs use `artifact.admit` and `artifact.read`. Admission snapshots
 one contained regular file, binds its media type, byte count, and whole-file
 digest to an opaque logical-run-scoped reference, and never exposes the host
-path. The current total admission ceiling is 512 MiB. Reads return exact
-offsets, range and whole-file digests, `next_offset`, and `eof` in pages of at
+path. It gives a `runx.artifact.v1` artifact, labelled `configured_model`
+unless the step gives `labels: {sharing: local_only}`. The current total admission ceiling is 512 MiB. Reads take the
+artifact's `ref` and return `runx.artifact_page.v1` pages: exact offsets, the
+page's `range_digest` and the whole artifact's `digest`, `next_offset`, and
+`eof`, in pages of at
 most 4 MiB using base64, character-safe UTF-8, or JSON-array record framing;
 the default page is 1 MiB. The 4 MiB limit is a page ceiling, not a total-file
 ceiling. `fs.read` and `fs.read_bundle` share the same containment and hashing
@@ -727,12 +730,13 @@ Native integer inputs outside JavaScript's safe integer range are refused
 before module execution rather than silently rounded. Pass exact large IDs or
 amounts as strings. Floating-point inputs retain IEEE 754 semantics.
 
-`artifact.store` retains a selected canonical JSON result as the existing
-ProjectArtifact descriptor. `artifact.open` checks its current-project root,
-size and digest, then returns a local artifact URI for `artifact.read` pages.
+`artifact.store` retains a selected canonical JSON result as a
+`runx.artifact.v1` artifact. `artifact.open` checks its current-project root,
+size and digest, then returns an artifact whose `ref` `artifact.read` pages,
+with the label it opened.
 Store and open require `reach: inputs` and `artifact.write` / `artifact.read`
 scopes respectively. The existing `artifact.read` page tool requires `fs.read`;
-it accepts logical-run-scoped URIs admitted by either source. References do not
+it accepts logical-run-scoped references admitted by either source. References do not
 grant permission. Use immutable result parts and a
 compact continuation instead of growing history in CLI input.
 

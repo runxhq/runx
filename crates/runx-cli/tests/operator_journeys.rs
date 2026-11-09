@@ -44,10 +44,8 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
         "capture-source",
         serde_json::json!({"path": "source.txt", "media_type": "text/plain"}),
     )?;
-    let artifact = &admitted["outcome"]["output"]["local_artifact"]["data"];
-    let reference = artifact["artifact_uri"]
-        .as_str()
-        .ok_or("artifact reference")?;
+    let artifact = &admitted["outcome"]["output"]["artifact"]["data"];
+    let reference = artifact["ref"].as_str().ok_or("artifact reference")?;
     fs::write(root.join("source.txt"), "changed after admission")?;
     let mut text = String::new();
     let mut offset = 0;
@@ -56,7 +54,7 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
             run,
             "artifact_read",
             &format!("page-{index}"),
-            serde_json::json!({"artifact_uri": reference, "offset": offset, "max_bytes": 5, "encoding": "utf8"}),
+            serde_json::json!({"ref": reference, "offset": offset, "max_bytes": 5, "encoding": "utf8"}),
         )?;
         let page = &page["outcome"]["output"]["artifact_page"]["data"];
         text.push_str(page["data"].as_str().ok_or("page text")?);
@@ -89,7 +87,7 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
         other_run,
         "artifact_read",
         "foreign-reference",
-        serde_json::json!({"artifact_uri": reference, "encoding": "utf8"}),
+        serde_json::json!({"ref": reference, "encoding": "utf8"}),
     )?;
     assert_eq!(refused["outcome"]["status"], "failed");
     assert!(
@@ -132,7 +130,7 @@ methods:
       - id: read
         tool: artifact.read
         inputs:
-          artifact_uri: $steps.capture.local_artifact.artifact_uri
+          ref: $steps.capture.artifact.ref
           encoding: utf8
           max_bytes: 1024
 "#,

@@ -71,18 +71,19 @@ const prepare = (packet, extra = {}) =>
   preparePosthog({
     name: "current",
     artifact: {
-      schema: "runx.project_artifact.v1",
-      uri: "runx:project-artifact:sha256:" + "a".repeat(64),
+      schema: "runx.artifact.v1",
+      ref: "runx:project-artifact:sha256:" + "a".repeat(64),
       digest: "sha256:" + "a".repeat(64),
-      bytes: 100,
+      size_bytes: 100,
       media_type: "application/json",
       path: "/synthetic/insight.json",
+      labels: { sharing: "configured_model" },
     },
     page: {
       offset: 0,
       eof: true,
       data: JSON.stringify(packet),
-      whole_digest: "sha256:" + "a".repeat(64),
+      digest: "sha256:" + "a".repeat(64),
     },
     ...extra,
   });

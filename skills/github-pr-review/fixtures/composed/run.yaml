@@ -12,4 +12,4 @@ methods:
       - id: offline
         skill: ../..#from-snapshot
         inputs:
-          snapshot: $steps.acquire.project_artifact
+          snapshot: $steps.acquire.artifact

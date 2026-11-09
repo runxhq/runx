@@ -1,4 +1,4 @@
-use runx_contracts::{JsonNumber, JsonObject, JsonValue, LocalArtifact, LocalArtifactPage};
+use runx_contracts::{Artifact, ArtifactLabels, ArtifactPage, JsonNumber, JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
 use crate::services::DEFAULT_ARTIFACT_PAGE_BYTES;
@@ -16,11 +16,19 @@ pub(super) struct ArtifactAdmitInput {
     pub(super) path_scope: String,
     pub(super) path: String,
     pub(super) media_type: String,
+    pub(super) labels: ArtifactLabels,
 }
 
 impl CapabilityInput for ArtifactAdmitInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
+            (
+                "labels".to_owned(),
+                JsonValue::Object(JsonObject::from([(
+                    "sharing".to_owned(),
+                    JsonValue::String("configured_model".to_owned()),
+                )])),
+            ),
             ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "path_scope".to_owned(),
@@ -37,7 +45,8 @@ impl CapabilityInput for ArtifactAdmitInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ArtifactReadInput {
-    pub(super) artifact_uri: String,
+    #[serde(rename = "ref")]
+    pub(super) reference: String,
     pub(super) offset: u64,
     pub(super) max_bytes: u64,
     pub(super) encoding: String,
@@ -59,11 +68,8 @@ impl CapabilityInput for ArtifactReadInput {
     }
 }
 
-pub(super) type ArtifactAdmitOutput = LocalArtifact;
-pub(super) type ArtifactReadOutput = LocalArtifactPage;
-
-impl CapabilityOutput for LocalArtifact {}
-impl CapabilityOutput for LocalArtifactPage {}
+impl CapabilityOutput for Artifact {}
+impl CapabilityOutput for ArtifactPage {}
 
 const ADMIT_FIELDS: &[CapabilityField] = &[
     CapabilityField {
@@ -82,11 +88,15 @@ const ADMIT_FIELDS: &[CapabilityField] = &[
         name: "media_type",
         description: "Media type bound into the immutable artifact identity.",
     },
+    CapabilityField {
+        name: "labels",
+        description: "Where the artifact may be shared: local_only keeps it from any model that may run elsewhere. Defaults to configured_model.",
+    },
 ];
 
 const READ_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "artifact_uri",
+        name: "ref",
         description: "Opaque logical-run reference returned by artifact.admit or artifact.open; survives native process restart but grants no authority.",
     },
     CapabilityField {
@@ -103,39 +113,37 @@ const READ_FIELDS: &[CapabilityField] = &[
     },
 ];
 
-static ADMIT: TypedNativeCapability<ArtifactAdmitInput, ArtifactAdmitOutput> =
-    TypedNativeCapability::new(
-        CapabilityDefinition {
-            id: "artifact.admit",
-            source: "runx-runtime/local-artifacts",
-            summary: "Bind one contained local file to an immutable opaque artifact reference.",
-            effect: CapabilityEffect::Read,
-            approval: CapabilityApproval::None,
-            artifacts: CapabilityArtifacts::Wrapped {
-                output: "local_artifact",
-                packet: "runx.local_artifact.v1",
-            },
-            fields: ADMIT_FIELDS,
+static ADMIT: TypedNativeCapability<ArtifactAdmitInput, Artifact> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "artifact.admit",
+        source: "runx-runtime/local-artifacts",
+        summary: "Bind one contained local file to an immutable opaque artifact reference.",
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Wrapped {
+            output: "artifact",
+            packet: runx_contracts::ARTIFACT_SCHEMA,
         },
-        super::admit,
-    );
+        fields: ADMIT_FIELDS,
+    },
+    super::admit,
+);
 
-static READ: TypedNativeCapability<ArtifactReadInput, ArtifactReadOutput> =
-    TypedNativeCapability::new(
-        CapabilityDefinition {
-            id: "artifact.read",
-            source: "runx-runtime/local-artifacts",
-            summary: "Read one exact bounded page from a previously admitted local artifact.",
-            effect: CapabilityEffect::Read,
-            approval: CapabilityApproval::None,
-            artifacts: CapabilityArtifacts::Wrapped {
-                output: "artifact_page",
-                packet: "runx.local_artifact.page.v1",
-            },
-            fields: READ_FIELDS,
+static READ: TypedNativeCapability<ArtifactReadInput, ArtifactPage> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "artifact.read",
+        source: "runx-runtime/local-artifacts",
+        summary: "Read one exact bounded page from a previously admitted local artifact.",
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Wrapped {
+            output: "artifact_page",
+            packet: "runx.artifact_page.v1",
         },
-        super::read,
-    );
+        fields: READ_FIELDS,
+    },
+    super::read,
+);
 
 pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] =
     &[&ADMIT, &READ];

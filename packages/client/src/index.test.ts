@@ -8,7 +8,7 @@ import { createRunxClient, executionBindingFromInspection, executionClosureFromI
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
 import { receiptCommitments } from "./receipt-tree.js";
-import type { ProjectArtifactContract } from "@runxhq/contracts";
+import type { ArtifactContract } from "@runxhq/contracts";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -28,7 +28,7 @@ async function artifact(projectDir: string, value: unknown, label = "request") {
   const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
   const dir = path.join(projectDir, "artifacts", "skill-runs", "run_test", "requests"); await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${label}-${digest.slice(7)}.json`); await writeFile(file, bytes);
-  return { schema: "runx.project_artifact.v1", uri: `runx:project-artifact:${digest}`, digest, bytes: bytes.byteLength, media_type: "application/json", path: file };
+  return { schema: "runx.artifact.v1", ref: `runx:project-artifact:${digest}`, digest, size_bytes: bytes.byteLength, media_type: "application/json", path: file, labels: { sharing: "configured_model" } };
 }
 const receiptFixture = JSON.parse(await readFile(new URL("../../../fixtures/receipt-verify/valid-production/receipt.json", import.meta.url), "utf8"));
 async function storeReceipt(receiptDir: string) {
@@ -96,10 +96,10 @@ describe("native invocation and decoding", () => {
     const { config } = await setup(`process.stdout.write(JSON.stringify(process.argv[2] === 'list' ? { schema: 'runx.list.v1', root: '/w', requested_kind: 'skills', items: [{ kind: 'skill', name: 'runx/run-history', source: 'built-in', path: 'runx/run-history', status: 'ok', packets: [] }] } : {}));`);
     const client = createRunxClient(config);
     await expect(client.skills.list()).resolves.toMatchObject({ schema: "runx.list.v1", items: [{ name: "runx/run-history" }] });
-    const reference = await artifact(config.projectDir, { verdict: "ok" }) as ProjectArtifactContract;
+    const reference = await artifact(config.projectDir, { verdict: "ok" }) as ArtifactContract;
     await expect(client.artifacts.read(reference)).resolves.toEqual({ verdict: "ok" });
     await expect(client.artifacts.read(reference, { maxBytes: 4 })).rejects.toMatchObject({ reason: "artifact" });
-    await expect(client.artifacts.read({ ...reference, digest: `sha256:${"0".repeat(64)}`, uri: `runx:project-artifact:sha256:${"0".repeat(64)}` })).rejects.toMatchObject({ reason: "artifact" });
+    await expect(client.artifacts.read({ ...reference, digest: `sha256:${"0".repeat(64)}`, ref: `runx:project-artifact:sha256:${"0".repeat(64)}` })).rejects.toMatchObject({ reason: "artifact" });
   });
   it("names the turn server an MCP client starts, with the trusted environment", async () => {
     const { root, config, receiptDir } = await setup();

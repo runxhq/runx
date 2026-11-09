@@ -9,12 +9,14 @@ use thiserror::Error;
 mod artifacts;
 mod project_artifacts;
 
-pub(crate) use project_artifacts::{persist_canonical_json_artifact, persist_json_bytes};
+pub(crate) use project_artifacts::{
+    is_project_artifact, persist_canonical_json_artifact, persist_json_bytes,
+};
 pub use project_artifacts::{persist_json_artifact, read_json_artifact};
 
 pub(crate) use artifacts::{
-    ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,
-    LocalArtifactService, MAX_ARTIFACT_BYTES,
+    ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifactService,
+    MAX_ARTIFACT_BYTES,
 };
 
 /// Refuse `relative`, a path inside the workspace, when the run's `reach`
@@ -111,6 +113,10 @@ pub enum WorkspaceFileError {
     ArtifactDescriptorMismatch,
     #[error("local artifact snapshot manifest is corrupt or not bound to this reference")]
     SnapshotIntegrity,
+    #[error(
+        "the artifact snapshot is from before runx 0.12, which 0.12 doesn't read; admit or open its artifact again"
+    )]
+    SnapshotBeforeThisRunx,
     #[error("local artifact reference is malformed")]
     InvalidArtifactReference,
     #[error("local artifact reference is unknown in this run")]

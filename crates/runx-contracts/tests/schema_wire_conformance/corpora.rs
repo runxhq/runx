@@ -1271,10 +1271,6 @@ fn a_ref() -> Value {
     json!({ "type": "act", "uri": "runx:act:1" })
 }
 
-fn digest_commitment() -> Value {
-    json!({ "algorithm": "sha256", "value": "abc", "canonicalization": "json-c14n" })
-}
-
 pub(super) fn doctor_corpus() -> Vec<(&'static str, Value)> {
     let summary = json!({ "errors": 0, "warnings": 0, "infos": 0 });
     vec![
@@ -1366,29 +1362,28 @@ pub(super) fn doctor_corpus() -> Vec<(&'static str, Value)> {
 }
 
 pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
+    let digest = format!("sha256:{}", "a".repeat(64));
     let valid = json!({
         "schema": "runx.artifact.v1",
-        "artifact_id": "art_1",
-        "artifact_ref": a_ref(),
-        "produced_by": { "receipt_ref": a_ref() },
-        "media_type": "text/plain",
-        "created_at": "2026-01-01T00:00:00Z",
+        "ref": format!("runx:project-artifact:{digest}"),
+        "digest": digest,
         "size_bytes": 12,
-        "digest": digest_commitment(),
-        "redaction_refs": [],
-        "source_refs": [],
+        "media_type": "text/plain",
+        "labels": { "sharing": "configured_model" },
     });
     vec![
         ("minimal valid", valid.clone()),
         ("full valid", {
             let mut v = valid.clone();
+            v["created_at"] = json!("2026-01-01T00:00:00Z");
             v["produced_by"] = json!({
                 "receipt_ref": a_ref(),
                 "act": { "receipt_ref": a_ref(), "act_id": "act_1" },
             });
-            v["data_ref"] = a_ref();
+            v["path"] = json!("/project/.runx/artifacts/value.json");
             v["summary"] = json!("a summary");
-            v["extensions"] = json!({ "k": 1 });
+            v["sources"] = json!([a_ref()]);
+            v["labels"] = json!({ "sharing": "local_only" });
             v
         }),
         ("missing schema", {
@@ -1396,9 +1391,9 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
             remove_field(&mut v, "schema");
             v
         }),
-        ("missing artifact_id", {
+        ("missing ref", {
             let mut v = valid.clone();
-            remove_field(&mut v, "artifact_id");
+            remove_field(&mut v, "ref");
             v
         }),
         ("missing hash", {
@@ -1406,9 +1401,14 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
             remove_field(&mut v, "digest");
             v
         }),
-        ("empty artifact_id", {
+        ("missing labels", {
             let mut v = valid.clone();
-            v["artifact_id"] = json!("");
+            remove_field(&mut v, "labels");
+            v
+        }),
+        ("empty ref", {
+            let mut v = valid.clone();
+            v["ref"] = json!("");
             v
         }),
         ("empty media_type", {
@@ -1421,9 +1421,24 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
             v["created_at"] = json!("nope");
             v
         }),
-        ("empty hash value", {
+        ("malformed hash value", {
             let mut v = valid.clone();
-            v["digest"] = json!({ "algorithm": "sha256", "value": "", "canonicalization": "c" });
+            v["digest"] = json!("sha256:");
+            v
+        }),
+        ("unknown sharing", {
+            let mut v = valid.clone();
+            v["labels"] = json!({ "sharing": "anyone" });
+            v
+        }),
+        ("removed redaction_refs", {
+            let mut v = valid.clone();
+            v["redaction_refs"] = json!([]);
+            v
+        }),
+        ("removed extensions", {
+            let mut v = valid.clone();
+            v["extensions"] = json!({ "k": 1 });
             v
         }),
         ("additional property", {
@@ -1542,12 +1557,13 @@ pub(super) fn run_event_corpus() -> Vec<(&'static str, Value)> {
                     "outputs": [{
                         "output": "file_read",
                         "artifact": {
-                            "schema": "runx.project_artifact.v1",
-                            "uri": "runx:project-artifact:sha256:out",
-                            "digest": "sha256:out",
-                            "bytes": 12,
+                            "schema": "runx.artifact.v1",
+                            "ref": "runx:project-artifact:sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                            "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                            "size_bytes": 12,
                             "media_type": "application/json",
                             "path": "/project/.runx/artifacts/skill-runs/run_1/calls/draft_1-file_read-out.json",
+                            "labels": { "sharing": "configured_model" },
                         },
                     }],
                 },

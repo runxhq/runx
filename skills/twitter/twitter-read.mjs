@@ -151,7 +151,7 @@ export function normalizeArchivePage(inputs) {
       source: "archive",
       items,
       truncated,
-      retrieved_via: text(page.artifact_uri),
+      retrieved_via: text(page.ref),
       blockers,
     }),
   };

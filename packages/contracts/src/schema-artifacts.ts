@@ -214,7 +214,7 @@ export const runxSchemaArtifacts = {
         "description": "What executes once the gate is approved, when it is at most 64 KiB. A host recomputes `summary.payload_digest` over it before it offers Approve; the request's digest binds it with the rest of the gate."
       },
       "payload_artifact": {
-        "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json",
+        "$ref": "https://schemas.runx.ai/runx/artifact/v1.json",
         "description": "What executes, when it is larger: a project artifact whose bytes are its canonical JSON."
       },
       "reason": {
@@ -238,45 +238,110 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.approval_gate.v1"
   } as JsonSchema,
+  "artifact-page.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/artifact-page/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One bounded page read of an artifact.",
+    "properties": {
+      "data": {
+        "type": "string"
+      },
+      "digest": {
+        "description": "The digest of the whole artifact's bytes.",
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "encoding": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "eof": {
+        "type": "boolean"
+      },
+      "length": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "next_offset": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "offset": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "range_digest": {
+        "description": "The digest of this page's bytes.",
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "records": {
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "ref": {
+        "description": "The artifact the page is of.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "ref",
+      "offset",
+      "length",
+      "next_offset",
+      "eof",
+      "range_digest",
+      "digest",
+      "encoding"
+    ],
+    "title": "ArtifactPage",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.artifact_page.v1"
+  } as JsonSchema,
   "artifact.schema.json": {
     "$id": "https://schemas.runx.ai/runx/artifact/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
+    "description": "One retained value: where it is, what it is, where it came from, and where it may be shared.",
     "properties": {
-      "artifact_id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "artifact_ref": {
-        "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-      },
       "created_at": {
         "minLength": 1,
         "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
         "type": "string"
       },
-      "data_ref": {
-        "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-      },
       "digest": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DigestCommitment"
+        "description": "The digest of its bytes.",
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
       },
-      "extensions": {
-        "additionalProperties": {},
-        "type": "object"
+      "labels": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ArtifactLabels"
       },
       "media_type": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "path": {
+        "description": "Its path, when it lives in the project.",
         "minLength": 1,
         "type": "string"
       },
       "produced_by": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ArtifactProducedBy"
       },
-      "redaction_refs": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-        },
-        "type": "array"
+      "ref": {
+        "description": "Where it is: an opaque reference a native artifact tool resolves. It names the store and the content, and grants no authority.",
+        "minLength": 1,
+        "type": "string"
       },
       "schema": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ArtifactSchema"
@@ -285,10 +350,11 @@ export const runxSchemaArtifacts = {
         "minimum": 0,
         "type": "integer"
       },
-      "source_refs": {
+      "sources": {
         "items": {
           "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
         },
+        "minItems": 1,
         "type": "array"
       },
       "summary": {
@@ -298,16 +364,15 @@ export const runxSchemaArtifacts = {
     },
     "required": [
       "schema",
-      "artifact_id",
-      "artifact_ref",
-      "produced_by",
-      "media_type",
-      "created_at",
+      "ref",
+      "digest",
       "size_bytes",
-      "digest"
+      "media_type",
+      "labels"
     ],
     "title": "Artifact",
     "type": "object",
+    "x-runx-packet": true,
     "x-runx-schema": "runx.artifact.v1"
   } as JsonSchema,
   "attestation.schema.json": {
@@ -1417,6 +1482,20 @@ export const runxSchemaArtifacts = {
         "title": "ArtifactImplementation",
         "type": "object"
       },
+      "ArtifactLabels": {
+        "additionalProperties": false,
+        "description": "Where an artifact may be shared, in a context entry's own words: a `local_only` artifact reaches only a model that runs on this machine.",
+        "properties": {
+          "sharing": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextSharing"
+          }
+        },
+        "required": [
+          "sharing"
+        ],
+        "title": "ArtifactLabels",
+        "type": "object"
+      },
       "ArtifactProducedBy": {
         "additionalProperties": false,
         "properties": {
@@ -1430,9 +1509,6 @@ export const runxSchemaArtifacts = {
             "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
           },
           "run_ref": {
-            "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
-          },
-          "signal_ref": {
             "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
           }
         },
@@ -2954,30 +3030,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "DigestAlgorithm",
         "type": "string"
-      },
-      "DigestCommitment": {
-        "additionalProperties": false,
-        "description": "An artifact's digest and how its bytes were canonicalized for it.",
-        "properties": {
-          "algorithm": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/DigestAlgorithm"
-          },
-          "canonicalization": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "value": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "algorithm",
-          "value",
-          "canonicalization"
-        ],
-        "title": "DigestCommitment",
-        "type": "object"
       },
       "DoctorDiagnostic": {
         "additionalProperties": false,
@@ -6485,13 +6537,6 @@ export const runxSchemaArtifacts = {
         "title": "ProfileFile",
         "type": "object"
       },
-      "ProjectArtifactSchema": {
-        "enum": [
-          "runx.project_artifact.v1"
-        ],
-        "title": "ProjectArtifactSchema",
-        "type": "string"
-      },
       "ProjectBinding": {
         "additionalProperties": false,
         "description": "A skill package of the person's own, as a run binds it (D30): it is `project:<name>`, and one directory is that package in the run.",
@@ -7695,7 +7740,7 @@ export const runxSchemaArtifacts = {
         "description": "A project artifact holding part of a call's output.",
         "properties": {
           "artifact": {
-            "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+            "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
           },
           "output": {
             "description": "The packet output it holds; absent on the artifact of the call's other outputs.",
@@ -10278,7 +10323,7 @@ export const runxSchemaArtifacts = {
             "properties": {
               "artifacts": {
                 "additionalProperties": {
-                  "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+                  "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
                 },
                 "description": "Each packet output as a project artifact of the run, by output name: a reference a later call passes in place of the packet.",
                 "minProperties": 1,
@@ -11917,98 +11962,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.list.v1"
   } as JsonSchema,
-  "local-artifact-page.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/local-artifact/page/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "artifact_uri": {
-        "type": "string"
-      },
-      "data": {
-        "type": "string"
-      },
-      "encoding": {
-        "type": "string"
-      },
-      "eof": {
-        "type": "boolean"
-      },
-      "length": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "media_type": {
-        "type": "string"
-      },
-      "next_offset": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "offset": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "range_digest": {
-        "type": "string"
-      },
-      "records": {
-        "items": {
-          "type": "string"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "whole_digest": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "artifact_uri",
-      "media_type",
-      "offset",
-      "length",
-      "next_offset",
-      "eof",
-      "range_digest",
-      "whole_digest",
-      "encoding"
-    ],
-    "title": "LocalArtifactPage",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.local_artifact.page.v1"
-  } as JsonSchema,
-  "local-artifact.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/local-artifact/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "artifact_uri": {
-        "type": "string"
-      },
-      "bytes": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "media_type": {
-        "type": "string"
-      },
-      "whole_digest": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "artifact_uri",
-      "media_type",
-      "bytes",
-      "whole_digest"
-    ],
-    "title": "LocalArtifact",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.local_artifact.v1"
-  } as JsonSchema,
   "offer-version-binding.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -12482,45 +12435,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.process.v1"
-  } as JsonSchema,
-  "project-artifact.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "bytes": {
-        "minimum": 0,
-        "type": "integer"
-      },
-      "digest": {
-        "type": "string"
-      },
-      "media_type": {
-        "type": "string"
-      },
-      "path": {
-        "type": "string"
-      },
-      "schema": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProjectArtifactSchema"
-      },
-      "uri": {
-        "description": "`runx:project-artifact:` and the artifact's digest.",
-        "type": "string"
-      }
-    },
-    "required": [
-      "schema",
-      "uri",
-      "digest",
-      "bytes",
-      "media_type",
-      "path"
-    ],
-    "title": "ProjectArtifact",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.project_artifact.v1"
   } as JsonSchema,
   "provider-operation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/provider/operation/v1.json",
@@ -14233,7 +14147,7 @@ export const runxSchemaArtifacts = {
     "properties": {
       "artifacts": {
         "items": {
-          "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+          "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
         },
         "type": "array"
       },
@@ -14241,7 +14155,7 @@ export const runxSchemaArtifacts = {
         "description": "The run's operator context and step trace, written only with `--diagnostics`; otherwise they live behind `diagnostics_artifact`."
       },
       "diagnostics_artifact": {
-        "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+        "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
       },
       "entry_provenance": {
         "additionalProperties": {},
@@ -14273,7 +14187,7 @@ export const runxSchemaArtifacts = {
         "type": "object"
       },
       "request_set_artifact": {
-        "$ref": "https://schemas.runx.ai/runx/project-artifact/v1.json"
+        "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
       },
       "requests": {
         "items": {},

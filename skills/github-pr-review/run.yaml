@@ -37,7 +37,7 @@ shared_inputs:
       minLength: 1
     optional: true
   snapshot:
-    packet: runx.project_artifact.v1
+    packet: runx.artifact.v1
     description: Exact native descriptor returned by capture; retains the original observation and complete available file array.
   review_context:
     description: Already prepared bounded changed-line context with source identities, selection gaps and check coverage. No provider acquisition is implied.
@@ -67,7 +67,7 @@ methods:
       - id: select
         skill: .#select-context
         inputs:
-          snapshot: $steps.capture.project_artifact
+          snapshot: $steps.capture.artifact
           patch_char_limit: $input.patch_char_limit
           paths: $input.paths
       - id: assess
@@ -107,7 +107,7 @@ methods:
           expected_head: $input.expected_head
           observed_at: $steps.observe.observed_at
           pull: $steps.read-pull.provider_operation
-          pull_artifact: $steps.pull-source.project_artifact
+          pull_artifact: $steps.pull-source.artifact
         outputs:
           snapshot: {type: object}
       - id: held-source
@@ -146,8 +146,8 @@ methods:
           export: bindComparison
         inputs:
           snapshot: $steps.pin.snapshot
-          comparison_artifact: $steps.comparison-source.project_artifact
-          files_artifact: $steps.file-source.project_artifact
+          comparison_artifact: $steps.comparison-source.artifact
+          files_artifact: $steps.file-source.artifact
           comparison_provider: $steps.read-files.provider_operation.provider
           comparison_operation: $steps.read-files.provider_operation.operation
           comparison_status: $steps.read-files.provider_operation.status
@@ -185,7 +185,7 @@ methods:
       - id: snapshot-read
         tool: artifact.read
         inputs:
-          artifact_uri: $steps.snapshot-open.local_artifact.artifact_uri
+          ref: $steps.snapshot-open.artifact.ref
           encoding: utf8
           max_bytes: 1048576
       - id: decode
@@ -229,7 +229,7 @@ methods:
             page_bytes: 524288
         inputs:
           snapshot: $steps.decode.snapshot
-          source_uri: $steps.files-open.local_artifact.artifact_uri
+          source_uri: $steps.files-open.artifact.ref
           patch_char_limit: $input.patch_char_limit
           paths: $input.paths
         outputs:

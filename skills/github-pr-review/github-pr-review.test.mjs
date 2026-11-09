@@ -14,12 +14,13 @@ const head = "a".repeat(40),
   merge = "c".repeat(40),
   digest = "sha256:" + "d".repeat(64);
 const artifact = {
-  schema: "runx.project_artifact.v1",
-  uri: "runx:project-artifact:" + digest,
+  schema: "runx.artifact.v1",
+  ref: "runx:project-artifact:" + digest,
   digest,
-  bytes: 123,
+  size_bytes: 123,
   media_type: "application/json",
   path: "/synthetic/source",
+  labels: { sharing: "configured_model" },
 };
 function pin(count = 1, expected_head = "") {
   return pinPull({
@@ -74,7 +75,7 @@ function file(path = "src/client.rs", length = 8) {
 function page(records, eof = true, state = null) {
   return {
     records: records.map((record) => JSON.stringify(record)),
-    whole_digest: digest,
+    digest,
     eof,
     state,
   };

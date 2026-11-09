@@ -4,24 +4,27 @@ use super::capability::{NativeCapability, TypedNativeCapability};
 use super::{NativeInvocation, invalid_input};
 use crate::{
     CapabilityApproval, CapabilityArtifacts, CapabilityDefinition, CapabilityEffect,
-    CapabilityField, CapabilityInput, CapabilityOutput, RuntimeError,
+    CapabilityField, CapabilityInput, RuntimeError,
 };
 use runx_contracts::Reach;
-use runx_contracts::{JsonValue, LocalArtifact, ProjectArtifact};
+use runx_contracts::{Artifact, ArtifactLabels, JsonValue};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct StoreInput {
     value: JsonValue,
+    /// Where the stored value may be shared; when unsaid, what the value's
+    /// own artifacts allow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    labels: Option<ArtifactLabels>,
 }
 impl CapabilityInput for StoreInput {}
-impl CapabilityOutput for ProjectArtifact {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct OpenInput {
-    artifact: ProjectArtifact,
+    artifact: Artifact,
 }
 impl CapabilityInput for OpenInput {}
 
@@ -35,7 +38,7 @@ fn require_inputs_reach(tool: &str, reach: Reach) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn store(invocation: &NativeInvocation<'_, StoreInput>) -> Result<ProjectArtifact, RuntimeError> {
+fn store(invocation: &NativeInvocation<'_, StoreInput>) -> Result<Artifact, RuntimeError> {
     const TOOL: &str = "artifact.store";
     require_inputs_reach(TOOL, invocation.reach)?;
     let call = invocation
@@ -49,24 +52,26 @@ fn store(invocation: &NativeInvocation<'_, StoreInput>) -> Result<ProjectArtifac
             "value exceeds the native artifact value byte ceiling; persist bounded parts",
         ));
     }
+    let labels = invocation
+        .inputs
+        .labels
+        .unwrap_or_else(|| ArtifactLabels::of_value(&invocation.inputs.value));
     let paths = crate::paths::RunxPaths::resolve(invocation.env, invocation.skill_directory);
-    let artifact = crate::services::persist_json_bytes(
+    crate::services::persist_json_bytes(
         &paths.artifacts(),
         &call.run_id,
         "values",
         "value",
         bytes,
+        labels,
     )
-    .map_err(|error| invalid_input(TOOL, error))?;
-    artifact
-        .deserialize_into()
-        .map_err(|_| invalid_input(TOOL, "stored artifact descriptor is invalid"))
+    .map_err(|error| invalid_input(TOOL, error))
 }
 
-fn open(invocation: &NativeInvocation<'_, OpenInput>) -> Result<LocalArtifact, RuntimeError> {
+fn open(invocation: &NativeInvocation<'_, OpenInput>) -> Result<Artifact, RuntimeError> {
     const TOOL: &str = "artifact.open";
     require_inputs_reach(TOOL, invocation.reach)?;
-    if invocation.inputs.artifact.bytes > crate::services::MAX_ARTIFACT_BYTES {
+    if invocation.inputs.artifact.size_bytes > crate::services::MAX_ARTIFACT_BYTES {
         return Err(invalid_input(
             TOOL,
             "artifact exceeds the native snapshot admission byte ceiling",
@@ -76,11 +81,10 @@ fn open(invocation: &NativeInvocation<'_, OpenInput>) -> Result<LocalArtifact, R
     invocation
         .local_artifacts
         .open_project_artifact(&paths.artifacts(), &invocation.inputs.artifact)
-        .map(Into::into)
         .map_err(|error| invalid_input(TOOL, error))
 }
 
-static STORE: TypedNativeCapability<StoreInput, ProjectArtifact> = TypedNativeCapability::new(
+static STORE: TypedNativeCapability<StoreInput, Artifact> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "artifact.store",
         source: "runx-runtime/project-artifacts",
@@ -88,17 +92,23 @@ static STORE: TypedNativeCapability<StoreInput, ProjectArtifact> = TypedNativeCa
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
-            output: "project_artifact",
-            packet: "runx.project_artifact.v1",
+            output: "artifact",
+            packet: runx_contracts::ARTIFACT_SCHEMA,
         },
-        fields: &[CapabilityField {
-            name: "value",
-            description: "Explicit result value, encoded once as canonical JSON; use bounded parts for large results.",
-        }],
+        fields: &[
+            CapabilityField {
+                name: "value",
+                description: "Explicit result value, encoded once as canonical JSON; use bounded parts for large results.",
+            },
+            CapabilityField {
+                name: "labels",
+                description: "Where the stored value may be shared. Defaults to local_only when any artifact in the value is local_only, and otherwise configured_model.",
+            },
+        ],
     },
     store,
 );
-static OPEN: TypedNativeCapability<OpenInput, LocalArtifact> = TypedNativeCapability::new(
+static OPEN: TypedNativeCapability<OpenInput, Artifact> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "artifact.open",
         source: "runx-runtime/project-artifacts",
@@ -106,12 +116,12 @@ static OPEN: TypedNativeCapability<OpenInput, LocalArtifact> = TypedNativeCapabi
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Wrapped {
-            output: "local_artifact",
-            packet: "runx.local_artifact.v1",
+            output: "artifact",
+            packet: runx_contracts::ARTIFACT_SCHEMA,
         },
         fields: &[CapabilityField {
             name: "artifact",
-            description: "Exact native ProjectArtifact descriptor from the current project; a reference grants no authority.",
+            description: "Exact artifact descriptor artifact.store retained in the current project; the opened artifact keeps its labels. A reference grants no authority.",
         }],
     },
     open,

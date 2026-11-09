@@ -236,9 +236,7 @@ fn recorded_edits(
                     .is_some_and(|name| name.as_str() == *packet)
             })
             .ok_or_else(|| refused(format!("call {call_id} recorded no {packet}")))?;
-        let reference = JsonValue::from_serialize(&artifact.artifact)
-            .map_err(|error| refused(error.to_string()))?;
-        let output = match crate::services::read_json_artifact(&artifacts, &reference)
+        let output = match crate::services::read_json_artifact(&artifacts, &artifact.artifact)
             .map_err(|message| refused(format!("call {call_id}: {message}")))?
         {
             JsonValue::Object(object) => match object.get("data") {

@@ -1440,10 +1440,10 @@ methods:
       inputs: {value: $input.records}
     - id: open
       tool: artifact.open
-      inputs: {artifact: $steps.retain.project_artifact}
+      inputs: {artifact: $steps.retain.artifact}
     - id: count
       skill: ../admitted-child
-      inputs: {source: $steps.open.local_artifact.artifact_uri}
+      inputs: {source: $steps.open.artifact.ref}
 "#,
     )?;
     let records = (0..5_000)
@@ -2110,8 +2110,12 @@ fn a_pinned_call_runs_once_and_its_outcome_is_on_the_runs_record() -> TestResult
     let mut rebuilt = serde_json::Map::new();
     for part in outputs {
         assert_eq!(part.artifact.media_type, "application/json");
-        let value: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&part.artifact.path)?)?;
+        let value: serde_json::Value = serde_json::from_slice(&std::fs::read(
+            part.artifact
+                .path
+                .as_deref()
+                .ok_or("the output names its path")?,
+        )?)?;
         match &part.output {
             Some(name) => {
                 rebuilt.insert(
@@ -2329,7 +2333,7 @@ methods:
 methods:
   read:
     inputs:
-      cursor: {packet: runx.project_artifact.v1}
+      cursor: {packet: runx.artifact.v1}
     steps:
       - id: open
         tool: artifact.open
@@ -2338,7 +2342,7 @@ methods:
       - id: read
         tool: artifact.read
         inputs:
-          artifact_uri: $steps.open.local_artifact.artifact_uri
+          ref: $steps.open.artifact.ref
           encoding: json_array
 "#,
     )?;
@@ -2373,7 +2377,7 @@ methods:
         return Err(format!("store did not complete: {stored:?}").into());
     };
     let descriptor = output
-        .get("project_artifact")
+        .get("artifact")
         .and_then(JsonValue::as_object)
         .and_then(|value| value.get("data"))
         .ok_or("store returned its exact descriptor")?;
@@ -2392,10 +2396,7 @@ methods:
     let record: serde_json::Value =
         serde_json::from_str(records[0].as_str().ok_or("record text")?)?;
     assert_eq!(record, serde_json::json!({"id": 1, "label": "日本語"}));
-    assert_eq!(
-        page["whole_digest"],
-        serde_json::to_value(descriptor)?["digest"]
-    );
+    assert_eq!(page["digest"], serde_json::to_value(descriptor)?["digest"]);
     turn.complete(TURN, input(serde_json::json!({"answer": "reopened"}))?)?;
     Ok(())
 }
@@ -2487,8 +2488,14 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         .and_then(JsonValue::as_object)
         .and_then(|envelope| envelope.get("data"))
         .ok_or("the digest is a packet")?;
-    let earlier =
-        runx_runtime::persist_json_artifact(&artifacts, "rx_earlier", "packets", "digest", data)?;
+    let earlier = runx_runtime::persist_json_artifact(
+        &artifacts,
+        "rx_earlier",
+        "packets",
+        "digest",
+        data,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+    )?;
     let reused = turn.call(
         TURN,
         "skill__digest-reader",
@@ -2502,7 +2509,7 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
     let mut forged = serde_json::to_value(reference)?;
     let forged_digest = format!("sha256:{}", "0".repeat(64));
     forged["digest"] = serde_json::json!(forged_digest);
-    forged["uri"] = serde_json::json!(format!("runx:project-artifact:{forged_digest}"));
+    forged["ref"] = serde_json::json!(format!("runx:project-artifact:{forged_digest}"));
     let outside = temp.path().join("outside.json");
     std::fs::write(&outside, br#"{"algorithm":"sha256"}"#)?;
     let mut escaped = forged.clone();
@@ -2513,6 +2520,7 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         "packets",
         "comparison",
         &serde_json::from_value(serde_json::json!({"equal": true}))?,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?)?;
     for (bad, why) in [
         (mistyped, "declared schema"),
@@ -2546,7 +2554,7 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         .iter()
         .find(|evidence| evidence.reference_type == runx_contracts::ReferenceType::Artifact)
         .ok_or("the receipt names the input's artifact")?;
-    assert_eq!(fed.uri.as_str(), reference.uri);
+    assert_eq!(fed.uri.as_str(), reference.reference.as_str());
     assert_eq!(
         fed.label.as_ref().map(|label| label.as_str()),
         Some("packet")

@@ -59,7 +59,7 @@ fn register_continuation(c: &mut Criterion, name: &'static str, bytes: usize) {
 struct ArtifactFixture {
     calls: ToolCalls,
     admit_input: JsonObject,
-    artifact_uri: String,
+    reference: String,
     bytes: u64,
 }
 
@@ -77,11 +77,11 @@ impl ArtifactFixture {
                 JsonValue::String("text/plain".to_owned()),
             ),
         ]);
-        let artifact_uri = admit(&calls, &admit_input)?;
+        let reference = admit(&calls, &admit_input)?;
         Ok(Self {
             calls,
             admit_input,
-            artifact_uri,
+            reference,
             bytes: bytes as u64,
         })
     }
@@ -98,10 +98,7 @@ impl ArtifactFixture {
                 self.calls.call(
                     "artifact.read",
                     JsonObject::from([
-                        (
-                            "artifact_uri".to_owned(),
-                            JsonValue::String(self.artifact_uri.clone()),
-                        ),
+                        ("ref".to_owned(), JsonValue::String(self.reference.clone())),
                         (
                             "offset".to_owned(),
                             JsonValue::Number(JsonNumber::U64(offset)),
@@ -220,14 +217,11 @@ impl ToolCalls {
 }
 
 fn admit(calls: &ToolCalls, input: &JsonObject) -> Result<String, Box<dyn Error>> {
-    wrapped_data(
-        calls.call("artifact.admit", input.clone())?,
-        "local_artifact",
-    )?
-    .remove("artifact_uri")
-    .and_then(|value| match value {
-        JsonValue::String(value) => Some(value),
-        _ => None,
-    })
-    .ok_or_else(|| std::io::Error::other("artifact admission omitted its reference").into())
+    wrapped_data(calls.call("artifact.admit", input.clone())?, "artifact")?
+        .remove("ref")
+        .and_then(|value| match value {
+            JsonValue::String(value) => Some(value),
+            _ => None,
+        })
+        .ok_or_else(|| std::io::Error::other("artifact admission omitted its reference").into())
 }

@@ -54,13 +54,13 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
     if (result.exitCode !== expectedExit) throw new Error("Native exit code disagrees with its execution outcome.");
     let budget = config.maxArtifactBytes;
     const artifact = async (ref: unknown) => {
-      if (!record(ref) || typeof ref.bytes !== "number" || ref.bytes > budget) throw new Error("Native artifacts exceed the invocation byte budget.");
+      if (!record(ref) || typeof ref.size_bytes !== "number" || ref.size_bytes > budget) throw new Error("Native artifacts exceed the invocation byte budget.");
       const value = await readProjectArtifact(ref, config.projectDir, budget);
-      budget -= ref.bytes;
+      budget -= ref.size_bytes;
       return value;
     };
     let output: SkillOutputContract = compact;
-    const fullArtifacts = compact.artifacts?.filter((ref) => path.basename(ref.path).startsWith("full-output-")) ?? [];
+    const fullArtifacts = compact.artifacts?.filter((ref) => ref.path !== undefined && path.basename(ref.path).startsWith("full-output-")) ?? [];
     if (fullArtifacts.length > 1) throw new Error("Multiple full-output artifacts.");
     if (fullArtifacts[0]) {
       const full = await artifact(fullArtifacts[0]);
@@ -99,7 +99,8 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
     // wrapper, exactly `schema` and a project artifact, is hydrated; a
     // full-output artifact contains the original result before compact projection.
     if (!fullArtifacts.length && record(value) && record(value.artifact)
-      && value.artifact.schema === "runx.project_artifact.v1"
+      && value.artifact.schema === "runx.artifact.v1"
+      && typeof value.artifact.ref === "string" && value.artifact.ref.startsWith("runx:project-artifact:")
       && Object.keys(value).every((key) => key === "schema" || key === "artifact")) {
       value = await artifact(value.artifact);
     }

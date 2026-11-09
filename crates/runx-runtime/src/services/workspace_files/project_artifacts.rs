@@ -4,7 +4,11 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
+use runx_contracts::schema::NonEmptyString;
+use runx_contracts::{Artifact, ArtifactLabels, ArtifactSchema, Digest, JsonValue};
+
+/// The reference a project artifact is retained under: the store and its digest.
+const PROJECT_ARTIFACT_PREFIX: &str = "runx:project-artifact:";
 
 pub fn persist_json_artifact(
     artifacts: &Path,
@@ -12,9 +16,10 @@ pub fn persist_json_artifact(
     kind: &str,
     label: &str,
     value: &JsonValue,
-) -> Result<JsonValue, String> {
+    labels: ArtifactLabels,
+) -> Result<Artifact, String> {
     let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
-    persist_json_bytes(artifacts, run_id, kind, label, bytes)
+    persist_json_bytes(artifacts, run_id, kind, label, bytes, labels)
 }
 
 /// A project artifact whose bytes are `value`'s canonical JSON
@@ -25,9 +30,10 @@ pub(crate) fn persist_canonical_json_artifact(
     kind: &str,
     label: &str,
     value: &JsonValue,
-) -> Result<JsonValue, String> {
+    labels: ArtifactLabels,
+) -> Result<Artifact, String> {
     let bytes = runx_contracts::to_canonical_bytes(value).map_err(|error| error.to_string())?;
-    persist_json_bytes(artifacts, run_id, kind, label, bytes)
+    persist_json_bytes(artifacts, run_id, kind, label, bytes, labels)
 }
 
 pub(crate) fn persist_json_bytes(
@@ -36,9 +42,13 @@ pub(crate) fn persist_json_bytes(
     kind: &str,
     label: &str,
     bytes: Vec<u8>,
-) -> Result<JsonValue, String> {
-    let digest = sha256_prefixed(&bytes);
-    let digest_label = digest.strip_prefix("sha256:").unwrap_or(&digest);
+    labels: ArtifactLabels,
+) -> Result<Artifact, String> {
+    let digest = Digest::of(&bytes);
+    let digest_label = digest
+        .as_str()
+        .strip_prefix("sha256:")
+        .unwrap_or(digest.as_str());
     let skill_runs = artifacts.join("skill-runs");
     let run_directory = skill_runs.join(safe_path_segment(run_id));
     let directory = run_directory.join(safe_path_segment(kind));
@@ -82,48 +92,40 @@ pub(crate) fn persist_json_bytes(
         .map_err(|error| error.to_string())?;
     }
     restrict_artifact_file(&path)?;
-    Ok(JsonValue::Object(JsonObject::from([
-        (
-            "schema".to_owned(),
-            JsonValue::String("runx.project_artifact.v1".to_owned()),
-        ),
-        (
-            "uri".to_owned(),
-            JsonValue::String(format!("runx:project-artifact:{digest}")),
-        ),
-        ("digest".to_owned(), JsonValue::String(digest)),
-        (
-            "bytes".to_owned(),
-            JsonValue::Number(runx_contracts::JsonNumber::U64(bytes.len() as u64)),
-        ),
-        (
-            "media_type".to_owned(),
-            JsonValue::String("application/json".to_owned()),
-        ),
-        (
-            "path".to_owned(),
-            JsonValue::String(path.to_string_lossy().into_owned()),
-        ),
-    ])))
+    Ok(Artifact {
+        schema: ArtifactSchema::V1,
+        reference: NonEmptyString::from(format!("{PROJECT_ARTIFACT_PREFIX}{digest}")),
+        digest,
+        size_bytes: bytes.len() as u64,
+        media_type: NonEmptyString::from("application/json"),
+        created_at: None,
+        produced_by: None,
+        path: Some(NonEmptyString::from(path.to_string_lossy().into_owned())),
+        summary: None,
+        sources: Vec::new(),
+        labels,
+    })
 }
 
 /// Validate the selected descriptor and resolve its contained regular source.
 /// Both JSON reads and snapshot opening use this owner before reading content.
 pub(super) fn project_artifact_source(
     artifacts: &Path,
-    artifact: &runx_contracts::ProjectArtifact,
+    artifact: &Artifact,
 ) -> Result<super::WorkspaceFile, String> {
-    if runx_contracts::Digest::new(artifact.digest.clone()).is_none()
-        || artifact.uri != format!("runx:project-artifact:{}", artifact.digest)
-        || artifact.media_type != "application/json"
-        || artifact.bytes == 0
+    if artifact.reference.as_str() != format!("{PROJECT_ARTIFACT_PREFIX}{}", artifact.digest)
+        || artifact.media_type.as_str() != "application/json"
+        || artifact.size_bytes == 0
     {
         return Err("project artifact has an invalid content address or byte count".to_owned());
     }
+    let Some(artifact_path) = artifact.path.as_ref().map(NonEmptyString::as_str) else {
+        return Err("project artifact names no path in the project".to_owned());
+    };
     let root = artifacts
         .canonicalize()
         .map_err(|error| format!("resolving project artifact root: {error}"))?;
-    let candidate = Path::new(&artifact.path);
+    let candidate = Path::new(artifact_path);
     if !candidate.is_absolute()
         || candidate
             .components()
@@ -138,7 +140,7 @@ pub(super) fn project_artifact_source(
     let relative = path
         .strip_prefix(&root)
         .map_err(|_| "project artifact escapes the project artifact root".to_owned())?;
-    if fs::symlink_metadata(&artifact.path)
+    if fs::symlink_metadata(artifact_path)
         .map_err(|error| format!("checking project artifact: {error}"))?
         .file_type()
         .is_symlink()
@@ -147,23 +149,32 @@ pub(super) fn project_artifact_source(
     }
     let source = super::WorkspaceFile::resolve(&root, relative, super::Reach::Inputs)
         .map_err(|error| error.to_string())?;
-    if source.bytes() != artifact.bytes {
+    if source.bytes() != artifact.size_bytes {
         return Err("project artifact byte count differs from its descriptor".to_owned());
     }
     Ok(source)
 }
 
-pub fn read_json_artifact(artifacts: &Path, artifact: &JsonValue) -> Result<JsonValue, String> {
-    let artifact = artifact
-        .clone()
-        .deserialize_into::<runx_contracts::ProjectArtifact>()
-        .map_err(|_| "project artifact has an invalid descriptor".to_owned())?;
-    let source = project_artifact_source(artifacts, &artifact)?;
+/// Whether `value` is a project artifact's descriptor: a `runx.artifact.v1`
+/// whose reference names this project's store.
+pub(crate) fn is_project_artifact(value: &JsonValue) -> bool {
+    let field = |name: &str| {
+        value
+            .as_object()
+            .and_then(|object| object.get(name))
+            .and_then(JsonValue::as_str)
+    };
+    field("schema") == Some(runx_contracts::ARTIFACT_SCHEMA)
+        && field("ref").is_some_and(|reference| reference.starts_with(PROJECT_ARTIFACT_PREFIX))
+}
+
+pub fn read_json_artifact(artifacts: &Path, artifact: &Artifact) -> Result<JsonValue, String> {
+    let source = project_artifact_source(artifacts, artifact)?;
     let mut bytes = Vec::new();
     let (length, digest) = source
-        .copy_and_digest(&mut bytes, artifact.bytes)
+        .copy_and_digest(&mut bytes, artifact.size_bytes)
         .map_err(|error| error.to_string())?;
-    if length != artifact.bytes || digest.as_str() != artifact.digest {
+    if length != artifact.size_bytes || digest.as_str() != artifact.digest.as_str() {
         return Err("project artifact digest differs from the stored artifact".to_owned());
     }
     serde_json::from_slice(&bytes).map_err(|_| "project artifact is invalid JSON".to_owned())

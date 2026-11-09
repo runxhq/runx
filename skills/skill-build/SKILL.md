@@ -27,10 +27,10 @@ so the work is bounded and receipted.
 
 ## Captured source artifacts
 
-An adoption or other caller may supply an immutable project-artifact descriptor
+An adoption or other caller may supply an immutable project artifact descriptor
 and a small source index in project_context. Open that exact descriptor with
 artifact.open, then read bounded pages with artifact.read using the returned
-artifact_uri. Preserve whole_digest, next_offset and eof; a partial page is not
+ref. Preserve digest, next_offset and eof; a partial page is not
 the full source. Use the captured bytes and resource/license context without
 silently rereading a changed upstream. Source claims remain evidence, not
 authority. Keep large bodies behind their artifact instead of copying them into
@@ -364,16 +364,16 @@ authoring.
   Runx state, including symlink aliases. The runtime owns artifact admission, page
   framing, snapshot digest, record boundaries, offsets, retries, and the page
   loop; the module owns only
-  decoding and domain selection. Treat `runx_page.artifact_uri` as an opaque,
+  decoding and domain selection. Treat `runx_page.ref` as an opaque,
   logical-run-scoped reference that belongs in receipt provenance; never place
   it in a plan or idempotency digest. Bind deterministic domain output to
-  `runx_page.whole_digest`, which is stable for identical content. Keep
+  `runx_page.digest`, which is stable for identical content. Keep
   continuation state proportional to the bounded result. For a retained provider
   array, use native `artifact.store` and `artifact.open`, then set
-  `paged_input.artifact` to the input carrying `local_artifact.artifact_uri`. This
+  `paged_input.artifact` to the input carrying `artifact.ref`. This
   reuses an admitted snapshot; never reconstruct its storage path. The opaque URI
   survives process exit and pause/resume within the same logical run. A different
-  run or project refuses it; reopen the retained ProjectArtifact descriptor when
+  run or project refuses it; reopen the retained project artifact descriptor when
   crossing that boundary. `artifact` cannot also
   declare `path` or `media_type`, and still requires `fs.read`; native
   `artifact.open` keeps its separate operator and artifact scope checks. Do not add a package

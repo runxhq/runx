@@ -3,6 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine as _;
+use runx_contracts::{Artifact, ArtifactLabels, Digest};
 
 use super::{WorkspaceFile, WorkspaceFileError};
 
@@ -17,14 +18,6 @@ pub(crate) const MAX_ARTIFACT_BYTES: u64 = 512 * 1024 * 1024;
 pub(crate) const DEFAULT_ARTIFACT_PAGE_BYTES: usize = 1024 * 1024;
 pub(crate) const MAX_ARTIFACT_PAGE_BYTES: usize = 4 * 1024 * 1024;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LocalArtifact {
-    pub reference: String,
-    pub media_type: String,
-    pub bytes: u64,
-    pub whole_digest: String,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ArtifactPageEncoding {
     Base64,
@@ -33,24 +26,24 @@ pub(crate) enum ArtifactPageEncoding {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ArtifactPage {
-    pub artifact: LocalArtifact,
+    pub artifact: Artifact,
     pub offset: u64,
     pub length: u64,
     pub next_offset: u64,
     pub eof: bool,
-    pub range_digest: String,
+    pub range_digest: Digest,
     pub encoding: ArtifactPageEncoding,
     pub data: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ArtifactRecordPage {
-    pub artifact: LocalArtifact,
+    pub artifact: Artifact,
     pub offset: u64,
     pub length: u64,
     pub next_offset: u64,
     pub eof: bool,
-    pub range_digest: String,
+    pub range_digest: Digest,
     pub records: Vec<String>,
 }
 
@@ -76,7 +69,7 @@ impl LocalArtifactService {
 
     /// Describe a snapshot already admitted in this logical run. This never
     /// reopens or readmits the original source file.
-    pub(crate) fn descriptor(&self, reference: &str) -> Result<LocalArtifact, WorkspaceFileError> {
+    pub(crate) fn descriptor(&self, reference: &str) -> Result<Artifact, WorkspaceFileError> {
         Ok(self.store.resolve(reference)?.descriptor.clone())
     }
 
@@ -86,19 +79,27 @@ impl LocalArtifactService {
         requested: &Path,
         media_type: &str,
         reach: super::Reach,
-    ) -> Result<LocalArtifact, WorkspaceFileError> {
+        labels: ArtifactLabels,
+    ) -> Result<Artifact, WorkspaceFileError> {
         let source = WorkspaceFile::resolve(root, requested, reach)?;
-        self.store.capture(source, media_type, None)
+        self.store.capture(source, media_type, None, labels)
     }
 
+    /// Admit a retained project artifact's bytes for page reads. The snapshot
+    /// keeps the artifact's labels.
     pub(crate) fn open_project_artifact(
         &self,
         root: &Path,
-        artifact: &runx_contracts::ProjectArtifact,
-    ) -> Result<LocalArtifact, String> {
+        artifact: &Artifact,
+    ) -> Result<Artifact, String> {
         let source = super::project_artifacts::project_artifact_source(root, artifact)?;
         self.store
-            .capture(source, &artifact.media_type, Some(artifact))
+            .capture(
+                source,
+                &artifact.media_type,
+                Some(artifact),
+                artifact.labels,
+            )
             .map_err(|error| error.to_string())
     }
 
@@ -115,16 +116,16 @@ impl LocalArtifactService {
             });
         }
         let artifact = self.store.resolve(reference)?;
-        if offset > artifact.descriptor.bytes {
+        if offset > artifact.descriptor.size_bytes {
             return Err(WorkspaceFileError::InvalidArtifactOffset {
                 offset,
-                bytes: artifact.descriptor.bytes,
+                bytes: artifact.descriptor.size_bytes,
             });
         }
         let mut file = artifact.reader()?;
         file.seek(SeekFrom::Start(offset))
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
-        let remaining = artifact.descriptor.bytes.saturating_sub(offset);
+        let remaining = artifact.descriptor.size_bytes.saturating_sub(offset);
         let capture = usize::try_from(remaining.min((maximum + 4) as u64)).unwrap_or(maximum + 4);
         let mut bytes = vec![0; capture];
         file.read_exact(&mut bytes)
@@ -152,8 +153,8 @@ impl LocalArtifactService {
             offset,
             length,
             next_offset,
-            eof: next_offset == artifact.descriptor.bytes,
-            range_digest: runx_contracts::sha256_prefixed(&bytes),
+            eof: next_offset == artifact.descriptor.size_bytes,
+            range_digest: Digest::of(&bytes),
             encoding,
             data,
         })
@@ -181,10 +182,10 @@ impl LocalArtifactService {
             });
         }
         let artifact = self.store.resolve(reference)?;
-        if offset > artifact.descriptor.bytes {
+        if offset > artifact.descriptor.size_bytes {
             return Err(WorkspaceFileError::InvalidArtifactOffset {
                 offset,
-                bytes: artifact.descriptor.bytes,
+                bytes: artifact.descriptor.size_bytes,
             });
         }
         let file = artifact.reader()?;
@@ -197,7 +198,7 @@ impl LocalArtifactService {
             length: frame.next_offset.saturating_sub(offset),
             next_offset: frame.next_offset,
             eof: frame.eof,
-            range_digest: runx_contracts::sha256_prefixed(&range),
+            range_digest: Digest::of(&range),
             records: frame.records,
         })
     }
@@ -225,14 +226,3 @@ fn read_exact_range(
 
 #[cfg(test)]
 mod tests;
-
-impl From<LocalArtifact> for runx_contracts::LocalArtifact {
-    fn from(value: LocalArtifact) -> Self {
-        Self {
-            artifact_uri: value.reference,
-            media_type: value.media_type,
-            bytes: value.bytes,
-            whole_digest: value.whole_digest,
-        }
-    }
-}

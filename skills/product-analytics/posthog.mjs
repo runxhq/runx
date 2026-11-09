@@ -193,7 +193,7 @@ export function preparePosthog({ page, artifact, name, return_interval = 1 }) {
     notes,
     source: {
       artifact,
-      artifact_digest: page.whole_digest,
+      artifact_digest: page.digest,
       provider: null,
       target: null,
       observed_at: null,
@@ -284,7 +284,7 @@ export function preparePosthog({ page, artifact, name, return_interval = 1 }) {
       funnel_rule: "not measured",
       retention_rule: "not measured",
     },
-    source_digest: page.whole_digest,
+    source_digest: page.digest,
     observed_at: insight.last_refresh,
     complete: true,
     estimated: present(query.samplingFactor) && query.samplingFactor !== 1,

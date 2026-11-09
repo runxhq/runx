@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use runx_contracts::javascript_worker::MAX_INPUT_BYTES;
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::{Artifact, ArtifactLabels, JsonNumber, JsonObject, JsonValue};
 use runx_parser::ArtifactPageInput;
 
 use super::JavaScriptAdapter;
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, InvocationStatus, SkillInvocation};
-use crate::services::{LocalArtifact, LocalArtifactService, resolve_scoped_root};
+use crate::services::{LocalArtifactService, resolve_scoped_root};
 
 const PAGE_CONTROL: &str = "runx_page";
 const MAX_PAGES: usize = 4_096;
@@ -44,8 +44,16 @@ pub(super) fn invoke(
                 request.reach,
             )
             .map_err(|error| page_error(error.to_string()))?;
+            // A worker isn't a model, so where the source may be shared
+            // doesn't bound it.
             artifacts
-                .admit(&root, Path::new(&requested_path), media_type, request.reach)
+                .admit(
+                    &root,
+                    Path::new(&requested_path),
+                    media_type,
+                    request.reach,
+                    ArtifactLabels::CONFIGURED_MODEL,
+                )
                 .map_err(|error| page_error(error.to_string()))?
         }
         ArtifactPageInput::Artifact { artifact } => {
@@ -198,20 +206,20 @@ fn page_inputs(
         .collect::<Vec<_>>();
     let context = JsonObject::from([
         (
-            "artifact_uri".to_owned(),
-            JsonValue::String(page.artifact.reference.clone()),
+            "ref".to_owned(),
+            JsonValue::String(page.artifact.reference.as_str().to_owned()),
         ),
         (
             "media_type".to_owned(),
-            JsonValue::String(page.artifact.media_type.clone()),
+            JsonValue::String(page.artifact.media_type.as_str().to_owned()),
         ),
         (
-            "whole_digest".to_owned(),
-            JsonValue::String(page.artifact.whole_digest.clone()),
+            "digest".to_owned(),
+            JsonValue::String(page.artifact.digest.as_str().to_owned()),
         ),
         (
-            "artifact_bytes".to_owned(),
-            JsonValue::Number(JsonNumber::U64(page.artifact.bytes)),
+            "size_bytes".to_owned(),
+            JsonValue::Number(JsonNumber::U64(page.artifact.size_bytes)),
         ),
         (
             "page_index".to_owned(),
@@ -232,7 +240,7 @@ fn page_inputs(
         ("eof".to_owned(), JsonValue::Bool(page.eof)),
         (
             "range_digest".to_owned(),
-            JsonValue::String(page.range_digest.clone()),
+            JsonValue::String(page.range_digest.as_str().to_owned()),
         ),
         ("records".to_owned(), JsonValue::Array(records)),
         ("state".to_owned(), state),
@@ -255,7 +263,7 @@ fn page_inputs(
 
 fn page_record_budget(
     base: &JsonObject,
-    artifact: &LocalArtifact,
+    artifact: &Artifact,
     page_index: usize,
     offset: u64,
     state: &JsonValue,
@@ -266,7 +274,7 @@ fn page_record_budget(
         length: 0,
         next_offset: offset,
         eof: false,
-        range_digest: format!("sha256:{}", "0".repeat(64)),
+        range_digest: runx_contracts::Digest::from_sha256([0; 32]),
         records: Vec::new(),
     };
     let inputs = page_inputs(base, &empty_page, page_index, state.clone())?;

@@ -99,7 +99,7 @@ export type ApprovalGateContract = {
   /** What executes once the gate is approved, when it is at most 64 KiB. A host recomputes `summary.payload_digest` over it before it offers Approve; the request's digest binds it with the rest of the gate. */
   readonly payload?: unknown;
   /** What executes, when it is larger: a project artifact whose bytes are its canonical JSON. */
-  readonly payload_artifact?: ProjectArtifactContract;
+  readonly payload_artifact?: ArtifactContract;
   readonly reason: string;
   /** Shallow summary payload. `payload_digest` in it is the stable digest (`runx.stable-json.v1`) of what executes once the gate is approved. */
   readonly summary?: {
@@ -108,33 +108,54 @@ export type ApprovalGateContract = {
   readonly type?: string;
 };
 
+/** One retained value: where it is, what it is, where it came from, and where it may be shared. */
 export type ArtifactContract = {
-  readonly artifact_id: string;
-  readonly artifact_ref: ReferenceContract;
-  readonly created_at: string;
-  readonly data_ref?: ReferenceContract;
-  readonly digest: DigestCommitmentContract;
-  readonly extensions?: {
-    readonly [key: string]: unknown;
-  };
+  readonly created_at?: string;
+  /** The digest of its bytes. */
+  readonly digest: string;
+  readonly labels: ArtifactLabelsContract;
   readonly media_type: string;
-  readonly produced_by: ArtifactProducedByContract;
-  readonly redaction_refs?: readonly ReferenceContract[];
+  /** Its path, when it lives in the project. */
+  readonly path?: string;
+  readonly produced_by?: ArtifactProducedByContract;
+  /** Where it is: an opaque reference a native artifact tool resolves. It names the store and the content, and grants no authority. */
+  readonly ref: string;
   readonly schema: ArtifactSchemaContract;
   readonly size_bytes: number;
-  readonly source_refs?: readonly ReferenceContract[];
+  readonly sources?: readonly ReferenceContract[];
   readonly summary?: string;
 };
 
 /** The runtime's artifact space: one bounded value stored under the runx account the runtime is signed in as, keyed by the call's idempotency key and confirmed by reading its reference back. */
 export type ArtifactImplementationContract = {};
 
+/** Where an artifact may be shared, in a context entry's own words: a `local_only` artifact reaches only a model that runs on this machine. */
+export type ArtifactLabelsContract = {
+  readonly sharing: ContextSharingContract;
+};
+
+/** One bounded page read of an artifact. */
+export type ArtifactPageContract = {
+  readonly data?: string;
+  /** The digest of the whole artifact's bytes. */
+  readonly digest: string;
+  readonly encoding: string;
+  readonly eof: boolean;
+  readonly length: number;
+  readonly next_offset: number;
+  readonly offset: number;
+  /** The digest of this page's bytes. */
+  readonly range_digest: string;
+  readonly records?: readonly string[];
+  /** The artifact the page is of. */
+  readonly ref: string;
+};
+
 export type ArtifactProducedByContract = {
   readonly act?: ActAddressContract;
   readonly decision_ref?: ReferenceContract;
   readonly receipt_ref?: ReferenceContract;
   readonly run_ref?: ReferenceContract;
-  readonly signal_ref?: ReferenceContract;
 };
 
 export type ArtifactSchemaContract = "runx.artifact.v1";
@@ -772,13 +793,6 @@ export type DelegatedAuthContract = {
 
 /** The algorithm a content digest was taken with. */
 export type DigestAlgorithmContract = "sha256";
-
-/** An artifact's digest and how its bytes were canonicalized for it. */
-export type DigestCommitmentContract = {
-  readonly algorithm: DigestAlgorithmContract;
-  readonly canonicalization: string;
-  readonly value: string;
-};
 
 export type DoctorDiagnosticContract = {
   readonly evidence?: {
@@ -1484,27 +1498,6 @@ export type LoadedPackageContract = {
   readonly trust_tier?: TrustTierContract;
 };
 
-export type LocalArtifactContract = {
-  readonly artifact_uri: string;
-  readonly bytes: number;
-  readonly media_type: string;
-  readonly whole_digest: string;
-};
-
-export type LocalArtifactPageContract = {
-  readonly artifact_uri: string;
-  readonly data?: string;
-  readonly encoding: string;
-  readonly eof: boolean;
-  readonly length: number;
-  readonly media_type: string;
-  readonly next_offset: number;
-  readonly offset: number;
-  readonly range_digest: string;
-  readonly records?: readonly string[];
-  readonly whole_digest: string;
-};
-
 export type LocalAuthContract = "credentials" | "session" | "none";
 
 export type LocalPlacementContract = {
@@ -2104,18 +2097,6 @@ export type ProfileFileContract = {
   readonly sharing: ContextSharingContract;
 };
 
-export type ProjectArtifactContract = {
-  readonly bytes: number;
-  readonly digest: string;
-  readonly media_type: string;
-  readonly path: string;
-  readonly schema: ProjectArtifactSchemaContract;
-  /** `runx:project-artifact:` and the artifact's digest. */
-  readonly uri: string;
-};
-
-export type ProjectArtifactSchemaContract = "runx.project_artifact.v1";
-
 /** A skill package of the person's own, as a run binds it (D30): it is `project:<name>`, and one directory is that package in the run. */
 export type ProjectBindingContract = {
   /** Its directory: relative to the workspace when within it, else absolute. */
@@ -2679,7 +2660,7 @@ export type RunCallOutcomeContract = {
 
 /** A project artifact holding part of a call's output. */
 export type RunCallOutputContract = {
-  readonly artifact: ProjectArtifactContract;
+  readonly artifact: ArtifactContract;
   /** The packet output it holds; absent on the artifact of the call's other outputs. */
   readonly output?: string;
 };
@@ -3241,10 +3222,10 @@ export type SkillNativeReuseEvidenceContract = {
 };
 
 export type SkillOutputContract = {
-  readonly artifacts?: readonly ProjectArtifactContract[];
+  readonly artifacts?: readonly ArtifactContract[];
   /** The run's operator context and step trace, written only with `--diagnostics`; otherwise they live behind `diagnostics_artifact`. */
   readonly context?: unknown;
-  readonly diagnostics_artifact?: ProjectArtifactContract;
+  readonly diagnostics_artifact?: ArtifactContract;
   /** Where the skill the run started came from, as the CLI resolved it. */
   readonly entry_provenance?: {
     readonly [key: string]: unknown;
@@ -3263,7 +3244,7 @@ export type SkillOutputContract = {
   readonly refusal?: {
     readonly [key: string]: unknown;
   };
-  readonly request_set_artifact?: ProjectArtifactContract;
+  readonly request_set_artifact?: ArtifactContract;
   readonly requests?: readonly unknown[];
   readonly result?: unknown;
   readonly run_id?: string;
@@ -3658,7 +3639,7 @@ export type TurnAllowanceContract = {
 export type TurnCallOutcomeContract = {
   /** Each packet output as a project artifact of the run, by output name: a reference a later call passes in place of the packet. */
   readonly artifacts?: {
-    readonly [key: string]: ProjectArtifactContract;
+    readonly [key: string]: ArtifactContract;
   };
   readonly output: {
     readonly [key: string]: unknown;

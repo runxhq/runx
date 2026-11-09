@@ -29,7 +29,7 @@ fn page_package(
         state.count++; state.sum += record.id;
       }
       return {runx_page:{state,done:page.eof},...(page.eof ? {
-        count:state.count,sum:state.sum,source_digest:page.whole_digest,
+        count:state.count,sum:state.sum,source_digest:page.digest,
         leaked_source:Object.hasOwn(inputs,"source_uri") || Object.hasOwn(inputs,"source_path") || Object.hasOwn(inputs,"source_scope")
       } : {})};
     }"#,
@@ -74,6 +74,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
             std::path::Path::new("records.json"),
             "application/json",
             runx_contracts::Reach::Inputs,
+            runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         )?;
         for page_bytes in [65_536, 524_288] {
             let mut by_path = page_invocation(
@@ -105,7 +106,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
             );
             by_artifact.inputs.insert(
                 "source_uri".to_owned(),
-                JsonValue::String(snapshot.reference.clone()),
+                JsonValue::String(snapshot.reference.as_str().to_owned()),
             );
             let from_path = adapter.invoke_with_artifacts(by_path, &package, &artifacts)?;
             let from_artifact = adapter.invoke_with_artifacts(by_artifact, &package, &artifacts)?;
@@ -119,7 +120,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
             assert_eq!(
                 serde_json::to_value(from_artifact.value)?,
                 serde_json::json!({
-                    "count":count,"sum":count*(count-1)/2,"source_digest":snapshot.whole_digest,"leaked_source":false
+                    "count":count,"sum":count*(count-1)/2,"source_digest":snapshot.digest,"leaked_source":false
                 })
             );
         }
@@ -141,6 +142,7 @@ fn admitted_artifact_pages_use_the_snapshot_and_its_lifetime()
         std::path::Path::new("records.json"),
         "application/json",
         runx_contracts::Reach::Inputs,
+        runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     )?;
     fs::write(root.join("records.json"), "[]")?;
     let adapter = JavaScriptAdapter::new_session();
@@ -153,7 +155,7 @@ fn admitted_artifact_pages_use_the_snapshot_and_its_lifetime()
     );
     request.inputs.insert(
         "source_uri".to_owned(),
-        JsonValue::String(snapshot.reference),
+        JsonValue::String(snapshot.reference.into_string()),
     );
     for invalid in ["records.json", "not-a-native-reference"] {
         let mut malformed = request.clone();
