@@ -59,8 +59,11 @@ frozen `{ environment }` object containing only names the worker declares:
 Required values fail before the worker starts when unavailable; absent optional
 values are omitted. The worker OS environment remains empty. Use this channel
 only for non-secret runtime configuration; credentials remain unavailable and
-must flow through native credential or provider capabilities. The wall defaults
-to two seconds and may be declared from 1 through 30 seconds.
+must flow through native credential or provider capabilities. `cpu_seconds` is
+the worker's CPU time, not wall time, so a loaded machine doesn't cut a module
+short. It defaults to two seconds and may be declared from 1 through 30. A
+worker that spends no CPU and answers nothing for 60 seconds is discarded as
+unresponsive.
 
 ## Volume and artifact pages
 
