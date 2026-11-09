@@ -212,6 +212,28 @@ impl Template {
         pointers
     }
 
+    /// The inputs its `$argument` pointers read: each pointer's first
+    /// segment, the input of a method or call it starts at.
+    #[must_use]
+    pub fn argument_inputs(&self) -> BTreeSet<&str> {
+        self.argument_pointers()
+            .into_iter()
+            .map(|pointer| {
+                pointer
+                    .strip_prefix('/')
+                    .and_then(|rest| rest.split('/').next())
+                    .unwrap_or_default()
+            })
+            .collect()
+    }
+
+    /// The value of `arguments` the template names, when the whole template
+    /// is one `$argument` binding.
+    #[must_use]
+    pub fn argument_in<'a>(&self, arguments: &'a JsonObject) -> Option<&'a JsonValue> {
+        object_pointer(arguments, self.argument_pointer()?)
+    }
+
     /// Whether the template binds anything runx fills (`$runx`).
     #[must_use]
     pub fn binds_runx(&self) -> bool {

@@ -4,10 +4,14 @@
 //! The bytes are the call's `value` as JSON, or its canonical `data_base64`,
 //! stored under the media type the call names and the idempotency key the
 //! kernel derives from the call's intent, so the same call lands once in any
-//! run. runx answers with the artifact's reference and what it holds, for
-//! the principal it stored it for, which must be the principal the session
-//! authenticated. The kernel confirms the write by reading the reference
-//! back.
+//! run. runx answers, for the principal the session authenticated, with the
+//! artifact as its hosted store holds it: `ref`, `digest`, `size_bytes`,
+//! `media_type` and `created_at`. The call's result is `artifact`, that
+//! artifact as a `runx.artifact.v1` labelled `configured_model`, since its
+//! bytes are in runx's hosted store, off this machine, so a model that runs
+//! elsewhere is no further for them to go; and beside it `principal_uri`, the
+//! account it's held for, which may differ from the actor the run declared.
+//! The kernel confirms the write by reading the reference back.
 //!
 //! A hosted worker runs its runtime against a gateway bound to one durable
 //! run, which every artifact call names; anywhere else the call names the
@@ -15,7 +19,11 @@
 
 use base64::Engine as _;
 use runx_contracts::connector::{ReadbackExpected, ReadbackMatch};
-use runx_contracts::{JsonNumber, JsonObject, JsonValue, ProviderOperationPacket, sha256_prefixed};
+use runx_contracts::schema::{IsoDateTime, NonEmptyString};
+use runx_contracts::{
+    Artifact as ArtifactDescriptor, ArtifactLabels, ArtifactSchema, Digest, JsonObject, JsonValue,
+    ProviderOperationPacket,
+};
 use serde::Deserialize;
 
 use crate::hosted_api::HostedApiOperationError;
@@ -28,14 +36,28 @@ const ALLOCATE: &str = "artifact.allocate";
 const INSPECT: &str = "artifact.inspect";
 /// The durable run a hosted worker executes; its gateway refuses any other.
 pub(crate) const TRUSTED_RUN_ID_ENV: &str = "RUNX_HOSTED_ARTIFACT_TRUSTED_RUN_ID";
-/// What runx states of every artifact it holds.
+/// What a readback compares of every artifact runx holds, and the account it
+/// holds it for.
 const EVIDENCE: [&str; 5] = [
-    "artifact_uri",
-    "content_digest",
-    "media_type",
-    "size_bytes",
+    "artifact.ref",
+    "artifact.digest",
+    "artifact.media_type",
+    "artifact.size_bytes",
     "principal_uri",
 ];
+
+/// An artifact as runx's hosted store states it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostedArtifact {
+    #[serde(rename = "ref")]
+    reference: NonEmptyString,
+    digest: Digest,
+    size_bytes: u64,
+    media_type: NonEmptyString,
+    #[serde(default)]
+    created_at: Option<IsoDateTime>,
+}
 
 /// What confirms an allocation: reading its reference back shows the same
 /// bytes, media type and owner the write reported.
@@ -91,7 +113,7 @@ impl Artifact<'_> {
             .call
             .idempotency_key
             .ok_or_else(|| not_sent("an artifact write has no idempotency key".to_owned()))?;
-        let content_digest = sha256_prefixed(&bytes);
+        let digest = Digest::of(&bytes);
         let answer = self.send(
             ALLOCATE,
             JsonObject::from([
@@ -100,30 +122,44 @@ impl Artifact<'_> {
                     "data_base64".to_owned(),
                     text(&base64::engine::general_purpose::STANDARD.encode(&bytes)),
                 ),
-                ("content_digest".to_owned(), text(&content_digest)),
+                ("digest".to_owned(), text(digest.as_str())),
                 ("media_type".to_owned(), text(media_type)),
             ]),
         )?;
         if answer.idempotency_key.as_deref() != Some(key) {
             return Err(malformed("runx stored the artifact under another key"));
         }
-        let evidence = self.evidence(answer)?;
-        if evidence.get("content_digest") != Some(&text(&content_digest))
-            || evidence.get("media_type") != Some(&text(media_type))
-            || evidence.get("size_bytes").and_then(unsigned) != u64::try_from(bytes.len()).ok()
+        let artifact = self.artifact(answer)?;
+        if artifact.digest != digest
+            || artifact.media_type.as_str() != media_type
+            || u64::try_from(bytes.len()).ok() != Some(artifact.size_bytes)
         {
             return Err(malformed("runx holds other bytes than the call stored"));
         }
-        Ok(evidence)
+        self.held(&artifact)
     }
 
-    /// What runx holds under `artifact_uri`.
-    fn inspect(&self, artifact_uri: &str) -> Result<JsonObject, Unperformed> {
+    /// What runx holds under `reference`.
+    fn inspect(&self, reference: &str) -> Result<JsonObject, Unperformed> {
         let answer = self.send(
             INSPECT,
-            JsonObject::from([("artifact_uri".to_owned(), text(artifact_uri))]),
+            JsonObject::from([("ref".to_owned(), text(reference))]),
         )?;
-        self.evidence(answer)
+        self.held(&self.artifact(answer)?)
+    }
+
+    /// The call's result: the artifact, and the signed-in account `send`
+    /// checked runx holds it for.
+    fn held(&self, artifact: &ArtifactDescriptor) -> Result<JsonObject, Unperformed> {
+        let artifact = JsonValue::from_serialize(artifact)
+            .map_err(|_| malformed("the artifact cannot be stated"))?;
+        Ok(JsonObject::from([
+            ("artifact".to_owned(), artifact),
+            (
+                "principal_uri".to_owned(),
+                text(&self.session.principal_uri),
+            ),
+        ]))
     }
 
     fn send(
@@ -153,21 +189,29 @@ impl Artifact<'_> {
         Ok(answer)
     }
 
-    /// The artifact evidence an answer states, with the principal it holds
-    /// the artifact for.
-    fn evidence(&self, answer: ProviderOperationPacket) -> Result<JsonObject, Unperformed> {
-        let JsonValue::Object(mut evidence) = answer.result else {
-            return Err(malformed("runx stated no artifact"));
-        };
-        let artifact_uri = evidence.get("artifact_uri").and_then(JsonValue::as_str);
-        if !artifact_uri.is_some_and(valid_artifact_ref) || artifact_uri != Some(&answer.target) {
+    /// The artifact an answer states, which `send` has checked is held for
+    /// the signed-in principal.
+    fn artifact(&self, answer: ProviderOperationPacket) -> Result<ArtifactDescriptor, Unperformed> {
+        let hosted = answer
+            .result
+            .deserialize_into::<HostedArtifact>()
+            .map_err(|_| malformed("runx stated no artifact"))?;
+        if !valid_artifact_ref(&hosted.reference) || hosted.reference.as_str() != answer.target {
             return Err(malformed("runx stated no valid artifact reference"));
         }
-        evidence.insert(
-            "principal_uri".to_owned(),
-            text(&self.session.principal_uri),
-        );
-        Ok(evidence)
+        Ok(ArtifactDescriptor {
+            schema: ArtifactSchema::V1,
+            reference: hosted.reference,
+            digest: hosted.digest,
+            size_bytes: hosted.size_bytes,
+            media_type: hosted.media_type,
+            created_at: hosted.created_at,
+            produced_by: None,
+            path: None,
+            summary: None,
+            sources: Vec::new(),
+            labels: ArtifactLabels::CONFIGURED_MODEL,
+        })
     }
 }
 
@@ -179,9 +223,8 @@ impl Driver for Artifact<'_> {
     fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
         match check {
             Check::Readback { .. } => {
-                let artifact_uri =
-                    artifact_uri(write).ok_or("the acknowledgement names no artifact")?;
-                self.inspect(artifact_uri)
+                let reference = reference(write).ok_or("the acknowledgement names no artifact")?;
+                self.inspect(reference)
                     .map(observed)
                     .map_err(Unperformed::reason)
             }
@@ -194,8 +237,8 @@ impl Driver for Artifact<'_> {
         write: &JsonValue,
         _confirmed: &[JsonValue],
     ) -> Result<(JsonValue, Option<String>), String> {
-        let artifact_uri = artifact_uri(write).map(str::to_owned);
-        Ok((write.clone(), artifact_uri))
+        let reference = reference(write).map(str::to_owned);
+        Ok((write.clone(), reference))
     }
 }
 
@@ -252,19 +295,13 @@ fn run_id<'a>(call: &'a AdmittedCall<'_>) -> Result<&'a str, Unperformed> {
         .ok_or_else(|| not_sent("the call runs in no run".to_owned()))
 }
 
-fn artifact_uri(write: &JsonValue) -> Option<&str> {
+fn reference(write: &JsonValue) -> Option<&str> {
     write
         .as_object()
-        .and_then(|write| write.get("artifact_uri"))
+        .and_then(|write| write.get("artifact"))
+        .and_then(JsonValue::as_object)
+        .and_then(|artifact| artifact.get("ref"))
         .and_then(JsonValue::as_str)
-}
-
-fn unsigned(value: &JsonValue) -> Option<u64> {
-    match value {
-        JsonValue::Number(JsonNumber::U64(value)) => Some(*value),
-        JsonValue::Number(JsonNumber::I64(value)) => u64::try_from(*value).ok(),
-        _ => None,
-    }
 }
 
 fn valid_artifact_ref(value: &str) -> bool {
@@ -319,7 +356,7 @@ fn unperformed(error: HostedApiOperationError) -> Unperformed {
 fn observed(value: JsonObject) -> Observed {
     let value = JsonValue::Object(value);
     let evidence = serde_json::to_vec(&value)
-        .map(|bytes| sha256_prefixed(&bytes))
+        .map(|bytes| runx_contracts::sha256_prefixed(&bytes))
         .unwrap_or_default();
     Observed {
         value,

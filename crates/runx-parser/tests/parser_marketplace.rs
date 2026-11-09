@@ -142,8 +142,12 @@ fn a_price_reads_only_required_inputs_of_the_right_kind() -> Result<(), String> 
             "so method transcribe declares its enum",
         ),
         (
-            "{basis: by_size, input: note, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
+            "{basis: by_size, artifact: {$argument: /note/artifact_uri}, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
             "so method transcribe declares it an object or leaves its type open",
+        ),
+        (
+            "{basis: by_size, artifact: {$argument: /missing/artifact_uri}, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
+            "reads input missing, which method transcribe does not require",
         ),
     ] {
         let error = refused(price)?;
@@ -151,7 +155,7 @@ fn a_price_reads_only_required_inputs_of_the_right_kind() -> Result<(), String> 
     }
 
     let price = price_of(validate(&manifest(&offer(
-        "{basis: by_size, input: artifact, base_amount_minor: 25, unit_bytes: 1048576, unit_amount_minor: 5, max_bytes: 104857600}",
+        "{basis: by_size, artifact: {$argument: /artifact/artifact_uri}, base_amount_minor: 25, unit_bytes: 1048576, unit_amount_minor: 5, max_bytes: 104857600}",
     )))?)?;
     assert_eq!(price.priced_inputs(), ["artifact"]);
     Ok(())

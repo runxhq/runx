@@ -6121,8 +6121,9 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `input` holds, up to `max_bytes`.",
+            "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed stored artifact, up to `max_bytes`. `artifact` is one `$argument` binding: a JSON pointer into the method's inputs at the artifact's reference, in whatever words the method's inputs use.",
             "properties": {
+              "artifact": {},
               "base_amount_minor": {
                 "maximum": 9007199254740991,
                 "minimum": 1,
@@ -6130,10 +6131,6 @@ export const runxSchemaArtifacts = {
               },
               "basis": {
                 "const": "by_size",
-                "type": "string"
-              },
-              "input": {
-                "minLength": 1,
                 "type": "string"
               },
               "max_bytes": {
@@ -6152,7 +6149,7 @@ export const runxSchemaArtifacts = {
             },
             "required": [
               "basis",
-              "input",
+              "artifact",
               "base_amount_minor",
               "unit_bytes",
               "unit_amount_minor",

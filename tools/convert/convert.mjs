@@ -342,6 +342,19 @@ const OFFER_KEYS = ["price", "currency", "accepted_settlement_families", "input_
 const PRICE_KEYS = ["model", "amount_minor", "selectors", "cases", "artifact_input", "base_amount_minor", "unit_bytes", "unit_amount_minor", "max_bytes"];
 const PRICE_MODELS = { fixed: "fixed", input_choice: "by_input", artifact_bytes: "by_size" };
 
+// A by_size price names the stored artifact it charges for by a pointer into
+// the method's inputs (run-yaml.md's price row), and runx reads no field by a
+// fixed name. The input it named today held the reference as artifact_uri,
+// which is what the runtime read, so its pointer is /<input>/artifact_uri.
+function pointArtifact(doc, price, key) {
+  const pair = pairOf(price, key);
+  if (!pair) return false;
+  if (has(price, "artifact")) refuse(`both ${key} and artifact are set`);
+  pair.key = new Scalar("artifact");
+  pair.value = flow(doc, { $argument: `/${plain(pair.value)}/artifact_uri` });
+  return true;
+}
+
 function convertOffer(doc, offer, where) {
   only(offer, OFFER_KEYS, where);
   // The registry computes these from the method's own inputs and outputs at publish.
@@ -356,7 +369,7 @@ function convertOffer(doc, offer, where) {
   if (model === undefined) refuse(`${where}.price.model is ${plain(modelPair?.value)}, which the converter doesn't know`);
   modelPair.value = new Scalar(model);
   modelPair.key = new Scalar("basis");
-  rename(price, "artifact_input", "input");
+  pointArtifact(doc, price, "artifact_input");
   if (model === "by_input") {
     const selectors = plain(take(price, "selectors"));
     if (!Array.isArray(selectors) || selectors.length === 0) refuse(`${where}.price has no selectors`);
@@ -1096,8 +1109,9 @@ function convertPackage(dir) {
 }
 
 // A package already in the 0.12 shape: the conversion has run, so converting
-// it again writes nothing but what a rule above also says in that shape, a
-// test's RUNX_CWD. Its run.yaml is never rewritten: shared inputs are settled
+// it again writes nothing but what a rule above also says in that shape: a
+// test's RUNX_CWD, a worker's limit, and a by_size price that still names its
+// input, which the format replaced with a pointer. Shared inputs are settled
 // only from the old shape (settleSharedInputs).
 const ROOT_KEYS_012 = ["version", "minimum_runx", "default_method", "catalog", "shared_inputs", "connectors", "methods"];
 
@@ -1105,15 +1119,19 @@ function settlePackage(dir, doc, runPath, style) {
   const notes = [];
   const files = new Map();
   only(doc.contents, ROOT_KEYS_012, "run.yaml, which says minimum_runx,");
-  // The one rule that also holds in the 0.12 shape: a worker's limit.
-  let limited = false;
+  // The rules that also hold in the 0.12 shape: a worker's limit, and a
+  // by_size price's pointer.
+  let changed = false;
   for (const method of node(doc.contents, "methods")?.items ?? []) {
     for (const step of node(method.value, "steps")?.items ?? []) {
       const tool = isMap(step) ? node(step, "tool") : undefined;
-      if (isMap(tool)) limited = workerLimit(tool) || limited;
+      if (isMap(tool)) changed = workerLimit(tool) || changed;
     }
+    const offer = isMap(method.value) ? node(method.value, "offer") : undefined;
+    const price = isMap(offer) ? node(offer, "price") : undefined;
+    if (isMap(price) && read(price, "basis") === "by_size" && pointArtifact(doc, price, "input")) changed = true;
   }
-  if (limited) files.set(runPath, doc.toString(style));
+  if (changed) files.set(runPath, doc.toString(style));
   const testsDir = path.join(dir, "tests");
   let tests = 0;
   for (const entry of existsSync(testsDir) ? readdirSync(testsDir).sort() : []) {

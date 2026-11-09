@@ -1853,9 +1853,9 @@ export type PaidSkillPriceContract = {
   readonly basis: "by_input";
   readonly cases: readonly PaidSkillPriceCaseContract[];
 } | {
+  readonly artifact: unknown;
   readonly base_amount_minor: number;
   readonly basis: "by_size";
-  readonly input: string;
   readonly max_bytes: number;
   readonly unit_amount_minor: number;
   readonly unit_bytes: number;

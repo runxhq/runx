@@ -64,7 +64,7 @@ fn fixture_document() -> io::Result<Value> {
     });
     let bytes = json!({
         "basis": "by_size",
-        "input": "artifact",
+        "artifact": {"$argument": "/artifact/artifact_uri"},
         "base_amount_minor": 25,
         "unit_bytes": 1_048_576,
         "unit_amount_minor": 5,
@@ -178,7 +178,7 @@ fn fixture_document() -> io::Result<Value> {
             "size-overflow",
             json!({
                 "basis": "by_size",
-                "input": "artifact",
+                "artifact": {"$argument": "/artifact/artifact_uri"},
                 "base_amount_minor": 1,
                 "unit_bytes": 1,
                 "unit_amount_minor": 9_007_199_254_740_991_u64,

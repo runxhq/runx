@@ -1,4 +1,5 @@
 import { canonicalJsonStringify } from "./canonical-json.js";
+import { renderTemplate, type JsonValue } from "./connector.js";
 import type {
   PaidSkillPriceCaseContract,
   PaidSkillPriceContract,
@@ -32,6 +33,19 @@ export class PaidSkillPriceError extends Error {
   }
 }
 
+/**
+ * The `$argument` pointer a `by_size` price names the stored artifact's
+ * reference with, when its `artifact` is one such binding.
+ */
+function artifactPointer(artifact: unknown): string | undefined {
+  if (typeof artifact !== "object" || artifact === null || Array.isArray(artifact)) return undefined;
+  const binding = artifact as Record<string, unknown>;
+  const pointer = binding["$argument"];
+  return Object.keys(binding).length === 1 && typeof pointer === "string" && pointer.startsWith("/")
+    ? pointer
+    : undefined;
+}
+
 /** The inputs a price reads, in name order. */
 function pricedInputs(price: PaidSkillPriceContract): readonly string[] {
   switch (price.basis) {
@@ -39,8 +53,10 @@ function pricedInputs(price: PaidSkillPriceContract): readonly string[] {
       return [];
     case "by_input":
       return Object.keys(price.cases[0]?.inputs ?? {}).sort();
-    case "by_size":
-      return [price.input];
+    case "by_size": {
+      const pointer = artifactPointer(price.artifact);
+      return pointer === undefined ? [] : [pointer.slice(1).split("/")[0] ?? ""];
+    }
   }
 }
 
@@ -75,6 +91,9 @@ export function paidSkillPriceProblem(price: PaidSkillPriceContract): string | u
       return undefined;
     }
     case "by_size":
+      if (artifactPointer(price.artifact) === undefined) {
+        return "a by_size price's artifact is one $argument pointer into the method's inputs";
+      }
       return artifactAmount(price, BigInt(price.max_bytes)) === undefined
         ? "a by_size price must stay a portable amount up to max_bytes"
         : undefined;
@@ -84,17 +103,21 @@ export function paidSkillPriceProblem(price: PaidSkillPriceContract): string | u
 const STORED_ARTIFACT_REF = /^runx:artifact:sha256:[0-9a-f]{64}$/u;
 
 /**
- * The stored artifact a `by_size` price reads: the `artifact_uri` its input
- * holds. Its committed size, looked up by the caller, is what the call costs.
+ * The stored artifact a `by_size` price reads: the reference its `artifact`
+ * pointer names in the inputs, in whatever words they use. Its committed
+ * size, looked up by the caller, is what the call costs.
  */
 export function paidSkillPricedArtifactRef(
   price: PaidSkillPriceContract,
   inputs: Readonly<Record<string, unknown>>,
 ): string | undefined {
-  if (price.basis !== "by_size" || !Object.hasOwn(inputs, price.input)) return undefined;
-  const value = inputs[price.input];
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const reference = (value as Record<string, unknown>).artifact_uri;
+  if (price.basis !== "by_size" || artifactPointer(price.artifact) === undefined) return undefined;
+  let reference: JsonValue;
+  try {
+    reference = renderTemplate(price.artifact as JsonValue, { arguments: inputs as JsonValue });
+  } catch {
+    return undefined;
+  }
   return typeof reference === "string" && STORED_ARTIFACT_REF.test(reference) ? reference : undefined;
 }
 

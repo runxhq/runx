@@ -212,8 +212,8 @@ fn named_inputs(schema: &JsonValue, named: &mut BTreeSet<String>) {
 
 /// What a paid method charges. A price reads only inputs the method requires:
 /// each `by_input` input an `enum`, with a case for every combination of
-/// their values, and the `by_size` input a value holding the stored
-/// artifact's reference. Whose lease a buyer must hold is checked against
+/// their values, and the input a `by_size` price's pointer starts at a value
+/// holding the stored artifact's reference. Whose lease a buyer must hold is checked against
 /// the package's connectors once they're known.
 fn validate_offer(
     method: &str,
@@ -233,14 +233,13 @@ fn validate_offer(
     }
     match &terms.price {
         runx_contracts::PaidSkillPrice::Fixed { .. } => {}
-        runx_contracts::PaidSkillPrice::BySize { input, .. } => {
-            if !matches!(
-                inputs[input.as_str()].input_type.as_str(),
-                "json" | "object"
-            ) {
-                return Err(FIELDS.validation_error(format!(
-                    "{field}.price prices input {input} by the bytes of the stored artifact it references, so method {method} declares it an object or leaves its type open."
-                )));
+        runx_contracts::PaidSkillPrice::BySize { .. } => {
+            for input in terms.price.priced_inputs() {
+                if !matches!(inputs[input].input_type.as_str(), "json" | "object") {
+                    return Err(FIELDS.validation_error(format!(
+                        "{field}.price prices input {input} by the bytes of the stored artifact it references, so method {method} declares it an object or leaves its type open."
+                    )));
+                }
             }
         }
         runx_contracts::PaidSkillPrice::ByInput { cases } => {
@@ -276,11 +275,7 @@ fn validate_offer(
         }
     }
     if let Some(lease) = &terms.requires_lease {
-        for pointer in lease.target.argument_pointers() {
-            let input = pointer
-                .strip_prefix('/')
-                .and_then(|rest| rest.split('/').next())
-                .unwrap_or_default();
+        for input in lease.target.argument_inputs() {
             if !inputs.get(input).is_some_and(|input| input.required) {
                 return Err(FIELDS.validation_error(format!(
                     "{field}.requires_lease reads input {input}, which method {method} does not require."

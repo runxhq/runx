@@ -41,9 +41,11 @@ pub enum PaidSkillPrice {
     /// input by name, and the cases cover every combination exactly once.
     ByInput { cases: Vec<PaidSkillPriceCase> },
     /// A base amount plus a unit amount for each started `unit_bytes` of the
-    /// committed artifact the `input` holds, up to `max_bytes`.
+    /// committed stored artifact, up to `max_bytes`. `artifact` is one
+    /// `$argument` binding: a JSON pointer into the method's inputs at the
+    /// artifact's reference, in whatever words the method's inputs use.
     BySize {
-        input: NonEmptyString,
+        artifact: Template,
         base_amount_minor: PortableAmountMinor,
         unit_bytes: std::num::NonZeroU64,
         unit_amount_minor: PortableAmountMinor,
@@ -132,7 +134,7 @@ impl<'de> Deserialize<'de> for PaidSkillPrice {
                 cases: Vec<PaidSkillPriceCase>,
             },
             BySize {
-                input: NonEmptyString,
+                artifact: Template,
                 base_amount_minor: PortableAmountMinor,
                 unit_bytes: std::num::NonZeroU64,
                 unit_amount_minor: PortableAmountMinor,
@@ -144,13 +146,13 @@ impl<'de> Deserialize<'de> for PaidSkillPrice {
             WirePrice::Fixed { amount_minor } => Self::Fixed { amount_minor },
             WirePrice::ByInput { cases } => Self::ByInput { cases },
             WirePrice::BySize {
-                input,
+                artifact,
                 base_amount_minor,
                 unit_bytes,
                 unit_amount_minor,
                 max_bytes,
             } => Self::BySize {
-                input,
+                artifact,
                 base_amount_minor,
                 unit_bytes,
                 unit_amount_minor,
@@ -229,12 +231,22 @@ impl PaidSkillPrice {
                 }
                 Ok(())
             }
-            Self::BySize { max_bytes, .. } => self
-                .artifact_amount(max_bytes.get())
-                .map(|_| ())
-                .ok_or(PriceError::Invalid(
-                    "a by_size price must stay a portable amount up to max_bytes",
-                )),
+            Self::BySize {
+                artifact,
+                max_bytes,
+                ..
+            } => {
+                if artifact.argument_pointer().is_none_or(str::is_empty) {
+                    return Err(PriceError::Invalid(
+                        "a by_size price's artifact is one $argument pointer into the method's inputs",
+                    ));
+                }
+                self.artifact_amount(max_bytes.get())
+                    .map(|_| ())
+                    .ok_or(PriceError::Invalid(
+                        "a by_size price must stay a portable amount up to max_bytes",
+                    ))
+            }
         }
     }
 
@@ -246,21 +258,19 @@ impl PaidSkillPrice {
                 .first()
                 .map(|case| case.inputs.keys().map(String::as_str).collect())
                 .unwrap_or_default(),
-            Self::BySize { input, .. } => vec![input.as_str()],
+            Self::BySize { artifact, .. } => artifact.argument_inputs().into_iter().collect(),
         }
     }
 
-    /// The stored artifact a `by_size` price reads: the `artifact_uri` its
-    /// input holds. Its committed size, looked up by the caller, is what the
-    /// call costs.
+    /// The stored artifact a `by_size` price reads: the reference its
+    /// `artifact` pointer names in `inputs`. Its committed size, looked up by
+    /// the caller, is what the call costs.
     pub fn priced_artifact_ref<'a>(&self, inputs: &'a JsonObject) -> Option<&'a str> {
-        let Self::BySize { input, .. } = self else {
+        let Self::BySize { artifact, .. } = self else {
             return None;
         };
-        inputs
-            .get(input.as_str())?
-            .as_object()?
-            .get("artifact_uri")?
+        artifact
+            .argument_in(inputs)?
             .as_str()
             .filter(|reference| stored_artifact_ref(reference))
     }
@@ -622,7 +632,7 @@ mod tests {
     fn a_by_size_price_charges_each_started_unit() -> Result<(), serde_json::Error> {
         let price: PaidSkillPrice = serde_json::from_value(json!({
             "basis": "by_size",
-            "input": "artifact",
+            "artifact": {"$argument": "/document/artifact_uri"},
             "base_amount_minor": 25,
             "unit_bytes": 1_048_576,
             "unit_amount_minor": 5,
@@ -651,13 +661,41 @@ mod tests {
 
         let overflowing = json!({
             "basis": "by_size",
-            "input": "artifact",
+            "artifact": {"$argument": "/document/artifact_uri"},
             "base_amount_minor": 1,
             "unit_bytes": 1,
             "unit_amount_minor": MAX_PORTABLE_INTEGER,
             "max_bytes": 2
         });
         assert!(serde_json::from_value::<PaidSkillPrice>(overflowing).is_err());
+
+        // runx reads the reference where the pointer names it, in the words
+        // the method's inputs use, and no field by a fixed name.
+        let reference = format!("runx:artifact:sha256:{}", "a".repeat(64));
+        let inputs = |value: Value| serde_json::from_value::<JsonObject>(value);
+        assert_eq!(
+            price.priced_artifact_ref(&inputs(json!({"document": {"artifact_uri": reference}}))?),
+            Some(reference.as_str())
+        );
+        assert_eq!(
+            price.priced_artifact_ref(&inputs(json!({"document": {"ref": reference}}))?),
+            None
+        );
+        assert_eq!(price.priced_inputs(), ["document"]);
+        for artifact in [
+            json!("/document/artifact_uri"),
+            json!({"$concat": ["a", "b"]}),
+        ] {
+            let unbound = json!({
+                "basis": "by_size",
+                "artifact": artifact,
+                "base_amount_minor": 1,
+                "unit_bytes": 1,
+                "unit_amount_minor": 1,
+                "max_bytes": 2
+            });
+            assert!(serde_json::from_value::<PaidSkillPrice>(unbound).is_err());
+        }
         Ok(())
     }
 

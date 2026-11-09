@@ -631,7 +631,7 @@ impl TestTransport {
             .artifacts
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (artifact_uri, evidence, idempotency_key) = match operation {
+        let (reference, evidence, idempotency_key) = match operation {
             "artifact.allocate" => {
                 let key = required_string(input, "idempotency_key")?;
                 let bytes = base64::engine::general_purpose::STANDARD
@@ -639,25 +639,19 @@ impl TestTransport {
                     .map_err(|error| {
                         transport_error(format!("artifact bytes are invalid: {error}"))
                     })?;
-                let content_digest = runx_contracts::sha256_prefixed(&bytes);
-                if required_string(input, "content_digest")? != content_digest {
+                let digest = runx_contracts::sha256_prefixed(&bytes);
+                if required_string(input, "digest")? != digest {
                     return Err(transport_error(
                         "artifact bytes do not match their stated digest".to_owned(),
                     ));
                 }
-                let artifact_uri = format!(
+                let reference = format!(
                     "runx:artifact:{}",
                     runx_contracts::sha256_prefixed(format!("{principal_uri}\0{key}").as_bytes())
                 );
                 let evidence = JsonObject::from([
-                    (
-                        "artifact_uri".to_owned(),
-                        JsonValue::String(artifact_uri.clone()),
-                    ),
-                    (
-                        "content_digest".to_owned(),
-                        JsonValue::String(content_digest),
-                    ),
+                    ("ref".to_owned(), JsonValue::String(reference.clone())),
+                    ("digest".to_owned(), JsonValue::String(digest)),
                     (
                         "media_type".to_owned(),
                         JsonValue::String(required_string(input, "media_type")?.to_owned()),
@@ -671,7 +665,7 @@ impl TestTransport {
                         JsonValue::String(TEST_ARTIFACT_CREATED_AT.to_owned()),
                     ),
                 ]);
-                match artifacts.get(&artifact_uri) {
+                match artifacts.get(&reference) {
                     Some(held) if held != &evidence => {
                         return Err(transport_error(format!(
                             "artifact idempotency key {key:?} already holds other bytes"
@@ -679,17 +673,17 @@ impl TestTransport {
                     }
                     Some(_) => {}
                     None => {
-                        artifacts.insert(artifact_uri.clone(), evidence.clone());
+                        artifacts.insert(reference.clone(), evidence.clone());
                     }
                 }
-                (artifact_uri, evidence, Some(key.to_owned()))
+                (reference, evidence, Some(key.to_owned()))
             }
             "artifact.inspect" => {
-                let artifact_uri = required_string(input, "artifact_uri")?.to_owned();
-                let evidence = artifacts.get(&artifact_uri).cloned().ok_or_else(|| {
-                    transport_error(format!("the case stored no artifact {artifact_uri:?}"))
+                let reference = required_string(input, "ref")?.to_owned();
+                let evidence = artifacts.get(&reference).cloned().ok_or_else(|| {
+                    transport_error(format!("the case stored no artifact {reference:?}"))
                 })?;
-                (artifact_uri, evidence, None)
+                (reference, evidence, None)
             }
             other => {
                 return Err(transport_error(format!(
@@ -708,7 +702,7 @@ impl TestTransport {
                 "operation".to_owned(),
                 JsonValue::String(operation.to_owned()),
             ),
-            ("target".to_owned(), JsonValue::String(artifact_uri.clone())),
+            ("target".to_owned(), JsonValue::String(reference.clone())),
             ("result".to_owned(), JsonValue::Object(evidence)),
             (
                 "transport".to_owned(),
@@ -716,7 +710,7 @@ impl TestTransport {
             ),
             (
                 "readback_uri".to_owned(),
-                JsonValue::String(format!("runx:harness:artifact-readback:{artifact_uri}")),
+                JsonValue::String(format!("runx:harness:artifact-readback:{reference}")),
             ),
             (
                 "access".to_owned(),

@@ -94,14 +94,22 @@ fn a_case_stores_and_reads_back_an_artifact_in_its_principals_space() {
         .find(|step| step.step_id == "keep")
         .expect("the allocation ran");
     let contract = serde_json::to_value(&keep.contract).unwrap();
-    let result = &contract["provider_operation"]["data"]["result"];
+    let operation = &contract["provider_operation"]["data"];
+    let result = &operation["result"];
+    let artifact = &result["artifact"];
+    assert_eq!(artifact["schema"], "runx.artifact.v1", "{contract:#}");
     assert!(
-        result["artifact_uri"]
+        artifact["ref"]
             .as_str()
             .is_some_and(|reference| reference.starts_with("runx:artifact:sha256:")),
         "{contract:#}"
     );
-    assert_eq!(result["media_type"], "application/json", "{contract:#}");
+    assert_eq!(artifact["media_type"], "application/json", "{contract:#}");
+    // Its bytes are in runx's hosted store, off this machine.
+    assert_eq!(
+        artifact["labels"]["sharing"], "configured_model",
+        "{contract:#}"
+    );
     assert_eq!(
         result["principal_uri"], "runx:principal:operator-fixture",
         "{contract:#}"

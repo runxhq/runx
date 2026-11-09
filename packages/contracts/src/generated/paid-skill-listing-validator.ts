@@ -16,7 +16,7 @@ const schema7 = {"additionalProperties":false,"description":"The lease a buyer m
 const pattern1 = new RegExp("^[a-z0-9][a-z0-9._-]{0,63}$", "u");
 const pattern2 = new RegExp("^[A-Z]{3}$", "u");
 const pattern6 = new RegExp("^[a-z][a-z0-9_]{0,63}$", "u");
-const schema4 = {"anyOf":[{"additionalProperties":false,"description":"One amount for every call.","properties":{"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"basis":{"const":"fixed","type":"string"}},"required":["basis","amount_minor"],"type":"object"},{"additionalProperties":false,"description":"An amount for each combination of values of the priced inputs, each an `enum` input the method requires. Each case names every priced input by name, and the cases cover every combination exactly once.","properties":{"basis":{"const":"by_input","type":"string"},"cases":{"items":{"$ref":"https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaidSkillPriceCase"},"type":"array"}},"required":["basis","cases"],"type":"object"},{"additionalProperties":false,"description":"A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `input` holds, up to `max_bytes`.","properties":{"base_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"basis":{"const":"by_size","type":"string"},"input":{"minLength":1,"type":"string"},"max_bytes":{"minimum":1,"type":"integer"},"unit_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"unit_bytes":{"minimum":1,"type":"integer"}},"required":["basis","input","base_amount_minor","unit_bytes","unit_amount_minor","max_bytes"],"type":"object"}],"description":"How an offer prices one call: from the listing and the inputs the method receives, never from the method. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's method says can change it.","title":"PaidSkillPrice"};
+const schema4 = {"anyOf":[{"additionalProperties":false,"description":"One amount for every call.","properties":{"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"basis":{"const":"fixed","type":"string"}},"required":["basis","amount_minor"],"type":"object"},{"additionalProperties":false,"description":"An amount for each combination of values of the priced inputs, each an `enum` input the method requires. Each case names every priced input by name, and the cases cover every combination exactly once.","properties":{"basis":{"const":"by_input","type":"string"},"cases":{"items":{"$ref":"https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PaidSkillPriceCase"},"type":"array"}},"required":["basis","cases"],"type":"object"},{"additionalProperties":false,"description":"A base amount plus a unit amount for each started `unit_bytes` of the committed stored artifact, up to `max_bytes`. `artifact` is one `$argument` binding: a JSON pointer into the method's inputs at the artifact's reference, in whatever words the method's inputs use.","properties":{"artifact":{},"base_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"basis":{"const":"by_size","type":"string"},"max_bytes":{"minimum":1,"type":"integer"},"unit_amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"unit_bytes":{"minimum":1,"type":"integer"}},"required":["basis","artifact","base_amount_minor","unit_bytes","unit_amount_minor","max_bytes"],"type":"object"}],"description":"How an offer prices one call: from the listing and the inputs the method receives, never from the method. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's method says can change it.","title":"PaidSkillPrice"};
 const schema5 = {"additionalProperties":false,"description":"One `by_input` case: the value each priced input takes, by name, and what a call with them costs.","properties":{"amount_minor":{"maximum":9007199254740991,"minimum":1,"type":"integer"},"inputs":{"additionalProperties":{"$ref":"https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PriceChoice"},"type":"object"}},"required":["inputs","amount_minor"],"title":"PaidSkillPriceCase","type":"object"};
 const schema6 = {"oneOf":[{"type":"string"},{"maximum":9007199254740991,"minimum":-9007199254740991,"type":"integer"},{"type":"boolean"}],"title":"PriceChoice"};
 
@@ -480,7 +480,7 @@ const _errs16 = errors;
 if(errors === _errs16){
 if(data && typeof data == "object" && !Array.isArray(data)){
 let missing2;
-if(((((((data.basis === undefined) && (missing2 = "basis")) || ((data.input === undefined) && (missing2 = "input"))) || ((data.base_amount_minor === undefined) && (missing2 = "base_amount_minor"))) || ((data.unit_bytes === undefined) && (missing2 = "unit_bytes"))) || ((data.unit_amount_minor === undefined) && (missing2 = "unit_amount_minor"))) || ((data.max_bytes === undefined) && (missing2 = "max_bytes"))){
+if(((((((data.basis === undefined) && (missing2 = "basis")) || ((data.artifact === undefined) && (missing2 = "artifact"))) || ((data.base_amount_minor === undefined) && (missing2 = "base_amount_minor"))) || ((data.unit_bytes === undefined) && (missing2 = "unit_bytes"))) || ((data.unit_amount_minor === undefined) && (missing2 = "unit_amount_minor"))) || ((data.max_bytes === undefined) && (missing2 = "max_bytes"))){
 const err14 = {instancePath,schemaPath:"#/anyOf/2/required",keyword:"required",params:{missingProperty: missing2},message:"must have required property '"+missing2+"'"};
 if(vErrors === null){
 vErrors = [err14];
@@ -493,7 +493,7 @@ errors++;
 else {
 const _errs18 = errors;
 for(const key2 in data){
-if(!((((((key2 === "base_amount_minor") || (key2 === "basis")) || (key2 === "input")) || (key2 === "max_bytes")) || (key2 === "unit_amount_minor")) || (key2 === "unit_bytes"))){
+if(!((((((key2 === "artifact") || (key2 === "base_amount_minor")) || (key2 === "basis")) || (key2 === "max_bytes")) || (key2 === "unit_amount_minor")) || (key2 === "unit_bytes"))){
 const err15 = {instancePath,schemaPath:"#/anyOf/2/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key2},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err15];
@@ -580,13 +580,11 @@ else {
 var valid4 = true;
 }
 if(valid4){
-if(data.input !== undefined){
-let data7 = data.input;
+if(data.max_bytes !== undefined){
+let data7 = data.max_bytes;
 const _errs23 = errors;
-if(errors === _errs23){
-if(typeof data7 === "string"){
-if(func0(data7) < 1){
-const err21 = {instancePath:instancePath+"/input",schemaPath:"#/anyOf/2/properties/input/minLength",keyword:"minLength",params:{limit: 1},message:"must NOT have fewer than 1 characters"};
+if(!((typeof data7 == "number") && (!(data7 % 1) && !isNaN(data7)))){
+const err21 = {instancePath:instancePath+"/max_bytes",schemaPath:"#/anyOf/2/properties/max_bytes/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err21];
 }
@@ -595,9 +593,10 @@ vErrors.push(err21);
 }
 errors++;
 }
-}
-else {
-const err22 = {instancePath:instancePath+"/input",schemaPath:"#/anyOf/2/properties/input/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(errors === _errs23){
+if(typeof data7 == "number"){
+if(data7 < 1 || isNaN(data7)){
+const err22 = {instancePath:instancePath+"/max_bytes",schemaPath:"#/anyOf/2/properties/max_bytes/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
 if(vErrors === null){
 vErrors = [err22];
 }
@@ -607,17 +606,18 @@ vErrors.push(err22);
 errors++;
 }
 }
+}
 var valid4 = _errs23 === errors;
 }
 else {
 var valid4 = true;
 }
 if(valid4){
-if(data.max_bytes !== undefined){
-let data8 = data.max_bytes;
+if(data.unit_amount_minor !== undefined){
+let data8 = data.unit_amount_minor;
 const _errs25 = errors;
 if(!((typeof data8 == "number") && (!(data8 % 1) && !isNaN(data8)))){
-const err23 = {instancePath:instancePath+"/max_bytes",schemaPath:"#/anyOf/2/properties/max_bytes/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+const err23 = {instancePath:instancePath+"/unit_amount_minor",schemaPath:"#/anyOf/2/properties/unit_amount_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err23];
 }
@@ -628,8 +628,8 @@ errors++;
 }
 if(errors === _errs25){
 if(typeof data8 == "number"){
-if(data8 < 1 || isNaN(data8)){
-const err24 = {instancePath:instancePath+"/max_bytes",schemaPath:"#/anyOf/2/properties/max_bytes/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(data8 > 9007199254740991 || isNaN(data8)){
+const err24 = {instancePath:instancePath+"/unit_amount_minor",schemaPath:"#/anyOf/2/properties/unit_amount_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
 if(vErrors === null){
 vErrors = [err24];
 }
@@ -637,6 +637,18 @@ else {
 vErrors.push(err24);
 }
 errors++;
+}
+else {
+if(data8 < 1 || isNaN(data8)){
+const err25 = {instancePath:instancePath+"/unit_amount_minor",schemaPath:"#/anyOf/2/properties/unit_amount_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+if(vErrors === null){
+vErrors = [err25];
+}
+else {
+vErrors.push(err25);
+}
+errors++;
+}
 }
 }
 }
@@ -646,23 +658,11 @@ else {
 var valid4 = true;
 }
 if(valid4){
-if(data.unit_amount_minor !== undefined){
-let data9 = data.unit_amount_minor;
+if(data.unit_bytes !== undefined){
+let data9 = data.unit_bytes;
 const _errs27 = errors;
 if(!((typeof data9 == "number") && (!(data9 % 1) && !isNaN(data9)))){
-const err25 = {instancePath:instancePath+"/unit_amount_minor",schemaPath:"#/anyOf/2/properties/unit_amount_minor/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
-if(vErrors === null){
-vErrors = [err25];
-}
-else {
-vErrors.push(err25);
-}
-errors++;
-}
-if(errors === _errs27){
-if(typeof data9 == "number"){
-if(data9 > 9007199254740991 || isNaN(data9)){
-const err26 = {instancePath:instancePath+"/unit_amount_minor",schemaPath:"#/anyOf/2/properties/unit_amount_minor/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+const err26 = {instancePath:instancePath+"/unit_bytes",schemaPath:"#/anyOf/2/properties/unit_bytes/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err26];
 }
@@ -671,9 +671,10 @@ vErrors.push(err26);
 }
 errors++;
 }
-else {
+if(errors === _errs27){
+if(typeof data9 == "number"){
 if(data9 < 1 || isNaN(data9)){
-const err27 = {instancePath:instancePath+"/unit_amount_minor",schemaPath:"#/anyOf/2/properties/unit_amount_minor/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
+const err27 = {instancePath:instancePath+"/unit_bytes",schemaPath:"#/anyOf/2/properties/unit_bytes/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
 if(vErrors === null){
 vErrors = [err27];
 }
@@ -684,60 +685,25 @@ errors++;
 }
 }
 }
-}
 var valid4 = _errs27 === errors;
 }
 else {
 var valid4 = true;
 }
-if(valid4){
-if(data.unit_bytes !== undefined){
-let data10 = data.unit_bytes;
-const _errs29 = errors;
-if(!((typeof data10 == "number") && (!(data10 % 1) && !isNaN(data10)))){
-const err28 = {instancePath:instancePath+"/unit_bytes",schemaPath:"#/anyOf/2/properties/unit_bytes/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+}
+}
+}
+}
+}
+}
+}
+else {
+const err28 = {instancePath,schemaPath:"#/anyOf/2/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err28];
 }
 else {
 vErrors.push(err28);
-}
-errors++;
-}
-if(errors === _errs29){
-if(typeof data10 == "number"){
-if(data10 < 1 || isNaN(data10)){
-const err29 = {instancePath:instancePath+"/unit_bytes",schemaPath:"#/anyOf/2/properties/unit_bytes/minimum",keyword:"minimum",params:{comparison: ">=", limit: 1},message:"must be >= 1"};
-if(vErrors === null){
-vErrors = [err29];
-}
-else {
-vErrors.push(err29);
-}
-errors++;
-}
-}
-}
-var valid4 = _errs29 === errors;
-}
-else {
-var valid4 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err30 = {instancePath,schemaPath:"#/anyOf/2/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err30];
-}
-else {
-vErrors.push(err30);
 }
 errors++;
 }
@@ -750,12 +716,12 @@ props0 = true;
 }
 }
 if(!valid0){
-const err31 = {instancePath,schemaPath:"#/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+const err29 = {instancePath,schemaPath:"#/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
-vErrors = [err31];
+vErrors = [err29];
 }
 else {
-vErrors.push(err31);
+vErrors.push(err29);
 }
 errors++;
 validate3.errors = vErrors;

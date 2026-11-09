@@ -113,20 +113,20 @@ impl Provider {
     fn artifact(&self, body: &serde_json::Value) -> serde_json::Value {
         let operation = body["operation"].as_str().unwrap_or_default();
         let input = &body["input"];
-        let (artifact_uri, result) = match operation {
+        let (reference, result) = match operation {
             "artifact.allocate" => {
                 use base64::Engine as _;
                 let key = input["idempotency_key"].as_str().unwrap();
                 let bytes = base64::engine::general_purpose::STANDARD
                     .decode(input["data_base64"].as_str().unwrap())
                     .unwrap();
-                let artifact_uri = format!(
+                let reference = format!(
                     "runx:artifact:{}",
                     runx_contracts::sha256_prefixed(key.as_bytes())
                 );
                 let result = serde_json::json!({
-                    "artifact_uri": artifact_uri,
-                    "content_digest": input["content_digest"],
+                    "ref": reference,
+                    "digest": input["digest"],
                     "media_type": input["media_type"],
                     "size_bytes": bytes.len(),
                     "created_at": "2026-10-13T00:00:00.000Z",
@@ -134,13 +134,13 @@ impl Provider {
                 self.artifacts
                     .lock()
                     .unwrap()
-                    .insert(artifact_uri.clone(), result.clone());
-                (artifact_uri, result)
+                    .insert(reference.clone(), result.clone());
+                (reference, result)
             }
             _ => {
-                let artifact_uri = input["artifact_uri"].as_str().unwrap().to_owned();
-                let result = self.artifacts.lock().unwrap()[&artifact_uri].clone();
-                (artifact_uri, result)
+                let reference = input["ref"].as_str().unwrap().to_owned();
+                let result = self.artifacts.lock().unwrap()[&reference].clone();
+                (reference, result)
             }
         };
         let owner = self
@@ -154,7 +154,7 @@ impl Provider {
             "status": "success",
             "provider": "runx-artifact",
             "operation": operation,
-            "target": artifact_uri,
+            "target": reference,
             "result": result,
             "transport": "hosted_loopback",
             "readback_uri": "runx:artifact-readback:1",
@@ -2881,13 +2881,23 @@ fn an_artifact_is_stored_for_the_signed_in_account_and_read_back() {
         JsonValue::String("local_artifact".to_owned())
     );
     let result = packet["result"].as_object().unwrap();
+    let artifact = result["artifact"].as_object().unwrap();
     assert_eq!(
         result["principal_uri"],
         JsonValue::String(PRINCIPAL_REF.to_owned())
     );
     assert_eq!(
-        result["content_digest"],
+        artifact["schema"],
+        JsonValue::String("runx.artifact.v1".to_owned())
+    );
+    assert_eq!(
+        artifact["digest"],
         JsonValue::String(runx_contracts::sha256_prefixed(br#"{"answer":42}"#))
+    );
+    assert_eq!(
+        artifact["labels"],
+        serde_json::from_value::<JsonValue>(serde_json::json!({"sharing": "configured_model"}))
+            .unwrap()
     );
     assert_eq!(
         dispatched.expect("dispatched").boundary,

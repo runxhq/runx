@@ -478,6 +478,49 @@ test("a test whose RUNX_CWD reached more than fixtures/ is refused", (t) => {
   assert.match(refusedElsewhere.out, /env\.RUNX_CWD is "\.\.\/\.\.": a test runs in the workspace the runtime makes/);
 });
 
+test("a by_size price names its artifact by a pointer at the reference its input held", (t) => {
+  const offer = (price) => `    offer:
+      price: ${price}
+      currency: USD
+      accepts: [x402]
+`;
+  const old = tree(t, {
+    "SKILL.md": manual("sizer"),
+    "run.yaml": `skill: sizer
+version: "0.1.0"
+runners:
+  transcribe:
+    inputs:
+      document: { type: json, required: true }
+${digestStep}marketplace:
+  offers:
+    transcribe:
+      price: { model: artifact_bytes, artifact_input: document, base_amount_minor: 25, unit_bytes: 1048576, unit_amount_minor: 5, max_bytes: 104857600 }
+      currency: USD
+      accepted_settlement_families: [x402]
+`,
+  });
+  const current = tree(t, {
+    "SKILL.md": manual("sizer"),
+    "run.yaml": `minimum_runx: 0.12.0
+methods:
+  transcribe:
+    inputs:
+      document: {}
+${digestStep}${offer("{ basis: by_size, input: document, base_amount_minor: 25, unit_bytes: 1048576, unit_amount_minor: 5, max_bytes: 104857600 }")}`,
+  });
+  const pointed = /price: \{basis: by_size, artifact: \{\$argument: \/document\/artifact_uri\}, base_amount_minor: 25,/;
+  for (const dir of [old, current]) {
+    const { status, out } = convert("--write", dir);
+    assert.equal(status, 0, out);
+    assert.match(read(dir, "run.yaml"), pointed);
+    assert.doesNotMatch(read(dir, "run.yaml"), /input: document|artifact_input/);
+    const again = convert("--write", dir);
+    assert.equal(again.status, 0, again.out);
+    assert.match(again.out, /already in the 0\.12 shape, 0 files changed/);
+  }
+});
+
 test("a converted package and connector convert again to themselves", (t) => {
   const dir = tree(t, payPackage({ "fixtures/reads-invoice.yaml": invoiceCase("  RUNX_CWD: .", "fixtures/support/invoice.txt") }));
   const connector = tree(t, {
