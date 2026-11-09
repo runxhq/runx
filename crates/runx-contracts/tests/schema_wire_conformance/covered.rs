@@ -10,7 +10,6 @@ use runx_contracts::host_protocol::{
     ApprovalGate, Question, ResolutionRequest, ResolutionResponse, TurnCallResult, TurnInvocation,
     TurnStatus,
 };
-use runx_contracts::ledger::LedgerEntry;
 use runx_contracts::list::RunxListReport;
 use runx_contracts::operational_policy::OperationalPolicy;
 use runx_contracts::operational_proposal::OperationalProposal;
@@ -189,11 +188,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "list.schema.json",
             emitted: RunxListReport::json_schema(),
             corpus: list_corpus(),
-        },
-        Covered {
-            file_name: "ledger-entry.schema.json",
-            emitted: LedgerEntry::json_schema(),
-            corpus: ledger_entry_corpus(),
         },
         Covered {
             file_name: "output.schema.json",

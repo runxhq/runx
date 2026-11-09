@@ -366,18 +366,6 @@ export {
   validateOperationalProposalContract,
 } from "./schemas/operational-proposal.js";
 
-export {
-  ledgerEntrySchemaVersion,
-  ledgerChainSchemaVersion,
-  ledgerDigestAlgorithm,
-  ledgerCanonicalization,
-  ledgerEntrySchema,
-  ledgerChainSchema,
-  ledgerPayloadSchema,
-  validateLedgerEntryContract,
-  validateLedgerPayloadContract,
-} from "./schemas/ledger.js";
-
 export { fixtureV1Schema } from "./schemas/fixture.js";
 
 export { toolManifestV1Schema } from "./schemas/tool-manifest.js";
@@ -490,7 +478,6 @@ export const runxContractSchemas = {
   signal: runxSchemaArtifacts["signal.schema.json"],
   decision: runxSchemaArtifacts["decision.schema.json"],
   artifact: runxSchemaArtifacts["artifact.schema.json"],
-  ledgerEntry: runxSchemaArtifacts["ledger-entry.schema.json"],
   operationalPolicy: runxSchemaArtifacts["operational-policy.schema.json"],
   operationalProposal: runxSchemaArtifacts["operational-proposal.schema.json"],
   externalJobContinuation: externalJobContinuationV1Schema,

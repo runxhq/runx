@@ -9,7 +9,6 @@ import {
   storeResultV1Schema,
   doctorV1Schema,
   fixtureV1Schema,
-  ledgerEntrySchema,
   listV1Schema,
   outputSchema,
   packetLockV1Schema,
@@ -74,7 +73,6 @@ describe("@runxhq/contracts", () => {
     expect(fixtureV1Schema).toBe(runxContractSchemas.fixture);
     expect(packetLockV1Schema).toBe(runxContractSchemas.packetLock);
     expect(actAssignmentV1Schema).toBe(runxContractSchemas.actAssignment);
-    expect(ledgerEntrySchema).toBe(runxContractSchemas.ledgerEntry);
   });
 
   it("keeps fixture lanes aligned with authoring plan", () => {

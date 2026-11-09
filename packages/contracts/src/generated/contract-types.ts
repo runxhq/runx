@@ -1622,56 +1622,6 @@ export type LeaseTakeContract = {
   readonly target: unknown;
 };
 
-export type LedgerCanonicalizationContract = "runx.stable-json.v1";
-
-export type LedgerChainContract = {
-  readonly algorithm: DigestAlgorithmContract;
-  readonly canonicalization: LedgerCanonicalizationContract;
-  readonly entry_digest: string;
-  readonly index: number;
-  readonly previous_digest: string | null;
-  readonly version: LedgerChainVersionContract;
-};
-
-export type LedgerChainVersionContract = "runx.ledger.chain.v1";
-
-export type LedgerEntryContract = {
-  readonly chain: LedgerChainContract;
-  readonly entry: LedgerPayloadContract;
-  readonly schema_version: LedgerEntrySchemaVersionContract;
-};
-
-export type LedgerEntryMetaContract = {
-  readonly artifact_id: string;
-  readonly created_at: string;
-  readonly digest: string;
-  readonly parent_artifact_id: string | null;
-  readonly producer: LedgerProducerContract;
-  readonly receipt_id: string | null;
-  readonly redacted: boolean;
-  readonly run_id: string;
-  readonly size_bytes: number;
-  readonly step_id: string | null;
-};
-
-export type LedgerEntrySchemaVersionContract = "runx.ledger.entry.v1";
-
-export type LedgerPayloadContract = {
-  readonly data: {
-    readonly [key: string]: unknown;
-  };
-  readonly meta: LedgerEntryMetaContract;
-  readonly type: string | null;
-  readonly version: LedgerPayloadVersionContract;
-};
-
-export type LedgerPayloadVersionContract = "1";
-
-export type LedgerProducerContract = {
-  readonly method: string;
-  readonly skill: string;
-};
-
 /** What runx committed of a receipt's place among others. */
 export type LineageContract = {
   /** The receipts of the subject's direct children, each committed by its id and signed-body digest. */
