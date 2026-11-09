@@ -253,7 +253,7 @@ grant through the host, so it must bind the connector's exact revision, be
 active and be held by the run's principal; the host names it and never asserts
 what it covers. A stated grant stands only for a hosted placement, and a
 different instance selected for the same connector is refused, never chosen.
-`runx skill inspect <skill> <method> --run-authority` projects readiness under
+`runx skill inspect <skill>#<method> --run-authority` projects readiness under
 the same statement, so a host knows whether a run can be admitted before it
 starts one.
 

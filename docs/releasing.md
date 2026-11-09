@@ -207,7 +207,7 @@ node scripts/check-runx-cli-release-notes.mjs --version X.Y.Z
 # 2. On a clean OSS main commit, run the project-owned profile through the
 #    canonical governed release lane. This prepares, obtains approval for, and
 #    pushes the exact tag, then independently verifies every required channel.
-runx skill skills/release release \
+runx skill skills/release#release \
   -i project_root=. \
   -i profile_ref=release/runx-cli.json \
   -i channel=runx-cli \

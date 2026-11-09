@@ -112,7 +112,7 @@ runx verify <receipt-id> --json
 
 ## Next
 
-- Use `runx skill runx/skill-build build -i objective="Create a bounded
+- Use `runx skill runx/skill-build#build -i objective="Create a bounded
   documentation decision skill" -i target_dir=skills/docs-demo` to author a
   skill. Runx inspects the catalog, returns an exact agent/resume handoff
   unless `--drive` was explicitly authorized, and writes only the

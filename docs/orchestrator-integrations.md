@@ -26,7 +26,7 @@ The local CLI is the reference implementation for self-hosted orchestrators and
 operator dogfood. It should feel direct, literal, and governed:
 
 ```bash
-runx skill nws-weather forecast \
+runx skill nws-weather#forecast \
   -i office=LWX \
   -i grid_x=97 \
   -i grid_y=71
@@ -40,7 +40,7 @@ Operator rules:
   string as written, any other type as JSON. `--inputs file|-` gives the whole
   input object instead. A flag runx does not own is refused, never read as an
   input.
-- `runx skill <skill> <method>` selects a non-default method without changing the skill
+- `runx skill <skill>#<method>` selects a non-default method without changing the skill
   package.
 - `--json` prints the full machine contract. Without `--json`, the CLI prints a
   concise status view with run id, receipt id, and pending request ids rather

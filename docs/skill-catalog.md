@@ -253,7 +253,7 @@ package, test, and evidence without separating it from repo history.
 Most new skills should start outside the first-party repo:
 
 ```bash
-runx skill runx/skill-build build -i objective="Describe the bounded operator outcome" -i target_dir=<skill-name>
+runx skill runx/skill-build#build -i objective="Describe the bounded operator outcome" -i target_dir=<skill-name>
 runx test ./<skill-name> --json
 runx login --for publish
 runx registry publish ./<skill-name>/SKILL.md

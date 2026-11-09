@@ -77,11 +77,11 @@ Run the declared method through runx; do not bypass it by independently reproduc
 Inspect the exact input and effect contract on demand:
 
 ```bash
-/path/to/runx skill inspect /path/to/skills/pay pay --json
+/path/to/runx skill inspect /path/to/skills/pay#pay --json
 ```
 
 ```bash
-printf '%s' "$RUNX_INPUTS_JSON" | /path/to/runx skill /path/to/skills/pay pay \
+printf '%s' "$RUNX_INPUTS_JSON" | /path/to/runx skill /path/to/skills/pay#pay \
   --inputs - \
   --act "$RUNX_ACT_JSON" \
   --package-digest sha256:<package> \

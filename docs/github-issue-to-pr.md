@@ -77,7 +77,7 @@ runx skill skills/github-issue-to-pr \
 Run from previously captured evidence by passing a JSON input document:
 
 ```bash
-runx skill skills/github-issue-to-pr resume \
+runx skill skills/github-issue-to-pr#resume \
   --inputs .runx/github-issue-to-pr/resume.json
 ```
 

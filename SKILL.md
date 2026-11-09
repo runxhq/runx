@@ -95,9 +95,9 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      authority, forged receipts, or bypassing an approval.
 
 5. **Run the skill**
-   - Inspect the selected method with `runx skill inspect <skill> [method] --json`.
+   - Inspect the selected method with `runx skill inspect <skill>[#<method>] --json`.
      Build one input object from the user's actual task, matching `input_schema`,
-     and pipe it to `runx skill <skill> [method] --inputs - --json`. An exported
+     and pipe it to `runx skill <skill>[#<method>] --inputs - --json`. An exported
      binding supplies the exact package and execution-closure digests; retain them.
    - State the requested purpose with `--act '<json act with purpose>'`.
      Preserve nested input types. Test examples are test data, not the user's job.

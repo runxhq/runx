@@ -515,7 +515,7 @@ Keep a skill in your project, adapt an existing package, or publish it for
 others to compose. Start an authoring run with:
 
 ```bash
-runx skill runx/skill-build build \
+runx skill runx/skill-build#build \
   -i objective="Review a release and prepare its customer announcement" \
   -i target_dir=skills/launch-review
 ```
@@ -551,7 +551,7 @@ human decisions, resume the run, and inspect its receipts.
 
 | Surface | Entry point |
 | --- | --- |
-| CLI | `runx skill <skill-ref> [method] -i key=value --json` — [reference](docs/reference.md#local-cli). |
+| CLI | `runx skill <skill-ref>[#<method>] -i key=value --json` — [reference](docs/reference.md#local-cli). |
 | MCP | `runx mcp <skill-ref>` to expose a skill; `runx mcp --run <run-id>` to work an existing run. |
 | TypeScript / Node.js | [`@runxhq/client`](packages/client/README.md), with explicit workspace and environment configuration. |
 | Python | [Python SDK](packages/sdk-python/README.md). |
