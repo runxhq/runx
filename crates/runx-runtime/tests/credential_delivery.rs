@@ -213,7 +213,7 @@ fn process_tool() -> ProcessTool {
             "printf '\"%s\"\\n' \"$GITHUB_TOKEN\"".to_owned(),
         ],
         cwd: None,
-        timeout_seconds: Some(5),
+        timeout_seconds: None,
         inputs_via: None,
         environment: Default::default(),
     }

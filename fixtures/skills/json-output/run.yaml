@@ -20,7 +20,7 @@ methods:
         optional: true
     steps:
       - id: default
-        tool: {command: sh, args: [./run.sh], timeout_seconds: 10}
+        tool: {command: sh, args: [./run.sh]}
         inputs:
           message: $input.message
           recommendation: $input.recommendation

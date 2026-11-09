@@ -538,7 +538,7 @@ methods:
         outputs:
           approved: {type: boolean}
       - id: probe
-        tool: {command: sh, args: ["-c", 'payload="$(cat)"; if test -z "$payload"; then echo missing-stdin >&2; exit 9; elif test -z "$RESUME_PROBE_TOKEN"; then echo missing-probe >&2; exit 10; elif test "$RESUME_PROBE_TOKEN" != "after-resume"; then echo stale-probe >&2; exit 11; fi'], timeout_seconds: 5, inputs_via: stdin, environment: {required: [RESUME_PROBE_TOKEN]}}
+        tool: {command: sh, args: ["-c", 'payload="$(cat)"; if test -z "$payload"; then echo missing-stdin >&2; exit 9; elif test -z "$RESUME_PROBE_TOKEN"; then echo missing-probe >&2; exit 10; elif test "$RESUME_PROBE_TOKEN" != "after-resume"; then echo stale-probe >&2; exit 11; fi'], inputs_via: stdin, environment: {required: [RESUME_PROBE_TOKEN]}}
 "#,
     )?;
     Ok(skill_dir)

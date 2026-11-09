@@ -1252,7 +1252,7 @@ methods:
                     encoded,
                 ],
                 cwd: None,
-                timeout_seconds: Some(5),
+                timeout_seconds: None,
                 inputs_via: None,
                 environment: Default::default(),
             }),

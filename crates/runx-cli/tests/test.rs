@@ -435,7 +435,7 @@ methods:
   default:
     steps:
       - id: default
-        tool: {command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5}
+        tool: {command: sh, args: [-c, 'printf "{\"ok\":true}"']}
         outputs:
           ok: {type: boolean}
 "#,
@@ -487,7 +487,7 @@ methods:
     result_from: [run]
     steps:
       - id: run
-        tool: {command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5}
+        tool: {command: sh, args: [-c, 'printf "{\"ok\":true}"']}
         outputs:
           ok: {type: boolean}
 "#,
