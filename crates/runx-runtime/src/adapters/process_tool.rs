@@ -55,6 +55,7 @@ impl ProcessToolAdapter {
         for (name, value) in credential_delivery.secret_env().iter() {
             process.env.insert(name.to_owned(), value.to_owned());
         }
+        let timeout = process_timeout(tool.timeout_seconds);
         let started = Instant::now();
         let outcome = match run_process(
             ProcessSpec::new("process", process.command, output_limit_bytes)
@@ -62,7 +63,7 @@ impl ProcessToolAdapter {
                 .cwd(process.cwd)
                 .env(process.env)
                 .stdin(stdin)
-                .timeout(Some(process_timeout(tool.timeout_seconds)))
+                .timeout(Some(timeout))
                 .cleanup_paths(process.cleanup_paths),
         ) {
             Ok(outcome) => outcome,
@@ -91,6 +92,7 @@ impl ProcessToolAdapter {
             &credential_delivery,
             process.boundary,
             output_limit_bytes,
+            timeout,
         ))
     }
 }
@@ -150,12 +152,13 @@ fn process_output(
     credential_delivery: &CredentialDelivery,
     boundary: ExecutionBoundaryKind,
     output_limit_bytes: usize,
+    timeout: Duration,
 ) -> InvocationOutput {
     let stdout = redacted_capture(outcome.stdout, credential_delivery, output_limit_bytes);
     let stderr = redacted_capture(outcome.stderr, credential_delivery, output_limit_bytes);
     let output_truncated = stdout.truncated || stderr.truncated;
     let success = outcome.status.success() && !outcome.timed_out && !output_truncated;
-    let (stdout, stderr) = if output_truncated {
+    let (stdout, mut stderr) = if output_truncated {
         (
             String::new(),
             format!(
@@ -165,6 +168,19 @@ fn process_output(
     } else {
         (stdout.text, stderr.text)
     };
+    // A process runx stopped didn't fail by itself: its failure names the
+    // limit that stopped it.
+    if outcome.timed_out {
+        let stopped = format!(
+            "runx stopped the process at its {} s timeout",
+            timeout.as_secs()
+        );
+        stderr = if stderr.trim().is_empty() {
+            stopped
+        } else {
+            format!("{}\n{stopped}", stderr.trim_end())
+        };
+    }
     AdapterProjection::from_duration_ms(outcome.duration_ms).process_output(
         if success {
             InvocationStatus::Success

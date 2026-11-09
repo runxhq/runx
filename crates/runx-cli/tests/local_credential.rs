@@ -6,7 +6,6 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -313,31 +312,35 @@ fn resume_loads_workspace_env_from_discovered_project_root()
     Ok(())
 }
 
+#[cfg(unix)]
 #[test]
 fn inline_workflow_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn std::error::Error>>
 {
     let temp = crate::support::temp_root("runx-cli-inline-workflow-timeout");
     fs::create_dir_all(&temp)?;
-    let skill_dir = write_inline_workflow_timeout_skill(&temp)?;
+    // The step waits on a gate nothing opens, so only a timeout ends it, and
+    // its failure names the timeout that did: its own, not the default.
+    let gate = temp.join("gate");
+    let made = std::process::Command::new("mkfifo").arg(&gate).status()?;
+    assert!(made.success(), "mkfifo {}", gate.display());
+    let skill_dir = write_inline_workflow_timeout_skill(&temp, &gate)?;
 
-    let started = Instant::now();
     let output = native_command()?
         .current_dir(&temp)
         .arg("skill")
         .arg(&skill_dir)
         .arg("--json")
         .output()?;
-    let elapsed = started.elapsed();
     let stdout = String::from_utf8(output.stdout)?;
     let stderr = String::from_utf8(output.stderr)?;
 
     assert!(
-        elapsed < Duration::from_secs(4),
-        "inline workflow ignored its one-second timeout and ran for {elapsed:?}"
-    );
-    assert!(
         !output.status.success(),
         "timed-out inline workflow unexpectedly succeeded: {stderr}\n{stdout}"
+    );
+    assert!(
+        stdout.contains("runx stopped the process at its 1 s timeout"),
+        "inline workflow ignored its one-second timeout: {stdout}"
     );
     Ok(())
 }
@@ -541,25 +544,31 @@ methods:
     Ok(skill_dir)
 }
 
-fn write_inline_workflow_timeout_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn write_inline_workflow_timeout_skill(
+    root: &Path,
+    gate: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("inline-workflow-timeout");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
         "---\nname: inline-workflow-timeout\ndescription: inline-workflow-timeout fixture.\n---\n# Inline Graph Timeout\n",
     )?;
+    let wait = serde_json::to_string(&format!("read go < '{}'", gate.display()))?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"
+        format!(
+            r#"
 minimum_runx: 0.12.0
 methods:
   timeout:
     steps:
       - id: timeout
-        tool: {command: sh, args: ["-c", "sleep 5"], timeout_seconds: 1}
+        tool: {{command: sh, args: ["-c", {wait}], timeout_seconds: 1}}
         outputs:
-          slept: {type: boolean}
-"#,
+          slept: {{type: boolean}}
+"#
+        ),
     )?;
     Ok(skill_dir)
 }
