@@ -14,6 +14,7 @@ use crate::protocol::{InvocationLimits, WorkerFailureCode};
 
 mod globals;
 mod jobs;
+pub(crate) mod script;
 mod validation;
 
 use jobs::BoundedJobExecutor;

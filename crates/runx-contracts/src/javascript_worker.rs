@@ -113,11 +113,114 @@ pub struct WorkerInvocationRequest {
     pub limits: InvocationLimits,
 }
 
+/// One pass of a script step: its module run from the beginning against
+/// what its calls settled, delivered one at a time in the order they settled.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptPassRequest {
+    pub protocol_version: u16,
+    pub invocation_id: String,
+    pub entry_module: String,
+    pub export_name: String,
+    pub modules: BTreeMap<String, String>,
+    pub inputs: serde_json::Value,
+    pub limits: InvocationLimits,
+    /// What the script's calls settled to, in the order they settled.
+    pub settled: Vec<ScriptSettlement>,
+    /// What a `ctx.now()` the record doesn't hold yet reads: milliseconds
+    /// since the epoch.
+    pub now: i64,
+}
+
+/// How the call at `position` settled.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptSettlement {
+    pub position: u32,
+    pub outcome: ScriptCallOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ScriptCallOutcome {
+    /// The call returned `value`.
+    Resolved { value: serde_json::Value },
+    /// The call didn't succeed: the script's promise rejects with
+    /// `{ reason, code, message }`.
+    Rejected {
+        reason: ScriptRejection,
+        code: String,
+        message: String,
+    },
+    /// What `ctx.now()` read at this position.
+    Now { millis: i64 },
+}
+
+/// Why a call rejected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScriptRejection {
+    /// Admission refused it: authority, `calls`, the spending limit, depth.
+    Refused,
+    /// It ran and failed.
+    Failed,
+    /// A person declined its approval.
+    Declined,
+}
+
+/// A call a script made, at its position in the step.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptCall {
+    pub position: u32,
+    pub target: ScriptCallTarget,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ScriptCallTarget {
+    /// `ctx.skill(reference, inputs)`: a method, `skill#method`, as a child run.
+    Skill {
+        reference: String,
+        inputs: serde_json::Value,
+    },
+    /// `ctx.tool(name, inputs)`: a catalog tool.
+    Tool {
+        name: String,
+        inputs: serde_json::Value,
+    },
+    /// `ctx.operation("<connector>/<operation>", inputs, { idempotency_key })`.
+    Operation {
+        operation: String,
+        inputs: serde_json::Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        idempotency_key: Option<String>,
+    },
+    /// `ctx.now()`, and what it read.
+    Now { millis: i64 },
+}
+
+/// How a pass ended.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ScriptEnding {
+    /// The function returned `output`.
+    Returned { output: serde_json::Value },
+    /// The function threw, or its promise rejected.
+    Threw { message: String },
+    /// The function waits on calls that haven't settled.
+    Waiting,
+    /// A recorded settlement names a position the script didn't call: replay
+    /// went another way, and nothing may act on it.
+    Diverged { position: u32 },
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerRequest {
     Hello { protocol_version: u16 },
     Invoke(Box<WorkerInvocationRequest>),
+    Pass(Box<ScriptPassRequest>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -130,6 +233,14 @@ pub enum WorkerResponse {
         protocol_version: u16,
         invocation_id: String,
         output: serde_json::Value,
+    },
+    /// A script pass: every call it made, in position order, and how it
+    /// ended.
+    Passed {
+        protocol_version: u16,
+        invocation_id: String,
+        calls: Vec<ScriptCall>,
+        ending: ScriptEnding,
     },
     Failure {
         protocol_version: u16,

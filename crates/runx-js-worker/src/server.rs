@@ -3,10 +3,11 @@ use std::thread;
 
 use thiserror::Error;
 
-use crate::engine::{EngineError, evaluate};
+use crate::engine::{EngineError, evaluate, script};
 use crate::protocol::{
-    JAVASCRIPT_STACK_BYTES, MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, WorkerFailureCode,
-    WorkerFate, WorkerInvocationRequest, WorkerRequest, WorkerResponse, read_frame, write_frame,
+    JAVASCRIPT_STACK_BYTES, MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, ScriptPassRequest,
+    WorkerFailureCode, WorkerFate, WorkerInvocationRequest, WorkerRequest, WorkerResponse,
+    read_frame, write_frame,
 };
 
 #[derive(Debug, Error)]
@@ -57,15 +58,33 @@ pub fn serve() -> Result<(), WorkerServerError> {
         }
     }
     while let Some(request) = read_frame::<WorkerRequest>(&mut reader, MAX_FRAME_BYTES)? {
-        let WorkerRequest::Invoke(request) = request else {
-            send_failure(
-                &mut writer,
-                None,
-                WorkerFailureCode::InvalidProtocol,
-                "worker handshake may occur only once",
-                WorkerFate::Discard,
-            )?;
-            break;
+        let request = match request {
+            WorkerRequest::Invoke(request) => request,
+            WorkerRequest::Pass(request) => {
+                if request.protocol_version != PROTOCOL_VERSION {
+                    send_failure(
+                        &mut writer,
+                        Some(request.invocation_id),
+                        WorkerFailureCode::InvalidProtocol,
+                        "worker invocation protocol mismatch",
+                        WorkerFate::Discard,
+                    )?;
+                    break;
+                }
+                let response = on_invocation_thread(move || script_pass(*request))?;
+                write_frame(&mut writer, &response, MAX_FRAME_BYTES)?;
+                continue;
+            }
+            WorkerRequest::Hello { .. } => {
+                send_failure(
+                    &mut writer,
+                    None,
+                    WorkerFailureCode::InvalidProtocol,
+                    "worker handshake may occur only once",
+                    WorkerFate::Discard,
+                )?;
+                break;
+            }
         };
         let WorkerInvocationRequest {
             protocol_version,
@@ -88,37 +107,75 @@ pub fn serve() -> Result<(), WorkerServerError> {
             break;
         }
 
-        // This thread exists solely to give Boa the bounded 4 MiB stack that
-        // the process main thread cannot acquire retroactively. The immediate
-        // join is intentional: one worker process executes one invocation.
-        let evaluation = thread::Builder::new()
-            .name("runx-js-invocation".to_owned())
-            .stack_size(JAVASCRIPT_STACK_BYTES)
-            .spawn(move || {
-                match evaluate(
-                    &entry_module,
-                    &export_name,
-                    &modules,
-                    inputs,
-                    environment,
-                    limits,
-                ) {
-                    Ok(output) => WorkerResponse::Result {
-                        protocol_version: PROTOCOL_VERSION,
-                        invocation_id,
-                        output,
-                    },
-                    Err(error) => engine_failure(invocation_id, &error),
-                }
-            })
-            .map_err(WorkerServerError::Thread)?;
-        let response = evaluation
-            .join()
-            .map_err(|_| WorkerServerError::InvocationThreadPanicked)?;
+        let response = on_invocation_thread(move || {
+            match evaluate(
+                &entry_module,
+                &export_name,
+                &modules,
+                inputs,
+                environment,
+                limits,
+            ) {
+                Ok(output) => WorkerResponse::Result {
+                    protocol_version: PROTOCOL_VERSION,
+                    invocation_id,
+                    output,
+                },
+                Err(error) => engine_failure(invocation_id, &error),
+            }
+        })?;
         write_frame(&mut writer, &response, MAX_FRAME_BYTES)?;
     }
 
     Ok(())
+}
+
+/// Run `work` on a thread of its own. The thread exists solely to give Boa
+/// the bounded 4 MiB stack that the process main thread cannot acquire
+/// retroactively; the immediate join is intentional, since one worker
+/// process executes one invocation at a time.
+fn on_invocation_thread(
+    work: impl FnOnce() -> WorkerResponse + Send + 'static,
+) -> Result<WorkerResponse, WorkerServerError> {
+    thread::Builder::new()
+        .name("runx-js-invocation".to_owned())
+        .stack_size(JAVASCRIPT_STACK_BYTES)
+        .spawn(work)
+        .map_err(WorkerServerError::Thread)?
+        .join()
+        .map_err(|_| WorkerServerError::InvocationThreadPanicked)
+}
+
+/// One script pass, answered with the calls it made and how it ended.
+fn script_pass(request: ScriptPassRequest) -> WorkerResponse {
+    let ScriptPassRequest {
+        protocol_version: _,
+        invocation_id,
+        entry_module,
+        export_name,
+        modules,
+        inputs,
+        limits,
+        settled,
+        now,
+    } = request;
+    match script::pass(script::ScriptPass {
+        entry_module: &entry_module,
+        export_name: &export_name,
+        modules: &modules,
+        inputs,
+        limits,
+        settled: &settled,
+        now,
+    }) {
+        Ok(passed) => WorkerResponse::Passed {
+            protocol_version: PROTOCOL_VERSION,
+            invocation_id,
+            calls: passed.calls,
+            ending: passed.ending,
+        },
+        Err(error) => engine_failure(invocation_id, &error),
+    }
 }
 
 fn engine_failure(invocation_id: String, error: &EngineError) -> WorkerResponse {

@@ -2774,6 +2774,7 @@ name = "runx-js-worker"
 version = "0.1.0"
 dependencies = [
  "boa_engine",
+ "boa_gc",
  "cap",
  "futures-lite",
  "rlimit",
