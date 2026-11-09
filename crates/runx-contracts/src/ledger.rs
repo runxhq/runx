@@ -77,7 +77,7 @@ pub struct LedgerChain {
 #[serde(deny_unknown_fields)]
 pub struct LedgerProducer {
     pub skill: NonEmptyString,
-    pub runner: NonEmptyString,
+    pub method: NonEmptyString,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

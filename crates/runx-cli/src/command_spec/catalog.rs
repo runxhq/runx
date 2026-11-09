@@ -77,7 +77,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "resume",
         top_level_usage: &[],
         usage: &[
-            "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--managed-agent [--managed-agent-rounds n]] [--diagnostics] [-j|--json]",
+            "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
         ],
         notes: &[
             crate::resume::ANSWER_DOCUMENT_EXAMPLE,
@@ -87,8 +87,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &[
             "-R, --receipt-dir dir",
             "--receipt-dir dir",
-            "--managed-agent  Explicitly allow an in-process model loop for this continuation",
-            "--managed-agent-rounds n  Bound each managed act to 1-32 rounds (default 4)",
+            "--drive  Explicitly allow an in-process model loop for this continuation",
+            "--drive-rounds n  Bound each managed act to 1-32 rounds (default 4)",
             "--package-digest sha256   Reassert the checkpointed package binding",
             "--execution-closure-digest sha256",
             "                          Reassert the checkpointed execution closure",
@@ -246,7 +246,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
             "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
         ],
         notes: &[
@@ -257,11 +257,11 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
             "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and money limit",
-            "--max-cost usd           Bound the root run's operation quotes and moved USD/USDC amounts. Calls without a USD quote, or over what remains, are refused before dispatch (cost_limit_exceeded); an absent quote never means free",
+            "--max-spend usd           Bound the root run's operation quotes and moved USD/USDC amounts. Calls without a USD quote, or over what remains, are refused before dispatch (cost_limit_exceeded); an absent quote never means free",
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
-            "--managed-agent          Explicitly allow an in-process model loop for this run",
-            "--managed-agent-rounds n Bound each managed act to 1-32 rounds (default 4)",
+            "--drive          Explicitly allow an in-process model loop for this run",
+            "--drive-rounds n Bound each managed act to 1-32 rounds (default 4)",
             "-R, --receipt-dir dir    Write receipts under dir",
             "-j, --json               Print machine-readable output",
             "--diagnostics            Show everything: the complete prepared context before the run, and its trace and intermediate context inline",

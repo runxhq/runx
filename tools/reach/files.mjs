@@ -114,7 +114,7 @@ for (const file of tracked) {
   for (const m of text.matchAll(/\b(?:pnpm|npm run|pnpm run|yarn)\s+(?:-[a-zA-Z-]+\s+)*([a-z][a-z0-9:_-]*)/g)) add(file, `package.json#${m[1]}`);
 }
 // Each package.json script is its own node, reached only when something runs it by name:
-// in a command, or as a quoted name a runner script holds in a list.
+// in a command, or as a quoted name a method script holds in a list.
 const scriptNodes = [];
 {
   const manifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));

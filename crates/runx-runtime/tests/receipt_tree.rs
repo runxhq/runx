@@ -367,7 +367,7 @@ fn step_run(
         step_id: step_id.to_owned(),
         attempt: 1,
         skill: step_id.to_owned(),
-        runner: None,
+        method: None,
         contract: JsonObject::new(),
         artifact_outputs: Default::default(),
         ephemeral_contract: EphemeralValue::default(),

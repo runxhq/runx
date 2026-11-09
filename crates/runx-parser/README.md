@@ -8,11 +8,11 @@ The implementation covers:
 
 - execution graphs
 - skill markdown frontmatter and body preservation
-- runner manifests and harness cases
+- method manifests and test cases
 - tool manifests from YAML and JSON
 - skill install envelopes
 - aggregate validated skill packages, including manuals, executable bundles,
-  references, digests, and harness definitions
+  references, digests, and test definitions
 
 The crate intentionally stays pure: it parses and validates typed intermediate
 representations, uses `runx_contracts::JsonValue` and the

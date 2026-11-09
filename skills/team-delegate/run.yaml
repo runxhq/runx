@@ -13,7 +13,7 @@ methods:
         maxLength: 10000
       roster:
         type: array
-        description: Operator-selected members and exact skill/runner targets. Scope ceilings are planning limits, never grants.
+        description: Operator-selected members and exact skill/method targets. Scope ceilings are planning limits, never grants.
         minItems: 1
         maxItems: 20
         items:
@@ -21,7 +21,7 @@ methods:
           required:
             - member
             - skill
-            - runner
+            - method
             - scope_ceiling
             - capabilities
           additionalProperties: false
@@ -34,7 +34,7 @@ methods:
               type: string
               minLength: 1
               maxLength: 1000
-            runner:
+            method:
               type: string
               minLength: 1
               maxLength: 200
@@ -80,7 +80,7 @@ methods:
         roster:
           - member: support-agent
             skill: support-triage
-            runner: triage
+            method: triage
             scope_ceiling:
               - read customer tickets
             capabilities: Reads support tickets and drafts unsent replies.

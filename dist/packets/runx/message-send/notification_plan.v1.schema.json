@@ -51,7 +51,7 @@
       "type": "object",
       "properties": {
         "skill": { "const": "message-send" },
-        "runner": { "const": "post" },
+        "method": { "const": "post" },
         "state": { "const": "ready_for_approval" }
       },
       "additionalProperties": false
@@ -86,7 +86,7 @@
           "channel": { "minLength": 1 },
           "content_uri": { "minLength": 1 },
           "content_digest": { "pattern": "^sha256:[0-9a-f]{64}$" },
-          "downstream_handoff": { "required": ["skill", "runner", "state"] },
+          "downstream_handoff": { "required": ["skill", "method", "state"] },
           "validation": { "properties": { "status": { "const": "pass" } } }
         }
       },

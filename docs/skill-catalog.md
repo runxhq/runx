@@ -56,7 +56,7 @@ packages and their packet contracts are checked at registry publication; their
 local product tests remain available through `pnpm test:product`. The repository-wide
 packet generator remains a local catalog-maintenance command, not a core CI gate.
 Core public contracts are checked from Rust and bundled skill packages retain
-their native package, schema and harness proofs.
+their native package, schema and test proofs.
 
 The names above describe the maintained source. Registry availability and the
 CLI packaging cutover require separate verification; this list is not a claim
@@ -110,7 +110,7 @@ verifies.
 
 A public package has one memorable capability name and two supported invocation
 contexts. Direct use selects the truthful default described by its exact
-`SKILL.md`; a parent graph selects an exact named runner and passes typed prior
+`SKILL.md`; a parent graph selects an exact named method and passes typed prior
 results. Runx binds both the injected manual bytes and executable closure by
 digest, so a host cannot silently operate from instructions that disagree with
 the installed package.
@@ -121,7 +121,7 @@ Defaults follow the public promise:
   through its real boundary or returns one honest, resumable blocker;
 - a skill whose name promises a plan, draft, brief, review, or route returns
   that typed artifact without pretending an external effect occurred;
-- explicit `plan`, `inspect`, `apply`, and `verify` runners remain available for
+- explicit `plan`, `inspect`, `apply`, and `verify` methods remain available for
   composed use and do not compete as separate public skills;
 - normal output contains one compact domain result and receipt references;
   intermediate graph context is available only with diagnostics.
@@ -135,20 +135,20 @@ independent readback regardless of transport. A skill adds one exact resumable
 human approval only when the action itself warrants that extra decision.
 
 Changing an implicit default is a versioned behavior change, not an immediate
-release. Callers that need plan-only behavior select the named `plan` runner;
+release. Callers that need plan-only behavior select the named `plan` method;
 unqualified invocation follows the advertised default. Publication and deployment remain separate
 operator decisions.
 
 Registry package admission requires an executable cold-selection
 journey with at least two real public confusors, a standalone journey through
-the actual default runner, and a composed journey that reuses named prior
+the actual default method, and a composed journey that reuses named prior
 evidence without repeating completed work. The native semantic report owns
 only those operator-readiness facts. The separate native execution closure is
-the source of truth for resolved runners, tools, package bindings, and
+the source of truth for resolved methods, tools, package bindings, and
 unresolved edges; authoring and review compare catalog promises with that
-closure instead of guessing effects from runner or tool names. Internal rails
-and harness fixtures remain executable through explicit identities but are
-excluded from normal discovery. Deterministic harness replay and separately
+closure instead of guessing effects from method or tool names. Internal rails
+and test fixtures remain executable through explicit identities but are
+excluded from normal discovery. Deterministic test replay and separately
 identified live-provider evidence remain distinct proof levels.
 
 ## Naming a skill
@@ -165,7 +165,7 @@ Name a skill so an agent instinctively reaches for the right one:
   drops go in the `description`.
 
 Renaming an existing skill is a `git mv`, a token sweep, and a regenerate
-(`packets:collect`) plus `verify:fast` and the harness. The registry knows the
+(`packets:collect`) plus `verify:fast` and the test. The registry knows the
 renamed skill once it is published under its new name.
 
 ## Canonical category slugs
@@ -184,7 +184,7 @@ registry owns the final facet shown on `runx.ai/x`.
 | `security` | SECURITY | Risk and trust: vulnerability scans, advisories, audits, and compliance. |
 | `ops` | OPS | Running systems: deploy, monitor, incident, infra, triage, and intake. |
 | `growth` | GROWTH | Go-to-market: sales, outreach, CRM, SEO, and campaigns. |
-| `authoring` | AUTHORING | Skill building: design, harness, evaluation, improvement, and registry trust. |
+| `authoring` | AUTHORING | Skill building: design, test, evaluation, improvement, and registry trust. |
 
 `authoring` is a builder-surface category. It is reachable in the catalog and
 API, but buyer-facing homepage rows can omit it to keep product discovery
@@ -209,7 +209,7 @@ evidence, not copied into the repo by default.
 | `research` | `research-brief`, `research`, `web-search` |
 | `security` | `cve-audit`, `sbom-generate`, `vuln-triage`, `privacy-request-review`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
 
-Graph stages, harness fixtures, context-only packages, and provider bindings are
+Graph stages, test fixtures, context-only packages, and provider bindings are
 not listed here unless they are meant to be run as catalog packages. Their
 ownership lives with the parent skill or binding metadata.
 
@@ -219,7 +219,7 @@ Before opening a new first-party skill PR, do the overlap check in public:
 
 1. Search the live catalog by name, category, and capability words.
 2. Read the closest first-party and verified community packages.
-3. Search open PRs and issues for the same category and runner shape.
+3. Search open PRs and issues for the same category and method shape.
 4. Decide whether the work is a new skill, an improvement to an existing skill,
    a graph composition, or a community package that does not belong in the
    first-party repo.
@@ -239,14 +239,14 @@ A strong proposal answers:
 - Which existing packages did you compare against?
 - Why is this a new first-party package rather than a community registry
   package, graph composition, or patch to an existing skill?
-- What runner files, `SKILL.md`, `run.yaml`, fixtures, harness evidence, receipt,
+- What method files, `SKILL.md`, `run.yaml`, fixtures, test evidence, receipt,
   and public registry URL prove it works?
 - What authority, network, filesystem, provider, or spend boundaries does the
   execution profile declare?
 
 Do not bundle unrelated CLI, runtime, docs, or release changes into a skill PR.
 A first-party skill PR should be narrow enough that a maintainer can review the
-package, harness, and evidence without separating it from repo history.
+package, test, and evidence without separating it from repo history.
 
 ## When a community package is enough
 
@@ -254,7 +254,7 @@ Most new skills should start outside the first-party repo:
 
 ```bash
 runx skill runx/skill-build build -i objective="Describe the bounded operator outcome" -i target_dir=<skill-name>
-runx harness ./<skill-name> --json
+runx test ./<skill-name> --json
 runx login --for publish
 runx registry publish ./<skill-name>/SKILL.md
 ```

@@ -191,7 +191,7 @@ pub(crate) fn provider_refused(status: u16, body: &str, key: Option<&str>) -> Ru
 /// records it; tests supply a fake.
 pub trait ToolExecutor {
     /// The tools the model is offered on its next round. A call can change
-    /// them (a load binds a runner), so the loop reads them every round.
+    /// them (a load binds a method), so the loop reads them every round.
     fn tools(&self) -> &AgentToolNameMap;
 
     /// Return the canonical name this executor would admit for execution.

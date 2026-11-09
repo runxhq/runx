@@ -141,7 +141,7 @@ struct TurnCalls<'a> {
 }
 
 impl TurnCalls<'_> {
-    /// Read the turn's tools again. A load adds the runners it binds, which
+    /// Read the turn's tools again. A load adds the methods it binds, which
     /// the model calls from its next round.
     fn refresh(&mut self) -> Result<(), RuntimeError> {
         let tools = self.turn.tools()?;
@@ -693,7 +693,7 @@ mod tests {
                     digest: non_empty("sha256:manual"),
                     content: "Write each note in one line.".to_owned(),
                 }),
-                runners: Vec::new(),
+                methods: Vec::new(),
                 tools: Vec::new(),
                 connectors: Vec::new(),
                 projects: Vec::new(),
@@ -805,7 +805,7 @@ mod tests {
                 step_id: Some(non_empty("apply_taste")),
                 producer: ContextArtifactProducer {
                     skill: non_empty("runx-runtime"),
-                    runner: non_empty("skill-context"),
+                    method: non_empty("skill-context"),
                 },
                 created_at: non_empty("2026-05-18T00:00:00Z"),
                 digest: non_empty("sha256:taste"),

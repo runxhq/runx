@@ -1,11 +1,11 @@
 name: echo-skill
 inputs:
-  message: hello from harness
+  message: hello from test
 expect:
   status: sealed
   output:
     subset:
-      message: hello from harness
+      message: hello from test
   receipt:
     schema: runx.receipt.v1
     body_digest: sha256:4ed87692fb215d6d2634a1fad00745a40db5d71c4fb713d848b2294fefa39c2c

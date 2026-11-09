@@ -78,8 +78,8 @@ export function executionClosureFromInspection(
       throw new Error(`Native execution-closure package ${index} is not an object.`);
     }
     const skill = textOrUndefined(value.skill);
-    // The closure's wire key still says `runner`.
-    const method = textOrUndefined(value.runner);
+    // The closure's wire key still says `method`.
+    const method = textOrUndefined(value.method);
     const packageDigest = textOrUndefined(value.package_digest);
     const sourceKind = value.source_kind;
     const admittedSourceKind: ExecutionPackageBinding["sourceKind"] | undefined =

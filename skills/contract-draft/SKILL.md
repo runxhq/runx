@@ -53,7 +53,7 @@ The returned document contains every complete clause in template order, ready
 for the host to display or render for review. It is not a signed agreement or
 proof of legal suitability. Keep its template/version, party and term bindings
 and explicit deviations with the text. An upstream intake may supply those
-values once; this runner does not fetch another template or renegotiate them.
+values once; this method does not fetch another template or renegotiate them.
 Reuse the completed draft directly when only a later delivery step remains.
 
 On refusal, correct the specific source or deviation finding and draft again

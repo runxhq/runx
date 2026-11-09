@@ -55,16 +55,16 @@ impl LoadedSkillPackage {
     }
 }
 
-/// Each runner `manifest` declares, as a model chooses it from an index.
+/// Each method `manifest` declares, as a model chooses it from an index.
 pub(crate) fn catalog_methods(
     manifest: &SkillMethodManifest,
 ) -> Vec<runx_contracts::CatalogMethod> {
     manifest
         .methods
         .values()
-        .map(|runner| runx_contracts::CatalogMethod {
-            name: runner.name.clone(),
-            purpose: runner.description.clone(),
+        .map(|method| runx_contracts::CatalogMethod {
+            name: method.name.clone(),
+            purpose: method.description.clone(),
         })
         .collect()
 }
@@ -94,7 +94,7 @@ fn usable_example_status(status: Option<&TestExpectedStatus>) -> bool {
 /// child skill its execution closure binds, as they were when the run was
 /// bound, each with who it is (D30). A run reads every package it executes
 /// from here and never from disk again: its modules, its child skills'
-/// runners, its agents' instructions. So what a run executes is what it
+/// methods, its agents' instructions. So what a run executes is what it
 /// admitted, however the files change while it runs; a run continued in
 /// another process binds again, under the digests it started with, and so
 /// verifies each signature again.
@@ -154,7 +154,7 @@ pub(crate) struct ExecutionBinding {
 
 pub(crate) fn verify_loaded_execution_binding(
     loaded: impl Into<Arc<LoadedSkillPackage>>,
-    runner: &str,
+    method: &str,
     env: &std::collections::BTreeMap<String, String>,
     expected_package_digest: Option<&str>,
     expected_execution_closure_digest: Option<&str>,
@@ -168,11 +168,11 @@ pub(crate) fn verify_loaded_execution_binding(
             received: loaded.package.package_digest.clone(),
         });
     }
-    let closure = inspect_loaded_execution_closure_binding(loaded, runner, env)?;
+    let closure = inspect_loaded_execution_closure_binding(loaded, method, env)?;
     if let Some(expected) = expected_execution_closure_digest {
         if !closure.fully_bound {
             return Err(SkillInspectionError::ClosureNotFullyBound {
-                runner: runner.to_owned(),
+                method: method.to_owned(),
             });
         }
         if closure.digest != expected {
@@ -196,7 +196,7 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
     let unresolved_directory = resolve_skill_package_directory(path)?;
     // Runtime-owned package identity is absolute. Keeping caller-relative paths
     // here makes nested adapters accidentally reinterpret a valid package
-    // against a harness, resume, or daemon workspace later in execution.
+    // against a test, resume, or daemon workspace later in execution.
     let directory = fs::canonicalize(&unresolved_directory).map_err(|source| {
         RuntimeError::io(
             format!(

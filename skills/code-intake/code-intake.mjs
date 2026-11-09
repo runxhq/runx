@@ -1,4 +1,4 @@
-// Native runner admission owns structure. This module owns routing relationships
+// Native method admission owns structure. This module owns routing relationships
 // and preserves caller evidence independently of model-authored recommendations.
 export default function finalize(inputs) {
   const draft = inputs.intake_draft,

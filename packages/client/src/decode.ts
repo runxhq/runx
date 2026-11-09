@@ -65,7 +65,7 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
     if (fullArtifacts[0]) {
       const full = await artifact(fullArtifacts[0]);
       if (!record(full)) throw new Error("Full-output artifact is not an object.");
-      for (const key of ["schema", "status", "outcome", "seal_reason", "run_id", "receipt_id", "skill_name", "runner"] as const) {
+      for (const key of ["schema", "status", "outcome", "seal_reason", "run_id", "receipt_id", "skill_name", "method"] as const) {
         if (compact[key] !== undefined && JSON.stringify(full[key]) !== JSON.stringify(compact[key])) throw new Error(`Full-output artifact disagrees on ${key}.`);
       }
       output = validateSkillOutputContract(full);

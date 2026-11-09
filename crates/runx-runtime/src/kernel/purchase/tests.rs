@@ -79,7 +79,7 @@ fn quoted(amount: u64, balance_micro: Option<u64>) -> Value {
     let object = reading.as_object_mut().unwrap();
     object.remove("receipt");
     object.remove("result");
-    object.remove("holds");
+    object.remove("leases");
     let purchase = &mut reading["purchase"];
     purchase["purchase_id"] = json!("paid_1");
     purchase["amount_minor"] = json!(amount);
@@ -115,7 +115,7 @@ fn purchase(outcome: &str) -> Value {
             let object = reading.as_object_mut().unwrap();
             object.remove("receipt");
             object.remove("result");
-            object.remove("holds");
+            object.remove("leases");
             object.insert(
                 "failure".to_owned(),
                 json!({"code": "execution_failed", "message": "the inbox could not be provisioned"}),
@@ -511,14 +511,14 @@ fn an_approved_purchase_reserves_its_amount_and_buys_from_the_chosen_method() {
     };
     assert_eq!(purchase.purchase.purchase_id.as_str(), "paid_1");
     assert_eq!(
-        purchase.holds.len(),
+        purchase.leases.len(),
         1,
         "what it bought is held, never returned"
     );
     let purchases = runx.purchases();
     assert_eq!(purchases.len(), 1);
     let (body, key) = &purchases[0];
-    assert_eq!(body["runner"], "create");
+    assert_eq!(body["method"], "create");
     assert_eq!(body["version"], "1.0.0");
     assert_eq!(
         body["account_payment"],

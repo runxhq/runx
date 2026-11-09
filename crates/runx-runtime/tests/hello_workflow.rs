@@ -1,6 +1,6 @@
 // The full hello-workflow run (names, statuses, stdout, receipt digests and ids)
 // is pinned against the golden fixture in parity/hello_workflow.rs, and its
-// continuation from a run record in the runner's own tests.
+// continuation from a run record in the method's own tests.
 
 #[test]
 fn unknown_step_kind_fails_closed_before_dispatch() -> Result<(), Box<dyn std::error::Error>> {

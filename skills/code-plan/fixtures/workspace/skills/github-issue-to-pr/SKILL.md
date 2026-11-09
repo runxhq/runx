@@ -7,6 +7,6 @@ description: Minimal catalog fixture proving that a governed issue-to-PR executi
 
 ## Agent task: github-issue-to-pr-fixture
 
-This harness-only package represents the existing issue-to-PR lane. It lets the
-code-plan harness validate catalog references inside an isolated workspace
+This test-only package represents the existing issue-to-PR lane. It lets the
+code-plan test validate catalog references inside an isolated workspace
 without depending on the operator's installed skill catalog.

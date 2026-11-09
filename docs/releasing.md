@@ -80,7 +80,7 @@ channel that downloads its archives):
    changed package needs a new version before the tag.
 2. **build** (5-platform matrix) — resolve the matrix from
    `packages/cli/native/supported-platforms.json`, run the shared hostile-module
-   contract on each native runner, then build `runx` and `runx-js-worker`
+   contract on each native method, then build `runx` and `runx-js-worker`
    together with the pinned toolchain. Per platform, package both executables
    into the signed npm artifact, raw archive, and Linux `.deb`, and record
    digest-bound worker evidence.
@@ -125,7 +125,7 @@ channel that downloads its archives):
    The versioned tag must be absent before building; a retry cannot silently
    replace an image already published under that version.
    **smoke-docker** pulls the pushed versioned image by digest on native amd64
-   and arm64 runners and runs a JavaScript-backed skill. **promote-docker** moves
+   and arm64 methods and runs a JavaScript-backed skill. **promote-docker** moves
    `latest` to that tested digest and independently reads it back; an untested
    build never replaces `latest`.
 
@@ -214,7 +214,7 @@ runx skill skills/release release \
   -i version=X.Y.Z \
   --json
 
-# 3. After the release runner returns verified, add the reviewed release entry
+# 3. After the release method returns verified, add the reviewed release entry
 #    to the Cloud changelog. From the workspace root, adopt the independently
 #    verified release across status, Cloud's exact npm pin, lockfile, and notary.
 pnpm release:adopt -- --version X.Y.Z

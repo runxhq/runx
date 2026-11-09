@@ -126,8 +126,8 @@ pub enum RuntimeError {
     },
     #[error("this adapter does not run a {kind} executable")]
     UnsupportedExecutable { kind: String },
-    #[error("runner selection '{runner}' is not supported by the native runtime yet")]
-    UnsupportedMethodSelection { runner: String },
+    #[error("method selection '{method}' is not supported by the native runtime yet")]
+    UnsupportedMethodSelection { method: String },
     #[error("process invocation is invalid: {message}")]
     InvalidProcessInvocation { message: String },
     #[error(

@@ -185,7 +185,7 @@ pub struct Seal {
 pub enum SealReason {
     /// The run was refused before any step ran.
     PreflightRefused,
-    /// A harness case's inputs do not satisfy the runner's input contract.
+    /// A test case's inputs do not satisfy the method's input contract.
     InputContractInvalid,
     /// The graph stopped because one of its steps failed.
     WorkflowStepFailed,

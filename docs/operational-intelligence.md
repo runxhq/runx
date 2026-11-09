@@ -85,7 +85,7 @@ outcome pointers use central reusable reference contracts.
 Existing action lane values remain the admission vocabulary for proposal
 preparation. A proposal may be produced from `reply-only`, `manual-review`,
 `work-plan`, `issue-intake`, `issue-to-pr`, `pr-review`, `pr-fix-up`, or
-`merge-assist` when the caller, source, runner, and target are already admitted
+`merge-assist` when the caller, source, method, and target are already admitted
 by policy. The proposal does not create a new mutation lane by itself.
 
 ## Authority Model

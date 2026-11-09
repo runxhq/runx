@@ -242,9 +242,9 @@ fn managed_agent_config_diagnostic(
     } else if let Some(error) = semantic_error {
         format!("Managed-agent config is invalid: {error}.")
     } else if complete {
-        "Managed-agent config is complete; agent-task runners can execute in-process.".to_owned()
+        "Managed-agent config is complete; agent-task methods can execute in-process.".to_owned()
     } else {
-        "Managed-agent config is partial; set provider, model, and API key (a provider without a built-in profile also needs a dialect and an endpoint), or select local_none with an exact loopback endpoint. Otherwise agent-task runners may yield to the host or fail later.".to_owned()
+        "Managed-agent config is partial; set provider, model, and API key (a provider without a built-in profile also needs a dialect and an endpoint), or select local_none with an exact loopback endpoint. Otherwise agent-task methods may yield to the host or fail later.".to_owned()
     };
 
     Some(DoctorDiagnostic {

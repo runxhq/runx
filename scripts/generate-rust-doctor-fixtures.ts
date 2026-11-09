@@ -57,7 +57,7 @@ const cases: readonly DoctorFixtureCase[] = [
     files: [
       file("skills/uncovered/SKILL.md", `---
 name: uncovered
-description: Doctor fixture with an execution profile and no harness proof.
+description: Doctor fixture with an execution profile and no test proof.
 ---
 
 # Uncovered

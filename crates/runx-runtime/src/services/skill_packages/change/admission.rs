@@ -48,13 +48,13 @@ fn validate_mode_decision(mode: &str, decision: SkillChangeDecision) -> Result<(
                 | SkillChangeDecision::NoChange
                 | SkillChangeDecision::NeedsCore
         ),
-        "harness" => matches!(
+        "test" => matches!(
             decision,
             SkillChangeDecision::Write | SkillChangeDecision::NoChange
         ),
         _ => {
             return Err(invalid_skill_change(
-                "mode must be build, improve, or harness",
+                "mode must be build, improve, or test",
             ));
         }
     };

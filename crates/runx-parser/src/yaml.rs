@@ -529,10 +529,10 @@ mod tests {
     fn execution_profile_subset_rejects_yaml_references_and_document_markers() {
         for literal in [
             "---\nskill: example",
-            "runners:\n  one:\n    outputs: &shared\n      result: string",
-            "runners:\n  one:\n    outputs: *shared",
-            "runners:\n  one:\n    runx:\n      <<: *shared",
-            "runners:\n  one:\n    type: !custom graph",
+            "methods:\n  one:\n    outputs: &shared\n      result: string",
+            "methods:\n  one:\n    outputs: *shared",
+            "methods:\n  one:\n    runx:\n      <<: *shared",
+            "methods:\n  one:\n    type: !custom graph",
         ] {
             let result = assert_execution_profile_yaml_subset("method_manifest", literal);
             assert!(result.is_err(), "expected rejection, got {result:?}");
@@ -552,7 +552,7 @@ mod tests {
             "method_manifest",
             r#"
 skill: demo
-runners:
+methods:
   demo:
     steps:
       - id: first

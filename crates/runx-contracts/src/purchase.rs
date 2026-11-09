@@ -433,7 +433,7 @@ pub struct Purchase {
     pub buyer_ref: PrincipalReference,
     /// The seller: the publisher's principal enrolled to sell the skill.
     pub seller_ref: PrincipalReference,
-    /// What is bought: the skill runner binding the seller's run performs.
+    /// What is bought: the skill method binding the seller's run performs.
     pub skill_ref: Reference,
     pub offer_version: OfferVersionBinding,
     /// The execution package digest the purchase runs (`runx.skill-package.v1`
@@ -528,7 +528,7 @@ pub struct QuotePurchaseRequest {
     pub buyer_ref: PrincipalReference,
     /// The seller: the publisher's principal enrolled to sell the skill.
     pub seller_ref: PrincipalReference,
-    /// What is bought: the skill runner binding the seller's run performs.
+    /// What is bought: the skill method binding the seller's run performs.
     pub skill_ref: Reference,
     pub offer_version: OfferVersionBinding,
     /// The execution package digest the purchase runs (`runx.skill-package.v1`
@@ -714,7 +714,7 @@ pub enum GetPurchaseResult {
 }
 
 /// What a buyer reads of its purchase: the purchase, its receipt once
-/// sealed, the runner's public result once fulfilment won, and what runx
+/// sealed, the method's public result once fulfilment won, and what runx
 /// holds for it. Never the seller's run, step outputs or grants, and never a
 /// held value.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -729,7 +729,7 @@ pub struct PurchaseRead {
     pub result: Option<JsonValue>,
     /// Each resource runx holds for the purchase's buyer, once fulfilment won.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub holds: Vec<PurchaseLease>,
+    pub leases: Vec<PurchaseLease>,
     /// Why a refund won. Present only after refund won.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<PurchaseFailure>,

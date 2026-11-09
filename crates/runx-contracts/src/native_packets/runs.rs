@@ -44,7 +44,7 @@ pub struct UnreadableRun {
 pub struct RunListEntry {
     pub run_id: NonEmptyString,
     pub skill: NonEmptyString,
-    pub runner: NonEmptyString,
+    pub method: NonEmptyString,
     pub state: RunState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome: Option<RunOutcome>,

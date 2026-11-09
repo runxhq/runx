@@ -30,7 +30,7 @@ pub struct HostedAdminSkillPublishRequest<'a> {
     pub version: Option<&'a str>,
     #[serde(skip_serializing_if = "slice_empty")]
     pub package_files: &'a [RegistryPackageFile],
-    pub harness: &'a RegistryPublishTestReport,
+    pub test: &'a RegistryPublishTestReport,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

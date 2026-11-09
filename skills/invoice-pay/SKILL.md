@@ -5,7 +5,7 @@ description: Bind one invoice to exact buyer payment terms, then use pay with na
 
 # Invoice Pay
 
-The default runner pays an invoice whose reference, payee, amount and currency
+The default method pays an invoice whose reference, payee, amount and currency
 are already known; `from-document` reads them from the invoice itself. Choose a
 held buyer connector: `wallet/evm` for its supported x402 method, or `link` for a
 Stripe MPP charge with an approved one-time spend request. There is no universal EVM address requirement, USD conversion or implicit
@@ -39,7 +39,7 @@ amount read. Convert a PDF or image to text first.
 bound to a quotation. A native conversion then turns the decimal into the unit
 the selected method counts in, with no rounding. That unit comes from the method,
 never from the caller or the document: both held methods bind USD to cents here,
-so another currency stops and points back to the default runner with exact minor
+so another currency stops and points back to the default method with exact minor
 units. It also stops when the document omits a term or states two, or when the
 amount has the wrong number of fractional digits.
 

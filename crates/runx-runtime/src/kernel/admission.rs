@@ -57,7 +57,7 @@ pub(crate) struct Evaluation<'a> {
     /// Whether the step lets recovery resend a write whose outcome is
     /// unknown.
     pub retry_unknown_outcomes: bool,
-    /// The harness's provider fixture stands in for a declared operation's
+    /// The test's provider fixture stands in for a declared operation's
     /// missing hosted implementation.
     pub fixture_stand_in: bool,
     pub run_authority: Option<&'a RunAuthority>,
@@ -333,7 +333,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // What the call spends, counted only under a money limit.
     let limit = evaluation
         .run_authority
-        .and_then(|authority| authority.max_cost_micro);
+        .and_then(|authority| authority.max_spend_micro_usd);
     let charge = limit
         .map(|_| spend::charge(operation_spec, amount.as_ref()))
         .transpose()
@@ -876,7 +876,7 @@ fn readiness(
         AdmissionCheck::Instance,
         format!("instance {}", instance.instance_id),
     );
-    let money_limit = authority.and_then(|authority| authority.max_cost_micro);
+    let money_limit = authority.and_then(|authority| authority.max_spend_micro_usd);
     let mut usage_approval = usage_approval_required(spec, money_limit, &[]);
     if let Some(limit) = money_limit {
         match spend::charge(spec, None) {

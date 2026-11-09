@@ -65,7 +65,7 @@ if (rustBuild.status === 0) {
       step("x402 contract conformance", "pnpm", ["x402:contract-conformance"]),
       step("fixtures:contracts:check", "pnpm", ["fixtures:contracts:check"]),
       step("fixtures:contracts:keys", "pnpm", ["fixtures:contracts:keys"]),
-      step("fixtures:harness:check", "pnpm", ["fixtures:harness:check"]),
+      step("fixtures:test:check", "pnpm", ["fixtures:test:check"]),
       step("fixtures:doctor:check", "pnpm", ["fixtures:doctor:check"]),
       step("fixtures:tool-catalog:check", "pnpm", ["fixtures:tool-catalog:check"]),
       step("docs:api:check", "pnpm", ["docs:api:check"]),

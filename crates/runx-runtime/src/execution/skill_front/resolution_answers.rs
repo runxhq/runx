@@ -504,7 +504,7 @@ mod tests {
         let digest = |character: char| format!("sha256:{}", character.to_string().repeat(64));
         let purchase = serde_json::from_value(serde_json::json!({
             "skill": "acme/documents",
-            "runner": "main",
+            "method": "main",
             "offer_version": {
                 "offer_id": "acme/documents#main",
                 "version": "1.0.0",

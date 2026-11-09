@@ -26,7 +26,7 @@ and the paid resource result. A complete outcome requires a confirmed chain
 transaction and the resource's 2xx response; the resource's own product lifecycle
 may continue afterwards. Pending, failed or mismatched evidence never reports a
 completed purchase. Durable callers may use the x402-specific `settle` and
-`readback` runners separately and schedule later observations externally.
+`readback` methods separately and schedule later observations externally.
 
 ## Link authorization and MPP payment
 

@@ -85,7 +85,7 @@ pub(super) const INSPECT_FIELDS: &[CapabilityField] = &[
 pub(super) const APPLY_FIELDS: &[CapabilityField] = &[
     root_field(),
     field("target_dir", "Package path relative to the project root."),
-    field("mode", "Authoring boundary: build, improve, or harness."),
+    field("mode", "Authoring boundary: build, improve, or test."),
     field(
         "change_bundle",
         "Digest-bound, closed skill change contract.",

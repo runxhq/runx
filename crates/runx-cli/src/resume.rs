@@ -60,32 +60,32 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
                 diagnostics = true;
                 index += 1;
             }
-            "--managed-agent" => {
+            "--drive" => {
                 managed_agent = true;
                 index += 1;
             }
-            value if value.starts_with("--managed-agent=") => {
+            value if value.starts_with("--drive=") => {
                 managed_agent = parse_boolean_flag(
                     "resume",
-                    "--managed-agent",
-                    value.trim_start_matches("--managed-agent="),
+                    "--drive",
+                    value.trim_start_matches("--drive="),
                 )?;
                 index += 1;
             }
-            value if value.starts_with("--managed-agent-rounds=") => {
+            value if value.starts_with("--drive-rounds=") => {
                 managed_agent_rounds = Some(parse_managed_agent_rounds(
                     "resume",
-                    value.trim_start_matches("--managed-agent-rounds="),
+                    value.trim_start_matches("--drive-rounds="),
                 )?);
                 index += 1;
             }
-            "--managed-agent-rounds" => {
+            "--drive-rounds" => {
                 index += 1;
                 managed_agent_rounds = Some(parse_managed_agent_rounds(
                     "resume",
                     args.get(index)
                         .and_then(|value| value.to_str())
-                        .ok_or_else(|| "--managed-agent-rounds requires a value".to_owned())?,
+                        .ok_or_else(|| "--drive-rounds requires a value".to_owned())?,
                 )?);
                 index += 1;
             }
@@ -167,7 +167,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
     })
 }
 
-/// Continue a paused run with the host's answers. The run's skill, runner
+/// Continue a paused run with the host's answers. The run's skill, method
 /// and digests come from its record; pinned digests must match them.
 pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceEnv) -> ExitCode {
     let answers = match read_answers(&plan.answers_path, workspace) {
@@ -297,8 +297,8 @@ mod tests {
                 "resume",
                 "run_123",
                 "answers.json",
-                "--managed-agent",
-                "--managed-agent-rounds=2",
+                "--drive",
+                "--drive-rounds=2",
             ]
             .into_iter()
             .map(OsString::from)

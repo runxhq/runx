@@ -37,7 +37,7 @@ use crate::kernel::operation::AdmittedCall;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
 use stdio::{StdioServerProcess, start_stdio_server};
 
-/// Open sessions, one per server, credential and headers; in the harness,
+/// Open sessions, one per server, credential and headers; in the test,
 /// the case's stand-in for every server.
 #[derive(Default)]
 pub(crate) struct Sessions {
@@ -45,7 +45,7 @@ pub(crate) struct Sessions {
     stand_in: Option<Arc<[StandInCall]>>,
 }
 
-/// A tool call the harness answers in place of a server: the exact tool,
+/// A tool call the test answers in place of a server: the exact tool,
 /// arguments and headers, and the result the server would give.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct StandInCall {
@@ -75,7 +75,7 @@ enum Peer {
         /// A stdio server's process, stopped when the session is dropped.
         _process: Option<StdioServerProcess>,
     },
-    /// The harness, standing in for exactly the server the manifest pins.
+    /// The test, standing in for exactly the server the manifest pins.
     StandIn {
         calls: Arc<[StandInCall]>,
         headers: BTreeMap<String, String>,
@@ -127,12 +127,12 @@ impl Session {
 }
 
 impl Sessions {
-    /// Whether the harness answers every call in place of a server.
+    /// Whether the test answers every call in place of a server.
     pub(crate) fn stands_in(&self) -> bool {
         self.stand_in.is_some()
     }
 
-    /// Sessions the harness answers from `calls` instead of any server.
+    /// Sessions the test answers from `calls` instead of any server.
     pub(crate) fn standing_in(calls: Vec<StandInCall>) -> Self {
         Self {
             open: Mutex::default(),
@@ -350,7 +350,7 @@ impl Session {
     }
 
     /// The digest of every tool the server serves now, read afresh so a pin
-    /// is held against the definition the call will reach. The harness's
+    /// is held against the definition the call will reach. The test's
     /// stand-in serves exactly what the manifest pins, so it has none to
     /// compare.
     pub(crate) fn served(&self) -> Result<Option<BTreeMap<String, Digest>>, String> {
@@ -442,7 +442,7 @@ impl Session {
                 .ok_or_else(|| Unperformed::NotSent {
                     code: "invalid_request",
                     reason: format!(
-                        "the harness has no MCP call for tool {tool} with arguments {} and headers {}",
+                        "the test has no MCP call for tool {tool} with arguments {} and headers {}",
                         serde_json::to_string(arguments).unwrap_or_default(),
                         serde_json::to_string(headers).unwrap_or_default(),
                     ),
@@ -885,7 +885,7 @@ mod tests {
 
     /// A stdio session reports whether a server process ran, so a receipt
     /// records the credential only when a process received it: never for the
-    /// harness's stand-in or a server that failed to start, always for one
+    /// test's stand-in or a server that failed to start, always for one
     /// that started and then failed to open its session.
     #[test]
     fn a_stdio_session_says_whether_its_server_started() -> Result<(), String> {

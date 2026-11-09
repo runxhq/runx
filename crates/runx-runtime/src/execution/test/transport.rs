@@ -12,11 +12,11 @@ use crate::http::{
 use crate::kernel::connectors::LoadedConnector;
 use crate::kernel::operation::OperationEffect;
 
-/// The registry a harness case runs with: operation steps run over the
-/// harness transport, which answers the provider fixture and the case's
-/// exact HTTP exchanges. Every other request is refused; a harness run never
+/// The registry a test case runs with: operation steps run over the
+/// test transport, which answers the provider fixture and the case's
+/// exact HTTP exchanges. Every other request is refused; a test run never
 /// reaches the network. No public runtime input, environment variable or
-/// provider configuration can create this state; only the harness engine
+/// provider configuration can create this state; only the test engine
 /// calls this function.
 pub(super) fn effects_over(
     effects: &RuntimeEffectRegistry,
@@ -24,7 +24,7 @@ pub(super) fn effects_over(
     providers: &TestProviders,
 ) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
     let mut effects = effects.clone();
-    effects.replace_effect(OperationEffect::harness(
+    effects.replace_effect(OperationEffect::test(
         transport,
         &providers.mcp,
         &providers.processes,
@@ -146,7 +146,7 @@ fn granted_connector(
     }
 }
 
-/// The environment a case's provider fixture runs under: the harness's hosted
+/// The environment a case's provider fixture runs under: the test's hosted
 /// API, authenticated as the fixture's principal.
 pub(crate) fn provider_env(providers: &TestProviders) -> BTreeMap<String, String> {
     if providers.hosted.is_none() {
@@ -166,7 +166,7 @@ pub(crate) fn provider_env(providers: &TestProviders) -> BTreeMap<String, String
 
 /// Confirm and select the fixture's grant as the instance the case's hosted
 /// operations run under, as `runx connector use <connector> <grant>` would, in the kernel
-/// `env` resolves for `cwd`, reading the grant from the harness's Connect.
+/// `env` resolves for `cwd`, reading the grant from the test's Connect.
 pub(crate) fn seed_provider_grant(
     providers: &TestProviders,
     scope: &crate::ConnectorScope,
@@ -214,6 +214,6 @@ fn runtime_method(method: &str) -> HttpMethod {
         "PUT" => HttpMethod::Put,
         "PATCH" => HttpMethod::Patch,
         "DELETE" => HttpMethod::Delete,
-        _ => unreachable!("harness HTTP method was validated by runx-parser"),
+        _ => unreachable!("test HTTP method was validated by runx-parser"),
     }
 }

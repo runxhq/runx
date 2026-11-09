@@ -12,7 +12,7 @@ inputs:
     - person.title
     - person.email
 env:
-  APOLLO_API_KEY: harness-apollo-key
+  APOLLO_API_KEY: test-apollo-key
 host:
   approvals:
     person: true

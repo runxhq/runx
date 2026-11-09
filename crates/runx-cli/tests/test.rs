@@ -102,7 +102,7 @@ fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
 
     assert!(receipt_dir.join(file_name).is_file());
     assert!(receipt_dir.join("index.json").is_file());
-    assert!(root.join(".runx/harness").read_dir()?.next().is_none());
+    assert!(root.join(".runx/test").read_dir()?.next().is_none());
     Ok(())
 }
 
@@ -232,7 +232,7 @@ fn package_test_seals_under_the_fixture_identity_whatever_the_signer_env() -> Te
 }
 
 /// A host that refuses host processes, as a registry running a publisher's
-/// harness does, never runs the package's process tool, and its case's own
+/// test does, never runs the package's process tool, and its case's own
 /// environment cannot lift the refusal.
 #[test]
 fn a_refusing_host_never_runs_a_packages_process_tool() -> TestResult {
@@ -335,7 +335,7 @@ fn write_process_tool_skill(skill_dir: &std::path::Path) -> TestResult {
     fs::create_dir_all(skill_dir.join("tests"))?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: test-hint\ndescription: test-hint fixture.\n---\n# Harness Hint\n",
+        "---\nname: test-hint\ndescription: test-hint fixture.\n---\n# Test Hint\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
@@ -362,7 +362,7 @@ methods:
 fn write_nested_test_parent(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: test-parent\ndescription: test-parent fixture.\n---\n# Harness Parent\n",
+        "---\nname: test-parent\ndescription: test-parent fixture.\n---\n# Test Parent\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
@@ -387,7 +387,7 @@ fn assert_inline_expectation_fails(expectation: &str, expected_field: &str) -> T
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: test-negative\ndescription: test-negative fixture.\n---\n# Harness Negative\n",
+        "---\nname: test-negative\ndescription: test-negative fixture.\n---\n# Test Negative\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),

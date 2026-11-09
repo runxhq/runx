@@ -239,7 +239,7 @@ methods:
     inputs:
       notification_plan:
         packet: runx/message-send.notification_plan.v1
-        description: Exact notify_plan emitted by the plan runner.
+        description: Exact notify_plan emitted by the plan method.
       channel_locator:
         type: string
         description: Exact slack://workspace/channel locator bound by the plan and connector grant.
@@ -267,7 +267,7 @@ methods:
           delivery_status: not_sent
           downstream_handoff:
             skill: message-send
-            runner: post
+            method: post
             state: ready_for_approval
           validation:
             status: pass
@@ -438,7 +438,7 @@ methods:
     inputs:
       objective:
         type: string
-        description: Bounded send-planning or authorization objective; this explicit runner does not deliver.
+        description: Bounded send-planning or authorization objective; this explicit method does not deliver.
       principal:
         type: string
         description: Principal the message is sent as.

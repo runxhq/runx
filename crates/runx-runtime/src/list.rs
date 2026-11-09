@@ -99,7 +99,7 @@ fn discover_tool_list_items(
                     status: RunxListStatus::Ok,
                     visibility: None,
                     description: None,
-                    runners: None,
+                    methods: None,
                     diagnostics: None,
                     scopes: Some(tool.scopes),
                     emits: tool
@@ -247,7 +247,7 @@ fn skill_profile_list_item(
             },
         ),
         description,
-        runners: Some(crate::skill_package::catalog_methods(manifest)),
+        methods: Some(crate::skill_package::catalog_methods(manifest)),
         diagnostics: None,
         scopes: None,
         emits: skill_emits(manifest),
@@ -257,7 +257,7 @@ fn skill_profile_list_item(
             manifest
                 .methods
                 .values()
-                .map(|runner| runner.graph.steps.len() as u64)
+                .map(|method| method.graph.steps.len() as u64)
                 .sum(),
         ),
     }
@@ -268,7 +268,7 @@ fn skill_emits(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<RunxLi
     for step in manifest
         .methods
         .values()
-        .flat_map(|runner| runner.graph.steps.iter())
+        .flat_map(|method| method.graph.steps.iter())
     {
         if let Some(artifacts) = step.artifacts.as_ref() {
             emits.extend(
@@ -321,7 +321,7 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
                 status: RunxListStatus::Ok,
                 visibility: None,
                 description: None,
-                runners: None,
+                methods: None,
                 diagnostics: None,
                 scopes: None,
                 emits: None,
@@ -348,7 +348,7 @@ fn invalid_item(
         status: RunxListStatus::Invalid,
         visibility: None,
         description: None,
-        runners: None,
+        methods: None,
         diagnostics: Some(vec![diagnostic.to_owned()]),
         scopes: None,
         emits: None,
@@ -477,7 +477,7 @@ mod tests {
             status: RunxListStatus::Ok,
             visibility: None,
             description: None,
-            runners: None,
+            methods: None,
             diagnostics: None,
             scopes: None,
             emits: None,

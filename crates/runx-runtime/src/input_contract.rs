@@ -54,7 +54,7 @@ pub(crate) fn materialize_tool_inputs(
     )
 }
 
-/// Materialize the declared boundary of a nested runner from the parent
+/// Materialize the declared boundary of a nested method from the parent
 /// graph's ambient parameter map. Parent-only parameters are not child input;
 /// explicitly mapped values still receive the child's complete validation.
 pub(crate) fn materialize_nested_method_inputs(
@@ -66,7 +66,7 @@ pub(crate) fn materialize_nested_method_inputs(
         declared,
         supplied,
         &JsonObject::new(),
-        "runner",
+        "method",
         MissingRequired::Reject,
         UnknownInputs::Project,
     )?;
@@ -84,17 +84,17 @@ pub(crate) fn materialize_present_method_inputs(
         declared,
         supplied,
         &JsonObject::new(),
-        "runner",
+        "method",
         MissingRequired::Preserve,
         UnknownInputs::Reject,
     )
 }
 
-/// Admit a complete top-level runner invocation.
+/// Admit a complete top-level method invocation.
 ///
 /// Unlike the preparation front, which preserves absent required values long
 /// enough to return a blocked context and refusal receipt, execution and
-/// harness replay must receive every required value and must reject ambient,
+/// test replay must receive every required value and must reject ambient,
 /// undeclared inputs.
 pub(crate) fn materialize_complete_method_inputs(
     declared: &BTreeMap<String, SkillInput>,
@@ -105,7 +105,7 @@ pub(crate) fn materialize_complete_method_inputs(
         declared,
         supplied,
         &JsonObject::new(),
-        "runner",
+        "method",
         MissingRequired::Reject,
         UnknownInputs::Reject,
     )?;
@@ -127,7 +127,7 @@ fn admit_constraints(
     let accepted = JsonValue::Object(runx_parser::constrained_input_schema(declared, constraints));
     let refusal = |path: String, message: String| {
         InputContractError::new(
-            "runner",
+            "method",
             "input_constraints",
             path,
             message,

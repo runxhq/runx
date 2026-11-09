@@ -29,7 +29,7 @@ publishes, posts, sends, or claims provider acknowledgement.
 - Narrow the claim or return `needs_more_evidence` rather than filling a gap
   with plausible prose.
 
-## Runners and chain boundaries
+## Methods and chain boundaries
 
 `draft` composes `admit`, one writing turn and `verify`. `admit` binds a ready
 research packet or the exact supplied facts by its native digest and optionally admits
@@ -44,7 +44,7 @@ channel payload, bound to its digest, in `not_sent` state; a draft without an
 evidence binding, or with a claim citing a source it is not bound to, is held.
 `handoff` binds that payload's digest to the exact target and records whether
 delivery crosses outside the team, whether it then needs the delivering lane's
-approval, and the next actor. Neither runner grants external authority.
+approval, and the next actor. Neither method grants external authority.
 Delivery belongs to `message-send`, a publication skill, or the relevant provider
 connector.
 

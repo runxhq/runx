@@ -61,7 +61,7 @@
             "maxItems": 100,
             "type": "array"
           },
-          "runner": {
+          "method": {
             "type": "string"
           },
           "skill": {
@@ -96,7 +96,7 @@
           "acceptance",
           "verification",
           "skill",
-          "runner",
+          "method",
           "evidence",
           "authority_status"
         ],

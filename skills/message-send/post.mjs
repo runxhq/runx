@@ -149,7 +149,7 @@ function notificationPacket(context, sendPlan, findings) {
       delivery_status: "not_sent",
       downstream_handoff: ready ? {
         skill: "message-send",
-        runner: "post",
+        method: "post",
         state: "ready_for_approval",
       } : {},
       validation: { status: ready ? "pass" : "fail", findings },

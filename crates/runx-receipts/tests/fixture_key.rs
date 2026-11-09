@@ -15,7 +15,7 @@ use runx_receipts::{
     content_addressed_receipt_id,
 };
 
-/// The seed the runtime's harness and the demo sign with.
+/// The seed the runtime's test and the demo sign with.
 pub const FIXTURE_SEED: [u8; 32] = [0x42; 32];
 
 pub struct FixtureKey {

@@ -10,7 +10,7 @@ The useful result is a relevant contribution or a grounded explanation of
 what happened to an existing post. Approval to research or draft is not
 approval to submit. A request for five ideas is not a posting quota.
 
-The default `reddit` runner loads a named account and returns source-backed research,
+The default `reddit` method loads a named account and returns source-backed research,
 compared targets and drafts. It never submits. `read` exposes typed connector reads;
 `configure` and `accounts` manage account voice configuration.
 `publish` submits one exact post or comment. `vote` handles one approved upvote.
@@ -38,7 +38,7 @@ copy profiles, export cookies or toggle browser security settings.
 Read references/browser.md before account setup or browser work. The selected
 connector owns the fixed browser implementation, identity checks, exact editor
 comparison, one submit and independent permalink readback. Call its typed operations
-or the skill's `read` runner; never supply arbitrary JavaScript or replace the
+or the skill's `read` method; never supply arbitrary JavaScript or replace the
 connector with raw authenticated HTTP, screen coordinates or host submission code.
 
 Keep Brave in the background. Never activate a window, change the active tab, send
@@ -55,7 +55,7 @@ The approved target URL selects the UI; the adapter never silently rewrites host
 
 Provider readback proves exact content visible to the signed-in account. It does not
 prove public visibility or acceptance by moderators. A queued or removed contribution
-must never be described as publicly published. Harness evidence is simulated; only a
+must never be described as publicly published. Test evidence is simulated; only a
 separately identified real provider run is live proof.
 
 Wait for observable page/editor state between actions. Respect explicit
@@ -68,7 +68,7 @@ no universal safe number of posts and no guarantee against account action.
 The research turn resolves high-value targets before anything is written.
 
 When the operator asks *where* to contribute, target discovery is part of the
-read-only default runner. Start with the operator's real question or useful
+read-only default method. Start with the operator's real question or useful
 point and this account's interests and recent contributions. A high-value
 target has relevant readers and a concrete contribution gap; raw member count
 or an old viral score is not enough. A request for several ideas is not a quota
@@ -296,7 +296,7 @@ Use bounded read operations to investigate the thread and exact permalink. Absen
 from search is not proof that nothing was submitted. Never create a new run, change
 accounts or rebind an instance to escape an unsettled operation.
 
-There is no skill-level `reconcile` runner or custom release gate. Native runx owns
+There is no skill-level `reconcile` method or custom release gate. Native runx owns
 operation recovery. A refusal before execution is distinct from an uncertain effect;
 report the original native status and keep its receipt. If native custody cannot
 resolve an unknown effect, report that limit rather than clearing or ageing it out.
@@ -306,7 +306,7 @@ do not turn a single vote count or removed comment into a confident rule.
 
 ## Invocation and composition
 
-Inspect the selected runner before calling it. Attach and confirm the browser session as described in references/browser.md, then
+Inspect the selected method before calling it. Attach and confirm the browser session as described in references/browser.md, then
 configure the named account with its voice and explicit casing preference.
 Then run `reddit` with its `account_id` and a bounded objective, such as
 "read this thread and draft two useful replies; do not submit". All runnable

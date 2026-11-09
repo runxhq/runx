@@ -551,7 +551,7 @@ fn require_success(output: runx_runtime::InvocationOutput) -> Result<(), Box<dyn
 fn write_modules(root: &Path) -> Result<(), std::io::Error> {
     fs::write(
         root.join("SKILL.md"),
-        "---\nname: runtime-throughput\ndescription: Exercise production runtime paths for release performance budgets.\n---\n# Runtime throughput\n\nThis synthetic package binds the modules used by the release performance harness.\n",
+        "---\nname: runtime-throughput\ndescription: Exercise production runtime paths for release performance budgets.\n---\n# Runtime throughput\n\nThis synthetic package binds the modules used by the release performance test.\n",
     )?;
     fs::write(
         root.join(PROFILE_FILE),

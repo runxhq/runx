@@ -132,7 +132,7 @@ pub struct ValidatedSkillPackage {
     /// JavaScript module bundle.
     pub execution_files: BTreeSet<String>,
     /// Explicit, parser-validated files needed only while replaying the inline
-    /// package harness. These are never inferred from arbitrary input values.
+    /// package test. These are never inferred from arbitrary input values.
     pub test_files: BTreeSet<String>,
     /// Complete parser-owned package material, including runtime dependencies,
     /// operator references, and nested manual packages. Registry projection

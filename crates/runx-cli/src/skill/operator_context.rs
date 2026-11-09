@@ -16,7 +16,7 @@ pub(super) fn write_operator_context(
     out.push_str(&format!(
         "  Skill:  {}\n  Method: {}\n  Source: {}\n",
         report.request.skill_path.display(),
-        report.request.runner,
+        report.request.method,
         source_label(report),
     ));
     if let Some(run_id) = &report.request.run_id {
@@ -165,9 +165,9 @@ fn append_node(
     }
     out.push_str(&format!(
         "method_name: {}\nmethod_selection: {}\n",
-        node.runner.name, node.runner.selection,
+        node.method.name, node.method.selection,
     ));
-    if let Some(requested) = &node.runner.requested_name {
+    if let Some(requested) = &node.method.requested_name {
         out.push_str(&format!("method_requested_name: {requested}\n"));
     }
     append_document(
@@ -181,14 +181,14 @@ fn append_node(
         "markdown",
     );
     let method_label = if entry {
-        format!("selected method: {}", node.runner.name)
+        format!("selected method: {}", node.method.name)
     } else {
         format!(
             "selected method: {} at {}",
-            node.runner.name, node.node_path
+            node.method.name, node.node_path
         )
     };
-    append_json_block(out, &method_label, &node.runner.raw)?;
+    append_json_block(out, &method_label, &node.method.raw)?;
     append_tools(out, &node.node_path, &node.tools);
     for step in &node.steps {
         append_step(out, step)?;

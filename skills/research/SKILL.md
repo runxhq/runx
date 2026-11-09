@@ -24,7 +24,7 @@ well-supported findings over a broad report whose conclusions cannot be traced.
 
 ## Where it fits
 
-The default `investigate` runner accepts the question and optional `urls`,
+The default `investigate` method accepts the question and optional `urls`,
 `paths` or existing `source_packets`. Supplied packets bypass acquisition.
 Otherwise the host works a governed acquisition turn over native local reads
 and the existing `web-fetch`/`web-search` skills; the graph then runs the same

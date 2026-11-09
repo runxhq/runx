@@ -12,7 +12,7 @@ pub(crate) fn parse_managed_agent_rounds(command: &str, value: &str) -> Result<u
     value
         .trim()
         .parse::<u32>()
-        .map_err(|_| format!("runx {command} --managed-agent-rounds expects a positive integer"))
+        .map_err(|_| format!("runx {command} --drive-rounds expects a positive integer"))
 }
 
 pub(crate) fn managed_agent_policy(
@@ -23,7 +23,7 @@ pub(crate) fn managed_agent_policy(
     if !enabled {
         if max_rounds.is_some() {
             return Err(format!(
-                "runx {command} --managed-agent-rounds requires --managed-agent"
+                "runx {command} --drive-rounds requires --drive"
             ));
         }
         return Ok(ManagedAgentPolicy::HostDriven);

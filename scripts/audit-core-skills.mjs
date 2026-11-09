@@ -415,9 +415,9 @@ function expectedCompositionRefs(methodInspections) {
   return new Set([...refs].sort());
 }
 
-/** The method a closure's skill edge names; its wire key is still `runner`. */
+/** The method a closure's skill edge names; its wire key is still `method`. */
 function edgeMethod(edge) {
-  const method = edge?.runner;
+  const method = edge?.method;
   return typeof method === "string" && method.length > 0 ? method : undefined;
 }
 
@@ -665,7 +665,7 @@ function runSelfTests() {
     ...methodInspection,
     execution_closure: {
       ...inspection.execution_closure,
-      direct_external_skill_edges: [{ skill: "research", runner: "research" }],
+      direct_external_skill_edges: [{ skill: "research", method: "research" }],
     },
   };
   const generatedGuide = rewriteComposesSection(

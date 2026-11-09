@@ -12,7 +12,7 @@
 //!   marks nothing, and from the root itself the user's home stands in;
 //! - the project directory (`RUNX_PROJECT_DIR`, else `<workspace>/.runx`)
 //!   holds the project's runx state: the skills and connectors runx added,
-//!   the kernel store, receipts, authoring records, harness runs and scratch.
+//!   the kernel store, receipts, authoring records, test runs and scratch.
 //!
 //! A relative `RUNX_CWD` resolves against the working directory; every other
 //! relative location resolves against the workspace.
@@ -263,7 +263,7 @@ impl RunxPaths {
         self.project.join("store.sqlite")
     }
 
-    /// Where a harness keeps the receipts of passing cases: the directory
+    /// Where a test keeps the receipts of passing cases: the directory
     /// asked for, else `RUNX_RECEIPT_DIR`, else the project's own.
     #[must_use]
     pub fn test_receipts(&self, requested: Option<&Path>) -> PathBuf {
@@ -276,7 +276,7 @@ impl RunxPaths {
 
     #[must_use]
     pub fn test_runs(&self) -> PathBuf {
-        self.project.join("harness")
+        self.project.join("test")
     }
 
     #[must_use]

@@ -22,8 +22,8 @@ gate.
 
 ## What this skill does
 
-The default `operate` runner reviews an already-supplied snapshot. The explicit
-`operate_from_projection` runner can read a bounded product-owned projection
+The default `operate` method reviews an already-supplied snapshot. The explicit
+`operate_from_projection` method can read a bounded product-owned projection
 before review. Neither owns the product state or a continuing work lifecycle. Both classify findings,
 rank the next action, select the governed lane, name blockers, prepare reviewable approval text when the execution owner requires a human decision, and state the
 receipt/effect/readback that will prove success.
@@ -34,11 +34,11 @@ It is useful before an action and after an action:
 - after action, it assesses supplied receipt and projection evidence. The host uses native receipt verification or the owning provider reader first; this review does not independently verify an effect.
 
 The model may diagnose and write the operator rationale. The mutation itself
-must be a deterministic handoff to an existing skill runner, CLI command, hosted
+must be a deterministic handoff to an existing skill method, CLI command, hosted
 API route, workflow, or provider tool.
 
 When the desk should start from durable state, use `operate_from_projection`.
-That runner reads a projection through the store's `projection.read` first, then passes the
+That method reads a projection through the store's `projection.read` first, then passes the
 projection as the dashboard snapshot. The storage provider is still selected by
 the logical `data_source_uri`; ops desk does not know whether state came from
 SQLite, Postgres, D1, Redis, or a product API.
@@ -193,7 +193,7 @@ Load only the reference needed for the objective:
 
 ## Outputs
 
-The `operate` runners return one `ops_desk_packet`, the
+The `operate` methods return one `ops_desk_packet`, the
 `runx/operations-review.desk.v1` packet: the decision (`ready`,
 `awaiting_approval`, `needs_input` or `refused`), the scope,
 objective and mode, the dashboard state per area, evidence-backed findings,

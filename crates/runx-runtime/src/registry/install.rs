@@ -136,16 +136,16 @@ pub enum InstallError {
     },
     #[error("registry package file is invalid for {ref_name}: {reason}")]
     InvalidPackageFile { ref_name: String, reason: String },
-    #[error("runner manifest skill '{manifest_skill}' does not match skill '{skill_name}'")]
+    #[error("method manifest skill '{manifest_skill}' does not match skill '{skill_name}'")]
     ManifestSkillMismatch {
         manifest_skill: String,
         skill_name: String,
     },
-    #[error("runner manifest runners do not match advertised runner metadata for skill '{0}'")]
+    #[error("method manifest methods do not match advertised method metadata for skill '{0}'")]
     MethodMetadataMismatch(String),
     #[error("skill install destination already exists with different content: {0}")]
     ConflictingSkill(PathBuf),
-    #[error("skill install runner manifest already exists with different content: {0}")]
+    #[error("skill install method manifest already exists with different content: {0}")]
     ConflictingMethodManifest(PathBuf),
     #[error("skill install package file already exists with different content: {0}")]
     ConflictingPackageFile(PathBuf),

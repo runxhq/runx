@@ -51,7 +51,7 @@ export function validateExternalJobScheduleIntentContract(
   label = "external_job_schedule_intent",
 ): ExternalJobScheduleIntentContract {
   const intent = validateContractSchema(externalJobScheduleIntentV1Schema, value, label);
-  runner(intent.stage_runner, `${label}.stage_runner`);
+  method(intent.stage_runner, `${label}.stage_runner`);
   checkpoint(intent.checkpoint, `${label}.checkpoint`);
   if (intent.initial_delay_ms > intent.deadline_ms) {
     throw new Error(`${label}.initial_delay_ms must not exceed deadline_ms.`);
@@ -249,7 +249,7 @@ function checkpoint(value: ExternalJobCheckpointContract, label: string): void {
   if (bytes > 64 * 1024) throw new Error(`${label} exceeds 65536 bytes.`);
 }
 
-function runner(value: string, label: string): void {
+function method(value: string, label: string): void {
   if (
     value !== value.trim()
     || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value)

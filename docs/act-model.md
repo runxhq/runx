@@ -26,7 +26,7 @@ The act model lives in `crates/runx-contracts`:
   **`RunOutcome`** is `completed`, `deferred`, `superseded`, `declined`,
   `blocked`, `failed`, `killed` or `timed_out`. When the outcome alone does
   not say why, the seal adds a **`SealReason`** from a closed vocabulary,
-  such as `graph_step_failed`, `authority_denied` or
+  such as `workflow_step_failed`, `authority_denied` or
   `input_contract_invalid`. A receipt holds only what its issuer observed or
   was given, each value once, as typed facts. Its wire form is exact: every
   array is written, an absent value is omitted rather than `null`, and

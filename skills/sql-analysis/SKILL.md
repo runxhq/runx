@@ -28,7 +28,7 @@ database session for exploratory SQL, writes or schema changes.
 
 ## How a run works
 
-The default `analyst` runner takes `question`, the exact logical `source`,
+The default `analyst` method takes `question`, the exact logical `source`,
 and an optional `max_rows` ceiling, then:
 
 1. Reads the selected source's query catalog without opening a database.
@@ -47,7 +47,7 @@ that read and rank its actual result. It must preserve that a missing campaign
 is unattributed and that association does not establish causal credit.
 “Why did revenue fall?” cannot be answered from this trial-count read alone.
 
-The explicit `plan` runner accepts an already supplied `catalog` and performs
+The explicit `plan` method accepts an already supplied `catalog` and performs
 steps two and three only. It returns `runx/sql-analysis.plan.v1` with
 `executed: false`: a ready plan validates a declared query and its values, not
 execution or an answer. It does not contact the database or reacquire supplied

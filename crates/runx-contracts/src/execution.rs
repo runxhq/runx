@@ -99,7 +99,7 @@ impl InputDefinition {
     }
 }
 
-/// Build the complete JSON Schema for one runner or tool input object. Every
+/// Build the complete JSON Schema for one method or tool input object. Every
 /// public projection calls this function so required fields, defaults, nested
 /// constraints, and closed-object behavior cannot drift by surface.
 #[must_use]
@@ -107,7 +107,7 @@ pub fn input_contract_schema(inputs: &BTreeMap<String, InputDefinition>) -> Json
     input_contract_schema_with_examples(inputs, &[])
 }
 
-/// Build a runner input schema and retain its parser-validated, copy-valid
+/// Build a method input schema and retain its parser-validated, copy-valid
 /// examples as standard JSON Schema annotations. Tool contracts use the same
 /// projection without examples.
 #[must_use]

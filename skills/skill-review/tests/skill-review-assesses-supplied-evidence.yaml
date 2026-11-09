@@ -5,14 +5,14 @@ inputs:
   evidence_pack:
     inspect:
       status: ok
-    harness:
+    test:
       status: passed
 host:
   answers:
     assess:
       capability_profile:
         skill: example/skill
-        summary: Only inspection and harness status flags were supplied.
+        summary: Only inspection and test status flags were supplied.
         operator_job: Unknown from the supplied evidence.
         default_result: Unknown; no actual implementation or artifact is present.
         caller_work:

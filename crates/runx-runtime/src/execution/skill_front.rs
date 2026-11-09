@@ -1,6 +1,6 @@
 // Module rationale: the skill front owns run preparation and the shared
-// sealed-output projection for every runner.
-//! The skill front: compiles a skill-run request into a run of the runner's
+// sealed-output projection for every method.
+//! The skill front: compiles a skill-run request into a run of the method's
 //! graph and seals it through the shared act engine (`execution::runner`),
 //! which owns admit -> execute -> seal.
 
@@ -77,11 +77,11 @@ pub enum SkillRunError {
 /// Omitted services use the normal local runtime defaults.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SkillRunOverrides {
-    /// Select a runner by name instead of the manifest default.
-    pub(crate) runner: Option<String>,
+    /// Select a method by name instead of the manifest default.
+    pub(crate) method: Option<String>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
-    /// The registry reference the skill was resolved through, when its runner
+    /// The registry reference the skill was resolved through, when its method
     /// is one the registry sells: the run buys it (S10).
     pub(crate) purchase: Option<String>,
 }
@@ -95,7 +95,7 @@ pub(crate) struct ResolvedSkillRun<'a> {
     pub(crate) effects: &'a RuntimeEffectRegistry,
     pub(crate) skill_dir: &'a Path,
     pub(crate) manifest: &'a SkillMethodManifest,
-    pub(crate) runner: &'a SkillMethodDefinition,
+    pub(crate) method: &'a SkillMethodDefinition,
     pub(crate) package_digest: &'a str,
     pub(crate) execution_closure_digest: Option<&'a str>,
 }
@@ -118,7 +118,7 @@ pub(crate) struct BoundRun {
     workspace: WorkspaceEnv,
     receipts: ReceiptServices,
     manifest: SkillMethodManifest,
-    runner: SkillMethodDefinition,
+    method: SkillMethodDefinition,
     package_digest: String,
     execution_closure_digest: Option<String>,
 }
@@ -148,30 +148,30 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
     .execute()
 }
 
-/// The inputs command-line `texts` give the runner of `skill_path` that a run
-/// with `runner` selects: each read by its declaration, never guessed. A text
-/// for an input the runner does not declare is refused.
+/// The inputs command-line `texts` give the method of `skill_path` that a run
+/// with `method` selects: each read by its declaration, never guessed. A text
+/// for an input the method does not declare is refused.
 pub fn method_inputs_from_text(
     skill_path: &Path,
-    runner: Option<&str>,
+    method: Option<&str>,
     texts: &BTreeMap<String, String>,
 ) -> Result<JsonObject, SkillRunError> {
     let loaded = crate::load_validated_skill_package(skill_path)?;
     let manifest = loaded.manifest().ok_or_else(|| {
         invalid(format!(
-            "skill package {} does not declare run.yaml runners",
+            "skill package {} does not declare run.yaml methods",
             loaded.directory.display(),
         ))
     })?;
-    let runner = selected_method(manifest, runner)?;
+    let method = selected_method(manifest, method)?;
     texts
         .iter()
         .map(|(name, text)| {
-            let declared = runner.inputs.get(name).ok_or_else(|| {
+            let declared = method.inputs.get(name).ok_or_else(|| {
                 invalid(format!(
-                    "runner {} declares no input {name}; it takes {}",
-                    runner.name,
-                    declared_names(runner)
+                    "method {} declares no input {name}; it takes {}",
+                    method.name,
+                    declared_names(method)
                 ))
             })?;
             declared
@@ -182,11 +182,11 @@ pub fn method_inputs_from_text(
         .collect()
 }
 
-fn declared_names(runner: &SkillMethodDefinition) -> String {
-    if runner.inputs.is_empty() {
+fn declared_names(method: &SkillMethodDefinition) -> String {
+    if method.inputs.is_empty() {
         return "no inputs".to_owned();
     }
-    runner
+    method
         .inputs
         .keys()
         .map(String::as_str)
@@ -207,11 +207,11 @@ pub(crate) fn bind_skill_run(
     let skill_dir = loaded.directory.clone();
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         invalid(format!(
-            "skill package {} does not declare run.yaml runners",
+            "skill package {} does not declare run.yaml methods",
             skill_dir.display(),
         ))
     })?;
-    let runner = selected_method(&manifest, overrides.runner.as_deref())?.clone();
+    let method = selected_method(&manifest, overrides.method.as_deref())?.clone();
     let package_digest = loaded.package.package_digest.clone();
     // The closure resolves in the workspace the run executes in, so what it
     // admits is what the run's steps reach.
@@ -219,7 +219,7 @@ pub(crate) fn bind_skill_run(
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
     let binding = crate::skill_package::verify_loaded_execution_binding(
         loaded.clone(),
-        &runner.name,
+        &method.name,
         workspace.env(),
         expected_package_digest,
         expected_execution_closure_digest,
@@ -234,7 +234,7 @@ pub(crate) fn bind_skill_run(
             effects,
             skill_dir: &skill_dir,
             manifest: &manifest,
-            runner: &runner,
+            method: &method,
             package_digest: &package_digest,
             execution_closure_digest: binding.closure_digest.as_deref(),
         },
@@ -367,7 +367,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
     method_manifest::write_skill_receipt(&request, &workspace, &receipts, &receipt)?;
     Ok(sealed_output(
         &started.skill,
-        &started.runner,
+        &started.method,
         run_id,
         &InvocationOutput::runtime_success(result.clone(), 0),
         &result,
@@ -376,7 +376,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
     ))
 }
 
-/// Bind a paused run again: its skill, runner and digests come from its
+/// Bind a paused run again: its skill, method and digests come from its
 /// record, never from the caller.
 pub(crate) fn bind_paused_run(
     continuation: Continuation<'_>,
@@ -422,7 +422,7 @@ pub(crate) fn bind_paused_run(
             managed_agent: continuation.managed_agent,
         },
         &SkillRunOverrides {
-            runner: Some(paused.runner),
+            method: Some(paused.method),
             purchase: paused.purchase,
             ..SkillRunOverrides::default()
         },
@@ -450,12 +450,12 @@ fn bind_resolved(
         effects,
         skill_dir,
         manifest,
-        runner,
+        method,
         package_digest,
         execution_closure_digest,
     } = resolved;
     let (mut request, workspace, receipts) =
-        prepare_skill_execution(request, manifest, runner, trusted_prepared)?;
+        prepare_skill_execution(request, manifest, method, trusted_prepared)?;
     // A caller-pinned id is a submission identity: a repeated submission
     // continues the same run, and hosted execution keys its effects on it,
     // so a retry recovers the same mutation instead of minting one.
@@ -469,7 +469,7 @@ fn bind_resolved(
     if !trusted_prepared {
         super::operator_context::load_skill_operator_context_chain_from_package(
             loaded,
-            Some(&runner.name),
+            Some(&method.name),
             SkillOperatorContextOptions::new(
                 workspace.env().clone(),
                 workspace.cwd().to_path_buf(),
@@ -479,7 +479,7 @@ fn bind_resolved(
         .map_err(|blocked| blocked.error)?;
     }
     crate::execution_environment::resolve_declared_environment(
-        &manifest.execution_requirements(runner),
+        &manifest.execution_requirements(method),
         &skill_env,
         skill_dir,
     )?;
@@ -493,7 +493,7 @@ fn bind_resolved(
         workspace,
         receipts,
         manifest: manifest.clone(),
-        runner: runner.clone(),
+        method: method.clone(),
         package_digest: package_digest.to_owned(),
         execution_closure_digest: execution_closure_digest.map(str::to_owned),
     })
@@ -504,7 +504,7 @@ fn bind_resolved(
 pub(super) fn seal_skill_preflight_refusal(
     request: &SkillRunRequest,
     manifest: &SkillMethodManifest,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     failure: JsonObject,
     reason: runx_contracts::SealReason,
 ) -> Result<String, SkillRunError> {
@@ -527,7 +527,7 @@ pub(super) fn seal_skill_preflight_refusal(
             run_id: &run_id,
             workflow_name: &manifest.skill,
         },
-        runner,
+        method,
         receipts.signature_config(),
         &output,
         StepSealEnding {
@@ -542,7 +542,7 @@ pub(super) fn seal_skill_preflight_refusal(
 fn prepare_skill_execution(
     request: &SkillRunRequest,
     manifest: &SkillMethodManifest,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     trusted_prepared: bool,
 ) -> Result<(SkillRunRequest, WorkspaceEnv, ReceiptServices), SkillRunError> {
     let mut request = request.clone();
@@ -551,13 +551,13 @@ fn prepare_skill_execution(
     let receipts = ReceiptServices::resolve(&raw_workspace)
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     restore_continuation_inputs(&mut request, &raw_workspace)?;
-    crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
+    crate::input_contract::apply_defaults(&method.inputs, &mut request.inputs);
     let materialized = if request.answers.is_some() {
-        crate::input_contract::materialize_present_method_inputs(&runner.inputs, &request.inputs)
+        crate::input_contract::materialize_present_method_inputs(&method.inputs, &request.inputs)
     } else {
         crate::input_contract::materialize_complete_method_inputs(
-            &runner.inputs,
-            &runner.input_constraints,
+            &method.inputs,
+            &method.input_constraints,
             &request.inputs,
         )
     };
@@ -573,7 +573,7 @@ fn prepare_skill_execution(
             let receipt_id = seal_skill_preflight_refusal(
                 &request,
                 manifest,
-                runner,
+                method,
                 failure,
                 runx_contracts::SealReason::InputContractInvalid,
             )?;
@@ -643,7 +643,7 @@ pub(crate) fn restore_continuation_inputs(
 /// A run that waits: the requests it waits on, each with its id.
 fn paused_output(
     manifest: &SkillMethodManifest,
-    runner: &str,
+    method: &str,
     run_id: &str,
     waiting: &[crate::execution::run_record::PendingRequest],
 ) -> RunResult {
@@ -682,7 +682,7 @@ fn paused_output(
             "skill_name".to_owned(),
             JsonValue::String(manifest.skill.clone()),
         ),
-        ("runner".to_owned(), JsonValue::String(runner.to_owned())),
+        ("method".to_owned(), JsonValue::String(method.to_owned())),
         ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
         ("requests".to_owned(), JsonValue::Array(requests.clone())),
     ]);
@@ -712,7 +712,7 @@ fn request_for_public_loop(request_id: &str, request: JsonValue) -> JsonValue {
 /// Seal a run that was refused before any step ran.
 fn seal_refusal(
     scope: RunScope<'_>,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     signature_config: &RuntimeReceiptSignatureConfig,
     output: &InvocationOutput,
     closure: StepSealEnding,
@@ -720,7 +720,7 @@ fn seal_refusal(
     Ok(seal_step(
         StepSeal {
             scope,
-            step_id: &runner.name,
+            step_id: &method.name,
             attempt: 1,
             output,
             claim: &JsonObject::new(),
@@ -738,7 +738,7 @@ fn seal_refusal(
 
 fn sealed_output(
     skill: &str,
-    runner: &str,
+    method: &str,
     run_id: &str,
     skill_output: &InvocationOutput,
     result: &JsonValue,
@@ -762,7 +762,7 @@ fn sealed_output(
         );
     }
     output.insert("skill_name".to_owned(), JsonValue::String(skill.to_owned()));
-    output.insert("runner".to_owned(), JsonValue::String(runner.to_owned()));
+    output.insert("method".to_owned(), JsonValue::String(method.to_owned()));
     output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
     output.insert(
         "receipt_id".to_owned(),

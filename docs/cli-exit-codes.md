@@ -35,7 +35,7 @@ The command ran but failed, was denied by policy, hit an invalid operation,
 found invalid requested output, or sealed a terminal `superseded`, `declined`,
 `blocked`, `failed`, `killed`, or `timed_out` closure.
 
-After package and runner resolution, blocked skill preparation writes a refusal
+After package and method resolution, blocked skill preparation writes a refusal
 receipt before returning exit code 1. With `--json`, the error includes its
 `receipt_id` and prepared-context digest; inspect it with
 `runx verify <receipt-id>`.
@@ -44,7 +44,7 @@ Common fixes:
 
 - Read the stderr message first; it should name the failing command or policy.
 - Re-run with `--json` when the command supports it.
-- For harness failures, inspect `assertionErrors` in the JSON output.
+- For test failures, inspect `assertionErrors` in the JSON output.
 - For `runx skill publisher/name@version`, unsigned manifests, unknown trust keys,
   digest mismatches, and profile digest mismatches fail here before execution.
 
@@ -96,7 +96,7 @@ Common fixes:
 ```bash
 runx --help
 runx skill <skill-ref>
-runx harness <fixture.yaml>
+runx test <fixture.yaml>
 ```
 
 ## Exit Code 70: Runtime Setup Failed

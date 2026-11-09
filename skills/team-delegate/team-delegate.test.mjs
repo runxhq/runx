@@ -7,7 +7,7 @@ const job = {
     {
       member: "researcher",
       skill: "runx/prior-art",
-      runner: "prior-art-agent",
+      method: "prior-art-agent",
       scope_ceiling: ["fs.read"],
       capabilities:
         "Inspect the operator-selected local source paths and return cited findings or missing evidence. No code edits or provider calls.",
@@ -15,7 +15,7 @@ const job = {
     {
       member: "writer",
       skill: "runx/ghostwrite",
-      runner: "draft",
+      method: "draft",
       scope_ceiling: [],
       capabilities: "Draft only from actual review findings when those are available.",
     },

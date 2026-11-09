@@ -5,7 +5,7 @@ import fs from "node:fs";
 import YAML from "../../packages/contracts/node_modules/yaml/dist/index.js";
 const fixture = YAML.parse(
   fs.readFileSync(new URL("./run.yaml", import.meta.url), "utf8"),
-).harness.cases.find((c) => c.name === "plans-intake-without-model-approval");
+).test.cases.find((c) => c.name === "plans-intake-without-model-approval");
 const inputs = () => ({
   ...structuredClone(fixture.inputs),
   catalog_skills: [{ name: "github-issue-to-pr" }],

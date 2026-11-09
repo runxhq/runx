@@ -941,7 +941,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         Some(&JsonValue::String("Graph bug".to_owned()))
     );
 
-    // The paused run's record binds its package, closure and runner.
+    // The paused run's record binds its package, closure and method.
     let paused = runx_runtime::run_record::paused_run(&BTreeMap::new(), temp.path(), run_id)?
         .ok_or("the run is not paused in its record")?;
     assert!(paused.package_digest.starts_with("sha256:"));
@@ -1809,7 +1809,7 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
     };
     let message = refused.to_string();
     assert!(
-        message.contains("runner output contract violation at $.output"),
+        message.contains("method output contract violation at $.output"),
         "unexpected envelope refusal: {message}"
     );
     let reopened = run_skill(SkillRunRequest {
@@ -1918,7 +1918,7 @@ fn native_workflow_skill_run_requires_declared_workflow_inputs()
     assert!(
         source
             .to_string()
-            .contains("runner input 'lead' is required")
+            .contains("method input 'lead' is required")
     );
     let receipt = crate::support::read_test_signed_receipt(&receipt_dir, &receipt_id)?;
     assert_eq!(serde_json::to_value(receipt.seal.outcome)?, "blocked");
@@ -2374,7 +2374,7 @@ fn skill_inspection_reports_registry_refs_the_project_does_not_hold()
             inspection
                 .method_inspections
                 .first()
-                .ok_or("no runner inspection")?
+                .ok_or("no method inspection")?
                 .execution_closure
                 .clone(),
         ))
@@ -2673,7 +2673,7 @@ fn native_workflow_skill_run_executes_nested_x_yaml_method_skill()
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
-        JsonValue::String("Runner manifest bug".to_owned()),
+        JsonValue::String("Method manifest bug".to_owned()),
     )]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
@@ -2697,7 +2697,7 @@ fn native_workflow_skill_run_executes_nested_x_yaml_method_skill()
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let nested = object_field(public_result, "nested").ok_or("missing nested output")?;
-    assert_eq!(string_field(nested, "message"), Some("Runner manifest bug"));
+    assert_eq!(string_field(nested, "message"), Some("Method manifest bug"));
 
     Ok(())
 }
@@ -3214,7 +3214,7 @@ methods:
     inputs:
       thread_title:
         type: string
-      harness:
+      test:
         optional: true
     result_from:
       - echo
@@ -3223,7 +3223,7 @@ methods:
         tool: test.optional-json
         inputs:
           message: $input.thread_title
-          harness: $input.harness
+          test: $input.test
 "#,
     )?;
     Ok(skill_dir)
@@ -3338,7 +3338,7 @@ fn write_optional_json_tool(root: &Path) -> Result<(), Box<dyn std::error::Error
   },
   "inputs": {
     "message": { "type": "string", "required": true },
-    "harness": { "type": "json", "required": false }
+    "test": { "type": "json", "required": false }
   },
   "artifacts": {
     "named_emits": {
@@ -3353,12 +3353,12 @@ fn write_optional_json_tool(root: &Path) -> Result<(), Box<dyn std::error::Error
         tool_dir.join("run.sh"),
         r#"raw="$(cat)"
 case "$raw" in
-  *'$input.harness'*)
-    printf '%s\n' '{"error":"unresolved harness reference reached tool input"}'
+  *'$input.test'*)
+    printf '%s\n' '{"error":"unresolved test reference reached tool input"}'
     exit 2
     ;;
-  *'"harness"'*)
-    printf '%s\n' '{"error":"optional harness should be omitted when absent"}'
+  *'"test"'*)
+    printf '%s\n' '{"error":"optional test should be omitted when absent"}'
     exit 3
     ;;
   *"Graph optional JSON bug"*)
@@ -3901,7 +3901,7 @@ fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
     Ok(())
 }
 
-/// A skill-build candidate's harness reads the registry children its closure
+/// A skill-build candidate's test reads the registry children its closure
 /// names from the registry its operator selects: each installed, verified,
 /// into the candidate's own project before its cases run, as a publish binds
 /// its closure.
@@ -3949,7 +3949,7 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
     let output = serde_json::to_value(&result.output)?;
     let validation = &output["result"]["skill_validation"]["data"];
     assert_eq!(validation["verdict"], "tested", "{output}");
-    assert_eq!(validation["harness"]["status"], "passed", "{output}");
+    assert_eq!(validation["test"]["status"], "passed", "{output}");
     // Read by its record, never acquired, and nothing added to the operator's
     // project.
     assert!(

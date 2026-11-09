@@ -11,7 +11,7 @@ normal read, give `repo` and optionally `kind`, `number`, `page` and `limit`.
 The read authority is selected by the existing native operation; callers do not
 need to construct synchronization direction or scope just to inspect an issue.
 
-The default `github` runner reads one bounded page or exact numbered record.
+The default `github` method reads one bounded page or exact numbered record.
 `kind` is `issues` (the shared GitHub issue feed, including PRs), `pull_requests`
 or `comments`. Comments are issue/PR conversation comments; review diff comments
 are a different capability. `comments` requires the issue or PR number. Exact
@@ -20,8 +20,8 @@ list queries. Raw provider records and the original native operation evidence
 are preserved. A bounded page never establishes complete conversation/history
 coverage, including when filtering PRs out of an issue-feed page.
 
-The explicit `sync` runner performs the requested advanced pull or push. `plan`
-is the explicit no-effect runner; `pull` and `push` remain explicit execution
+The explicit `sync` method performs the requested advanced pull or push. `plan`
+is the explicit no-effect method; `pull` and `push` remain explicit execution
 lanes for compatible callers. Pulls are bounded reads. A push carries one to
 twenty typed mutations per call that one GitHub operation applies, and returns each
 item's outcome. It closes only on an independent GitHub readback of every
@@ -68,7 +68,7 @@ evidence. Do not silently turn a denied push into a pull.
    `projection.read` to append the bounded plan and read the projection back. That proves local
    cursor persistence, not GitHub synchronization; this package does not own a
    second cursor database or storage adapter.
-5. The explicit `sync` runner selects the same bounded read or write path from the
+5. The explicit `sync` method selects the same bounded read or write path from the
    validated direction. `pull` calls the planned read (`issues.list`,
    `issues.read`, `pullrequests.list`, `pullrequests.read`, or
    `comments.list`) with `repo.read`. `push` calls the planned write once under

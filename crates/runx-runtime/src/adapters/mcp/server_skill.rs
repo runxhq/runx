@@ -1,5 +1,5 @@
 //! MCP tool discovery and transport adaptation. The local orchestrator owns
-//! execution, continuation, and receipt persistence for every runner kind.
+//! execution, continuation, and receipt persistence for every method kind.
 use std::path::{Path, PathBuf};
 
 use super::types::{
@@ -37,9 +37,9 @@ impl McpServerOptions {
     }
 }
 
-/// A skill's tools: its selected runner's, and, unless the server was given
-/// one runner, a tool for each other standalone runner whose turns make calls.
-/// Those are the runners only this connection can work.
+/// A skill's tools: its selected method's, and, unless the server was given
+/// one method, a tool for each other standalone method whose turns make calls.
+/// Those are the methods only this connection can work.
 pub(super) fn load_mcp_server_tools(
     skill_path: &Path,
     execution: &McpServerExecutionOptions,
@@ -47,9 +47,9 @@ pub(super) fn load_mcp_server_tools(
     let mut tools = vec![load_mcp_server_tool(
         skill_path,
         execution,
-        execution.runner.as_deref(),
+        execution.method.as_deref(),
     )?];
-    if execution.runner.is_some() {
+    if execution.method.is_some() {
         return Ok(tools);
     }
     let loaded = crate::load_validated_skill_package(skill_path)?;
@@ -57,12 +57,12 @@ pub(super) fn load_mcp_server_tools(
         return Ok(tools);
     };
     let default = manifest.default_method().map(|method| method.name.as_str());
-    for runner in manifest.methods.values() {
-        if default == Some(runner.name.as_str())
-            || !crate::skill_package::method_has_sealed_test(&loaded.package, manifest, runner)
+    for method in manifest.methods.values() {
+        if default == Some(method.name.as_str())
+            || !crate::skill_package::method_has_sealed_test(&loaded.package, manifest, method)
             || !crate::skill_package::method_makes_calls(
                 loaded.clone().into(),
-                &runner.name,
+                &method.name,
                 &execution.env,
             )
             .map_err(|error| mcp_method_error(&loaded.package.skill.name, error))?
@@ -72,7 +72,7 @@ pub(super) fn load_mcp_server_tools(
         tools.push(load_mcp_server_tool(
             skill_path,
             execution,
-            Some(&runner.name),
+            Some(&method.name),
         )?);
     }
     Ok(tools)
@@ -91,20 +91,20 @@ fn load_mcp_server_tool(
     let manifest = loaded.manifest().ok_or_else(|| {
         mcp_method_error(
             &loaded.package.skill.name,
-            "skill package does not declare run.yaml runners",
+            "skill package does not declare run.yaml methods",
         )
     })?;
-    let runner =
+    let method =
         crate::execution::skill_front::method_manifest::selected_method(manifest, selected)
             .map_err(|error| mcp_method_error(&loaded.package.skill.name, error))?
             .clone();
-    // A server given one runner offers it under the skill's own name.
-    let tool_runner = selected.filter(|_| execution.runner.is_none());
+    // A server given one method offers it under the skill's own name.
+    let tool_runner = selected.filter(|_| execution.method.is_none());
     let skill = loaded.package.skill.clone();
     let package_digest = loaded.package.package_digest.clone();
     let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
         loaded,
-        &runner.name,
+        &method.name,
         &execution.env,
         None,
         None,
@@ -118,11 +118,11 @@ fn load_mcp_server_tool(
             .description
             .clone()
             .unwrap_or_else(|| format!("runx skill {}", skill.name)),
-        input_schema: skill_inputs_to_json_schema(&runner)?,
+        input_schema: skill_inputs_to_json_schema(&method)?,
         result: McpServerToolBehavior::Skill(Box::new(McpServerSkillExecution {
             skill_path,
             skill_name: skill.name,
-            runner: runner.name,
+            method: method.name,
             package_digest,
             execution_closure_digest,
             receipt_dir: execution.receipt_dir.clone(),
@@ -196,7 +196,7 @@ pub(super) fn execute_mcp_server_skill(
     let result = match crate::execution::orchestrator::LocalOrchestrator::with_effects(effects)
         .run_skill_with_services(
             &request,
-            &execution.runner,
+            &execution.method,
             javascript,
             &execution.package_digest,
             &execution.execution_closure_digest,

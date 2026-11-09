@@ -104,7 +104,7 @@ pub struct RuntimeHttpResponse {
     pub body_bytes: usize,
 }
 
-/// One request-sensitive response available only through the private harness
+/// One request-sensitive response available only through the private test
 /// registry. Live transports never construct or consume this type.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RuntimeTestHttpExchange {

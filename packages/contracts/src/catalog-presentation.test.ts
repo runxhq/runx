@@ -17,7 +17,7 @@ method:
   - title: Make sense of it
     description: Separate evidence, inference and unresolved questions.
     skill: ../research
-    runner: default
+    method: default
 inputs:
   - label: The decision you need to make
     input: question
@@ -52,7 +52,7 @@ describe("readCatalogPresentation", () => {
       overview: "Research that builds toward a decision.",
       method: [
         { title: "Bring the evidence", description: "Supply the question and bounded source material." },
-        { title: "Make sense of it", description: "Separate evidence, inference and unresolved questions.", skill: "../research", runner: "default" },
+        { title: "Make sense of it", description: "Separate evidence, inference and unresolved questions.", skill: "../research", method: "default" },
       ],
       inputs: [{ label: "The decision you need to make", input: "question" }],
       outputs: [{ label: "A recommendation with citations and open questions" }],
@@ -62,14 +62,14 @@ describe("readCatalogPresentation", () => {
     });
   });
 
-  it("refuses trust and classification fields, missing files, undeclared runners, aliases and duplicate keys", () => {
+  it("refuses trust and classification fields, missing files, undeclared methods, aliases and duplicate keys", () => {
     const refusal = (source: string, field: string) => {
       expect(() => readCatalogPresentation(source, context)).toThrow(RegistryPresentationError);
       expect(() => readCatalogPresentation(source, context)).toThrow(field);
     };
     refusal(PRESENTATION.replace("title: Research brief", "title: Research brief\nverified: true"), "unknown fields: verified");
     refusal(PRESENTATION.replace("references/examples/decision-brief.md", "references/examples/missing.md"), "example.path");
-    refusal(PRESENTATION.replace("runner: default", "runner: elsewhere"), "method[1].runner");
+    refusal(PRESENTATION.replace("method: default", "method: elsewhere"), "method[1].method");
     refusal(`${PRESENTATION}\n${"x".repeat(4_001)}\n`, "overview");
     // References resolve against what the package declares, not only their form.
     refusal(PRESENTATION.replace("skill: ../research", "skill: ../elsewhere"), "method[1].skill");

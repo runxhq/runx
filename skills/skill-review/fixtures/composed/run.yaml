@@ -9,7 +9,7 @@ methods:
         inputs:
           skill: fixtures/subject
           objective: Decide whether the subject has bounded evidence and stop behavior
-          test_constraints: Run only local read-only harnesses.
+          test_constraints: Run only local read-only tests.
       - id: digest
         tool: data.digest
         inputs:

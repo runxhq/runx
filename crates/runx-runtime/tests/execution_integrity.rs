@@ -116,7 +116,7 @@ fn a_child_skill_runs_the_method_its_parent_admitted() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
     let child = root.join("child");
-    // Both runners are valid: one runs the module's default export, the
+    // Both methods are valid: one runs the module's default export, the
     // other its `other` export.
     let child_profile = |export: &str| {
         format!(
@@ -145,7 +145,7 @@ fn a_child_skill_runs_the_method_its_parent_admitted() -> TestResult {
     assert_eq!(
         fs::read_to_string(child.join("run.yaml"))?,
         child_profile("other"),
-        "the child's runner changed between the parent's steps"
+        "the child's method changed between the parent's steps"
     );
     assert_eq!(answer(&result)?, "original");
     Ok(())

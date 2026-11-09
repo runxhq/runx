@@ -88,13 +88,13 @@ fn is_auxiliary_doc(basename: &str) -> bool {
 
 fn assert_test_path(relative: &str, mode: &str) -> Result<(), RuntimeError> {
     // A package's tests are its tests/<name>.yaml files.
-    if mode == "harness"
+    if mode == "test"
         && !(relative.starts_with("tests/")
             && !relative["tests/".len()..].contains('/')
             && (relative.ends_with(".yaml") || relative.ends_with(".yml")))
     {
         return Err(invalid_skill_change(format!(
-            "harness mode may only change tests/*.yaml files: {relative}"
+            "test mode may only change tests/*.yaml files: {relative}"
         )));
     }
     Ok(())

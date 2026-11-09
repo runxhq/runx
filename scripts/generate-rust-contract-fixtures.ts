@@ -27,7 +27,7 @@ interface ContractFixture {
 
 interface ActAssignmentFixtureInput {
   readonly skill: string;
-  readonly runner: string;
+  readonly method: string;
   readonly source_uri?: string;
   readonly requested_at: string;
   readonly host: {
@@ -286,7 +286,7 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "ASCII act assignment hashStable fixture. non-ASCII object keys are rejected until hash-stable-codepoint-cutover replaces localeCompare ordering.",
       {
         skill: "outreach",
-        runner: "rerun",
+        method: "rerun",
         source_uri: "github://sourcey/sourcey.com/issues/3",
         requested_at: "2026-04-25T14:00:00Z",
         host: {
@@ -310,7 +310,7 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "ASCII CLI fixture with no trigger key; documents the narrow hashStable scope before the non-ASCII codepoint cutover.",
       {
         skill: "docs.refresh",
-        runner: "runx",
+        method: "runx",
         source_uri: "local://workspace",
         requested_at: "2026-04-25T14:01:00Z",
         host: {
@@ -326,7 +326,7 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "ASCII system fixture whose content hash is computed over an empty object; localeCompare behavior is intentionally unchanged here.",
       {
         skill: "system.audit",
-        runner: "system",
+        method: "system",
         requested_at: "2026-04-25T14:02:00Z",
         host: {
           kind: "system",
@@ -338,7 +338,7 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "Documents buildActAssignment host normalization: empty trigger_uri, scope_set, and actor fields are omitted.",
       {
         skill: "host.normalize",
-        runner: "runx",
+        method: "runx",
         requested_at: "2026-04-25T14:03:00Z",
         host: {
           kind: "api",
@@ -363,7 +363,7 @@ function actAssignmentFixture(
 ): ContractFixture {
   const tsOptions = {
     skill: input.skill,
-    runner: input.runner,
+    method: input.method,
     sourceUri: input.source_uri,
     requestedAt: input.requested_at,
     hostKind: input.host.kind,
@@ -382,7 +382,7 @@ function actAssignmentFixture(
       envelope,
       intent_key: deriveActAssignmentIntentKey({
         skill: input.skill,
-        runner: input.runner,
+        method: input.method,
         sourceUri: input.source_uri,
         inputOverrides: input.input_overrides,
       }),
@@ -397,7 +397,7 @@ function actAssignmentFixture(
 
 function buildActAssignment(options: {
   readonly skill: string;
-  readonly runner: string;
+  readonly method: string;
   readonly sourceUri?: string;
   readonly requestedAt?: string;
   readonly hostKind?: ActAssignmentHostContract["kind"];
@@ -419,7 +419,7 @@ function buildActAssignment(options: {
   return validateActAssignmentContract(pruneUndefined({
     schema: "runx.act_assignment.v1",
     skill: options.skill,
-    runner: options.runner,
+    method: options.method,
     source_uri: sourceUri,
     requested_at: requestedAt,
     host,
@@ -428,7 +428,7 @@ function buildActAssignment(options: {
       algorithm: "sha256",
       intent_key: deriveActAssignmentIntentKey({
         skill: options.skill,
-        runner: options.runner,
+        method: options.method,
         sourceUri,
         inputOverrides,
       }),
@@ -443,13 +443,13 @@ function buildActAssignment(options: {
 
 function deriveActAssignmentIntentKey(options: {
   readonly skill: string;
-  readonly runner: string;
+  readonly method: string;
   readonly sourceUri?: string;
   readonly inputOverrides?: JsonRecord;
 }): string {
   return canonicalSha256({
     skill: options.skill,
-    runner: options.runner,
+    method: options.method,
     source_uri: normalizeNonEmptyString(options.sourceUri),
     input_overrides: normalizeActAssignmentRecord(options.inputOverrides),
   });

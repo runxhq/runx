@@ -40,8 +40,8 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
     CapabilityDefinition {
         id: VALIDATE_TOOL,
         source: "runx-runtime/authoring",
-        summary: "Validate and safely harness an existing or inline skill package.",
-        // The candidate's harness reads the registry children its closure
+        summary: "Validate and safely test an existing or inline skill package.",
+        // The candidate's test reads the registry children its closure
         // names from the registry the operator selects.
         scopes: &["fs.read", "registry.read"],
         effect: CapabilityEffect::Read,
@@ -94,7 +94,7 @@ static APPLY: TypedNativeCapability<ApplyInput, ApplyOutput> = TypedNativeCapabi
         id: APPLY_TOOL,
         source: "runx-runtime/authoring",
         summary: "Transactionally apply one validated, bounded skill change bundle.",
-        // Applying validates the candidate first, harness included.
+        // Applying validates the candidate first, test included.
         scopes: &["fs.write", "fs.delete", "registry.read"],
         effect: CapabilityEffect::Mutate,
         approval: CapabilityApproval::None,

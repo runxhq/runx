@@ -30,14 +30,14 @@ pub(crate) fn hydrate_packet_input_contracts(
             &format!("{profile_path} shared_inputs"),
             &catalog,
         )?;
-        for (method_name, runner) in &mut manifest.methods {
+        for (method_name, method) in &mut manifest.methods {
             let declared_by = format!("{profile_path} method {method_name}");
-            hydrate_inputs(&mut runner.inputs, &declared_by, &catalog)?;
+            hydrate_inputs(&mut method.inputs, &declared_by, &catalog)?;
             validate_input_examples(
                 &format!("methods.{method_name}.examples"),
-                &runner.examples,
-                &runner.inputs,
-                &runner.input_constraints,
+                &method.examples,
+                &method.inputs,
+                &method.input_constraints,
             )
             .map_err(|source| SkillPackageError::Validation {
                 path: profile_path.clone(),
@@ -95,7 +95,7 @@ fn package_uses_packet_inputs(package: &ValidatedSkillPackage) -> bool {
             || manifest
                 .methods
                 .values()
-                .any(|runner| inputs_use_packets(&runner.inputs))
+                .any(|method| inputs_use_packets(&method.inputs))
     }) || package
         .tools
         .values()
@@ -110,8 +110,8 @@ fn package_input_packet_ids(package: &ValidatedSkillPackage) -> BTreeSet<PacketI
     let mut packet_ids = BTreeSet::new();
     for manifest in package.profiles.values() {
         packet_ids.extend(declared_input_packet_ids(&manifest.shared_inputs));
-        for runner in manifest.methods.values() {
-            packet_ids.extend(declared_input_packet_ids(&runner.inputs));
+        for method in manifest.methods.values() {
+            packet_ids.extend(declared_input_packet_ids(&method.inputs));
         }
     }
     for package_tool in package.tools.values() {

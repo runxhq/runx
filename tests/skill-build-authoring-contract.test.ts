@@ -49,7 +49,7 @@ describe("Skill Build authoring ownership", () => {
       yaml: await readFile(path.join(root, "skills/skill-build/run.yaml"), "utf8"),
     }).raw.document as Record<string, any>;
     expect(stepIds(profile.methods.design)).toEqual(["inspect", "architect", "plan"]);
-    for (const methodName of ["build", "improve", "harness"]) {
+    for (const methodName of ["build", "improve", "test"]) {
       expect(stepIds(profile.methods[methodName])).toEqual([
         "inspect",
         "architect",

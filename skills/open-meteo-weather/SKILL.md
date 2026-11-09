@@ -7,7 +7,7 @@ description: Resolve a place and fetch global forecast and air-quality evidence 
 
 Fetch global place, forecast, and air-quality evidence through runx's governed
 connector boundary. The skill never performs an ad-hoc fetch. Each provider stage is a bounded,
-read-only HTTP runner whose endpoint, inputs, status, authority scope, and
+read-only HTTP method whose endpoint, inputs, status, authority scope, and
 output packet are recorded in the sealed receipt. The built-in connector uses
 public keyless endpoints. Commercial use needs an appropriate Open-Meteo plan
 and connector; keyless access is not a commercial entitlement. This is the worldwide counterpart to the US-only
@@ -15,7 +15,7 @@ and connector; keyless access is not a commercial entitlement. This is the world
 
 ## Procedure
 
-1. Run the default `weather` runner with `name` and any regional `location_context`.
+1. Run the default `weather` method with `name` and any regional `location_context`.
    It reads the geocoder once and asks the operating agent to select an actual
    returned candidate, or preserve unresolved ambiguity.
 2. A bounded domain function binds that candidate id to the original provider
@@ -23,7 +23,7 @@ and connector; keyless access is not a commercial entitlement. This is the world
    remain in `location`; request coordinates use six decimal places to match
    the existing connector input contract.
 3. Read the requested `kind`: `forecast` (default) or `air_quality`. Already
-   resolved coordinates use the explicit `forecast` or `air_quality` runner,
+   resolved coordinates use the explicit `forecast` or `air_quality` method,
    bypassing geocoding and selection entirely.
 4. Require a 2xx response and preserve the provider URL, timezone, generation
    time, current conditions, daily forecast, and receipt references.
@@ -44,7 +44,7 @@ and connector; keyless access is not a commercial entitlement. This is the world
 The default returns `location` plus the requested provider operation evidence.
 Ambiguous, unmatched or invalid selection returns its candidates and reason
 without a weather request. `locate` retains raw geocoding candidates for graphs.
-The explicit `forecast` runner takes a selected latitude and longitude and
+The explicit `forecast` method takes a selected latitude and longitude and
 returns forecast evidence without geocoding again. `air_quality` likewise takes
 coordinates directly. There is no dependency between an unrelated place name
 and separately supplied coordinates. Each provider operation and its returned

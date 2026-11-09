@@ -4,9 +4,9 @@ use runx_receipts::{
     verify_receipt_proof,
 };
 
-use crate::execution::harness::fixtures::{ReceiptExpectation, TestExpectedStatus};
-use crate::execution::harness::json_assertions::assert_json_expectation;
-use crate::execution::harness::runner::{TestReplayError, TestReplayOutput};
+use crate::execution::test::fixtures::{ReceiptExpectation, TestExpectedStatus};
+use crate::execution::test::json_assertions::assert_json_expectation;
+use crate::execution::test::runner::{TestReplayError, TestReplayOutput};
 use crate::receipts::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
 
 mod replayed_answers;

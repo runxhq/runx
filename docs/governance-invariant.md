@@ -21,7 +21,7 @@ unadmitted act never reaches an adapter.
 
 ### 2. Resolve grant
 
-The request is the selected runner's `ExecutionRequirements`: auth, arbitrary
+The request is the selected method's `ExecutionRequirements`: auth, arbitrary
 scope strings, declared environment names, and runtime metadata. Connected grant resolution and attenuation produce the authority
 decision. Adapters consume that decision; they do not reinterpret YAML or
 invent scopes.

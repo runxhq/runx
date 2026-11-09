@@ -6,7 +6,7 @@ pub struct LocalExecutionPolicy {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub strict_process_tool_inline_code: bool,
     /// A host that runs code it did not choose, such as a registry running a
-    /// publisher's harness, starts no trusted host process: process tools,
+    /// publisher's test, starts no trusted host process: process tools,
     /// connector process tools and stdio MCP servers are refused.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub refuse_host_processes: bool,

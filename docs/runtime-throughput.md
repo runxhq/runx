@@ -24,14 +24,14 @@ evidence for the unmodified commit alone.
 ## Benchmarks
 
 Rust runtime workloads live in
-`crates/runx-runtime/benches/graph_throughput.rs`:
+`crates/runx-runtime/benches/workflow_throughput.rs`:
 
-- `graph_planning`
-- `graph_receipt_sealing`
+- `workflow_planning`
+- `workflow_receipt_sealing`
 - `receipt_store_append`
 - `receipt_store_index`
 - `native_capability_dispatch`
-- `graph_context_to_module`
+- `workflow_context_to_module`
 - `pure_module_cold_start`
 - `pure_module_session_reuse`
 - `pure_module_large_input`
@@ -58,7 +58,7 @@ newly introduced workloads.
 There are intentionally no standalone `context_projection` or
 `output_projection` microbenchmarks. The former implementations were local
 benchmark helpers, not runtime code, so optimizing them could not improve the
-product. `graph_context_to_module` exercises both production context
+product. `workflow_context_to_module` exercises both production context
 materialization and step-output projection through the real graph runner.
 
 The module rows exercise the production Boa worker. `pure_module_cold_start`
@@ -107,7 +107,7 @@ working-set budget is 640 MiB; the contract exposes both values rather than
 hiding the multiplication behind an invocation-count constant.
 
 Process rows are measured from release binaries built in
-`crates/target/runx-perf/release`. The perf harness intentionally does not reuse
+`crates/target/runx-perf/release`. The perf test intentionally does not reuse
 `crates/target/debug/runx`, because that binary may be stale or built from a
 different local checkout state. Each capture asks Cargo to refresh those release
 probe binaries before measuring so an existing perf artifact cannot silently
@@ -118,7 +118,7 @@ overhead rather than first-touch page-cache noise.
 `cli_file_input` creates a valid temporary skill, invokes the release binary
 through the canonical `runx skill ... --inputs input.json` surface, executes a
 native digest, and seals the ordinary local receipt. It therefore measures the
-real contained document reader and selected-runner path; it is not the
+real contained document reader and selected-method path; it is not the
 development kernel evaluator dressed up as skill-input evidence.
 
 ## Runtime Boundaries
@@ -156,9 +156,9 @@ or a JavaScript anchor.
 The 2x gate applies to deterministic graph planning state-machine overhead. Production context-to-module execution has a no-regression gate;
 receipt canonicalization and store maintenance use a 1.75x throughput gate
 plus a measured growth-shape budget. Session gates track spawn count and p99
-regression. Runx does not emit allocation metrics until the harness has a real
+regression. Runx does not emit allocation metrics until the test has a real
 production-path allocator observation; an invented zero is not evidence. The
-growth-exponent gate applies only where the harness captures explicit small and
+growth-exponent gate applies only where the test captures explicit small and
 large scale points: receipt-store append/index, artifact continuation, and
 Twitter archive selection. Admission, canonicalization, and
 sealing have throughput gates but no invented scaling metric. These gates do
@@ -193,9 +193,9 @@ captured on the same host class using the commands below.
 Later phases compare against the Phase 1 baseline:
 
 ```bash
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads graph_planning --min-throughput-ratio 2.00
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads graph_context_to_module --min-throughput-ratio 1.00 --max-p99-regression 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads receipt_canonicalization,graph_receipt_sealing --min-throughput-ratio 1.50
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads workflow_planning --min-throughput-ratio 2.00
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads workflow_context_to_module --min-throughput-ratio 1.00 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-throughput-baseline.json --workloads receipt_canonicalization,workflow_receipt_sealing --min-throughput-ratio 1.50
 ```
 
 The check command exits non-zero when any requested workload misses its declared
@@ -206,10 +206,10 @@ The S-tier final gate captures all runtime-owned workloads into
 `.scafld/perf/oss-runtime-s-tier-baseline.json`:
 
 ```bash
-pnpm perf:runtime:capture -- --output .scafld/perf/oss-runtime-s-tier-final.json --workloads graph_planning,native_capability_dispatch,graph_context_to_module,pure_module_cold_start,pure_module_session_reuse,pure_module_large_input,provider_effect_finality,artifact_admission,artifact_page_continuation,twitter_archive_selection,receipt_canonicalization,graph_receipt_sealing,receipt_store_append,receipt_store_index,native_cli_launch,cli_file_input
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads graph_planning --min-throughput-ratio 2.00 --max-p99-regression 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_capability_dispatch,graph_context_to_module --min-throughput-ratio 1.00 --max-p99-regression 1.10
-pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_canonicalization,graph_receipt_sealing --min-throughput-ratio 1.75
+pnpm perf:runtime:capture -- --output .scafld/perf/oss-runtime-s-tier-final.json --workloads workflow_planning,native_capability_dispatch,workflow_context_to_module,pure_module_cold_start,pure_module_session_reuse,pure_module_large_input,provider_effect_finality,artifact_admission,artifact_page_continuation,twitter_archive_selection,receipt_canonicalization,workflow_receipt_sealing,receipt_store_append,receipt_store_index,native_cli_launch,cli_file_input
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads workflow_planning --min-throughput-ratio 2.00 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads native_capability_dispatch,workflow_context_to_module --min-throughput-ratio 1.00 --max-p99-regression 1.10
+pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_canonicalization,workflow_receipt_sealing --min-throughput-ratio 1.75
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-s-tier-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads receipt_store_append,receipt_store_index --min-throughput-ratio 1.75 --max-growth-exponent 1.10
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads provider_effect_finality --min-throughput-ratio 0.85 --max-p99-regression 1.25 --max-spawn-count 0
 pnpm perf:runtime:check -- --baseline .scafld/perf/oss-runtime-production-path-baseline.json --candidate .scafld/perf/oss-runtime-s-tier-final.json --workloads artifact_admission --min-throughput-ratio 0.85 --max-p99-regression 1.25

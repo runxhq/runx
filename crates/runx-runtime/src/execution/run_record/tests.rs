@@ -25,7 +25,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
     log.begin(StartRequest {
         skill: "triage",
         skill_path: "skills/triage",
-        runner: "default",
+        method: "default",
         package_digest: "sha256:package",
         execution_closure_digest: "sha256:closure",
         inputs,
@@ -74,7 +74,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         step_id: step_id.to_owned(),
         attempt: 1,
         skill: step_id.to_owned(),
-        runner: None,
+        method: None,
         contract: claim,
         artifact_outputs: Default::default(),
         ephemeral_contract: Default::default(),
@@ -222,7 +222,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
             .begin(StartRequest {
                 skill: "triage",
                 skill_path: "skills/triage",
-                runner: "default",
+                method: "default",
                 package_digest: "sha256:package",
                 execution_closure_digest: "sha256:closure",
                 inputs: &JsonObject::new(),
@@ -397,7 +397,7 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
 /// can't decode.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct RetiredStart {
-    harness: String,
+    test: String,
 }
 
 impl StreamEvent for RetiredStart {
@@ -427,7 +427,7 @@ fn a_run_this_runx_cannot_read_is_listed_as_unreadable_and_the_listing_carries_o
                 "run_retired",
                 Expected::Absent,
                 &RetiredStart {
-                    harness: "default".to_owned(),
+                    test: "default".to_owned(),
                 },
             )
             .unwrap(),
@@ -662,7 +662,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         call_id: None,
         target: &TurnTarget::Skill {
             skill: "./report".into(),
-            runner: None,
+            method: None,
             bound: None,
         },
         input: &JsonObject::new(),

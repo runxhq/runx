@@ -15,7 +15,7 @@ runx makes agent work trustable by someone who was not there, and reusable by
 the system that did it.
 
 That is the whole platform. Everything else (the CLI, the crates, the policy
-engine, the registry, the harness) is in service of it.
+engine, the registry, the test) is in service of it.
 
 ## Kill the easy answers first
 

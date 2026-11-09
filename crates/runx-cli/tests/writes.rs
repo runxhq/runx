@@ -64,7 +64,7 @@ fn consent_stream() -> Value {
 
 #[test]
 fn a_turns_own_call_never_appends_to_a_stream_at_any_effects() -> TestResult {
-    for (method, authority) in [("read", ASKING), ("develop", r#"{"effects":"allow"}"#)] {
+    for (method, authority) in [("read", ASKING), ("write", r#"{"effects":"allow"}"#)] {
         let root = crate::support::temp_root("runx-writes-turn-append");
         std::fs::create_dir_all(&root)?;
         let run = start_session(command(&root), method, authority)?;
@@ -178,7 +178,7 @@ impl Slack {
             .collect())
     }
 
-    /// A develop session in `project` under `authority` that has loaded the
+    /// A write session in `project` under `authority` that has loaded the
     /// Slack connector, and the outcome of the one call it then makes.
     fn develop_call(
         &self,
@@ -187,16 +187,16 @@ impl Slack {
         tool: &str,
         input: Value,
     ) -> TestResult<Value> {
-        let run = start_session(self.runx(project)?, "develop", authority)?;
+        let run = start_session(self.runx(project)?, "write", authority)?;
         let loaded = turn_call(
             self.runx(project)?,
             &run,
-            "develop",
+            "write",
             "load",
             json!({"connector": "slack"}),
         )?;
         assert_eq!(loaded["status"], "completed", "{loaded}");
-        turn_call(self.runx(project)?, &run, "develop", tool, input)
+        turn_call(self.runx(project)?, &run, "write", tool, input)
     }
 }
 
@@ -282,7 +282,7 @@ fn a_provider_write_with_no_approval_of_its_own_waits_on_a_person_under_ask() ->
     let sent = slack.sent()?;
     let approval = waiting_approval(&replied).ok_or_else(|| {
         format!(
-            "a develop turn under effects: ask replied in Slack with nothing waiting: reply={replied}\nConnect was asked to perform {sent:?}"
+            "a write turn under effects: ask replied in Slack with nothing waiting: reply={replied}\nConnect was asked to perform {sent:?}"
         )
     })?;
     assert_eq!(approval["gate"]["type"], "write", "{replied}");

@@ -9,7 +9,7 @@ inputs:
     orchestration_steps:
       - id: scan
         skill: ../moltbook
-        runner: scan
+        method: scan
     required_skills:
       - name: moltbook
         exists: true
@@ -27,16 +27,16 @@ host:
           decision: reuse
           adjacent_skills:
             - moltbook
-          rationale: Compose the existing scan runner and add only pipeline glue.
+          rationale: Compose the existing scan method and add only pipeline glue.
         quality_bar:
           audience: Runx skill maintainers
           artifact: A source-bound reuse decision.
           evidence: Cite the inspected manifest.
           stop_conditions:
-            - Stop if the runner cannot be verified.
+            - Stop if the method cannot be verified.
         recommended_flow:
           - step: scan
-            rationale: Reuse the existing Moltbook scan runner.
+            rationale: Reuse the existing Moltbook scan method.
         sources:
           - path: skills/moltbook/run.yaml
             kind: skill-manifest

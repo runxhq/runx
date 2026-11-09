@@ -23,7 +23,7 @@ function runnable(): ExternalJobContinuationContract {
     source_run_ref: { type: "act", uri: "runx:run:initial-run-1" },
     executor_binding: {
       skill: "ausca-document-ocr",
-      runner: "async",
+      method: "async",
       package_digest: DIGEST_A,
       execution_closure_digest: DIGEST_B,
     },

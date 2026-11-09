@@ -1,6 +1,6 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-//! A hosted declared-HTTP operation, end to end through the harness's runx
+//! A hosted declared-HTTP operation, end to end through the test's runx
 //! Connect: the kernel admits the call under the case's grant and sends it
 //! to Connect by request id, and Connect renders the declared request with
 //! the purchase it holds and answers it from the case's exchanges.

@@ -96,7 +96,7 @@ impl BoundRun {
                     record,
                     request,
                     &request_context,
-                    &self.runner,
+                    &self.method,
                     &self.package_digest,
                     execution_closure_digest,
                 )?;
@@ -125,7 +125,7 @@ impl BoundRun {
                 log.begin(StartRequest {
                     skill: &self.manifest.skill,
                     skill_path: &request.skill_path.to_string_lossy(),
-                    runner: &self.runner.name,
+                    method: &self.method.name,
                     package_digest: &self.package_digest,
                     execution_closure_digest,
                     inputs: &inputs,
@@ -155,8 +155,8 @@ impl BoundRun {
         }
         if existing.is_some() {
             crate::input_contract::materialize_complete_method_inputs(
-                &self.runner.inputs,
-                &self.runner.input_constraints,
+                &self.method.inputs,
+                &self.method.input_constraints,
                 &workflow_inputs,
             )
             .map_err(|error| error.into_runtime_error())?;
@@ -177,7 +177,7 @@ impl BoundRun {
         });
         // The run holds what its host gave it, narrowed by its method's own
         // effects and reach.
-        let run_authority = RunAuthority::of_method(run_authority, &self.runner.graph);
+        let run_authority = RunAuthority::of_method(run_authority, &self.method.graph);
         let runtime = self.runtime(
             &log,
             run_context,
@@ -285,23 +285,23 @@ impl BoundRun {
                 )?;
                 self.paused(&log)
             }
-            // The runner recorded the exact claimed step before dispatch.
+            // The method recorded the exact claimed step before dispatch.
             // Return that pending workflow, not an anonymous CLI failure.
             Err(RuntimeError::ProviderEffectUnknown { .. }) => self.paused(&log),
             Err(error) => run.seal_stopped(error),
         }
     }
 
-    /// The registry reference this run buys: its runner is one the registry
+    /// The registry reference this run buys: its method is one the registry
     /// sells and it was reached through the registry, so the kernel buys it
     /// rather than run it here (S10).
     fn purchase(&self) -> Option<&str> {
         let reference = self.overrides.purchase.as_deref()?;
-        self.runner.offer.is_some().then_some(reference)
+        self.method.offer.is_some().then_some(reference)
     }
 
-    /// The graph the run drives: the runner's own, or for a purchase one step
-    /// that calls the runner through the registry, which the kernel buys as
+    /// The graph the run drives: the method's own, or for a purchase one step
+    /// that calls the method through the registry, which the kernel buys as
     /// it buys any call.
     fn graph(
         &self,
@@ -312,10 +312,10 @@ impl BoundRun {
         match self.purchase() {
             Some(reference) => Ok(crate::execution::graph::purchase_workflow(
                 reference,
-                &self.runner.name,
+                &self.method.name,
                 inputs,
             )),
-            None => bind_run_inputs(self.runner.graph.clone(), inputs, act, run_id),
+            None => bind_run_inputs(self.method.graph.clone(), inputs, act, run_id),
         }
     }
 
@@ -391,7 +391,7 @@ impl BoundRun {
         let waiting = waiting_requests(log.store(), log.run_id())?;
         Ok(paused_output(
             &self.manifest,
-            &self.runner.name,
+            &self.method.name,
             log.run_id(),
             &waiting,
         ))
@@ -417,7 +417,7 @@ impl BoundRun {
         let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &self.manifest.skill,
-            &self.runner.name,
+            &self.method.name,
             log.run_id(),
             &output,
             &result,
@@ -438,7 +438,7 @@ fn continuation_identity<'a>(
     record: &'a RunRecord,
     request: &SkillRunRequest,
     request_context: &CallerContext,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     package_digest: &str,
     execution_closure_digest: &str,
 ) -> Result<&'a crate::execution::run_record::Started, SkillRunError> {
@@ -450,8 +450,8 @@ fn continuation_identity<'a>(
             "run identity cannot replace its original {field}: a continuation runs under the identity the run started with"
         ))
     };
-    if started.runner != runner.name {
-        return Err(refuse("runner"));
+    if started.method != method.name {
+        return Err(refuse("method"));
     }
     if started.package_digest != package_digest {
         return Err(refuse("package digest"));
@@ -498,7 +498,7 @@ impl Driven<'_> {
         let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest.skill,
-            &bound.runner.name,
+            &bound.method.name,
             self.log.run_id(),
             &output,
             &result,
@@ -527,7 +527,7 @@ impl Driven<'_> {
         let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest.skill,
-            &bound.runner.name,
+            &bound.method.name,
             self.log.run_id(),
             &output,
             &result,
@@ -583,7 +583,7 @@ pub(super) enum TurnActed {
 }
 
 /// The host a run's driver works it through: the answers the caller
-/// brought, an action on one of the run's open turns, a harness caller's
+/// brought, an action on one of the run's open turns, a test caller's
 /// scripted turns, or the managed agent the run consents to. Anything else
 /// suspends the run where it asks.
 pub(super) struct RunHost {
@@ -811,7 +811,7 @@ impl Host for RunHost {
     }
 
     /// The calls this host brings something for go further first. Then the
-    /// host does what it came to do on this turn, works it from a harness
+    /// host does what it came to do on this turn, works it from a test
     /// script, or its managed agent works it once nothing in it waits on a
     /// human.
     fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
@@ -969,11 +969,11 @@ mod tests {
         )?;
         let owned = RuntimeError::SkillFailed {
             skill_name: "apply".to_owned(),
-            message: "candidate harness failed".to_owned(),
+            message: "candidate test failed".to_owned(),
         };
         let nested = RuntimeError::SkillFailed {
             skill_name: "runx.skill.apply".to_owned(),
-            message: "candidate harness failed".to_owned(),
+            message: "candidate test failed".to_owned(),
         };
 
         assert_eq!(
@@ -1058,7 +1058,7 @@ methods:
             log.begin(StartRequest {
                 skill: "managed-agent-workflow-failure",
                 skill_path: "skill",
-                runner: "default",
+                method: "default",
                 package_digest: "sha256:package",
                 execution_closure_digest: "sha256:closure",
                 inputs: &JsonObject::new(),

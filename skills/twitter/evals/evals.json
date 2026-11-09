@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Read the bounded current snapshot for this X account.",
-      "expected_output": "Use the live account read runner by default and return bounded provider evidence through the account's bound credential.",
+      "expected_output": "Use the live account read method by default and return bounded provider evidence through the account's bound credential.",
       "files": []
     },
     {

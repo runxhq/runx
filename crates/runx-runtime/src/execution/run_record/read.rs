@@ -112,7 +112,7 @@ pub fn read_run(
         run: RunReadSummary {
             run_id: run_id.into(),
             skill: started.skill.into(),
-            runner: started.runner.into(),
+            method: started.method.into(),
             state,
             outcome,
             package_digest: started.package_digest.into(),
@@ -207,7 +207,7 @@ fn project(
     let event = match recorded.event {
         RunEvent::Started(started) => RunEventFact::Started {
             skill: started.skill.into(),
-            runner: started.runner.into(),
+            method: started.method.into(),
         },
         RunEvent::ChildStarted(started) => RunEventFact::ChildStarted {
             parent: started.parent.into(),

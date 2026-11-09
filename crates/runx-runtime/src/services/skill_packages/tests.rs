@@ -208,7 +208,7 @@ fn skill_authoring_workspace_inspection_includes_base_digest()
         target_inspection
             .get("method_inspections")
             .and_then(JsonValue::as_array)
-            .is_some_and(|runners| !runners.is_empty())
+            .is_some_and(|methods| !methods.is_empty())
     );
     assert_eq!(report.target_metrics.files, 2);
     assert!(
@@ -292,7 +292,7 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
         architecture(SkillArchitectureChoice::Build, &[]),
         &[
             ("SKILL.md", "not valid skill frontmatter"),
-            ("run.yaml", "schema: runx.runner.v1\n"),
+            ("run.yaml", "schema: runx.method.v1\n"),
         ],
         &[],
     );

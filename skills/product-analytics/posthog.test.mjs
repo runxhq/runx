@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { preparePosthog, bindPosthog, mergePosthog } from "./posthog.mjs";
-// Domain tests use the same JSON value; the package harness separately proves native parseData.
+// Domain tests use the same JSON value; the package test separately proves native parseData.
 globalThis.Runx = { parseData: (source) => JSON.parse(source) };
 const example = {
   schema: "runx.provider.operation.v1",
@@ -9,10 +9,10 @@ const example = {
   provider: "posthog",
   operation: "insight.read",
   target: "https://us.posthog.com/project/123/insights/launch01",
-  transport: "harness",
+  transport: "test",
   readback_uri: "https://us.posthog.com/project/123/insights/launch01",
   principal_uri: "test:analytics",
-  account_id: "harness",
+  account_id: "test",
   result: {
     insight: {
       id: 42,

@@ -33,7 +33,7 @@ host:
             lane: prior-art
             reason: Resolve the exact amount/currency-unit ownership before changing invoice intake.
             inputs_summary:
-              runner: prior-art-agent
+              method: prior-art-agent
               repo_root: /workspace/runx
               objective: Identify the existing exact amount conversion owner and the selected buyer method currency-unit contract before invoice intake.
               source_paths:

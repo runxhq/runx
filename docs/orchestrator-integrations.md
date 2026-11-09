@@ -36,11 +36,11 @@ Operator rules:
 
 - Bare local skill names resolve from the current workspace's `skills/`
   directory.
-- `-i name=value` gives one input, read by the type its runner declares: a
+- `-i name=value` gives one input, read by the type its method declares: a
   string as written, any other type as JSON. `--inputs file|-` gives the whole
   input object instead. A flag runx does not own is refused, never read as an
   input.
-- `runx skill <skill> <runner>` selects a non-default runner without changing the skill
+- `runx skill <skill> <method>` selects a non-default method without changing the skill
   package.
 - `--json` prints the full machine contract. Without `--json`, the CLI prints a
   concise status view with run id, receipt id, and pending request ids rather

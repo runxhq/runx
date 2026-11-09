@@ -5,7 +5,7 @@ description: Compile a bounded objective or code-intake change set into a depend
 
 # Code Plan
 
-Turn one objective into a plan that downstream runners can consume without reinterpreting the source request.
+Turn one objective into a plan that downstream methods can consume without reinterpreting the source request.
 
 ## Procedure
 
@@ -48,7 +48,7 @@ validation:
 preservation claim. When a caller supplies source context, drift or loss blocks
 the plan.
 
-Inputs are `objective`, optional `project_context`, `thread_locator`, `thread`, `change_set`, and `harness_context`. `harness_context` is passed through from the caller; the agent does not reconstruct or advance it.
+Inputs are `objective`, optional `project_context`, `thread_locator`, `thread`, `change_set`, and `run_context`. `run_context` is passed through from the caller; the agent does not reconstruct or advance it.
 
 ## Agent task: code-plan-draft
 
@@ -58,4 +58,4 @@ supplied change_set exactly. Split at authority, mutation, dependency, and revie
 not split for cognitive convenience. Every phase, repo request, and orchestration step needs an
 id, ordered dependencies, and an explicit mutation flag. A ready plan has no blocking open
 questions. Use plan_kind skill_package for Runx skill authoring and route that work through
-skill-build. This runner plans only and never claims downstream execution.
+skill-build. This method plans only and never claims downstream execution.

@@ -12,7 +12,7 @@ read-only.
 
 The question records the review purpose. It is not translated into hidden
 filters: amount thresholds, business totals, scope searches and arbitrary
-natural-language conditions are not implemented by this runner. Supply the
+natural-language conditions are not implemented by this method. Supply the
 supported filter fields, then pass the resulting evidence to the appropriate
 review skill.
 
@@ -36,7 +36,7 @@ contract is still visible when a step has no act. A verified `local` issuer
 means the Runx home signed the receipt; it does not establish an independent
 operator or provider attestation. Missing replay fields stay unknown.
 
-The default `read` runner invokes the native `receipt.query` service directly.
+The default `read` method invokes the native `receipt.query` service directly.
 The service resolves the same receipt store and signature policy as Runx's CLI,
 projects bounded history rows, resolves exact ids through the redacted detail
 reader, and optionally verifies each matched receipt tree. There is no child
@@ -45,7 +45,7 @@ the in-runtime way for an agent to inspect its own sealed receipts before a
 gated action. The detail packet is curated in Rust and never returns execution
 bodies, credential material, or local paths.
 
-The `read` runner accepts optional `receipts` and `receipt_details` inputs for
+The `read` method accepts optional `receipts` and `receipt_details` inputs for
 replay or controlled evaluation. When present it uses those projections instead
 of the native store. Replay is labelled as supplied evidence and never becomes
 a live proof path.
@@ -116,7 +116,7 @@ match and a verified chain walk, not an aggregate health report.
   `checked: true`; the chain is unverified, not intact.
 - **Verification requested over an empty match set:** the stop is
   `needs_more_evidence` for the match, not a chain claim over nothing.
-- **Write, delete, or reseal requests:** this read runner cannot perform them.
+- **Write, delete, or reseal requests:** this read method cannot perform them.
   Its sole native query scope is `receipt.read`; prose does not grant a write.
 
 ## Output
@@ -152,7 +152,7 @@ proof:
   verify_chain: true
 ```
 
-The runner returns the matched id stubs, redacted native details and the native
+The method returns the matched id stubs, redacted native details and the native
 verification verdict. Missing ids remain absent; the caller must compare the
 requested ids with the matched set before relying on the evidence. A failed,
 unknown or bounded-out verification verdict cannot support a claim of intact
@@ -162,14 +162,14 @@ the fixture labels its rows verified.
 ## Inputs
 
 - `question` (optional): the audit question bounding the ledger read. Without
-  one the runner returns `needs_agent` and does not query.
+  one the method returns `needs_agent` and does not query.
 - `filter` (optional): JSON narrowing the query by `principal`, `skill`,
   `outcome`, `time_range` (`from`/`to`), and `limit` (default 500, maximum 5000).
 - `receipt_ids` (optional): up to 100 exact receipt ids to resolve and verify.
 - `proof` (optional): JSON requesting chain verification over the matched
   receipts, for example `{ "verify_chain": true }`.
 - `receipts` (optional): explicit ledger rows for replay or controlled
-  evaluation; when present the `read` runner does not query live native
+  evaluation; when present the `read` method does not query live native
   history.
 - `receipt_details` (optional): explicit native redacted detail projections for
   deterministic replay only.

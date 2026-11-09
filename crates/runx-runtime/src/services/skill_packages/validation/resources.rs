@@ -17,8 +17,8 @@ pub(super) fn candidate_resource_usage(package: &ValidatedSkillPackage) -> Candi
         ..CandidateResourceUsage::default()
     };
     for profile in package.profiles.values() {
-        for runner in profile.methods.values() {
-            classify_method(runner, &mut usage);
+        for method in profile.methods.values() {
+            classify_method(method, &mut usage);
         }
     }
     if usage.domain_modules {
@@ -28,10 +28,10 @@ pub(super) fn candidate_resource_usage(package: &ValidatedSkillPackage) -> Candi
 }
 
 fn classify_method(
-    runner: &runx_parser::SkillMethodDefinition,
+    method: &runx_parser::SkillMethodDefinition,
     usage: &mut CandidateResourceUsage,
 ) {
-    for step in &runner.graph.steps {
+    for step in &method.graph.steps {
         match &step.kind {
             // Every operation is external I/O.
             StepKind::Operation(_) => usage.network = true,

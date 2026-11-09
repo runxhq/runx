@@ -237,7 +237,7 @@ async function runSelfTests() {
   }
   // POSIX process groups are owned directly by this Node watchdog. On Windows,
   // the spawned Runx binary owns the kernel Job Object and its focused Rust
-  // tests exercise descendant containment on a real Windows runner.
+  // tests exercise descendant containment on a real Windows method.
   if (process.platform !== "win32") {
     const treeStarted = performance.now();
     const tree = await spawnBounded(

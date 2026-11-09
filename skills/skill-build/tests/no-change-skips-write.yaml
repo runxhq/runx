@@ -6,7 +6,7 @@ inputs:
   target_dir: skills/not-present
   failure_packet:
     verdict: blocked
-    failure_summary: The report has no receipt or reproducible harness output.
+    failure_summary: The report has no receipt or reproducible test output.
     improvement_proposals: []
     next_test_checks:
       - Reproduce the report with a sealed receipt before changing the package.
@@ -36,7 +36,7 @@ host:
           native_escape: Return the report and inspection for direct host reproduction.
         chain_use:
           accepted_inputs:
-            - A diagnose-skill-run failure packet, receipt summary, or harness output.
+            - A diagnose-skill-run failure packet, receipt summary, or test output.
           result: A digest-bound correction or unchanged result.
           reused_evidence:
             - The supplied failure packet and package inspection.
@@ -48,7 +48,7 @@ host:
         knowledge_contract:
           purpose: Require reproducible evidence before changing existing behavior.
           evidence_required:
-            - A sealed receipt or reproducible harness failure.
+            - A sealed receipt or reproducible test failure.
           decision_logic:
             - Preserve current behavior when the supplied report cannot be reproduced.
           stop_conditions:

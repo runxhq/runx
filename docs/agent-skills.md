@@ -14,7 +14,7 @@ back to runx:
 - **Claude** gets one `SKILL.md` shim per skill under `~/.claude/skills/<name>/`
   (or `./.claude/skills/` with `--project`). Each shim declares `allowed-tools`
   locked to the runx binary and carries a package- and execution-closure-bound
-  `runx skill ... --json` command. The exact runner schema stays inspectable on
+  `runx skill ... --json` command. The exact method schema stays inspectable on
   demand instead of being copied into every agent context.
 - **Codex** gets the same per-skill shims under `~/.agents/skills/<name>/` plus an
   idempotent managed allow block in `~/.codex/rules/default.rules`. Project exports
@@ -41,9 +41,9 @@ pnpm codex-export:check                     # verify the active managed Codex su
 ```
 
 Add `--json` for machine-readable output. A governed package must be public and
-have a default runner with a validated standalone operator-journey contract and
+have a default method with a validated standalone operator-journey contract and
 an exactly bound execution closure. Public visibility alone is insufficient.
-Internal runtime paths, harness fixtures and composed-only stages are skipped;
+Internal runtime paths, test fixtures and composed-only stages are skipped;
 explicitly naming an ineligible package returns an error.
 
 A full export must run from a skill workspace containing a root `SKILL.md` or
@@ -66,13 +66,13 @@ allowed-tools: Bash(/path/to/runx skill *) Bash(/path/to/runx resume *)
 ---
 # pay - governed by runx
 
-Run the declared runner through runx; do not bypass it by independently reproducing work that runner owns.
+Run the declared method through runx; do not bypass it by independently reproducing work that method owns.
 
 <!-- runx-source-manual-begin digest=sha256:<manual> package-digest=sha256:<package> bytes=<n> -->
 <the exact canonical SKILL.md body>
 <!-- runx-source-manual-end -->
 
-## Default runner: `pay`
+## Default method: `pay`
 
 Inspect the exact input and effect contract on demand:
 
@@ -90,8 +90,8 @@ printf '%s' "$RUNX_INPUTS_JSON" | /path/to/runx skill /path/to/skills/pay pay \
 ```
 
 Build the input object from the user's task and the inspected input_schema.
-The act states the requested purpose. Harness inputs are test data, not a job
-to copy. Authored runner examples remain available through inspection.
+The act states the requested purpose. Test inputs are test data, not a job
+to copy. Authored method examples remain available through inspection.
 
 <!-- runx-export:claude source=/path/to/skills/pay package-digest=sha256:<package> - generated, do not edit -->
 ````
@@ -110,7 +110,7 @@ envelope: each full request id maps to its `request_digest` and `value`.
 Human questions and approvals remain human decisions; an agent must not invent
 their answers or approve its own work.
 
-A non-default runner uses its own inspected closure digest on invocation and
+A non-default method uses its own inspected closure digest on invocation and
 resume.
 
 Only a sealed run with `outcome: completed` establishes completion. Provider
@@ -130,8 +130,8 @@ exporting, since hosts load servers when a session starts. Codex reads a project
 installed, the export report prints the command to run.
 
 Such a skill's generated instructions name its tool rather than a shell command.
-A default runner's tool has the skill's name, and another runner's is
-`<skill>__<runner>`. The host calls the tool, then works the run's open turns on
+A default method's tool has the skill's name, and another method's is
+`<skill>__<method>`. The host calls the tool, then works the run's open turns on
 the same connection with `turn_list`, `turn_status`, `turn_read`, `turn_call` and
 `turn_complete`. The server binds each package and closure when it starts, and it
 works only the runs its own calls opened. Codex asks for approval of each MCP tool

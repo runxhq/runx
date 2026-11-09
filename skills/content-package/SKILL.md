@@ -26,11 +26,11 @@ or enable a concrete next step—not merely prove that research happened.
 
 ## How the chain works
 
-1. The default `prepare` runner takes the objective, audience and channel, with
+1. The default `prepare` method takes the objective, audience and channel, with
    optional `paths`, `urls` or completed `source_packets`. `research#investigate`
    reads explicit sources directly and acquires only missing evidence. Nonempty
    supplied source packets skip acquisition. The explicit `content-package`
-   runner retains its bounded-source-only contract for existing graphs.
+   method retains its bounded-source-only contract for existing graphs.
 2. `research` admits the sources, binds citations, and decides whether the
    evidence supports a useful deliverable. For a completed `research_packet`,
    select `from-research` to skip both acquisition and research synthesis.

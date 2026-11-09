@@ -65,7 +65,7 @@ pub struct ActAssignmentIdempotency {
 pub struct ActAssignment {
     pub schema: ActAssignmentSchema,
     pub skill: NonEmptyString,
-    pub runner: NonEmptyString,
+    pub method: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_uri: Option<NonEmptyString>,
     pub requested_at: IsoDateTime,

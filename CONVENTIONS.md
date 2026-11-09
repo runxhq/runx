@@ -8,12 +8,12 @@ This file applies to the OSS workspace under `oss/`. It complements
 
 ## Contract Vocabulary
 
-Governed runtime artifacts use the harness spine:
+Governed runtime artifacts use the run spine:
 
-- `harness`: governed execution boundary with attenuated authority.
+- `test`: governed execution boundary with attenuated authority.
 - `act`: contained payload with `intent`, `form`, and `closure`.
-- `receipt`: sealed proof of a harness node.
-- `decision`: accountable harness lifecycle choice.
+- `receipt`: sealed proof of a test node.
+- `decision`: accountable test lifecycle choice.
 - `signal`: world-before-action input.
 
 Do not introduce compatibility aliases, `.v2` contract ids, or retired central
@@ -83,7 +83,7 @@ CLI, host-adapter, filesystem, network, or subprocess concerns.
 The public TypeScript invocation path is integrations → `@runxhq/client` →
 `@runxhq/contracts`. The client root owns only finite native command invocation;
 its `./adapters` export owns portable response formatting and must remain Node-free.
-The client never imports private Cloud features, framework harnesses or CLI
+The client never imports private Cloud features, framework tests or CLI
 internals. Products own persistence, agent loops and scheduling.
 
 ## Connector and Tenant Neutrality
@@ -111,10 +111,10 @@ authoring contract; `docs/skill-quality-standard.md` owns the review standard.
 
 ## Packet Artifact Eligibility
 
-Every public runner must expose a complete inspectable input and output
-contract. That does not make every runner or skill a global packet owner.
+Every public method must expose a complete inspectable input and output
+contract. That does not make every method or skill a global packet owner.
 
-- Keep runner-specific nested values in `run.yaml` as ordinary JSON Schema.
+- Keep method-specific nested values in `run.yaml` as ordinary JSON Schema.
 - Declare a packet only when the complete value crosses a named, reusable
   skill, runtime, SDK, provider, receipt, or registry boundary.
 - Anything with a packet id is a file. A package's packet is
@@ -185,7 +185,7 @@ every test to the new names, and a test that only made sense under the old
 names is deleted, never put back on them.
 
 For skill behavior, the default is a replayable operator-story fixture through
-the skill's public runner. Composite-skill harnesses own the business scenario
+the skill's public method. Composite-skill tests own the business scenario
 matrix: routing decisions, authority attenuation, approval and refusal stops,
 downstream handoffs, provider-evidence requirements, receipt lineage, durable
 readback, and replay or recovery. Use fixture agents and local or fake adapters;
@@ -198,7 +198,7 @@ response to the exact method, final URL, and explicit absent, structural JSON, o
 matched GET reads and a matched POST, PUT, PATCH, or DELETE proves a mutation
 without reaching the network. Use `{text: "..."}` for an exact form, XML, or other text request body. Fixture URLs are canonicalized like native final
 URLs and reject credentials and fragments, which are not valid exchange
-identity. Any request no exchange matches is refused; a harness run never
+identity. Any request no exchange matches is refused; a test run never
 falls back to the live network. Fixture bytes
 still pass through the production admission, allowlist, redirect, extraction,
 digest, redaction, and response-bound logic for the selected capability. Keep
@@ -211,7 +211,7 @@ whole transition and readback in one graph fixture. Individual fixtures must be
 independent: never share hidden state through filename order or reuse a
 single-use idempotency or capability key across cases.
 
-Harness scratch state is project-owned under `.runx/harness` and is removed
+Test scratch state is project-owned under `.runx/test` and is removed
 after the run. Durable receipts remain under `.runx/receipts` or the explicit
 receipt directory. Catalog sweeps and core-skill trials likewise isolate
 disposable work under `.runx`; `/tmp` is reserved for an outer test framework
@@ -223,7 +223,7 @@ Adding more files must not create additional Cargo integration binaries.
 ## Specs
 
 Scafld specs are execution contracts, not notes. A spec that is stale against
-the current harness spine or package truth must be repaired before approval or
+the current run spine or package truth must be repaired before approval or
 build. Completed specs with failed, blocked, or not-run hardening need an
 explicit follow-up or a recorded deviation before another spec treats them as
 authoritative evidence.

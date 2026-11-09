@@ -44,7 +44,7 @@ Skills that enforce policy, audit receipts, or review skill quality.
 | `receipt-audit/` | Audit a sealed runx receipt for governance, comparing the authority chain to the evidence. |
 | `run-history/` | Produce a read-only report over runx's own run history, summarizing sealed runs. |
 | `skill-review/` | Inspect, safely test, and assess a skill package for capability, trust, and operator risk. |
-| `diagnose-skill-run/` | Diagnose failed skill runs from receipts and harness evidence, then propose bounded improvements. |
+| `diagnose-skill-run/` | Diagnose failed skill runs from receipts and test evidence, then propose bounded improvements. |
 | `least-privilege/` | Review exact attributable authority recorded in verified receipts; retain the grant until policy and usage evidence support narrowing. |
 | `sign-receipt/` | Prepare an evidence-bound attestation of an off-runtime act. |
 
@@ -107,7 +107,7 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `skill-build/` | Design, build, improve, and add validated harness coverage to Runx skills. |
+| `skill-build/` | Design, build, improve, and add validated test coverage to Runx skills. |
 | `skill-adopt/` | Adopt a pinned third-party SKILL.md as a governed native Runx binding bundle. |
 | `moltbook/` | Scan for posting opportunities and prepare governed Moltbook entries. |
 
@@ -137,6 +137,6 @@ Refer to the ["Add A Project Operator Skill Only When"](./operator-skills.md) se
 ## Mock vs. Live Lanes
 
 The fixtures `fixtures/skills/mock-charge`, `mock-pay` and `mock-refund` are
-deterministic local harness fixtures. They never move money and remain excluded
+deterministic local test fixtures. They never move money and remain excluded
 from ordinary operator discovery. Public payment skills are thin contracts that
 require Runx Hosted for real execution; no private rail package remains in OSS.

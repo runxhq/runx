@@ -18,12 +18,12 @@ pub(super) fn append_declared_packet_schemas(
     loaded: &LoadedSkillPackage,
     packet_ids: &BTreeSet<PacketId>,
 ) -> Result<(), RegistryPublishPackageError> {
-    // Bundles retain the full manifest, including runners outside the selected execution closure.
+    // Bundles retain the full manifest, including methods outside the selected execution closure.
     let mut required_packet_ids = packet_ids.clone();
     required_packet_ids.extend(loaded.resolved_input_packet_schemas.keys().cloned());
     for manifest in loaded.package.profiles.values() {
-        for runner in manifest.methods.values() {
-            required_packet_ids.extend(declared_method_packet_ids(runner));
+        for method in manifest.methods.values() {
+            required_packet_ids.extend(declared_method_packet_ids(method));
         }
     }
     for package_tool in loaded.package.tools.values() {

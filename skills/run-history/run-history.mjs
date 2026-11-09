@@ -107,7 +107,7 @@ function recommendations({ decision, outcomes, refusalCount, untestedCatalogEntr
     items.push({ lane: "receipt-audit", action: "Sample the receipts of blocked or declined runs to confirm the governance boundary is behaving as intended." });
   }
   if (untestedCatalogEntries > 0) {
-    items.push({ lane: "skill-build harness", action: `Add public-contract coverage to ${untestedCatalogEntries} catalog entr${untestedCatalogEntries === 1 ? "y" : "ies"} with no declared fixture or inline case.` });
+    items.push({ lane: "skill-build test", action: `Add public-contract coverage to ${untestedCatalogEntries} catalog entr${untestedCatalogEntries === 1 ? "y" : "ies"} with no declared fixture or inline case.` });
   }
   return items;
 }

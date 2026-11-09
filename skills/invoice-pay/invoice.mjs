@@ -25,7 +25,7 @@ export function invoiceTerms({extraction, connector}) {
   }
   const scale = MINOR_UNIT_DIGITS[connector]?.[value.currency];
   if (scale === undefined) {
-    throw new Error(`${connector} has no bound unit for ${value.currency} here. Supply exact minor units to the invoice-pay runner.`);
+    throw new Error(`${connector} has no bound unit for ${value.currency} here. Supply exact minor units to the invoice-pay method.`);
   }
   return {...value, scale, source_digest, citations};
 }

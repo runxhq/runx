@@ -74,7 +74,7 @@ impl RuntimeEffectRegistry {
 
     /// Replace one effect family while preserving every unrelated runtime
     /// effect. This is crate-private because only isolated runtime assembly
-    /// (currently the deterministic harness) may alter an already-wired
+    /// (currently the deterministic test) may alter an already-wired
     /// registry.
     pub(crate) fn replace_effect<T>(&mut self, effect: T) -> Result<(), RuntimeEffectError>
     where

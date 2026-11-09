@@ -40,7 +40,7 @@ handoffs that materially improve the resulting work.
 Every public skill must have:
 
 - a clear recurring job and a distinct owner in the catalog;
-- a bounded default runner with a truthful terminal state;
+- a bounded default method with a truthful terminal state;
 - explicit inputs, outputs, authority, approvals, and stop conditions;
 - a declared artifact or effect that survives beyond model prose;
 - provenance for material facts, state, amounts, actors, and recommendations;
@@ -62,7 +62,7 @@ Proof must match the claim:
 | Operation | A no-managed-agent fixture or bounded live trial crosses the claimed boundary and verifies runtime or provider readback. |
 | Workflow | A realistic path reaches each consequential gate and terminal state; deterministic stages use real fixtures, while supplied agent answers may prove the declared artifact contract. |
 | Artifact | A realistic source packet produces schema-valid output with provenance, and a forward test or evaluator checks usefulness for its named consumer. |
-| Builder | A fixture produces a valid package, policy, harness, or change artifact and runs the native validator that would accept it. |
+| Builder | A fixture produces a valid package, policy, test, or change artifact and runs the native validator that would accept it. |
 | Context | A fixture produces the bounded context packet and a downstream forward test shows that the declared consumer can use it without inventing missing fields. |
 
 `caller.answers` can prove graph wiring and an agent-artifact contract. It
@@ -118,14 +118,14 @@ deterministic effects and close into a declared artifact packet.
 
 `SKILL.md` is the sole static operating-instruction source for an agent act.
 Runx injects the complete owning document into the agent envelope and rejects
-runner or graph-step `instructions` fields. The envelope's task, typed inputs,
+method or workflow-step `instructions` fields. The envelope's task, typed inputs,
 outputs, allowed tools, and prepared context identify the current act without a
 second prompt contract. Nested skills run under their own documents; downstream
 steps receive declared outputs and context skills with provenance rather than a
 flattened prompt dump.
 
 The normal Runx path yields `needs_agent` to the caller. In-process managed
-agent execution requires explicit per-run `--managed-agent` consent, displays
+agent execution requires explicit per-run `--drive` consent, displays
 the act count and round budget before execution, and remains bounded. Available
 model credentials are capability, not consent. A review must not spend model
 tokens merely to prove a deterministic boundary or a supplied-answer contract.
@@ -202,13 +202,13 @@ operator.
 
 `run.yaml` owns executable capability and governance:
 
-- runner-owned nested inputs declare their JSON Schema fragment inline;
+- method-owned nested inputs declare their JSON Schema fragment inline;
 - an input that is exactly one canonical packet declares `type: json` and
   `packet: <packet-id>`, so the runtime resolves one catalog-owned schema for
-  validation, inspection, export, harness, and registry packaging;
+  validation, inspection, export, test, and registry packaging;
 - consumers never copy packet schemas, and a weak canonical packet contract is
   fixed at its producer before downstream adoption;
-- a runner-specific nested value remains an inline schema; `packet` is reserved
+- a method-specific nested value remains an inline schema; `packet` is reserved
   for the complete value at a named reusable skill, runtime, SDK, provider,
   receipt, or registry boundary, never as a way to make inspection richer;
 - graph intermediates and one-run implementation values do not mint packet ids;
@@ -222,19 +222,19 @@ operator.
 - object explicitness is recursive: every nested `type: object` declares
   properties or an explicit `additionalProperties` policy. Use `type: json` for
   deliberately arbitrary JSON instead of presenting it as a typed object;
-- a runner-local output's inline `schema` owns its nested properties, required
+- a method-local output's inline `schema` owns its nested properties, required
   fields, enums, and bounds once; an output bound to a packet declares only its
   type, and the packet file owns its shape for parser admission, agent
-  context, runtime validation, exports, and harness replay;
+  context, runtime validation, exports, and test replay;
 
-- runners, typed inputs and outputs, and default selection;
+- methods, typed inputs and outputs, and default selection;
 - agent-versus-deterministic step boundaries;
 - tool, adapter, context-skill, and graph wiring;
 - authority, approval, scopes, and receipt-act mappings;
 - side-effect posture and truthful completion semantics;
-- artifact packets and focused harness declarations.
+- artifact packets and focused test declarations.
 
-Typed outputs and packets belong to the step that produces them. A runner is a
+Typed outputs and packets belong to the step that produces them. A method is a
 composition boundary, not a second producer: it must end in an explicit
 package/finalize step when the workflow needs one reusable result, and that
 terminal producer owns the output and packet contract.
@@ -260,7 +260,7 @@ tags, multi-document markers, duplicate mappings, or unknown fields. Do not put
 strategy, generated state, secrets, campaign copy, or broad documentation in
 the execution profile.
 
-Standalone fixtures should live under `fixtures/` and exercise public runners.
+Standalone fixtures should live under `fixtures/` and exercise public methods.
 Inline cases remain acceptable where the runtime package already uses them as a
 focused evaluator or graph contract, but they should not turn `run.yaml` into a
 large scenario archive.
@@ -278,17 +278,17 @@ Skill authoring must decide ownership before it writes files:
   in OSS or the product, not in a Cloud dogfood script.
 - Prefer a declarative graph composed from existing native tools and canonical
   skills.
-- Treat the selected runner's execution requirements as the complete
+- Treat the selected method's execution requirements as the complete
   permission request. Opaque scopes, exact non-secret environment names, and
   runtime metadata stay on their canonical typed fields; credentials belong to
-  the connectors the runner calls. Native capabilities and providers enforce the scopes they own;
+  the connectors the method calls. Native capabilities and providers enforce the scopes they own;
   Runx does not reconstruct authority from prose or `runx` metadata.
 - Prove permission-bearing native and provider paths through the package
-  harness using the production catalog, dispatcher, and enforcement owner. A
+  test using the production catalog, dispatcher, and enforcement owner. A
   realistic admitted case and an exercisable withheld-scope or withheld-grant
-  case are part of the capability proof. Do not introduce a harness-only scope
+  case are part of the capability proof. Do not introduce a test-only scope
   vocabulary, evaluator, or report. Trusted host processes remain explicitly
-  trusted because a portable harness cannot prove the absence of arbitrary
+  trusted because a portable test cannot prove the absence of arbitrary
   filesystem, network, or syscall access.
 - Tool fixtures resolve the canonical manifest, execute under its declared
   scopes, and validate every declared packet through the production packet
@@ -329,17 +329,17 @@ Skill authoring must decide ownership before it writes files:
   lower complexity.
 
 `runx.skill.apply` fail-closes on objective facts: bounded paths, secret-like
-material, package parsing, exact-candidate inspection, isolated harness replay,
+material, package parsing, exact-candidate inspection, isolated test replay,
 target drift, and transactional application. Architectural judgment remains in
 the `skill-build` operating contract and review; native code does not pretend to
 validate it by counting model-authored prose fields.
 
 ## Catalog and review policy
 
-Capability metadata describes the complete public runner surface of a package,
-not only its default runner. `execution` and `completion` state the strongest
+Capability metadata describes the complete public method surface of a package,
+not only its default method. `execution` and `completion` state the strongest
 effect the package can truthfully close, and `approval` reflects the strictest
-human gate required by those runners. The default runner remains the concise
+human gate required by those methods. The default method remains the concise
 entry path and is reported separately in catalog reviews.
 
 Registry ownership is provenance, not a maintainer convenience. A public
@@ -351,7 +351,7 @@ requires an explicit ownership transfer, never an automatic rewrite during
 merge or hardening.
 
 Registry admission executes the exact digest-bound package that will install.
-Local cross-package edges are carried in that package bundle; a harness may
+Local cross-package edges are carried in that package bundle; a test may
 not borrow sibling files from the source checkout that are absent from the
 published artifact.
 
@@ -360,16 +360,16 @@ The catalog and package gates block structurally invalid or unusable packages:
 - unresolved or cyclic default closures;
 - agent-authored work with no declared artifact packet;
 - no cold-selection proof against at least two real nearby public skills;
-- no standalone journey through the actual advertised default runner;
+- no standalone journey through the actual advertised default method;
 - no composed journey that names reused evidence and work that must not repeat;
 - a missing product archetype review.
 
 The native semantic report owns the operator-readiness facts. The native
-execution closure separately owns resolved package, runner, tool, and edge
+execution closure separately owns resolved package, method, tool, and edge
 truth; reviewers compare capability metadata with that closure rather than
 reimplementing effect classification in TypeScript or package code. Provider
-evidence remains graded: deterministic replay is `harness`, live-provider
-evidence is `live`, and supplied agent answers never upgrade either. Harness execution strips ambient Runx grants,
+evidence remains graded: deterministic replay is `test`, live-provider
+evidence is `live`, and supplied agent answers never upgrade either. Test execution strips ambient Runx grants,
 tokens, credential deliveries, and global configuration before applying the
 fixture's explicit fake bindings.
 
@@ -381,7 +381,7 @@ deleted.
 The dated [Core Skill Product Review](core-skill-review.md) records the human
 product decision and evidence available at that review. Current structural
 truth comes from native package validation, the runx-maintained lock, operator-context
-expansion, and package harnesses; no parallel review generator is authoritative.
+expansion, and package tests; no parallel review generator is authoritative.
 The review does not authorize removal, relocation, or demotion.
 
 Internal packages use two distinct review categories. `internal_fixture`

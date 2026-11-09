@@ -21,7 +21,7 @@ const AMBIENT_TEST_AUTHORITY_ENV: &[&str] = &[
     "RUNX_PUBLIC_API_TOKEN",
 ];
 
-/// Remove ambient authority and credential custody from a harness process:
+/// Remove ambient authority and credential custody from a test process:
 /// the variables every connector in reach of the skill delivers a credential
 /// in. A case may add an explicit fake binding back through its own `env`,
 /// but a developer's live account state must never become implicit test

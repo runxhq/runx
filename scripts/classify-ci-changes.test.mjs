@@ -17,7 +17,7 @@ test("documentation changes stay in the light lane", () => {
   });
 });
 
-test("a non-core skill is product content: light, never the runtime or a harness", () => {
+test("a non-core skill is product content: light, never the runtime or a test", () => {
   const result = classifyFiles(
     ["skills/reddit/run.yaml", "skills/reddit/reddit.mjs"],
     core,

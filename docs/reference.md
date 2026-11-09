@@ -285,8 +285,8 @@ with `effects` and where its tools may go with `reach` (see Effects and reach,
 below); a host whose own agent works the run sets `effects: ask` and
 `reach: workspace`.
 
-A run's authority may also set `max_cost_micro`, the most the run may spend in
-integer micro-USD (1 = $0.000001); `runx skill --max-cost <usd>` sets it for a
+A run's authority may also set `max_spend_micro_usd`, the most the run may spend in
+integer micro-USD (1 = $0.000001); `runx skill --max-spend <usd>` sets it for a
 local run. Every priced call's quote, and every amount a call moves in USD or
 USDC, is reserved against what is left before anything is sent, so a call over
 it is refused as `cost_limit_exceeded` and seals the run blocked. Child runs and
@@ -295,8 +295,8 @@ proves nothing billable gives its reservation back. A payment in any other
 currency is refused under a limit, since it cannot be counted. Unknown provider
 prices are also refused under a money limit; missing price information is not
 zero. With no money limit, no dollar reservation is made, while scoped use
-limits, charge custody and applicable approval still hold. A run started with `--managed-agent` is worked by the
-managed agent: `runx mcp --run` refuses it, and `--managed-agent` cannot take
+limits, charge custody and applicable approval still hold. A run started with `--drive` is worked by the
+managed agent: `runx mcp --run` refuses it, and `--drive` cannot take
 over a run its host drives.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
@@ -715,9 +715,9 @@ runx skill runx/skill-build#build \
   -i target_dir=skills/docs-demo
 ```
 
-Without `--managed-agent`, the run stops at `needs_agent`, prints an answers
+Without `--drive`, the run stops at `needs_agent`, prints an answers
 template and exact `runx resume` command, and leaves the target untouched. Add
-`--managed-agent` only when this run should use the configured in-process model
+`--drive` only when this run should use the configured in-process model
 loop. To cold-start without installing Runx first, invoke the same command
 through `npx @runxhq/cli`.
 
@@ -1293,7 +1293,7 @@ sends the purchase fails closed. A test that stops on a request it did not answe
 that request in its status mismatch. No test's `host` or `providers` is
 available to skill inputs, environment configuration, or ordinary live runs.
 
-Package replay uses a disposable project-owned workspace below `.runx/harness`
+Package replay uses a disposable project-owned workspace below `.runx/test`
 and a separate receipt store for every test, then cleans that scratch state.
 Tests therefore cannot satisfy each other through filename order or ambient
 receipt history. Receipts produced by each test are verified and copied to the

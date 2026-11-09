@@ -25,5 +25,5 @@ The Cargo package `include allowlist` ships only `Cargo.toml`, `README.md`, and
 `src/**/*.rs`, so fixture files are excluded from the packaged crate.
 
 New modules belong here only when they define a portable wire contract. Runtime
-services, adapters, fixture runners, and presentation helpers belong in their
+services, adapters, fixture methods, and presentation helpers belong in their
 own crates.

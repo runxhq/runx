@@ -5,7 +5,7 @@ description: Discover a bounded set of fresh web source candidates from one expl
 
 # Web search
 
-Discover sources for a specific question. The initial `search` runner uses the
+Discover sources for a specific question. The initial `search` method uses the
 selected Exa account for one query and at most 20 results. It normalizes source
 identity, removes exact duplicate URLs, rejects malformed non-web candidates
 and preserves the provider operation alongside the result. It does not silently

@@ -5,7 +5,7 @@
 //! parser/core/receipt crates stay upstream of this crate.
 //!
 //! The root exports are a facade for CLI, SDK, and test consumers. Helper
-//! surfaces stay under their owning modules: harness replay under `harness`,
+//! surfaces stay under their owning modules: test replay under `test`,
 //! receipt stores under `receipts`, adapter protocol under `adapter`, and
 //! runtime orchestration under `runner` or `orchestrator`.
 
@@ -60,7 +60,7 @@ pub use process::detached::{
 pub use time::now_iso8601;
 pub mod tool_catalogs;
 
-pub use execution::harness;
+pub use execution::test;
 pub use execution::orchestrator;
 pub use execution::run_record;
 pub use execution::runner;
@@ -97,7 +97,7 @@ pub use effects::{
     EffectStepRequest, EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
 };
 pub use error::RuntimeError;
-pub use harness::{
+pub use test::{
     PackageTestReport, TestExpectedStatus, TestFixtureError, TestOptions, TestReplayError,
     TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
     run_test_fixture_with_adapter,

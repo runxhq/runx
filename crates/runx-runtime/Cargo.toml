@@ -3,7 +3,7 @@ name = "runx-runtime"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-description = "Native Rust runtime for local runx execution, adapters, process supervision, harness replay, and receipts."
+description = "Native Rust runtime for local runx execution, adapters, process supervision, test replay, and receipts."
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
@@ -129,5 +129,5 @@ path = "tests/integration.rs"
 
 [[bench]]
 name = "workflow_throughput"
-harness = false
+test = false
 required-features = ["agent"]

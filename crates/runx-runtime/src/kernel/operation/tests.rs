@@ -1007,7 +1007,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         max_fanout: None,
         max_child_depth: None,
         standing_approvals: Vec::new(),
-        max_cost_micro: None,
+        max_spend_micro_usd: None,
         ..crate::RunAuthority::default()
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
@@ -1240,7 +1240,7 @@ fn advisories(id: &str) -> JsonObject {
 }
 
 /// A run bounded only by what it may spend.
-fn limited(max_cost_micro: u64) -> crate::RunAuthority {
+fn limited(max_spend_micro_usd: u64) -> crate::RunAuthority {
     crate::RunAuthority {
         grants: std::collections::BTreeMap::new(),
         actor_ref: None,
@@ -1249,7 +1249,7 @@ fn limited(max_cost_micro: u64) -> crate::RunAuthority {
         max_fanout: None,
         max_child_depth: None,
         standing_approvals: Vec::new(),
-        max_cost_micro: Some(max_cost_micro),
+        max_spend_micro_usd: Some(max_spend_micro_usd),
         ..crate::RunAuthority::default()
     }
 }
@@ -1484,7 +1484,7 @@ fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval(
     let inspection = fixture.admit("advisories", &advisories("ADV-1")).unwrap();
     let context = inspection.context::<OperationAdmission>().unwrap();
     let mut authority = limited(u64::MAX);
-    authority.max_cost_micro = None;
+    authority.max_spend_micro_usd = None;
     authority.actor_ref = Some(context.admitted.actor_ref.clone());
     authority.mandate_ref = Some(Reference::runx(
         ReferenceType::Mandate,
@@ -1969,7 +1969,7 @@ fn a_request_whose_path_changes_when_parsed_is_never_sent() {
             max_fanout: None,
             max_child_depth: None,
             standing_approvals: Vec::new(),
-            max_cost_micro: None,
+            max_spend_micro_usd: None,
             ..crate::RunAuthority::default()
         };
         let read = |repository: &str| -> JsonObject {
@@ -2628,7 +2628,7 @@ fn public_storage_acts_as_the_runs_declared_actor() {
     );
     let actor = Reference::with_uri(ReferenceType::Principal, PRINCIPAL_REF);
     let mut authority = limited(u64::MAX);
-    authority.max_cost_micro = None;
+    authority.max_spend_micro_usd = None;
     authority.actor_ref = Some(actor.clone());
     let (admission, outcome, _) = fixture
         .run_under(

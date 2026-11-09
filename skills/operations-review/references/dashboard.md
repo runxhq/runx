@@ -73,7 +73,7 @@ selected project profile. Examples of real owners are `receipt-query`,
 Product-specific checks and deployment belong to their owning project.
 
 A UI label does not create a canonical operation. Keep the exact inspected
-skill/runner or existing command/workflow in the execution proposal; report a
+skill/method or existing command/workflow in the execution proposal; report a
 missing owner rather than inventing dotted aliases or backend methods.
 
 ## Stop Conditions

@@ -15,7 +15,7 @@ Choose the actual capability by role:
 - `procurement-policy-check` evaluates purchase policy; it does not reserve
   budget or grant payment authority.
 
-Inspect the chosen runner and connector before naming operations or arguments.
+Inspect the chosen method and connector before naming operations or arguments.
 Do not invent dotted payment aliases, unsupported rails, a payout capability or
 a private endpoint to fill a gap. Account custody and provider protocol stay
 with the selected connector; the local operating host retains its state.

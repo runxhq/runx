@@ -1279,7 +1279,7 @@ fn publish(
     Ok(command.arg("--json").output()?)
 }
 
-/// A publish runs the harness on the package as the registry holds it: a
+/// A publish runs the test on the package as the registry holds it: a
 /// bundle that is its own plugin, its cases reaching the connectors it
 /// carries.
 #[test]

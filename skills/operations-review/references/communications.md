@@ -9,7 +9,7 @@ Use the current capability that owns the channel. `message-send` provides
 its declared Slack lanes; it is not an email or universal messaging transport.
 Mail/SMS belongs to the selected product skill, such as an operator's Nitrosend
 binding. Reddit, X and Moltbook account work belongs to the corresponding
-account skill. Inspect its actual runners before proposing execution.
+account skill. Inspect its actual methods before proposing execution.
 
 A draft, test, preview, schedule acknowledgement or recommendation does not
 prove delivery. The selected delivery owner enforces current provider consent,

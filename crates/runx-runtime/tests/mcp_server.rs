@@ -874,7 +874,7 @@ fn mcp_server_execution_options(
     );
     env.extend(crate::support::test_signing_env());
     Ok(McpServerExecutionOptions {
-        runner: None,
+        method: None,
         receipt_dir,
         env,
         effects: runx_runtime::RuntimeEffectRegistry::local()?,

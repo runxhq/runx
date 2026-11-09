@@ -19,7 +19,7 @@ interface. The operator skill supplies judgment and governance:
 - decide whether the request is read-only, proposal-only, or consequential;
 - choose the smallest existing lane;
 - prepare approval copy;
-- hand off to the existing command, workflow, API, or skill runner;
+- hand off to the existing command, workflow, API, or skill method;
 - verify the outside world after execution.
 
 ## State Ownership

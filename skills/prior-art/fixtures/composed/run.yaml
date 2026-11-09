@@ -16,7 +16,7 @@ methods:
             orchestration_steps:
               - id: scan
                 skill: ../moltbook
-                runner: scan
+                method: scan
             required_skills:
               - name: moltbook
                 exists: true

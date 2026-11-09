@@ -1,4 +1,4 @@
-//! Filesystem admission and public error projection for parser-owned harness fixtures.
+//! Filesystem admission and public error projection for parser-owned test fixtures.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,24 +27,24 @@ const TEST_FIXTURE_CASES: &[TestFixtureCase] = &[
     TestFixtureCase {
         name: "echo-skill",
         fixture_path: "fixtures/skills/echo/tests/echo-skill.yaml",
-        root_oracle_path: "fixtures/harness/oracle/echo-skill.receipt.json",
+        root_oracle_path: "fixtures/test/oracle/echo-skill.receipt.json",
         step_oracles: &[TestFixtureStepOracle {
             step_id: "default",
-            oracle_path: "fixtures/harness/oracle/echo-skill.default.json",
+            oracle_path: "fixtures/test/oracle/echo-skill.default.json",
         }],
     },
     TestFixtureCase {
         name: "sequential-workflow",
         fixture_path: "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
-        root_oracle_path: "fixtures/harness/oracle/sequential-workflow.receipt.json",
+        root_oracle_path: "fixtures/test/oracle/sequential-workflow.receipt.json",
         step_oracles: &[
             TestFixtureStepOracle {
                 step_id: "first",
-                oracle_path: "fixtures/harness/oracle/sequential-workflow.first.json",
+                oracle_path: "fixtures/test/oracle/sequential-workflow.first.json",
             },
             TestFixtureStepOracle {
                 step_id: "second",
-                oracle_path: "fixtures/harness/oracle/sequential-workflow.second.json",
+                oracle_path: "fixtures/test/oracle/sequential-workflow.second.json",
             },
         ],
     },
@@ -59,7 +59,7 @@ pub fn list_cases() -> &'static [TestFixtureCase] {
 /// by `runx-parser`; runtime adds only filesystem admission.
 #[derive(Debug, Error)]
 pub enum TestFixtureError {
-    #[error("failed to read harness fixture {path}: {source}")]
+    #[error("failed to read test fixture {path}: {source}")]
     Read {
         path: PathBuf,
         source: std::io::Error,

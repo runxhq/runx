@@ -210,7 +210,7 @@ fn install_error_is_exported_for_callers() {
     assert!(
         takes_public_install_error(error)
             .to_string()
-            .contains("runner manifest")
+            .contains("method manifest")
     );
 }
 
@@ -326,10 +326,10 @@ fn local_install_is_idempotent_and_rejects_conflicts() -> Result<(), Box<dyn std
         "skill: other\n",
     )?;
     let manifest_conflict = match install_local_skill(&candidate, &options) {
-        Ok(_) => return Err("conflicting runner manifest should fail".into()),
+        Ok(_) => return Err("conflicting method manifest should fail".into()),
         Err(error) => error,
     };
-    assert!(manifest_conflict.to_string().contains("runner manifest"));
+    assert!(manifest_conflict.to_string().contains("method manifest"));
     Ok(())
 }
 

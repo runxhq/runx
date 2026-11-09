@@ -14,7 +14,7 @@ const request = {
   id: "sr_one", amount: 150, currency: "usd", payment_method: "pm_one",
   network_id: "net_merchant", status: "approved", credential_type: "shared_payment_token",
 };
-function harness(overrides = {}) {
+function fakeLink(overrides = {}) {
   const calls = [];
   const cli = async (args) => {
     calls.push(args);
@@ -37,7 +37,7 @@ function harness(overrides = {}) {
 }
 
 test("presents only the pinned public challenge and reference, with no credential retrieval command", async () => {
-  const h = harness();
+  const h = fakeLink();
   assert.deepEqual(await execute(input, h.cli), { spend_request_id: "sr_one" });
   assert.equal(h.payments().length, 1);
   assert.deepEqual(h.payments()[0], ["mpp", "pay", input.resource_url, "--spend-request-id", "sr_one",
@@ -52,7 +52,7 @@ test("account and exact spend terms refuse before presentation", async () => {
       { payment_method: "another_method" }, { credential_type: "card" }, { status: "pending_approval" },
       { recurring: { interval: "month" } }].map((request) => ({ request })),
   ]) {
-    const h = harness(overrides);
+    const h = fakeLink(overrides);
     assert.match((await execute(input, h.cli)).refused, /^link_/);
     assert.equal(h.payments().length, 0);
   }
@@ -64,24 +64,24 @@ test("changed protocol terms and an expired challenge refuse before presentation
     { request_json: { amount: "151", currency: "usd" } },
     { request_json: { amount: "150", currency: "eur" } }, { expires: "2000-01-01T00:00:00Z" }, { expires: "not-a-time" },
   ]) {
-    const h = harness({ challenge });
+    const h = fakeLink({ challenge });
     assert.match((await execute(input, h.cli)).refused, /^link_/);
     assert.equal(h.payments().length, 0);
   }
 });
 
 test("a successful HTTP response does not substitute for independent payment readback", async () => {
-  const h = harness();
+  const h = fakeLink();
   assert.equal((await execute({ ...input, phase: "readback" }, h.cli)).status, "pending");
   assert.equal(h.payments().length, 0);
-  const failed = harness({ request: { payment_status_details: { outcome: "failure", amount: 150, currency: "usd" } } });
+  const failed = fakeLink({ request: { payment_status_details: { outcome: "failure", amount: 150, currency: "usd" } } });
   assert.equal((await execute({ ...input, phase: "readback" }, failed.cli)).status, "failed");
-  const mismatched = harness({ request: { link_transaction_id: "tx_one", payment_status_details: { outcome: "success", amount: 149, currency: "usd" } } });
+  const mismatched = fakeLink({ request: { link_transaction_id: "tx_one", payment_status_details: { outcome: "success", amount: 149, currency: "usd" } } });
   assert.equal((await execute({ ...input, phase: "readback" }, mismatched.cli)).status, "mismatch");
 });
 
 test("the original provider observation confirms payment without another credential presentation", async () => {
-  const h = harness({ request: { link_transaction_id: "tx_one", payment_status_details: { outcome: "success", amount: 150, currency: "usd" }, shared_payment_token: { id: "must-not-leave-cli" } } });
+  const h = fakeLink({ request: { link_transaction_id: "tx_one", payment_status_details: { outcome: "success", amount: 150, currency: "usd" }, shared_payment_token: { id: "must-not-leave-cli" } } });
   const observed = await execute({ ...input, phase: "readback" }, h.cli);
   assert.deepEqual(observed, { spend_request_id: "sr_one", amount_minor: 150, currency: "USD", status: "settled", payment_method_id: "pm_one", network_id: "net_merchant", resource_binding: resourceBinding(input), transaction_id: "tx_one", payment_outcome: "success", paid_amount_minor: 150, paid_currency: "USD" });
   assert.deepEqual(await execute(input, h.cli), { spend_request_id: "sr_one" });
@@ -90,7 +90,7 @@ test("the original provider observation confirms payment without another credent
 });
 
 test("a lost submission response stays unknown and does not retry or create a spend request", async () => {
-  const h = harness({ lost: true });
+  const h = fakeLink({ lost: true });
   await assert.rejects(execute(input, h.cli), /link_cli_failed/u);
   assert.equal(h.payments().length, 1);
   assert.ok(h.calls.every((args) => args[1] !== "create"));
@@ -104,7 +104,7 @@ test("an existing partial, mismatched, failed or refunded payment never triggers
     { outcome: "failure", amount: 150, currency: "usd" },
     { outcome: "success", amount: 150, currency: "usd", refund_details: { amount: 150, currency: "usd", state: "succeeded" } },
   ]) {
-    const h = harness({ request: { link_transaction_id: "tx_original", payment_status_details: details } });
+    const h = fakeLink({ request: { link_transaction_id: "tx_original", payment_status_details: details } });
     if (details.refund_details) {
       assert.match((await execute(input, h.cli)).refused, /^link_/);
       const read = await execute({ ...input, phase: "readback" }, h.cli);
@@ -116,7 +116,7 @@ test("an existing partial, mismatched, failed or refunded payment never triggers
 });
 
 test("spend request creation and readback preserve one idempotent authorization without reporting payment", async () => {
-  const h = harness({ request: { status: "pending_approval", approval_url: "https://link.com/approve/sr_one", shared_payment_token: "must-not-leave-cli" } });
+  const h = fakeLink({ request: { status: "pending_approval", approval_url: "https://link.com/approve/sr_one", shared_payment_token: "must-not-leave-cli" } });
   const create = { ...input, action: "request", context: "Approve the Northstar document purchase", idempotency_key: "original-native-effect" };
   const result = await execute(create, h.cli);
   assert.equal(result.status, "pending_approval");
@@ -132,9 +132,9 @@ test("spend request creation and readback preserve one idempotent authorization 
 });
 
 test("readback refuses a substituted spend request and strips unsafe approval destinations", async () => {
-  const wrong = harness({ request: { id: "sr_substituted" } });
+  const wrong = fakeLink({ request: { id: "sr_substituted" } });
   assert.equal((await execute({ ...input, action: "read" }, wrong.cli)).refused, "link_spend_request_identity_changed");
-  const h = harness({ request: { status: "pending_approval", approval_url: "https://user:secret@link.com/approve" } });
+  const h = fakeLink({ request: { status: "pending_approval", approval_url: "https://user:secret@link.com/approve" } });
   const read = await execute({ ...input, action: "read" }, h.cli);
   assert.equal(read.status, "pending_approval");
   assert.equal(read.approval_url, undefined);
@@ -143,7 +143,7 @@ test("readback refuses a substituted spend request and strips unsafe approval de
 
 test("a spent authorization cannot be relabeled as another resource, body or challenge", async () => {
   for (const patch of [{resource_url:'https://merchant.example/another-invoice'}, {body:'{"invoice_id":"other"}'}, {challenge:'another-public-challenge'}]) {
-    const h=harness({request:{link_transaction_id:'tx_original',payment_status_details:{outcome:'success',amount:150,currency:'usd'}}});
+    const h=fakeLink({request:{link_transaction_id:'tx_original',payment_status_details:{outcome:'success',amount:150,currency:'usd'}}});
     assert.equal((await execute({...input,...patch},h.cli)).refused,"link_spend_request_resource_mismatch");
     assert.equal(h.payments().length,0);
   }

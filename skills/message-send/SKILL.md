@@ -6,13 +6,13 @@ description: Send one digest-bound message on behalf of a principal, posting to 
 # Message Send
 
 Execute one Slack channel post or source-bound reply on behalf of a principal.
-The explicit `plan` runner can prepare provider-neutral authorization; delivery
+The explicit `plan` method can prepare provider-neutral authorization; delivery
 requires the declared Slack operations. Email delivery belongs to the owning
 mail capability, such as Nitrosend; social posting belongs to its account skill. The skill never receives a provider token, never lets
 approved content drift before delivery, and calls a message delivered only
 after the provider reads it back.
 
-## Runners
+## Methods
 
 - `send` (default): plans one channel post, requests approval only at the live
   post, posts once, and requires independent readback.
@@ -72,7 +72,7 @@ connector credentials in its inputs or receipts.
 
 ## Agent task: message-send
 
-The turn of the `plan` runner, which follows this procedure.
+The turn of the `plan` method, which follows this procedure.
 
 1. Identify the principal being represented and the provider account or surface.
 2. Classify the send: `transactional`, `campaign`, `flow_step`, `support_reply`,

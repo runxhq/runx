@@ -88,7 +88,7 @@ These rules must not be violated. See `config.yaml` for the canonical invariant 
 
 ### Rust Trusted Runtime
 
-Rust owns trusted local execution, receipt sealing, runtime policy, harness
+Rust owns trusted local execution, receipt sealing, runtime policy, test
 replay, MCP, payment gates, process supervision, and typed execution-boundary
 evidence. TypeScript packages may wrap or present those paths, but must not
 reintroduce local execution fallback logic.
@@ -138,7 +138,7 @@ bumps require Kam's explicit instruction.
 ### Generic Stateful Effects
 
 Runx-maintained skills that drive stateful apps emit generic effect transition packets.
-Put product identity in `effect_family` and the runner/action in `operation`;
+Put product identity in `effect_family` and the method/action in `operation`;
 do not add product-specific `AuthorityResourceFamily` variants or
 `runx.<product>.*` packet namespaces. The owning product declares state,
 transitions and views. Operator state stays local by default; hosted persistence
@@ -152,7 +152,7 @@ No dual-reads, dual-writes, or runtime fallbacks. When changing schemas or ident
 ### Architecture Admission
 
 Use the canonical `skill-build` skill for skill design, creation, improvement, and
-harness work. Its `SKILL.md` is the complete operating contract supplied to the
+test work. Its `SKILL.md` is the complete operating contract supplied to the
 authoring agent; do not duplicate that contract here or in `run.yaml`. Apply the
 same ownership test to native/core work and keep one source of truth for every
 contract. See `docs/skill-quality-standard.md` for the review bar.

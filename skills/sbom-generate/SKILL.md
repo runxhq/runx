@@ -8,7 +8,7 @@ compatibility: Requires a Runx runtime that admits the parseData worker API.
 
 Use this for a software bill of materials or a reusable lockfile inventory. Use cve-audit to ask which locked public package versions OSV reports as affected; use extract for arbitrary document fields. Neither a valid SBOM nor an empty vulnerability result establishes that software is safe.
 
-The default generate runner takes the actual workspace lockfile path. Native artifact admission snapshots the file and binds its original bytes. The decoder interprets one complete admitted UTF-8 document; a partial read fails before inventory generation. Nothing is fetched and no dependency is installed or executed.
+The default generate method takes the actual workspace lockfile path. Native artifact admission snapshots the file and binds its original bytes. The decoder interprets one complete admitted UTF-8 document; a partial read fails before inventory generation. Nothing is fetched and no dependency is installed or executed.
 
 ## Choose the source once
 

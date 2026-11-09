@@ -9,7 +9,7 @@ inputs:
     mutations:
       - path: issues
         op: create
-        payload: {title: Harness cases for issue creation, body: Cover the create and readback path., labels: [triage]}
+        payload: {title: Test cases for issue creation, body: Cover the create and readback path., labels: [triage]}
   idempotency_key: runxhq/runx:issues:create:test-cases
 env:
   PATH: fixtures/bin:/usr/bin:/bin
@@ -20,13 +20,13 @@ providers:
         url: https://api.github.com/repos/runxhq/runx/issues
         body:
           json:
-            title: Harness cases for issue creation
+            title: Test cases for issue creation
             body: Cover the create and readback path.
             labels: [triage]
       response:
         status: 201
         headers: {content-type: application/json}
-        body: '{"number": 512, "title": "Harness cases for issue creation", "body": "Cover the create and readback path.", "state": "open", "labels": [{"name": "triage"}], "assignees": [], "milestone": null}'
+        body: '{"number": 512, "title": "Test cases for issue creation", "body": "Cover the create and readback path.", "state": "open", "labels": [{"name": "triage"}], "assignees": [], "milestone": null}'
     - request: {method: GET, url: "https://api.github.com/user", body: none}
       response:
         status: 200
@@ -36,7 +36,7 @@ providers:
       response:
         status: 200
         headers: {content-type: application/json}
-        body: '{"number": 512, "title": "Harness cases for issue creation", "body": "Cover the create and readback path.", "state": "open", "labels": [{"name": "triage"}], "assignees": [], "milestone": null}'
+        body: '{"number": 512, "title": "Test cases for issue creation", "body": "Cover the create and readback path.", "state": "open", "labels": [{"name": "triage"}], "assignees": [], "milestone": null}'
 expect:
   status: sealed
   steps: [plan, apply]
@@ -50,5 +50,5 @@ expect:
           result:
             issues:
               - status: applied
-                acknowledgement: {number: 512, title: Harness cases for issue creation}
+                acknowledgement: {number: 512, title: Test cases for issue creation}
   receipt: {schema: runx.receipt.v1}

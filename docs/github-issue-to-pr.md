@@ -4,7 +4,7 @@
 development tools. It is useful when invoked directly by an agent and when a
 larger Runx chain already has issue or host-work evidence.
 
-The public promise is literal: the default runner reads the issue, hands normal
+The public promise is literal: the default method reads the issue, hands normal
 repository work to the host agent, requires tested change evidence and one
 successful `scafld finalize`, then either returns the completed local change or
 opens the exact requested pull request under scoped provider authority and
@@ -35,7 +35,7 @@ stages of issue-to-PR.
 
 ## Chain reuse
 
-Use the smallest runner matching evidence already available:
+Use the smallest method matching evidence already available:
 
 - `github-issue-to-pr` reads the issue and performs host work.
 - `from-evidence` accepts `runx/github-issue-to-pr.issue_evidence.v1` and skips the
@@ -48,7 +48,7 @@ Use the smallest runner matching evidence already available:
 
 The host result must name the same repository and issue as the issue evidence.
 Tests must all pass. Finalize must report one successful invocation and a
-receipt. A downstream runner refuses mismatched or incomplete evidence instead
+receipt. A downstream method refuses mismatched or incomplete evidence instead
 of redoing the work to guess what happened.
 
 ## Authority and recovery

@@ -126,7 +126,7 @@ name: {name}
 description: Abnormal seal test {name} skill.
 ---
 
-Emits structured test output through the harness adapter.
+Emits structured test output through the test adapter.
 "#
             )
             .as_str(),

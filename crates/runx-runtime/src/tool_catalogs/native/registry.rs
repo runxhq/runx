@@ -59,7 +59,7 @@ pub(super) struct InspectInput {
     /// A skill or connector package, as `registry.search` returns it.
     pub(super) package: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) runner: Option<String>,
+    pub(super) method: Option<String>,
 }
 
 impl CapabilityInput for InspectInput {}
@@ -100,7 +100,7 @@ fn search(
                     .map(|(publisher, _)| publisher.to_owned()),
                 trust_tier: Some(result.trust_tier),
                 summary: result.summary,
-                runners: result
+                methods: result
                     .method_names
                     .into_iter()
                     .map(|name| CatalogMethod {
@@ -119,7 +119,7 @@ fn search(
             publisher: None,
             trust_tier: Some(connector.trust_tier),
             summary: Some(connector.description),
-            runners: Vec::new(),
+            methods: Vec::new(),
         }));
     }
     Ok(RegistrySearchPacket {
@@ -165,7 +165,7 @@ fn project_hits(
                 publisher: None,
                 trust_tier: None,
                 summary: skill.description.clone(),
-                runners: loaded
+                methods: loaded
                     .manifest()
                     .map(crate::skill_package::catalog_methods)
                     .unwrap_or_default(),
@@ -194,7 +194,7 @@ fn project_hits(
                 publisher: None,
                 trust_tier: None,
                 summary: Some(connector.manifest.description.as_str().to_owned()),
-                runners: Vec::new(),
+                methods: Vec::new(),
             });
         }
     }
@@ -227,7 +227,7 @@ fn inspect(
     .map_err(|message| super::invalid_input(INSPECT, message))?;
     let inspection = crate::inspect_skill_readiness(
         &resolved.runnable_path,
-        inputs.runner.as_deref(),
+        inputs.method.as_deref(),
         None,
         None,
         env,
@@ -352,8 +352,8 @@ const INSPECT_FIELDS: &[CapabilityField] = &[
         description: "A package registry.search returned: a registry package, or a project package's path.",
     },
     CapabilityField {
-        name: "runner",
-        description: "The skill runner to inspect; its default when omitted.",
+        name: "method",
+        description: "The skill method to inspect; its default when omitted.",
     },
 ];
 
@@ -362,7 +362,7 @@ static SEARCH_CAPABILITY: TypedNativeCapability<SearchInput, RegistrySearchPacke
         CapabilityDefinition {
             id: SEARCH,
             source: "runx-runtime/registry",
-            summary: "Search the registry and the project for skills and connectors: each hit's ref, kind, publisher, trust tier, summary, runners with their purposes, and whether the registry or the project holds it.",
+            summary: "Search the registry and the project for skills and connectors: each hit's ref, kind, publisher, trust tier, summary, methods with their purposes, and whether the registry or the project holds it.",
             scopes: &["registry.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
@@ -380,7 +380,7 @@ static INSPECT_CAPABILITY: TypedNativeCapability<InspectInput, RegistryInspectio
         CapabilityDefinition {
             id: INSPECT,
             source: "runx-runtime/registry",
-            summary: "Inspect a skill or connector without adding it to the project: a skill's runners with their inputs, effects, connectors and readiness; a connector's operations, approvals and readiness.",
+            summary: "Inspect a skill or connector without adding it to the project: a skill's methods with their inputs, effects, connectors and readiness; a connector's operations, approvals and readiness.",
             scopes: &["registry.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,

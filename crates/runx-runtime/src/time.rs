@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Deterministic fixture timestamp for harness and oracle callers that must
+/// Deterministic fixture timestamp for test and oracle callers that must
 /// keep receipt content stable. Live runtime paths should call [`now_iso8601`].
 pub(crate) const DEFAULT_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 

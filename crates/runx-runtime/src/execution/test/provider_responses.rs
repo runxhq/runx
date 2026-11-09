@@ -11,10 +11,10 @@ use crate::http::{
 pub(crate) const TEST_PROVIDER_BASE_URL: &str = "https://provider-fixture.runx.invalid";
 pub(crate) const TEST_PROVIDER_TOKEN: &str = "runx-test-provider-token";
 
-/// The harness's transport beneath operation steps. It answers the provider
+/// The test's transport beneath operation steps. It answers the provider
 /// fixture's hosted endpoints, including the declared requests runx Connect
 /// renders and sends, and the case's exact HTTP exchanges, and refuses every
-/// other request: a harness run never reaches a live provider.
+/// other request: a test run never reaches a live provider.
 #[derive(Clone, Debug)]
 pub(super) struct TestTransport {
     pub(super) provider: Option<TestProviderResponsesFixture>,
@@ -98,7 +98,7 @@ impl RuntimeHttpTransport for TestTransport {
                 self.artifact_operation(fixture, request.body.as_deref())
             }
             _ => Err(transport_error(format!(
-                "the harness provider fixture has no response for {} {}",
+                "the test provider fixture has no response for {} {}",
                 request.method.as_str(),
                 request.url
             ))),
@@ -116,7 +116,7 @@ fn validate_authorization(request: &RuntimeHttpRequest) -> Result<(), RuntimeHtt
         return Ok(());
     }
     Err(transport_error(
-        "the harness provider request omitted its isolated bearer binding".to_owned(),
+        "the test provider request omitted its isolated bearer binding".to_owned(),
     ))
 }
 
@@ -149,7 +149,7 @@ impl TestTransport {
             .filter(|grant| grant.grant_id == grant_id)
         else {
             return Err(transport_error(format!(
-                "the harness provider fixture holds no grant {grant_id:?}"
+                "the test provider fixture holds no grant {grant_id:?}"
             )));
         };
         let provider = self.grant_connector.as_ref().map_or_else(
@@ -166,7 +166,7 @@ impl TestTransport {
             })
             .ok_or_else(|| {
                 transport_error(format!(
-                    "the harness provider fixture has no exact {access:?} operation {operation:?} for target {target:?}"
+                    "the test provider fixture has no exact {access:?} operation {operation:?} for target {target:?}"
                 ))
             })?;
         let identity = runx_contracts::sha256_prefixed(
@@ -204,7 +204,7 @@ impl TestTransport {
                 .cloned()
                 .ok_or_else(|| {
                     transport_error(format!(
-                        "the harness provider fixture has no prior mutation idempotency for grant {grant_id:?} and target {target:?}"
+                        "the test provider fixture has no prior mutation idempotency for grant {grant_id:?} and target {target:?}"
                     ))
                 })?;
             result.insert("idempotency_key".to_owned(), JsonValue::String(previous));
@@ -237,7 +237,7 @@ impl TestTransport {
                 );
             response.insert(
                 "operation_id".to_owned(),
-                JsonValue::String(format!("harness-{identity}")),
+                JsonValue::String(format!("test-{identity}")),
             );
             response.insert(
                 "idempotency_key".to_owned(),
@@ -306,7 +306,7 @@ impl TestTransport {
                     return refused(
                         404,
                         "unknown-grant",
-                        format!("the harness provider fixture holds no grant {grant_id:?}"),
+                        format!("the test provider fixture holds no grant {grant_id:?}"),
                     );
                 }
                 self.grant_connector.as_ref().ok_or_else(|| {
@@ -600,7 +600,7 @@ fn replace_at(
     }
 }
 
-/// When the harness states every artifact was stored.
+/// When the test states every artifact was stored.
 const TEST_ARTIFACT_CREATED_AT: &str = "2026-01-01T00:00:00.000Z";
 
 impl TestTransport {
@@ -691,7 +691,7 @@ impl TestTransport {
             }
             other => {
                 return Err(transport_error(format!(
-                    "the harness holds no artifact operation {other:?}"
+                    "the test holds no artifact operation {other:?}"
                 )));
             }
         };
@@ -771,7 +771,7 @@ fn required_string<'a>(object: &'a JsonObject, field: &str) -> Result<&'a str, R
 fn json_response(value: JsonValue) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
     serde_json::to_string(&value)
         .map(|body| RuntimeHttpResponse::new(200, body))
-        .map_err(|error| transport_error(format!("harness provider response failed: {error}")))
+        .map_err(|error| transport_error(format!("test provider response failed: {error}")))
 }
 
 fn transport_error(message: String) -> RuntimeHttpError {
@@ -787,7 +787,7 @@ mod tests {
     use super::leased_answer;
 
     /// The take, against the cases runx Connect also passes, so the
-    /// harness that plays Connect and Connect never take a lease apart
+    /// test that plays Connect and Connect never take a lease apart
     /// (connector-yaml.md, `lease`). Answers compare as JSON values, since
     /// key order isn't part of an answer; each answer's `value_digest` binds
     /// the fields the take holds.

@@ -343,7 +343,7 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
     )?;
     fs::write(
         child_dir.join("run.yaml"),
-        "minimum_runx: 0.12.0\ndefault_method: digest\nmethods:\n  digest:\n    description: Digest one value.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n  other:\n    description: Another runner, never bound here.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "minimum_runx: 0.12.0\ndefault_method: digest\nmethods:\n  digest:\n    description: Digest one value.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n  other:\n    description: Another method, never bound here.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
     let skill_dir = temp.path().join("session");
     fs::create_dir_all(&skill_dir)?;
@@ -361,7 +361,7 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
         serve_responses(
             listener,
             [
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-load","type":"function","function":{"name":"load","arguments":"{\"skill\":\"skills/child\",\"runner\":\"digest\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-load","type":"function","function":{"name":"load","arguments":"{\"skill\":\"skills/child\",\"method\":\"digest\"}"}}]}}]}),
                 json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-digest","type":"function","function":{"name":"skill__child__digest","arguments":"{\"value\":\"proof\"}"}}]}}]}),
                 json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
             ],
@@ -419,7 +419,7 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
     assert!(!tools(&requests[0]).contains(&"skill__child__digest".to_owned()));
     assert!(
         tools(&requests[1]).contains(&"skill__child__digest".to_owned()),
-        "the runner the load bound is offered on the next round"
+        "the method the load bound is offered on the next round"
     );
     assert!(!tools(&requests[1]).contains(&"skill__child__other".to_owned()));
     let messages = requests[1]["messages"]
@@ -484,7 +484,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
             "artifact_id": "memory:1",
             "run_id": "rx_host",
             "step_id": null,
-            "producer": {"skill": "fieldwork", "runner": "memory"},
+            "producer": {"skill": "fieldwork", "method": "memory"},
             "created_at": "2026-10-20T00:00:00Z",
             "digest": "sha256:memory",
             "size_bytes": 48,

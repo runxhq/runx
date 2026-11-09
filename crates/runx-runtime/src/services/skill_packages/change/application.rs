@@ -156,7 +156,7 @@ pub(super) fn validation_result(
     checks: CandidateValidation,
 ) -> SkillValidationResult {
     let test_status = checks
-        .harness
+        .test
         .get("status")
         .and_then(JsonValue::as_str)
         .unwrap_or("passed");
@@ -183,9 +183,9 @@ fn validation_checks(test_status: &str) -> Vec<SkillValidationCheck> {
         passed_check(
             "focused_test",
             if test_status == "passed" {
-                "focused package harness passed"
+                "focused package test passed"
             } else {
-                "focused package harness completed without failure"
+                "focused package test completed without failure"
             },
         ),
         passed_check(

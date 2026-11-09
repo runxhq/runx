@@ -35,7 +35,7 @@ The important boundary is not the Node script. It is the contract:
 ## Security Rules
 
 - The loop has a max-turn budget.
-- The turn runner receives only declared inputs.
+- The turn method receives only declared inputs.
 - Tool choices are checked against loop policy before another turn is allowed.
 - Context skills are advisory, digest-bound, and untrusted.
 - A pause or refusal is a healthy result; the loop does not keep prompting until

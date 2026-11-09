@@ -1,15 +1,15 @@
-# Harness Control Plane
+# Run Control Plane
 
 runx issue automation is governed by receipts, not by a tracker-style
-queue object. Source adapters admit signals, decisions open or decline harness
+queue object. Source adapters admit signals, decisions open or decline test
 nodes, contained acts perform revision, reply, review, observation, or
-verification acts, and each harness seals to a receipt.
+verification acts, and each test seals to a receipt.
 
 ## Ownership
 
 OSS owns:
 
-- canonical signal, decision, act, harness, artifact, redaction, verification,
+- canonical signal, decision, act, test, artifact, redaction, verification,
   and receipt contracts
 - local skill inputs and outputs
 - source-thread and outbox packets
@@ -17,7 +17,7 @@ OSS owns:
 
 Cloud owns:
 
-- hosted harness storage and receipt indexing
+- hosted test storage and receipt indexing
 - approval state for runs explicitly submitted to the hosted service, not the
   default provider-neutral operator inbox
 - credential-bound source transport for explicitly hosted runs, not source
@@ -36,17 +36,17 @@ Consuming repos own:
 The durable lifecycle is explicit:
 
 1. A signal records the admitted source event.
-2. A decision opens, defers, declines, or routes a harness.
-3. The harness admits authority and records idempotency.
-4. Acts inside the harness record intent, form, and closure.
-5. Child harnesses carry attenuated authority.
-6. The harness seals normally or abnormally to a receipt.
+2. A decision opens, defers, declines, or routes a test.
+3. The test admits authority and records idempotency.
+4. Acts inside the test record intent, form, and closure.
+5. Child tests carry attenuated authority.
+6. The test seals normally or abnormally to a receipt.
 
 Every terminal path produces a receipt. Failed, killed, timed out, blocked, and
 declined paths are not missing evidence; they are abnormal seals with reason
 codes, criterion state, and hash commitments.
 
-Harness cases execute in independent scratch workspaces and receipt stores.
+Test cases execute in independent scratch workspaces and receipt stores.
 When a case needs prior receipt evidence, `setup.receipts` may name only
 normalized `.json` files contained by the owning skill package. The runtime
 verifies those receipts before seeding that case and never treats fixture setup
@@ -58,7 +58,7 @@ are copied to the requested durable output store.
 Evidence is carried by references, artifacts, verification checks, redaction
 records, and receipt commitments. There is no separate evidence bundle
 contract. Adapters may hydrate richer provider context before a decision opens
-a mutation harness, but the governed boundary is the receipt.
+a mutation test, but the governed boundary is the receipt.
 
 ## Merge Authority
 

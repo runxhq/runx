@@ -16,16 +16,16 @@ operational diagnosis without a team assignment, use `operations-review`.
 
 ## One bounded delegation decision
 
-The default `delegate` runner accepts `objective`, `roster`, `evidence` and optional
+The default `delegate` method accepts `objective`, `roster`, `evidence` and optional
 `constraints`. Each roster member has a unique `member`, an exact `skill` and
-`runner`, a description of `capabilities` and a `scope_ceiling`. Evidence entries
+`method`, a description of `capabilities` and a `scope_ceiling`. Evidence entries
 have unique `source_id` and `text` fields. Pass already-collected evidence;
 there is no source rediscovery or provider read in this skill.
 
 The agent determines which member should do what, the concrete inputs and
 context it needs, and the acceptance and verification checks. The finalizer
 rejects invented members, unknown source references, empty acceptance checks and
-scope requests outside the configured ceiling. Exact skill and runner targets
+scope requests outside the configured ceiling. Exact skill and method targets
 come from the operator's roster, never from the model. Each assignment includes
 the relevant source text as well as its reference; a hash alone is not a usable
 handoff.
@@ -39,14 +39,14 @@ a review assignment that depends on a draft that does not exist yet.
 ## Execution and authority
 
 The result is a delegation proposal, not a child execution. Invoke each exact
-skill and runner through Runx under the real host grant. The runtime owns scope
+skill and method through Runx under the real host grant. The runtime owns scope
 attenuation, approvals, child-run authority and receipts. Review the child
 receipt and its domain result against the assignment's acceptance checks before
 using the output. A declared scope ceiling is a planning constraint, not a grant
 of those scopes. The output explicitly says `authority_status: not_granted` and
 `execution_status: not_started`.
 
-The owning host resolves each roster skill and runner through native inspection
+The owning host resolves each roster skill and method through native inspection
 once before supplying the roster. Native admission validates a receiver call
 before it runs; a delegation proposal does not certify an uninspected target.
 

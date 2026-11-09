@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Print this exact greeting through the example skill.",
-      "expected_output": "Return the supplied greeting from the advertised default runner in a sealed receipt.",
+      "expected_output": "Return the supplied greeting from the advertised default method in a sealed receipt.",
       "files": []
     }
   ]

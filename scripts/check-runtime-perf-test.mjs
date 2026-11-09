@@ -46,30 +46,30 @@ try {
   const pass = runCheck(baselinePath, passingPath);
   if (pass.status !== 0) {
     process.stderr.write(pass.stderr || pass.stdout);
-    throw new Error("runtime perf harness rejected the passing candidate fixture");
+    throw new Error("runtime perf test rejected the passing candidate fixture");
   }
 
   const fail = runCheck(baselinePath, failingPath);
   if (fail.status === 0) {
     process.stderr.write(fail.stdout);
-    throw new Error("runtime perf harness accepted the intentionally bad candidate fixture");
+    throw new Error("runtime perf test accepted the intentionally bad candidate fixture");
   }
 
   const missingEvidence = runCheck(baselinePath, missingEvidencePath);
   if (missingEvidence.status === 0) {
-    throw new Error("runtime perf harness accepted a candidate missing measured tail evidence");
+    throw new Error("runtime perf test accepted a candidate missing measured tail evidence");
   }
 
   const missingGrowth = runGrowthCheck(baselinePath, passingPath);
   if (missingGrowth.status === 0) {
-    throw new Error("runtime perf harness accepted a growth gate without measured scale evidence");
+    throw new Error("runtime perf test accepted a growth gate without measured scale evidence");
   }
 
   writeQualityFixture(qualityPassingPath, {});
   const qualityPass = runQualityVerification(qualityPassingPath);
   if (qualityPass.status !== 0) {
     process.stderr.write(qualityPass.stderr || qualityPass.stdout);
-    throw new Error("runtime perf harness rejected valid release-quality evidence");
+    throw new Error("runtime perf test rejected valid release-quality evidence");
   }
 
   writeQualityFixture(qualityFailingPath, {
@@ -78,7 +78,7 @@ try {
   });
   const qualityFail = runQualityVerification(qualityFailingPath);
   if (qualityFail.status === 0) {
-    throw new Error("runtime perf harness accepted invalid release-quality evidence");
+    throw new Error("runtime perf test accepted invalid release-quality evidence");
   }
   for (const expectedDiagnostic of ["worktree_clean", "session_spawn_count"]) {
     if (!qualityFail.stdout.includes(expectedDiagnostic)) {
@@ -89,7 +89,7 @@ try {
   assertReleaseProbeInvariant();
   assertArchitectureWorkloads();
 
-  process.stdout.write("Runtime perf harness check passed.\n");
+  process.stdout.write("Runtime perf test check passed.\n");
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
 }
@@ -208,27 +208,27 @@ function writeQualityFixture(
 function assertReleaseProbeInvariant() {
   const source = readFileSync(path.join(workspaceRoot, "scripts/runtime-throughput.mjs"), "utf8");
   if (!/cargoPerfProfileDir\s*=\s*path\.join\(cargoTargetDir,\s*"release"\)/u.test(source)) {
-    throw new Error("runtime perf harness must use the release profile directory for process probes");
+    throw new Error("runtime perf test must use the release profile directory for process probes");
   }
   const workerBuildSource = functionSource(source, "buildJavaScriptWorker", "runCargoBench");
   if (!workerBuildSource.includes('"--release"') || !workerBuildSource.includes('"runx-js-worker"')) {
-    throw new Error("runtime perf harness must build the deterministic worker in release mode");
+    throw new Error("runtime perf test must build the deterministic worker in release mode");
   }
   if (!/RUNX_JS_WORKER_PATH:\s*javascriptWorkerPath/u.test(source)) {
-    throw new Error("runtime perf harness must bind benchmarks to the release worker it built");
+    throw new Error("runtime perf test must bind benchmarks to the release worker it built");
   }
   const nativeProbeSource = functionSource(source, "nativeCliProbe", "runNativeCliProbe");
   if (!/"--release"[\s\S]*"--bin"[\s\S]*"runx"/u.test(nativeProbeSource)) {
-    throw new Error("runtime perf harness must build the native runx launch probe with --release");
+    throw new Error("runtime perf test must build the native runx launch probe with --release");
   }
   if (!/cargo build runx-cli did not produce/u.test(nativeProbeSource)) {
-    throw new Error("runtime perf harness must verify the native runx release probe exists after build");
+    throw new Error("runtime perf test must verify the native runx release probe exists after build");
   }
   if (!/nativeCliWarmupCount\s*=\s*3/u.test(source) || !/nativeCliSampleCount\s*=\s*20/u.test(source)) {
     throw new Error("native CLI probe must use three warmups and twenty measured launches");
   }
   if (/crates",\s*"target",\s*"debug"/u.test(source)) {
-    throw new Error("runtime perf harness must not fall back to stale crates/target/debug probe binaries");
+    throw new Error("runtime perf test must not fall back to stale crates/target/debug probe binaries");
   }
 }
 
@@ -294,7 +294,7 @@ function assertArchitectureWorkloads() {
     }
   }
   if (/growth_exponent:\s*1(?:\.0+)?(?:,|\s*\})/u.test(testSource)) {
-    throw new Error("runtime perf harness must not report a hard-coded linear growth exponent");
+    throw new Error("runtime perf test must not report a hard-coded linear growth exponent");
   }
   for (const invariant of ["measuredGrowthExponent", "runtimeResourceMetricsPath", "p50_ns"]) {
     if (!testSource.includes(invariant)) {
@@ -307,7 +307,7 @@ function functionSource(source, functionName, nextFunctionName) {
   const start = source.indexOf(`function ${functionName}(`);
   const end = source.indexOf(`function ${nextFunctionName}(`);
   if (start < 0 || end < 0 || end <= start) {
-    throw new Error(`runtime perf harness is missing expected ${functionName} function boundary`);
+    throw new Error(`runtime perf test is missing expected ${functionName} function boundary`);
   }
   return source.slice(start, end);
 }

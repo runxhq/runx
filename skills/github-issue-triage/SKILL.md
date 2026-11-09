@@ -10,7 +10,7 @@ maintainer decide which thread deserves attention and how to respond without
 silently mutating a repository or inventing state that is not present in the
 thread snapshot.
 
-Discovery and response are separate jobs. The default `provider-respond` runner
+Discovery and response are separate jobs. The default `provider-respond` method
 reads one issue through the GitHub instance selected here, the signed-in `gh`
 session or a stored token, binds the returned snapshot and readback into the
 receipt, and turns it into a concise profile,
@@ -22,16 +22,16 @@ repeating triage.
 
 ## When to use it
 
-Use the default runner when the operator has a repository and issue number and
+Use the default method when the operator has a repository and issue number and
 wants current provider-grounded evidence. Use `discover` for a supplied issue
 queue and `respond` when an exact snapshot is already available or a receipt is
 being replayed. Use `code-intake` when the material must first become an
 engineering change request, and `github-issue-to-pr` only after explicit promotion to
 implementation.
 
-Do not use the analysis runners to close, label, assign, comment on, or promise
+Do not use the analysis methods to close, label, assign, comment on, or promise
 work in a repository. They prepare the maintainer decision and draft only; the
-explicit `post` runner performs only the exact accepted comment.
+explicit `post` method performs only the exact accepted comment.
 
 ## Evidence and provider boundary
 

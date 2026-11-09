@@ -1,6 +1,6 @@
 ---
 name: uncovered
-description: Doctor fixture with an execution profile and no harness proof.
+description: Doctor fixture with an execution profile and no test proof.
 ---
 
 # Uncovered

@@ -39,7 +39,7 @@
     },
     {
       "id": 7,
-      "prompt": "Open an issue in runxhq/runx titled \"Harness cases for issue creation\", labelled triage, using the GitHub account signed in on this machine.",
+      "prompt": "Open an issue in runxhq/runx titled \"Test cases for issue creation\", labelled triage, using the GitHub account signed in on this machine.",
       "expected_output": "Open the one approved issue and confirm it by reading the new issue back.",
       "files": []
     }

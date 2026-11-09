@@ -4,7 +4,7 @@ inputs:
   objective: Create a bounded decision-note skill without package-local runtime code
   repo_root: .
   target_dir: .runx-tmp/skill-build-fixtures/fixture-decision-note
-  project_context: Keep the package declarative and prove its native harness.
+  project_context: Keep the package declarative and prove its native test.
 host:
   answers:
     architect:
@@ -82,7 +82,7 @@ host:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: write
-        summary: Create one thin agent skill with a supplied-answer harness.
+        summary: Create one thin agent skill with a supplied-answer test.
         non_goals:
           - Do not add package-local JavaScript or a provider boundary.
         writes:

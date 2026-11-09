@@ -36,7 +36,7 @@ methods:
       channel:
         type: string
         default: brief
-        description: Local package format; this runner does not deliver it.
+        description: Local package format; this method does not deliver it.
         optional: true
       domain: {}
       operator_context: {}
@@ -122,7 +122,7 @@ methods:
       channel:
         type: string
         default: brief
-        description: Local package format; this runner does not deliver it.
+        description: Local package format; this method does not deliver it.
         optional: true
       domain: {}
       operator_context: {}
@@ -178,7 +178,7 @@ methods:
       channel:
         type: string
         default: brief
-        description: Intended content channel; this runner does not deliver it.
+        description: Intended content channel; this method does not deliver it.
         optional: true
       domain: {}
       as_of:
@@ -242,7 +242,7 @@ methods:
       channel:
         type: string
         default: brief
-        description: Local package format; this runner does not deliver it.
+        description: Local package format; this method does not deliver it.
         optional: true
       domain: {}
       operator_context: {}
@@ -315,7 +315,7 @@ methods:
       channel:
         type: string
         default: brief
-        description: Local package format; this runner does not deliver it.
+        description: Local package format; this method does not deliver it.
         optional: true
       research_packet:
         packet: runx/research.packet.v1

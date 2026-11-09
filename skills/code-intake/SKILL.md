@@ -16,7 +16,7 @@ an actual issue; intake works from text and context already available.
 
 ## Start with the request
 
-The default intake runner requires request: the actual report or operator
+The default intake method requires request: the actual report or operator
 instruction. project_context and operator_context are optional scoped context.
 source_context is an optional object from the source reader. It can contain a
 thread_locator, an actual issue_locator and the original evidence or source

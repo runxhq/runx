@@ -10,12 +10,12 @@ use crate::adapter::InvocationOutput;
 use crate::execution::output_projection::{StepOutputProjection, project_step_claim};
 use crate::output_contract::{project_artifact_outputs, project_declared_output_claim};
 
-/// Project a step's output from its producing runner contract.
+/// Project a step's output from its producing method contract.
 ///
 /// The addressable surface is sourced from the contract, never from the step
 /// kind: declared `run.outputs` plus the effective artifact packets. The
 /// effective artifact contract is the step's own inline `artifacts` when present,
-/// otherwise `extra_artifacts` (the invoked sub-skill / tool runner contract).
+/// otherwise `extra_artifacts` (the invoked sub-skill / tool method contract).
 pub(super) fn build_step_output_projection(
     step: &WorkflowStep,
     output: &InvocationOutput,
@@ -38,7 +38,7 @@ pub(super) fn build_step_output_projection(
     Ok(project_step_claim(claim, artifacts))
 }
 
-/// Return only the step outputs declared by its runner or artifact contract.
+/// Return only the step outputs declared by its method or artifact contract.
 /// Effect supervisors must inspect this same addressable surface that downstream
 /// graph steps consume, never the adapter's transport-level stdout shape.
 pub(super) fn contract_output_claim(projection: &StepOutputProjection) -> &JsonObject {

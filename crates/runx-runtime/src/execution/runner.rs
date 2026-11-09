@@ -158,7 +158,7 @@ pub(crate) fn child_depth_refusal(options: &RuntimeOptions) -> Option<String> {
 }
 
 /// Where a run reads the time it observes something happen: the system
-/// clock, or one instant a test or harness replay pins so its receipts are
+/// clock, or one instant a test or test replay pins so its receipts are
 /// reproducible.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum RunClock {
@@ -194,7 +194,7 @@ pub struct RuntimeOptions {
     /// run is worked as a session whose calls run concurrently.
     pub(crate) effect_gate: Option<std::sync::Arc<EffectGate>>,
     /// The packages a bound run admitted, which it executes; none for a
-    /// runtime no binding made (a harness replay reads packages as they are).
+    /// runtime no binding made (a test replay reads packages as they are).
     pub(crate) packages: Option<crate::skill_package::AdmittedPackages>,
 }
 
@@ -356,7 +356,7 @@ pub struct StepRun {
     pub step_id: String,
     pub attempt: u32,
     pub skill: String,
-    pub runner: Option<String>,
+    pub method: Option<String>,
     /// The one semantic, addressable output surface retained by graph state.
     pub contract: JsonObject,
     /// The outputs of `contract` that are artifacts, each held in its packet
@@ -1726,7 +1726,7 @@ mod tests {
             step_id: step_id.to_owned(),
             attempt: 1,
             skill: step_id.to_owned(),
-            runner: None,
+            method: None,
             contract,
             artifact_outputs: Default::default(),
             ephemeral_contract: EphemeralValue::default(),

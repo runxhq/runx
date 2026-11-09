@@ -99,7 +99,7 @@ fn oracle_case(name: &str, fixture: &str, receipt: &Receipt) -> Value {
     })
 }
 
-/// Sealed under the harness's fixture identity, as a replayed run is.
+/// Sealed under the test's fixture identity, as a replayed run is.
 fn sealed(mut receipt: Receipt) -> Receipt {
     FixtureKey::local(FIXTURE_SEED).seal(&mut receipt).unwrap();
     receipt

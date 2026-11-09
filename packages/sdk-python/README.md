@@ -31,7 +31,7 @@ for result in client.search_skills("web search"):
     print(result.skill_id, result.version, result.install_command.copy_text)
 
 # Run a skill: each input is passed as -i name=value and read by the type the
-# runner declares.
+# method declares.
 report = client.run_skill("runx/web-search", inputs={"query": "receipt verification"})
 print(report["status"])
 

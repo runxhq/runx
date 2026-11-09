@@ -25,14 +25,14 @@ The skill must be real and runnable:
   Use `catalog.category` in `run.yaml` for the runx catalog category/facet and
   `catalog.tags` for search tags; runx categories are maintained slugs, not
   arbitrary tags. See [skill-catalog.md](skill-catalog.md) before choosing one.
-- It passes the harness:
+- It passes the test:
   ```bash
-  runx harness ./skills/<your-skill> --json
+  runx test ./skills/<your-skill> --json
   ```
 
-`run.yaml` is the execution profile: runners and their steps, typed inputs and
+`run.yaml` is the execution profile: methods and their steps, typed inputs and
 outputs, tool/context refs, authority and receipt mapping, side-effect posture,
-and harness cases. Do not use it as a strategy
+and test cases. Do not use it as a strategy
 document, target registry, copy deck, generated state file, or secret container.
 Keep profile YAML explicit: anchors, aliases, merge keys, custom tags,
 multi-document markers, duplicate mapping keys, and unknown profile fields are
@@ -42,7 +42,7 @@ not supported.
 
 The hosted registry is open by default and conservative in discovery. A new
 public package starts as a community row, is reachable by URL and exact search,
-and earns broader ranking through identity, harness evidence, and hosted
+and earns broader ranking through identity, test evidence, and hosted
 verified runs.
 
 For humans, start at https://runx.ai/x/publish. There are two publish lanes:
@@ -53,7 +53,7 @@ For humans, start at https://runx.ai/x/publish. There are two publish lanes:
 - **Authenticated CLI publish.** Use this for publisher-controlled releases. Sign
   in once, then publish the package directly from your local checkout. Hosted
   runx derives the publisher from your connected identity, reconstructs the submitted
-  package, reruns the publish harness, rejects failed cases, and starts the row
+  package, reruns the publish test, rejects failed cases, and starts the row
   at community trust.
 
 The CLI form keeps the public API token out of command lines:
@@ -86,9 +86,9 @@ For remote publishes the CLI sends a bounded skill package:
   - deterministic modules reachable from execution profiles;
   - nested `SKILL.md` / `run.yaml` files for graph stages, context skills, and
     local sub-skills called by the graph;
-  - harness-only support files explicitly declared in `harness.files`, confined
+  - test-only support files explicitly declared in `test.files`, confined
     to the owning profile's `fixtures/` directory and staged profile-relative
-    into the isolated harness workspace;
+    into the isolated test workspace;
   - `references/**/*.md` advisory markdown;
   - bundled tool manifests and their complete static local source closure.
 
@@ -111,9 +111,9 @@ admitted file names such as `.env`,
 `.npmrc`, credentials JSON, private keys, and certificate/key bundles still fail
 the publish before any remote upload.
 
-This lets hosted runx rerun the harness from the same consumed skill material
+This lets hosted runx rerun the test from the same consumed skill material
 instead of trusting a client-supplied summary, while keeping local credentials,
-fixtures, source trees, and build trash out of the registry. The local harness
+fixtures, source trees, and build trash out of the registry. The local test
 still runs first for fast feedback.
 
 `runx login --for publish` opens the hosted sign-in flow. Add `--provider` and
@@ -146,7 +146,7 @@ runx treats it like every other governed action, with no special-casing:
   discovery; publisher declaration alone never does.
 - Hosted publishing is rate-limited per publisher identity. A noisy publisher
   cannot churn public versions indefinitely, even though the on-ramp stays open.
-- Hosted publishing reruns the submitted package harness. Failed harness cases
+- Hosted publishing reruns the submitted package test. Failed test cases
   stop the write before a registry row is created.
 - The registry row stores immutable `digest`, `profile_digest`, and
   `bundle_digest` values for the published package. `runx registry install`
@@ -164,7 +164,7 @@ runx treats it like every other governed action, with no special-casing:
 - Your skill appears as a live registry row on your publisher profile at
   `runx.ai/x/<publisher>`.
 - New publishes start at **community** trust tier. Promotion to **verified**
-  requires claimed source identity, passing harnesses, and signing evidence
+  requires claimed source identity, passing tests, and signing evidence
   (shown on the publisher trust panel).
 - Community rows with no install or run evidence stay out of broad discovery by
   default, but they remain reachable by direct URL and exact-name search. Use

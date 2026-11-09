@@ -78,7 +78,7 @@ host:
         proof_plan:
           - name: release-notes-selection
             kind: selection_trial
-            expected: Release-note preparation selects release while a publication-only request does not select this runner.
+            expected: Release-note preparation selects release while a publication-only request does not select this method.
           - name: release-notes-standalone
             kind: standalone_operator_journey
             expected: A direct change set produces reviewable notes without claiming publication.

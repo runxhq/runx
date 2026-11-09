@@ -41,9 +41,9 @@ adapter alone owns the observed execution-boundary value and binds it into the
 receipt at seal time. Neither a skill nor an agent may self-attest that
 observation.
 
-The local runner applies authority in this order:
+The local method applies authority in this order:
 
-1. Manifest validation identifies the selected runner and the connector
+1. Manifest validation identifies the selected method and the connector
    operations it calls.
 2. Structural policy admission resolves the exact authority grant.
 3. Each operation is admitted against the connector's selected instance, which

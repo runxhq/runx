@@ -114,7 +114,7 @@ impl CapabilityOutput for MinorUnitsOutput {}
 #[serde(deny_unknown_fields)]
 struct RunContextInput {
     #[serde(skip_serializing_if = "Option::is_none")]
-    harness: Option<JsonObject>,
+    test: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
     signal: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,7 +144,7 @@ impl CapabilityOutput for CompareOutput {}
 struct RunContextOutput {
     present: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    harness: Option<JsonObject>,
+    test: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
     signal: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -165,7 +165,7 @@ const COMPARE_FIELDS: &[CapabilityField] = &[
 ];
 
 const CONTEXT_FIELDS: &[CapabilityField] = &[
-    field("harness", "Optional current runx.harness.v1 packet."),
+    field("test", "Optional current runx.test.v1 packet."),
     field(
         "signal",
         "Optional runx.signal.v1 packet that informed the run.",
@@ -219,7 +219,7 @@ static RUN_CONTEXT: TypedNativeCapability<RunContextInput, RunContextOutput> =
         CapabilityDefinition {
             id: "control.capture_run_context",
             source: "runx-runtime/control",
-            summary: "Capture supplied harness, signal, and decision packets as explicit context.",
+            summary: "Capture supplied test, signal, and decision packets as explicit context.",
             scopes: &["runx:control:read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
@@ -407,18 +407,18 @@ fn compare_values(
 fn capture_run_context(
     invocation: &NativeInvocation<'_, RunContextInput>,
 ) -> Result<RunContextOutput, RuntimeError> {
-    let harness = invocation.inputs.harness.as_ref();
+    let test = invocation.inputs.test.as_ref();
     let signal = invocation.inputs.signal.as_ref();
     let decision = invocation.inputs.decision.as_ref();
-    let present = harness.is_some() || signal.is_some() || decision.is_some();
+    let present = test.is_some() || signal.is_some() || decision.is_some();
     Ok(RunContextOutput {
         present,
-        harness: harness.cloned(),
+        test: test.cloned(),
         signal: signal.cloned(),
         decision: decision.cloned(),
         run_context: RunContext {
             captured: present,
-            harness: harness.cloned(),
+            test: test.cloned(),
             signal: signal.cloned(),
             decision: decision.cloned(),
         },

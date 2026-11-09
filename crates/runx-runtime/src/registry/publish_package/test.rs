@@ -59,7 +59,7 @@ pub(super) fn run_publish_test(
     };
     let report = orchestrator.run_package_test(&request).map_err(|error| {
         RegistryPublishPackageError::invalid(format!(
-            "package harness failed for {}: {error}",
+            "package test failed for {}: {error}",
             test_path.display()
         ))
     })?;
@@ -74,13 +74,13 @@ pub(super) fn run_publish_test(
     };
     if report.case_count == 0 {
         return Err(RegistryPublishPackageError::invalid(format!(
-            "harness failed for {}: no cases were discovered",
+            "test failed for {}: no cases were discovered",
             test_path.display()
         )));
     }
     if report.failed() {
         return Err(RegistryPublishPackageError::invalid(format!(
-            "harness failed for {}: {}",
+            "test failed for {}: {}",
             test_path.display(),
             report.assertion_errors.join("; ")
         )));
@@ -98,14 +98,14 @@ fn write_bytes(path: PathBuf, content: &[u8]) -> Result<(), RegistryPublishPacka
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
             RegistryPublishPackageError::invalid(format!(
-                "failed to create publish harness directory {}: {error}",
+                "failed to create publish test directory {}: {error}",
                 parent.display()
             ))
         })?;
     }
     fs::write(&path, content).map_err(|error| {
         RegistryPublishPackageError::invalid(format!(
-            "failed to write publish harness file {}: {error}",
+            "failed to write publish test file {}: {error}",
             path.display()
         ))
     })
@@ -196,7 +196,7 @@ mod tests {
             env.get(crate::RUNX_CWD_ENV).map(String::as_str),
             Some("/tmp/runx-publish-workspace")
         );
-        // The harness seals under its own home's key: no identity is
+        // The test seals under its own home's key: no identity is
         // invented for it.
         assert!(!env.contains_key(crate::RUNX_RECEIPT_SIGN_KID_ENV));
     }

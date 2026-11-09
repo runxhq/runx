@@ -137,7 +137,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
     Ok(vec![
         valid::<PaidSkillListing>(
             "paid-skill-listing-multi-rail.json",
-            "One ordinary skill runner advertises provider-neutral compatible settlement families.",
+            "One ordinary skill method advertises provider-neutral compatible settlement families.",
             "PaidSkillListing",
             "runx.marketplace.paid_skill_listing.v1",
             paid_skill_listing(),
@@ -222,7 +222,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
         )?,
         valid::<PurchaseRead>(
             "purchase-read-fulfilled.json",
-            "A buyer reads its fulfilled purchase: the purchase, its receipt, the runner's public result and what runx holds for it, never a held value. Never the seller's run.",
+            "A buyer reads its fulfilled purchase: the purchase, its receipt, the method's public result and what runx holds for it, never a held value. Never the seller's run.",
             "PurchaseRead",
             "runx.payment.purchase_read.v1",
             json!({
@@ -235,7 +235,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
                     "signature": {"alg": "Ed25519", "value": "base64:fixture"}
                 },
                 "result": {"resource_lease": {"inbox_id": "inb_7Hq2x9", "address": "agent@inbox.example"}},
-                "holds": [{
+                "leases": [{
                     "connector": "ausca/inbox",
                     "credential": "lease",
                     "target": "ausca:agent-inbox/inb_7Hq2x9",

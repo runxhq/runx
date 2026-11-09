@@ -6,7 +6,7 @@ description: Read the actual National Weather Service forecast for a US geograph
 # NWS Weather
 
 Fetch the National Weather Service forecast for an intended US location through
-the selected NWS connector. The default `at-point` runner accepts numeric
+the selected NWS connector. The default `at-point` method accepts numeric
 `latitude` and `longitude`, reads the provider's point-to-grid mapping and then
 fetches that grid's forecast. No API key, office-code lookup or hand-built
 grid request is needed for this route.

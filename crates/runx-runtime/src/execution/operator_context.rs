@@ -80,7 +80,7 @@ pub struct SkillOperatorContextNode {
     pub node_path: String,
     pub package: SkillOperatorContextPackage,
     pub skill_markdown: SkillOperatorContextDocument,
-    pub runner: SkillOperatorContextMethod,
+    pub method: SkillOperatorContextMethod,
     pub steps: Vec<SkillOperatorContextStep>,
     pub tools: Vec<SkillOperatorContextTool>,
 }
@@ -141,7 +141,7 @@ impl SkillOperatorContextStep {
     pub fn target_label(&self) -> String {
         match &self.definition.kind {
             StepKind::Skill(target) => match &target.method {
-                Some(runner) => format!("skill {} runner {runner}", target.skill),
+                Some(method) => format!("skill {} method {method}", target.skill),
                 None => format!("skill {}", target.skill),
             },
             StepKind::Tool(ToolTarget::Catalog(name)) => format!("tool {name}"),
@@ -212,7 +212,7 @@ fn expand_chain(
 ) -> Result<SkillOperatorContextChain, SkillRunError> {
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         SkillRunError::Invalid(format!(
-            "skill package {} does not declare run.yaml runners",
+            "skill package {} does not declare run.yaml methods",
             loaded.directory.display()
         ))
     })?;
@@ -220,7 +220,7 @@ fn expand_chain(
     let manual_path = loaded.package_root.join("SKILL.md");
     let manual_markdown = loaded.package.manual_markdown.clone();
     let manual_digest = loaded.package.manual_digest.clone();
-    let runner = selected_method(&manifest, selected_method_name)?.clone();
+    let method = selected_method(&manifest, selected_method_name)?.clone();
     let workspace =
         WorkspaceEnv::new(options.env.clone(), options.cwd.clone()).map_err(RuntimeError::from)?;
     let env = workspace.skill_env_for_skill(&skill_dir);
@@ -232,7 +232,7 @@ fn expand_chain(
         manual_path,
         manual_markdown,
         manual_digest,
-        runner,
+        method,
         requested_method: selected_method_name.map(str::to_owned),
         env,
         depth: 0,
@@ -265,7 +265,7 @@ struct NodeInput {
     manual_path: PathBuf,
     manual_markdown: String,
     manual_digest: String,
-    runner: SkillMethodDefinition,
+    method: SkillMethodDefinition,
     requested_method: Option<String>,
     env: BTreeMap<String, String>,
     depth: usize,
@@ -299,7 +299,7 @@ impl ExpansionState {
         input: &NodeInput,
     ) -> Result<SkillOperatorContextNode, SkillRunError> {
         self.admit_node(input.depth)?;
-        let identity = node_identity(&input.package, &input.skill_dir, &input.runner.name)?;
+        let identity = node_identity(&input.package, &input.skill_dir, &input.method.name)?;
         if !self.ancestry.insert(identity.clone()) {
             return Err(blocked(format!(
                 "operator context chain contains a cycle at {} ({identity})",
@@ -321,9 +321,9 @@ impl ExpansionState {
             &input.manual_markdown,
             &input.manual_digest,
         )?;
-        let raw = JsonValue::Object(input.runner.raw.clone());
+        let raw = JsonValue::Object(input.method.raw.clone());
         self.add_bytes(serialized_bytes(&raw)?)?;
-        let graph = &input.runner.graph;
+        let graph = &input.method.graph;
         let tool_names = referenced_tools(graph);
         let tools = self.load_tools(&input.skill_dir, &tool_names, &input.env)?;
         let steps = self.expand_workflow_steps(
@@ -338,7 +338,7 @@ impl ExpansionState {
             node_path: input.node_path.clone(),
             package: input.package.clone(),
             skill_markdown,
-            runner: method_context(&input.runner, input.requested_method.as_deref(), raw),
+            method: method_context(&input.method, input.requested_method.as_deref(), raw),
             steps,
             tools,
         })
@@ -444,7 +444,7 @@ impl ExpansionState {
             manual_path: loaded.manual_path,
             manual_markdown: loaded.manual_markdown.as_ref().to_owned(),
             manual_digest: loaded.manual_digest,
-            runner: loaded.runner,
+            method: loaded.method,
             requested_method: requested_method.map(str::to_owned),
             env: child_env,
             depth,
@@ -619,7 +619,7 @@ impl ExpansionState {
 /// The method a node runs: the one its reference named, or the package's
 /// default, its one method or its `default_method`.
 fn method_context(
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     requested_method: Option<&str>,
     raw: JsonValue,
 ) -> SkillOperatorContextMethod {
@@ -629,7 +629,7 @@ fn method_context(
         "default"
     };
     SkillOperatorContextMethod {
-        name: runner.name.clone(),
+        name: method.name.clone(),
         selection: selection.to_owned(),
         requested_name: requested_method.map(str::to_owned),
         raw,
@@ -845,7 +845,7 @@ mod tests {
             .map_err(|blocked| blocked.error)
     }
 
-    /// Every runner of every bundled core skill expands its operator context
+    /// Every method of every bundled core skill expands its operator context
     /// under the effects the CLI runs with, as a run prepares it.
     #[test]
     fn every_bundled_core_method_expands_its_operator_context() -> Result<(), Box<dyn Error>> {
@@ -898,7 +898,7 @@ mod tests {
         }
         assert!(
             failures.is_empty(),
-            "every bundled core runner must expand its operator context:\n{}",
+            "every bundled core method must expand its operator context:\n{}",
             failures.join("\n")
         );
         Ok(())
@@ -952,7 +952,7 @@ methods:
             .first()
             .ok_or("missing child")?;
         assert_eq!(child.node_path, "entry.review");
-        assert_eq!(child.runner.name, "review");
+        assert_eq!(child.method.name, "review");
         assert!(child.skill_markdown.content.contains("# Child contract"));
         Ok(())
     }

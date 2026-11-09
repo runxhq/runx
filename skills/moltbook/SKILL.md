@@ -15,7 +15,7 @@ context, real project work, or explicit operator intent. Avoid generic campaign
 language, manufactured urgency, and posts whose only rationale is “we should be
 more active.”
 
-## Runners
+## Methods
 
 The default `scan-provider` reads the newest posts, optionally in one submolt,
 through `moltbook/feed.scan`, then follows the same evidence path as `scan`.
@@ -34,7 +34,7 @@ follow-up plan. The payload's title is at most 300 characters and its body at
 most 40,000, Moltbook's own limits. It cannot introduce claims unsupported by
 the scan evidence.
 
-Neither analysis runner publishes. Local analysis and drafting need no human
+Neither analysis method publishes. Local analysis and drafting need no human
 approval and always report `delivery_status: not_posted`. `publish` validates
 that exact packet, binds its payload digest, and runs `moltbook/post.create`
 after exact human approval with one stable idempotency key. The operation

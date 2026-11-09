@@ -1,6 +1,6 @@
 //! A skill package's inspection (`runx.skill.inspect.v1`, N12): what `runx
 //! skill inspect` and a turn's `registry.inspect` report of a package, by
-//! runner, without running it. The execution closure and the catalog's
+//! method, without running it. The execution closure and the catalog's
 //! semantic report keep the shapes their owners give them.
 use std::collections::BTreeMap;
 

@@ -1,5 +1,5 @@
 mod execution_closure;
-mod runner;
+mod method;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -19,7 +19,7 @@ pub(crate) use execution_closure::{CaseClosureTarget, LocalExecutionClosure};
 use execution_closure::{
     UnheldRegistryRefs, inspect_execution_closures, inspect_method_execution_closure,
 };
-use runner::{fixture_examples, inspect_method};
+use method::{fixture_examples, inspect_method};
 use thiserror::Error;
 
 use crate::RuntimeError;
@@ -30,27 +30,27 @@ pub enum SkillInspectionError {
     ConnectorBinding(String),
     #[error(transparent)]
     Runtime(Box<RuntimeError>),
-    #[error("skill has no runner '{runner}'")]
-    MethodNotFound { runner: String },
-    #[error("runner manifest is unavailable")]
+    #[error("skill has no method '{method}'")]
+    MethodNotFound { method: String },
+    #[error("method manifest is unavailable")]
     ManifestUnavailable,
-    #[error("native execution closure omitted runner {runner}")]
-    ClosureMissing { runner: String },
-    #[error("native execution closure {problem} for runner {runner}")]
+    #[error("native execution closure omitted method {method}")]
+    ClosureMissing { method: String },
+    #[error("native execution closure {problem} for method {method}")]
     ClosureInvalid {
-        runner: String,
+        method: String,
         problem: &'static str,
     },
     #[error("skill package digest mismatch: expected {expected}, received {received}")]
     PackageDigestMismatch { expected: String, received: String },
-    #[error("native execution closure for runner {runner} is not fully bound")]
-    ClosureNotFullyBound { runner: String },
+    #[error("native execution closure for method {method} is not fully bound")]
+    ClosureNotFullyBound { method: String },
     #[error("skill execution closure digest mismatch: expected {expected}, received {received}")]
     ClosureDigestMismatch { expected: String, received: String },
     #[error("sub-skill {path} has no executable manifest")]
     SubSkillManifestMissing { path: PathBuf },
-    #[error("sub-skill {path} has no selected runner {runner}")]
-    SubSkillNamedMethodMissing { path: PathBuf, runner: String },
+    #[error("sub-skill {path} has no selected method {method}")]
+    SubSkillNamedMethodMissing { path: PathBuf, method: String },
     #[error("graph source omitted its validated graph")]
     WorkflowMissing,
     #[error("canonicalizing {label} {path}: {source}")]
@@ -93,7 +93,7 @@ pub fn inspect_skill_package(
 }
 
 /// A package's inspection as a caller reads it before running it: with how
-/// ready its selected runner is to run here, under `authority`, by each
+/// ready its selected method is to run here, under `authority`, by each
 /// connector operation it may call and the environment it reads.
 pub fn inspect_skill_readiness(
     skill_path: &Path,
@@ -107,7 +107,7 @@ pub fn inspect_skill_readiness(
     let Some(requirements) = inspection
         .method
         .as_ref()
-        .map(|runner| runner.requirements.clone())
+        .map(|method| method.requirements.clone())
     else {
         return Ok(inspection);
     };
@@ -134,7 +134,7 @@ pub fn inspect_skill_readiness(
     Ok(inspection)
 }
 
-/// The environment a runner reads, by name and availability, never by
+/// The environment a method reads, by name and availability, never by
 /// value; none when it reads none.
 fn environment_readiness(
     requirements: &runx_contracts::ExecutionRequirements,
@@ -160,7 +160,7 @@ fn environment_readiness(
     })
 }
 
-/// The readiness of each connector operation a run of the selected runner may
+/// The readiness of each connector operation a run of the selected method may
 /// call, its child skills' included, projected by the kernel from the
 /// instances and evidence present for `cwd`, under the authority a host would
 /// start the run with.
@@ -173,36 +173,36 @@ pub fn inspect_connector_readiness(
     cwd: &Path,
 ) -> Result<Vec<runx_contracts::Readiness>, SkillInspectionError> {
     let loaded = Arc::new(super::load_validated_skill_package(skill_path)?);
-    let Some(runner) =
-        inspected_method(loaded.manifest(), selected_method)?.map(|runner| runner.name.clone())
+    let Some(method) =
+        inspected_method(loaded.manifest(), selected_method)?.map(|method| method.name.clone())
     else {
         return Ok(Vec::new());
     };
     let root_directory = loaded.directory.clone();
-    let root_method = runner.clone();
+    let root_method = method.clone();
     let mut readiness = Vec::new();
-    for (package, runner) in
-        execution_closure::inspect_method_closure_methods(Arc::clone(&loaded), &runner, env)?
+    for (package, method) in
+        execution_closure::inspect_method_closure_methods(Arc::clone(&loaded), &method, env)?
     {
         let Some(manifest) = package.manifest() else {
             continue;
         };
-        let Some(runner) = manifest.methods.get(&runner) else {
+        let Some(method) = manifest.methods.get(&method) else {
             continue;
         };
         let unknown = JsonObject::new();
-        let known = if package.directory == root_directory && runner.name == root_method {
+        let known = if package.directory == root_directory && method.name == root_method {
             inputs
         } else {
             None
         };
         let graph = crate::execution::graph::bind_known_inputs(
-            runner.graph.clone(),
+            method.graph.clone(),
             known.unwrap_or(&unknown),
         )?;
         let projected = crate::kernel::admission::skill_readiness(
             &package.directory,
-            &method_requirements(&manifest.connectors, runner),
+            &method_requirements(&manifest.connectors, method),
             &graph.steps,
             authority,
             env,
@@ -228,10 +228,10 @@ pub fn inspect_connector_readiness(
 /// any its `from` lists.
 fn method_requirements(
     connectors: &BTreeMap<String, runx_parser::ConnectorRequirement>,
-    runner: &runx_parser::SkillMethodDefinition,
+    method: &runx_parser::SkillMethodDefinition,
 ) -> BTreeMap<String, runx_parser::ConnectorRequirement> {
     let mut used = BTreeMap::<String, runx_parser::ConnectorRequirement>::new();
-    let targets = runner
+    let targets = method
         .graph
         .steps
         .iter()
@@ -259,7 +259,7 @@ fn method_requirements(
     used
 }
 
-/// The runner inspection describes: the named one, else the default.
+/// The method inspection describes: the named one, else the default.
 fn inspected_method<'a>(
     manifest: Option<&'a runx_parser::SkillMethodManifest>,
     selected_method: Option<&str>,
@@ -267,13 +267,13 @@ fn inspected_method<'a>(
     Ok(match (manifest, selected_method) {
         (Some(manifest), Some(name)) => Some(manifest.methods.get(name).ok_or_else(|| {
             SkillInspectionError::MethodNotFound {
-                runner: name.to_owned(),
+                method: name.to_owned(),
             }
         })?),
         (Some(manifest), None) => manifest.default_method(),
         (None, Some(name)) => {
             return Err(SkillInspectionError::MethodNotFound {
-                runner: name.to_owned(),
+                method: name.to_owned(),
             });
         }
         (None, None) => None,
@@ -288,27 +288,27 @@ pub(crate) fn inspect_loaded_skill_package(
     let loaded = Arc::new(loaded);
     let mut output = base_inspection(&loaded)?;
     let manifest = loaded.manifest();
-    let runner = inspected_method(manifest, selected_method)?;
+    let method = inspected_method(manifest, selected_method)?;
     // Inspection reports the registry refs the project does not hold, so a
     // host can install them and inspect again; binding below rejects them.
     let mut execution_closures =
         inspect_execution_closures(loaded.clone(), env, UnheldRegistryRefs::Report)?;
-    let mut closure_of = |runner: &str| -> Result<JsonObject, SkillInspectionError> {
-        match execution_closures.remove(runner) {
+    let mut closure_of = |method: &str| -> Result<JsonObject, SkillInspectionError> {
+        match execution_closures.remove(method) {
             Some(JsonValue::Object(closure)) => Ok(closure),
             Some(_) => Err(SkillInspectionError::ClosureInvalid {
-                runner: runner.to_owned(),
+                method: method.to_owned(),
                 problem: "is not an object",
             }),
             None => Err(SkillInspectionError::ClosureMissing {
-                runner: runner.to_owned(),
+                method: method.to_owned(),
             }),
         }
     };
     if let Some(manifest) = manifest {
         for definition in manifest.methods.values() {
             let execution_closure = closure_of(&definition.name)?;
-            if runner.is_some_and(|runner| runner.name == definition.name) {
+            if method.is_some_and(|method| method.name == definition.name) {
                 output.execution_closure = Some(execution_closure.clone());
             }
             output.method_inspections.push(MethodInspectionEntry {
@@ -317,19 +317,19 @@ pub(crate) fn inspect_loaded_skill_package(
             });
         }
     }
-    if let Some(runner) = runner {
+    if let Some(method) = method {
         let manifest = manifest.ok_or(SkillInspectionError::ManifestUnavailable)?;
-        output.method = Some(inspect_method(manifest, runner, &runner.examples)?);
+        output.method = Some(inspect_method(manifest, method, &method.examples)?);
         output.readiness = Some(InspectionReadiness {
             status: InspectionReadinessStatus::Ready,
         });
         output.examples = Some(fixture_examples(
             &loaded.package,
             loaded.manifest(),
-            &runner.name,
+            &method.name,
         ));
         output.resume = Some(InspectionResume {
-            may_pause: runner.graph.steps.iter().any(|step| {
+            may_pause: method.graph.steps.iter().any(|step| {
                 !matches!(
                     step.kind,
                     StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_))
@@ -353,23 +353,23 @@ pub(crate) struct InspectedExecutionClosureBinding {
     pub(crate) projects: BTreeMap<String, PathBuf>,
 }
 
-/// Whether a run of `runner` reaches an agent turn that can make calls, child
+/// Whether a run of `method` reaches an agent turn that can make calls, child
 /// skills included. Such a turn is worked on an MCP connection; a turn that
 /// only answers is continued with `runx resume`.
 pub(crate) fn method_makes_calls(
     loaded: Arc<LoadedSkillPackage>,
-    runner: &str,
+    method: &str,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<bool, SkillInspectionError> {
     Ok(
-        execution_closure::inspect_method_closure_methods(loaded, runner, env)?
+        execution_closure::inspect_method_closure_methods(loaded, method, env)?
             .into_iter()
-            .any(|(package, runner)| {
+            .any(|(package, method)| {
                 package
                     .manifest()
-                    .and_then(|manifest| manifest.methods.get(&runner))
-                    .is_some_and(|runner| {
-                        runner.graph.steps.iter().any(|step| {
+                    .and_then(|manifest| manifest.methods.get(&method))
+                    .is_some_and(|method| {
+                        method.graph.steps.iter().any(|step| {
                             matches!(
                                 &step.kind,
                                 runx_parser::StepKind::Agent(agent) if !agent.allowance.is_empty()
@@ -390,14 +390,14 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     let closure = closure
         .as_object()
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {
-            runner: selected_method.to_owned(),
+            method: selected_method.to_owned(),
             problem: "is not an object",
         })?;
     let fully_bound = closure
         .get("fully_bound")
         .and_then(JsonValue::as_bool)
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {
-            runner: selected_method.to_owned(),
+            method: selected_method.to_owned(),
             problem: "omitted binding state",
         })?;
     let digest = closure
@@ -406,7 +406,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
         .filter(|value| !value.trim().is_empty())
         .map(str::to_owned)
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {
-            runner: selected_method.to_owned(),
+            method: selected_method.to_owned(),
             problem: "omitted digest",
         })?;
     Ok(InspectedExecutionClosureBinding {
@@ -453,7 +453,7 @@ pub(crate) fn inspect_loaded_local_execution_closure(
     inspect_local_execution_closure(Arc::new(loaded.clone()), env)
 }
 
-/// Every connector a harness case's run binds through its whole closure.
+/// Every connector a test case's run binds through its whole closure.
 pub(crate) fn case_closure_connectors(
     loaded: &LoadedSkillPackage,
     target: CaseClosureTarget<'_>,
@@ -511,11 +511,11 @@ mod tests {
     /// The inspection as its JSON, as a host reads it.
     fn inspect_skill_package(
         root: &std::path::Path,
-        runner: Option<&str>,
+        method: Option<&str>,
         env: Option<&std::collections::BTreeMap<String, String>>,
     ) -> Result<JsonValue, Box<dyn std::error::Error>> {
         Ok(serde_json::from_value(serde_json::to_value(
-            super::inspect_skill_package(root, runner, env)?,
+            super::inspect_skill_package(root, method, env)?,
         )?)?)
     }
 
@@ -535,7 +535,7 @@ mod tests {
                 "do-not-render".to_owned(),
             )]),
         )
-        .expect("a runner that reads the environment has readiness");
+        .expect("a method that reads the environment has readiness");
         assert_eq!(
             readiness.status,
             runx_contracts::EnvironmentReadinessStatus::NeedsEnvironment
@@ -962,7 +962,7 @@ methods:
 "#,
         )
         .expect("root manifest");
-        for (directory, name, runner) in [
+        for (directory, name, method) in [
             (&internal, "internal", "read"),
             (&external, "research", "brief"),
         ] {
@@ -974,7 +974,7 @@ methods:
             fs::write(
                 directory.join("run.yaml"),
                 format!(
-                    "minimum_runx: 0.12.0\nmethods:\n  {runner}:\n    result_from: [digest]\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: inspected\n"
+                    "minimum_runx: 0.12.0\nmethods:\n  {method}:\n    result_from: [digest]\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: inspected\n"
                 ),
             )
             .expect("child manifest");
@@ -990,7 +990,7 @@ methods:
             closure.get("direct_external_skill_edges"),
             Some(&JsonValue::Array(vec![JsonValue::Object(
                 JsonObject::from([
-                    ("runner".to_owned(), JsonValue::String("brief".to_owned())),
+                    ("method".to_owned(), JsonValue::String("brief".to_owned())),
                     ("skill".to_owned(), JsonValue::String("research".to_owned())),
                 ])
             )]))

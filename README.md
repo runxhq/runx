@@ -153,7 +153,7 @@ organizes supplied customer facts to inform the audience choice; the operator
 supplies the actual audience and contact policy.
 
 [`release#prepare`](skills/release/SKILL.md) checks the project's release
-profile and produces the version-bound brief. The full `release` runner owns
+profile and produces the version-bound brief. The full `release` method owns
 approval, publication, and verification through the project's commands.
 [`content-package`](skills/content-package/SKILL.md) combines release facts
 and product documentation with `research` and `ghostwrite` to prepare the setup
@@ -244,19 +244,19 @@ From this checkout:
 
 ```bash
 # Research → draft → channel package → publication handoff
-runx harness skills/content-package/fixtures/composes-in-graph.yaml
+runx test skills/content-package/fixtures/composes-in-workflow.yaml
 
 # A specific outreach draft with supplied evidence and writing context
-runx harness skills/cold-outreach/fixtures/prepares-approved-context-email.yaml
+runx test skills/cold-outreach/fixtures/prepares-approved-context-email.yaml
 
 # Search + analytics + site evidence → growth priorities
-runx harness skills/organic-growth/fixtures/composes-in-graph.yaml
+runx test skills/organic-growth/fixtures/composes-in-workflow.yaml
 
 # Defined product funnel → rates and source-bound recommendations
-runx harness skills/product-analytics/fixtures/composes-in-graph.yaml
+runx test skills/product-analytics/fixtures/composes-in-workflow.yaml
 
 # Exact Slack post → approval → provider response → independent readback
-runx harness skills/message-send/fixtures/post-default-notifies-and-verifies.yaml
+runx test skills/message-send/fixtures/post-default-notifies-and-verifies.yaml
 ```
 
 These are fixture-backed executions, with no live account reads or sends. Live
@@ -283,13 +283,13 @@ and its signed receipt.
 ```
 
 When the work needs executable steps, typed inputs and outputs, authority,
-artifacts, or harness cases, the package also carries a `run.yaml`:
+artifacts, or test cases, the package also carries a `run.yaml`:
 
 ```yaml
 skill: hello-world
 version: "0.1.1"
 
-runners:
+methods:
   default:
     default: true
     inputs:
@@ -306,12 +306,12 @@ runners:
 ```
 
 This is the execution shape of [`examples/hello-world`](examples/hello-world).
-Its checked-in package also includes the command and harness case.
+Its checked-in package also includes the command and test case.
 
 | Part | Responsibility |
 | --- | --- |
 | `SKILL.md` and references | Expertise, procedure, judgment, recovery, and completion criteria. |
-| `run.yaml` | Executable runners, typed contracts, declared capabilities, authority, and harness cases. |
+| `run.yaml` | Executable methods, typed contracts, declared capabilities, authority, and test cases. |
 | Domain modules | Deterministic computation specific to the skill. |
 | Runx | Provider transport, filesystem and process access, credential delivery, execution state, and receipts. |
 
@@ -323,7 +323,7 @@ judgment; permission comes from admission.
 
 ## Graphs make acts composable
 
-A runner can combine five step kinds:
+A method can combine five step kinds:
 
 | Step | Use it for |
 | --- | --- |
@@ -331,12 +331,12 @@ A runner can combine five step kinds:
 | `tool` | A native capability, deterministic computation, or declared process command. |
 | `operation` | A typed connector call to an external provider. |
 | `ask` | A question or decision the run needs before it can continue. |
-| `skill` | Another skill's runner, with explicit inputs and outputs. |
+| `skill` | Another skill's method, with explicit inputs and outputs. |
 
 A small graph makes the dataflow visible:
 
 ```yaml
-name: hello-graph
+name: hello-workflow
 steps:
   - id: first
     skill: ../hello-world
@@ -351,7 +351,7 @@ steps:
 The second skill consumes the first skill's typed output. The graph receipt
 links their receipts. The same mechanism lets `content-package` pass a
 research packet into `ghostwrite`, then pass the validated draft into its
-packaging and handoff runners. Inspect its
+packaging and handoff methods. Inspect its
 [actual graph](skills/content-package/run.yaml).
 
 Use an agent turn for work that needs judgment. Use a graph when phases,
@@ -373,7 +373,7 @@ its provenance into prose.
 By default, an agent step yields work to the calling agent. Runx returns the
 manual, typed request, and allowed calls. Your host can work the turn through
 MCP, provide its result, and continue the same run. The optional
-`--managed-agent` mode delegates those turns to a configured model provider.
+`--drive` mode delegates those turns to a configured model provider.
 
 ```bash
 # Inspect a running, paused, or completed run
@@ -481,7 +481,7 @@ A receipt answers the questions that matter after the agent has moved on:
 
 | Question | Evidence |
 | --- | --- |
-| What ran? | Skill identity, source and execution digests, and runner metadata. |
+| What ran? | Skill identity, source and execution digests, and method metadata. |
 | Who or what admitted it? | Actor references, grant references, and execution terms. |
 | What was allowed? | Scopes, resolved grants, and approval decisions. |
 | What happened? | Acts, output references, execution outcomes, and closure. |
@@ -524,18 +524,18 @@ Your agent works the authoring turns; the package is written after
 validation. Without a managed agent, the run returns the pending work and
 resume instructions.
 
-A finished package should include harness cases for its successful path,
-refusals, and composition with other skills. The harness replays declared
+A finished package should include test cases for its successful path,
+refusals, and composition with other skills. The test replays declared
 inputs and agent/provider responses so those contracts can be checked locally.
 
 ```bash
-runx harness ./skills/launch-review
+runx test ./skills/launch-review
 runx login --for publish
 runx registry publish ./skills/launch-review
 ```
 
-Hosted publication reconstructs the submitted package, reruns its harness,
-and stores immutable package digests. Local harness results prove the cases
+Hosted publication reconstructs the submitted package, reruns its test,
+and stores immutable package digests. Local test results prove the cases
 they exercise; live integration claims need evidence from the actual provider
 path too.
 
@@ -551,7 +551,7 @@ human decisions, resume the run, and inspect its receipts.
 
 | Surface | Entry point |
 | --- | --- |
-| CLI | `runx skill <skill-ref> [runner] -i key=value --json` — [reference](docs/reference.md#local-cli). |
+| CLI | `runx skill <skill-ref> [method] -i key=value --json` — [reference](docs/reference.md#local-cli). |
 | MCP | `runx mcp <skill-ref>` to expose a skill; `runx mcp --run <run-id>` to work an existing run. |
 | TypeScript / Node.js | [`@runxhq/client`](packages/client/README.md), with explicit workspace and environment configuration. |
 | Python | [Python SDK](packages/sdk-python/README.md). |
@@ -585,7 +585,7 @@ consume the same contracts.
 ## Contribute
 
 Runx is in active development. Start with a concrete workflow, a reproducible
-execution problem, a connector contract, or a skill with useful harness cases.
+execution problem, a connector contract, or a skill with useful test cases.
 The [contributor guide](CONTRIBUTING.md) covers setup, focused checks, and
 sign-off requirements.
 
@@ -593,7 +593,7 @@ Build the native CLI from this checkout:
 
 ```bash
 cargo build --manifest-path crates/Cargo.toml -p runx-cli
-crates/target/debug/runx harness examples/hello-world
+crates/target/debug/runx test examples/hello-world
 ```
 
 [Reference](docs/reference.md) · [Demos](docs/demos.md) ·

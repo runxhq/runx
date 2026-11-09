@@ -235,7 +235,7 @@ methods:
           repo_root: $input.repo_root
           mode: improve
           change_bundle: $steps.bind.change_bundle
-  harness:
+  test:
     description: Add tests to an existing package and replay them against the candidate before writing.
     inputs:
       objective:
@@ -280,7 +280,7 @@ methods:
           objective: $input.objective
           project_context: $input.project_context
           test_output: $input.test_output
-          authoring_mode: harness
+          authoring_mode: test
           authoring_context: $steps.inspect.authoring_context
           repo_root: $input.repo_root
           target_dir: $input.target_dir
@@ -299,7 +299,7 @@ methods:
           objective: $input.objective
           project_context: $input.project_context
           test_output: $input.test_output
-          authoring_mode: harness
+          authoring_mode: test
           authoring_context: $steps.inspect.authoring_context
           architecture_plan: $steps.plan.architecture_plan
           repo_root: $input.repo_root
@@ -314,5 +314,5 @@ methods:
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
-          mode: harness
+          mode: test
           change_bundle: $steps.bind.change_bundle

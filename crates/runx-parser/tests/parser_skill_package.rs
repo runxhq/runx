@@ -403,7 +403,7 @@ expect:
     assert_eq!(fixture.name, "inspect");
     assert_eq!(fixture.method.as_deref(), Some("inspect"));
 
-    // A test runs a method its package has, as a harness case's runner did.
+    // A test runs a method its package has, as a test case's method did.
     let mut unknown = validated.source;
     unknown.files.insert(
         "tests/unknown.yaml".to_owned(),
@@ -461,7 +461,7 @@ methods:
         ),
     ]);
 
-    let validated = validate_skill_package(source).expect("harness closure must validate");
+    let validated = validate_skill_package(source).expect("test closure must validate");
 
     for path in [
         "tests/inspect.yaml",
@@ -519,7 +519,7 @@ expect:
         ),
     ]);
 
-    let validated = validate_skill_package(source).expect("harness files must validate");
+    let validated = validate_skill_package(source).expect("test files must validate");
 
     assert_eq!(
         validated.test_files,

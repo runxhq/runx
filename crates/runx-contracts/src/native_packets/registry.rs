@@ -37,12 +37,12 @@ pub struct CatalogHit {
     pub trust_tier: Option<crate::TrustTier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
-    /// A skill's runners, each with its purpose when its source states one.
+    /// A skill's methods, each with its purpose when its source states one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runners: Vec<CatalogMethod>,
+    pub methods: Vec<CatalogMethod>,
 }
 
-/// One runner of a skill, as a model chooses it from an index.
+/// One method of a skill, as a model chooses it from an index.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogMethod {

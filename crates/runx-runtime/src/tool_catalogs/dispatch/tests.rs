@@ -284,11 +284,11 @@ fn invoke_with_declared_scopes_in_directory(
 fn write_catalog_tool(
     tool_dir: &Path,
     manifest: &str,
-    runner: &str,
+    method: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(tool_dir)?;
     fs::write(tool_dir.join("manifest.json"), manifest)?;
-    fs::write(tool_dir.join("run.sh"), runner)?;
+    fs::write(tool_dir.join("run.sh"), method)?;
     Ok(())
 }
 

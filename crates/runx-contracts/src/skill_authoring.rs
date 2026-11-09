@@ -94,7 +94,7 @@ pub enum SkillApprovalRequirement {
 #[serde(rename_all = "snake_case")]
 pub enum SkillProofKind {
     Contract,
-    Harness,
+    Test,
     Regression,
     Security,
     Performance,
@@ -410,7 +410,7 @@ pub enum SkillValidationVerdict {
     ValidationFailed,
 }
 
-/// What `runx.skill.validate` returns: one package's inspection and harness
+/// What `runx.skill.validate` returns: one package's inspection and test
 /// outcome. A failed validation names its failure in both.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -421,7 +421,7 @@ pub struct SkillValidation {
     pub resolved_path: NonEmptyString,
     pub verdict: SkillValidationVerdict,
     pub inspect: JsonObject,
-    pub harness: JsonObject,
+    pub test: JsonObject,
 }
 
 /// What `runx.skill.inspect` returns: the workspace a skill change is

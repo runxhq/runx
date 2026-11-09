@@ -14,7 +14,7 @@ methods:
         pattern: \S
       incident_fragments:
         type: array
-        description: Already collected incident fragments; preserve their stable id, source and complete text. This runner does not acquire live evidence.
+        description: Already collected incident fragments; preserve their stable id, source and complete text. This method does not acquire live evidence.
         minItems: 1
         maxItems: 500
         items:

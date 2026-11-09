@@ -1,4 +1,4 @@
-// Module rationale: harness replay owns fixture loading,
+// Module rationale: test replay owns fixture loading,
 // adapter invocation, receipt assertion, and graph replay sealing as one
 // deterministic proof path until MCP replay creates a separate module boundary.
 
@@ -33,7 +33,7 @@ use crate::receipts::{
     step_receipt_with_declared_claim_and_policy,
 };
 
-/// What a harness replay runs with. Each case runs as a run of its own, in a
+/// What a test replay runs with. Each case runs as a run of its own, in a
 /// kernel of its own, built from these options once the case is isolated.
 #[derive(Clone, Debug)]
 pub struct TestOptions {
@@ -44,7 +44,7 @@ pub struct TestOptions {
 }
 
 impl TestOptions {
-    /// A replay at the harness's fixed instant, sealed under the public
+    /// A replay at the test's fixed instant, sealed under the public
     /// fixture identity so its receipts are deterministic. The environment's
     /// signing variables are dropped: a replay proves only that a case ran.
     pub fn new(mut env: BTreeMap<String, String>) -> Result<Self, RuntimeError> {
@@ -75,7 +75,7 @@ impl TestOptions {
     ) -> Result<RuntimeOptions, RuntimeError> {
         let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&self.env, target))
             .map_err(|error| {
-                RuntimeError::effect_state("opening a harness case kernel", error.to_string())
+                RuntimeError::effect_state("opening a test case kernel", error.to_string())
             })?;
         let run = RunLog::evaluation(
             store,
@@ -120,9 +120,9 @@ pub enum TestReplayError {
     Fixture(#[from] TestFixtureError),
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
-    #[error("harness fixture target {target} has no parent directory")]
+    #[error("test fixture target {target} has no parent directory")]
     TargetWithoutParent { target: PathBuf },
-    #[error("harness expectation mismatch at {field}: expected {expected}, actual {actual}")]
+    #[error("test expectation mismatch at {field}: expected {expected}, actual {actual}")]
     Mismatch {
         field: String,
         expected: String,
@@ -139,18 +139,18 @@ pub enum TestReplayError {
         receipt_id: String,
         findings: String,
     },
-    #[error("invalid harness replay metadata at {field}: {message}")]
+    #[error("invalid test replay metadata at {field}: {message}")]
     InvalidReplayMetadata { field: String, message: String },
-    #[error("invalid harness fixture environment {name}: {message}")]
+    #[error("invalid test fixture environment {name}: {message}")]
     InvalidFixtureEnvironment { name: String, message: String },
-    #[error("harness setup receipt path escaped its skill package: {path}")]
+    #[error("test setup receipt path escaped its skill package: {path}")]
     SetupReceiptPathEscape { path: PathBuf },
-    #[error("failed to read harness setup receipt {path}: {source}")]
+    #[error("failed to read test setup receipt {path}: {source}")]
     SetupReceiptRead {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[error("invalid harness setup receipt {path}: {source}")]
+    #[error("invalid test setup receipt {path}: {source}")]
     SetupReceiptInvalid {
         path: PathBuf,
         source: runx_receipts::ReceiptDecodeError,
@@ -219,9 +219,9 @@ pub(crate) fn load_test_case(
     Ok((fixture, target_path))
 }
 
-/// Replay a case through the tools `runx harness` runs, without asserting
+/// Replay a case through the tools `runx test` runs, without asserting
 /// its expectations: for a generator that rewrites the expectations this run
-/// produces, so they are what `runx harness` seals. Every other caller
+/// produces, so they are what `runx test` seals. Every other caller
 /// asserts them through [`run_test_fixture`].
 pub fn replay_test_fixture(
     fixture_path: impl AsRef<Path>,
@@ -236,7 +236,7 @@ pub fn replay_test_fixture(
     )
 }
 
-/// Run one case, a fixture file's or a runner's inline case, against the
+/// Run one case, a fixture file's or a method's inline case, against the
 /// skill or graph at `target_path`, and assert what it expects. Both kinds
 /// run here, through one engine.
 pub(crate) fn run_test_case_with_adapter<A>(
@@ -271,13 +271,13 @@ where
         .prefix("runx-test-case-")
         .tempdir()
         .map_err(|error| {
-            RuntimeError::effect_state("isolating a harness case", error.to_string())
+            RuntimeError::effect_state("isolating a test case", error.to_string())
         })?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
     stage_installed_connectors_for_case(&options.env, &fixture.env, &target_path)?;
     stage_installed_skills_for_case(&options.env, &fixture.env, &target_path)?;
     // The host's workspace policy is the host's: a case's environment never
-    // sets it, so a publisher's harness cannot lift a refusal the host made.
+    // sets it, so a publisher's test cannot lift a refusal the host made.
     let policy = crate::execution_environment::RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV;
     match options.env.get(policy) {
         Some(host) => fixture.env.insert(policy.to_owned(), host.clone()),
@@ -290,7 +290,7 @@ where
     // However the case ends, even in a refusal a front accepts as expected,
     // it proves only the requests its run made.
     let unrequested = exchanges.unrequested().map_err(|error| {
-        RuntimeError::effect_state("reading the harness exchanges", error.to_string())
+        RuntimeError::effect_state("reading the test exchanges", error.to_string())
     })?;
     match replayed {
         Ok(mut output) => {
@@ -324,7 +324,7 @@ fn stage_installed_connectors_for_case(
                 &connector,
                 Some(directory),
             )
-            .map_err(|error| RuntimeError::effect_state("staging harness connectors", error))?;
+            .map_err(|error| RuntimeError::effect_state("staging test connectors", error))?;
         }
     }
     Ok(())
@@ -332,7 +332,7 @@ fn stage_installed_connectors_for_case(
 
 /// A case runs in a project of its own, and execution reads registry skills
 /// only from the project a run is in: the case's project holds the installed
-/// registry skills of the project its harness runs in. A package's harness
+/// registry skills of the project its test runs in. A package's test
 /// project holds exactly its package's closure.
 fn stage_installed_skills_for_case(
     source_env: &BTreeMap<String, String>,
@@ -343,7 +343,7 @@ fn stage_installed_skills_for_case(
     let case = crate::paths::RunxPaths::resolve(case_env, target);
     if source.project() != case.project() {
         crate::registry::copy_installed_skills(&source, &case)
-            .map_err(|error| RuntimeError::effect_state("staging harness skills", error))?;
+            .map_err(|error| RuntimeError::effect_state("staging test skills", error))?;
     }
     Ok(())
 }
@@ -417,7 +417,7 @@ fn wire_operations(
         skill_dir,
         &crate::paths::RunxPaths::resolve(&options.env, skill_dir),
     )
-    .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
+    .map_err(|error| RuntimeError::effect_state("resolving test connector scope", error))?;
     let invalid_provider = |message: String| {
         TestFixtureError::Parser(runx_parser::test_fixture::TestFixtureError::Invalid {
             field: "providers.hosted.grant".to_owned(),
@@ -462,7 +462,7 @@ fn granted_closure(
     let manifest = loaded
         .manifest()
         .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
-            runner: fixture
+            method: fixture
                 .method
                 .clone()
                 .unwrap_or_else(|| "default".to_owned()),
@@ -472,7 +472,7 @@ fn granted_closure(
         .clone();
     crate::skill_package::case_closure_connectors(
         &loaded,
-        crate::skill_package::CaseClosureTarget::Runner(&method),
+        crate::skill_package::CaseClosureTarget::Method(&method),
         env,
     )
     .map_err(|error| unbound(error).into())
@@ -495,7 +495,7 @@ fn seed_test_instances(
     if setup.sessions.is_empty() && setup.credentials.is_empty() {
         return Ok(());
     }
-    let failed = |error: String| RuntimeError::effect_state("setting up a harness instance", error);
+    let failed = |error: String| RuntimeError::effect_state("setting up a test instance", error);
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, skill_dir)?;
@@ -630,21 +630,21 @@ where
 {
     let target = skill_fixture_target(fixture, skill_dir, &options)?;
     match crate::input_contract::materialize_complete_method_inputs(
-        &target.runner.inputs,
-        &target.runner.input_constraints,
+        &target.method.inputs,
+        &target.method.input_constraints,
         &fixture.inputs,
     ) {
         Ok(inputs) => run_workflow_skill_fixture(fixture, target, inputs, adapter, options),
         Err(error) => seal_admission_failure(
             fixture,
-            &target.runner.name,
+            &target.method.name,
             &error.into_runtime_error(),
             &options,
         ),
     }
 }
 
-/// A case whose inputs the runner's contract refuses seals the refusal
+/// A case whose inputs the method's contract refuses seals the refusal
 /// without running any step.
 fn seal_admission_failure(
     fixture: &TestFixture,
@@ -708,7 +708,7 @@ where
         .or_insert_with(|| test_run_id(&fixture.name))
         .clone();
     let graph = bind_run_inputs(
-        target.runner.graph.clone(),
+        target.method.graph.clone(),
         &inputs,
         fixture.host.act.as_ref(),
         &run_id,
@@ -716,7 +716,7 @@ where
     let mut options = options.runtime(&run_id, fixture, &target.skill_dir)?;
     // The run holds its method's effects and reach, as any run of it does.
     options.run_authority =
-        crate::RunAuthority::of_method(options.run_authority.take(), &target.runner.graph);
+        crate::RunAuthority::of_method(options.run_authority.take(), &target.method.graph);
     let runtime = Runtime::new(adapter, options);
     let mut host = FixtureHost::new(fixture);
     let workflow_run = runtime.run_workflow_for_test(&target.skill_dir, graph, &mut host)?;
@@ -738,7 +738,7 @@ where
                         JsonValue::Object(run.contract.clone()),
                         run.outcome
                             .failure_message()
-                            .unwrap_or_else(|| "graph harness step failed".to_owned()),
+                            .unwrap_or_else(|| "graph test step failed".to_owned()),
                         0,
                     )
                 }
@@ -747,9 +747,9 @@ where
     Ok(output)
 }
 
-/// The runner a skill case runs and what it runs with.
+/// The method a skill case runs and what it runs with.
 struct SkillFixtureTarget {
-    runner: SkillMethodDefinition,
+    method: SkillMethodDefinition,
     env: BTreeMap<String, String>,
     skill_dir: PathBuf,
 }
@@ -763,12 +763,12 @@ fn skill_fixture_target(
     let manifest = loaded
         .manifest()
         .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
-            runner: fixture
+            method: fixture
                 .method
                 .clone()
                 .unwrap_or_else(|| "default".to_owned()),
         })?;
-    let runner = select_test_method(manifest, fixture.method.as_deref())?.clone();
+    let method = select_test_method(manifest, fixture.method.as_deref())?.clone();
     let mut env = options.env.clone();
     let credentials = super::credential_variables(&skill_dir, &env)?;
     super::isolate_test_environment(&mut env, &credentials);
@@ -776,7 +776,7 @@ fn skill_fixture_target(
     resolve_fixture_path(&mut env, &skill_dir)?;
     crate::services::merge_inferred_tool_roots(&mut env, &skill_dir);
     Ok(SkillFixtureTarget {
-        runner,
+        method,
         env,
         skill_dir,
     })
@@ -786,17 +786,17 @@ fn select_test_method<'a>(
     manifest: &'a SkillMethodManifest,
     requested_method: Option<&str>,
 ) -> Result<&'a SkillMethodDefinition, TestReplayError> {
-    if let Some(runner) = requested_method {
-        return manifest.methods.get(runner).ok_or_else(|| {
+    if let Some(method) = requested_method {
+        return manifest.methods.get(method).ok_or_else(|| {
             RuntimeError::UnsupportedMethodSelection {
-                runner: runner.to_owned(),
+                method: method.to_owned(),
             }
             .into()
         });
     }
     manifest.default_method().ok_or_else(|| {
         RuntimeError::UnsupportedMethodSelection {
-            runner: "default".to_owned(),
+            method: "default".to_owned(),
         }
         .into()
     })
@@ -881,7 +881,7 @@ impl Host for FixtureHost<'_> {
                 Ok(response)
             }
             // A purchase is bought from runx, which a case never reaches:
-            // a case tests the runner it sells from its own source.
+            // a case tests the method it sells from its own source.
             ResolutionRequest::Input { id, .. }
             | ResolutionRequest::Retry { id, .. }
             | ResolutionRequest::Purchase { id, .. } => {

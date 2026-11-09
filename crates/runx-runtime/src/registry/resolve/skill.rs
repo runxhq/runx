@@ -129,7 +129,7 @@ pub fn resolve_skill_ref_details(
     Ok(resolved)
 }
 
-/// A skill arrives when run, and so does every registry skill its runners
+/// A skill arrives when run, and so does every registry skill its methods
 /// name: each one the project does not hold is fetched exactly as a top-level
 /// ref is, into the project's added skills, until the closure holds them
 /// all, since a fetched skill can name its own. With `AbsentPins::Report`, a

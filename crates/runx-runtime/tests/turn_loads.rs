@@ -20,10 +20,10 @@ use crate::registry_fixture::{LoopbackRegistry, Publication};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-/// The act of the session skill's one-turn runner.
+/// The act of the session skill's one-turn method.
 const TURN: &str = "work";
 
-/// A runner's body that digests its value.
+/// A method's body that digests its value.
 const DIGEST_METHOD: &str = "    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
 
 /// A project whose registry publishes `acme/echo` at each tier asked.
@@ -40,7 +40,7 @@ impl Project {
         })
     }
 
-    /// Publish `acme/<name>@<version>` at `tier`: one runner, `say`, that
+    /// Publish `acme/<name>@<version>` at `tier`: one method, `say`, that
     /// digests its value.
     fn publish(&self, name: &str, version: &str, tier: TrustTier, note: &str) -> TestResult {
         self.publish_methods(
@@ -299,31 +299,31 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         "{bound:?}"
     );
     let [tool] = bound.tools.as_slice() else {
-        return Err(format!("one loaded runner: {bound:?}").into());
+        return Err(format!("one loaded method: {bound:?}").into());
     };
     let TurnTarget::Skill {
         skill,
-        runner: Some(runner),
+        method: Some(method),
         bound: Some(_),
     } = &tool.target
     else {
-        return Err(format!("a bound runner: {tool:?}").into());
+        return Err(format!("a bound method: {tool:?}").into());
     };
     assert_eq!(tool.name.as_str(), "skill__acme_echo__say");
     assert!(
         tool.input_schema["properties"]
             .as_object()
             .is_some_and(|properties| properties.contains_key("value")),
-        "the load records the runner's inputs: {tool:?}"
+        "the load records the method's inputs: {tool:?}"
     );
-    assert_eq!(runner.as_str(), "say");
+    assert_eq!(method.as_str(), "say");
     // The call names the package as the load reports it, and resolves it
     // again wherever runx holds it.
     assert_eq!(skill.as_str(), "acme/echo@1.0.0");
-    // A skill of one runner binds it without naming it, and its manual comes
+    // A skill of one method binds it without naming it, and its manual comes
     // with it at the digest of its exact bytes.
-    let [say] = bound.runners.as_slice() else {
-        return Err(format!("the skill's one runner: {bound:?}").into());
+    let [say] = bound.methods.as_slice() else {
+        return Err(format!("the skill's one method: {bound:?}").into());
     };
     assert!(say.bound && say.name.as_str() == "say", "{say:?}");
     let manual = bound
@@ -343,7 +343,7 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     assert_eq!(
         tool_names(&turn)?,
         ["load", "skill__acme_echo__say"],
-        "the loaded runner is a tool of the turn"
+        "the loaded method is a tool of the turn"
     );
 
     let said = turn.call(
@@ -403,7 +403,7 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     )?;
     assert_eq!(payload["package"]["skill"], "acme/rough@1.0.0");
     assert_eq!(payload["package"]["trust_tier"], "community");
-    assert_eq!(payload["declares"]["runners"], serde_json::json!(["say"]));
+    assert_eq!(payload["declares"]["methods"], serde_json::json!(["say"]));
     drop(turn);
 
     project.resume(
@@ -533,8 +533,8 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
         project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
     let turn = project.open(&run_id)?;
 
-    // Loaded without a runner, a skill of several binds none: the load reads
-    // its manual and runners, binds no closure, and so asks no trust.
+    // Loaded without a method, a skill of several binds none: the load reads
+    // its manual and methods, binds no closure, and so asks no trust.
     let reading = loaded(&turn.call(
         TURN,
         "load",
@@ -551,14 +551,14 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
         "{reading:?}"
     );
     let index = reading
-        .runners
+        .methods
         .iter()
-        .map(|runner| {
+        .map(|method| {
             (
-                runner.name.as_str(),
-                runner.purpose.as_ref().map(|purpose| purpose.as_str()),
-                runner.bound,
-                runner
+                method.name.as_str(),
+                method.purpose.as_ref().map(|purpose| purpose.as_str()),
+                method.bound,
+                method
                     .inputs
                     .iter()
                     .map(|input| {
@@ -591,17 +591,17 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
     );
     assert_eq!(tool_names(&turn)?, ["load"], "a reading adds no tool");
 
-    // Naming a runner binds it alone, and binding a closure below the rule's
+    // Naming a method binds it alone, and binding a closure below the rule's
     // tier still waits on the person's trust.
     let held = turn.call(
         TURN,
         "load",
         None,
-        input(serde_json::json!({"skill": "acme/voice@1.0.0", "runner": "shout"}))?,
+        input(serde_json::json!({"skill": "acme/voice@1.0.0", "method": "shout"}))?,
     )?;
     let gate = trust_gate(&held, "work/1/trust")?;
     let payload = serde_json::to_value(gate.payload.as_ref().ok_or("the gate's payload")?)?;
-    assert_eq!(payload["declares"]["runners"], serde_json::json!(["shout"]));
+    assert_eq!(payload["declares"]["methods"], serde_json::json!(["shout"]));
     drop(turn);
     project.resume(
         &run_id,
@@ -611,19 +611,19 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
     let status = turn.status(TURN)?;
     let bound = loaded(status.calls.get(1).ok_or("the second load is recorded")?)?;
     let [tool] = bound.tools.as_slice() else {
-        return Err(format!("one bound runner: {bound:?}").into());
+        return Err(format!("one bound method: {bound:?}").into());
     };
     assert_eq!(tool.name.as_str(), "skill__acme_voice__shout");
     assert_eq!(
         tool.description.as_str(),
         "Say the value loudly, when the person asks for emphasis.",
-        "a bound runner is described by its own purpose"
+        "a bound method is described by its own purpose"
     );
     assert_eq!(
         bound
-            .runners
+            .methods
             .iter()
-            .map(|runner| (runner.name.as_str(), runner.bound))
+            .map(|method| (method.name.as_str(), method.bound))
             .collect::<Vec<_>>(),
         [("say", false), ("shout", true)]
     );
@@ -975,9 +975,9 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
         .ok_or_else(|| format!("the registry's skill is found: {echo}"))?;
     assert_eq!(hit["source"], "registry");
     assert_eq!(hit["trust_tier"], "verified");
-    // The registry lists its runners by name; a purpose comes with the
+    // The registry lists its methods by name; a purpose comes with the
     // package's own description.
-    assert_eq!(hit["runners"], serde_json::json!([{"name": "say"}]));
+    assert_eq!(hit["methods"], serde_json::json!([{"name": "say"}]));
     let notes = found("notes")?;
     let hit = notes["hits"]
         .as_array()
@@ -985,9 +985,9 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
         .ok_or("the project's own skill is found")?;
     assert_eq!(hit["source"], "project");
     assert_eq!(
-        hit["runners"],
+        hit["methods"],
         serde_json::json!([{"name": "jot", "purpose": "Jot one note down."}]),
-        "a project skill's runners carry their purposes"
+        "a project skill's methods carry their purposes"
     );
 
     let inspected = turn.call(
@@ -1004,7 +1004,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     )?;
     assert_eq!(inspection.name, "echo");
     assert_eq!(
-        inspection.method.map(|runner| runner.name).as_deref(),
+        inspection.method.map(|method| method.name).as_deref(),
         Some("say")
     );
     assert!(

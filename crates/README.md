@@ -28,24 +28,24 @@ before they may be added to `deny.toml`.
 
 ## Layout
 
-- `runx-cli`: native `runx` binary. Hand-rolled dispatcher across `harness`,
+- `runx-cli`: native `runx` binary. Hand-rolled dispatcher across `test`,
   `connect`, `config`, `policy`, `kernel`, `doctor`, `list`, `history`, `mcp`,
   `tool`, `registry`, `skill`, plus project/router plumbing. Activation
   versus the npm CLI is documented by the current
   [TypeScript interop boundary](../docs/ts-interop-boundary.md).
 - `runx-contracts`: pure public contracts for JSON, host protocol, receipts,
-  registry/tool records, act assignment, harness spine, generic authority and
+  registry/tool records, act assignment, run spine, generic authority and
   effect finality.
 - `runx-core`: pure decisions. State-machine parity and policy parity
-  (admission, authority proof, retry, graph-step scope, generic
+  (admission, authority proof, retry, workflow-step scope, generic
   authority subset).
-- `runx-parser`: pure YAML → AST → IR parity for graphs, skills, runners, tool
+- `runx-parser`: pure YAML → AST → IR parity for graphs, skills, methods, tool
   manifests, and skill installs. Raw object subtrees use
   `runx_contracts::JsonValue`.
 - `runx-receipts`: pure receipt model, canonical hashing, and tree
   verification with an adversarial unit matrix.
 - `runx-runtime`: impure runtime. Owns filesystem, exact process invocation and
-  supervision, journals, registry clients, harness replay, doctor, dev loop,
+  supervision, journals, registry clients, test replay, doctor, dev loop,
   project initialization, generic authority gating, and the adapter set. Every
   runtime carries the governed HTTP client (reqwest over rustls, no redirect
   following, bounded request and connect timeouts), process tools and the tool

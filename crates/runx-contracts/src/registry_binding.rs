@@ -1,6 +1,6 @@
 //! Upstream registry binding contract (`runx.registry_binding.v1`): the open
 //! (`additionalProperties: true`) document tying a skill to its upstream source,
-//! registry placement, and harness verification state.
+//! registry placement, and test verification state.
 //!
 //! Identity is the legacy bare `runx.ai/schemas` `$id` (no `x-runx-schema`).
 use serde::{Deserialize, Serialize};
@@ -162,7 +162,7 @@ impl RunxSchema for RegistryBindingRegistry {
     }
 }
 
-/// Where a binding's harness verification is. Open.
+/// Where a binding's test verification is. Open.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 pub struct RegistryBindingTest {
     pub state: RegistryTestState,
@@ -181,7 +181,7 @@ pub struct RegistryBinding {
     pub skill: RegistryBindingSkill,
     pub upstream: RegistryBindingUpstream,
     pub registry: RegistryBindingRegistry,
-    pub harness: RegistryBindingTest,
+    pub test: RegistryBindingTest,
 }
 
 #[cfg(test)]
@@ -215,7 +215,7 @@ mod tests {
                 "profile_path": "run.yaml",
                 "materialized_package_is_registry_artifact": true
             },
-            "harness": {
+            "test": {
                 "state": "test_verified",
                 "case_count": 1
             }

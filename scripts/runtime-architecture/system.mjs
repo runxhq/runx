@@ -136,7 +136,7 @@ export function checkManagedAgentDefault(findings) {
     ? readFileSync(managedAgentPath, "utf8")
     : "";
   const skillUsesSharedPolicy = /managed_agent_policy\(\s*"skill"/u.test(cliSource);
-  const sharedPolicyRequiresConsent = /if\s+!enabled\s*\{[\s\S]{0,180}max_rounds\.is_some\(\)[\s\S]{0,220}--managed-agent-rounds requires --managed-agent/u.test(
+  const sharedPolicyRequiresConsent = /if\s+!enabled\s*\{[\s\S]{0,180}max_rounds\.is_some\(\)[\s\S]{0,220}--drive-rounds requires --drive/u.test(
     managedAgentSource,
   );
   if (!skillUsesSharedPolicy || !sharedPolicyRequiresConsent) {

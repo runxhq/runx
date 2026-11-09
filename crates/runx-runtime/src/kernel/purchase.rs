@@ -1,6 +1,6 @@
 //! The kernel's purchase of a paid skill (S10, N10, N11).
 //!
-//! A call that reaches a runner the registry sells is bought, never run here,
+//! A call that reaches a method the registry sells is bought, never run here,
 //! at any depth: a top-level `runx skill`, a `skill:` step, an agent's skill
 //! call. The kernel takes Cloud's quote for the call's inputs, and the call
 //! waits on the person's exact decision: the quote's offer, seller and price,
@@ -49,24 +49,24 @@ const POLL: Duration = Duration::from_secs(2);
 /// authorized by the person's decision, not by a connector's capability.
 const PURCHASE_TERM: &str = "runx:purchase";
 
-/// A runner the registry sells, reached by a call.
+/// A method the registry sells, reached by a call.
 #[derive(Clone, Debug)]
 pub(crate) struct PaidMethod {
     pub skill_id: String,
     pub version: Option<String>,
-    pub runner: String,
+    pub method: String,
     pub terms: PaidSkillOfferTerms,
 }
 
 impl PaidMethod {
-    /// The runner a call reaches through `reference`, when the registry
-    /// sells it: a `registry:` reference whose runner carries an offer. A
+    /// The method a call reaches through `reference`, when the registry
+    /// sells it: a `registry:` reference whose method carries an offer. A
     /// package run from its own source is its author's, and is run, not
     /// bought.
     pub(crate) fn reached(
         reference: &str,
         version: Option<&str>,
-        runner: &str,
+        method: &str,
         offer: Option<&PaidSkillOfferTerms>,
     ) -> Option<Self> {
         let registry_ref = runx_parser::registry_ref(reference)?;
@@ -75,14 +75,14 @@ impl PaidMethod {
         Some(Self {
             skill_id: parsed.skill_id,
             version: parsed.version.or_else(|| version.map(str::to_owned)),
-            runner: runner.to_owned(),
+            method: method.to_owned(),
             terms,
         })
     }
 
-    /// What a purchase of this runner is, as its custody and readback name it.
+    /// What a purchase of this method is, as its custody and readback name it.
     fn target(&self) -> String {
-        format!("runx:purchase:{}#{}", self.skill_id, self.runner)
+        format!("runx:purchase:{}#{}", self.skill_id, self.method)
     }
 
     fn route(&self) -> Option<String> {
@@ -93,7 +93,7 @@ impl PaidMethod {
     }
 }
 
-/// One call that buys a paid runner.
+/// One call that buys a paid method.
 pub(crate) struct PurchaseCall<'a> {
     pub paid: &'a PaidMethod,
     pub inputs: &'a JsonObject,
@@ -271,7 +271,7 @@ struct Decision {
     choice: Option<String>,
 }
 
-/// Buy the call's runner, or continue the purchase an earlier attempt of the
+/// Buy the call's method, or continue the purchase an earlier attempt of the
 /// same step left unsettled.
 pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought, RuntimeError> {
     if call
@@ -369,7 +369,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
             step_id: call.step_id.to_owned(),
             reason: format!(
                 "buying {}#{} waits on its buyer's decision",
-                call.paid.skill_id, call.paid.runner
+                call.paid.skill_id, call.paid.method
             ),
             request: Box::new(resolution),
             child: None,
@@ -551,7 +551,7 @@ fn send(
         );
     }
     let mut body = serde_json::json!({
-        "runner": call.paid.runner,
+        "method": call.paid.method,
         "inputs": call.inputs,
         "account_payment": account_payment,
     });
@@ -783,7 +783,7 @@ fn quote(
     session: &HostedSession,
     key: &str,
 ) -> Result<Quote, Bought> {
-    let mut body = serde_json::json!({"runner": call.paid.runner, "inputs": call.inputs});
+    let mut body = serde_json::json!({"method": call.paid.method, "inputs": call.inputs});
     if let (Some(version), Some(object)) = (&call.paid.version, body.as_object_mut()) {
         object.insert("version".to_owned(), serde_json::json!(version));
     }
@@ -1048,7 +1048,7 @@ fn purchase_request(
     let purchase = &quote.purchase;
     serde_json::from_value(serde_json::json!({
         "skill": call.paid.skill_id,
-        "runner": call.paid.runner,
+        "method": call.paid.method,
         "offer_version": purchase.offer_version,
         "package_digest": purchase.package_digest,
         "seller_ref": purchase.seller_ref,

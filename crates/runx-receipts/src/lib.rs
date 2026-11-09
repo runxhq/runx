@@ -1,7 +1,7 @@
 //! Pure Rust receipt verification for runx.
 //!
 //! This crate owns the receipt layer: a receipt is the sealed
-//! proof of a harness node, with acts and decisions proven through that seal.
+//! proof of a test node, with acts and decisions proven through that seal.
 
 mod canonical;
 mod identity;

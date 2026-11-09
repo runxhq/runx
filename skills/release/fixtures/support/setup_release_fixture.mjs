@@ -11,7 +11,7 @@ const verifyVersionSuffix =
   typeof inputs.verify_version_suffix === "string" ? inputs.verify_version_suffix : "";
 const prepareStatus = inputs.prepare_status === "blocked" ? "blocked" : "ready";
 const root = path.resolve(process.env.RUNX_CWD || process.cwd());
-const project = path.join(root, ".runx", "cache", "harness", "release-fixture-project");
+const project = path.join(root, ".runx", "cache", "test", "release-fixture-project");
 fs.rmSync(project, { recursive: true, force: true });
 fs.mkdirSync(project, { recursive: true });
 const provider = [

@@ -1,5 +1,5 @@
 //! Packet ids. A packet is a named, versioned JSON Schema a step's output or a
-//! runner's input is checked against; its id says who owns it, and so where
+//! method's input is checked against; its id says who owns it, and so where
 //! it resolves from.
 
 use std::fmt;

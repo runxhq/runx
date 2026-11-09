@@ -59,9 +59,9 @@ Current policy fixtures cover scope-grant matching, which the TypeScript
 contracts mirror; state-machine fixtures cover the sequential graph.
 
 Fixtures under `runner/` pin fixture-runner ingestion behavior rather than a
-trusted-kernel decision. They exist to keep the cross-language fixture harness
+trusted-kernel decision. They exist to keep the cross-language fixture test
 fail-closed for malformed-but-schema-shaped inputs. Rust runners may reject
-those cases during typed deserialization, as long as the fixture harness maps
+those cases during typed deserialization, as long as the fixture test maps
 the rejection to the same `kernel.fixture.evaluation_failed` envelope. Runner
 fixtures are identified by `expected.kind === "error"` and
 `expected.code === "kernel.fixture.evaluation_failed"`, must use the

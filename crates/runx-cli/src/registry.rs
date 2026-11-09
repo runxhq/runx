@@ -358,7 +358,7 @@ fn run_record_install(
     )
 }
 
-// Function rationale: a publish binds its closure, runs the package harness
+// Function rationale: a publish binds its closure, runs the package test
 // and sends the package, in that order, to the one hosted registry it targets.
 fn run_publish(
     plan: RegistryPlan,
@@ -386,14 +386,14 @@ fn run_publish(
     let orchestrator = crate::runtime::local_orchestrator(env).map_err(|error| {
         internal_error(format!("failed to initialize runtime effects: {error}"))
     })?;
-    let harness = package
+    let test = package
         .run_test(&orchestrator, env)
         .map_err(|error| internal_error(error.to_string()))?;
     let result = remote_publish::publish_remote_skill_package(
         &target.registry_url,
         &plan,
         &package,
-        &harness,
+        &test,
         env,
         cwd,
     )?;
@@ -539,14 +539,14 @@ mod tests {
                 trust_tier: Some(TrustTier::Community),
                 newest_unread: Some(UnreadVersion {
                     version: "2.0.0".to_owned(),
-                    reason: "run.yaml: runners.echo.colour is not supported".to_owned(),
+                    reason: "run.yaml: methods.echo.colour is not supported".to_owned(),
                 }),
             },
             None,
         );
 
         assert!(rendered.contains(
-            "newest           acme/echo@2.0.0 is not read by this runx: run.yaml: runners.echo.colour is not supported"
+            "newest           acme/echo@2.0.0 is not read by this runx: run.yaml: methods.echo.colour is not supported"
         ));
     }
 

@@ -78,7 +78,7 @@ fn render_shim(
     ));
     output.push_str(&render_source_manual(skill));
 
-    if let Some(default) = skill.runners.iter().find(|method| method.default) {
+    if let Some(default) = skill.methods.iter().find(|method| method.default) {
         if default.makes_calls {
             output.push_str(&render_server_method(target, skill, default));
         } else {
@@ -91,7 +91,7 @@ fn render_shim(
         }
     }
     let alternate_methods = skill
-        .runners
+        .methods
         .iter()
         .filter(|method| !method.default)
         .collect::<Vec<_>>();
@@ -103,7 +103,7 @@ fn render_shim(
             &runx_bin,
         ));
     }
-    if skill.runners.iter().any(|method| method.makes_calls) {
+    if skill.methods.iter().any(|method| method.makes_calls) {
         output.push_str(MCP_SERVER_REF_MARKER);
         output.push('\n');
     }
@@ -120,7 +120,7 @@ fn render_shim(
 /// for a skill that runs entirely from the shell.
 fn claude_server_tools(skill: &RunxExportSkill) -> String {
     let methods = skill
-        .runners
+        .methods
         .iter()
         .filter(|method| method.makes_calls)
         .collect::<Vec<_>>();
@@ -225,7 +225,7 @@ fn render_default_method(
     output.push_str("\n```\n\n");
     output.push_str("Set `RUNX_ACT_JSON` to a JSON act with a short `purpose` describing this user's requested work, for example `{\"purpose\":\"Review the current project build configuration\"}`. This states the task; it grants no additional authority.\n\n");
     if !method.inputs.is_empty() {
-        output.push_str("Build `RUNX_INPUTS_JSON` as one JSON object from the user's actual task and admitted evidence, matching the inspected `input_schema`. Preserve nested JSON types and include required fields. Examples illustrate shapes; harness fixtures are test data, not user inputs. Never put credentials in inputs.\n\n");
+        output.push_str("Build `RUNX_INPUTS_JSON` as one JSON object from the user's actual task and admitted evidence, matching the inspected `input_schema`. Preserve nested JSON types and include required fields. Examples illustrate shapes; test fixtures are test data, not user inputs. Never put credentials in inputs.\n\n");
     }
     output.push_str("Invoke from the user's working project, keeping the same working directory and Runx home throughout this run:\n\n");
     output.push_str("```bash\n");

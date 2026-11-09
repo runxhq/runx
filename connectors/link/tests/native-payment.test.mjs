@@ -35,11 +35,11 @@ console.log(JSON.stringify([out]));
   const request={action:'pay',spend_request_id:'sr_fixture',amount_minor:150,currency:'USD',payment_method_id:'pm_fixture',network_id:'profile_test_fixture',resource_url:'https://merchant.example/invoice/42',challenge:'original-public-provider-challenge',method:'POST',body:'{"invoice_id":"invoice-42"}'};
   const input={connector:'link',request,parent_payment_authority:{term_id:'invoice-42',currency:'USD',max_amount_minor:150,resource_url:request.resource_url},idempotency_seed:'native-link-payment-42'};
   const args=['skill',skill,'--run-id','link-native-proof','--inputs','-','--json'];
-  const limited=run([...args,'--max-cost','0.01'],input);assert.equal(limited.status,'sealed');assert.equal(limited.outcome,'blocked');assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);
+  const limited=run([...args,'--max-spend','0.01'],input);assert.equal(limited.status,'sealed');assert.equal(limited.outcome,'blocked');assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);
   // No provider API-fee quote is declared. A strict USD cap must refuse even
   // when it covers the purchase amount; the exact purchase approval remains
   // usable without claiming that the unknown additional fee is zero.
-  const unquoted=run(['skill',skill,'--run-id','link-native-unquoted','--inputs','-','--max-cost','2','--json'],input);
+  const unquoted=run(['skill',skill,'--run-id','link-native-unquoted','--inputs','-','--max-spend','2','--json'],input);
   assert.equal(unquoted.outcome,'blocked');assert.match(JSON.stringify(unquoted),/no USD quote/);assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);
   const pending=run(['skill',skill,'--run-id','link-native-allowed','--inputs','-','--json'],input);
   assert.equal(pending.status,'needs_approval',JSON.stringify(pending));assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);

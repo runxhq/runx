@@ -41,7 +41,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -49,7 +49,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--managed-agent [--managed-agent-rounds n]] [--diagnostics] [-j|--json]",
+        "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -139,7 +139,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help("skill"),
@@ -484,13 +484,13 @@ fn routes_test_to_native_method() {
     assert_eq!(
         plan(&[
             "test",
-            "fixtures/harness/echo-skill.yaml",
+            "fixtures/test/echo-skill.yaml",
             "--receipt-dir",
             ".runx/receipts",
             "-j"
         ]),
         RouterAction::RunTest(TestPlan {
-            fixture_paths: vec!["fixtures/harness/echo-skill.yaml".into()],
+            fixture_paths: vec!["fixtures/test/echo-skill.yaml".into()],
             receipt_dir: Some(".runx/receipts".into()),
         })
     );
@@ -501,14 +501,14 @@ fn routes_multiple_test_fixtures_to_native_method() {
     assert_eq!(
         plan(&[
             "test",
-            "fixtures/harness/echo-skill.yaml",
-            "fixtures/harness/sequential-workflow.yaml",
+            "fixtures/test/echo-skill.yaml",
+            "fixtures/test/sequential-workflow.yaml",
             "--json",
         ]),
         RouterAction::RunTest(TestPlan {
             fixture_paths: vec![
-                "fixtures/harness/echo-skill.yaml".into(),
-                "fixtures/harness/sequential-workflow.yaml".into(),
+                "fixtures/test/echo-skill.yaml".into(),
+                "fixtures/test/sequential-workflow.yaml".into(),
             ],
             receipt_dir: None,
         })
@@ -608,7 +608,7 @@ fn a_host_gives_a_run_and_its_inspection_its_authority() -> Result<(), String> {
         RouterAction::Error(message) if message.contains("must be a JSON run authority")
     ));
     assert!(matches!(
-        plan(&["skill", "inspect", "skills/echo", "--max-cost", "1"]),
+        plan(&["skill", "inspect", "skills/echo", "--max-spend", "1"]),
         RouterAction::Error(message) if message.contains("not accepted by inspect")
     ));
     Ok(())
@@ -767,16 +767,16 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
 #[test]
 fn managed_agent_rounds_need_explicit_managed_agent_consent() {
     assert_eq!(
-        plan(&["skill", "skills/docs-demo", "--managed-agent-rounds", "2"]),
+        plan(&["skill", "skills/docs-demo", "--drive-rounds", "2"]),
         RouterAction::Error(
-            "runx skill --managed-agent-rounds requires --managed-agent".to_owned()
+            "runx skill --drive-rounds requires --drive".to_owned()
         )
     );
     let action = plan(&[
         "skill",
         "skills/docs-demo",
-        "--managed-agent",
-        "--managed-agent-rounds",
+        "--drive",
+        "--drive-rounds",
         "2",
     ]);
     assert!(matches!(action, RouterAction::RunSkill(_)));

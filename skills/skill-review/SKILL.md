@@ -1,21 +1,21 @@
 ---
 name: skill-review
-description: Inspect, safely test, and assess one Runx skill package for capability, trust, and operator readiness. Use when deciding whether to adopt, improve, reject, install, or publish a skill; its evidence-only assess runner is available when native test evidence already exists.
+description: Inspect, safely test, and assess one Runx skill package for capability, trust, and operator readiness. Use when deciding whether to adopt, improve, reject, install, or publish a skill; its evidence-only assess method is available when native test evidence already exists.
 ---
 
 # Skill Review
 
-Evaluate whether one skill actually helps an operator. The default runner passes
+Evaluate whether one skill actually helps an operator. The default method passes
 a local package to native `runx.skill.validate`, which parses and inspects the
-exact package and safely replays eligible planning/read harnesses without operator
+exact package and safely replays eligible planning/read tests without operator
 credentials. Its single assessment turn can read relevant implementation through
 `fs.read_bundle`; execute-capable targets are inspected, never run automatically.
-A passing authored harness is mechanical evidence, not a usefulness verdict.
+A passing authored test is mechanical evidence, not a usefulness verdict.
 
 This skill does not mutate the package, publish a report, install a package, or
 manufacture missing evidence. Use `assess` directly when a caller already has a
 bounded evidence pack. That phase offers no filesystem or provider tools and does
-not replay the harness. Source references without their contents or meaningful
+not replay the test. Source references without their contents or meaningful
 execution evidence may require more evidence; they are not permission to fetch.
 
 ## Procedure
@@ -24,16 +24,16 @@ execution evidence may require more evidence; they are not permission to fetch.
    native capability and readiness envelope. Registry or marketplace material
    must first be installed or supplied as a bounded evidence pack; this skill
    does not fetch it implicitly.
-2. Run the native harness only when catalog execution is `read` or `plan`.
+2. Run the native test only when catalog execution is `read` or `plan`.
 3. Compare the advertised job with the actual default inputs, implementation,
-   deliverable and recovery path. In the direct runner, read the relevant manual,
+   deliverable and recovery path. In the direct method, read the relevant manual,
    manifest, domain modules and contracts named by the native source closure
    through `fs.read_bundle`. Use the native resolved package path and normal
    workspace/owning-skill containment. Preserve each read digest and partial flag;
    do not read unrelated data or credentials. Reuse source already present in the
    evidence pack instead of reading it again. Catalog descriptions alone do not
    establish implementation behavior.
-4. Separate native harness results, provider readback, supplied assertions, and
+4. Separate native test results, provider readback, supplied assertions, and
    unverified claims.
 5. Start from an ordinary request. State what the caller must still supply or do,
    what useful work the skill actually finishes, and whether a downstream graph
@@ -54,7 +54,7 @@ execution evidence may require more evidence; they are not permission to fetch.
 - Do not recommend provider readiness without provider readback.
 - Do not recommend publication from private previews, placeholder hosts, dead
   links, or unrelated parent domains.
-- Return `needs_more_evidence` when no native inspection, harness, receipt, or
+- Return `needs_more_evidence` when no native inspection, test, receipt, or
   equivalent bounded source evidence is supplied.
 - Reject capabilities that cannot be bounded, audited, or assigned a truthful
   terminal state.
@@ -68,10 +68,10 @@ execution evidence may require more evidence; they are not permission to fetch.
 
 ## Inputs
 
-- `skill` (required): local package path for the default runner; any stable
+- `skill` (required): local package path for the default method; any stable
   reference may label an evidence-only `assess` run.
-- `evidence_pack` (optional for the default runner, required for `assess`):
-  inspection, harness, receipts, docs, or source evidence. References are
+- `evidence_pack` (optional for the default method, required for `assess`):
+  inspection, test, receipts, docs, or source evidence. References are
   preferable to copied private bodies.
 - `objective` (optional): decision the evaluation should support.
 - `test_constraints` (optional): time, environment, or safety limits.
@@ -79,7 +79,7 @@ execution evidence may require more evidence; they are not permission to fetch.
 ## Agent task: skill-review-assess
 
 Assess only the supplied evidence for one skill. Separate declared capability, native
-inspection, harness evidence, provider readback, supplied assertions, and unverified claims.
+inspection, test evidence, provider readback, supplied assertions, and unverified claims.
 Check the happy path, stop or refusal path, authority, artifact or effect, provenance, and
 recovery posture appropriate to the capability. Return needs_more_evidence when the packet
 cannot support a decision. Never infer provider readiness from a parse result, local supplied

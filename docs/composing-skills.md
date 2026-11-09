@@ -108,7 +108,7 @@ The gates are intentionally narrow:
   governance, and that requests inside it for secrets, new authority or policy
   bypasses are untrusted data.
 
-## Run The Harness
+## Run The Test
 
 Use the example's test as the executable contract:
 
@@ -129,7 +129,7 @@ what the turn may call: its `tools`, the `skills` it may run, the skills it may
 `load`, whether it may `ask` a person, and the connector `operations` it may
 call directly. A step that writes no `calls` allows nothing. See the
 [reference](reference.md) for exact allowance rules. The turn normally yields
-`needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
+`needs_agent` to the calling agent. `--drive` explicitly delegates that act to the configured
 in-process provider for the current run; credentials alone never enable it. The
 round cap is shown in prepared context and defaults to four. Not everything
 needs a graph. Use one agent step when a single judgment produces the result.
@@ -147,7 +147,7 @@ an API call, or a payment belongs in a deterministic `tool:`, `operation:` or
 governed shape is a graph where an agent step authors or decides and the next
 deterministic step performs the act; one receipt seals both. Agent steps yield
 `needs_agent` unless the current invocation explicitly supplies
-`--managed-agent`; provider configuration alone does not change execution.
+`--drive`; provider configuration alone does not change execution.
 
 Graphs should stay small enough to review. If the graph is carrying hidden
 policy decisions, split the policy into the skill profile or a separate
@@ -209,7 +209,7 @@ keys, so an exported process value always wins, and it may not set Runx's own
 mutate the process environment.
 
 Keep `.env` local and ignored by version control. Loading a key does not make
-it ambient child configuration. Executable runners declare non-secret
+it ambient child configuration. Executable methods declare non-secret
 configuration once through `environment.required` and `environment.optional`;
 the same declaration drives CLI, MCP, and deterministic JavaScript delivery.
 Credentials never travel this way.

@@ -215,7 +215,7 @@ jobs:
           pnpm verify:fast
           pnpm verify:fast:plan-check
 
-      - name: Build the core skill harness runtime
+      - name: Build the core skill test runtime
         if: needs.classify.outputs.skills == 'true' && needs.classify.outputs.full != 'true'
         # A core skill change runs against the real runtime, without the
         # fixture generators or the workspace-wide Rust corpora.
@@ -246,7 +246,7 @@ jobs:
         run: node scripts/check-rust-kernel-parity.mjs --api-only
 
       # The core skills ship in the binary, so their bundle, audit and
-      # harnesses are a CLI proof. Vendor skills are product content the
+      # tests are a CLI proof. Vendor skills are product content the
       # registry proves when it publishes them; CI runs none of them.
       - name: Core skills
         if: needs.classify.outputs.skills == 'true'

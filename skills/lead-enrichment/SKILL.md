@@ -83,4 +83,4 @@ contact eligibility and sending authority; this skill authorizes neither.
 The caller owns refresh schedules, subsequent work and persistence. The
 connector owns credential presentation and exact provider execution; Runx owns
 admission, uncertain-attempt custody, source digests and receipts. Publication
-is a separate registry operation, and offline fixtures are harness proof only.
+is a separate registry operation, and offline fixtures are test proof only.

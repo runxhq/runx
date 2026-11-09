@@ -5,7 +5,7 @@
 //! as `runx skill` installs the refs a run names; the package is inspected
 //! again, a level at a time, until every ref it names is held. A version is
 //! read by its record, never acquired, so a publish counts as no install.
-//! A skill-build candidate's harness binds its closure the same way, into
+//! A skill-build candidate's test binds its closure the same way, into
 //! the candidate's own project, from the registry its operator selects.
 
 use std::collections::{BTreeMap, BTreeSet};

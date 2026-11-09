@@ -255,7 +255,7 @@ fn authoring_answers() -> Value {
                         "max_process_spawns": 0,
                         "network_allowed": false
                     },
-                    "preservation_obligations": ["Keep the operator manual and native runner aligned."],
+                    "preservation_obligations": ["Keep the operator manual and native method aligned."],
                     "deletions": [],
                     "proof_plan": [
                         {

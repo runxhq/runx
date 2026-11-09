@@ -37,11 +37,11 @@ or a claim that needs no investigation. Missing sources are acquired through the
 
 ## How the chain works
 
-1. The default `brief` runner starts from the question and audience, with optional
+1. The default `brief` method starts from the question and audience, with optional
    `paths`, `urls` or already collected `source_packets`. `research#investigate`
    reads explicit sources directly and searches only when discovery is needed.
    It reuses a nonempty supplied source set without acquisition. The explicit
-   `research-brief`, `local-files` and freshness-gated `ecosystem` runners retain
+   `research-brief`, `local-files` and freshness-gated `ecosystem` methods retain
    their existing bounded-source contracts.
 2. For a completed `research_packet`, select `from-research` to skip collection
    and research synthesis entirely. Otherwise the canonical `research` skill
@@ -61,7 +61,7 @@ readback.
 ## Inputs and result
 
 - `objective` is the exact decision question.
-- `paths` and `urls` select sources for the default runner to read; they do not
+- `paths` and `urls` select sources for the default method to read; they do not
   themselves count as evidence. `source_packets` reuse already admitted reads.
   `from-research` accepts the canonical `research_packet` and retains its source
   bindings. `local-files` also supports an explicit contained root and byte bound.

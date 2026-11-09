@@ -120,7 +120,7 @@ host:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: write
-        summary: Create one thin agent skill with a supplied-answer harness.
+        summary: Create one thin agent skill with a supplied-answer test.
         non_goals:
           - Do not add package-local JavaScript or a provider boundary.
         writes:

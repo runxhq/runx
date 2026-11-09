@@ -164,7 +164,7 @@ methods:
           skill_evaluation_packet: {packet: runx/skill-review.evaluation.v1}
         result_as: skill_evaluation_packet
   assess:
-    description: Assess already supplied implementation and real-use evidence without filesystem reads, provider operations or harness replay.
+    description: Assess already supplied implementation and real-use evidence without filesystem reads, provider operations or test replay.
     inputs:
       skill:
         type: string
@@ -174,10 +174,10 @@ methods:
         description: Specific decision the evaluation should support.
         optional: true
       evidence_pack:
-        description: Native inspection, harness, receipts, docs, or source notes.
+        description: Native inspection, test, receipts, docs, or source notes.
         optional: true
       native_validation:
-        description: Native runx.skill.validate evidence collected by the default runner.
+        description: Native runx.skill.validate evidence collected by the default method.
         optional: true
       test_constraints:
         type: string

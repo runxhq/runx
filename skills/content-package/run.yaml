@@ -22,7 +22,7 @@ methods:
       channel:
         type: string
         default: brief
-        description: Intended content channel; this runner does not deliver it.
+        description: Intended content channel; this method does not deliver it.
         optional: true
       domain:
         type: string

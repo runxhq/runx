@@ -6,7 +6,7 @@ description: Review a selected GitHub PR at one immutable head, with bounded pat
 # GitHub PR Review
 
 Review concrete correctness, regression, security and operational risks in a
-selected pull request. The default `review` runner accepts `repository` and
+selected pull request. The default `review` method accepts `repository` and
 `number`, captures the actual head once and returns an unsent review. Supply
 `expected_head` only when you already know the head that must be reviewed. A
 mismatch stops before the comparison; the skill does not chase a moving branch.

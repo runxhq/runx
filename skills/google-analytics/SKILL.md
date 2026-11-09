@@ -44,7 +44,7 @@ For pagination, `row_count` is the total for the exact query when supplied.
 A short page does not override a larger total. `pagination.complete` means this
 packet contains the whole query from offset zero; the final page of a later
 offset is still partial evidence and has no next offset. Continue through the
-same runner with the returned `next_offset`, preserving every other query
+same method with the returned `next_offset`, preserving every other query
 field, and combine pages deliberately before making whole-query claims. A
 missing total is an explicit caveat: the packet row count is an observed lower
 bound. Inconsistent row counts, skipped continuation or a stalled page block

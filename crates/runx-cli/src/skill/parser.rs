@@ -49,7 +49,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     // run with; context and a money limit bind only a run.
     if action == SkillAction::Inspect && (state.context.is_some() || state.max_cost.is_some()) {
         return Err(
-            "runx skill --context and --max-cost bind a run and are not accepted by inspect"
+            "runx skill --context and --max-spend bind a run and are not accepted by inspect"
                 .to_owned(),
         );
     }
@@ -96,27 +96,27 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     })
 }
 
-/// `--max-cost <usd>`: the most the run, its child runs included, may spend.
+/// `--max-spend <usd>`: the most the run, its child runs included, may spend.
 /// It sets the run authority's money limit, so a direct run gets an authority
 /// that only bounds it.
 fn limit_run(
     authority: Option<Box<runx_runtime::RunAuthority>>,
-    max_cost_micro: Option<u64>,
+    max_spend_micro_usd: Option<u64>,
 ) -> Result<Option<Box<runx_runtime::RunAuthority>>, String> {
-    let Some(limit) = max_cost_micro else {
+    let Some(limit) = max_spend_micro_usd else {
         return Ok(authority);
     };
     let mut authority = authority.unwrap_or_default();
     if authority
-        .max_cost_micro
+        .max_spend_micro_usd
         .is_some_and(|stated| stated != limit)
     {
         return Err(
-            "runx skill --max-cost and the --run-authority money limit differ; state the limit once"
+            "runx skill --max-spend and the --run-authority money limit differ; state the limit once"
                 .to_owned(),
         );
     }
-    authority.max_cost_micro = Some(limit);
+    authority.max_spend_micro_usd = Some(limit);
     Ok(Some(authority))
 }
 
@@ -125,7 +125,7 @@ fn limit_run(
 fn parse_max_cost(value: &str) -> Result<u64, String> {
     let refuse = || {
         format!(
-            "runx skill --max-cost takes dollars with at most six decimals, such as 0.50: {value:?}"
+            "runx skill --max-spend takes dollars with at most six decimals, such as 0.50: {value:?}"
         )
     };
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
@@ -364,30 +364,30 @@ fn parse_skill_arg(
             index += 1;
             state.run_id = Some(string_arg(args, index)?);
         }
-        value if value.starts_with("--max-cost=") => {
-            state.max_cost = Some(parse_max_cost(value.trim_start_matches("--max-cost="))?);
+        value if value.starts_with("--max-spend=") => {
+            state.max_cost = Some(parse_max_cost(value.trim_start_matches("--max-spend="))?);
         }
-        "--max-cost" => {
+        "--max-spend" => {
             index += 1;
             state.max_cost = Some(parse_max_cost(&string_arg(args, index)?)?);
         }
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
-        value if value.starts_with("--managed-agent=") => {
+        value if value.starts_with("--drive=") => {
             state.managed_agent = parse_boolean_flag(
                 "skill",
-                "--managed-agent",
-                value.trim_start_matches("--managed-agent="),
+                "--drive",
+                value.trim_start_matches("--drive="),
             )?;
         }
-        "--managed-agent" => state.managed_agent = true,
-        value if value.starts_with("--managed-agent-rounds=") => {
+        "--drive" => state.managed_agent = true,
+        value if value.starts_with("--drive-rounds=") => {
             state.managed_agent_rounds = Some(parse_managed_agent_rounds(
                 "skill",
-                value.trim_start_matches("--managed-agent-rounds="),
+                value.trim_start_matches("--drive-rounds="),
             )?);
         }
-        "--managed-agent-rounds" => {
+        "--drive-rounds" => {
             index += 1;
             state.managed_agent_rounds = Some(parse_managed_agent_rounds(
                 "skill",
@@ -448,8 +448,8 @@ mod tests {
             &[
                 "skill",
                 "skills/release",
-                "--managed-agent",
-                "--managed-agent-rounds=3",
+                "--drive",
+                "--drive-rounds=3",
             ]
             .into_iter()
             .map(std::ffi::OsString::from)
@@ -461,14 +461,14 @@ mod tests {
         );
 
         let Err(error) = super::parse_skill_plan(
-            &["skill", "skills/release", "--managed-agent-rounds=3"]
+            &["skill", "skills/release", "--drive-rounds=3"]
                 .into_iter()
                 .map(std::ffi::OsString::from)
                 .collect::<Vec<_>>(),
         ) else {
             return Err("round budget without consent unexpectedly parsed".to_owned());
         };
-        assert!(error.contains("requires --managed-agent"));
+        assert!(error.contains("requires --drive"));
         Ok(())
     }
 
@@ -483,27 +483,27 @@ mod tests {
 
     #[test]
     fn max_cost_bounds_a_direct_run_in_micro_usd() -> Result<(), String> {
-        let limited = plan(&["skill", "skills/research", "--max-cost", "0.25"])?;
+        let limited = plan(&["skill", "skills/research", "--max-spend", "0.25"])?;
         let authority = limited.run_authority.ok_or("no run authority")?;
-        assert_eq!(authority.max_cost_micro, Some(250_000));
+        assert_eq!(authority.max_spend_micro_usd, Some(250_000));
         assert_eq!(authority.actor_ref, None, "a limit names no actor");
         assert_eq!(
-            plan(&["skill", "skills/research", "--max-cost=2"])?
+            plan(&["skill", "skills/research", "--max-spend=2"])?
                 .run_authority
-                .and_then(|authority| authority.max_cost_micro),
+                .and_then(|authority| authority.max_spend_micro_usd),
             Some(2_000_000)
         );
         assert_eq!(
-            plan(&["skill", "skills/research", "--max-cost=0.000001"])?
+            plan(&["skill", "skills/research", "--max-spend=0.000001"])?
                 .run_authority
-                .and_then(|authority| authority.max_cost_micro),
+                .and_then(|authority| authority.max_spend_micro_usd),
             Some(1)
         );
         for refused in ["-1", "0.0000001", "1e3", "", ".5", "5.", "$2", "0.5x"] {
-            let Err(error) = plan(&["skill", "skills/research", "--max-cost", refused]) else {
-                return Err(format!("--max-cost {refused:?} parsed"));
+            let Err(error) = plan(&["skill", "skills/research", "--max-spend", refused]) else {
+                return Err(format!("--max-spend {refused:?} parsed"));
             };
-            assert!(error.contains("--max-cost takes dollars"), "{error}");
+            assert!(error.contains("--max-spend takes dollars"), "{error}");
         }
         Ok(())
     }
@@ -517,30 +517,30 @@ mod tests {
             "skills/research",
             "--run-authority",
             host,
-            "--max-cost",
+            "--max-spend",
             "1",
         ])?
         .run_authority
         .ok_or("no run authority")?;
         assert_eq!(
-            (joined.max_fanout, joined.max_cost_micro),
+            (joined.max_fanout, joined.max_spend_micro_usd),
             (Some(2), Some(1_000_000))
         );
         assert!(joined.actor_ref.is_some());
 
-        let stated = r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_cost_micro":500000}"#;
+        let stated = r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_spend_micro_usd":500000}"#;
         let Err(error) = plan(&[
             "skill",
             "skills/research",
             "--run-authority",
             stated,
-            "--max-cost",
+            "--max-spend",
             "1",
         ]) else {
             return Err("two different limits parsed".to_owned());
         };
         assert!(error.contains("state the limit once"), "{error}");
-        let Err(error) = plan(&["skill", "inspect", "skills/research", "--max-cost", "1"]) else {
+        let Err(error) = plan(&["skill", "inspect", "skills/research", "--max-spend", "1"]) else {
             return Err("inspect took a money limit".to_owned());
         };
         assert!(error.contains("bind a run"), "{error}");
@@ -754,7 +754,7 @@ mod tests {
     /// input is never mistaken for a flag nor a flag for an input.
     #[test]
     fn an_unknown_flag_is_refused_not_read_as_an_input() -> Result<(), String> {
-        for flag in ["--runner", "--input-json", "--location", "--run"] {
+        for flag in ["--method", "--input-json", "--location", "--run"] {
             let args = ["skill", "skills/nws-weather", flag, "value"]
                 .into_iter()
                 .map(std::ffi::OsString::from)

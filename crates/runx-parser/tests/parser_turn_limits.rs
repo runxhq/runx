@@ -224,10 +224,10 @@ methods:
           load: [{project: true}]
         inputs: $input
         outputs: {summary: {type: string}}
-  develop:
+  write:
     steps:
-      - id: develop
-        agent: develop
+      - id: write
+        agent: write
         calls:
           tools: [fs.read, fs.edit]
           load: [{catalog: {trust: verified}}, {project: true}]
@@ -240,10 +240,10 @@ methods:
     assert_eq!(read.tools, ["fs.read"]);
     assert_eq!(read.rules().count(), 1);
     assert!(!read.asks);
-    let develop = allowance(&manifest, "develop")?;
-    assert_eq!(develop.tools, ["fs.read", "fs.edit"]);
-    assert_eq!(develop.rules().count(), 2);
-    assert!(develop.asks);
+    let write = allowance(&manifest, "write")?;
+    assert_eq!(write.tools, ["fs.read", "fs.edit"]);
+    assert_eq!(write.rules().count(), 2);
+    assert!(write.asks);
     Ok(())
 }
 

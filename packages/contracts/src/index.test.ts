@@ -652,7 +652,7 @@ describe("@runxhq/contracts", () => {
         profile_path: "run.yaml",
         materialized_package_is_registry_artifact: true,
       },
-      harness: {
+      test: {
         state: "test_verified",
         case_count: 1,
       },
@@ -682,7 +682,7 @@ describe("@runxhq/contracts", () => {
         profile_path: "run.yaml",
         materialized_package_is_registry_artifact: true,
       },
-      harness: {
+      test: {
         state: "test_verified",
         case_count: 1,
       },
@@ -695,7 +695,7 @@ describe("@runxhq/contracts", () => {
     expect(validateActAssignmentContract({
       schema: "runx.act_assignment.v1",
       skill: "outreach",
-      runner: "rerun",
+      method: "rerun",
       source_uri: "github://sourcey/sourcey.com/issues/3",
       requested_at: "2026-04-25T13:45:00Z",
       host: {
@@ -720,7 +720,7 @@ describe("@runxhq/contracts", () => {
       },
     })).toMatchObject({
       skill: "outreach",
-      runner: "rerun",
+      method: "rerun",
       host: {
         kind: "comment",
       },
@@ -734,7 +734,7 @@ describe("@runxhq/contracts", () => {
     const rustAuthoritativeAssignment = {
       schema: "runx.act_assignment.v1",
       skill: "outreach",
-      runner: "rerun",
+      method: "rerun",
       requested_at: "2026-04-25T13:45:00Z",
       host: {
         kind: "api",

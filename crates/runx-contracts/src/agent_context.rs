@@ -23,7 +23,7 @@ pub enum ContextEntryVersion {
 #[serde(deny_unknown_fields)]
 pub struct ContextArtifactProducer {
     pub skill: NonEmptyString,
-    pub runner: NonEmptyString,
+    pub method: NonEmptyString,
 }
 
 /// Metadata for a context artifact. `step_id`, `parent_artifact_id`, and

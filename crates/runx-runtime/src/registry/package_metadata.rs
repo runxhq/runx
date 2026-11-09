@@ -182,8 +182,8 @@ fn registry_input_names(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     let mut names = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
         names.extend(manifest.shared_inputs.keys().cloned());
-        for runner in manifest.methods.values() {
-            names.extend(runner.inputs.keys().cloned());
+        for method in manifest.methods.values() {
+            names.extend(method.inputs.keys().cloned());
         }
     }
     names.into_iter().collect()

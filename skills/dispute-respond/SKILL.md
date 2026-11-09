@@ -145,4 +145,4 @@ When the evidence cannot answer the allegation, hold with useful questions and
 an honest summary. Do not invent authorization, customer contact, delivery,
 refund settlement or provider acceptance. Do not submit raw private material
 irrelevant to the dispute. No provider or tool calls occur in this drafting
-turn; all merchant reads, approval and submission are graph-owned.
+turn; all merchant reads, approval and submission are workflow-owned.

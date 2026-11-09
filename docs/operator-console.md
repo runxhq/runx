@@ -49,7 +49,7 @@ or account. It reads the same projection the UI shows and emits
 
 The packet is a plan/proposal surface. Consequential work still executes through
 the named lane and seals its own receipt. `operations-review` may name the command,
-workflow, hosted endpoint, or skill runner to use, but it does not implement
+workflow, hosted endpoint, or skill method to use, but it does not implement
 those operations itself.
 
 ## Gates

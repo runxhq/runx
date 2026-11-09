@@ -594,10 +594,10 @@ pub(crate) fn packet_schema_entry(
     Ok(entry)
 }
 
-pub(crate) fn declared_method_packet_ids(runner: &SkillMethodDefinition) -> BTreeSet<PacketId> {
+pub(crate) fn declared_method_packet_ids(method: &SkillMethodDefinition) -> BTreeSet<PacketId> {
     let mut packet_ids = BTreeSet::new();
-    extend_input_packet_ids(&runner.inputs, &mut packet_ids);
-    for step in &runner.graph.steps {
+    extend_input_packet_ids(&method.inputs, &mut packet_ids);
+    for step in &method.graph.steps {
         extend_packet_ids(step.artifacts.as_ref(), &mut packet_ids);
     }
     packet_ids

@@ -11,19 +11,19 @@ host:
         caller_work:
           - Choose any real input, use case and downstream consumer outside this fixture.
         value_judgment: thin_wrapper
-        value_reason: The local harness proves a native digest call; it does not establish useful domain judgment or a new operator capability.
+        value_reason: The local test proves a native digest call; it does not establish useful domain judgment or a new operator capability.
         composition: A parent could consume the digest, but this fixture does not demonstrate a meaningful graph job beyond the existing native data.digest capability.
       trust_assessment:
         tier: local_test
         caveats:
           - Synthetic caller answers and a fixed native value are mechanical proof, not product usefulness or provider proof.
         implementation_evidence:
-          - Native inspection of the fixture runner and its fixed data.digest operation.
+          - Native inspection of the fixture method and its fixed data.digest operation.
         product_evidence: []
       test_matrix:
-        - check: Native isolated harness
+        - check: Native isolated test
           status: passed
-          evidence: Native skill_validation.harness reports the fixture result.
+          evidence: Native skill_validation.test reports the fixture result.
         - check: Useful ordinary operator outcome
           status: required
           evidence: No real operator request or downstream useful outcome is supplied.

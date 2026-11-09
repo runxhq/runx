@@ -25,7 +25,7 @@ pub const RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV: &str =
     "RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64";
 pub const RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV: &str = "RUNX_RECEIPT_VERIFY_ISSUER_TYPE";
 
-/// The public seed of the fixture signing key: every harness case and test
+/// The public seed of the fixture signing key: every test case and test
 /// fixture signs with it, so their receipts are deterministic. Its receipts
 /// prove only that a test ran; nothing trusts it but a verifier told to.
 pub const FIXTURE_RECEIPT_SEED: [u8; 32] = [0x42; 32];

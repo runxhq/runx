@@ -37,7 +37,7 @@ pub(crate) fn declares_output_contract(
 /// Project the exact semantic claim a successful producer declared.
 ///
 /// The claim is one shared contract surface for graph state, effect admission,
-/// harness replay, and receipt identity. Raw process output, diagnostics, and
+/// test replay, and receipt identity. Raw process output, diagnostics, and
 /// transport envelopes never enter it. Callers that normalize a provider
 /// protocol must pass that already-normalized payload explicitly.
 pub(crate) fn project_declared_output_claim(
@@ -158,8 +158,8 @@ pub(crate) fn artifact_data(envelope: &JsonValue) -> Option<&JsonValue> {
     envelope.as_object()?.get("data")
 }
 
-/// The checks of a runner's result against its declared output contract and
-/// packets, the contract parsed from the runner's raw declaration.
+/// The checks of a method's result against its declared output contract and
+/// packets, the contract parsed from the method's raw declaration.
 pub(crate) fn method_contract_checks(
     skill_name: &str,
     payload: &JsonValue,
@@ -191,7 +191,7 @@ pub(crate) fn output_contract_checks(
     if let Some(output) = output {
         let violation = |error| RuntimeError::SkillFailed {
             skill_name: skill_name.to_owned(),
-            message: format!("runner output contract violation at {error}"),
+            message: format!("method output contract violation at {error}"),
         };
         validate_output_value(Some(&result_fields(output.clone(), artifacts)), payload)
             .map_err(violation)?;
@@ -208,7 +208,7 @@ pub(crate) fn output_contract_checks(
         }
         checks.output_contract_digest = Some(
             output_contract_digest(Some(output))
-                .map_err(|source| RuntimeError::json("hashing runner output contract", source))?,
+                .map_err(|source| RuntimeError::json("hashing method output contract", source))?,
         );
     }
     checks.packet_schemas = crate::packet_validation::verify_declared_packets(
@@ -241,7 +241,7 @@ pub(crate) fn parse_output_contract(
     raw: &JsonObject,
 ) -> Result<BTreeMap<String, OutputField>, RuntimeError> {
     parse_contract_outputs(raw).map_err(|source| RuntimeError::ReceiptInvalid {
-        message: format!("runner output contract is invalid: {source}"),
+        message: format!("method output contract is invalid: {source}"),
     })
 }
 

@@ -32,7 +32,7 @@ export function skillProductionFiles() {
   return walk(skillRoot).filter((filePath) => {
     if (!extensions.has(path.extname(filePath))) return false;
     const segments = filePath.split(path.sep);
-    if (segments.some((segment) => ["fixtures", "harness", ".runx"].includes(segment))) return false;
+    if (segments.some((segment) => ["fixtures", "test", ".runx"].includes(segment))) return false;
     return !/\.(?:test|spec)\.(?:js|mjs|cjs|ts)$/u.test(filePath);
   });
 }

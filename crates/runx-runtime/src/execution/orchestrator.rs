@@ -3,7 +3,7 @@
 //! Canonical local orchestration entrypoint.
 //!
 //! CLI commands and TypeScript wrappers should enter local skill, graph, and
-//! harness execution through this module instead of calling narrower execution
+//! test execution through this module instead of calling narrower execution
 //! helpers directly.
 
 use std::collections::BTreeMap;
@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use runx_contracts::{JsonValue, Receipt, RunOutcome};
 use thiserror::Error;
 
-use super::harness::PackageTestReport;
-use super::harness::{TestReplayError, TestReplayOutput};
+use super::test::PackageTestReport;
+use super::test::{TestReplayError, TestReplayOutput};
 use super::prepared_skill::{
     PreparedEntryProvenance, PreparedSkillRun, prepare_skill_run_with_effects,
 };
@@ -89,7 +89,7 @@ pub struct SkillRunRequest {
 }
 
 /// Continue a paused run with the answers its host brings. The run's skill,
-/// runner and digests come from its record.
+/// method and digests come from its record.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResumeRequest {
     pub run_id: String,
@@ -121,7 +121,7 @@ pub struct TestRunRequest {
     pub receipt_dir: Option<PathBuf>,
 }
 
-/// Request to run every harness case owned by a skill package. `skill_path` is
+/// Request to run every test case owned by a skill package. `skill_path` is
 /// a package directory or its `SKILL.md`; inline cases and conventional fixture
 /// files share the supplied environment and receipt directory.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -181,7 +181,7 @@ pub enum OrchestratorError {
     #[error(transparent)]
     Runtime(#[from] crate::RuntimeError),
     #[error(transparent)]
-    Harness(#[from] TestReplayError),
+    Test(#[from] TestReplayError),
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
 }
@@ -220,17 +220,17 @@ impl LocalOrchestrator {
         }
     }
 
-    /// Run a skill reached through the registry by `registry_ref`. A runner
+    /// Run a skill reached through the registry by `registry_ref`. A method
     /// the registry sells is bought, not run here: the run is one step that
     /// calls it, and the kernel buys it as it buys any call (S10).
     pub fn buy_skill(
         &self,
         request: &SkillRunRequest,
         registry_ref: &str,
-        runner: Option<&str>,
+        method: Option<&str>,
     ) -> Result<RunResult, OrchestratorError> {
         let overrides = super::skill_front::SkillRunOverrides {
-            runner: runner.map(str::to_owned),
+            method: method.map(str::to_owned),
             purchase: Some(registry_ref.to_owned()),
             ..Default::default()
         };
@@ -245,7 +245,7 @@ impl LocalOrchestrator {
     pub(crate) fn run_skill_with_services(
         &self,
         request: &SkillRunRequest,
-        runner: &str,
+        method: &str,
         javascript: crate::adapters::javascript::JavaScriptAdapter,
         package_digest: &str,
         execution_closure_digest: &str,
@@ -253,7 +253,7 @@ impl LocalOrchestrator {
         Ok(super::skill_front::execute_bound_skill_run_with_overrides(
             request,
             &super::skill_front::SkillRunOverrides {
-                runner: Some(runner.to_owned()),
+                method: Some(method.to_owned()),
                 javascript: Some(javascript),
                 purchase: None,
             },
@@ -266,12 +266,12 @@ impl LocalOrchestrator {
     pub fn run_skill_with_binding(
         &self,
         request: &SkillRunRequest,
-        runner: Option<&str>,
+        method: Option<&str>,
         expected_package_digest: Option<&str>,
         expected_execution_closure_digest: Option<&str>,
     ) -> Result<RunResult, OrchestratorError> {
         let overrides = super::skill_front::SkillRunOverrides {
-            runner: runner.map(str::to_owned),
+            method: method.map(str::to_owned),
             ..Default::default()
         };
         let output = super::skill_front::execute_bound_skill_run_with_overrides(
@@ -326,12 +326,12 @@ impl LocalOrchestrator {
     pub fn prepare_skill(
         &self,
         request: SkillRunRequest,
-        runner: Option<&str>,
+        method: Option<&str>,
         entry: PreparedEntryProvenance,
     ) -> Result<PreparedSkillRun, OrchestratorError> {
         Ok(prepare_skill_run_with_effects(
             request,
-            runner,
+            method,
             entry,
             &self.effects,
         )?)
@@ -359,7 +359,7 @@ impl LocalOrchestrator {
         }
         let (loaded, packages) = prepared.verify_artifacts()?;
         let overrides = super::skill_front::SkillRunOverrides {
-            runner: Some(prepared.selected_method().to_owned()),
+            method: Some(prepared.selected_method().to_owned()),
             ..Default::default()
         };
         let output = super::skill_front::execute_prepared_skill_run_with_resolved(
@@ -371,7 +371,7 @@ impl LocalOrchestrator {
                 effects: &self.effects,
                 skill_dir: &prepared.report().request.skill_path,
                 manifest: prepared.manifest(),
-                runner: prepared.runner(),
+                method: prepared.method(),
                 package_digest: prepared.package_digest(),
                 execution_closure_digest: prepared.execution_closure_digest(),
             },
@@ -383,7 +383,7 @@ impl LocalOrchestrator {
         &self,
         request: &PackageTestRequest,
     ) -> Result<PackageTestReport, OrchestratorError> {
-        Ok(super::harness::run_package_test_with_effects(
+        Ok(super::test::run_package_test_with_effects(
             &request.skill_path,
             request.receipt_dir.as_deref(),
             &self.environment,
@@ -397,7 +397,7 @@ impl LocalOrchestrator {
         &self,
         request: &TestRunRequest,
     ) -> Result<TestReplayOutput, OrchestratorError> {
-        Ok(super::harness::run_package_case_with_effects(
+        Ok(super::test::run_package_case_with_effects(
             &request.fixture_path,
             request.receipt_dir.as_deref(),
             &self.environment,

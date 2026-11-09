@@ -7,8 +7,8 @@
 //! the person's trust, as a package below its rule's tier does. Trust is
 //! recorded in the person's home for that exact closure, which covers every
 //! connector's implementation. Its output carries a skill's manual and
-//! runners, what it bound and the calls the turn offers from then on. A
-//! skill's load binds the runner it names or the skill's only runner; one that
+//! methods, what it bound and the calls the turn offers from then on. A
+//! skill's load binds the method it names or the skill's only method; one that
 //! binds none binds no closure, so it asks no trust.
 
 use std::collections::BTreeMap;
@@ -57,9 +57,9 @@ struct Bound {
     package: LoadedPackage,
     /// Who it is, as binding set it.
     identity: PackageIdentity,
-    /// A skill's manual and every runner it declares.
+    /// A skill's manual and every method it declares.
     manual: Option<SkillManual>,
-    runners: Vec<LoadedMethod>,
+    methods: Vec<LoadedMethod>,
     tools: Vec<TurnTool>,
     /// The execution closures a person's trust covers.
     closures: Vec<String>,
@@ -139,7 +139,7 @@ where
     let output = TurnLoad {
         package: bound.package,
         manual: bound.manual,
-        runners: bound.runners,
+        methods: bound.methods,
         tools: bound.tools,
         connectors: bound.connectors,
         projects: bound.projects,
@@ -176,7 +176,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill: "load".to_owned(),
-        runner: None,
+        method: None,
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -190,7 +190,7 @@ where
 }
 
 /// The skill `reference` names, as a load resolves it and as every call of a
-/// runner it bound resolves it again: a project's own skill by its path in
+/// method it bound resolves it again: a project's own skill by its path in
 /// the workspace, any other by its name and version, wherever runx holds it.
 pub(crate) fn resolve_loaded(
     reference: &str,
@@ -210,12 +210,12 @@ pub(crate) fn resolve_loaded(
     )
 }
 
-/// The skill `reference` names, with `runner` bound, or the skill's only
-/// runner when it names none. A skill of several runners loaded without one
-/// binds none: the load reads its manual and runners, and binds no closure.
+/// The skill `reference` names, with `method` bound, or the skill's only
+/// method when it names none. A skill of several methods loaded without one
+/// binds none: the load reads its manual and methods, and binds no closure.
 fn bind_skill(
     reference: &str,
-    runner: Option<&str>,
+    method: Option<&str>,
     paths: &RunxPaths,
     env: &BTreeMap<String, String>,
 ) -> Result<Bound, String> {
@@ -226,16 +226,16 @@ fn bind_skill(
     );
     let manifest = loaded
         .manifest()
-        .ok_or_else(|| format!("{reference} has no run.yaml runner to load"))?;
-    let runners = match runner {
-        Some(runner) if manifest.methods.contains_key(runner) => vec![runner.to_owned()],
-        Some(runner) => return Err(format!("{reference} has no runner {runner}")),
+        .ok_or_else(|| format!("{reference} has no run.yaml method to load"))?;
+    let methods = match method {
+        Some(method) if manifest.methods.contains_key(method) => vec![method.to_owned()],
+        Some(method) => return Err(format!("{reference} has no method {method}")),
         None if manifest.methods.len() == 1 => manifest.methods.keys().cloned().collect(),
         None => Vec::new(),
     };
     let package_digest = loaded.package.package_digest.clone();
     let description = loaded.package.skill.description.clone();
-    // The package's name, which a bound runner's call names it by and
+    // The package's name, which a bound method's call names it by and
     // resolves again.
     let package_name = match (&resolved.skill_id, &resolved.version) {
         (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
@@ -247,15 +247,15 @@ fn bind_skill(
     let mut connectors = Vec::new();
     let mut identity = None;
     let mut projects = BTreeMap::new();
-    for runner in &runners {
+    for method in &methods {
         let binding = crate::skill_package::verify_loaded_execution_binding(
             Arc::clone(&loaded),
-            runner,
+            method,
             env,
             None,
             None,
         )
-        .map_err(|error| format!("{reference}#{runner}: {error}"))?;
+        .map_err(|error| format!("{reference}#{method}: {error}"))?;
         if identity.is_none() {
             identity = binding.packages.identity(&loaded.package_root).cloned();
         }
@@ -263,25 +263,25 @@ fn bind_skill(
             agree_project(&mut projects, name, root, reference)?;
         }
         let closure_digest = binding.closure_digest.ok_or_else(|| {
-            format!("{reference}#{runner}: its execution closure is not fully bound")
+            format!("{reference}#{method}: its execution closure is not fully bound")
         })?;
         for connector in crate::skill_package::case_closure_connectors(
             &loaded,
-            crate::skill_package::CaseClosureTarget::Runner(runner),
+            crate::skill_package::CaseClosureTarget::Method(method),
             env,
         )
-        .map_err(|error| format!("{reference}#{runner}: {error}"))?
+        .map_err(|error| format!("{reference}#{method}: {error}"))?
         {
             agree(&mut connectors, &connector, reference)?;
         }
         tools.push(
             super::super::turn::skill_descriptor(
-                &super::super::turn::loaded_tool_name(&package_name, runner),
+                &super::super::turn::loaded_tool_name(&package_name, method),
                 description.clone(),
-                &manifest.methods[runner],
+                &manifest.methods[method],
                 TurnTarget::Skill {
                     skill: skill.clone(),
-                    runner: Some(runner.as_str().into()),
+                    method: Some(method.as_str().into()),
                     bound: Some(BoundClosure {
                         package_digest: package_digest.as_str().into(),
                         closure_digest: closure_digest.as_str().into(),
@@ -297,11 +297,11 @@ fn bind_skill(
         .map(|binding| binding.connector.as_str())
         .collect::<Vec<_>>();
     let declares = JsonValue::from_serialize(&serde_json::json!({
-        "runners": runners,
+        "methods": methods,
         "connectors": reached,
     }))
     .map_err(|error| error.to_string())?;
-    // A load that binds no runner binds no closure, so it sets who the
+    // A load that binds no method binds no closure, so it sets who the
     // package is from the package alone.
     let identity = match identity {
         Some(identity) => identity,
@@ -326,7 +326,7 @@ fn bind_skill(
             digest: loaded.package.manual_digest.as_str().into(),
             content: loaded.package.manual_markdown.clone(),
         }),
-        runners: manifest
+        methods: manifest
             .methods
             .values()
             .map(|declared| LoadedMethod {
@@ -344,7 +344,7 @@ fn bind_skill(
                         required: input.required,
                     })
                     .collect(),
-                bound: runners.contains(&declared.name),
+                bound: methods.contains(&declared.name),
             })
             .collect(),
         tools,
@@ -440,7 +440,7 @@ fn bind_connector(
         },
         identity,
         manual: None,
-        runners: Vec::new(),
+        methods: Vec::new(),
         tools,
         closures: vec![connector.connector_digest.as_str().to_owned()],
         connectors,
@@ -807,7 +807,7 @@ mod tests {
             identity: project(),
             projects: Vec::new(),
             manual: None,
-            runners: Vec::new(),
+            methods: Vec::new(),
             tools: Vec::new(),
             closures: Vec::new(),
             connectors,

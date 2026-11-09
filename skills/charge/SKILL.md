@@ -12,7 +12,7 @@ authorization against its original quote. The selected connector instance fixes
 the account; an unavailable account never selects another method.
 
 Run `runx connector inspect <connector>` to read the exact operation input schema.
-The default runner takes that public `request`, the connector name and a stable
+The default method takes that public `request`, the connector name and a stable
 `idempotency_seed`. Its examples show each supported method. Provider-specific
 arguments stay with their owning connector, rather than becoming another payment
 API in the skill. Never supply card data, SPTs, wallet keys, API keys or bearer

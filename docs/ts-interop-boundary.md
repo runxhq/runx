@@ -7,7 +7,7 @@ the native runtime. It specializes the normative
 ## Current boundary
 
 Rust is canonical for trusted local runtime and execution: local skill and
-graph execution, harness and dogfood execution, receipt sealing and
+graph execution, test and dogfood execution, receipt sealing and
 verification, history, policy and registry configuration, generic authority and
 effect admission, exact process invocation and supervision, typed
 execution-boundary evidence, built-in adapter execution, and external
@@ -115,7 +115,7 @@ language-neutral protocol lane; they must not need Rust, `runx-core`,
 Language-owned unit tests stay with their implementation. Contract and parity
 tests use durable fixtures under `fixtures/`. End-to-end tests should spawn the
 `runx` binary and assert stdout, exit codes, and JSON instead of importing
-TypeScript internals. Trusted local graph, harness, receipt, authority,
+TypeScript internals. Trusted local graph, test, receipt, authority,
 registry/policy config, and payment behavior needs Rust coverage or a TS-free
 Rust CLI fixture before wrapper tests can count as proof. Extension-lane tests
 prove protocol conformance by spawning or simulating the external process
@@ -123,6 +123,6 @@ through the lane's documented wire contract, not by importing TypeScript
 runtime-local internals.
 
 Kernel fixture generation calls the native Rust evaluator. TypeScript fixture
-tools are serialization and conformance harnesses, not alternate local policy
+tools are serialization and conformance tests, not alternate local policy
 implementations. Surviving cross-language wire helpers, such as scope matching,
 require differential coverage against the native owner.

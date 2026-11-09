@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Research this bounded question from the supplied governed source packets.",
-      "expected_output": "Return a citation-bound research packet from the default runner without rediscovering or reacquiring the sources.",
+      "expected_output": "Return a citation-bound research packet from the default method without rediscovering or reacquiring the sources.",
       "files": []
     }
   ]

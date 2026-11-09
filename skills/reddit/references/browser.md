@@ -77,6 +77,6 @@ blocker. For an uncertain publication, use read-only investigation and native
 custody; do not submit again or erase the evidence.
 
 The earlier modern-editor probe failed to retain text in an inactive Brave tab.
-That finding does not establish classic editor support. Local adapter and harness
+That finding does not establish classic editor support. Local adapter and test
 checks are offline proof; live editor entry, submission and readback remain separate
 provider proof, and must be reported as incomplete until actually observed.

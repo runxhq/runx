@@ -7,7 +7,7 @@ import path from "node:path";
  * @property {string} package
  * @property {"darwin" | "linux" | "win32"} os
  * @property {"arm64" | "x64"} cpu
- * @property {string} runner
+ * @property {string} method
  * @property {string} rustTarget
  * @property {"tar.gz" | "zip"} archiveExtension
  * @property {"bin/runx" | "bin/runx.exe"} binary
@@ -32,7 +32,7 @@ export function loadRustCliPlatforms(workspaceRoot) {
       !nonEmpty(entry.package)
       || !isPlatformOs(entry.os)
       || !isPlatformCpu(entry.cpu)
-      || !nonEmpty(entry.runner)
+      || !nonEmpty(entry.method)
       || !nonEmpty(entry.rustTarget)
       || !isArchiveExtension(entry.archiveExtension)
       || !isBinary(entry.binary)
@@ -45,7 +45,7 @@ export function loadRustCliPlatforms(workspaceRoot) {
       package: entry.package,
       os: entry.os,
       cpu: entry.cpu,
-      runner: entry.runner,
+      method: entry.method,
       rustTarget: entry.rustTarget,
       archiveExtension: entry.archiveExtension,
       binary: entry.binary,

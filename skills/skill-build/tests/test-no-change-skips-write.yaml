@@ -1,5 +1,5 @@
 name: skill-build-test-no-change-skips-write
-method: harness
+method: test
 inputs:
   objective: Decide whether a vague report justifies a new regression fixture
   repo_root: .
@@ -15,7 +15,7 @@ host:
           proposed_name: example
           action: keep
           visibility: public
-          rationale: Preserve the existing example capability while testing only its harness evidence.
+          rationale: Preserve the existing example capability while testing only its test evidence.
         direct_use:
           trigger_requests:
             - Add a reproducible regression fixture for this example skill.
@@ -30,15 +30,15 @@ host:
           native_escape: Return the report and inspection so the host can reproduce it directly.
         chain_use:
           accepted_inputs:
-            - A reproducible failure packet or harness result.
+            - A reproducible failure packet or test result.
           result: A validated fixture delta or unchanged result.
           reused_evidence:
-            - The supplied failure and existing harness inspection.
+            - The supplied failure and existing test inspection.
           reused_effects: []
           must_not_repeat:
             - Do not rerun or invent a failure already absent from the supplied evidence.
         objective: Decide whether a vague report justifies a new regression fixture.
-        operator_value: Keep the harness evidence-bound and free of invented failures.
+        operator_value: Keep the test evidence-bound and free of invented failures.
         knowledge_contract:
           purpose: Add only fixtures that reproduce a named public behavior boundary.
           evidence_required:
@@ -80,7 +80,7 @@ host:
         proof_plan:
           - name: test-selection
             kind: selection_trial
-            expected: A reproducible harness request selects this lane and a speculative production change does not.
+            expected: A reproducible test request selects this lane and a speculative production change does not.
           - name: vague-report-no-change
             kind: standalone_operator_journey
             expected: The direct vague report returns unchanged without filesystem mutation.
@@ -91,7 +91,7 @@ host:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: no_change
-        summary: No reproducible behavior or harness output was supplied.
+        summary: No reproducible behavior or test output was supplied.
         non_goals:
           - Do not invent a regression case.
         writes: []

@@ -92,7 +92,7 @@ host:
           - https://www.reddit.com/r/learnprogramming/comments/abc123/example/
         unknowns:
         - All Reddit pages and metrics in this fixture are synthetic; live research is still required.
-        next_step: Review one exact action and recheck the target before using the approval-bound publish runner.
+        next_step: Review one exact action and recheck the target before using the approval-bound publish method.
         effect_status: not_submitted
 expect:
   status: sealed

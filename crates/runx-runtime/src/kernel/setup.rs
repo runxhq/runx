@@ -51,7 +51,7 @@ pub(crate) struct AccountReaders<'a> {
     pub tools: &'a dyn ToolRunner,
 }
 
-/// Setup's runner for a connector's installed tool. Setup is outside any
+/// Setup's method for a connector's installed tool. Setup is outside any
 /// run, so the tool runs with no run's artifacts or bounds.
 pub(crate) struct SetupTools<'a> {
     pub env: &'a BTreeMap<String, String>,

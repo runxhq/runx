@@ -365,7 +365,7 @@ enum Publish {
 }
 
 /// The record the registry builds for a publication: the service's fields,
-/// signed over the version's content. Its name and runners are read from the
+/// signed over the version's content. Its name and methods are read from the
 /// manual and profile alone, so a version carrying files a newer runx reads
 /// still publishes, as the service would hold it.
 fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
@@ -736,13 +736,13 @@ fn publish(request: &Request, state: &Mutex<State>, base: &str) -> Result<Respon
 }
 
 /// An operator's publish, as `POST /v1/admin/registry/publish` takes it:
-/// into the namespace it must name, with the harness report it ran.
+/// into the namespace it must name, with the test report it ran.
 fn admin_publish(request: &Request, state: &Mutex<State>, base: &str) -> Result<Response, Error> {
     let body: Value = serde_json::from_slice(&request.body)?;
-    let (Some(publisher), true) = (body["publisher"].as_str(), body["harness"].is_object()) else {
+    let (Some(publisher), true) = (body["publisher"].as_str(), body["test"].is_object()) else {
         return Ok((
             "400 Bad Request",
-            json!({"status": "error", "error": {"code": "invalid_request", "detail": "an operator publish names its publisher and carries its harness report"}}),
+            json!({"status": "error", "error": {"code": "invalid_request", "detail": "an operator publish names its publisher and carries its test report"}}),
         ));
     };
     let (status, record) = match record_publish(&body, publisher, state)? {

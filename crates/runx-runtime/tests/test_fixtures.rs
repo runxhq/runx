@@ -71,7 +71,7 @@ fn parses_test_workflow_fixture_contract() -> Result<(), Box<dyn std::error::Err
         Some("runx:run:test-sequential-workflow")
     );
     let oracle: Receipt = serde_json::from_str(&std::fs::read_to_string(fixture_path(
-        "fixtures/harness/oracle/sequential-workflow.receipt.json",
+        "fixtures/test/oracle/sequential-workflow.receipt.json",
     ))?)?;
     assert_eq!(
         receipt.child_receipt_uris,
@@ -105,7 +105,7 @@ fn replays_active_test_skill_fixture() -> Result<(), Box<dyn std::error::Error>>
         skill_output.value,
         JsonValue::Object(JsonObject::from([(
             "message".to_owned(),
-            JsonValue::String("hello from harness".to_owned()),
+            JsonValue::String("hello from test".to_owned()),
         )]))
     );
     Ok(())
@@ -144,25 +144,25 @@ fn replays_active_test_workflow_fixture() -> Result<(), Box<dyn std::error::Erro
 fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn std::error::Error>> {
     let echo = run_fixture("fixtures/skills/echo/tests/echo-skill.yaml")?;
     assert_oracle(
-        "fixtures/harness/oracle/echo-skill.receipt.json",
+        "fixtures/test/oracle/echo-skill.receipt.json",
         &canonical_receipt_json(&echo.receipt)?,
     )?;
     assert_oracle(
-        "fixtures/harness/oracle/echo-skill.default.json",
+        "fixtures/test/oracle/echo-skill.default.json",
         &canonical_receipt_json(&echo.step_receipts[0])?,
     )?;
 
     let graph = run_fixture("fixtures/graphs/sequential/tests/sequential-workflow.yaml")?;
     assert_oracle(
-        "fixtures/harness/oracle/sequential-workflow.receipt.json",
+        "fixtures/test/oracle/sequential-workflow.receipt.json",
         &canonical_receipt_json(&graph.receipt)?,
     )?;
     assert_oracle(
-        "fixtures/harness/oracle/sequential-workflow.first.json",
+        "fixtures/test/oracle/sequential-workflow.first.json",
         &canonical_receipt_json(&graph.step_receipts[0])?,
     )?;
     assert_oracle(
-        "fixtures/harness/oracle/sequential-workflow.second.json",
+        "fixtures/test/oracle/sequential-workflow.second.json",
         &canonical_receipt_json(&graph.step_receipts[1])?,
     )?;
 
@@ -258,7 +258,7 @@ fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
 fn run_fixture(
     relative_path: &str,
 ) -> Result<runx_runtime::TestReplayOutput, runx_runtime::TestReplayError> {
-    // The tools `runx harness` runs, so a replay seals what it seals.
+    // The tools `runx test` runs, so a replay seals what it seals.
     run_test_fixture(fixture_path(relative_path), std::env::vars().collect())
 }
 

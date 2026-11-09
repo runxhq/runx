@@ -50,7 +50,7 @@ methods:
         items: {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "\\S"}
       work_routes:
         type: array
-        description: Exact configured goal and skill/runner roster with admitted input schemas and fixed scope inputs.
+        description: Exact configured goal and skill/method roster with admitted input schemas and fixed scope inputs.
         maxItems: 16
         items:
           type: object

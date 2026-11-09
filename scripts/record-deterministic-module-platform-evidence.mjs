@@ -17,8 +17,8 @@ const release = rustCliPlatformForKey(loadRustCliPlatforms(workspaceRoot), optio
 if (options.target !== release.rustTarget) {
   throw new Error(`release target mismatch for ${options.platform}: expected ${release.rustTarget}`);
 }
-if (options.runner !== release.runner) {
-  throw new Error(`release runner mismatch for ${options.platform}: expected ${release.runner}`);
+if (options.method !== release.method) {
+  throw new Error(`release method mismatch for ${options.platform}: expected ${release.method}`);
 }
 if (path.basename(options.worker) !== path.posix.basename(release.worker)) {
   throw new Error(`worker filename mismatch for ${options.platform}: expected ${release.worker}`);
@@ -39,7 +39,7 @@ const evidence = {
   status: "passed",
   platform: options.platform,
   rust_target: options.target,
-  runner: options.runner,
+  method: options.method,
   commit: process.env.GITHUB_SHA ?? null,
   run_url: runUrl,
   decision_digest: decision.decision_digest,
@@ -55,7 +55,7 @@ writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
 console.log(JSON.stringify({ status: "written", platform: options.platform, out: options.out }, null, 2));
 
 function parseArgs(argv) {
-  const values = { decision: "", platform: "", target: "", runner: "", worker: "", out: "" };
+  const values = { decision: "", platform: "", target: "", method: "", worker: "", out: "" };
   for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
     if (!name.startsWith("--")) {

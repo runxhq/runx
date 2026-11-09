@@ -6,7 +6,7 @@ use runx_contracts::{JsonNumber, JsonValue};
 
 use super::method_inputs_from_text;
 
-/// A skill whose runner declares a string code and an integer count.
+/// A skill whose method declares a string code and an integer count.
 fn skill() -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(
@@ -53,7 +53,7 @@ fn a_text_that_is_not_its_type_or_not_declared_is_refused() {
         .unwrap_err()
         .to_string();
     assert!(
-        undeclared.contains("runner run declares no input limit; it takes code, count"),
+        undeclared.contains("method run declares no input limit; it takes code, count"),
         "{undeclared}"
     );
 }

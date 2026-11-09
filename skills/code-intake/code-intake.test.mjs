@@ -5,7 +5,7 @@ import YAML from "../../packages/contracts/node_modules/yaml/dist/index.js";
 import finalize from "./code-intake.mjs";
 const cases = YAML.parse(
   fs.readFileSync(new URL("./run.yaml", import.meta.url), "utf8"),
-).harness.cases;
+).test.cases;
 const input = (name) => {
   const c = cases.find((c) => c.name === name);
   return {

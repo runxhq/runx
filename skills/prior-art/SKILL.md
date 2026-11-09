@@ -20,7 +20,7 @@ turn bounded discovery into a repository-wide grep.
    exact active plans or specs implicated by the objective, and adjacent Runx
    skill manifests. Select at most sixteen files. Listing filenames is
    discovery, not the prior-art result; continue through inspection.
-3. Invoke the default runner with the objective, chosen paths, and any existing
+3. Invoke the default method with the objective, chosen paths, and any existing
    decomposition. Complete its bounded research request, resume it in memory,
    and return the validated prior-art report—not a narration of what you intend
    to read.
@@ -61,7 +61,7 @@ packet is missing, stale, or outside the current objective.
    against those native projections. Unsupported verified claims or missing
    requested sources force `needs_more_evidence`.
 
-External URLs are not inspected by this runner. Fetch them through a governed source skill, persist the bounded evidence in the workspace, then pass its path here.
+External URLs are not inspected by this method. Fetch them through a governed source skill, persist the bounded evidence in the workspace, then pass its path here.
 
 ## Output
 
@@ -84,7 +84,7 @@ evidence: object
 validation: object
 ```
 
-Inputs are `objective`, optional `decomposition`, `graph_purpose`, `audience`, `artifact_contract`, and bounded `source_paths`.
+Inputs are `objective`, optional `decomposition`, `workflow_purpose`, `audience`, `artifact_contract`, and bounded `source_paths`.
 
 ## Agent task: prior-art-research
 

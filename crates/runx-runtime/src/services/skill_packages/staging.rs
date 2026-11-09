@@ -154,7 +154,7 @@ const REGISTRY_SELECTION_ENV: [&str; 4] = [
     crate::registry::RUNX_REGISTRY_KEYS_ENV,
 ];
 
-/// The environment a candidate's harness runs in: the repo as its workspace,
+/// The environment a candidate's test runs in: the repo as its workspace,
 /// a home and project directory of its own under `scratch`, and the registry
 /// its operator selects.
 pub(super) fn isolated_test_env(
@@ -320,7 +320,7 @@ mod tests {
     use super::isolated_test_env;
     use std::collections::BTreeMap;
 
-    /// A candidate's harness reads the registry its operator selects, and
+    /// A candidate's test reads the registry its operator selects, and
     /// nothing else of the operator's crosses into it: no credential, home,
     /// project or other setting.
     #[test]

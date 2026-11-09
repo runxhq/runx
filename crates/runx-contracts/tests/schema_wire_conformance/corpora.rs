@@ -236,7 +236,7 @@ pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
                 "artifact_id": "artifact_1",
                 "run_id": "rx_1",
                 "step_id": null,
-                "producer": { "skill": "demo", "runner": "local" },
+                "producer": { "skill": "demo", "method": "local" },
                 "created_at": "2026-01-01T00:00:00Z",
                 "digest": "sha256:abc",
                 "size_bytes": 1,
@@ -411,7 +411,7 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
             "profile_path": "profiles/s1",
             "materialized_package_is_registry_artifact": true,
         },
-        "harness": { "state": "test_verified", "case_count": 3 },
+        "test": { "state": "test_verified", "case_count": 3 },
     });
     vec![
         ("minimal valid", valid.clone()),
@@ -420,13 +420,13 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
             v["extra_top"] = json!("ok");
             v["upstream"]["branch"] = json!("main");
             v["upstream"]["pr_url"] = json!("https://github.com/acme/skills/pull/1");
-            v["harness"]["assertion_count"] = json!(9);
-            v["harness"]["case_names"] = json!(["c1", "c2"]);
+            v["test"]["assertion_count"] = json!(9);
+            v["test"]["case_names"] = json!(["c1", "c2"]);
             v
         }),
         ("missing schema", drop_field(valid.clone(), "schema")),
         ("missing state", drop_field(valid.clone(), "state")),
-        ("missing harness", drop_field(valid.clone(), "harness")),
+        ("missing test", drop_field(valid.clone(), "test")),
         (
             "wrong schema const",
             set_field(valid.clone(), "schema", json!("runx.other.v1")),
@@ -450,10 +450,10 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
             ),
         ),
         (
-            "unknown harness status",
+            "unknown test status",
             set_field(
                 valid.clone(),
-                "harness",
+                "test",
                 json!({ "status": "exploded", "case_count": 1 }),
             ),
         ),
@@ -473,7 +473,7 @@ fn agent_context_meta() -> Value {
         "artifact_id": "art_1",
         "run_id": "run_1",
         "step_id": null,
-        "producer": { "skill": "demo", "runner": "local" },
+        "producer": { "skill": "demo", "method": "local" },
         "created_at": "2026-01-01T00:00:00Z",
         "digest": "sha256:abc",
         "size_bytes": 12,
@@ -1207,7 +1207,7 @@ pub(super) fn act_assignment_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "schema": "runx.act_assignment.v1",
         "skill": "skill:1",
-        "runner": "local",
+        "method": "local",
         "requested_at": "2026-01-01T00:00:00Z",
         "host": { "kind": "cli" },
         "idempotency": {
@@ -1244,8 +1244,8 @@ pub(super) fn act_assignment_corpus() -> Vec<(&'static str, Value)> {
         ),
         ("empty skill", set_field(valid.clone(), "skill", json!(""))),
         (
-            "empty runner",
-            set_field(valid.clone(), "runner", json!("")),
+            "empty method",
+            set_field(valid.clone(), "method", json!("")),
         ),
         (
             "unknown host kind",
@@ -2300,7 +2300,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
         "run": {
             "run_id": "run_1",
             "skill": "reply",
-            "runner": "reply",
+            "method": "reply",
             "state": "paused",
             "package_digest": "sha256:package",
             "execution_closure_digest": "sha256:closure",
@@ -2326,7 +2326,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
                 valid.clone(),
                 "run",
                 json!({
-                    "run_id": "run_1", "skill": "reply", "runner": "reply", "state": "sealed",
+                    "run_id": "run_1", "skill": "reply", "method": "reply", "state": "sealed",
                     "outcome": "completed", "receipt_id": "sha256:run",
                     "package_digest": "sha256:package", "execution_closure_digest": "sha256:closure",
                     "driver": "managed", "driven": false,

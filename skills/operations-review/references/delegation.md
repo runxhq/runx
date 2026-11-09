@@ -9,7 +9,7 @@ deploy, hosted operations, project profiles, CLI handoff, or dogfooding runx.
 
 The execution surface is one of:
 
-- a governed skill runner;
+- a governed skill method;
 - an existing CLI command;
 - a hosted API route;
 - a GitHub Actions workflow;

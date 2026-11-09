@@ -74,7 +74,7 @@ cohorts without historical definition snapshots withhold cross-period comparison
 
 A retained artifact proves which bytes were supplied, not independent provider
 truth. In a real collected run, the parent receipt also records the provider read.
-Harness readbacks remain harness evidence. Missing credentials or a failed baseline
+Test readbacks remain test evidence. Missing credentials or a failed baseline
 read must be stated, with usable current measurements retained. Native artifact
 reads are bounded; oversized raw results remain behind their source reference for
 a source owner to prepare, rather than entering an agent prompt as an archive.

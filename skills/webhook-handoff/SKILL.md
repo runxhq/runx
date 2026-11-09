@@ -14,13 +14,13 @@ its webhook, canvas, branching, fan-out, and downstream notifications.
 `platform` chooses the receiver and the connector that delivers to it: `n8n`
 for an n8n Cloud workflow, `zapier` for a Zapier Catch Hook.
 
-## Runners
+## Methods
 
 - `preflight`: validates and normalizes the handoff context without network.
 - `send`: validates the context and delivers it to the chosen receiver.
 
-Use `preflight` for reviews, CI, and local harnesses; it never needs approval.
-The `send` runner first calls native `control.prepare_handoff`, which validates
+Use `preflight` for reviews, CI, and local tests; it never needs approval.
+The `send` method first calls native `control.prepare_handoff`, which validates
 the execution identity and produces the canonical delivery envelope. It then
 runs `handoff.deliver` on the chosen connector, which posts that envelope after
 exact approval: for n8n to `https://<workspace>.app.n8n.cloud/webhook/<slug>`,
@@ -72,7 +72,7 @@ receiver must validate before starting its workflow.
 - `payload` (required): business payload delivered to the receiver.
 - `handoff_audience` (optional): defaults to
   `n8n:workflow:runx-governed-effect` or `zapier:zap:runx-governed-effect`.
-- `webhook_host` (send runner, n8n only): the n8n Cloud host, such as
+- `webhook_host` (send method, n8n only): the n8n Cloud host, such as
   `acme.app.n8n.cloud`. A Zapier handoff refuses one.
 
 The webhook URL is the chosen connector's credential: n8n's `webhook`, bound

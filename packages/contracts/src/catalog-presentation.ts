@@ -36,7 +36,7 @@ export interface RegistryCatalogPresentation {
   readonly summary?: string;
   /** The authored overview: the file's Markdown body. */
   readonly overview?: string;
-  readonly method?: readonly { readonly title: string; readonly description: string; readonly skill?: string; readonly runner?: string }[];
+  readonly method?: readonly { readonly title: string; readonly description: string; readonly skill?: string; readonly method?: string }[];
   readonly inputs?: readonly { readonly label: string; readonly description?: string; readonly input?: string }[];
   readonly outputs?: readonly { readonly label: string; readonly description?: string }[];
   readonly stops?: { readonly title: string; readonly description?: string };
@@ -94,10 +94,10 @@ export function readCatalogPresentation(
   if (overview.length > MAX_OVERVIEW) throw new RegistryPresentationError("overview", `is longer than ${MAX_OVERVIEW} characters`);
   const method = list(record.method, "method", (entry, field) => {
     const item = object(entry, field);
-    allowOnly(item, field, ["title", "description", "skill", "runner"]);
-    const runner = optionalText(item.runner, `${field}.runner`);
-    if (runner !== undefined && !context.methodNames.includes(runner)) {
-      throw new RegistryPresentationError(`${field}.runner`, `names no runner this package declares (${runner})`);
+    allowOnly(item, field, ["title", "description", "skill", "method"]);
+    const method = optionalText(item.method, `${field}.method`);
+    if (method !== undefined && !context.methodNames.includes(method)) {
+      throw new RegistryPresentationError(`${field}.method`, `names no method this package declares (${method})`);
     }
     const skill = optionalText(item.skill, `${field}.skill`);
     if (skill !== undefined && !SKILL_SELECTOR.test(skill)) {
@@ -110,7 +110,7 @@ export function readCatalogPresentation(
       title: text(item.title, `${field}.title`),
       description: text(item.description, `${field}.description`),
       ...(skill ? { skill } : {}),
-      ...(runner ? { runner } : {}),
+      ...(method ? { method } : {}),
     };
   });
   const inputs = list(record.inputs, "inputs", (entry, field) => {
@@ -118,7 +118,7 @@ export function readCatalogPresentation(
     allowOnly(item, field, ["label", "description", "input"]);
     const input = optionalText(item.input, `${field}.input`);
     if (input !== undefined && !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(input)) {
-      throw new RegistryPresentationError(`${field}.input`, "names a runner input by its plain name");
+      throw new RegistryPresentationError(`${field}.input`, "names a method input by its plain name");
     }
     if (input !== undefined && !context.inputNames.includes(input)) {
       throw new RegistryPresentationError(`${field}.input`, `names an input the package does not declare (${input})`);

@@ -46,10 +46,10 @@ author so exact source references can survive the candidate write.
   staged bundle passes native parsing, inspection, and safe replay of its tests.
 - `improve`: turn one receipt or test failure into a bounded package update,
   then validate and commit the exact staged bytes.
-- `harness`: add tests to an existing package and replay them safely against
+- `test`: add tests to an existing package and replay them safely against
   the exact candidate before committing it.
 
-`build`, `improve`, and `harness` write local workspace files. They never
+`build`, `improve`, and `test` write local workspace files. They never
 publish, install, push, or mutate an external provider. Native test replay
 runs with isolated Runx home, receipts, and no operator credentials. Invalid
 staged packages stop before the target package is touched. Design, inspection,
@@ -448,7 +448,7 @@ authoring.
   select, belong in `eval_queries.json`. Evaluations are not a format
   requirement and decide nothing at export, so never recreate their judgment
   in package code, prose, or a second test script.
-- Keep provider evidence labels exact. Deterministic replay is `harness`, not
+- Keep provider evidence labels exact. Deterministic replay is `test`, not
   `live`. A sealed provider-readback test supplied through host agent answers
   does not prove provider execution. Tests must not inherit local Runx
   grants, tokens, credential delivery, or global configuration; every fake
@@ -499,11 +499,11 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
   package; use it as `SKILL.md`'s `name` even when the target directory has a
   different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
-- `target_dir` (required for `build`, `improve`, and `harness`): repo-relative package directory.
+- `target_dir` (required for `build`, `improve`, and `test`): repo-relative package directory.
 - `project_context` (optional): product, repository, and operator constraints.
-- `receipt_id`, `receipt_summary`, `harness_output`, `failure_packet` (improve):
+- `receipt_id`, `receipt_summary`, `test_output`, `failure_packet` (improve):
   failure evidence, including the stable packet from `diagnose-skill-run`.
-  `harness_output` carries a test run's sanitized output.
+  `test_output` carries a test run's sanitized output.
 
 ## Agent task: skill-build-architecture
 
@@ -555,7 +555,7 @@ For every public package, declare both operator contexts before authoring:
 The proof plan must contain distinct `selection_trial`,
 `standalone_operator_journey`, and `composed_operator_journey` entries for a
 public package. They are different claims: intuitive selection, useful direct
-completion, and evidence-preserving composition. A generic harness or sealed
+completion, and evidence-preserving composition. A generic test or sealed
 receipt may supplement them but cannot replace them. The selection trial names
 at least two real public catalog confusors; the standalone journey runs the
 actual default; and the composed journey names both reused prior evidence and
@@ -590,10 +590,10 @@ authoring at the exact applied package and names the canonical registry
 operator as the separate publish-and-readback boundary. Do not plan embedded
 registry HTTP, credentials, auto-publish, or an adjacent publisher/name.
 
-For `improve`, diagnose only from supplied receipt or harness evidence and
+For `improve`, diagnose only from supplied receipt or test evidence and
 distinguish contract, implementation, fixture, environment, and operator
 failures. When evidence cannot justify a change, choose `extend_existing` and
-let the author return `no_change`. For `harness`, plan test-only changes, new
+let the author return `no_change`. For `test`, plan test-only changes, new
 `tests/<name>.yaml` and the `fixtures/` data they read, and preserve all
 production behavior.
 
@@ -648,7 +648,7 @@ admits it, and keep the module inside its stated computation boundary. A module
 runs in one worker process, so its architecture budgets `max_process_spawns` of
 at least 1. Include
 focused proof for a useful path and a stop, refusal, or regression path, each a
-`tests/<name>.yaml`. In `harness` mode, write or delete only tests and the
+`tests/<name>.yaml`. In `test` mode, write or delete only tests and the
 `fixtures/` data they read. Preserve
 useful behavior and delete superseded implementation in the same draft. Never
 add auxiliary docs, generated state, credentials, placeholder modules,

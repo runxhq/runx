@@ -1,4 +1,4 @@
-//! A harness caller works an agent turn from its script: the calls in order,
+//! A test caller works an agent turn from its script: the calls in order,
 //! each through the turn's own call path and checked against what it must
 //! return, then the output the turn ends with. Cases record what the turn
 //! did, not only its answer.

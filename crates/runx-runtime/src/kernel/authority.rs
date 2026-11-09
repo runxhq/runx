@@ -66,7 +66,7 @@ pub struct RunAuthority {
     /// (1 = $0.000001): every priced call's quote and every USD or USDC
     /// amount a call moves. Absent, the run is unbounded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_cost_micro: Option<u64>,
+    pub max_spend_micro_usd: Option<u64>,
 }
 
 impl RunAuthority {

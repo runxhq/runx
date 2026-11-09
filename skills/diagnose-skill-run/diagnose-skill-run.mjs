@@ -96,7 +96,7 @@ export default function finalizeDiagnosis(input) {
         "No matched receipt detail or bounded failure evidence is available. Supply the exact receipt or the relevant sanitized failure material before diagnosing a cause.",
       improvement_proposals: [],
       next_test_checks: [
-        "Resolve the exact failed receipt and relevant child, or supply the bounded harness assertion/diagnostic.",
+        "Resolve the exact failed receipt and relevant child, or supply the bounded test assertion/diagnostic.",
       ],
       evidence,
     };

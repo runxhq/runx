@@ -119,7 +119,7 @@ pub struct PreparedInputSummary {
 pub struct PreparedRequestSummary {
     pub skill_path: PathBuf,
     pub cwd: PathBuf,
-    pub runner: String,
+    pub method: String,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
     pub inputs: Vec<PreparedInputSummary>,
@@ -174,7 +174,7 @@ pub struct PreparedSkillRun {
     package_digest: String,
     selected_method: String,
     manifest: SkillMethodManifest,
-    runner: SkillMethodDefinition,
+    method: SkillMethodDefinition,
     report: PreparedSkillRunReport,
     guards: Vec<PreparedArtifactGuard>,
     context_bound: bool,
@@ -272,8 +272,8 @@ impl PreparedSkillRun {
         &self.manifest
     }
 
-    pub(crate) fn runner(&self) -> &SkillMethodDefinition {
-        &self.runner
+    pub(crate) fn method(&self) -> &SkillMethodDefinition {
+        &self.method
     }
 
     /// The prepared package, checked against everything it was prepared
@@ -331,7 +331,7 @@ struct PreparedContextPreimage<'a> {
     schema: &'static str,
     skill_path: &'a Path,
     cwd: &'a Path,
-    runner: &'a str,
+    method: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     answers: Option<&'a runx_contracts::ResumeDocument>,
     inputs: &'a BTreeMap<String, JsonValue>,
@@ -354,18 +354,18 @@ pub(crate) fn prepare_skill_run_with_effects(
     let loaded = std::sync::Arc::new(crate::load_validated_skill_package(&request.skill_path)?);
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         SkillRunError::Invalid(format!(
-            "skill package {} does not declare run.yaml runners",
+            "skill package {} does not declare run.yaml methods",
             loaded.directory.display()
         ))
     })?;
     let package_digest = loaded.package.package_digest.clone();
     let skill_dir = loaded.directory.clone();
-    let runner = selected_method(&manifest, selected_method_name)?.clone();
+    let method = selected_method(&manifest, selected_method_name)?.clone();
     let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
         .map_err(RuntimeError::from)?;
     let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
         loaded.clone(),
-        &runner.name,
+        &method.name,
         workspace.env(),
         entry.package_digest.as_deref(),
         entry.execution_closure_digest.as_deref(),
@@ -376,9 +376,9 @@ pub(crate) fn prepare_skill_run_with_effects(
         entry.execution_closure_digest = execution_closure_digest.clone();
     }
     super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
-    crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
+    crate::input_contract::apply_defaults(&method.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_method_inputs(
-        &runner.inputs,
+        &method.inputs,
         &request.inputs,
     ) {
         Ok(inputs) => {
@@ -387,16 +387,16 @@ pub(crate) fn prepare_skill_run_with_effects(
         }
         Err(error) => Some(error.into_runtime_error()),
     };
-    let request_summary = request_summary(&request, &skill_dir, &runner.name, entry);
+    let request_summary = request_summary(&request, &skill_dir, &method.name, entry);
     let context = input_failure.as_ref().map_or_else(
-        || resolve_prepared_context(&request, &loaded, &runner, effects),
+        || resolve_prepared_context(&request, &loaded, &method, effects),
         |error| {
             blocked_prepared_context(
                 vec![PreparedTraceEntry {
                     node_path: "entry".to_owned(),
                     stage: "resolve_method".to_owned(),
                     outcome: "resolved".to_owned(),
-                    detail: format!("selected runner {}", runner.name),
+                    detail: format!("selected method {}", method.name),
                 }],
                 "entry",
                 "validate_inputs",
@@ -442,7 +442,7 @@ pub(crate) fn prepare_skill_run_with_effects(
             runx_contracts::SealReason::PreflightRefused
         };
         Some(super::skill_front::seal_skill_preflight_refusal(
-            &request, &manifest, &runner, failure, reason,
+            &request, &manifest, &method, failure, reason,
         )?)
     } else {
         None
@@ -455,9 +455,9 @@ pub(crate) fn prepare_skill_run_with_effects(
     Ok(PreparedSkillRun {
         request,
         package_digest,
-        selected_method: runner.name.clone(),
+        selected_method: method.name.clone(),
         manifest,
-        runner,
+        method,
         report: PreparedSkillRunReport {
             schema: PREPARED_SKILL_REPORT_SCHEMA.to_owned(),
             status: context.status,
@@ -506,7 +506,7 @@ fn prepared_context_digest(
         schema: PREPARED_SKILL_REPORT_SCHEMA,
         skill_path: &summary.skill_path,
         cwd: &summary.cwd,
-        runner: &summary.runner,
+        method: &summary.method,
         answers: request.answers.as_ref(),
         inputs: &request.inputs,
         act: request.act.as_ref(),
@@ -524,16 +524,16 @@ fn prepared_context_digest(
 fn resolve_prepared_context(
     request: &SkillRunRequest,
     loaded: &crate::LoadedSkillPackage,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     effects: &crate::RuntimeEffectRegistry,
 ) -> PreparedContextResolution {
     let trace = vec![PreparedTraceEntry {
         node_path: "entry".to_owned(),
         stage: "resolve_method".to_owned(),
         outcome: "resolved".to_owned(),
-        detail: format!("selected runner {}", runner.name),
+        detail: format!("selected method {}", method.name),
     }];
-    let missing = crate::input_contract::missing_required(&runner.inputs, &request.inputs);
+    let missing = crate::input_contract::missing_required(&method.inputs, &request.inputs);
     if !missing.is_empty() {
         let reason = format!("missing required inputs: {}", missing.join(", "));
         return blocked_prepared_context(trace, "entry", "validate_inputs", reason);
@@ -541,7 +541,7 @@ fn resolve_prepared_context(
 
     match load_skill_operator_context_chain_from_package(
         loaded,
-        Some(&runner.name),
+        Some(&method.name),
         SkillOperatorContextOptions::new(request.env.clone(), request.cwd.clone())
             .with_effects(effects.clone()),
     ) {
@@ -653,7 +653,7 @@ pub(crate) fn verify_prepared_artifact_at_use(
 fn request_summary(
     request: &SkillRunRequest,
     skill_dir: &Path,
-    runner: &str,
+    method: &str,
     mut entry: PreparedEntryProvenance,
 ) -> PreparedRequestSummary {
     if entry.kind.is_empty() {
@@ -668,7 +668,7 @@ fn request_summary(
     PreparedRequestSummary {
         skill_path: skill_dir.to_path_buf(),
         cwd: request.cwd.clone(),
-        runner: runner.to_owned(),
+        method: method.to_owned(),
         receipt_dir: request.receipt_dir.clone(),
         run_id: request.run_id.clone(),
         inputs: request
@@ -1426,7 +1426,7 @@ methods:
             child.join("run.yaml"),
             "minimum_runx: 0.12.0\nmethods:\n  child:\n    steps:\n      - id: child\n        agent: after\n        outputs:\n          result: {type: object}\n",
         )?;
-        let step = &prepared.runner.graph.steps[0];
+        let step = &prepared.method.graph.steps[0];
         let error = match load_step_skill(
             &entry,
             step,

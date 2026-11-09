@@ -26,7 +26,7 @@ name missing evidence as a blocker.
 
 ## What this skill does
 
-Seven runners:
+Seven methods:
 
 - `read`: collect account evidence from the live API through the `twitter`
   connector. Queries: `snapshot`, `posts`, `mentions`, `search`, `following`,
@@ -159,7 +159,7 @@ runx skill ./skills/twitter execute -i plan_digest=<native-plan-digest> --json
 For the first execution, `--inputs <file-or-stdin>` carries the original plan
 and native digest; subsequent executions use the compact `next_input` from
 status. Local paths above illustrate a checkout; installed registry packages and
-other compatible hosts use the same runner contracts. Paths, run ids and
+other compatible hosts use the same method contracts. Paths, run ids and
 artifact references come from runx, never guessed filesystem layouts.
 
 The operating sequence is evidence → grounded plan or deterministic selection
@@ -183,7 +183,7 @@ failures, not permission to fall back to ad hoc browser or HTTP code. The
 current packaged connector uses the X API; this skill change does not supply
 or claim a working browser implementation.
 
-Each runner emits exactly one packet for its lane: typed evidence with
+Each method emits exactly one packet for its lane: typed evidence with
 provenance and a content digest, a curated or bulk act plan bound by digest, or
 provider outcomes bound to the executed plan digest and appended to the ledger.
 
@@ -245,7 +245,7 @@ breaks either is refused before approval.
 
 ## Procedure
 
-For the `plan` runner, build `twitter_plan` this way:
+For the `plan` method, build `twitter_plan` this way:
 
 1. Hold one bounded objective. If the ask bundles unrelated jobs (a promo
    thread plus a follow purge), return `needs_input` with the split.
@@ -272,7 +272,7 @@ For the `plan` runner, build `twitter_plan` this way:
 
 ## Edge cases and stop conditions
 
-- **Mixed objective:** return `needs_input` with the runner or plan split.
+- **Mixed objective:** return `needs_input` with the method or plan split.
 - **Id not in evidence:** blocker; the plan stays `needs_input`.
 - **Prune criteria ambiguous:** select the unambiguous items, list the rest in
   `open_questions`.

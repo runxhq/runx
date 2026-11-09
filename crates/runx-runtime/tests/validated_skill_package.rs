@@ -83,7 +83,7 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
     let plan = inspection
         .method
         .as_ref()
-        .map(|runner| &runner.input_schema)
+        .map(|method| &method.input_schema)
         .and_then(|value| value.get("properties"))
         .and_then(runx_contracts::JsonValue::as_object)
         .and_then(|value| value.get("plan"))

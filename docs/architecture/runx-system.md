@@ -55,7 +55,7 @@ consume those owners; none is a parallel implementation.
 - `@runxhq/contracts` is a generated or mechanically checked binding over the
   portable contract owner.
 - `skills/*` and product-local skill trees own operator knowledge, declarative
-  composition, harnesses, and irreducible deterministic domain computation.
+  composition, tests, and irreducible deterministic domain computation.
 - `runx/cloud` owns hosted control-plane state, credential custody, grant
   resolution, and bounded provider API execution only.
 
@@ -79,8 +79,8 @@ give a human and an acting agent the context that changes how they operate:
 - how to interpret outputs, receipts, readback, and unresolved state; and
 - when and why to route to a declared adjacent skill.
 
-`run.yaml` owns runner composition, typed inputs and outputs, effects, scopes,
-approvals, harness cases, and skill references. It must not repeat the manual.
+`run.yaml` owns method composition, typed inputs and outputs, effects, scopes,
+approvals, test cases, and skill references. It must not repeat the manual.
 Package JavaScript exists only for deterministic domain computation the graph
 and native capability plane cannot express cleanly. It never exists merely to
 perform HTTP, filesystem, subprocess, credential, packet, or receipt mechanics
@@ -122,7 +122,7 @@ Each target has one meaning and one authority boundary:
   typed authority and effect contracts. Hosted credentials remain
   opaque.
 
-Harness fixtures are test data interpreted by the runtime harness. They are not
+Test fixtures are test data interpreted by the runtime test. They are not
 an execution source and cannot become selectable production behavior.
 
 Static step inputs and graph context are materialized once into the invocation
@@ -211,7 +211,7 @@ continuation and scheduling.
 
 Runtime-owned ceilings are 4 MiB source, 4 MiB input, 4 MiB output, 64 MiB
 JavaScript heap, 4 MiB JavaScript stack, 30 seconds wall time, and 4,096 queued
-jobs. Wall time defaults to two seconds and a runner may select 1 through 30
+jobs. Wall time defaults to two seconds and a method may select 1 through 30
 seconds; other package limits may narrow but never widen the runtime ceiling.
 The worker starts with a cleared environment, a non-workspace current
 directory, no inherited handles, process memory supervision, and no host APIs.
@@ -243,7 +243,7 @@ derived from the resolved grant; caller input can only narrow that set.
 
 Split code where responsibilities, authority, or independently changing
 contracts separate. Keep ordered admission, invocation, and sealing visible in
-the concrete runner. File length alone does not justify a forwarding module,
+the concrete method. File length alone does not justify a forwarding module,
 a new trait, or an extra hot-path dispatch.
 
 ## Effect and finality boundary
@@ -261,13 +261,13 @@ overriding caller claims. Browser adapters must check it against the account the
 This is trusted host execution, not browser sandboxing or independent DOM
 attestation. It adds no browser lifecycle, secret export or effect ledger.
 
-The native harness uses the same confirmation path. A fixture explicitly
+The native test uses the same confirmation path. A fixture explicitly
 declares its `setup.sessions`, per-connector `setup.parameters` and exact
 `caller.process_calls`; it never borrows a live browser or saved account.
 
 The registered native capability owns the effect classification, admission,
 approval policy, execution boundary, and finality preparation. Graph, skill,
-runner, and tool manifests do not redeclare `mutation`, `mutating`, or an
+method, and tool manifests do not redeclare `mutation`, `mutating`, or an
 `effect_family`; those parallel claims inevitably drift from the code that can
 actually perform the effect. Catalog approval metadata is an operator-facing
 promise, not an enforcement source.
@@ -323,7 +323,7 @@ another registered family.
 
 `skill-build` calls one authoring service and one closed, digest-bound
 change contract. Design is judgment; inspect, validate, diff,
-write, and harness execution are native mechanics. No template generator creates a
+write, and test execution are native mechanics. No template generator creates a
 placeholder `.mjs`. No package writes outside its declared target. A no-op
 design produces no file churn.
 

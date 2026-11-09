@@ -79,10 +79,10 @@ pub struct RunxListItem {
     /// A skill's description, from the frontmatter of its own `SKILL.md`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// A skill's runners, each with its purpose when its `run.yaml` states
+    /// A skill's methods, each with its purpose when its `run.yaml` states
     /// one.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub runners: Option<Vec<crate::CatalogMethod>>,
+    pub methods: Option<Vec<crate::CatalogMethod>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

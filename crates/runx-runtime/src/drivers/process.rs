@@ -19,7 +19,7 @@ use crate::credentials::CredentialDelivery;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
 use crate::kernel::operation::{AdmittedCall, ToolRunner};
 
-/// The native harness's injected tool runner. A result matches the exact
+/// The native test's injected tool method. A result matches the exact
 /// admitted tool and arguments; a missing fixture never starts a host process.
 pub(crate) struct StandIn<'a> {
     pub calls: &'a [runx_parser::test_fixture::TestProcessCallFixture],
@@ -69,7 +69,7 @@ impl ToolRunner for StandIn<'_> {
             .ok_or_else(|| Unperformed::NotSent {
                 code: "test_result_missing",
                 reason: format!(
-                    "the harness declares no process result for {tool} with these arguments"
+                    "the test declares no process result for {tool} with these arguments"
                 ),
             })
     }

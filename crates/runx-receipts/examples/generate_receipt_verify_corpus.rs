@@ -17,7 +17,7 @@ mod fixture_key;
 
 use fixture_key::{FixtureKey, FixtureKeys};
 
-/// The corpus's own key, apart from the harness's: the corpus pins the
+/// The corpus's own key, apart from the test's: the corpus pins the
 /// verifier, not any one runtime identity.
 const CORPUS_SEED: [u8; 32] = [0x52; 32];
 const HOSTED_KID: &str = "runx-cli-verify-fixture-key";

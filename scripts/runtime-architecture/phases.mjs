@@ -33,9 +33,9 @@ export function checkServiceBoundary(findings) {
 }
 
 export function checkExecutionSplit(findings, root = workspaceRoot) {
-  const runner = "crates/runx-runtime/src/execution/runner";
+  const method = "crates/runx-runtime/src/execution/runner";
   for (const handler of ["step_handlers.rs", "step_handlers/output.rs", "step_handlers/host_resolution.rs"]) {
-    const relativePath = `${runner}/${handler}`;
+    const relativePath = `${method}/${handler}`;
     const filePath = path.join(root, relativePath);
     if (!existsSync(filePath)) {
       findings.push(`Missing current execution owner ${relativePath}.`);

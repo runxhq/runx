@@ -89,7 +89,7 @@ fn publish_admin_sends_publisher_and_test_and_no_upsert() -> Result<(), Box<dyn 
         path: "run.mjs".to_owned(),
         content: "console.log('hello');\n".to_owned(),
     }];
-    let harness = RegistryPublishTestReport {
+    let test = RegistryPublishTestReport {
         status: "passed".to_owned(),
         case_count: 1,
         assertion_error_count: 0,
@@ -108,7 +108,7 @@ fn publish_admin_sends_publisher_and_test_and_no_upsert() -> Result<(), Box<dyn 
             profile_document: Some("minimum_runx: 0.12.0\nmethods: {}\n"),
             version: Some("sha-123"),
             package_files: &files,
-            harness: &harness,
+            test: &test,
         },
     )?;
 
@@ -122,7 +122,7 @@ fn publish_admin_sends_publisher_and_test_and_no_upsert() -> Result<(), Box<dyn 
     let body = request_body(&requests[0])?;
     assert_eq!(body["publisher"], "runx");
     assert!(body.get("upsert").is_none());
-    assert_eq!(body["harness"]["status"], "passed");
+    assert_eq!(body["test"]["status"], "passed");
     Ok(())
 }
 

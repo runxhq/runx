@@ -3,7 +3,7 @@
 mod bundle;
 mod connectors;
 mod files;
-mod harness;
+mod test;
 
 pub(crate) use connectors::connector_package;
 pub use connectors::{RegistryConnectorPackage, prepare_registry_connector_package};
@@ -49,7 +49,7 @@ pub struct RegistryPublishPackage {
     profile_document: Option<String>,
     package_files: Vec<RegistryPackageFile>,
     metadata: RegistryPackageMetadata,
-    harness: Option<harness::PublishTestPackage>,
+    test: Option<test::PublishTestPackage>,
 }
 
 impl RegistryPublishPackage {
@@ -79,12 +79,12 @@ impl RegistryPublishPackage {
         orchestrator: &LocalOrchestrator,
         env: &BTreeMap<String, String>,
     ) -> Result<RegistryPublishTestReport, RegistryPublishPackageError> {
-        let harness = self.harness.as_ref().ok_or_else(|| {
+        let test = self.test.as_ref().ok_or_else(|| {
             RegistryPublishPackageError::invalid(
-                "publish requires a skill execution profile and at least one harness case",
+                "publish requires a skill execution profile and at least one test case",
             )
         })?;
-        harness::run_publish_test(orchestrator, harness.path(), env)
+        test::run_publish_test(orchestrator, test.path(), env)
     }
 
     #[must_use]
@@ -94,10 +94,10 @@ impl RegistryPublishPackage {
             profile_document,
             package_files,
             metadata,
-            harness,
+            test,
             ..
         } = self;
-        drop(harness);
+        drop(test);
         RegistryPublishPackageParts {
             markdown,
             profile_document,
@@ -246,7 +246,7 @@ fn prepare_loaded_package(
         connectors,
     )
     .map_err(RegistryPublishPackageError::invalid)?;
-    let harness = harness::stage_publish_test(loaded, profile_document.as_deref(), &package_files)?;
+    let test = test::stage_publish_test(loaded, profile_document.as_deref(), &package_files)?;
     Ok(RegistryPublishPackage {
         version: loaded
             .manifest()
@@ -255,7 +255,7 @@ fn prepare_loaded_package(
         profile_document,
         package_files,
         metadata,
-        harness,
+        test,
     })
 }
 
@@ -544,9 +544,9 @@ expect:
         assert!(paths.contains(&"tools/example/echo/src/echo.mjs"));
 
         let test_path = package
-            .harness
+            .test
             .as_ref()
-            .ok_or("staged harness missing")?
+            .ok_or("staged test missing")?
             .path()
             .to_path_buf();
         assert!(test_path.join("fixtures/helper.mjs").is_file());
@@ -670,9 +670,9 @@ methods:
                 .any(|path| path.contains("provider/SKILL.md"))
         );
         let test_path = package
-            .harness
+            .test
             .as_ref()
-            .ok_or("staged harness missing")?
+            .ok_or("staged test missing")?
             .path();
         assert!(test_path.join("dependencies/1/SKILL.md").is_file());
         assert!(test_path.join("dependencies/1/run.yaml").is_file());

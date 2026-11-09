@@ -169,7 +169,7 @@ pub(crate) fn bundled_connectors(
 }
 
 /// The directory of every package in the bundle `directory` lies in that
-/// carries connectors: the scope a harness case spans, since it runs its
+/// carries connectors: the scope a test case spans, since it runs its
 /// whole closure. None outside a bundle.
 pub(crate) fn bundle_package_dirs(directory: &Path) -> Result<Option<Vec<PathBuf>>, String> {
     let Some((root, descriptor)) = find_bundle(directory)? else {

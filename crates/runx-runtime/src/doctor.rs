@@ -436,7 +436,7 @@ fn skill_profile_invalid_diagnostic(
     ]);
     let location = DoctorLocation {
         path: location_path.clone(),
-        json_pointer: Some("/runners".to_owned()),
+        json_pointer: Some("/methods".to_owned()),
     };
     let evidence = object([("error", string_value(message))]);
     create_diagnostic(DiagnosticParts {

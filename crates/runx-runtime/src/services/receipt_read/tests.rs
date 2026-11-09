@@ -77,7 +77,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         step_id: "read".to_owned(),
         attempt: 1,
         skill: "fixture".to_owned(),
-        runner: None,
+        method: None,
         contract: retained,
         artifact_outputs: BTreeSet::new(),
         ephemeral_contract: EphemeralValue::from_value(JsonValue::String(

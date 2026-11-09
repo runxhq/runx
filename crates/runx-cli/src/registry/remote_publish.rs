@@ -13,7 +13,7 @@ pub(super) fn publish_remote_skill_package(
     registry_url: &str,
     plan: &RegistryPlan,
     package: &RegistryPublishPackage,
-    harness: &RegistryPublishTestReport,
+    test: &RegistryPublishTestReport,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<HostedSkillPublishResult, RegistryCliError> {
@@ -39,7 +39,7 @@ pub(super) fn publish_remote_skill_package(
                 profile_document: package.profile_document(),
                 version: package.version(),
                 package_files: package.package_files(),
-                harness,
+                test,
             },
         )
         .map_err(|error| internal_error(error.to_string()));

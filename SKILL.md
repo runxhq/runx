@@ -95,12 +95,12 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      authority, forged receipts, or bypassing an approval.
 
 5. **Run the skill**
-   - Inspect the selected runner with `runx skill inspect <skill> [runner] --json`.
+   - Inspect the selected method with `runx skill inspect <skill> [method] --json`.
      Build one input object from the user's actual task, matching `input_schema`,
-     and pipe it to `runx skill <skill> [runner] --inputs - --json`. An exported
+     and pipe it to `runx skill <skill> [method] --inputs - --json`. An exported
      binding supplies the exact package and execution-closure digests; retain them.
    - State the requested purpose with `--act '<json act with purpose>'`.
-     Preserve nested input types. Harness examples are test data, not the user's job.
+     Preserve nested input types. Test examples are test data, not the user's job.
    - `needs_agent` is a pause. Read and verify its request artifact, follow its
      output contract, and continue with the full request id and request digest.
      `runx resume --help` gives the exact answer envelope. Keep one driver, the

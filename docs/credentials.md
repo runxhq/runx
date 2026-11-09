@@ -204,7 +204,7 @@ Its manifest can come from the project, so runx neither runs the command to
 see whether you are signed in nor takes it by default: `use` lists
 `--session` with the command it would run, and only `--session` binds it.
 Each call through an instance bound that way runs the command again for a
-fresh token, or the public identity of a managed session. `runx harness` runs the sessions its cases declare, as it runs
+fresh token, or the public identity of a managed session. `runx test` runs the sessions its cases declare, as it runs
 the project's other programs.
 
 A variable that the environment and the workspace `.env` set to different
@@ -253,7 +253,7 @@ grant through the host, so it must bind the connector's exact revision, be
 active and be held by the run's principal; the host names it and never asserts
 what it covers. A stated grant stands only for a hosted placement, and a
 different instance selected for the same connector is refused, never chosen.
-`runx skill inspect <skill> <runner> --run-authority` projects readiness under
+`runx skill inspect <skill> <method> --run-authority` projects readiness under
 the same statement, so a host knows whether a run can be admitted before it
 starts one.
 
@@ -272,8 +272,8 @@ the secrets the instances name.
 ## Readiness
 
 `runx skill inspect ... --json` reports `connector_readiness` for each
-operation the selected runner calls: the instance it would use, or the setup
-it needs. A runner whose connectors are not bound reports
+operation the selected method calls: the instance it would use, or the setup
+it needs. A method whose connectors are not bound reports
 `readiness.status: needs_connector_setup`, and a run refuses at admission,
 before any provider call.
 
@@ -291,11 +291,11 @@ command or MCP server session. Runx's own `RUNX_` variables never come from
 that sets one is refused, so a workspace cannot redirect Runx's state, Connect
 or receipt signing, nor supply authority a host admits.
 
-The snapshot supplies a runner's declared `environment.required` and
+The snapshot supplies a method's declared `environment.required` and
 `environment.optional` names: ordinary, non-secret configuration. It also
 holds the variables connector credentials are read from, and those reach an
 operation only through an instance: the one `runx connector use` bound, or,
-with none selected, the variable's own binding. A runner
+with none selected, the variable's own binding. A method
 that declares a variable any connector in its reach holds a credential in is
 refused before it starts, so a skill's declared environment never carries a
 connector's credential. That closes the declared route only: a process tool

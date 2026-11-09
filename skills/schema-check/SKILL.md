@@ -7,7 +7,7 @@ description: Compare current and proposed JSON Schema acceptance, validate real 
 
 Check whether a contract change can reject payloads the current contract accepts.
 Supply the current schema, proposed schema, real payload examples and your
-compatibility policy. The default `check` runner returns the affected paths,
+compatibility policy. The default `check` method returns the affected paths,
 sample failures, unsupported proof cases and, when allowed, a publication proposal
 bound to the exact schema and sample values. It does not publish.
 
@@ -65,7 +65,7 @@ which declared paths occur in samples, including homogeneous array items.
 `proposal` is null when held. When present, it carries the native schema/sample
 digests, affected paths and `live_write_performed: false`.
 
-The same runner is reusable in a graph. A parent supplies its exact schemas,
+The same method is reusable in a graph. A parent supplies its exact schemas,
 samples and policy, then consumes this verdict and these digests without a second
 comparison. No discovery, provider credentials, model turn or delivery is needed.
 Publication belongs to the schema publisher under its own authorization and

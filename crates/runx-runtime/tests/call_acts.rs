@@ -71,7 +71,7 @@ const EFFECT: &str = "chat://T123/C456/1750000000.000001";
 
 struct Case<'a> {
     name: &'a str,
-    runner: &'a str,
+    method: &'a str,
     inputs: &'a str,
     act: &'a str,
     status: &'a str,
@@ -89,7 +89,7 @@ fn run(root: &Path, case: &Case<'_>) -> Result<TestReplayOutput, TestReplayError
         &path,
         format!(
             r#"name: {name}
-method: {runner}
+method: {method}
 inputs:
   channel_locator: chat://T123/C456
   text: Deploy finished.
@@ -116,7 +116,7 @@ expect:
   status: {status}
 "#,
             name = case.name,
-            runner = case.runner,
+            method = case.method,
             inputs = case.inputs,
             act = case.act,
             status = case.status,
@@ -146,7 +146,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         root.path(),
         &Case {
             name: "stated",
-            runner: "stated",
+            method: "stated",
             inputs: &format!(
                 "  thread: forge://acme/app/issues/7\n  form: reply\n  previous: \"{PREVIOUS}\""
             ),
@@ -234,7 +234,7 @@ fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_operations_obs
         root.path(),
         &Case {
             name: "forwarded",
-            runner: "forwarded",
+            method: "forwarded",
             inputs: "",
             act: "  act:\n    purpose: Forward the invoker's act\n    decision: monitor",
             status: "sealed",
@@ -254,7 +254,7 @@ fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_operations_obs
         root.path(),
         &Case {
             name: "absent",
-            runner: "forwarded",
+            method: "forwarded",
             inputs: "",
             act: "",
             status: "sealed",
@@ -308,7 +308,7 @@ fn an_act_outside_its_shape_refuses_the_call_before_admission() {
             root.path(),
             &Case {
                 name,
-                runner: "stated",
+                method: "stated",
                 inputs,
                 act,
                 status: "sealed",

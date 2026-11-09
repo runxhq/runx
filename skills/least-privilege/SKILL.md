@@ -41,7 +41,7 @@ they still do not prove full coverage, necessity or the semantics of a replaceme
 grant.
 
 The current native evidence is insufficient to prove a minimal replacement
-grant. The runner therefore retains the entire grant, emits no executable
+grant. The method therefore retains the entire grant, emits no executable
 attenuation proposal, and requests policy and representative usage review.
 A trustworthy narrowing proposal requires the authority owner to establish
 coverage and replacement semantics; do not add that mechanism to this skill.

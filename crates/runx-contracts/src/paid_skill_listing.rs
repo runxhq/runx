@@ -1,8 +1,8 @@
 //! Public, rail-neutral marketplace offer and listing contracts.
 //!
-//! A paid skill carries its own terms on the runner it sells (D10): running it
+//! A paid skill carries its own terms on the method it sells (D10): running it
 //! is the purchase, and the kernel pays. Author terms describe the price of an
-//! ordinary skill runner. Registry listings bind those terms to immutable
+//! ordinary skill method. Registry listings bind those terms to immutable
 //! package identity and an authenticated seller. Protocol adapters, provider
 //! payloads, credentials, headers, settlement and SDKs stay outside this inert
 //! boundary.
@@ -401,13 +401,13 @@ pub struct PaidSkillOfferTerms {
     pub requires_lease: Option<RequiredLease>,
 }
 
-/// An exact execution package: the skill and runner, and the digests of the
+/// An exact execution package: the skill and method, and the digests of the
 /// package and closure that run.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillExecutorBinding {
     pub skill: NonEmptyString,
-    pub runner: NonEmptyString,
+    pub method: NonEmptyString,
     /// The execution package digest a run records (`runx.skill-package.v1`
     /// over the files a run loads), not the registry's digest of the
     /// published package files that a listing binds.
@@ -448,7 +448,7 @@ pub struct PaidSkillOffers(BTreeMap<String, PaidSkillMethodOffer>);
 
 impl PaidSkillOffers {
     pub fn new(value: BTreeMap<String, PaidSkillMethodOffer>) -> Option<Self> {
-        let valid_names = value.keys().all(|runner| !runner.is_empty());
+        let valid_names = value.keys().all(|method| !method.is_empty());
         (valid_names && (1..=64).contains(&value.len())).then_some(Self(value))
     }
 }

@@ -6,7 +6,7 @@ use runx_parser::{
 
 /// One method named `main` with the given steps (each line indented for a
 /// step list item).
-fn runner(steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
+fn method(steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
     method_with("", steps)
 }
 
@@ -20,16 +20,16 @@ fn method_with(extra: &str, steps: &str) -> Result<runx_parser::SkillMethodDefin
         .ok_or_else(|| "method main is missing".to_owned())
 }
 
-fn only_step(runner: &runx_parser::SkillMethodDefinition) -> &runx_parser::WorkflowStep {
-    &runner.graph.steps[0]
+fn only_step(method: &runx_parser::SkillMethodDefinition) -> &runx_parser::WorkflowStep {
+    &method.graph.steps[0]
 }
 
 #[test]
 fn a_process_tool_parses_its_command_and_input_mode() -> Result<(), String> {
-    let runner = runner(
+    let method = method(
         "      - id: run\n        tool: {command: node, args: [run.mjs], inputs_via: stdin}\n",
     )?;
-    let StepKind::Tool(ToolTarget::Process(process)) = &only_step(&runner).kind else {
+    let StepKind::Tool(ToolTarget::Process(process)) = &only_step(&method).kind else {
         return Err("expected a process tool".to_owned());
     };
     assert_eq!(process.command, "node");
@@ -40,10 +40,10 @@ fn a_process_tool_parses_its_command_and_input_mode() -> Result<(), String> {
 
 #[test]
 fn a_worker_tool_parses_a_portable_module() -> Result<(), String> {
-    let runner = runner(
+    let method = method(
         "      - id: run\n        tool: {module: domain/workflow.mjs, export: execute, timeout_seconds: 30}\n",
     )?;
-    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&runner).kind else {
+    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&method).kind else {
         return Err("expected a worker tool".to_owned());
     };
     assert_eq!(worker.module, "domain/workflow.mjs");
@@ -54,10 +54,10 @@ fn a_worker_tool_parses_a_portable_module() -> Result<(), String> {
 
 #[test]
 fn a_worker_declares_exact_required_and_optional_environment() -> Result<(), String> {
-    let runner = runner(
+    let method = method(
         "      - id: run\n        tool:\n          module: domain.mjs\n          environment:\n            required: [NITROSEND_ACCOUNT_ID, REGION]\n            optional: [TRACE_LABEL]\n",
     )?;
-    let environment = runner.environment();
+    let environment = method.environment();
     assert_eq!(environment.required, ["NITROSEND_ACCOUNT_ID", "REGION"]);
     assert_eq!(environment.optional, ["TRACE_LABEL"]);
     Ok(())
@@ -74,7 +74,7 @@ fn environment_rejects_duplicates_invalid_names_and_runtime_owned_names() {
             "      - id: run\n        tool:\n          module: domain.mjs\n          environment:\n            {environment}\n"
         );
         assert!(
-            runner(&steps).is_err(),
+            method(&steps).is_err(),
             "invalid environment passed: {environment}"
         );
     }
@@ -82,11 +82,11 @@ fn environment_rejects_duplicates_invalid_names_and_runtime_owned_names() {
 
 #[test]
 fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
-    let runner = method_with(
+    let method = method_with(
         "    inputs:\n      archive_file: {type: string}\n      archive_base: {type: string}\n",
         "      - id: run\n        tool:\n          module: domain.mjs\n          paged_input:\n            path: archive_file\n            path_scope: archive_base\n            media_type: application/javascript\n            framing: json_array\n            page_bytes: 524288\n",
     )?;
-    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&runner).kind else {
+    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&method).kind else {
         return Err("expected a worker tool".to_owned());
     };
     let pages = worker.paged_input.as_ref().ok_or("pages were not parsed")?;
@@ -104,11 +104,11 @@ fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
 
 #[test]
 fn a_worker_parses_an_already_admitted_artifact_source() -> Result<(), String> {
-    let runner = method_with(
+    let method = method_with(
         "    inputs:\n      snapshot: {type: string}\n",
         "      - id: run\n        tool:\n          module: domain.mjs\n          paged_input:\n            artifact: snapshot\n            framing: json_array\n            page_bytes: 65536\n",
     )?;
-    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&runner).kind else {
+    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&method).kind else {
         return Err("expected a worker tool".to_owned());
     };
     let pages = worker.paged_input.as_ref().ok_or("pages were not parsed")?;
@@ -144,7 +144,7 @@ fn a_worker_rejects_ambiguous_or_reserved_page_inputs() {
         let steps = format!(
             "      - id: run\n        tool: {{module: domain.mjs, paged_input: {{{pages}}}}}\n"
         );
-        assert!(runner(&steps).is_err(), "invalid pages passed: {pages}");
+        assert!(method(&steps).is_err(), "invalid pages passed: {pages}");
     }
 }
 
@@ -160,33 +160,33 @@ fn a_worker_rejects_process_fields_escapes_and_bad_bounds() {
         "{args: [run.mjs]}",
     ] {
         let steps = format!("      - id: run\n        tool: {tool}\n");
-        assert!(runner(&steps).is_err(), "invalid tool passed: {tool}");
+        assert!(method(&steps).is_err(), "invalid tool passed: {tool}");
     }
 }
 
 #[test]
 fn an_agent_step_names_its_task() -> Result<(), String> {
-    let runner = runner(
+    let method = method(
         "      - id: decide\n        agent: decide-release\n        outputs: {decision: {type: string}}\n",
     )?;
     assert_eq!(
-        only_step(&runner).kind,
+        only_step(&method).kind,
         StepKind::Agent(AgentTask {
             task: "decide-release".to_owned(),
             allowance: Default::default(),
             connectors: Default::default(),
         })
     );
-    assert!(only_step(&runner).outputs.is_some());
+    assert!(only_step(&method).outputs.is_some());
     Ok(())
 }
 
 #[test]
 fn an_ask_step_yields_the_approval_decision_packet() -> Result<(), String> {
-    let runner = runner(
+    let method = method(
         "      - id: approve\n        ask: {gate: release.publish, reason: Approve this exact release., type: release}\n        inputs: {version: 1.2.3}\n",
     )?;
-    let step = only_step(&runner);
+    let step = only_step(&method);
     assert_eq!(
         step.kind,
         StepKind::Ask(AskGate {
@@ -247,12 +247,12 @@ fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
 
 #[test]
 fn a_method_result_defaults_to_its_last_step() -> Result<(), String> {
-    let runner = runner(
+    let method = method(
         "      - id: first\n        tool: {module: one.mjs}\n      - id: second\n        tool: {module: two.mjs}\n",
     )?;
-    assert_eq!(runner.graph.result_from, ["second"]);
+    assert_eq!(method.graph.result_from, ["second"]);
     // The graph carries its skill's identity, not the method's.
-    assert_eq!(runner.graph.name, "demo");
+    assert_eq!(method.graph.name, "demo");
     Ok(())
 }
 
@@ -279,7 +279,7 @@ fn a_step_declares_exactly_one_kind() {
         "      - id: run\n        tool: {module: one.mjs}\n        skill: ../other\n",
         "      - id: run\n        run: {type: javascript, module: one.mjs}\n",
     ] {
-        assert!(runner(step).is_err(), "step passed: {step}");
+        assert!(method(step).is_err(), "step passed: {step}");
     }
 }
 
@@ -380,7 +380,7 @@ fn only_an_act_reads_the_invokers_act() -> Result<(), String> {
 
 #[test]
 fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(), String> {
-    let child = runner(
+    let child = method(
         "      - id: child\n        skill: ./child\n        act: {purpose: $run.act.purpose}\n",
     )?;
     assert!(only_step(&child).act.is_some());
@@ -388,7 +388,7 @@ fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(),
         "      - id: note\n        tool: {module: note.mjs}\n        act: {purpose: Note}\n",
         "      - id: think\n        agent: draft\n        act: {purpose: Think}\n",
     ] {
-        let Err(error) = runner(steps) else {
+        let Err(error) = method(steps) else {
             return Err("only governed calls and child runs take an act".to_owned());
         };
         assert!(error.contains("act does not apply"), "{error}");

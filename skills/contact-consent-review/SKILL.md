@@ -22,7 +22,7 @@ unsubscribe or bounce data.
 
 The caller supplies one bounded engagement observation, the current consent
 observation, and the policy threshold that applies to the contact. The evidence
-must be marked `read` and versioned to the same ledger head that the runner
+must be marked `read` and versioned to the same ledger head that the method
 reads through the store's `events.read`. The read returns only the latest
 event, its ledger version and projection digest. Once a transition exists, its
 recorded state must agree with the caller observation; matching versions alone
@@ -74,7 +74,7 @@ Every result therefore keeps `downstream_send.status` at `not_run` and leaves
 
 If the ledger version changes before the decision, run again with a fresh read
 and fresh evidence. Reuse an idempotency key only for the identical transition.
-The runner deliberately makes no claim that a post-commit retry can recover
+The method deliberately makes no claim that a post-commit retry can recover
 from the old expected version; inspect the receipt and current ledger before
 deciding whether another operation is needed.
 

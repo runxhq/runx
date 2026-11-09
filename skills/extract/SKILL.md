@@ -17,7 +17,7 @@ deterministic; the model's interpretation is not claimed to be deterministic.
 
 ## Choose an input lane
 
-The default `extract` runner accepts `content`, `source_id`, `schema` and
+The default `extract` method accepts `content`, `source_id`, `schema` and
 `objective`. Use it when `web-fetch`, an artifact reader or an upstream operation
 has already collected the text. `source_id` identifies that document or capture;
 it does not trigger a network request or prove the URL is current.

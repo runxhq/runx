@@ -285,7 +285,7 @@ impl ReqwestHttpTransport {
     }
 }
 
-/// A harness case's exact HTTP exchanges, standing in for the world. A
+/// A test case's exact HTTP exchanges, standing in for the world. A
 /// request is answered by the exchanges whose method, URL and body match it
 /// exactly; one the case declares more than once is answered by those
 /// exchanges in the order they are declared, and the last answers every later
@@ -331,7 +331,7 @@ impl TestExchanges {
         let Some(&last) = matching.last() else {
             return Err(RuntimeHttpError::Transport {
                 message: format!(
-                    "the harness declares no exchange for {} {}",
+                    "the test declares no exchange for {} {}",
                     request.method.as_str(),
                     request.url
                 ),
@@ -369,7 +369,7 @@ impl TestExchanges {
         self.answered
             .lock()
             .map_err(|_| RuntimeHttpError::Transport {
-                message: "the harness exchange record is poisoned".to_owned(),
+                message: "the test exchange record is poisoned".to_owned(),
             })
     }
 }
@@ -405,7 +405,7 @@ fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String>
         // Verify against the compiled-in Mozilla root program instead of the
         // host trust store. The governed front then has one deterministic
         // trust surface everywhere it runs; a sandbox with no system CA
-        // bundle (hosted publish harness) behaves exactly like a developer
+        // bundle (hosted publish test) behaves exactly like a developer
         // laptop.
         .tls_certs_only(
             webpki_root_certs::TLS_SERVER_ROOT_CERTS

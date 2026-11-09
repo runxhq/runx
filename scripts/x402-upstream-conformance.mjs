@@ -18,7 +18,7 @@ const REQUIRED_ENV = [
   "SERVER_EVM_ADDRESS",
   "CLIENT_EVM_PRIVATE_KEY",
   "FACILITATOR_EVM_PRIVATE_KEY",
-  // The current upstream e2e runner checks these before applying the EVM-only filter.
+  // The current upstream e2e method checks these before applying the EVM-only filter.
   "SERVER_SVM_ADDRESS",
   "CLIENT_SVM_PRIVATE_KEY",
   "FACILITATOR_SVM_PRIVATE_KEY",
@@ -60,9 +60,9 @@ const report = {
   command,
   can_run: upstream.available && pinMatches && sourceVerification.matches && missingEnv.length === 0,
   notes: [
-    "This wraps the upstream x402 e2e runner; it does not patch or copy upstream protocol code into runx.",
+    "This wraps the upstream x402 e2e method; it does not patch or copy upstream protocol code into runx.",
     "The upstream mock-facilitator is startup-only and intentionally fails if /verify or /settle are called.",
-    "Use dedicated funded testnet wallets only; the upstream e2e runner may move funds between configured wallets.",
+    "Use dedicated funded testnet wallets only; the upstream e2e method may move funds between configured wallets.",
   ],
 };
 

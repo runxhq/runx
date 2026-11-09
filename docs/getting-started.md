@@ -6,7 +6,7 @@ checked-in `examples/hello-world` package so the commands stay tied to the repo.
 ## Prerequisites
 
 - Git and Node.js 20 or newer. Node supplies both npm for installing Runx and
-  the checked-in `hello-world` runner command.
+  the checked-in `hello-world` method command.
 - Rust 1.97 or newer only when building the CLI from source.
 - pnpm 10 or newer only when running repository checks.
 
@@ -115,7 +115,7 @@ runx verify <receipt-id> --json
 - Use `runx skill runx/skill-build build -i objective="Create a bounded
   documentation decision skill" -i target_dir=skills/docs-demo` to author a
   skill. Runx inspects the catalog, returns an exact agent/resume handoff
-  unless `--managed-agent` was explicitly authorized, and writes only the
+  unless `--drive` was explicitly authorized, and writes only the
   validated package. It never generates a placeholder module. The `skill-build`
   it uses is the one this release bundles, materialized into the runx home at
   `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing Runx

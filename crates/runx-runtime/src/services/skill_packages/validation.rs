@@ -19,7 +19,7 @@ use resources::{candidate_resource_usage, validate_architecture_resources};
 /// What validating a candidate package found.
 pub(super) struct CandidateValidation {
     pub(super) inspect: JsonObject,
-    pub(super) harness: JsonObject,
+    pub(super) test: JsonObject,
 }
 
 pub(super) fn validate_candidate(
@@ -42,12 +42,12 @@ pub(super) fn validate_candidate(
                 .and_then(serde_json::from_value::<JsonObject>)
                 .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
         })?;
-    let harness = if run_test {
+    let test = if run_test {
         run_candidate_test(repo_root, candidate, env, effects)?
     } else {
         skipped_test()
     };
-    Ok(CandidateValidation { inspect, harness })
+    Ok(CandidateValidation { inspect, test })
 }
 
 fn validate_architecture_identity(
@@ -68,7 +68,7 @@ fn validate_architecture_identity(
         ));
     }
     let manifest = manifest.ok_or_else(|| {
-        invalid_skill_change("an authored package requires an explicit runner manifest and catalog")
+        invalid_skill_change("an authored package requires an explicit method manifest and catalog")
     })?;
     let catalog = manifest.catalog.as_ref().ok_or_else(|| {
         invalid_skill_change("candidate catalog visibility must match the admitted identity")
@@ -95,7 +95,7 @@ fn run_candidate_test(
     let mut test_env = isolated_test_env(repo_root, env, receipt_stage.root());
     crate::services::merge_inferred_tool_roots(&mut test_env, candidate);
     install_candidate_closure(repo_root, candidate, &test_env)?;
-    let harness = crate::orchestrator::LocalOrchestrator::with_effects_and_environment(
+    let test = crate::orchestrator::LocalOrchestrator::with_effects_and_environment(
         effects.clone(),
         test_env,
     )
@@ -103,22 +103,22 @@ fn run_candidate_test(
         skill_path: candidate.to_path_buf(),
         receipt_dir: Some(receipt_stage.receipt_dir.clone()),
     })
-    .map_err(|error| invalid_skill_change(format!("native harness failed: {error}")))?;
-    if harness.status == "failed" {
+    .map_err(|error| invalid_skill_change(format!("native test failed: {error}")))?;
+    if test.status == "failed" {
         return Err(invalid_skill_change(format!(
-            "native harness failed: {}",
-            harness.assertion_errors.join("; ")
+            "native test failed: {}",
+            test.assertion_errors.join("; ")
         )));
     }
-    let encoded = serde_json::to_string(&harness)
-        .map_err(|source| RuntimeError::json("serializing package harness report", source))?;
+    let encoded = serde_json::to_string(&test)
+        .map_err(|source| RuntimeError::json("serializing package test report", source))?;
     serde_json::from_str(&encoded)
-        .map_err(|source| RuntimeError::json("projecting package harness report", source))
+        .map_err(|source| RuntimeError::json("projecting package test report", source))
 }
 
 /// The registry skills a candidate's closure names arrive as a publish's do:
 /// each read by its record from the registry the operator selects, and
-/// installed, verified, into the candidate's own project, where its harness
+/// installed, verified, into the candidate's own project, where its test
 /// reads them. A candidate naming none reads nothing.
 fn install_candidate_closure(
     repo_root: &Path,
@@ -205,16 +205,16 @@ fn validation_result_report(
     run_test: bool,
     result: Result<CandidateValidation, RuntimeError>,
 ) -> SkillValidation {
-    let (verdict, inspect, harness) = match result {
+    let (verdict, inspect, test) = match result {
         Ok(validation) => {
-            let verdict = if validation.harness.get("status").and_then(JsonValue::as_str)
+            let verdict = if validation.test.get("status").and_then(JsonValue::as_str)
                 == Some("skipped")
             {
                 SkillValidationVerdict::NeedsConsequentialTestApproval
             } else {
                 SkillValidationVerdict::Tested
             };
-            (verdict, validation.inspect, validation.harness)
+            (verdict, validation.inspect, validation.test)
         }
         Err(error) => (
             SkillValidationVerdict::ValidationFailed,
@@ -232,7 +232,7 @@ fn validation_result_report(
         resolved_path: resolved_path.into(),
         verdict,
         inspect,
-        harness,
+        test,
     }
 }
 

@@ -7,12 +7,12 @@ level of its `run.yaml`. The field is semver.
 
 Bump the version in the same commit as the change.
 
-- **Patch (`0.1.X`):** SKILL.md prompt tweaks, harness-case additions,
-  harness-fixture tightening, doc-only edits.
-- **Minor (`0.X.0`):** new runner, new input field, new output field,
-  new harness-case shape, backward-compatible output
+- **Patch (`0.1.X`):** SKILL.md prompt tweaks, test-case additions,
+  test-fixture tightening, doc-only edits.
+- **Minor (`0.X.0`):** new method, new input field, new output field,
+  new test-case shape, backward-compatible output
   extension.
-- **Major (`X.0.0`):** graph redefinition, runner renaming, input or
+- **Major (`X.0.0`):** graph redefinition, method renaming, input or
   output removal, any change that would break an existing caller's
   invocation shape.
 
@@ -28,7 +28,7 @@ Dogfood cycle 1 surfaced that skills had no version field, so the
 to the `oss/` submodule git sha. Sha-based tracking couples every
 skill's evolution to the monorepo commit pointer — fine for audit,
 useless for callers that need to know "does my pin of this skill
-include the pass-verdict harness case".
+include the pass-verdict test case".
 
 With an explicit `version:` field, callers can pin, detect drift,
 and reason about upstream changes without reading commit logs.

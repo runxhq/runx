@@ -63,7 +63,7 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
     assert_eq!(skill_json["requests"][0]["kind"], "turn");
 
     let test_fixture = write_sequential_workflow_smoke_test(&temp)?;
-    let harness = native_command()?
+    let test = native_command()?
         .args([
             "test",
             test_fixture.to_str().ok_or("non-utf8 test path")?,
@@ -72,8 +72,8 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
             "--json",
         ])
         .output()?;
-    assert_success(&harness)?;
-    let receipt = serde_json::from_slice::<serde_json::Value>(&harness.stdout)?;
+    assert_success(&test)?;
+    let receipt = serde_json::from_slice::<serde_json::Value>(&test.stdout)?;
     assert_eq!(receipt["schema"], "runx.receipt.v1");
     // Flat receipts carry no nested test state; a terminal seal is the
     // "sealed" signal, and this workflow closes cleanly.

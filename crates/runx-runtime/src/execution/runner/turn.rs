@@ -416,7 +416,7 @@ where
                 }
                 TurnTarget::Skill {
                     skill,
-                    runner: None,
+                    method: None,
                     bound: None,
                 } => allowance.named_skills().any(|listed| listed == skill),
                 TurnTarget::Skill { .. } => self.loaded_offers(target)?,
@@ -980,16 +980,16 @@ where
                 }
                 StepKind::Operation(target)
             }
-            TurnTarget::Skill { skill, runner, .. } => {
+            TurnTarget::Skill { skill, method, .. } => {
                 // `act` is never a skill input: it is why the skill is run.
                 act = inputs
                     .remove("act")
                     .map(|value| CallAct::parse(&value))
                     .transpose()?;
-                let target = match runner {
-                    Some(runner) => SkillTarget {
+                let target = match method {
+                    Some(method) => SkillTarget {
                         skill: skill.as_str().to_owned(),
-                        method: Some(runner.as_str().to_owned()),
+                        method: Some(method.as_str().to_owned()),
                     },
                     None => turn_skill_target(skill.as_str()),
                 };
@@ -1150,7 +1150,7 @@ where
     }
 
     /// The inputs a call's target declares, and whose they are: a catalog
-    /// tool's, or a child skill's runner's. An operation's input and an ask
+    /// tool's, or a child skill's method's. An operation's input and an ask
     /// declare none.
     fn declared_inputs(
         &self,
@@ -1173,14 +1173,14 @@ where
                 ..
             } => self
                 .bound_skill(step, bound)
-                .map(|loaded| ("runner", loaded.runner.inputs))
+                .map(|loaded| ("method", loaded.method.inputs))
                 .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
             TurnTarget::Skill { skill, .. } => load_step_skill(
                 self.scope.workflow_dir,
                 step,
                 StepSkillLoadOptions::of_run(options),
             )
-            .map(|loaded| ("runner", loaded.runner.inputs))
+            .map(|loaded| ("method", loaded.method.inputs))
             .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
             TurnTarget::Operation { .. } | TurnTarget::Ask | TurnTarget::Load => {
                 Ok(("call", BTreeMap::new()))
@@ -1248,7 +1248,7 @@ where
             &call.step,
             StepSkillLoadOptions::of_run(&self.scope.runtime.options),
         )?;
-        skill_descriptor(&name, loaded.description, &loaded.runner, target)
+        skill_descriptor(&name, loaded.description, &loaded.method, target)
     }
 
     /// The loads this turn completed, in order.
@@ -1403,7 +1403,7 @@ where
         })
     }
 
-    /// The skill a loaded runner's call runs: the package its load bound,
+    /// The skill a loaded method's call runs: the package its load bound,
     /// read from the project again and refused if it changed since, with the
     /// packages its closure binds for its child run to execute.
     fn bound_skill(
@@ -1415,12 +1415,12 @@ where
         let target = step.skill().ok_or_else(|| RuntimeError::StepMissingSkill {
             step_id: step.id.clone(),
         })?;
-        let runner = target
+        let method = target
             .method
             .as_deref()
             .ok_or_else(|| RuntimeError::InvalidRunStep {
                 step_id: step.id.clone(),
-                reason: "a loaded skill's call names its runner".to_owned(),
+                reason: "a loaded skill's call names its method".to_owned(),
             })?;
         let changed = |reason: String| RuntimeError::AuthorityDenied {
             verb: runx_contracts::AuthorityVerb::Execute,
@@ -1440,7 +1440,7 @@ where
         );
         let binding = crate::skill_package::verify_loaded_execution_binding(
             std::sync::Arc::clone(&package),
-            runner,
+            method,
             &options.env,
             Some(bound.package_digest.as_str()),
             Some(bound.closure_digest.as_str()),
@@ -1520,7 +1520,7 @@ where
             tools.push(self.skill_tool(
                 TurnTarget::Skill {
                     skill: skill.clone(),
-                    runner: None,
+                    method: None,
                     bound: None,
                 },
                 format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
@@ -1529,7 +1529,7 @@ where
         if allowance.rules().next().is_some() {
             tools.push(offered(
                 "load",
-                "Load a skill or connector the turn's catalog rules admit: {skill, runner?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its runners, each with its purpose and inputs; it binds the runner named, or the skill's only runner, and with no runner named a skill of several binds none, so read the manual and load again naming one. Each runner or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier, or a project package that reaches a connector this turn does not, waits on the person's trust."
+                "Load a skill or connector the turn's catalog rules admit: {skill, method?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its methods, each with its purpose and inputs; it binds the method named, or the skill's only method, and with no method named a skill of several binds none, so read the manual and load again naming one. Each method or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier, or a project package that reaches a connector this turn does not, waits on the person's trust."
                     .to_owned(),
                 load_schema()?,
                 TurnTarget::Load,
@@ -1707,9 +1707,9 @@ fn label(target: &TurnTarget) -> String {
         } => format!("operation {requirement}/{operation}"),
         TurnTarget::Skill {
             skill,
-            runner: Some(runner),
+            method: Some(method),
             ..
-        } => format!("skill {skill}#{runner}"),
+        } => format!("skill {skill}#{method}"),
         TurnTarget::Skill { skill, .. } => format!("skill {skill}"),
         TurnTarget::Ask => "ask".to_owned(),
         TurnTarget::Load => "load".to_owned(),
@@ -1816,22 +1816,22 @@ pub(super) fn operation_descriptor(
     ))
 }
 
-/// A child skill's tool: its runner's purpose (else the skill's description)
-/// and its runner's inputs, beside the act a skill call states.
+/// A child skill's tool: its method's purpose (else the skill's description)
+/// and its method's inputs, beside the act a skill call states.
 pub(super) fn skill_descriptor(
     name: &str,
     skill_description: Option<String>,
-    runner: &runx_parser::SkillMethodDefinition,
+    method: &runx_parser::SkillMethodDefinition,
     target: TurnTarget,
 ) -> Result<TurnTool, RuntimeError> {
     let describing =
         |message: String| RuntimeError::effect_state("describing a child skill", message);
-    let description = runner
+    let description = method
         .description
         .clone()
         .or(skill_description)
-        .unwrap_or_else(|| format!("Run the {} skill.", runner.name));
-    let mut input_schema = runx_contracts::call_input_schema(&runner.inputs)
+        .unwrap_or_else(|| format!("Run the {} skill.", method.name));
+    let mut input_schema = runx_contracts::call_input_schema(&method.inputs)
         .map_err(|error| describing(error.to_string()))?;
     if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {
         properties.insert(
@@ -1843,7 +1843,7 @@ pub(super) fn skill_descriptor(
     Ok(offered(name, description, input_schema, target))
 }
 
-/// What a load call names: `{skill, runner?}` or `{connector}`.
+/// What a load call names: `{skill, method?}` or `{connector}`.
 fn load_target(input: &JsonObject) -> Result<LoadTarget, String> {
     let text = |field: &str| -> Result<Option<String>, String> {
         input
@@ -1859,30 +1859,30 @@ fn load_target(input: &JsonObject) -> Result<LoadTarget, String> {
     };
     if let Some(field) = input
         .keys()
-        .find(|field| !["skill", "runner", "connector"].contains(&field.as_str()))
+        .find(|field| !["skill", "method", "connector"].contains(&field.as_str()))
     {
         return Err(format!(
-            "a load takes skill and runner, or connector, not {field}"
+            "a load takes skill and method, or connector, not {field}"
         ));
     }
-    match (text("skill")?, text("runner")?, text("connector")?) {
+    match (text("skill")?, text("method")?, text("connector")?) {
         (Some(skill), method, None) => Ok(LoadTarget::Skill { skill, method }),
         (None, None, Some(name)) => Ok(LoadTarget::Connector { name }),
         _ => {
-            Err("a load names a skill, with its runner if it wants one, or a connector".to_owned())
+            Err("a load names a skill, with its method if it wants one, or a connector".to_owned())
         }
     }
 }
 
-/// A loaded runner's tool name: its package, without its version, and its
-/// runner.
-pub(super) fn loaded_tool_name(package: &str, runner: &str) -> String {
+/// A loaded method's tool name: its package, without its version, and its
+/// method.
+pub(super) fn loaded_tool_name(package: &str, method: &str) -> String {
     let name = package.split_once('@').map_or(package, |(name, _)| name);
     let name = name.strip_prefix("skills/").unwrap_or(name);
-    format!("skill__{name}__{runner}")
+    format!("skill__{name}__{method}")
 }
 
-/// A load's input: a skill with an optional runner, or a connector by
+/// A load's input: a skill with an optional method, or a connector by
 /// name.
 fn load_schema() -> Result<JsonObject, RuntimeError> {
     let text = serde_json::json!({"type": "string", "minLength": 1});
@@ -1891,12 +1891,12 @@ fn load_schema() -> Result<JsonObject, RuntimeError> {
         "additionalProperties": false,
         "properties": {
             "skill": text,
-            "runner": text,
+            "method": text,
             "connector": text,
         },
         "oneOf": [
             {"required": ["skill"], "not": {"required": ["connector"]}},
-            {"required": ["connector"], "not": {"anyOf": [{"required": ["skill"]}, {"required": ["runner"]}]}},
+            {"required": ["connector"], "not": {"anyOf": [{"required": ["skill"]}, {"required": ["method"]}]}},
         ],
     }))
     .map_err(|source| RuntimeError::json("describing a load", source))

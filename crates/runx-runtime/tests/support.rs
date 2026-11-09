@@ -15,7 +15,7 @@ static FIXTURE_SIGNATURE: LazyLock<
     Result<RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError>,
 > = LazyLock::new(RuntimeReceiptSignatureConfig::fixture);
 
-/// The public fixture identity: what a replayed harness case seals under.
+/// The public fixture identity: what a replayed test case seals under.
 pub(crate) fn fixture_signature()
 -> Result<&'static RuntimeReceiptSignatureConfig, RuntimeReceiptSigningError> {
     FIXTURE_SIGNATURE.as_ref().map_err(Clone::clone)
@@ -187,7 +187,7 @@ pub(crate) fn read_test_signed_receipt(
         .read_exact(receipt_id, signature_config.signature_policy())?)
 }
 
-/// The graph receipt's first step receipt: where a one-step runner's act lives.
+/// The graph receipt's first step receipt: where a one-step method's act lives.
 pub(crate) fn read_test_first_step_receipt(
     receipt_dir: &Path,
     workflow_receipt: &Receipt,

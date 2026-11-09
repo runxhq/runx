@@ -57,7 +57,7 @@ presentation ceiling into a claim that the site itself is unsupported.
 
 ## Evidence comes first
 
-The supplied-evidence `analyze` runner accepts a bounded objective, the site, optional
+The supplied-evidence `analyze` method accepts a bounded objective, the site, optional
 business constraints, and any combination of:
 
 - search-performance evidence, such as a sealed

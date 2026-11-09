@@ -7,30 +7,30 @@ use super::SkillInspectionError;
 
 pub(super) fn inspect_method(
     manifest: &SkillMethodManifest,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
     examples: &[JsonObject],
 ) -> Result<MethodInspection, SkillInspectionError> {
     Ok(MethodInspection {
-        name: runner.name.clone(),
-        input_schema: runx_contracts::input_contract_schema_with_examples(&runner.inputs, examples),
-        schemas: runner
+        name: method.name.clone(),
+        input_schema: runx_contracts::input_contract_schema_with_examples(&method.inputs, examples),
+        schemas: method
             .schemas()
             .map_err(|error| SkillInspectionError::Json {
                 context: "digesting the method's schemas",
                 source: serde::ser::Error::custom(error),
             })?,
-        inputs: runner
+        inputs: method
             .inputs
             .iter()
             .map(|(name, input)| inspect_input(name, input))
             .collect(),
-        outputs: result_steps(runner)
+        outputs: result_steps(method)
             .filter_map(|step| step.outputs.as_ref())
             .flat_map(|outputs| outputs.iter())
             .map(|(name, declaration)| inspect_output(name, declaration))
             .collect(),
-        declared_result_packets: declared_result_packets(runner),
-        requirements: manifest.execution_requirements(runner),
+        declared_result_packets: declared_result_packets(method),
+        requirements: manifest.execution_requirements(method),
         connectors: if manifest.connectors.is_empty() {
             None
         } else {
@@ -48,7 +48,7 @@ pub(super) fn inspect_method(
 }
 
 fn declared_result_packets(
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
 ) -> BTreeMap<String, runx_contracts::PacketId> {
     let mut packets = BTreeMap::new();
     let mut conflicting = BTreeSet::new();
@@ -66,7 +66,7 @@ fn declared_result_packets(
             }
         }
     };
-    for artifacts in runner.result_artifacts() {
+    for artifacts in method.result_artifacts() {
         add(artifacts);
     }
     for name in conflicting {
@@ -75,15 +75,15 @@ fn declared_result_packets(
     packets
 }
 
-/// The steps whose outputs form the runner's public result.
+/// The steps whose outputs form the method's public result.
 fn result_steps(
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
 ) -> impl Iterator<Item = &runx_parser::WorkflowStep> {
-    runner
+    method
         .graph
         .steps
         .iter()
-        .filter(|step| runner.graph.result_from.contains(&step.id))
+        .filter(|step| method.graph.result_from.contains(&step.id))
 }
 
 fn inspect_input(name: &str, input: &SkillInput) -> InspectedInput {

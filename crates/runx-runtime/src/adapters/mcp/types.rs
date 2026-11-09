@@ -20,7 +20,7 @@ pub struct McpServerOptions {
 
 #[derive(Clone, Debug, Default)]
 pub struct McpServerExecutionOptions {
-    pub runner: Option<String>,
+    pub method: Option<String>,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub effects: RuntimeEffectRegistry,
@@ -104,7 +104,7 @@ impl PartialEq for McpTurnTool {
 pub struct McpServerSkillExecution {
     pub skill_path: PathBuf,
     pub skill_name: String,
-    pub runner: String,
+    pub method: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
     pub receipt_dir: Option<PathBuf>,

@@ -107,7 +107,7 @@ pub enum ResolutionRequest {
         #[serde(default, skip_serializing_if = "crate::schema::is_default")]
         resend: RetryResend,
     },
-    /// A call reached a paid runner and waits on the person's exact decision:
+    /// A call reached a paid method and waits on the person's exact decision:
     /// they answer `approved` and the method they pay with (`choice`).
     Purchase {
         id: NonEmptyString,
@@ -115,7 +115,7 @@ pub enum ResolutionRequest {
     },
 }
 
-/// What a person decides when a call reaches a paid runner: one
+/// What a person decides when a call reaches a paid method: one
 /// quote's exact offer version, seller and price, and each payment method
 /// that can pay it. The request's digest binds all of it, so an answer pays
 /// only this quote, before it expires.
@@ -124,7 +124,7 @@ pub enum ResolutionRequest {
 #[runx_schema(id = "runx.purchase_request.v1")]
 pub struct PurchaseRequest {
     pub skill: NonEmptyString,
-    pub runner: NonEmptyString,
+    pub method: NonEmptyString,
     pub offer_version: OfferVersionBinding,
     /// The execution package digest the purchase runs (`runx.skill-package.v1`
     /// over the files a run loads), not the registry's digest of the published
@@ -427,24 +427,24 @@ pub enum TurnTarget {
         requirement: NonEmptyString,
         operation: NonEmptyString,
     },
-    /// A child skill: one the allowance names, run by its default runner, or
-    /// one runner of a skill a load bound, run as the load bound it.
+    /// A child skill: one the allowance names, run by its default method, or
+    /// one method of a skill a load bound, run as the load bound it.
     Skill {
         skill: NonEmptyString,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        runner: Option<NonEmptyString>,
+        method: Option<NonEmptyString>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bound: Option<BoundClosure>,
     },
     /// The call's input is `{reason}`; the human approves or declines it.
     Ask,
-    /// The call's input is `{skill, runner?}` or `{connector}`: a package a
-    /// catalog rule admits, whose runners or operations the turn offers from
+    /// The call's input is `{skill, method?}` or `{connector}`: a package a
+    /// catalog rule admits, whose methods or operations the turn offers from
     /// then on.
     Load,
 }
 
-/// The exact package and execution closure a load bound for one runner.
+/// The exact package and execution closure a load bound for one method.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoundClosure {
@@ -452,9 +452,9 @@ pub struct BoundClosure {
     pub closure_digest: NonEmptyString,
 }
 
-/// A completed load's output: what it bound, a skill's manual and runners,
-/// and the calls it adds to the turn. A skill's load binds the runner it
-/// names, or the skill's only runner; one that binds none is a reading of the
+/// A completed load's output: what it bound, a skill's manual and methods,
+/// and the calls it adds to the turn. A skill's load binds the method it
+/// names, or the skill's only method; one that binds none is a reading of the
 /// skill, which binds no closure and so asks no trust.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -464,11 +464,11 @@ pub struct TurnLoad {
     /// A loaded skill's manual; none for a connector.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manual: Option<SkillManual>,
-    /// Every runner of a loaded skill, as a model chooses one, and whether
+    /// Every method of a loaded skill, as a model chooses one, and whether
     /// this load bound it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runners: Vec<LoadedMethod>,
-    /// One per bound runner, or per operation of a loaded connector, as the
+    pub methods: Vec<LoadedMethod>,
+    /// One per bound method, or per operation of a loaded connector, as the
     /// turn offers it from then on.
     pub tools: Vec<TurnTool>,
     /// Each connector what it bound reaches, at the exact manifest and
@@ -509,7 +509,7 @@ pub struct SkillManual {
     pub content: String,
 }
 
-/// One runner of a loaded skill, as a model chooses it.
+/// One method of a loaded skill, as a model chooses it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LoadedMethod {
@@ -522,7 +522,7 @@ pub struct LoadedMethod {
     pub bound: bool,
 }
 
-/// One input of a loaded skill's runner.
+/// One input of a loaded skill's method.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LoadedMethodInput {

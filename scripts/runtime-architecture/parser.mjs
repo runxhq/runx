@@ -31,20 +31,20 @@ export function checkCanonicalParserOwnership(findings) {
 
   const runtimeTestFixturePath = path.join(
     workspaceRoot,
-    "crates/runx-runtime/src/execution/harness/fixtures.rs",
+    "crates/runx-runtime/src/execution/test/fixtures.rs",
   );
   const runtimeTestFixture = existsSync(runtimeTestFixturePath)
     ? productionRustSource(readFileSync(runtimeTestFixturePath, "utf8"))
     : "";
   if (/pub\s+fn\s+parse_test_fixture|\bproject_parser_error\b|TestFixtureError::(?:Required|Empty|Invalid|UnknownReceiptField)/u.test(runtimeTestFixture)) {
-    findings.push(`${relative(runtimeTestFixturePath)} mirrors parser-owned harness parsing or diagnostics`);
+    findings.push(`${relative(runtimeTestFixturePath)} mirrors parser-owned test parsing or diagnostics`);
   }
   const runtimeConfigPath = path.join(workspaceRoot, "crates/runx-runtime/src/config.rs");
   const runtimeConfig = existsSync(runtimeConfigPath)
     ? productionRustSource(readFileSync(runtimeConfigPath, "utf8"))
     : "";
   if (/parse_yaml_document[\s\S]{0,240}manifest|manifest_text[\s\S]{0,240}JsonValue::Object/u.test(runtimeConfig)) {
-    findings.push(`${relative(runtimeConfigPath)} reparses runner profile manifests outside runx-parser`);
+    findings.push(`${relative(runtimeConfigPath)} reparses method profile manifests outside runx-parser`);
   }
   const runtimeLib = path.join(workspaceRoot, "crates/runx-runtime/src/lib.rs");
   const runtimeSource = existsSync(runtimeLib) ? readFileSync(runtimeLib, "utf8") : "";
@@ -92,7 +92,7 @@ export function checkCanonicalParserOwnership(findings) {
   }
 
   // The packet collector reads core identities from the Rust-generated root
-  // schemas, package packets as the native parser admits them, and runner
+  // schemas, package packets as the native parser admits them, and method
   // declarations as typed parser output.
   const packetCollectorPath = path.join(workspaceRoot, "scripts/collect-packets.ts");
   const packetCollector = existsSync(packetCollectorPath)
@@ -110,7 +110,7 @@ export function checkCanonicalParserOwnership(findings) {
     }
   }
   if (/\.raw\.document|\bcollectContracts\s*\(/u.test(packetCollector)) {
-    findings.push(`${relative(packetCollectorPath)} reparses raw runner manifests instead of using typed parser output`);
+    findings.push(`${relative(packetCollectorPath)} reparses raw method manifests instead of using typed parser output`);
   }
 
   for (const filePath of walk(path.join(workspaceRoot, "scripts"))) {
@@ -149,8 +149,8 @@ export function checkCanonicalParserOwnership(findings) {
   for (const filePath of rustFiles("crates")) {
     if (filePath.startsWith(`${parserRoot}${path.sep}`)) continue;
     const source = readFileSync(filePath, "utf8");
-    if (/runner\.raw\.get\(\s*"scopes"\s*\)|\bcollect_declared_scopes\b/u.test(source)) {
-      findings.push(`${relative(filePath)} reparses runner scopes instead of using parser-owned declared_scopes`);
+    if (/method\.raw\.get\(\s*"scopes"\s*\)|\bcollect_declared_scopes\b/u.test(source)) {
+      findings.push(`${relative(filePath)} reparses method scopes instead of using parser-owned declared_scopes`);
     }
     if (/source\.raw\.get\(\s*"allowed_tools"\s*\)/u.test(source)) {
       findings.push(`${relative(filePath)} reparses allowed_tools instead of using the typed invocation contract`);

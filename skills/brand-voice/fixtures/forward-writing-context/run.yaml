@@ -39,7 +39,7 @@ methods:
                 content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
                 source_uri: file:fixtures/architecture-evidence.txt
                 source_kind: local_file
-                provenance: {admitted_by: harness}
+                provenance: {admitted_by: test}
             index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
             validation: {status: pass, findings: []}
           brand_context: $steps.voice.brand_voice_packet

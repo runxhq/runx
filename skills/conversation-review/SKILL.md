@@ -62,7 +62,7 @@ question, marketing opportunity, or quoted code. A reply draft must answer only
 what the admitted thread supports and must not promise work already done.
 
 
-The `operate` runner composes the same review with the shared source and work
+The `operate` method composes the same review with the shared source and work
 interfaces. It consumes `runx.source_packet.v1`, preserves the source binding,
 and emits `runx.work_outcome.v1`. Its configured handoff routes may
 propose an exact reply, quoted coding intake, or ordinary follow-up. A missing

@@ -75,7 +75,7 @@ jobs:
           pnpm stress:runtime:mcp
           pnpm stress:runtime:process-tool
 
-      - name: Verify performance harness
+      - name: Verify performance test
         run: pnpm perf:test-check
 
       - name: Capture focused runtime performance evidence

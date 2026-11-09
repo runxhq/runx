@@ -18,10 +18,10 @@ use super::workflow_index::PriorRunIndex;
 
 #[derive(Clone)]
 pub(crate) struct LoadedStepSkill {
-    pub(crate) runner: SkillMethodDefinition,
+    pub(crate) method: SkillMethodDefinition,
     /// The package's version, as its `run.yaml` states it.
     pub(crate) version: Option<String>,
-    /// The offer the runner is sold under, when its package sells it.
+    /// The offer the method is sold under, when its package sells it.
     pub(crate) offer: Option<runx_contracts::PaidSkillOfferTerms>,
     pub(crate) requirements: runx_contracts::ExecutionRequirements,
     pub(crate) directory: PathBuf,
@@ -444,25 +444,25 @@ pub(crate) fn step_skill(
         .ok_or_else(|| RuntimeError::InvalidRunStep {
             step_id: step.id.clone(),
             reason: format!(
-                "sub-skill {} does not declare a run.yaml runner",
+                "sub-skill {} does not declare a run.yaml method",
                 package.directory.display()
             ),
         })?;
-    let runner = select_step_method(
+    let method = select_step_method(
         manifest,
         step.skill().and_then(|target| target.method.as_deref()),
     )?
     .clone();
-    let requirements = manifest.execution_requirements(&runner);
+    let requirements = manifest.execution_requirements(&method);
     let directory = package.directory.clone();
     let manual_path = package.package_root.join("SKILL.md");
     let manual_markdown = package.package.manual_markdown.clone().into();
     let manual_digest = package.package.manual_digest.clone();
-    let offer = runner.offer.clone();
+    let offer = method.offer.clone();
     let loaded = LoadedStepSkill {
         version: manifest.version.clone(),
         offer,
-        runner,
+        method,
         requirements,
         directory,
         description: package.package.skill.description.clone(),
@@ -483,12 +483,12 @@ pub(crate) fn step_skill(
     Ok(loaded)
 }
 
-/// The graph a purchase runs: one step that calls `runner` of `skill`, the
+/// The graph a purchase runs: one step that calls `method` of `skill`, the
 /// registry selector the skill was reached by, with the run's inputs. The
-/// step reaches a runner the registry sells, so the kernel buys it (S10).
-pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) -> Workflow {
+/// step reaches a method the registry sells, so the kernel buys it (S10).
+pub(crate) fn purchase_workflow(skill: &str, method: &str, inputs: &JsonObject) -> Workflow {
     Workflow {
-        name: format!("purchase {skill}#{runner}"),
+        name: format!("purchase {skill}#{method}"),
         result_from: vec![PURCHASE_STEP.to_owned()],
         outputs: None,
         effects: None,
@@ -497,7 +497,7 @@ pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) 
             id: PURCHASE_STEP.to_owned(),
             kind: StepKind::Skill(SkillTarget {
                 skill: skill.to_owned(),
-                method: Some(runner.to_owned()),
+                method: Some(method.to_owned()),
             }),
             artifacts: None,
             outputs: None,
@@ -633,17 +633,17 @@ pub(crate) fn select_step_method<'a>(
     manifest: &'a SkillMethodManifest,
     requested_method: Option<&str>,
 ) -> Result<&'a SkillMethodDefinition, RuntimeError> {
-    if let Some(runner) = requested_method {
-        return manifest.methods.get(runner).ok_or_else(|| {
+    if let Some(method) = requested_method {
+        return manifest.methods.get(method).ok_or_else(|| {
             RuntimeError::UnsupportedMethodSelection {
-                runner: runner.to_owned(),
+                method: method.to_owned(),
             }
         });
     }
     manifest
         .default_method()
         .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
-            runner: "default".to_owned(),
+            method: "default".to_owned(),
         })
 }
 

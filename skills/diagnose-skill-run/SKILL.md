@@ -1,6 +1,6 @@
 ---
 name: diagnose-skill-run
-description: Diagnose a failed or suspicious Runx skill execution from receipts and harness evidence, then propose the smallest bounded improvement without replaying the failed operation.
+description: Diagnose a failed or suspicious Runx skill execution from receipts and test evidence, then propose the smallest bounded improvement without replaying the failed operation.
 ---
 
 # Diagnose Skill Run
@@ -9,7 +9,7 @@ Diagnose what went wrong in a skill or graph execution and propose the
 smallest change that fixes it.
 
 The default resolves an exact `receipt_id` through native `receipt-query#read`, then combines its
-redacted receipt detail with the supplied failure summary or harness output.
+redacted receipt detail with the supplied failure summary or test output.
 The native detail is authoritative for status, verification, authority, acts,
 decisions, criterion status, references, and seal posture. It deliberately
 excludes raw execution bodies, stdout, stderr, credential values and context
@@ -46,7 +46,7 @@ Classify the failure:
   conditions or upstream output.
 - **Review rejection** — adversarial review found blocking issues.
   Fix: the code or spec, not the review process.
-- **Harness assertion** — fixture expectations did not match actual
+- **Test assertion** — fixture expectations did not match actual
   output. Fix: skill logic or stale fixture expectations.
 
 ## Composes
@@ -82,7 +82,7 @@ cause. Do not bundle unrelated improvements.
 
 The stable failure packet, `runx/diagnose-skill-run.diagnosis.v1`, is consumed directly by
 `skill-build improve`. Agents should self-validate before returning, and
-downstream consumers (notably the `skill-build improve` runner) may validate on
+downstream consumers (notably the `skill-build improve` method) may validate on
 receipt.
 
 - `verdict`: `pass`, `needs_update`, or `blocked`.
@@ -93,7 +93,7 @@ receipt.
   - `change`: what specifically to change
   - `rationale`: why this fixes the root cause
   - `risk`: what could go wrong
-- `next_harness_checks`: replayable checks that should pass after the fix.
+- `next_test_checks`: replayable checks that should pass after the fix.
 
 ## Inputs
 
@@ -107,10 +107,10 @@ replays the failed work.
 
 - `receipt_id`: exact receipt id to inspect.
 - `receipt_evidence`: completed `runx/receipt-query.answer.v1` to reuse.
-- `receipt_summary`: sanitized receipt or harness summary.
+- `receipt_summary`: sanitized receipt or test summary.
 - `receipt_details`: native redacted receipt projections for deterministic
   replay only; live runs resolve them from `receipt_id`.
-- `harness_output`: failed harness output or assertion text.
+- `test_output`: failed test output or assertion text.
 - `skill_path`: path to the skill being improved.
 - `receipt_rows`: native-projection rows for deterministic replay only; live
   runs resolve `receipt_id` from the configured receipt store.
@@ -118,19 +118,19 @@ replays the failed work.
 ## Agent task: diagnose-skill-run
 
 Return a `diagnosis` object with verdict, failure_summary, improvement_proposals
-and next_harness_checks. Optional `evidence` entries are exact source references;
+and next_test_checks. Optional `evidence` entries are exact source references;
 they are reviewer references, not self-authenticating proof. The deterministic
 finish preserves the existing diagnosis packet and its evidence posture.
 
-Diagnose one failure from native redacted receipt detail plus the supplied summary or harness
+Diagnose one failure from native redacted receipt detail plus the supplied summary or test
 output. Treat needs_agent or a deferred receipt as a healthy suspension unless another concrete
 failure signal exists. Ground authority, acts, decisions, criteria, and seal posture in
 receipt_evidence.receipt_details; treat caller summaries as supplemental evidence, never as a
 replacement for native facts. Distinguish input, scope, tool, schema, timeout, policy, review,
-and harness failures. If receipt_id was supplied but native evidence did not match it, return
-blocked unless the supplied harness output alone proves the defect. Return verdict, a concise
+and test failures. If receipt_id was supplied but native evidence did not match it, return
+blocked unless the supplied test output alone proves the defect. Return verdict, a concise
 failure_summary, at most three bounded improvement_proposals, and replayable
-next_harness_checks. Each proposal must name target, change, rationale, and risk. Do not write
+next_test_checks. Each proposal must name target, change, rationale, and risk. Do not write
 files or weaken a refusal.
 
 Read only what the question requires. Do not echo secret values from a retained

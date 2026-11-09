@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-//! A skill that stores an artifact, end to end through the harness: the
-//! kernel reads a ledger entry and sends its allocation to the harness's runx, which keeps the case
+//! A skill that stores an artifact, end to end through the test: the
+//! kernel reads a ledger entry and sends its allocation to the test's runx, which keeps the case
 //! principal's artifact space, and confirms it by reading the reference back.
 
 use std::collections::BTreeMap;

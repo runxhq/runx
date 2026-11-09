@@ -12,7 +12,7 @@ pub(crate) fn selected_method<'a>(
         return manifest
             .methods
             .get(name)
-            .ok_or_else(|| invalid(format!("runner {name} is not declared in the manifest")));
+            .ok_or_else(|| invalid(format!("method {name} is not declared in the manifest")));
     }
     manifest
         .default_method()

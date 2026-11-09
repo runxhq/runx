@@ -136,9 +136,9 @@ fn open(
     payload: serde_json::Value,
 ) -> ResolutionRequest {
     ResolutionRequest::Approval {
-        id: "run/develop/1".into(),
+        id: "run/write/1".into(),
         gate: Box::new(ApprovalGate {
-            id: "develop/1/gate".into(),
+            id: "write/1/gate".into(),
             reason: "Approve it".into(),
             gate_type: Some(gate_type.to_owned()),
             summary: serde_json::from_value(summary).ok(),

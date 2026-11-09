@@ -14,7 +14,7 @@ mod credential;
 mod doctor;
 mod drivers;
 mod export;
-mod harness;
+mod test;
 mod list;
 mod local_credential;
 mod locality;

@@ -11,12 +11,12 @@ use crate::kernel::operation::confirm::{Check, Driver};
 
 /// Run one store operation through the driver and return its result, with
 /// the readback the kernel would take of an append.
-struct Harness {
+struct Test {
     env: BTreeMap<String, String>,
     parameters: JsonObject,
 }
 
-impl Harness {
+impl Test {
     fn workspace(root: &std::path::Path) -> Self {
         Self {
             env: BTreeMap::from([
@@ -31,11 +31,11 @@ impl Harness {
     }
 
     fn at(root: &std::path::Path, url: &str) -> Self {
-        let mut harness = Self::workspace(root);
-        harness
+        let mut test = Self::workspace(root);
+        test
             .parameters
             .insert("url".to_owned(), JsonValue::String(url.to_owned()));
-        harness
+        test
     }
 
     /// An append's `idempotency_key` here is the key the kernel would derive
@@ -123,7 +123,7 @@ fn append(key: &str, aggregate: &str, expected: u64, label: &str, at: &str) -> s
 }
 
 /// Every backend runs the same streams to the same digests.
-fn scenario(store: &Harness) -> Vec<String> {
+fn scenario(store: &Test) -> Vec<String> {
     let mut digests = Vec::new();
     let first = store
         .call(
@@ -264,13 +264,13 @@ fn scenario(store: &Harness) -> Vec<String> {
 #[test]
 fn the_workspace_store_keeps_streams_beside_the_kernel() {
     let root = tempfile::tempdir().unwrap();
-    scenario(&Harness::workspace(root.path()));
+    scenario(&Test::workspace(root.path()));
     let paths = crate::paths::RunxPaths::resolve(&BTreeMap::new(), root.path());
     assert!(paths.workspace_store().is_file());
 }
 
 /// What a store answers of the scenario's streams once they are written.
-fn reads(store: &Harness) -> Vec<JsonValue> {
+fn reads(store: &Test) -> Vec<JsonValue> {
     [
         (
             "events.read",
@@ -303,7 +303,7 @@ fn reads(store: &Harness) -> Vec<JsonValue> {
 #[test]
 fn a_version_1_sqlite_store_reads_as_it_did_after_its_migration() {
     let root = tempfile::tempdir().unwrap();
-    let store = Harness::workspace(root.path());
+    let store = Test::workspace(root.path());
     scenario(&store);
     let before = reads(&store);
     let path = crate::paths::RunxPaths::resolve(&BTreeMap::new(), root.path()).workspace_store();
@@ -330,7 +330,7 @@ fn a_version_1_sqlite_store_reads_as_it_did_after_its_migration() {
 fn a_sqlite_store_refuses_a_file_that_is_not_a_store() {
     let root = tempfile::tempdir().unwrap();
     crate::KernelStore::open(&root.path().join(".runx")).unwrap();
-    let store = Harness::at(
+    let store = Test::at(
         root.path(),
         &format!(
             "sqlite:{}",
@@ -355,7 +355,7 @@ fn a_sqlite_store_refuses_a_file_that_is_not_a_store() {
 #[test]
 fn a_store_url_never_carries_a_password() {
     let root = tempfile::tempdir().unwrap();
-    let store = Harness::at(root.path(), "postgres://app:secret@db.example/board");
+    let store = Test::at(root.path(), "postgres://app:secret@db.example/board");
     let refused = store
         .call(
             "projection.read",
@@ -376,13 +376,13 @@ fn a_store_url_never_carries_a_password() {
 #[test]
 fn every_backend_keeps_the_same_streams() {
     let root = tempfile::tempdir().unwrap();
-    let reference = scenario(&Harness::workspace(root.path()));
+    let reference = scenario(&Test::workspace(root.path()));
     for variable in ["RUNX_TEST_POSTGRES_URL", "RUNX_TEST_REDIS_URL"] {
         let Ok(url) = std::env::var(variable) else {
             continue;
         };
         let isolated = tempfile::tempdir().unwrap();
-        let store = Harness::at(isolated.path(), &url);
+        let store = Test::at(isolated.path(), &url);
         clear(&url);
         assert_eq!(scenario(&store), reference, "{variable}");
         // A version 1 store reads after its one migration as it read before.

@@ -44,7 +44,7 @@ for (const doc of ["LICENSE", "README.md"]) {
 
 const archivePath = path.join(outDir, archiveName);
 if (isWindows) {
-  // GitHub windows-latest runners ship 7-Zip preinstalled but not `zip`.
+  // GitHub windows-latest methods ship 7-Zip preinstalled but not `zip`.
   // Force the zip container with -tzip and run quietly with -bso0 -bsp0.
   execFileSync("7z", ["a", "-tzip", "-bso0", "-bsp0", archivePath, stem], {
     cwd: outDir,

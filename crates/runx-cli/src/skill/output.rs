@@ -339,7 +339,7 @@ fn compact_identity(object: &JsonObject) -> JsonObject {
         "outcome",
         "seal_reason",
         "skill_name",
-        "runner",
+        "method",
         "run_id",
         "receipt_id",
     ] {
@@ -494,7 +494,7 @@ fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<(
         writer,
         "  buys {}#{} from {seller} for {amount} {} minor units, quote expires {expires}",
         text("skill"),
-        text("runner"),
+        text("method"),
         text("currency"),
     )?;
     for method in purchase
@@ -1073,7 +1073,7 @@ mod tests {
             "id": "buy",
             "purchase": {
                 "skill": "acme/inbox",
-                "runner": "create",
+                "method": "create",
                 "amount_minor": 5,
                 "currency": "USD",
                 "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},

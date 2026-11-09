@@ -63,7 +63,7 @@ receipt-safe evidence.
 
 ## Procedure
 
-1. Require `url` at runner preflight. A missing target fails before the graph
+1. Require `url` at method preflight. A missing target fails before the graph
    starts with the exact missing input.
 2. Use `allowlist: ["*"]` when the caller omits it, meaning any publicly
    routable host. A caller-supplied allowlist narrows that default. Match the
@@ -87,7 +87,7 @@ receipt-safe evidence.
 
 ## Edge cases and stop conditions
 
-- **Missing `url`:** fail runner preflight; do not start or seal an empty fetch.
+- **Missing `url`:** fail method preflight; do not start or seal an empty fetch.
 - **Omitted `allowlist`:** use `["*"]`; private-network protection still applies.
 - **Host off the allowlist:** stop with `policy_denied` before any network call;
   record the attempted host, not a response body (there is none).

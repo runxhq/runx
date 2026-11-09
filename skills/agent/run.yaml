@@ -23,11 +23,11 @@ methods:
           summary:
             type: string
             description: What the turn did and found, what is still open, and what waits on the person.
-  develop:
+  write:
     description: Work a turn that may also change the workspace, editing and writing files and running commands, as the turn's effects allow.
     steps:
-      - id: develop
-        agent: develop
+      - id: write
+        agent: write
         calls:
           tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect, fs.edit, fs.write, fs.apply_bundle, command.execute]
           operations: [web/page.read, exa/search.query]

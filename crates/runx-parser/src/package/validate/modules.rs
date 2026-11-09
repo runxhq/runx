@@ -82,7 +82,7 @@ fn is_package_module(path: &str, source: &SkillPackageSource) -> bool {
     }
     if path
         .split('/')
-        .any(|segment| matches!(segment, "fixtures" | "harness" | "tests" | "tools"))
+        .any(|segment| matches!(segment, "fixtures" | "test" | "tests" | "tools"))
     {
         return false;
     }

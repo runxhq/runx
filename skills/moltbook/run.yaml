@@ -501,7 +501,7 @@ methods:
             channel: moltbook
             submolt: agents
             title: How to move a Runx skill into a package root
-            body: Package-rooted skills make inspection and harness verification explicit.
+            body: Package-rooted skills make inspection and test verification explicit.
             claims:
               - claim: Package-rooted skills are the migration subject.
                 source_ids: [changelog_1]

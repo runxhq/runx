@@ -39,9 +39,9 @@ struct ClosureAccumulator {
     /// Every package the closure binds, as it was loaded, by its canonical
     /// directory.
     packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
-    /// Every runner the closure binds, by its package's directory: where a run
+    /// Every method the closure binds, by its package's directory: where a run
     /// may admit an operation.
-    runners: BTreeSet<(PathBuf, String)>,
+    methods: BTreeSet<(PathBuf, String)>,
     profiles: BTreeSet<String>,
     environment_required: BTreeSet<String>,
     environment_optional: BTreeSet<String>,
@@ -93,7 +93,7 @@ pub(crate) struct LocalSkillEdge {
 
 #[derive(Default)]
 pub(crate) struct LocalExecutionClosure {
-    /// Each package the closure runs, with the packets its runners declare.
+    /// Each package the closure runs, with the packets its methods declare.
     pub packages: BTreeMap<PathBuf, BTreeSet<runx_contracts::PacketId>>,
     pub skill_edges: BTreeSet<LocalSkillEdge>,
     /// Every registry ref those packages name.
@@ -122,7 +122,7 @@ struct ExecutionClosure {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 struct ExecutionPackageBinding {
     skill: String,
-    runner: String,
+    method: String,
     package_digest: String,
     source_kind: ExecutionPackageSourceKind,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -154,7 +154,7 @@ struct InputPacketSchemaBinding {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 struct DirectExternalSkillEdge {
     skill: String,
-    runner: String,
+    method: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -197,7 +197,7 @@ pub(super) fn inspect_execution_closures(
         .collect()
 }
 
-/// What a run of a runner admits: the closure of `loaded`'s runner
+/// What a run of a method admits: the closure of `loaded`'s method
 /// `method_name`, every package it binds as it was loaded, by canonical
 /// directory, who each is, by package root, with each signature verified
 /// against its exact bytes, and the root of each `project:<name>` it binds
@@ -227,7 +227,7 @@ pub(super) fn inspect_method_execution_closure(
     Ok((serialize_closure(closure)?, packages, identities, projects))
 }
 
-/// Every runner the closure of `loaded`'s runner `method_name` binds, its
+/// Every method the closure of `loaded`'s method `method_name` binds, its
 /// child skills' included, with the package each runs from. A registry child
 /// the project does not hold is left out, as the closure reports it.
 pub(super) fn inspect_method_closure_methods(
@@ -239,13 +239,13 @@ pub(super) fn inspect_method_closure_methods(
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let closure = inspector.inspect_root_method_accumulator(method_name)?;
     Ok(closure
-        .runners
+        .methods
         .iter()
-        .filter_map(|(directory, runner)| {
+        .filter_map(|(directory, method)| {
             closure
                 .packages
                 .get(directory)
-                .map(|package| (Arc::clone(package), runner.clone()))
+                .map(|package| (Arc::clone(package), method.clone()))
         })
         .collect())
 }
@@ -282,11 +282,11 @@ pub(super) fn inspect_local_execution_closure(
 
 /// What a test runs: one of its package's methods.
 pub(crate) enum CaseClosureTarget<'a> {
-    Runner(&'a str),
+    Method(&'a str),
 }
 
-/// Every connector a harness case's run binds, each as the package that
-/// declares it resolves it: the whole closure of the case's runner or graph,
+/// Every connector a test case's run binds, each as the package that
+/// declares it resolves it: the whole closure of the case's method or graph,
 /// its registry children materialized into the case's project as the run
 /// materializes them. A child no registry holds is the run's to refuse.
 pub(super) fn case_closure_connectors(
@@ -297,7 +297,7 @@ pub(super) fn case_closure_connectors(
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let closure = match target {
-        CaseClosureTarget::Runner(runner) => inspector.inspect_root_method_accumulator(runner)?,
+        CaseClosureTarget::Method(method) => inspector.inspect_root_method_accumulator(method)?,
     };
     Ok(closure.connector_bindings.into_values().collect())
 }
@@ -320,14 +320,14 @@ fn load_rule_label(rule: &runx_contracts::CatalogRule) -> String {
     }
 }
 
-/// The registry refs a package's runners and harness graphs name that the
+/// The registry refs a package's methods and test graphs name that the
 /// environment's project does not hold: what is fetched into it before the
 /// package's closure can be bound.
 pub(super) fn unheld_registry_refs(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
 ) -> Result<BTreeSet<String>, SkillInspectionError> {
-    // An unresolved edge reads `<ref>#<runner>`.
+    // An unresolved edge reads `<ref>#<method>`.
     Ok(closure_accumulators(loaded, env)?
         .into_iter()
         .flat_map(|accumulator| {
@@ -347,7 +347,7 @@ pub(super) fn unheld_registry_refs(
         .collect())
 }
 
-/// Every registry ref a package's runners and harness graphs name, through
+/// Every registry ref a package's methods and test graphs name, through
 /// the children `env`'s project holds: the registry skills a run of it in
 /// that project reads.
 pub(super) fn closure_registry_refs(
@@ -360,7 +360,7 @@ pub(super) fn closure_registry_refs(
         .collect())
 }
 
-/// The closure of each of a package's runners and harness graphs, walked in
+/// The closure of each of a package's methods and test graphs, walked in
 /// `env`, with registry refs it does not hold reported.
 fn closure_accumulators(
     loaded: Arc<LoadedSkillPackage>,
@@ -643,7 +643,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             .entry(skill_directory.clone())
             .or_insert_with(|| loaded.clone());
         walk.closure
-            .runners
+            .methods
             .insert((skill_directory.clone(), method_name.clone()));
         let scope = self.connector_scope(&package_root)?;
         for (key, requirement) in loaded
@@ -682,14 +682,14 @@ impl<'a> ExecutionClosureInspector<'a> {
                 walk.closure.connector_bindings.insert(binding, connector);
             }
         }
-        let runner = loaded
+        let method = loaded
             .manifest()
             .and_then(|manifest| manifest.methods.get(&method_name))
             .ok_or_else(|| SkillInspectionError::SubSkillNamedMethodMissing {
                 path: loaded.directory.clone(),
-                runner: method_name.clone(),
+                method: method_name.clone(),
             })?;
-        let mut input_packet_ids = crate::packet_schemas::declared_input_packet_ids(&runner.inputs);
+        let mut input_packet_ids = crate::packet_schemas::declared_input_packet_ids(&method.inputs);
         for package_tool in loaded.package.tools.values() {
             input_packet_ids.extend(crate::packet_schemas::declared_input_packet_ids(
                 &package_tool.tool.inputs,
@@ -702,7 +702,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     .resolved_input_packet_schemas
                     .get(&packet)
                     .ok_or_else(|| SkillInspectionError::ClosureInvalid {
-                        runner: method_name.clone(),
+                        method: method_name.clone(),
                         problem: "omitted an admitted input packet schema",
                     })?;
                 Ok(InputPacketSchemaBinding {
@@ -715,7 +715,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             .package_bindings
             .insert(ExecutionPackageBinding {
                 skill: loaded.package.skill.name.clone(),
-                runner: method_name.clone(),
+                method: method_name.clone(),
                 package_digest: loaded.package.package_digest.clone(),
                 source_kind: if materialize_local {
                     ExecutionPackageSourceKind::SourceRoot
@@ -728,7 +728,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             });
         if materialize_local {
             let packet_ids = walk.closure.local_packages.entry(package_root).or_default();
-            packet_ids.extend(crate::packet_schemas::declared_method_packet_ids(runner));
+            packet_ids.extend(crate::packet_schemas::declared_method_packet_ids(method));
             for package_tool in loaded.package.tools.values() {
                 packet_ids.extend(crate::packet_schemas::declared_tool_packet_ids(
                     &package_tool.tool,
@@ -746,7 +746,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 edge_depth,
                 materialize_local,
             },
-            &runner.graph,
+            &method.graph,
             walk,
         )?;
         Ok(())
@@ -1050,13 +1050,13 @@ fn record_direct_external_skill_edge(
         if !nested.canonical_directory.starts_with(package_root) {
             edges.insert(DirectExternalSkillEdge {
                 skill: nested.loaded.package.skill.name.clone(),
-                runner: nested.method_name.clone(),
+                method: nested.method_name.clone(),
             });
         }
     } else if let Some(skill) = static_external_name {
         edges.insert(DirectExternalSkillEdge {
             skill,
-            runner: step
+            method: step
                 .skill()
                 .and_then(|target| target.method.as_deref())
                 .unwrap_or("default")
@@ -1125,7 +1125,7 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
     })
 }
 
-/// The digest of what a closure binds: each package and runner, each
+/// The digest of what a closure binds: each package and method, each
 /// connector's manifest and implementation, and each edge left unresolved.
 /// runx's version is left out, so a person's trust in a closure and a closure
 /// pinned elsewhere survive an upgrade.
@@ -1138,7 +1138,7 @@ fn execution_closure_digest(
     canonical.extend_from_slice(b"runx.execution-closure.v1\0");
     for binding in package_bindings {
         append_digest_field(&mut canonical, binding.skill.as_bytes());
-        append_digest_field(&mut canonical, binding.runner.as_bytes());
+        append_digest_field(&mut canonical, binding.method.as_bytes());
         append_digest_field(&mut canonical, binding.package_digest.as_bytes());
         for packet in &binding.input_packet_schemas {
             append_digest_field(&mut canonical, packet.packet.as_str().as_bytes());
@@ -1234,7 +1234,7 @@ mod tests {
         let package = digest("a")?;
         let packages = [ExecutionPackageBinding {
             skill: "notes".to_owned(),
-            runner: "jot".to_owned(),
+            method: "jot".to_owned(),
             package_digest: package.as_str().to_owned(),
             source_kind: ExecutionPackageSourceKind::SourceRoot,
             input_packet_schemas: Vec::new(),

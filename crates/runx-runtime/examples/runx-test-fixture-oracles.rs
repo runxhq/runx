@@ -1,5 +1,5 @@
 // Module rationale: this binary is the fixture oracle transaction:
-// it replays harness fixtures, signs canonical receipts, and compares committed
+// it replays test fixtures, signs canonical receipts, and compares committed
 // root/step oracles in one reviewable regeneration boundary.
 use std::error::Error;
 use std::ffi::OsString;
@@ -14,7 +14,7 @@ use runx_contracts::Receipt;
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
 };
-use runx_runtime::harness::{TestFixtureCase, list_cases};
+use runx_runtime::test::{TestFixtureCase, list_cases};
 use runx_runtime::{TestReplayOutput, replay_test_fixture, run_test_fixture};
 
 fn main() -> ExitCode {
@@ -48,7 +48,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     if failed {
         Err(Box::new(MessageError(
-            "one or more harness fixture oracles are stale".to_owned(),
+            "one or more test fixture oracles are stale".to_owned(),
         )))
     } else {
         Ok(())
@@ -58,8 +58,8 @@ fn run() -> Result<(), Box<dyn Error>> {
 fn process_fixture(cli: &Cli, fixture: &TestFixtureCase) -> Result<FixtureSummary, Box<dyn Error>> {
     let started = Instant::now();
     let fixture_path = cli.repo_root.join(fixture.fixture_path);
-    // The case runs the tools `runx harness` runs, so the oracles are what
-    // `runx harness` seals. Writing regenerates the expectations this run
+    // The case runs the tools `runx test` runs, so the oracles are what
+    // `runx test` seals. Writing regenerates the expectations this run
     // produces, so it replays the case without asserting them; checking
     // asserts them all.
     let replay = if cli.write {
@@ -152,7 +152,7 @@ fn process_receipt(cli: &Cli, checked: &CheckedReceipt<'_>) -> Result<bool, Box<
         Ok(contents) => contents,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             write_stderr_line(&format!(
-                "missing harness oracle {}",
+                "missing test oracle {}",
                 cli.relative(&checked.oracle_path).display()
             ))?;
             return Ok(true);
@@ -162,7 +162,7 @@ fn process_receipt(cli: &Cli, checked: &CheckedReceipt<'_>) -> Result<bool, Box<
 
     if expected != canonical {
         write_stderr_line(&format!(
-            "stale harness oracle {}",
+            "stale test oracle {}",
             cli.relative(&checked.oracle_path).display()
         ))?;
         Ok(true)
@@ -295,7 +295,7 @@ impl Cli {
         while let Some(arg) = args.next() {
             let token = arg
                 .to_str()
-                .ok_or_else(|| MessageError("harness oracle arguments must be UTF-8".to_owned()))?;
+                .ok_or_else(|| MessageError("test oracle arguments must be UTF-8".to_owned()))?;
             match token {
                 "--write" | "--generate" => write = true,
                 "--check" => check = true,
@@ -311,7 +311,7 @@ impl Cli {
                 }
                 _ => {
                     return Err(Box::new(MessageError(format!(
-                        "unknown harness oracle argument {token}\n{}",
+                        "unknown test oracle argument {token}\n{}",
                         usage()
                     ))));
                 }

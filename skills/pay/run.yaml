@@ -242,7 +242,7 @@ methods:
         maxLength: 2048
       payment_id:
         type: string
-        description: Durable payment reference returned by the settle runner.
+        description: Durable payment reference returned by the settle method.
         minLength: 1
         maxLength: 300
     result_from:

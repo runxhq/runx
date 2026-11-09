@@ -15,7 +15,7 @@
 //! state.
 //!
 //! A nested skill step is a child run: its own stream, keyed
-//! `<parent>/<step>`, that names its parent step. A harness evaluation is a
+//! `<parent>/<step>`, that names its parent step. A test evaluation is a
 //! run of its own that is never resumed or listed.
 //!
 //! While a run waits on an agent act, each call the agent makes is a `call`
@@ -109,7 +109,7 @@ pub(crate) struct Started {
     pub skill: String,
     /// The path the skill was loaded from, for `runx resume`.
     pub skill_path: String,
-    pub runner: String,
+    pub method: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
     /// Blob: the run's inputs.
@@ -127,7 +127,7 @@ pub(crate) struct Started {
     /// The operator context the run was prepared with, held for every pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prepared: Option<crate::execution::prepared_skill::PreparedContext>,
-    /// The registry reference the run buys, when its runner is one the
+    /// The registry reference the run buys, when its method is one the
     /// registry sells: the kernel buys it rather than run it (S10).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purchase: Option<String>,
@@ -148,7 +148,7 @@ pub(crate) struct ChildStarted {
     pub created_at: String,
 }
 
-/// A harness evaluation: a fixture run against its target, never resumed.
+/// A test evaluation: a fixture run against its target, never resumed.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct EvaluationStarted {
@@ -180,7 +180,7 @@ struct StepEvent {
 struct RecordedStep {
     skill: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    runner: Option<String>,
+    method: Option<String>,
     contract: JsonObject,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     artifact_outputs: BTreeSet<String>,
@@ -716,7 +716,7 @@ impl RunLog {
         let event = Started {
             skill: started.skill.to_owned(),
             skill_path: started.skill_path.to_owned(),
-            runner: started.runner.to_owned(),
+            method: started.method.to_owned(),
             package_digest: started.package_digest.to_owned(),
             execution_closure_digest: started.execution_closure_digest.to_owned(),
             inputs: inputs.digest().to_owned(),
@@ -733,7 +733,7 @@ impl RunLog {
         self.append_first(RunEvent::Started(Box::new(event)), blobs)
     }
 
-    /// Start a harness evaluation: the run a fixture replays against its
+    /// Start a test evaluation: the run a fixture replays against its
     /// target. It is recorded like any run, and never resumed or listed.
     pub fn evaluation(
         store: Arc<KernelStore>,
@@ -799,7 +799,7 @@ impl RunLog {
     ) -> Result<(), RunRecordError> {
         let record = Blob::json(&RecordedStep {
             skill: step.skill.clone(),
-            runner: step.runner.clone(),
+            method: step.method.clone(),
             contract: step.contract.clone(),
             artifact_outputs: step.artifact_outputs.clone(),
             outcome: step.outcome.clone(),
@@ -1022,7 +1022,7 @@ impl RunLog {
             CallOutcome::Completed(step) => {
                 let record = Blob::json(&RecordedStep {
                     skill: step.skill.clone(),
-                    runner: step.runner.clone(),
+                    method: step.method.clone(),
                     contract: step.contract.clone(),
                     artifact_outputs: step.artifact_outputs.clone(),
                     outcome: step.outcome.clone(),
@@ -1220,7 +1220,7 @@ impl RunLog {
 pub(crate) struct StartRequest<'a> {
     pub skill: &'a str,
     pub skill_path: &'a str,
-    pub runner: &'a str,
+    pub method: &'a str,
     pub package_digest: &'a str,
     pub execution_closure_digest: &'a str,
     pub inputs: &'a JsonObject,
@@ -1656,7 +1656,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
         step_id: event.step_id,
         attempt: event.attempt,
         skill: record.skill,
-        runner: record.runner,
+        method: record.method,
         contract: record.contract,
         artifact_outputs: record.artifact_outputs,
         ephemeral_contract: Default::default(),
@@ -1968,7 +1968,7 @@ pub struct PausedRun {
     pub run_id: String,
     pub skill: String,
     pub skill_path: String,
-    pub runner: String,
+    pub method: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
     /// The registry reference the run buys, when it is a purchase.
@@ -2001,7 +2001,7 @@ pub fn paused_run(
         run_id: run_id.to_owned(),
         skill: started.skill,
         skill_path: started.skill_path,
-        runner: started.runner,
+        method: started.method,
         package_digest: started.package_digest,
         execution_closure_digest: started.execution_closure_digest,
         purchase: started.purchase,
@@ -2030,7 +2030,7 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunListEntry>, R
     Ok(Some(RunListEntry {
         run_id: head.key.as_str().into(),
         skill: started.skill.into(),
-        runner: started.runner.into(),
+        method: started.method.into(),
         state,
         outcome,
         pending_request_id: pending_request_id.map(Into::into),

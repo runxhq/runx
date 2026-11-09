@@ -228,7 +228,7 @@ where
     })
 }
 
-// A child skill always runs its runner's graph, nested under this step, with
+// A child skill always runs its method's graph, nested under this step, with
 // its declared inputs materialized from the step's.
 fn run_loaded_skill_step<A>(
     skill: LoadedStepSkill,
@@ -238,17 +238,17 @@ where
     A: SkillAdapter,
 {
     let inputs = crate::input_contract::materialize_nested_method_inputs(
-        &skill.runner.inputs,
-        &skill.runner.input_constraints,
+        &skill.method.inputs,
+        &skill.method.input_constraints,
         &request.inputs,
     )
     .map_err(crate::input_contract::InputContractError::into_runtime_error)?;
-    // A runner the registry sells is bought from its seller, never run here.
+    // A method the registry sells is bought from its seller, never run here.
     if let Some(paid) = request.step.skill().and_then(|target| {
         crate::kernel::purchase::PaidMethod::reached(
             &target.skill,
             skill.version.as_deref(),
-            &skill.runner.name,
+            &skill.method.name,
             skill.offer.as_ref(),
         )
     }) {
@@ -264,7 +264,7 @@ where
                 step_id: request.step.id.clone(),
                 reason: format!(
                     "the run's effects are none, so it changes nothing: buying {}#{} is refused",
-                    paid.skill_id, paid.runner
+                    paid.skill_id, paid.method
                 ),
             });
         }
@@ -280,7 +280,7 @@ where
     run_nested_workflow_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
 }
 
-/// A call that reaches a runner the registry sells: the kernel buys it
+/// A call that reaches a method the registry sells: the kernel buys it
 /// (S10). The step's output is the purchase as its buyer reads it, and the
 /// act settles with the step's receipt.
 fn run_purchase_step<A>(
@@ -317,7 +317,7 @@ where
                 .options
                 .run_authority
                 .as_ref()
-                .and_then(|authority| authority.max_cost_micro),
+                .and_then(|authority| authority.max_spend_micro_usd),
             env: &runtime.options.env,
             cwd: workflow_dir,
             hosted: &hosted,
@@ -378,7 +378,7 @@ fn run_nested_workflow_skill_step<A>(
 where
     A: SkillAdapter,
 {
-    let skill_name = skill.runner.name.clone();
+    let skill_name = skill.method.name.clone();
     let admission_refs = request.admission_refs.clone();
     let run = execute_nested_workflow(
         request.runtime,
@@ -386,7 +386,7 @@ where
         NestedWorkflow {
             step: request.step,
             skill: &skill_name,
-            graph: skill.runner.graph,
+            graph: skill.method.graph,
             inputs: &request.inputs,
             act: request.child_act.as_ref(),
             provenance: &request.provenance,
@@ -712,7 +712,7 @@ where
         step_id: context.step.id.clone(),
         attempt: context.attempt,
         skill: context.skill_name,
-        runner: step_runner(context.step),
+        method: step_runner(context.step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
@@ -737,7 +737,7 @@ fn loaded_skill_or_load(
     )
 }
 
-/// The child runner a skill step names, if any.
+/// The child method a skill step names, if any.
 fn step_runner(step: &WorkflowStep) -> Option<String> {
     step.skill().and_then(|target| target.method.clone())
 }
@@ -922,7 +922,7 @@ fn seal_turn_step<A>(
         step_id: step.id.clone(),
         attempt,
         skill: skill_name,
-        runner: step_runner(step),
+        method: step_runner(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -1295,7 +1295,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill,
-        runner: step_runner(step),
+        method: step_runner(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
@@ -1587,7 +1587,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill: "ask".to_owned(),
-        runner: step_runner(step),
+        method: step_runner(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -1740,7 +1740,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill: "ask".to_owned(),
-        runner: step_runner(step),
+        method: step_runner(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -1934,7 +1934,7 @@ where
             .skill()
             .map_or(step.id.as_str(), |target| target.skill.as_str())
             .to_owned(),
-        runner: step_runner(step),
+        method: step_runner(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),

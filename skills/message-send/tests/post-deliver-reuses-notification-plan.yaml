@@ -12,7 +12,7 @@ inputs:
     send_plan: {decision: ready}
     provider_status: not_called
     delivery_status: not_sent
-    downstream_handoff: {skill: message-send, runner: post, state: ready_for_approval}
+    downstream_handoff: {skill: message-send, method: post, state: ready_for_approval}
     validation: {status: pass, findings: []}
   channel_locator: slack://T123/C456
   text: Release 0.8.2 is live.

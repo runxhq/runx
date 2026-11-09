@@ -138,7 +138,7 @@ pub(crate) struct HostedClient {
 }
 
 impl HostedClient {
-    /// A client over an injected transport: the harness and embedders
+    /// A client over an injected transport: the test and embedders
     /// verify the production path without live provider traffic.
     pub(crate) fn with_transport(transport: Transport) -> Self {
         Self {

@@ -1,6 +1,6 @@
 name: diagnose-supplemental-input-failure-without-ledger-scan
 inputs:
-  test_output: runner input 'captured_comparison' is not declared; from-snapshot accepts snapshot.
+  test_output: method input 'captured_comparison' is not declared; from-snapshot accepts snapshot.
   skill_path: skills/github-pr-review
 host:
   answers:

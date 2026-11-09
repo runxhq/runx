@@ -50,7 +50,7 @@ describe("native invocation and decoding", () => {
       schema: "runx.skill.inspect.v1", status: "ok", name: "agent-inbox", package_digest: `sha256:${"c".repeat(64)}`,
       execution_closure: {
         closure_digest: `sha256:${"d".repeat(64)}`, fully_bound: true,
-        package_bindings: [{ skill: "agent-inbox", runner: "create", package_digest: `sha256:${"c".repeat(64)}`, source_kind: "source_root", source_path: "/skill", source_files: ["SKILL.md"] }],
+        package_bindings: [{ skill: "agent-inbox", method: "create", package_digest: `sha256:${"c".repeat(64)}`, source_kind: "source_root", source_path: "/skill", source_files: ["SKILL.md"] }],
         ...(connectorBindings === undefined ? {} : { connector_bindings: connectorBindings }),
       },
     }) as never;
@@ -75,7 +75,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "history.json");
     const read = {
       schema: "runx.run_read.v1",
-      run: { run_id: "run_test", skill: "reply", runner: "reply", state: "paused", package_digest: "sha256:p", execution_closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
+      run: { run_id: "run_test", skill: "reply", method: "reply", state: "paused", package_digest: "sha256:p", execution_closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
       waiting: [{ address: "send.approval", request_digest: "sha256:r", request: { kind: "approval", id: "send.approval", gate: { id: "send.approval", reason: "send it" } } }],
       events: [{ stream: "run_test", version: 2, committed_at: "t1", event: { kind: "suspended", step_id: "send", attempt: 1, hold: { kind: "request", address: "send.approval", request_digest: "sha256:r" } } }],
       cursor: "-cursor_1",

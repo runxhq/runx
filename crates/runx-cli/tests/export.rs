@@ -952,7 +952,7 @@ fn rejects_public_package_without_standalone_proof() -> Result<(), Box<dyn std::
     .ok_or("package without standalone proof exported")?;
     assert!(
         error.to_string().contains(
-            "cannot export stage as an agent skill because its default runner has no sealed standalone invocation contract"
+            "cannot export stage as an agent skill because its default method has no sealed standalone invocation contract"
         ),
         "{error}"
     );
@@ -1002,7 +1002,7 @@ fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
         .arg("--json")
         .output()?;
     let inspected: Value = serde_json::from_slice(&inspected.stdout)?;
-    // Harness setup is not a public invocation example.
+    // Test setup is not a public invocation example.
     assert!(
         inspected["method"]["input_schema"]["examples"].is_null(),
         "{inspected}"

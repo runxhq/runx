@@ -81,7 +81,7 @@ export interface RunAuthority {
    * The most the run, child runs included, may spend, in integer micro-USD
    * (1 = $0.000001). A call over what is left is refused before it is sent.
    */
-  readonly max_cost_micro?: number;
+  readonly max_spend_micro_usd?: number;
 }
 
 export interface SkillRunOptions extends SkillInspectOptions {

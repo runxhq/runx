@@ -1,6 +1,6 @@
 # Developer Issue Inbox
 
-The runx developer inbox is a harness context queue, not another chat stream. Slack,
+The runx developer inbox is a run context queue, not another chat stream. Slack,
 Sentry, GitHub, file, and API adapters may submit source events, but every
 accepted event must become one `runx.receipt.v1` packet with an explicit
 state, dedupe digest, triage action, and source-thread locator.
@@ -33,21 +33,21 @@ The reusable policy packet is `runx.operational_policy.v1`
 (`operational-policy.schema.json`). Repo adapters can keep product-specific
 values such as Slack channel ids, Sentry projects, and owner names in their own
 config, but the shape is shared: allowed sources, actions, target repos,
-runners, owner routes, dedupe, source-thread publishing, outcomes, and
+methods, owner routes, dedupe, source-thread publishing, outcomes, and
 automation permissions are all explicit.
 
-Lint a policy before wiring it into a live runner. The `policy-draft` skill
+Lint a policy before wiring it into a live method. The `policy-draft` skill
 lints every policy it proposes with the native `policy.lint` tool, and any
 skill can call `policy.lint` itself. Parsing the policy proves the packet
-shape. Linting then checks that referenced runners and owner routes exist, that
-each target repo is covered by its owner route and runners, that source-thread
-publishing fails closed, and that an available runner can perform each action a
+shape. Linting then checks that referenced methods and owner routes exist, that
+each target repo is covered by its owner route and methods, that source-thread
+publishing fails closed, and that an available method can perform each action a
 target allows.
 
 `policy.lint` returns a `runx.policy.lint.v1` packet with a `pass` or `fail`
 status, the findings, and, when the policy parsed, a redacted readback for
 operator and admin displays. The readback shows source ids, locator counts,
-runner state, target repos, owner coverage, outcome settings and permissions.
+method state, target repos, owner coverage, outcome settings and permissions.
 It is safe to show to developers because it reports locator counts instead of
 raw Slack channels, Sentry projects, or provider thread locators.
 
@@ -57,11 +57,11 @@ Required policy fields:
   `api`, or `other`), locator allowlist, allowed actions, source-thread
   policy, optional confidence threshold, and provider-specific filters such as
   Sentry production/unresolved/regressed gates
-- `runners[]`: runner id, kind (`local`, `github-actions`, or another
+- `methods[]`: method id, kind (`local`, `github-actions`, or another
   product-defined identifier), availability state, allowed actions, target repos, and whether
   scafld is required
 - `owner_routes[]`: owner sets and the target repos they cover
-- `targets[]`: repo slug, allowed runners, allowed actions, default owner
+- `targets[]`: repo slug, allowed methods, allowed actions, default owner
   route, scafld requirement, and optional base branch
 - `dedupe`: strategy, key fields, and duplicate behavior
 - `outcomes`: provider observation, verification requirement, source issue
@@ -85,12 +85,12 @@ Non-trigger cases:
 - Sentry alerts below configured frequency or severity thresholds
 - reports missing a stable source locator or dedupe digest
 - ambiguous requests that need a human target decision
-- duplicate events already attached to an open harness
+- duplicate events already attached to an open run
 - source events whose configured source thread cannot be recovered
 
 ## Queue States
 
-Developer views should group by `harness_id` and show the next useful gate:
+Developer views should group by `run_id` and show the next useful gate:
 
 - needs triage: `accepted`, `hydrated`, `triaged`
 - needs evidence: `blocked`
@@ -123,7 +123,7 @@ Core can still enforce the policy shape. A PR-producing lane should require:
 - a source locator and source-thread locator
 - a dedupe digest
 - an allowed target repo
-- an available runner
+- an available method
 - a target repo that is scafld-ready when mutation is requested
 - an owner route for reviewer assignment
 - explicit human merge gate policy
@@ -135,7 +135,7 @@ Core can still enforce the policy shape. A PR-producing lane should require:
 - `code-plan`: bigger change, planning first
 - `github-issue-to-pr`: bounded fix, governed PR lane
 
-`github-issue-to-pr` must preserve the same `harness_context` packet through PR packaging
+`github-issue-to-pr` must preserve the same `run_context` packet through PR packaging
 and source-thread story updates. It must stop at the human merge gate.
 
 Pull-request outbox entries must include `metadata.dedupe` with the selected

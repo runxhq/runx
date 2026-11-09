@@ -25,14 +25,14 @@ credential redaction, and output evidence. Package JavaScript only validates the
 release profile and interprets the three release-specific provider states.
 
 Use `prepare` to execute the profile's preparation command and produce an
-evidence-bound release brief. Use the default `release` runner to approve the
+evidence-bound release brief. Use the default `release` method to approve the
 exact publish plan, execute it without a shell, then run a separate verification
 command. The publish command is refused if its normalized argv plan drifts after
 approval. Publication is never inferred from an agent answer or a zero exit code.
 
 For composed work already paused at publish approval, resume that same run ID.
 Its preparation, notes and command plans are reused. Starting another default run
-starts a fresh preparation. The separate `prepare` runner is an inspection/brief
+starts a fresh preparation. The separate `prepare` method is an inspection/brief
 workflow, not detached publication authority.
 
 ## Project profile

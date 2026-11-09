@@ -25,7 +25,7 @@ host:
           shared_invariants:
             - Use the canonical Runx authoring lane.
           success_criteria:
-            - The skill has focused harness proof.
+            - The skill has focused test proof.
         objective_summary: Add a new Runx operator skill.
         workspace_change_plan:
           plan_id: plan_new_skill
@@ -34,7 +34,7 @@ host:
           shared_invariants:
             - Use the canonical Runx authoring lane.
           success_criteria:
-            - The skill has focused harness proof.
+            - The skill has focused test proof.
           phases:
             - id: author-skill
               name: Author skill
@@ -42,7 +42,7 @@ host:
               parallelizable: false
               repo_change_requests: []
           integration_checks:
-            - Focused harness passes.
+            - Focused test passes.
           open_questions: []
         orchestration_steps:
           - id: generic-repo-change

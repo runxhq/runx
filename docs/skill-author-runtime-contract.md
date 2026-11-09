@@ -171,9 +171,9 @@ manifests retain the subprocess ABI below. The owning `SKILL.md` and any
 declared context-skill manuals provide operating judgment; tool schemas provide
 mechanics, not duplicate instructions.
 
-Provider calls need an explicit runner `operations: [requirement/operation]`
+Provider calls need an explicit method `operations: [requirement/operation]`
 list. Each entry must belong to the package's connector requirements. An omitted
-or empty list offers and admits no direct provider calls in that runner's agent
+or empty list offers and admits no direct provider calls in that method's agent
 turns. Connector requirements describe graph dependencies and the validation
 ceiling; they do not grant agent permissions. Static `operation` steps retain
 their declared behavior, and every provider call retains its existing grant,
@@ -188,12 +188,12 @@ TypeScript entrypoint, or path/name mismatch fails before execution or publish.
 
 ## Permission proof
 
-Runner and tool scopes are opaque exact strings. Native capabilities and
+Method and tool scopes are opaque exact strings. Native capabilities and
 provider operations declare the scopes they own, and the production dispatcher
 refuses invocation when the selected step does not declare them. The package
-harness uses that same catalog and dispatcher; a permission-bearing path should
+test uses that same catalog and dispatcher; a permission-bearing path should
 therefore include an admitted case and, where the owner is harnessable, a
-withheld-scope or withheld-grant case. There is no harness-only permission
+withheld-scope or withheld-grant case. There is no test-only permission
 evaluator or scope vocabulary.
 
 This is positive enforcement evidence for native capabilities and provider
@@ -259,7 +259,7 @@ conveniences only; payload size never removes the complete path transport.
 
 ## Stdin
 
-When `input_mode` is `stdin`, stdin receives the full input object as JSON and
+When `inputs_via` is `stdin`, stdin receives the full input object as JSON and
 then closes. Otherwise stdin closes without input.
 
 ## Working directory
@@ -308,10 +308,10 @@ stdout remains author output; the step parses object stdout into its declared
 outputs, but raw stdout and stderr remain visible.
 
 Output ownership is exact. Every result-producing step declares its typed
-outputs and packets. A runner declares neither runner-level `outputs` nor
-runner-level `artifacts`: the graph receipt proves the composition, while the
-runner's result steps (its last step unless `result_from` names others) own the
-result and its packet schema. If a runner needs one reusable result, add an
+outputs and packets. A method declares neither method-level `outputs` nor
+method-level `artifacts`: the graph receipt proves the composition, while the
+method's result steps (its last step unless `result_from` names others) own the
+result and its packet schema. If a method needs one reusable result, add an
 explicit package/finalize step instead of wrapping the graph trace in a second
 contract.
 

@@ -18,7 +18,7 @@ point, retry identity, and completion rule remain in Runx OSS. Any queue,
 team-specific routing rule, or durable action state belongs in a higher-level
 operator skill.
 
-## Runners
+## Methods
 
 `search` reads one bounded Slack search page. Supply a `query` object with at
 least one of `channel_id`, `author_external_id`, `mentions_external_id`,
@@ -71,7 +71,7 @@ not have the workspace id required by a canonical locator. The provider binding
 validates the permalink, binds it to the authenticated workspace identity, and
 returns the canonical `slack://workspace/channel/timestamp` locator. A reply
 permalink's `thread_ts` identifies the root; Slack's redundant `cid` must match
-the path channel. This runner requires only `thread.read`, never a search grant.
+the path channel. This method requires only `thread.read`, never a search grant.
 
 `read_file` reads one image attachment from an exact file locator returned by
 `read_thread`. It requires `file.read`, verifies the file through Slack,

@@ -202,7 +202,7 @@ fn server_options(
             "runx-cli",
             env!("CARGO_PKG_VERSION"),
             McpServerExecutionOptions {
-                runner: skill_ref.method.clone(),
+                method: skill_ref.method.clone(),
                 receipt_dir: plan.receipt_dir.clone(),
                 env: workspace.env().clone(),
                 effects: effects.clone(),

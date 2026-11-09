@@ -21,7 +21,7 @@ describe("the client against the native CLI", () => {
     const [cwd, projectDir, home] = ["workspace", "project", "home"].map((name) => path.join(root, name)) as [string, string, string];
     await Promise.all([cwd, projectDir, home].map((dir) => mkdir(dir)));
     const client = createRunxClient({ command: runxBinary, cwd, projectDir, home, environment: { PATH: process.env.PATH } });
-    const inspection = await client.skills.inspect({ skillPath: path.resolve("skills/agent"), method: "develop" });
-    expect(inspection.method?.name).toBe("develop");
+    const inspection = await client.skills.inspect({ skillPath: path.resolve("skills/agent"), method: "write" });
+    expect(inspection.method?.name).toBe("write");
   });
 });

@@ -18,7 +18,7 @@ pub enum TestExpectedStatus {
     Escalated,
 }
 
-/// One exact HTTP response available only while the native harness executes.
+/// One exact HTTP response available only while the native test executes.
 /// Production skill inputs and environment never carry this contract.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -29,7 +29,7 @@ pub struct TestHttpResponseFixture {
     pub body: String,
 }
 
-/// One exact HTTP request admitted only by deterministic harness execution.
+/// One exact HTTP request admitted only by deterministic test execution.
 /// Matching the method, URL, and JSON body lets a fixture distinguish multiple
 /// MCP operations that share one endpoint without weakening live transport.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -40,7 +40,7 @@ pub struct TestHttpRequestFixture {
     pub body: TestHttpRequestBodyFixture,
 }
 
-/// Exact body identity for a request-sensitive harness exchange. `none` is an
+/// Exact body identity for a request-sensitive test exchange. `none` is an
 /// absent body; `{ json: ... }` is one structural JSON value, including null;
 /// `{ text: ... }` is an exact UTF-8 wire body, including a form or XML.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -51,7 +51,7 @@ pub enum TestHttpRequestBodyFixture {
     Text { text: String },
 }
 
-/// One tool call the harness answers in place of an MCP server: the exact
+/// One tool call the test answers in place of an MCP server: the exact
 /// tool, arguments and session headers a call renders, and the result the
 /// server gives (`content`, `structuredContent`, `isError`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -65,7 +65,7 @@ pub struct TestMcpCallFixture {
     pub result: JsonObject,
 }
 
-/// One exact connector process-tool call answered by the native harness.
+/// One exact connector process-tool call answered by the native test.
 /// This fixture substitutes a result; it never starts the tool's host process.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -83,9 +83,9 @@ pub struct TestHttpExchangeFixture {
     pub response: TestHttpResponseFixture,
 }
 
-/// One hosted-provider grant exposed only to deterministic harness execution.
+/// One hosted-provider grant exposed only to deterministic test execution.
 /// This is authority-shaped test evidence, not a production credential or a
-/// public runner input.
+/// public method input.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestProviderGrantFixture {
@@ -101,7 +101,7 @@ pub enum TestProviderAccess {
     Mutate,
 }
 
-/// One exact provider operation and readback result admitted by the harness.
+/// One exact provider operation and readback result admitted by the test.
 /// The runtime still performs its normal admission, approval, custody,
 /// finality, and receipt transitions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -561,7 +561,7 @@ fn validate_process_calls(
 }
 
 /// Exact exchanges: the method, URL and JSON body identify each request, so
-/// an exchange may answer a mutation without the harness reaching the network.
+/// an exchange may answer a mutation without the test reaching the network.
 /// A request declared more than once is answered by its exchanges in order.
 fn validate_http_exchanges(
     mut exchanges: Vec<TestHttpExchangeFixture>,

@@ -64,7 +64,7 @@ struct Placements {
     /// Injected beneath local implementations; the runtime's own transports
     /// otherwise.
     http: Option<Transport>,
-    /// Exact process-tool answers injected only by native harness execution.
+    /// Exact process-tool answers injected only by native test execution.
     process_calls: Option<Vec<runx_parser::test_fixture::TestProcessCallFixture>>,
     #[cfg(feature = "mcp")]
     mcp: crate::drivers::mcp::Sessions,
@@ -97,7 +97,7 @@ impl Placements {
 #[derive(Default)]
 pub struct OperationEffect {
     placements: Arc<Placements>,
-    /// The harness's provider fixture stands in for the hosted implementation
+    /// The test's provider fixture stands in for the hosted implementation
     /// of a declared operation that has none, so a skill's fixtures run while
     /// readiness still reports the operation unavailable.
     fixture_stand_in: bool,
@@ -122,7 +122,7 @@ impl std::fmt::Debug for OperationEffect {
 impl OperationEffect {
     /// Inject the transport beneath both placements. Admission, custody,
     /// sealing and the request shapes stay the production path; only the
-    /// wire is replaced, for the harness and embedders.
+    /// wire is replaced, for the test and embedders.
     pub fn with_http_transport<T>(transport: T) -> Self
     where
         T: RuntimeHttpTransport + Send + Sync + 'static,
@@ -141,10 +141,10 @@ impl OperationEffect {
         }
     }
 
-    /// The harness's effect: its provider fixture answers hosted calls and
+    /// The test's effect: its provider fixture answers hosted calls and
     /// stands in for declared operations no placement implements yet, and
     /// its MCP calls answer in place of every MCP server.
-    pub(crate) fn harness<T>(
+    pub(crate) fn test<T>(
         transport: T,
         mcp_calls: &[runx_parser::TestMcpCallFixture],
         process_calls: &[runx_parser::test_fixture::TestProcessCallFixture],
@@ -254,7 +254,7 @@ pub(crate) trait ToolRunner {
     ) -> Result<JsonValue, confirm::Unperformed>;
 }
 
-/// The runner of a runtime built without tool packages: it runs none.
+/// The method of a runtime built without tool packages: it runs none.
 #[cfg(test)]
 pub(crate) struct NoTools;
 
@@ -1264,7 +1264,7 @@ fn signed_in(
     ))
 }
 
-/// What a local process implementation runs with: the step's runner and the
+/// What a local process implementation runs with: the step's method and the
 /// installed copy of the connector's tool.
 struct Local<'a> {
     tools: &'a dyn ToolRunner,

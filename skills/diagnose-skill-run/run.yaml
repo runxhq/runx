@@ -196,7 +196,7 @@ shared_inputs:
     optional: true
   test_output:
     type: string
-    description: Sanitized native harness output or assertion failure.
+    description: Sanitized native test output or assertion failure.
     optional: true
   skill_path:
     type: string

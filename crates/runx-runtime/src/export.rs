@@ -47,7 +47,7 @@ pub fn parse_export_binding(contents: &str) -> Option<RunxExportBinding<'_>> {
 pub struct RunxExportSkill {
     pub name: String,
     pub description: String,
-    pub runners: Vec<RunxExportMethod>,
+    pub methods: Vec<RunxExportMethod>,
     pub abs_dir: PathBuf,
     pub manual_markdown: String,
     pub manual_digest: String,
@@ -64,22 +64,22 @@ pub enum RunxExportMode {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RunxExportMethod {
     /// `None` is the unnamed SKILL.md execution front used by packages without
-    /// run.yaml. Named run.yaml runners are always explicit in generated commands.
+    /// run.yaml. Named run.yaml methods are always explicit in generated commands.
     pub name: Option<String>,
     pub default: bool,
     pub execution_closure_digest: Option<String>,
     pub inputs: BTreeMap<String, SkillInput>,
-    /// A run of this runner reaches an agent turn that makes calls, so a host
+    /// A run of this method reaches an agent turn that makes calls, so a host
     /// works it through the MCP tool `skill_tool_name` names.
     pub makes_calls: bool,
 }
 
-/// The MCP tool a skill server offers for a runner: the skill's name for its
-/// default runner, and `<skill>__<runner>` for another.
+/// The MCP tool a skill server offers for a method: the skill's name for its
+/// default method, and `<skill>__<method>` for another.
 #[must_use]
-pub fn skill_tool_name(skill: &str, runner: Option<&str>) -> String {
-    match runner {
-        Some(runner) => format!("{skill}__{runner}"),
+pub fn skill_tool_name(skill: &str, method: Option<&str>) -> String {
+    match method {
+        Some(method) => format!("{skill}__{method}"),
         None => skill.to_owned(),
     }
 }
@@ -143,7 +143,7 @@ pub fn load_export_skills_with_options(
         if !has_agent_export_contract(&package, manifest.as_ref()) {
             if explicit {
                 return Err(RunxExportLoadError::InvalidArgs(format!(
-                    "cannot export {} as an agent skill because its default runner has no sealed standalone invocation contract",
+                    "cannot export {} as an agent skill because its default method has no sealed standalone invocation contract",
                     package.skill.name
                 )));
             }
@@ -198,15 +198,15 @@ fn export_skill(
     execution_env: Option<&BTreeMap<String, String>>,
 ) -> Result<RunxExportSkill, RunxExportLoadError> {
     let mode = export_mode(&package.skill, manifest.as_ref());
-    let mut runners = export_methods(&package, manifest.as_ref());
+    let mut methods = export_methods(&package, manifest.as_ref());
     let skill = package.skill;
     if mode == RunxExportMode::Delegated {
         let loaded = crate::load_validated_skill_package(&directory)
             .map_err(|error| RunxExportLoadError::Parse(error.to_string()))?;
         let empty_env = BTreeMap::new();
         let execution_env = execution_env.unwrap_or(&empty_env);
-        for runner in &mut runners {
-            let Some(name) = runner.name.as_deref() else {
+        for method in &mut methods {
+            let Some(name) = method.name.as_deref() else {
                 continue;
             };
             let binding = crate::skill_package::inspect_loaded_execution_closure_binding(
@@ -217,12 +217,12 @@ fn export_skill(
             .map_err(|error| RunxExportLoadError::Parse(error.to_string()))?;
             if !binding.fully_bound {
                 return Err(RunxExportLoadError::InvalidArgs(format!(
-                    "cannot export {} runner {name:?} because its execution closure is not fully bound",
+                    "cannot export {} method {name:?} because its execution closure is not fully bound",
                     skill.name
                 )));
             }
-            runner.execution_closure_digest = Some(binding.digest);
-            runner.makes_calls = crate::skill_package::method_makes_calls(
+            method.execution_closure_digest = Some(binding.digest);
+            method.makes_calls = crate::skill_package::method_makes_calls(
                 loaded.clone().into(),
                 name,
                 execution_env,
@@ -236,7 +236,7 @@ fn export_skill(
         description: skill
             .description
             .unwrap_or_else(|| "Run this skill through runx governance.".to_owned()),
-        runners,
+        methods,
         abs_dir: directory,
         manual_markdown: package.manual_markdown,
         manual_digest: package.manual_digest,
@@ -295,28 +295,28 @@ fn export_methods(
         }];
     };
     let default = manifest.default_method().map(|method| method.name.as_str());
-    let mut runners = manifest
+    let mut methods = manifest
         .methods
         .values()
-        .filter(|runner| {
-            default == Some(runner.name.as_str())
-                || crate::skill_package::method_has_sealed_test(package, manifest, runner)
+        .filter(|method| {
+            default == Some(method.name.as_str())
+                || crate::skill_package::method_has_sealed_test(package, manifest, method)
         })
-        .map(|runner| RunxExportMethod {
-            name: Some(runner.name.clone()),
-            default: default == Some(runner.name.as_str()),
+        .map(|method| RunxExportMethod {
+            name: Some(method.name.clone()),
+            default: default == Some(method.name.as_str()),
             execution_closure_digest: None,
-            inputs: runner.inputs.clone(),
+            inputs: method.inputs.clone(),
             makes_calls: false,
         })
         .collect::<Vec<_>>();
-    runners.sort_by(|left, right| {
+    methods.sort_by(|left, right| {
         right
             .default
             .cmp(&left.default)
             .then_with(|| left.name.cmp(&right.name))
     });
-    runners
+    methods
 }
 
 fn manifest_visibility(

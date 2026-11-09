@@ -13,10 +13,10 @@ use tempfile::tempdir;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-/// The act of a one-turn runner named `answer`, at the root.
+/// The act of a one-turn method named `answer`, at the root.
 const TURN: &str = "answer";
 
-/// A skill whose one runner is one agent turn: it may digest data, run a
+/// A skill whose one method is one agent turn: it may digest data, run a
 /// child skill that does the same, and ask the human.
 fn write_turn_skill(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
@@ -318,7 +318,7 @@ fn tool_names(status: &TurnStatus) -> Vec<&str> {
 
 /// A turn shows what it may call once, by the names its calls take. The act's
 /// declared allowance spells the catalog tool `data.digest`, which a call
-/// names `data_digest`, so a harness that called what the allowance showed
+/// names `data_digest`, so a test that called what the allowance showed
 /// was refused its first call. The status shows the allowance only as its
 /// tools, and each name it shows is one a call takes.
 #[test]
@@ -351,7 +351,7 @@ fn a_turn_shows_what_it_may_call_by_the_names_its_calls_take() -> TestResult {
 
 /// A bundled skill a load binds is the runtime's own copy, named
 /// `runx/<name>@<version>`: materialized into the runx home, which no path
-/// inside the workspace names, and never into the project. Its runner then
+/// inside the workspace names, and never into the project. Its method then
 /// runs as the load bound it.
 #[test]
 fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult {
@@ -412,10 +412,10 @@ fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult
         return Err(format!("a skill was loaded: {loaded:?}").into());
     };
     let [tool] = loaded.tools.as_slice() else {
-        return Err(format!("its one runner is bound: {loaded:?}").into());
+        return Err(format!("its one method is bound: {loaded:?}").into());
     };
     let runx_contracts::TurnTarget::Skill { skill, .. } = &tool.target else {
-        return Err(format!("a bound runner: {tool:?}").into());
+        return Err(format!("a bound method: {tool:?}").into());
     };
     assert!(skill.as_str().starts_with("runx/receipt-query@"), "{skill}");
     assert_eq!(skill, package);
@@ -638,7 +638,7 @@ fn a_run_answered_later_seals_at_the_time_it_closes() -> TestResult {
     Ok(())
 }
 
-/// A runner with no steps is one agent turn, handed the run's inputs.
+/// A method with no steps is one agent turn, handed the run's inputs.
 #[test]
 fn a_one_turn_method_hands_its_agent_the_run_inputs() -> TestResult {
     let temp = tempdir()?;
@@ -1012,7 +1012,7 @@ fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
     Ok(())
 }
 
-/// A one-turn skill whose harness case works the turn: it digests a value,
+/// A one-turn skill whose test case works the turn: it digests a value,
 /// expects the call to end `status`, then answers.
 fn write_scripted_turn_skill(root: &Path, status: &str) -> TestResult<PathBuf> {
     let skill_dir = root.join("scripted-turn");
@@ -1182,7 +1182,7 @@ fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthorit
         max_fanout: fanout,
         max_child_depth: depth,
         standing_approvals: Vec::new(),
-        max_cost_micro: None,
+        max_spend_micro_usd: None,
         ..runx_runtime::RunAuthority::default()
     }
 }
@@ -2170,7 +2170,7 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
 }
 
 /// A one-turn skill that may digest data and hand a digest packet to
-/// `digest-reader`, whose runner takes it as a `runx.data.digest.v1` and
+/// `digest-reader`, whose method takes it as a `runx.data.digest.v1` and
 /// digests the digest it names.
 fn write_packet_skills(root: &Path) -> TestResult<PathBuf> {
     let reader = root.join("digest-reader");

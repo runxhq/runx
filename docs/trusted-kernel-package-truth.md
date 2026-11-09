@@ -7,7 +7,7 @@ Rust verification and dependency policy; language-package decisions live in
 
 ## Runtime authority
 
-Rust owns local package parsing, policy and authority, graph execution, harness
+Rust owns local package parsing, policy and authority, graph execution, test
 execution, receipts, registry/configuration, native capabilities, and process
 supervision. `runx-core` contains pure policy and transition algebra;
 `runx-runtime` performs effects. CLI and MCP skill calls use the same runtime
@@ -28,7 +28,7 @@ pass is not evidence that a CLI journey or adapter works.
 
 Kernel fixtures under `fixtures/kernel/` are generated through the native Rust
 evaluator by `scripts/generate-kernel-parity-fixtures.ts`. The TypeScript tool
-is a harness, not a policy oracle. Review fixture input and expected-result
+is a test, not a policy oracle. Review fixture input and expected-result
 diffs deliberately. Do not regenerate a failing expected result solely to
 match an implementation change. Surviving TypeScript contract helpers require
 cross-language conformance; scope matching has a differential corpus covering

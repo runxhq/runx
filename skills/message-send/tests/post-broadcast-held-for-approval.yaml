@@ -42,7 +42,7 @@ expect:
             delivery_status: not_sent
             downstream_handoff:
               skill: message-send
-              runner: post
+              method: post
               state: ready_for_approval
             validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

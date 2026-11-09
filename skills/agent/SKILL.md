@@ -1,6 +1,6 @@
 ---
 name: agent
-description: Work one turn of a host's agent through runx. Read, search and ask in the read runner; also edit the workspace and run commands in the develop runner. Every call is admitted, recorded and receipted, and the turn ends with a summary of what it did.
+description: Work one turn of a host's agent through runx. Read, search and ask in the read method; also edit the workspace and run commands in the write method. Every call is admitted, recorded and receipted, and the turn ends with a summary of what it did.
 ---
 
 # Agent session
@@ -31,11 +31,11 @@ outside the calls.
 - Ask the person with `ask_human` when the act leaves a choice that is theirs.
   Do not ask what you can find out.
 - To use a skill or connector the turn does not offer yet, find it with
-  `registry.search`, whose hits list each skill's runners and what each is
-  for, then `load` it naming the runner you need. A skill's load gives you
-  its manual: read it before you call the runner, and follow it. Loading a
-  skill of several runners without naming one binds none, so you can read
-  its manual and runners first and load again with the one you need.
+  `registry.search`, whose hits list each skill's methods and what each is
+  for, then `load` it naming the method you need. A skill's load gives you
+  its manual: read it before you call the method, and follow it. Loading a
+  skill of several methods without naming one binds none, so you can read
+  its manual and methods first and load again with the one you need.
   Binding a package below the turn's trust rule, or one of the project's own
   that reaches a connector the turn doesn't, waits on the person's trust.
 - A call you make again with the same `call_id` returns the call you made,
@@ -55,7 +55,7 @@ as you would the person's.
 Read, search and ask, as above. This turn changes nothing: it offers no tool
 that edits the workspace or runs a command.
 
-## Agent task: develop
+## Agent task: write
 
 Everything the read turn does, and also edit the workspace and run commands,
 as the turn's effects allow.

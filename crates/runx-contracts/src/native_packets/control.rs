@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::JsonObject;
 use crate::schema::RunxSchema;
 
-/// What `control.capture_run_context` returns: the harness, signal and
+/// What `control.capture_run_context` returns: the test, signal and
 /// decision packets a run was given, held as explicit context.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -13,7 +13,7 @@ use crate::schema::RunxSchema;
 pub struct RunContext {
     pub captured: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub harness: Option<JsonObject>,
+    pub test: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signal: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]

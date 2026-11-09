@@ -190,7 +190,7 @@ function writeOperation(repository, mutations) {
   return calls.size === 1 ? [...calls.values()][0] : null;
 }
 
-// The activity runner: what changed in a repository since a time, for a
+// The activity method: what changed in a repository since a time, for a
 // reader. GitHub's issue listing holds pull requests too, so one read finds
 // both; its whole records stay in the read's provider evidence, and the
 // reader gets the fields a summary needs.
