@@ -263,6 +263,54 @@ pub(crate) struct PacketSchemaCatalog {
     searched: BTreeMap<PacketId, Vec<PathBuf>>,
 }
 
+/// The schemas runx publishes, served by their `$id` when a package packet
+/// refers to one, as memory's entries refer to `runx.context_entry.v1`. Each
+/// is the published document, whose own references are to the others, so a
+/// reference resolves without anything fetched; any other is refused.
+pub(crate) struct PublishedSchemaRetriever {
+    documents: BTreeMap<String, serde_json::Value>,
+}
+
+impl PublishedSchemaRetriever {
+    /// The published schemas, built once for the process.
+    pub(crate) fn shared() -> Result<&'static Self, PacketSchemaCatalogError> {
+        static SHARED: std::sync::OnceLock<PublishedSchemaRetriever> = std::sync::OnceLock::new();
+        if let Some(retriever) = SHARED.get() {
+            return Ok(retriever);
+        }
+        let artifacts = runx_contracts::generated_schema_artifacts();
+        let published = runx_contracts::publish_schema_artifacts(&artifacts).map_err(|error| {
+            PacketSchemaCatalogError::Native {
+                file_name: runx_contracts::DEFINITIONS_FILE.to_owned(),
+                message: error.to_string(),
+            }
+        })?;
+        let documents = published
+            .documents()
+            .filter_map(|(_, document)| {
+                let id = document.get("$id")?.as_str()?;
+                Some((id.to_owned(), document.clone()))
+            })
+            .collect();
+        Ok(SHARED.get_or_init(|| Self { documents }))
+    }
+}
+
+impl jsonschema::Retrieve for &'static PublishedSchemaRetriever {
+    fn retrieve(
+        &self,
+        uri: &jsonschema::Uri<String>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        let id = uri.as_str();
+        self.documents
+            .get(id.split('#').next().unwrap_or(id))
+            .cloned()
+            .ok_or_else(|| {
+                format!("{id} is no schema runx publishes, and nothing else is fetched").into()
+            })
+    }
+}
+
 impl PacketSchemaCatalog {
     /// The core packets: the reusable contracts the native Runx contract
     /// catalog owns. A core packet's bytes are exactly its published

@@ -47,7 +47,10 @@ fn verify_packet_binding(
         .ok_or_else(|| packet_error(&binding, schemas.not_found(&binding.packet)))?;
     let schema_document = serde_json::to_value(&schema.schema.value)
         .map_err(|source| RuntimeError::json("serializing packet schema for validation", source))?;
+    let published = crate::packet_schemas::PublishedSchemaRetriever::shared()
+        .map_err(|error| packet_error(&binding, error))?;
     let validator = jsonschema::draft202012::options()
+        .with_retriever(published)
         .build(&schema_document)
         .map_err(|error| packet_error(&binding, format!("packet schema is invalid: {error}")))?;
     let instance = serde_json::to_value(&binding.value).map_err(|source| {
@@ -205,6 +208,65 @@ mod tests {
 }
 "#,
         )?;
+        Ok(())
+    }
+
+    /// A package packet refers to a core packet by its published `$id`, as
+    /// memory's entries refer to `runx.context_entry.v1`, and its value is
+    /// checked against that core packet without anything fetched.
+    #[test]
+    fn a_package_packet_refers_to_a_core_packet_by_its_id() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let skill = temp_skill()?;
+        fs::write(
+            skill.path().join("packets/entries.v1.schema.json"),
+            r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/acme/planner/entries/v1.json",
+  "x-runx-packet-id": "acme/planner.entries.v1",
+  "type": "array",
+  "items": {"$ref": "https://schemas.runx.ai/runx/context-entry/v1.json"}
+}
+"#,
+        )?;
+        let artifacts = OutputArtifacts {
+            result_as: None,
+            packets: BTreeMap::from([("entries".to_owned(), packet_id("acme/planner.entries.v1"))]),
+        };
+        let entries = |entry: serde_json::Value| -> Result<JsonValue, Box<dyn std::error::Error>> {
+            Ok(serde_json::from_value(
+                serde_json::json!({ "entries": [entry] }),
+            )?)
+        };
+        let entry = serde_json::json!({
+            "schema": "runx.context_entry.v1",
+            "type": "memory.said",
+            "summary": "memory:said:personal#k@1 2026-11-09 I take my tea black.",
+            "data": {"text": "I take my tea black."},
+            "labels": {"purpose": "confirmed_memory", "trust": "person_confirmed", "sharing": "configured_model"},
+            "sources": ["conversation"],
+            "origin": {
+                "artifact_id": "memory:said:personal#k@1",
+                "step_id": null,
+                "producer": {"skill": "runx/memory", "method": "index"},
+                "created_at": "2026-11-09T00:00:00Z",
+                "digest": "sha256:0",
+                "size_bytes": 20
+            }
+        });
+        let value = entries(entry.clone())?;
+        verify_declared_packets(&held(&value, &artifacts), Some(&artifacts), skill.path())?;
+        let mut unlabelled = entry;
+        unlabelled["labels"] = serde_json::json!({"purpose": "confirmed_memory"});
+        let value = entries(unlabelled)?;
+        let refused =
+            verify_declared_packets(&held(&value, &artifacts), Some(&artifacts), skill.path())
+                .err()
+                .ok_or("an entry without its labels was admitted")?;
+        assert!(
+            refused.to_string().contains("output violates schema"),
+            "{refused}"
+        );
         Ok(())
     }
 
