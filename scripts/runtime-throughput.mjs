@@ -235,11 +235,15 @@ function capture(workloads, options) {
     hardware: hardwareIdentity(),
     workloads: metrics,
     // Each journey's structural measurements, from the probes that count
-    // them. A journey no probe measures is absent, and the quality gate
-    // fails it.
-    journeys: existsSync(runtimeResourceMetricsPath)
-      ? readJson(runtimeResourceMetricsPath).journeys ?? {}
-      : {},
+    // them: journey 1 from launches of the CLI, journey 2 from the runtime
+    // bench, which runs it on the runtime its fixtures warmed. A journey no
+    // probe measures is absent, and the quality gate fails it.
+    journeys: {
+      ...(existsSync(runtimeResourceMetricsPath)
+        ? readJson(runtimeResourceMetricsPath).journeys ?? {}
+        : {}),
+      1: measureColdStart(),
+    },
   };
 }
 
@@ -607,6 +611,70 @@ methods:
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+}
+
+// Journey 1's sizes: one skill alone, then workspaces of 10, 100 and 1,000
+// packages.
+const coldStartSizes = [1, 10, 100, 1000];
+
+// performance.md's journey 1, cold start, counted: `runx skill inspect`
+// resolving one skill in a workspace of each size, as a new process after one
+// discarded launch leaves the runx home as after an earlier run. Every
+// package is alike, so a package readiness reads past its own shows as
+// growth across the sizes. A launch's own process is one, and each child it
+// spawns is another.
+function measureColdStart() {
+  const probe = nativeCliProbe();
+  const root = mkdtempSync(path.join(tmpdir(), "runx-cold-start-"));
+  try {
+    const launches = {};
+    for (const size of coldStartSizes) {
+      const workspace = path.join(root, String(size));
+      for (let index = 0; index < size; index += 1) {
+        writeColdStartPackage(workspace, `cold-${String(index).padStart(4, "0")}`);
+      }
+      const launch = {
+        command: probe.command,
+        args: ["skill", "inspect", "cold-0000", "--json"],
+        cwd: workspace,
+        env: { RUNX_CWD: workspace, RUNX_HOME: path.join(root, `home-${size}`) },
+      };
+      const countsPath = path.join(root, `counts-${size}.json`);
+      for (const counts of [undefined, countsPath]) {
+        const outcome = runNativeCliProbe(launch, counts);
+        if (outcome !== "completed") {
+          throw new Error(`journey 1's launch in a workspace of ${size} packages ended in ${outcome}`);
+        }
+      }
+      launches[size] = readJson(countsPath);
+    }
+    const counted = Object.values(launches);
+    const most = (count) => Math.max(...counted.map(count));
+    return {
+      processes_started: most((counts) => 1 + counts.process_spawns),
+      network_requests: most((counts) => counts.network_requests),
+      verifications_per_identity: most((counts) => counts.most_verifications_of_one_package),
+      packages_read: Object.fromEntries(
+        coldStartSizes.map((size) => [String(size), launches[size].packages_read]),
+      ),
+      launches,
+    };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function writeColdStartPackage(workspace, name) {
+  const skill = path.join(workspace, "skills", name);
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(
+    path.join(skill, "SKILL.md"),
+    `---\nname: ${name}\ndescription: Digest one fixed subject.\n---\n\n# ${name}\n`,
+  );
+  writeFileSync(
+    path.join(skill, "run.yaml"),
+    `minimum_runx: 0.12.0\nmethods:\n  digest:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: {subject: ${name}}\n`,
+  );
 }
 
 function nativeCliProbe() {

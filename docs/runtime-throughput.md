@@ -226,8 +226,32 @@ work budget its row states, from the structural measurements the capture's
 `journeys` holds for it: store writes per call, settlement cost at call 1,000,
 queries per page, bytes copied, and the rest. These are checked apart from
 timing, since they hold at any speed. A journey with no measurement fails, and
-so does any budget whose measurement is missing. No probe measures a journey's
-work yet, so the gate fails every journey until its owner adds one.
+so does any budget whose measurement is missing, so the gate fails every
+journey whose owner hasn't added its probe yet.
+
+A probe counts what the runtime counted, never what it timed. The runtime
+counts its work as it does it (`runx_runtime::work_counts`): the processes it
+spawns, its network requests, the package sources it assembles and verifies,
+by identity, the kernel store's committed writes, the operations it dispatches
+to providers, and whether a store transaction was open across one, and each
+time it takes a run whole, replaying the run's record or sealing every call
+into its receipt. A CLI process writes these where `RUNX_PERF_COUNTS_PATH`
+names at exit, and a bench reads them in process.
+
+- **Journey 1, cold start.** The capture launches `runx skill inspect` on one
+  skill in workspaces of 1, 10, 100 and 1,000 alike packages, each a new
+  process after one discarded launch. It records the processes started (the
+  launch and each child it spawned), the network requests, the most times one
+  package identity was verified, and the package sources read at each size,
+  which must be the same at every size.
+- **Journey 2, warm execution.** The runtime bench runs 1, 10, 100 and 1,000
+  provider calls in one run on its warm provider runtime, each call an
+  operation over the local transport, and checks every call was sent and
+  dispatched. A call's store writes are the run's writes past the one-call
+  run's, over its calls past the first, so a constant cost reads the same at
+  every size. The bench records that at 10, 100 and 1,000 calls, the most
+  times per call a call took the run whole, and the provider calls a
+  transaction was held open across, with each run's raw counts beside them.
 
 The S-tier final gate captures all runtime-owned workloads into
 `.scafld/perf/oss-runtime-s-tier-final.json` and compares them against

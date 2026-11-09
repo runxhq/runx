@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use criterion::{BatchSize, Criterion};
 use runx_contracts::{
-    ExecutionEvent, JsonObject, JsonValue, ProofKind, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor, RunOutcome,
+    ExecutionEvent, JsonNumber, JsonObject, JsonValue, ProofKind, ResolutionRequest,
+    ResolutionResponse, ResolutionResponseActor, RunOutcome,
 };
 use runx_parser::{
     PROFILE_FILE, WorkerTool, Workflow, parse_method_manifest_yaml, validate_method_manifest,
@@ -33,9 +33,19 @@ const LARGE_INPUT_BYTES: usize = 4 * 1024 * 1024 - 64;
 #[allow(clippy::expect_used)]
 pub(super) fn register(c: &mut Criterion) {
     let fixtures = RuntimePathFixtures::new().expect("runtime-path benchmark fixtures must load");
-    let resources = fixtures
+    let mut resources = fixtures
         .smoke()
         .expect("runtime-path benchmark fixtures must execute successfully");
+    // performance.md's journey 2, by count, on the runtime the smoke warmed.
+    resources.insert(
+        "journeys".to_owned(),
+        JsonValue::Object(JsonObject::from([(
+            "2".to_owned(),
+            fixtures
+                .warm_execution()
+                .expect("the warm-execution journey must run each of its calls"),
+        )])),
+    );
     record_resource_metrics(&resources)
         .expect("runtime-path benchmark resource metrics must be recorded");
 
@@ -193,11 +203,15 @@ impl RuntimePathFixtures {
         provider_options
             .env
             .insert(HOSTED_API_TOKEN_ENV.to_owned(), "rxk_benchmark".to_owned());
+        // The receipts a provider call writes sit in the project's `.runx`,
+        // as a project's do, and never in the package each call reads: there
+        // each call would grow the package the next one reads, until it
+        // passed the package size limit.
         provider_options.env.insert(
             RUNX_RECEIPT_DIR_ENV.to_owned(),
             directory
                 .path()
-                .join("provider-receipts")
+                .join(".runx/provider-receipts")
                 .to_string_lossy()
                 .into_owned(),
         );
@@ -302,6 +316,161 @@ impl RuntimePathFixtures {
             ),
         ]))
     }
+
+    /// Journey 2, warm execution, counted: a run of each size's provider
+    /// calls on the warm provider runtime, each call one operation over the
+    /// local transport, and what each call past the first cost. A call's
+    /// store writes are the run's past the one-call run's, over the calls
+    /// past the first, so a constant cost reads the same at every size. A
+    /// run is taken whole when its record is replayed or every call is sealed
+    /// into its receipt; a call that did either would show here as more than
+    /// none per call.
+    fn warm_execution(&self) -> Result<JsonValue, Box<dyn Error>> {
+        let mut measured = Vec::with_capacity(WARM_EXECUTION_CALLS.len());
+        for calls in WARM_EXECUTION_CALLS {
+            let workflow = method_workflow("warm-execution", &provider_calls_workflow(calls))?;
+            let attempts = self.provider_transport.operation_attempts();
+            let before = runx_runtime::work_counts::snapshot();
+            let mut host = ProviderBenchmarkHost;
+            let run = self
+                .next_run(&self.provider_runtime)
+                .run_workflow_with_host(self.root(), workflow, &mut host)?;
+            let after = runx_runtime::work_counts::snapshot();
+            let sent = self.provider_transport.operation_attempts() - attempts;
+            let dispatched = after.provider_calls - before.provider_calls;
+            let expected = u64::try_from(calls)?;
+            if run.steps.len() != calls || sent != expected || dispatched != expected {
+                return Err(std::io::Error::other(format!(
+                    "a warm-execution run of {calls} calls recorded {} steps, sent {sent} operations and dispatched {dispatched}",
+                    run.steps.len()
+                ))
+                .into());
+            }
+            measured.push((calls, CallCounts::between(before, after)));
+        }
+        let (_, base) = measured[0];
+        let past_base = &measured[1..];
+        let per_call = |calls: usize, total: u64, base: u64| {
+            let added = total.saturating_sub(base);
+            let past = u64::try_from(calls - 1).unwrap_or(u64::MAX);
+            if added.is_multiple_of(past) {
+                JsonNumber::U64(added / past)
+            } else {
+                JsonNumber::F64(added as f64 / past as f64)
+            }
+        };
+        let store_writes_per_call = past_base
+            .iter()
+            .map(|(calls, counts)| {
+                (
+                    calls.to_string(),
+                    JsonValue::Number(per_call(*calls, counts.store_writes, base.store_writes)),
+                )
+            })
+            .collect::<JsonObject>();
+        let context_reserializations_per_call = past_base
+            .iter()
+            .map(|(calls, counts)| {
+                per_call(
+                    *calls,
+                    counts.run_materializations,
+                    base.run_materializations,
+                )
+            })
+            .max_by(|left, right| number_of(left).total_cmp(&number_of(right)))
+            .unwrap_or(JsonNumber::U64(0));
+        let transactions_spanning_provider_calls = measured
+            .iter()
+            .map(|(_, counts)| counts.transactions_spanning_provider_calls)
+            .sum::<u64>();
+        let runs = measured
+            .iter()
+            .map(|(calls, counts)| (calls.to_string(), counts.json()))
+            .collect::<JsonObject>();
+        Ok(JsonValue::Object(JsonObject::from([
+            (
+                "store_writes_per_call".to_owned(),
+                JsonValue::Object(store_writes_per_call),
+            ),
+            (
+                "context_reserializations_per_call".to_owned(),
+                JsonValue::Number(context_reserializations_per_call),
+            ),
+            (
+                "transactions_spanning_provider_calls".to_owned(),
+                JsonValue::Number(JsonNumber::U64(transactions_spanning_provider_calls)),
+            ),
+            ("runs".to_owned(), JsonValue::Object(runs)),
+        ])))
+    }
+}
+
+/// Journey 2's sizes: a run of one call, the base each larger run is read
+/// against, then 10, 100 and 1,000.
+const WARM_EXECUTION_CALLS: [usize; 4] = [1, 10, 100, 1000];
+
+/// What one warm-execution run counted.
+#[derive(Clone, Copy)]
+struct CallCounts {
+    store_writes: u64,
+    packages_read: u64,
+    run_materializations: u64,
+    provider_calls: u64,
+    transactions_spanning_provider_calls: u64,
+}
+
+impl CallCounts {
+    fn between(
+        before: runx_runtime::work_counts::WorkCounts,
+        after: runx_runtime::work_counts::WorkCounts,
+    ) -> Self {
+        Self {
+            store_writes: after.store_writes - before.store_writes,
+            packages_read: after.packages_read - before.packages_read,
+            run_materializations: after.run_materializations - before.run_materializations,
+            provider_calls: after.provider_calls - before.provider_calls,
+            transactions_spanning_provider_calls: after.transactions_spanning_provider_calls
+                - before.transactions_spanning_provider_calls,
+        }
+    }
+
+    fn json(self) -> JsonValue {
+        let count = |value| JsonValue::Number(JsonNumber::U64(value));
+        JsonValue::Object(JsonObject::from([
+            ("store_writes".to_owned(), count(self.store_writes)),
+            ("packages_read".to_owned(), count(self.packages_read)),
+            (
+                "run_materializations".to_owned(),
+                count(self.run_materializations),
+            ),
+            ("provider_calls".to_owned(), count(self.provider_calls)),
+            (
+                "transactions_spanning_provider_calls".to_owned(),
+                count(self.transactions_spanning_provider_calls),
+            ),
+        ]))
+    }
+}
+
+fn number_of(number: &JsonNumber) -> f64 {
+    match number {
+        JsonNumber::I64(value) => *value as f64,
+        JsonNumber::U64(value) => *value as f64,
+        JsonNumber::F64(value) => *value,
+    }
+}
+
+/// A run of `calls` provider calls, each its own `thread.reply` with its own
+/// idempotency key.
+fn provider_calls_workflow(calls: usize) -> String {
+    let steps = (0..calls)
+        .map(|call| {
+            format!(
+                "      - id: call-{call}\n        operation: fixture/chat/thread.reply\n        idempotency_key: warm-execution-{calls}-{call}\n        result:\n          required: [state]\n          equals:\n            state: delivered\n        inputs:\n          thread_locator: chat://T1/C1/1.0\n          text: warm-execution\n"
+            )
+        })
+        .collect::<String>();
+    format!("minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n{steps}")
 }
 
 fn runtime_options(run: RunLog) -> RuntimeOptions {
