@@ -368,8 +368,7 @@ mod tests {
 
         let outcome = run_process(
             ProcessSpec::new("resource-limit-test", "/bin/sh", 4096)
-                .args(vec!["-c".to_owned(), "ulimit -n; ulimit -t".to_owned()])
-                .timeout(Some(Duration::from_secs(5))),
+                .args(vec!["-c".to_owned(), "ulimit -n; ulimit -t".to_owned()]),
         )
         .map_err(|error| error.to_string())?;
 
@@ -391,39 +390,29 @@ mod tests {
     }
 
     /// A call its host cancels terminates the command it supervises, and the
-    /// outcome says it was stopped, not that it timed out.
+    /// outcome says it was stopped, not that it timed out. The command waits
+    /// on a gate nothing opens and has no timeout, so only the stop ends it.
     #[cfg(unix)]
     #[test]
     fn a_cancelled_call_terminates_its_command() -> Result<(), String> {
-        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let cancel = std::thread::spawn({
-            let stop = std::sync::Arc::clone(&stop);
-            move || {
-                thread::sleep(Duration::from_millis(200));
-                stop.store(true, std::sync::atomic::Ordering::Release);
-            }
-        });
-        let started = Instant::now();
+        let gate = gate()?;
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let outcome = crate::interrupt::while_working(&stop, || {
             run_process(
                 ProcessSpec::new("stop-test", "/bin/sh", 4096)
-                    .args(vec!["-c".to_owned(), "sleep 30".to_owned()])
-                    .timeout(Some(Duration::from_secs(30))),
+                    .args(vec!["-c".to_owned(), gate.wait()]),
             )
         })
         .map_err(|error| error.to_string())?;
-        cancel
-            .join()
-            .map_err(|_| "the cancelling thread panicked")?;
         assert!(outcome.stopped);
         assert!(!outcome.timed_out);
-        assert!(started.elapsed() < Duration::from_secs(10));
         Ok(())
     }
 
     /// A process that exits without reading its input is judged by its exit
     /// status, and one that never reads it is still bounded by its timeout:
-    /// the input outgrows a pipe buffer in both.
+    /// the input outgrows a pipe buffer in both. The one that holds waits on
+    /// a gate nothing opens, so only its timeout ends it.
     #[cfg(unix)]
     #[test]
     fn unread_input_neither_fails_nor_outlasts_the_timeout() -> Result<(), String> {
@@ -431,22 +420,55 @@ mod tests {
         let exits = run_process(
             ProcessSpec::new("unread-input-test", "/bin/sh", 4096)
                 .args(vec!["-c".to_owned(), "exit 0".to_owned()])
-                .stdin(input())
-                .timeout(Some(Duration::from_secs(5))),
+                .stdin(input()),
         )
         .map_err(|error| error.to_string())?;
         assert!(exits.status.success());
         assert!(!exits.timed_out);
 
+        let gate = gate()?;
         let holds = run_process(
             ProcessSpec::new("unread-input-test", "/bin/sh", 4096)
-                .args(vec!["-c".to_owned(), "sleep 30".to_owned()])
+                .args(vec!["-c".to_owned(), gate.wait()])
                 .stdin(input())
                 .timeout(Some(Duration::from_millis(300))),
         )
         .map_err(|error| error.to_string())?;
         assert!(holds.timed_out);
         Ok(())
+    }
+
+    /// A named pipe nothing writes, which a command waits on for as long as
+    /// it runs.
+    #[cfg(unix)]
+    struct Gate {
+        _directory: tempfile::TempDir,
+        path: PathBuf,
+    }
+
+    #[cfg(unix)]
+    impl Gate {
+        /// The shell that waits on the gate.
+        fn wait(&self) -> String {
+            format!("read go < '{}'", self.path.display())
+        }
+    }
+
+    #[cfg(unix)]
+    fn gate() -> Result<Gate, String> {
+        let directory = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let path = directory.path().join("gate");
+        let made = Command::new("mkfifo")
+            .arg(&path)
+            .status()
+            .map_err(|error| error.to_string())?;
+        if !made.success() {
+            return Err(format!("mkfifo {} failed", path.display()));
+        }
+        Ok(Gate {
+            _directory: directory,
+            path,
+        })
     }
 
     /// A process that leaves its inputs unremovable and exits successfully
@@ -465,7 +487,6 @@ mod tests {
                     "-c".to_owned(),
                     format!("chmod 000 '{}'", inputs.display()),
                 ])
-                .timeout(Some(Duration::from_secs(5)))
                 .cleanup_paths(vec![inputs.clone()]),
         );
         use std::os::unix::fs::PermissionsExt;
@@ -549,8 +570,7 @@ mod tests {
                     ]
                     .join(""),
                 ])
-                .env(windows_process_env())
-                .timeout(Some(Duration::from_secs(5))),
+                .env(windows_process_env()),
         )
         .map_err(|error| error.to_string())?;
 
@@ -601,27 +621,27 @@ mod tests {
             .map_err(|error| format!("parsing descendant pid: {error}"))
     }
 
+    /// Probe `process_id` until it's gone. A Job Object ends its processes
+    /// as it closes, so this probes again until the descendant has gone, and
+    /// fails on a probe that can't tell.
     #[cfg(windows)]
     fn assert_process_exits(node: &str, process_id: u32) -> Result<(), String> {
-        let deadline = Instant::now() + Duration::from_secs(5);
         let probe = [
             "try{process.kill(Number(process.argv[1]),0);process.exit(1)}",
             "catch(error){process.exit(error.code==='ESRCH'?0:2)}",
         ]
         .join("");
         let process_id = process_id.to_string();
-        while Instant::now() < deadline {
+        loop {
             let status = Command::new(node)
                 .args(["-e", probe.as_str(), process_id.as_str()])
                 .status()
                 .map_err(|error| format!("probing descendant {process_id}: {error}"))?;
-            if status.success() {
-                return Ok(());
+            match status.code() {
+                Some(0) => return Ok(()),
+                Some(1) => {}
+                _ => return Err(format!("probing descendant {process_id} failed: {status}")),
             }
-            thread::sleep(Duration::from_millis(25));
         }
-        Err(format!(
-            "Windows Job Object left descendant {process_id} alive"
-        ))
     }
 }
