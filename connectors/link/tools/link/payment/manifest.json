@@ -3,7 +3,7 @@
   "name": "link.payment",
   "version": "0.1.0",
   "description": "Use the official Link CLI for account-bound spend requests and MPP payments without exporting credentials.",
-  "source": {
+  "process": {
     "command": "node",
     "args": [
       "./link.mjs"
@@ -13,64 +13,62 @@
   },
   "inputs": {
     "action": {
-      "type": "string",
-      "required": true
+      "type": "string"
     },
     "principal_uri": {
-      "type": "string",
-      "required": true
+      "type": "string"
     },
     "phase": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "idempotency_key": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "acknowledgement": {
       "type": "object",
-      "required": false
+      "optional": true
     },
     "spend_request_id": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "amount_minor": {
       "type": "integer",
-      "required": false
+      "optional": true
     },
     "currency": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "payment_method_id": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "network_id": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "context": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "resource_url": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "challenge": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "method": {
       "type": "string",
-      "required": false
+      "optional": true
     },
     "body": {
       "type": "string",
-      "required": false
+      "optional": true
     }
   }
 }

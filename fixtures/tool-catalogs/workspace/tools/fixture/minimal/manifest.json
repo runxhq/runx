@@ -3,7 +3,7 @@
   "name": "fixture.minimal",
   "version": "0.0.1",
   "description": "Minimal fixture tool.",
-  "source": {
+  "process": {
     "command": "node",
     "args": [
       "./run.mjs"
@@ -12,11 +12,7 @@
   "inputs": {
     "message": {
       "type": "string",
-      "required": true,
       "description": "Message to echo."
     }
-  },
-  "scopes": [
-    "fixture.minimal"
-  ]
+  }
 }

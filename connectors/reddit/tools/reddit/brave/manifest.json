@@ -3,7 +3,7 @@
   "name": "reddit.brave",
   "version": "0.1.0",
   "description": "Fixed background Brave reads, exact plain-text Reddit submission, upvotes and independent readback.",
-  "source": {
+  "process": {
     "command": "python3",
     "args": [
       "-B",
@@ -13,91 +13,85 @@
   "inputs": {
     "operation": {
       "type": "string",
-      "required": true,
       "description": "Fixed read command, comment-create, post-create or upvote."
     },
     "account": {
       "type": "string",
-      "required": false,
-      "description": "Configured lowercase Reddit account id."
+      "description": "Configured lowercase Reddit account id.",
+      "optional": true
     },
     "window_id": {
       "type": "string",
-      "required": false,
-      "description": "Bound Brave window id for bind."
+      "description": "Bound Brave window id for bind.",
+      "optional": true
     },
     "tab_id": {
       "type": "string",
-      "required": false,
-      "description": "Bound Brave tab id for bind."
+      "description": "Bound Brave tab id for bind.",
+      "optional": true
     },
     "profile": {
       "type": "string",
-      "required": false,
-      "description": "Configured non-secret browser profile label for bind."
+      "description": "Configured non-secret browser profile label for bind.",
+      "optional": true
     },
     "url": {
       "type": "string",
-      "required": false,
-      "description": "Exact Reddit navigation or comment permalink URL."
+      "description": "Exact Reddit navigation or comment permalink URL.",
+      "optional": true
     },
     "body_file": {
       "type": "string",
-      "required": false,
-      "description": "UTF-8 file containing the exact approved body for comment readback."
+      "description": "UTF-8 file containing the exact approved body for comment readback.",
+      "optional": true
     },
     "phase": {
       "type": "string",
-      "required": false,
-      "description": "Native process phase: perform or readback."
+      "description": "Native process phase: perform or readback.",
+      "optional": true
     },
     "acknowledgement": {
-      "type": "json",
-      "required": false,
-      "description": "Native recorded acknowledgement; used only for independent readback."
+      "description": "Native recorded acknowledgement; used only for independent readback.",
+      "optional": true
     },
     "target_url": {
       "type": "string",
-      "required": false,
-      "description": "Exact approved Reddit parent or submit URL."
+      "description": "Exact approved Reddit parent or submit URL.",
+      "optional": true
     },
     "title": {
       "type": "string",
-      "required": false,
-      "description": "Exact approved post title; empty for comments."
+      "description": "Exact approved post title; empty for comments.",
+      "optional": true
     },
     "body": {
       "type": "string",
-      "required": false,
-      "description": "Exact approved plain text, or observed vote target text."
+      "description": "Exact approved plain text, or observed vote target text.",
+      "optional": true
     },
     "target_author": {
       "type": "string",
-      "required": false,
-      "description": "Exact lowercase author of an upvote target."
+      "description": "Exact lowercase author of an upvote target.",
+      "optional": true
     },
     "parameters": {
-      "type": "json",
-      "required": false,
-      "description": "Instance parameters supplied by native session confirmation."
+      "description": "Instance parameters supplied by native session confirmation.",
+      "optional": true
     },
     "session_account": {
       "type": "string",
-      "required": false,
-      "description": "The account pinned and injected by native browser-session admission."
+      "description": "The account pinned and injected by native browser-session admission.",
+      "optional": true
     },
     "browser_pid": {
       "type": "string",
-      "required": false,
-      "description": "Exact running Brave process id for binding; never infer an instance from bundle ID."
+      "description": "Exact running Brave process id for binding; never infer an instance from bundle ID.",
+      "optional": true
     },
     "idempotency_key": {
       "type": "string",
-      "required": false,
-      "description": "Native provider key injected for perform/readback; never a caller field."
+      "description": "Native provider key injected for perform/readback; never a caller field.",
+      "optional": true
     }
-  },
-  "scopes": [
-    "fs:write"
-  ]
+  }
 }
