@@ -276,6 +276,7 @@ mod tests {
             "id": "6:runx/x,1:k,1", "version": 1, "type": "notes.kept", "data": {},
             "digest": DIGEST, "idempotency_key": "runx:sha256:abc",
             "committed_at": "2026-11-09T00:00:00.000Z",
+            "writer": {"package": "runx/notes", "digest": DIGEST},
         })
     }
 
@@ -317,7 +318,8 @@ mod tests {
     }
 
     /// store.md's rules the code means, carried by the generated schema:
-    /// versions within 2^53 − 1, an event only with a status that has one,
+    /// versions within 2^53 − 1, every event with its writer, an event only
+    /// with a status that has one,
     /// a non-empty stream, a key and a type within their input bounds, a
     /// non-empty event id and idempotency key, a date-time commit and a page
     /// within its operation's limit.
@@ -372,6 +374,18 @@ mod tests {
             read(vec![with(event(), &["idempotency_key"], json!(""))]),
             read(vec![with(event(), &["committed_at"], json!("yesterday"))]),
             read(vec![event(); 501]),
+            // Every event records its writer: there's no migration, so no
+            // event from before writers were recorded.
+            read(vec![
+                event()
+                    .as_object()
+                    .map(|object| {
+                        let mut object = object.clone();
+                        object.remove("writer");
+                        Value::Object(object)
+                    })
+                    .unwrap_or_default(),
+            ]),
         ];
         for value in &refused {
             assert!(!admits(value), "{value}");
