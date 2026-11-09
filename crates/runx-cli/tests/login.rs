@@ -2,16 +2,14 @@
 //! All HTTP responses and credentials in this journey are local fixtures.
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Stdio};
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
 
 use crate::support::{temp_root, unsigned_runx_command_at};
 
-const FIXTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const CHALLENGE: &str = "https://runx.test/connect/login_fixture";
 const LOGIN_TOKEN: &str = "fixture_poll_ticket";
 const API_TOKEN: &str = "rxk_fixture_login";
@@ -29,7 +27,8 @@ fn human_login_exposes_challenge_before_completion() -> Result<(), Box<dyn std::
 fn browser_login_journey(json: bool) -> Result<(), Box<dyn std::error::Error>> {
     let root = ScratchRoot::new()?;
     let listener = TcpListener::bind("127.0.0.1:0")?;
-    let base_url = format!("http://{}", listener.local_addr()?);
+    let address = listener.local_addr()?;
+    let base_url = format!("http://{address}");
     let (challenge_seen, challenge_ready) = mpsc::channel();
     let server = thread::spawn(move || -> Result<(), String> {
         let started = serde_json::json!({
@@ -41,8 +40,10 @@ fn browser_login_journey(json: bool) -> Result<(), Box<dyn std::error::Error>> {
         });
         serve_json(&listener, "/v1/login/sessions", &started)?;
         // Success is impossible until the operator has received the challenge.
+        // The stderr reader holds the only sender, so this ends when it sends
+        // or when the child's stderr closes without the challenge.
         challenge_ready
-            .recv_timeout(FIXTURE_TIMEOUT)
+            .recv()
             .map_err(|_| "browser challenge was not observed before completion".to_owned())?;
         serve_json(
             &listener,
@@ -88,8 +89,8 @@ fn browser_login_journey(json: bool) -> Result<(), Box<dyn std::error::Error>> {
             output.extend_from_slice(&line);
         }
     });
-    // Bound the child independently of login's production timeout.
-    let status = wait_for_child(&mut child.0)?;
+    let status = child.0.wait()?;
+    release_server(address);
     let stdout = stdout_reader
         .join()
         .map_err(|_| "stdout reader panicked")??;
@@ -146,7 +147,8 @@ fn json_login_rejects_missing_or_blank_challenge() -> Result<(), Box<dyn std::er
     for authorization_url in [serde_json::Value::Null, serde_json::json!("   ")] {
         let root = ScratchRoot::new()?;
         let listener = TcpListener::bind("127.0.0.1:0")?;
-        let base_url = format!("http://{}", listener.local_addr()?);
+        let address = listener.local_addr()?;
+        let base_url = format!("http://{address}");
         let server = thread::spawn(move || {
             serve_json(
                 &listener,
@@ -177,7 +179,8 @@ fn json_login_rejects_missing_or_blank_challenge() -> Result<(), Box<dyn std::er
         let stderr = child.0.stderr.take().ok_or("missing child stderr")?;
         let stdout_reader = thread::spawn(move || read_all(stdout));
         let stderr_reader = thread::spawn(move || read_all(stderr));
-        let status = wait_for_child(&mut child.0)?;
+        let status = child.0.wait()?;
+        release_server(address);
         let stdout = stdout_reader
             .join()
             .map_err(|_| "stdout reader panicked")??;
@@ -209,31 +212,18 @@ fn read_all(mut input: impl Read) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn wait_for_child(child: &mut Child) -> Result<std::process::ExitStatus, std::io::Error> {
-    let deadline = Instant::now() + FIXTURE_TIMEOUT * 2;
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(status);
-        }
-        if Instant::now() >= deadline {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "login fixture child timed out",
-            ));
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
+/// Once the child has exited no request is coming, so a fixture server still
+/// waiting for one is handed an empty connection, which it refuses as a request
+/// it didn't expect. A server that has already returned dropped its listener,
+/// and the connection is refused.
+fn release_server(address: SocketAddr) {
+    let _ignored = TcpStream::connect(address);
 }
 
 fn serve_json(listener: &TcpListener, path: &str, body: &serde_json::Value) -> Result<(), String> {
-    let mut stream = accept_bounded(listener)?;
-    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
-    stream
-        .set_read_timeout(Some(FIXTURE_TIMEOUT))
-        .map_err(|e| e.to_string())?;
-    stream
-        .set_write_timeout(Some(FIXTURE_TIMEOUT))
-        .map_err(|e| e.to_string())?;
+    // The child closes the connection when it exits, so a short request ends
+    // the read; release_server ends the accept.
+    let (mut stream, _) = listener.accept().map_err(|e| e.to_string())?;
     // Consume the entire request so closing the socket does not reset unread data.
     {
         let mut reader = BufReader::new(&mut stream);
@@ -273,23 +263,6 @@ fn serve_json(listener: &TcpListener, path: &str, body: &serde_json::Value) -> R
     let body = body.to_string();
     write!(stream, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", body.len(), body)
         .map_err(|e| e.to_string())
-}
-
-fn accept_bounded(listener: &TcpListener) -> Result<TcpStream, String> {
-    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-    let deadline = Instant::now() + FIXTURE_TIMEOUT;
-    loop {
-        match listener.accept() {
-            Ok((stream, _)) => return Ok(stream),
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                if Instant::now() >= deadline {
-                    return Err("login fixture request timed out".to_owned());
-                }
-                thread::sleep(Duration::from_millis(5));
-            }
-            Err(error) => return Err(error.to_string()),
-        }
-    }
 }
 
 struct ChildGuard(Child);

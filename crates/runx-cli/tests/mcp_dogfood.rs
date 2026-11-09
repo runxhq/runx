@@ -2,17 +2,13 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus, Stdio};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
-use std::time::{Duration, Instant};
 
 use crate::support::isolated_runx_command_with_inherited_cwd;
 
 use runx_runtime::LocalReceiptStore;
 use serde_json::{Value, json};
-
-const MCP_INITIALIZE_TIMEOUT: Duration = Duration::from_secs(30);
-const MCP_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
 fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
@@ -27,7 +23,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
     ])?;
 
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
-    let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    let initialize = server.read_response("initialize")?;
     assert_eq!(
         path_text(&initialize, &["result", "protocolVersion"])?,
         "2025-06-18"
@@ -35,7 +31,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
 
     write_frame(server.stdin_mut()?, &initialized_notification())?;
     write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
-    let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+    let tools = server.read_response("tools/list")?;
     assert_eq!(
         path_text(&tools, &["result", "tools", "0", "name"])?,
         "mcp-echo"
@@ -57,10 +53,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
                 }),
             ),
         )?;
-        let response = server.read_response(
-            &format!("tools/call dogfood message {index}"),
-            MCP_REQUEST_TIMEOUT,
-        )?;
+        let response = server.read_response(&format!("tools/call dogfood message {index}"))?;
         assert_eq!(
             path_text(
                 &response,
@@ -116,7 +109,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
             }),
         ),
     )?;
-    let drift = server.read_response("package drift", MCP_REQUEST_TIMEOUT)?;
+    let drift = server.read_response("package drift")?;
     assert_eq!(drift["result"]["isError"], true, "{drift}");
     assert!(
         drift["result"]["content"][0]["text"]
@@ -125,7 +118,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
     );
 
     server.close_stdin();
-    let status = server.wait_timeout(Duration::from_secs(10))?;
+    let status = server.wait_exit()?;
     assert!(
         status.success(),
         "runx mcp exited with {status}; stderr: {}",
@@ -157,10 +150,10 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
 fn mcp_serves_a_skill_ref_not_only_a_path() -> Result<(), Box<dyn std::error::Error>> {
     let mut server = spawn_mcp_server(&["skill-build".to_owned()])?;
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
-    server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    server.read_response("initialize")?;
     write_frame(server.stdin_mut()?, &initialized_notification())?;
     write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
-    let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+    let tools = server.read_response("tools/list")?;
     assert_eq!(
         path_text(&tools, &["result", "tools", "0", "name"])?,
         "skill-build"
@@ -177,10 +170,10 @@ fn an_mcp_tool_carries_its_methods_own_description() -> Result<(), Box<dyn std::
     for (served, method) in [("skills/github", "github"), ("skills/github#plan", "plan")] {
         let mut server = spawn_mcp_server(&[served.to_owned()])?;
         write_frame(server.stdin_mut()?, &initialize_request(1))?;
-        server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+        server.read_response("initialize")?;
         write_frame(server.stdin_mut()?, &initialized_notification())?;
         write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
-        let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+        let tools = server.read_response("tools/list")?;
         let description = expected
             .iter()
             .find(|(name, _)| name == method)
@@ -201,7 +194,7 @@ fn mcp_native_binary_reports_mid_session_framing_fault() -> Result<(), Box<dyn s
     let mut server = spawn_mcp_server(&[skill_path.display().to_string()])?;
 
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
-    let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    let initialize = server.read_response("initialize")?;
     assert_eq!(
         path_text(&initialize, &["result", "protocolVersion"])?,
         "2025-06-18"
@@ -211,7 +204,7 @@ fn mcp_native_binary_reports_mid_session_framing_fault() -> Result<(), Box<dyn s
     server.stdin_mut()?.write_all(b"{\n")?;
     server.close_stdin();
 
-    let status = server.wait_timeout(Duration::from_secs(10))?;
+    let status = server.wait_exit()?;
     assert!(
         !status.success(),
         "malformed mid-session MCP frame must fail closed"
@@ -239,7 +232,7 @@ fn mcp_native_binary_uses_one_workspace_env_snapshot_per_session()
         spawn_mcp_server_at(&[skill_dir.display().to_string()], workspace.path(), None)?;
 
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
-    let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    let initialize = server.read_response("initialize")?;
     assert_eq!(
         path_text(&initialize, &["result", "protocolVersion"])?,
         "2025-06-18"
@@ -263,14 +256,14 @@ fn mcp_native_binary_uses_one_workspace_env_snapshot_per_session()
             }),
         ),
     )?;
-    let response = server.read_response("tools/call workspace env", MCP_REQUEST_TIMEOUT)?;
+    let response = server.read_response("tools/call workspace env")?;
     assert_eq!(
         path_text(&response, &["result", "content", "0", "text"])?,
         serde_json::json!({ "marker": "initial-snapshot" }).to_string()
     );
 
     server.close_stdin();
-    let status = server.wait_timeout(Duration::from_secs(10))?;
+    let status = server.wait_exit()?;
     assert!(
         status.success(),
         "runx mcp exited with {status}; stderr: {}",
@@ -331,7 +324,7 @@ methods:
                 None,
             )?;
             write_frame(server.stdin_mut()?, &initialize_request(1))?;
-            server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+            server.read_response("initialize")?;
             write_frame(server.stdin_mut()?, &initialized_notification())?;
             write_frame(
                 server.stdin_mut()?,
@@ -344,7 +337,7 @@ methods:
                     }),
                 ),
             )?;
-            let response = server.read_response("continuation", MCP_REQUEST_TIMEOUT)?;
+            let response = server.read_response("continuation")?;
             let pending = &response["result"]["structuredContent"]["runx"];
             let waits_on = if agent {
                 "needs_agent"
@@ -387,7 +380,7 @@ methods:
             };
             let answers_path = root.join("answers.json");
             server.close_stdin();
-            assert!(server.wait_timeout(Duration::from_secs(10))?.success());
+            assert!(server.wait_exit()?.success());
 
             let command = || {
                 let mut command = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key");
@@ -496,14 +489,14 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
         Some(workspace.path()),
     )?;
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
-    let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    let initialize = server.read_response("initialize")?;
     assert!(
         path_text(&initialize, &["result", "instructions"])?.contains("open now: answer"),
         "{initialize}"
     );
     write_frame(server.stdin_mut()?, &initialized_notification())?;
     write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
-    let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+    let tools = server.read_response("tools/list")?;
     let names = tools["result"]["tools"]
         .as_array()
         .ok_or("missing tools")?
@@ -529,7 +522,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             json!({"name": "turn_status", "arguments": {"turn": "answer"}}),
         ),
     )?;
-    let opened = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
+    let opened = server.read_response("turn_status")?;
     assert!(
         path_text(
             &opened,
@@ -568,7 +561,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             }}),
         ),
     )?;
-    let digest = server.read_response("turn_call", MCP_REQUEST_TIMEOUT)?;
+    let digest = server.read_response("turn_call")?;
     assert_eq!(
         path_text(
             &digest,
@@ -585,7 +578,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             json!({"name": "turn_status", "arguments": {"turn": "answer"}}),
         ),
     )?;
-    let status = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
+    let status = server.read_response("turn_status")?;
     assert_eq!(
         status["result"]["structuredContent"]["calls"]
             .as_array()
@@ -607,7 +600,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
                 json!({"name": "turn_read", "arguments": arguments}),
             ),
         )?;
-        server.read_response("turn_read", MCP_REQUEST_TIMEOUT)
+        server.read_response("turn_read")
     };
     let question = read(
         &mut server,
@@ -644,7 +637,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             }}),
         ),
     )?;
-    let completed = server.read_response("turn_complete", MCP_REQUEST_TIMEOUT)?;
+    let completed = server.read_response("turn_complete")?;
     assert_eq!(
         path_text(
             &completed,
@@ -655,7 +648,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     );
 
     server.close_stdin();
-    let status = server.wait_timeout(Duration::from_secs(10))?;
+    let status = server.wait_exit()?;
     assert!(
         status.success(),
         "runx mcp --run exited with {status}; stderr: {}",
@@ -710,10 +703,14 @@ fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dy
         Some(workspace.path()),
     )?;
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
-    server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    server.read_response("initialize")?;
     write_frame(server.stdin_mut()?, &initialized_notification())?;
 
-    let began = Instant::now();
+    // The call's command says it's running, then waits on a gate nothing
+    // opens: only its cancellation ends it.
+    let running = crate::support::rendezvous::Pipe::new(workspace.path().join("running"))?;
+    let gate = workspace.path().join("gate");
+    crate::support::rendezvous::Pipe::new(gate.clone())?;
     write_frame(
         server.stdin_mut()?,
         &request(
@@ -722,41 +719,62 @@ fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dy
             json!({"name": "turn_call", "arguments": {
                 "turn": "answer",
                 "tool": "command_execute",
-                "input": {"command": "sleep", "args": ["30"]},
+                "input": {"command": "sh", "args": [
+                    "-c",
+                    "echo running > \"$0\"; read go < \"$1\"",
+                    running.path().display().to_string(),
+                    gate.display().to_string(),
+                ]},
                 "call_id": "sleep",
             }}),
         ),
     )?;
-    thread::sleep(Duration::from_millis(500));
-    write_frame(
-        server.stdin_mut()?,
-        &json!({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 2, "reason": "stopped by the person"}}),
-    )?;
-
-    // The record says the call settled, long before the command would have.
-    let recorded = loop {
+    if running.reached(server.child.id())?.is_none() {
+        return Err(format!(
+            "runx mcp exited before the call's command ran; stderr: {}",
+            server.stderr_string()?
+        )
+        .into());
+    }
+    let history = || -> Result<Option<Value>, Box<dyn std::error::Error>> {
         let read = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key")
             .current_dir(workspace.path())
             .env("RUNX_CWD", workspace.path())
             .args(["history", &run_id, "--json"])
             .output()?;
         let read: Value = serde_json::from_slice(&read.stdout)?;
-        let call = read["events"]
+        Ok(read["events"]
             .as_array()
             .ok_or("missing events")?
             .iter()
             .rev()
             .find(|event| event["event"]["kind"] == "call" && event["event"]["call_id"] == "sleep")
-            .map(|event| event["event"]["outcome"].clone());
-        if let Some(outcome) = call.filter(|outcome| outcome["status"] != "claimed") {
-            break outcome;
-        }
-        assert!(
-            began.elapsed() < Duration::from_secs(15),
-            "the cancelled call is recorded"
-        );
-        thread::sleep(Duration::from_millis(100));
+            .map(|event| event["event"]["outcome"].clone()))
     };
+    let claimed = history()?.ok_or("the running call is recorded")?;
+    assert_eq!(
+        claimed["status"], "claimed",
+        "the call settled before its cancellation: {claimed}"
+    );
+    write_frame(
+        server.stdin_mut()?,
+        &json!({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 2, "reason": "stopped by the person"}}),
+    )?;
+
+    // A turn's status waits until no call of it is executing, so it answers
+    // once the cancelled call has settled; the cancelled call itself is
+    // answered with nothing.
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            3,
+            "tools/call",
+            json!({"name": "turn_status", "arguments": {"turn": "answer"}}),
+        ),
+    )?;
+    let settled = server.read_response("turn_status after the cancellation")?;
+    assert_eq!(settled["id"], 3, "{settled}");
+    let recorded = history()?.ok_or("the cancelled call is recorded")?;
     assert_eq!(recorded["status"], "completed", "{recorded}");
     let artifact = recorded["outputs"][0]["artifact"]["path"]
         .as_str()
@@ -767,7 +785,7 @@ fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dy
     write_frame(
         server.stdin_mut()?,
         &request(
-            3,
+            4,
             "tools/call",
             json!({"name": "turn_call", "arguments": {
                 "turn": "answer",
@@ -777,7 +795,7 @@ fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dy
             }}),
         ),
     )?;
-    let after = server.read_response("turn_call", MCP_REQUEST_TIMEOUT)?;
+    let after = server.read_response("turn_call")?;
     assert_eq!(
         path_text(
             &after,
@@ -787,7 +805,7 @@ fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dy
         "{after}"
     );
     server.close_stdin();
-    server.wait_timeout(Duration::from_secs(10))?;
+    server.wait_exit()?;
     Ok(())
 }
 
@@ -816,7 +834,7 @@ fn a_client_on_the_current_protocol_lists_tools_with_their_cache_terms()
             }}),
         ),
     )?;
-    let tools = server.read_response("tools/list", MCP_INITIALIZE_TIMEOUT)?;
+    let tools = server.read_response("tools/list")?;
     assert_eq!(
         path_text(&tools, &["result", "tools", "0", "name"])?,
         "mcp-echo",
@@ -892,29 +910,21 @@ impl McpProcess {
             .ok_or_else(|| "runx child stdin is closed".into())
     }
 
-    fn read_response(
-        &mut self,
-        label: &str,
-        timeout: Duration,
-    ) -> Result<Value, Box<dyn std::error::Error>> {
-        match self.stdout.recv_timeout(timeout) {
+    /// The next frame the server writes. Its stdout reader holds the only
+    /// sender, so this ends with a frame or when the server's stdout closes.
+    fn read_response(&mut self, label: &str) -> Result<Value, Box<dyn std::error::Error>> {
+        match self.stdout.recv() {
             Ok(Ok(value)) => Ok(value),
             Ok(Err(error)) => {
                 let _ignored = self.child.kill();
                 let _ignored = self.child.wait();
                 Err(format!("{label}: {error}; stderr: {}", self.stderr_string()?).into())
             }
-            Err(RecvTimeoutError::Timeout) => {
-                let _ignored = self.child.kill();
-                Err(format!(
-                    "timed out waiting for runx mcp response to {label}; stderr: {}",
-                    self.stderr_string()?
-                )
-                .into())
-            }
-            Err(RecvTimeoutError::Disconnected) => {
-                Err(format!("runx mcp stdout reader disconnected before {label}").into())
-            }
+            Err(_) => Err(format!(
+                "runx mcp closed its stdout before {label}; stderr: {}",
+                self.stderr_string()?
+            )
+            .into()),
         }
     }
 
@@ -922,22 +932,10 @@ impl McpProcess {
         let _closed = self.stdin.take();
     }
 
-    fn wait_timeout(
-        &mut self,
-        timeout: Duration,
-    ) -> Result<ExitStatus, Box<dyn std::error::Error>> {
-        let deadline = Instant::now() + timeout;
-        loop {
-            if let Some(status) = self.child.try_wait()? {
-                return Ok(status);
-            }
-            if Instant::now() >= deadline {
-                let _ignored = self.child.kill();
-                let _ignored = self.child.wait();
-                return Err("timed out waiting for runx mcp to exit".into());
-            }
-            std::thread::sleep(Duration::from_millis(25));
-        }
+    /// The server's exit, once its stdin is closed: an MCP server ends at the
+    /// end of its input.
+    fn wait_exit(&mut self) -> Result<ExitStatus, Box<dyn std::error::Error>> {
+        Ok(self.child.wait()?)
     }
 
     fn stderr_string(&mut self) -> Result<String, Box<dyn std::error::Error>> {
