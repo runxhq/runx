@@ -217,3 +217,58 @@ fn packaging_dot_inside_a_package_packages_that_package_whatever_else_is_in_the_
     );
     Ok(())
 }
+
+/// A package at `root/skills/<name>` whose one method is `calls` agent steps,
+/// each answered by the package's own test, and that test.
+fn answered_package(root: &Path, name: &str, calls: usize) -> TestResult {
+    let package = root.join("skills").join(name);
+    fs::create_dir_all(package.join("tests"))?;
+    fs::write(
+        package.join("SKILL.md"),
+        format!(
+            "---\nname: {name}\ndescription: Asks for one word per call.\n---\n# {name}\n\n## Agent task: answer\n\nAnswer with one word.\n"
+        ),
+    )?;
+    let steps = (0..calls)
+        .map(|call| {
+            format!(
+                "      - id: call-{call}\n        agent: answer\n        outputs:\n          answer: {{type: string}}\n"
+            )
+        })
+        .collect::<String>();
+    fs::write(
+        package.join("run.yaml"),
+        format!("minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n{steps}"),
+    )?;
+    let answers = (0..calls)
+        .map(|call| format!("    call-{call}: {{answer: yes}}\n"))
+        .collect::<String>();
+    fs::write(
+        package.join("tests/answers.yaml"),
+        format!(
+            "name: answers\nmethod: run\nhost:\n  answers:\n{answers}expect:\n  status: sealed\n"
+        ),
+    )?;
+    Ok(())
+}
+
+/// An agent call settles at the same cost at call 1,000 as at call 10: the
+/// run's record is replayed and its calls read no more often in a run of
+/// 1,000 agent calls than in a run of 10.
+#[test]
+fn an_agent_call_reads_the_run_record_no_more_at_call_1000_than_at_call_10() -> TestResult {
+    let run = |calls: usize| -> TestResult<Value> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-agent-{calls}"));
+        fs::create_dir_all(root.join("home"))?;
+        answered_package(&root, "answers", calls)?;
+        counted(&root, &["test", "skills/answers", "--json"])
+    };
+    let ten = run(10)?;
+    let thousand = run(1000)?;
+    assert_eq!(
+        count_of(&thousand, "run_materializations")?,
+        count_of(&ten, "run_materializations")?,
+        "ten={ten}\nthousand={thousand}"
+    );
+    Ok(())
+}

@@ -527,6 +527,16 @@ impl KernelStore {
             .map_err(|source| self.database("searching a stream tree", source))
     }
 
+    /// Every event of a kernel stream after version `after`, verified against
+    /// its chain from there.
+    pub(crate) fn read_all_after<E: StreamEvent>(
+        &self,
+        key: &str,
+        after: u64,
+    ) -> Result<Vec<Recorded<E>>, KernelStoreError> {
+        self.read_range(E::KIND, key, after, None)
+    }
+
     /// At most `limit` events of a kernel stream after version `after`.
     pub(crate) fn read_after<E: StreamEvent>(
         &self,

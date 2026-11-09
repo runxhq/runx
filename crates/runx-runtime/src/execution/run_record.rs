@@ -28,8 +28,8 @@
 //! `<path>#<id>` below it, the path being the child run's place under the
 //! root. A paused run waits on every open request in its tree.
 
-use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Mutex, OnceLock};
 
 pub use runx_contracts::RunState;
 use runx_contracts::{
@@ -578,6 +578,40 @@ struct RunLogInner {
     /// Whether a run another writer advanced since this log last read it is
     /// contended; a log that only reads takes the run as it finds it.
     strict: bool,
+    /// The act the run was started with, held once this log reads or records
+    /// the run's start. A run's act never changes after it starts.
+    act: OnceLock<Option<CallAct>>,
+    /// Where each turn's calls begin in the stream.
+    calls: Mutex<CallIndex>,
+}
+
+/// The version of each turn's first call, by step and attempt, complete for
+/// the stream through `through`: a turn's calls are read from its first, never
+/// from the run's start.
+#[derive(Clone, Default)]
+struct CallIndex {
+    through: u64,
+    first: BTreeMap<(String, u32), u64>,
+}
+
+impl CallIndex {
+    fn of<'a>(events: impl IntoIterator<Item = &'a Recorded<RunEvent>>) -> Self {
+        let mut index = Self::default();
+        for recorded in events {
+            index.note(recorded.version, &recorded.event);
+        }
+        index
+    }
+
+    /// `event`, at `version`, the next the stream holds.
+    fn note(&mut self, version: u64, event: &RunEvent) {
+        if let RunEvent::Call(call) = event {
+            self.first
+                .entry((call.step_id.clone(), call.attempt))
+                .or_insert(version);
+        }
+        self.through = version;
+    }
 }
 
 impl std::fmt::Debug for RunLog {
@@ -602,6 +636,8 @@ impl RunLog {
             run_id,
             version: Mutex::new(version),
             strict: true,
+            act: OnceLock::new(),
+            calls: Mutex::default(),
         })))
     }
 
@@ -615,6 +651,8 @@ impl RunLog {
             run_id: self.0.run_id.clone(),
             version: Mutex::new(*self.version()),
             strict: false,
+            act: self.0.act.clone(),
+            calls: Mutex::default(),
         }))
     }
 
@@ -677,12 +715,49 @@ impl RunLog {
         crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
         let version = events.last().map_or(0, |event| event.version);
-        *self.version() = version;
-        replay(
+        let mut held = self.version();
+        *held = version;
+        *self.call_index() = CallIndex::of(&events);
+        drop(held);
+        let record = replay(
             &self.0.store,
             &self.0.run_id,
             events.into_iter().map(|event| event.event),
-        )
+        )?;
+        if let Some(record) = &record {
+            self.keep_act(record.act.as_ref());
+        }
+        Ok(record)
+    }
+
+    /// The act the run was started with, as its steps read it: held from
+    /// the run's start, or read once from the event that opened its stream.
+    pub(crate) fn act(&self) -> Result<Option<CallAct>, RunRecordError> {
+        if let Some(act) = self.0.act.get() {
+            return Ok(act.clone());
+        }
+        let act = self
+            .0
+            .store
+            .first::<RunEvent>(&self.0.run_id)?
+            .and_then(|first| match first.event {
+                RunEvent::Started(started) => started.act,
+                RunEvent::ChildStarted(started) => started.act,
+                _ => None,
+            });
+        self.keep_act(act.as_ref());
+        Ok(act)
+    }
+
+    fn keep_act(&self, act: Option<&CallAct>) {
+        let _first_kept = self.0.act.set(act.cloned());
+    }
+
+    fn call_index(&self) -> std::sync::MutexGuard<'_, CallIndex> {
+        self.0
+            .calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// The calls of one turn, in order, as this driver last saw the run. A
@@ -692,12 +767,46 @@ impl RunLog {
         step_id: &str,
         attempt: u32,
     ) -> Result<Vec<RecordedCall>, RunRecordError> {
+        // A driver's log knows where the turn's calls begin, as long as no
+        // other writer has advanced the run since it last read it, so it reads
+        // them from there; settling a turn costs the same at call 1,000 as at
+        // call 1.
+        if self.0.strict {
+            let version = *self.version();
+            if self.0.store.version::<RunEvent>(&self.0.run_id)? != version {
+                return Err(RunRecordError::Contended {
+                    run_id: self.0.run_id.clone(),
+                });
+            }
+            let index = self.call_index().clone();
+            if index.through == version {
+                let Some(&first) = index.first.get(&(step_id.to_owned(), attempt)) else {
+                    return Ok(Vec::new());
+                };
+                let events = self
+                    .0
+                    .store
+                    .read_all_after::<RunEvent>(&self.0.run_id, first - 1)?;
+                return turn_calls(
+                    &self.0.store,
+                    events.into_iter().map(|event| event.event),
+                    step_id,
+                    attempt,
+                );
+            }
+        }
+        // A log that only reads, or one that never read the run it writes,
+        // takes the run whole, and a driver's then knows where its calls begin.
         crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
-        if self.0.strict && events.last().map_or(0, |event| event.version) != *self.version() {
-            return Err(RunRecordError::Contended {
-                run_id: self.0.run_id.clone(),
-            });
+        let version = events.last().map_or(0, |event| event.version);
+        if self.0.strict {
+            if version != *self.version() {
+                return Err(RunRecordError::Contended {
+                    run_id: self.0.run_id.clone(),
+                });
+            }
+            *self.call_index() = CallIndex::of(&events);
         }
         turn_calls(
             &self.0.store,
@@ -732,7 +841,9 @@ impl RunLog {
         };
         let mut blobs = vec![inputs];
         blobs.extend(context);
-        self.append_first(RunEvent::Started(Box::new(event)), blobs)
+        self.append_first(RunEvent::Started(Box::new(event)), blobs)?;
+        self.keep_act(started.act);
+        Ok(())
     }
 
     /// Start a test evaluation: the run a fixture replays against its
@@ -753,6 +864,7 @@ impl RunLog {
             })),
             Vec::new(),
         )?;
+        log.keep_act(None);
         Ok(log)
     }
 
@@ -791,6 +903,7 @@ impl RunLog {
             created_at: created_at.to_owned(),
         };
         self.append_first(RunEvent::ChildStarted(Box::new(event)), vec![inputs])?;
+        self.keep_act(act);
         Ok(None)
     }
 
@@ -1193,7 +1306,14 @@ impl RunLog {
         batch.extend(settles);
         match self.0.store.append(batch) {
             Ok(versions) => {
-                *version = versions.first().copied().unwrap_or(*version + 1);
+                let before = *version;
+                *version = versions.first().copied().unwrap_or(before + 1);
+                // What this log writes keeps its index of calls whole, as
+                // long as it was whole to where the write began.
+                let mut index = self.call_index();
+                if index.through == before {
+                    index.note(*version, &event);
+                }
                 Ok(())
             }
             Err(KernelStoreError::Conflict { .. }) => Err(RunRecordError::Contended {

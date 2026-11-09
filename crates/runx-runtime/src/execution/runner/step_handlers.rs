@@ -1094,7 +1094,7 @@ where
     // The act's instructions are the manual its run admitted.
     let package = runtime.options.package(&invocation.skill_directory)?;
     // The act carries why its run exists.
-    let act = runtime.options.run.load()?.and_then(|record| record.act);
+    let act = runtime.options.run.act()?;
     let request = turn_resolution_request(&invocation, &package, act.as_ref(), request_id.clone())?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
