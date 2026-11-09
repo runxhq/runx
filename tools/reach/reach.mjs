@@ -16,10 +16,12 @@
 // A reference belongs to the innermost definition whose extent holds it. A
 // trait method reaches each implementation whose type is reachable, and an
 // implementation of a trait from outside the workspace is reachable with its
-// type. Fields and variants count with their type both ways, since serde reads
-// them without a reference. What the derive macro generates calls to counts
-// with it, and so does the `extern crate self as <crate>` alias its generated
-// paths name. Tests and build scripts are never callers.
+// type. An implementation for a reference, such as `&'static T`, is reachable
+// with the type it refers to. Fields and variants count with their type both
+// ways, since serde reads them without a reference. What the derive macro
+// generates calls to counts with it, and so does the `extern crate self as
+// <crate>` alias its generated paths name. Tests and build scripts are never
+// callers.
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -234,7 +236,9 @@ for (const symbol of defined.keys()) {
   const parent = parentOf(symbol);
   if (parent && !/\(\)\.$/.test(descriptor(symbol))) membersOf.set(parent, [...(membersOf.get(parent) ?? []), symbol]);
 }
-const IMPL = /impl#\[`?([A-Za-z0-9_]+)[^\]]*\]\[`?([A-Za-z0-9_]+)[^\]]*\]([A-Za-z0-9_]+)\(\)\.$/;
+// The type an impl is for comes first, after any reference to it: `&T`,
+// `&mut T` or `&'a T` is for `T`.
+const IMPL = /impl#\[`?(?:&(?:'[A-Za-z0-9_]+ )?(?:mut )?)?([A-Za-z0-9_]+)[^\]]*\]\[`?([A-Za-z0-9_]+)[^\]]*\]([A-Za-z0-9_]+)\(\)\.$/;
 const typeSymbols = new Map();
 const traitMethods = new Map();
 for (const symbol of defined.keys()) {
@@ -245,7 +249,7 @@ for (const symbol of defined.keys()) {
   if (m) traitMethods.set(`${m[1]}#${m[2]}`, [...(traitMethods.get(`${m[1]}#${m[2]}`) ?? []), symbol]);
 }
 // An impl's associated type or const: `impl#[Type][Trait]Name#` or `NAME.`.
-const IMPL_ITEM = /impl#\[`?([A-Za-z0-9_]+)[^\]]*\]\[`?([A-Za-z0-9_]+)[^\]]*\]([A-Za-z0-9_]+)[#.]$/;
+const IMPL_ITEM = /impl#\[`?(?:&(?:'[A-Za-z0-9_]+ )?(?:mut )?)?([A-Za-z0-9_]+)[^\]]*\]\[`?([A-Za-z0-9_]+)[^\]]*\]([A-Za-z0-9_]+)[#.]$/;
 const implRules = [];
 // An implementation's method -> the trait methods it implements.
 const implements_ = new Map();
