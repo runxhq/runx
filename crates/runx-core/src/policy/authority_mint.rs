@@ -464,44 +464,53 @@ mod tests {
     /// A delegation narrows the packages its parent covers and never widens
     /// them, and a parent with no packages covers none (D31).
     #[test]
-    fn packages_narrow_and_never_widen() {
-        let pattern = |value: &str| runx_contracts::PackagePattern::new(value).expect("a package");
-        let with = |term: AuthorityTerm, packages: Vec<runx_contracts::PackagePattern>| {
-            let mut term = term;
+    fn packages_narrow_and_never_widen() -> Result<(), String> {
+        let patterns = |packages: &[&str]| {
+            packages
+                .iter()
+                .map(|value| {
+                    runx_contracts::PackagePattern::new(*value)
+                        .ok_or_else(|| format!("{value} is no package"))
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
+        let with = |packages: Vec<runx_contracts::PackagePattern>| {
+            let mut term = capability();
             term.bounds.packages = packages;
             term
         };
-        let asking = |packages: &[&str]| {
+        let asking = |packages: &[&str]| -> Result<AttenuationRequest, String> {
             let mut request = delegation();
-            request.bounds.packages = packages.iter().map(|value| pattern(value)).collect();
-            request
+            request.bounds.packages = patterns(packages)?;
+            Ok(request)
         };
-        let every = with(capability(), runx_contracts::every_package());
+        let every = with(runx_contracts::every_package());
         for narrower in [
             &["acme/*"][..],
             &["project:work", "acme/counter"],
             &["project:*"],
         ] {
-            assert!(mint(&every, &asking(narrower)).is_ok(), "{narrower:?}");
+            assert!(mint(&every, &asking(narrower)?).is_ok(), "{narrower:?}");
         }
-        let acme = with(capability(), vec![pattern("acme/*")]);
-        assert!(mint(&acme, &asking(&["acme/counter"])).is_ok());
+        let acme = with(patterns(&["acme/*"])?);
+        assert!(mint(&acme, &asking(&["acme/counter"])?).is_ok());
         for wider in [
             &["*/*"][..],
             &["project:work"],
             &["acme/counter", "other/x"],
         ] {
             assert_eq!(
-                mint(&acme, &asking(wider)),
+                mint(&acme, &asking(wider)?),
                 Err(AttenuationError::ChildNotSubset),
                 "{wider:?}"
             );
         }
-        let none = capability();
+        // A parent with no packages covers none.
         assert_eq!(
-            mint(&none, &asking(&["acme/counter"])),
+            mint(&capability(), &asking(&["acme/counter"])?),
             Err(AttenuationError::ChildNotSubset)
         );
+        Ok(())
     }
 
     #[test]

@@ -164,7 +164,8 @@ impl Outcome {
             .as_object()
             .unwrap()
             .get(name)
-            .unwrap_or_else(|| panic!("no {name} in {:?}", self.result))
+            .ok_or_else(|| format!("no {name} in {:?}", self.result))
+            .unwrap()
     }
 
     fn text(&self, name: &str) -> &str {

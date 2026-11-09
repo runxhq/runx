@@ -478,8 +478,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let term_request = term_request(
         &instance,
         actor_ref.clone(),
-        connector.name.as_str(),
-        &operation_name,
+        &format!("{}/{operation_name}", connector.name),
         operation_spec,
         &target,
         intent_uses,
@@ -815,8 +814,7 @@ fn project(
                         requirement,
                         operation,
                         calls,
-                        authority,
-                        chain,
+                        Caller { authority, chain },
                         context,
                     )
                 })
@@ -851,16 +849,24 @@ fn standing_instance(
 /// without an exact call: the requirement, the instance and its pins, the
 /// capability's scopes where they can be read without a target, the
 /// approval floor and the implementation.
+/// Who a projected call would be made by: the run's authority, and the
+/// packages it would be made from.
+#[derive(Clone, Copy)]
+struct Caller<'a> {
+    authority: Option<&'a RunAuthority>,
+    chain: &'a [crate::identity::ChainLink],
+}
+
 fn readiness(
     requirement_key: &str,
     reference: &str,
     requirement: &ConnectorRequirement,
     operation: &OperationName,
     calls: &[runx_parser::WorkflowStep],
-    authority: Option<&RunAuthority>,
-    chain: &[crate::identity::ChainLink],
+    caller: Caller<'_>,
     context: Context<'_>,
 ) -> Readiness {
+    let Caller { authority, chain } = caller;
     let Context {
         scope,
         hosted,
@@ -1623,8 +1629,7 @@ fn tolerance(evaluation: &Evaluation<'_>, operation: &ConnectorOperation) -> Res
 fn term_request(
     instance: &ConnectorInstance,
     actor_ref: Reference,
-    connector: &str,
-    operation: &OperationName,
+    operation: &str,
     spec: &ConnectorOperation,
     target: &str,
     uses: Option<AuthorityUseLimit>,
@@ -1644,7 +1649,7 @@ fn term_request(
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![spec.verb.authority_verb()],
         bounds: AuthorityBounds {
-            operations: vec![NonEmptyString::from(format!("{connector}/{operation}"))],
+            operations: vec![NonEmptyString::from(operation)],
             scopes: spec.scopes.iter().cloned().collect(),
             targets: vec![NonEmptyString::from(target)],
             uses,
