@@ -187,11 +187,11 @@ impl<'a> PriorRunIndex<'a> {
                 reason: "context source step has not run".to_owned(),
             })?;
         let input =
-            NonEmptyString::new(input.to_owned()).ok_or_else(|| RuntimeError::InvalidRunStep {
+            NonEmptyString::new(input.to_owned()).ok_or_else(|| RuntimeError::StepFailed {
                 step_id: to_step.to_owned(),
                 reason: "context edge input must not be empty".to_owned(),
             })?;
-        let output = NonEmptyString::new(output).ok_or_else(|| RuntimeError::InvalidRunStep {
+        let output = NonEmptyString::new(output).ok_or_else(|| RuntimeError::StepFailed {
             step_id: to_step.to_owned(),
             reason: "context edge output must not be empty".to_owned(),
         })?;

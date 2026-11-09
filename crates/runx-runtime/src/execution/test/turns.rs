@@ -41,18 +41,17 @@ pub(super) fn work_scripted_turn(
     for (index, call) in script.calls.iter().enumerate().skip(made) {
         let result = call_tool(turn, host, &call.tool, None, call.input.clone())?;
         if let Some(expect) = &call.expect {
-            let actual = JsonValue::from_serialize(&result).map_err(|error| {
-                RuntimeError::InvalidRunStep {
+            let actual =
+                JsonValue::from_serialize(&result).map_err(|error| RuntimeError::StepFailed {
                     step_id: turn.step_id().to_owned(),
                     reason: format!("call {index} result does not serialize: {error}"),
-                }
-            })?;
+                })?;
             assert_json_expectation(
                 expect,
                 &actual,
                 &format!("host.turns.{id}.calls[{index}].expect"),
             )
-            .map_err(|error| RuntimeError::InvalidRunStep {
+            .map_err(|error| RuntimeError::StepFailed {
                 step_id: turn.step_id().to_owned(),
                 reason: error.to_string(),
             })?;

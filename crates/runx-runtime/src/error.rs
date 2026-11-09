@@ -43,8 +43,8 @@ pub enum RuntimeError {
     StepMissing { step_id: String },
     #[error("workflow step '{step_id}' has no skill target")]
     StepMissingSkill { step_id: String },
-    #[error("workflow step '{step_id}' has invalid run configuration: {reason}")]
-    InvalidRunStep { step_id: String, reason: String },
+    #[error("workflow step '{step_id}' failed: {reason}")]
+    StepFailed { step_id: String, reason: String },
     #[error("workflow step '{step_id}' uses unsupported run type '{run_type}'")]
     UnsupportedRunStep { step_id: String, run_type: String },
     #[error("workflow step '{step_id}' is blocked: {reason}")]
@@ -250,7 +250,7 @@ impl RuntimeError {
             | Self::WorkspaceEnvironment(_)
             | Self::Json { .. }
             | Self::StepMissingSkill { .. }
-            | Self::InvalidRunStep { .. }
+            | Self::StepFailed { .. }
             | Self::UnsupportedRunStep { .. }
             | Self::WorkflowBlocked { .. }
             | Self::ResolutionPending { .. }
@@ -418,7 +418,7 @@ impl RuntimeError {
         match self {
             Self::StepMissing { step_id }
             | Self::StepMissingSkill { step_id }
-            | Self::InvalidRunStep { step_id, .. }
+            | Self::StepFailed { step_id, .. }
             | Self::UnsupportedRunStep { step_id, .. }
             | Self::WorkflowBlocked { step_id, .. }
             | Self::ResolutionPending { step_id, .. }
@@ -509,13 +509,12 @@ impl RuntimeError {
                 accepted_schema,
             },
             error if error.is_fatal_step_fault() => error,
-            // Already a step's invalid configuration: scoped again, never
-            // wrapped in itself.
-            Self::InvalidRunStep { reason, .. } => Self::InvalidRunStep {
+            // Already a failed step: scoped again, never wrapped in itself.
+            Self::StepFailed { reason, .. } => Self::StepFailed {
                 step_id: step_id.to_owned(),
                 reason,
             },
-            error => Self::InvalidRunStep {
+            error => Self::StepFailed {
                 step_id: step_id.to_owned(),
                 reason: error.to_string(),
             },
@@ -527,20 +526,17 @@ impl RuntimeError {
 mod tests {
     use super::RuntimeError;
 
-    /// A step's invalid configuration names its step once, however many
-    /// layers scope it.
+    /// A failed step names its step once, however many layers scope it.
     #[test]
     fn a_step_error_scoped_again_is_never_wrapped_in_itself() {
-        let invalid = RuntimeError::InvalidRunStep {
+        let failed = RuntimeError::StepFailed {
             step_id: "answer".to_owned(),
             reason: "the turn requires fresh_context".to_owned(),
         };
-        let scoped = invalid
-            .at_workflow_step("answer")
-            .at_workflow_step("answer");
+        let scoped = failed.at_workflow_step("answer").at_workflow_step("answer");
         let message = scoped.to_string();
         assert_eq!(
-            message.matches("has invalid run configuration").count(),
+            message.matches("workflow step 'answer'").count(),
             1,
             "{message}"
         );

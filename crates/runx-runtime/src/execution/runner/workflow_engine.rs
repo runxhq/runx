@@ -885,7 +885,7 @@ fn enforce_condition(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), Runtim
         return Ok(());
     };
     let shown = operand_text(&when.value);
-    let value = operand_value(&when.value, runs).ok_or_else(|| RuntimeError::InvalidRunStep {
+    let value = operand_value(&when.value, runs).ok_or_else(|| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason: format!("condition '{shown}' resolves to nothing"),
     })?;

@@ -991,7 +991,7 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
         }
         let outputs = declared_step_outputs(step);
         if outputs.is_empty() {
-            return Err(RuntimeError::InvalidRunStep {
+            return Err(RuntimeError::StepFailed {
                 step_id: step_id.clone(),
                 reason: "workflow result producer emitted no declared outputs".to_owned(),
             });
@@ -999,7 +999,7 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
         contributing_steps += 1;
         for (name, value) in outputs {
             if result.insert(name.clone(), value).is_some() {
-                return Err(RuntimeError::InvalidRunStep {
+                return Err(RuntimeError::StepFailed {
                     step_id: step_id.clone(),
                     reason: format!(
                         "workflow result output {name:?} is emitted by more than one successful result producer"

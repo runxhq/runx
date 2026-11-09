@@ -44,7 +44,7 @@ where
         Some(_) => materialize_step_act_with_index(request.step, prior_run_index)?
             .map(|act| {
                 runx_contracts::CallAct::parse(&runx_contracts::JsonValue::Object(act)).map_err(
-                    |reason| RuntimeError::InvalidRunStep {
+                    |reason| RuntimeError::StepFailed {
                         step_id: request.step.id.clone(),
                         reason,
                     },

@@ -31,7 +31,7 @@ pub(super) fn build_step_output_projection(
     let declared_outputs = step.outputs.as_ref().or(extra_outputs);
     let artifacts = step.artifacts.as_ref().or(extra_artifacts);
     let claim = project_declared_output_claim(&step.id, &output.value, declared_outputs, artifacts)
-        .map_err(|error| RuntimeError::InvalidRunStep {
+        .map_err(|error| RuntimeError::StepFailed {
             step_id: step.id.clone(),
             reason: error.to_string(),
         })?;
@@ -118,7 +118,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            RuntimeError::InvalidRunStep { reason, .. }
+            RuntimeError::StepFailed { reason, .. }
                 if reason.contains("declared run output \"result\" was not returned")
         ));
         Ok(())

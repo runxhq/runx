@@ -1418,7 +1418,7 @@ where
         let method = target
             .method
             .as_deref()
-            .ok_or_else(|| RuntimeError::InvalidRunStep {
+            .ok_or_else(|| RuntimeError::StepFailed {
                 step_id: step.id.clone(),
                 reason: "a loaded skill's call names its method".to_owned(),
             })?;

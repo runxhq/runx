@@ -23,7 +23,7 @@ pub fn load_context_skills(
     created_at: &str,
 ) -> Result<Vec<ContextEntry>, RuntimeError> {
     if refs.len() > MAX_CONTEXT_SKILLS {
-        return Err(RuntimeError::InvalidRunStep {
+        return Err(RuntimeError::StepFailed {
             step_id: step_id.to_owned(),
             reason: format!(
                 "context_skills declares {} skills; the maximum is {MAX_CONTEXT_SKILLS}",
@@ -37,14 +37,14 @@ pub fn load_context_skills(
     refs.iter()
         .map(|reference| {
             if !seen.insert(reference.as_str()) {
-                return Err(RuntimeError::InvalidRunStep {
+                return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!("context skill '{reference}' is declared more than once"),
                 });
             }
             let entry = load_context_skill(step_id, workflow_dir, reference, env, created_at)?;
             let entry_bytes =
-                usize::try_from(entry.meta.size_bytes).map_err(|_| RuntimeError::InvalidRunStep {
+                usize::try_from(entry.meta.size_bytes).map_err(|_| RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!(
                         "context skill '{reference}' size exceeds this platform's address space"
@@ -53,12 +53,12 @@ pub fn load_context_skills(
             total_bytes =
                 total_bytes
                     .checked_add(entry_bytes)
-                    .ok_or_else(|| RuntimeError::InvalidRunStep {
+                    .ok_or_else(|| RuntimeError::StepFailed {
                         step_id: step_id.to_owned(),
                         reason: "context_skills total size overflowed".to_owned(),
                     })?;
             if total_bytes > MAX_CONTEXT_SKILLS_TOTAL_BYTES {
-                return Err(RuntimeError::InvalidRunStep {
+                return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!(
                         "context_skills resolved to more than {MAX_CONTEXT_SKILLS_TOTAL_BYTES} bytes"
@@ -86,7 +86,7 @@ fn load_context_skill(
                 step_id, reference, &directory, true, env, created_at,
             );
         }
-        return Err(RuntimeError::InvalidRunStep {
+        return Err(RuntimeError::StepFailed {
             step_id: step_id.to_owned(),
             reason: format!(
                 "context skill '{reference}' is not installed in this project; `runx skill` fetches it before the run"
@@ -135,7 +135,7 @@ fn load_context_skill_directory(
     let signed = installed
         .then(|| crate::identity::registry_copy_identity(reference, &package, env))
         .transpose()
-        .map_err(|reason| RuntimeError::InvalidRunStep {
+        .map_err(|reason| RuntimeError::StepFailed {
             step_id: step_id.to_owned(),
             reason,
         })?;
@@ -248,14 +248,14 @@ fn manual_context_entry(
 
 fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), RuntimeError> {
     if reference.trim().is_empty() {
-        return Err(RuntimeError::InvalidRunStep {
+        return Err(RuntimeError::StepFailed {
             step_id: step_id.to_owned(),
             reason: "context skill ref must not be empty".to_owned(),
         });
     }
     let path = Path::new(reference);
     if path.is_absolute() {
-        return Err(RuntimeError::InvalidRunStep {
+        return Err(RuntimeError::StepFailed {
             step_id: step_id.to_owned(),
             reason: format!("context skill '{reference}' must be a relative path or registry ref"),
         });
@@ -263,19 +263,19 @@ fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), Runt
     for component in path.components() {
         match component {
             Component::ParentDir => {
-                return Err(RuntimeError::InvalidRunStep {
+                return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!("context skill '{reference}' must not contain '..'"),
                 });
             }
             Component::Normal(name) if name == "graph" => {
-                return Err(RuntimeError::InvalidRunStep {
+                return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!("context skill '{reference}' must not target workflow stages"),
                 });
             }
             Component::RootDir | Component::Prefix(_) => {
-                return Err(RuntimeError::InvalidRunStep {
+                return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!("context skill '{reference}' must be a relative path"),
                 });

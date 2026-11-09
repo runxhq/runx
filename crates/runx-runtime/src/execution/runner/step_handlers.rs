@@ -808,7 +808,7 @@ where
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
         StepKind::Tool(ToolTarget::Process(process)) => Executable::Process(process.clone()),
         _ => {
-            return Err(RuntimeError::InvalidRunStep {
+            return Err(RuntimeError::StepFailed {
                 step_id: step.id.clone(),
                 reason: "not a worker or process tool step".to_owned(),
             });
@@ -956,7 +956,7 @@ where
         admission_refs: _,
     } = request;
     let StepKind::Agent(agent) = &step.kind else {
-        return Err(RuntimeError::InvalidRunStep {
+        return Err(RuntimeError::StepFailed {
             step_id: step.id.clone(),
             reason: "not an agent step".to_owned(),
         });
@@ -1116,7 +1116,7 @@ where
     } = request;
     let tool = step
         .catalog_tool()
-        .ok_or_else(|| RuntimeError::InvalidRunStep {
+        .ok_or_else(|| RuntimeError::StepFailed {
             step_id: step.id.clone(),
             reason: "tool step missing tool name".to_owned(),
         })?;
@@ -1134,7 +1134,7 @@ where
         &runtime.options.effects,
     )
     .map(|inspected| inspected.scopes)
-    .map_err(|error| RuntimeError::InvalidRunStep {
+    .map_err(|error| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason: format!("tool {tool} could not be resolved: {error}"),
     })?;
@@ -1386,14 +1386,14 @@ where
         authority,
         ..
     } = request;
-    let authority = authority.ok_or_else(|| RuntimeError::InvalidRunStep {
+    let authority = authority.ok_or_else(|| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason: "an operation step runs only after the kernel admits it".to_owned(),
     })?;
     let context = authority
         .admission()
         .context::<crate::kernel::operation::OperationAdmission>()
-        .ok_or_else(|| RuntimeError::InvalidRunStep {
+        .ok_or_else(|| RuntimeError::StepFailed {
             step_id: step.id.clone(),
             reason: "the step's admission is not an operation admission".to_owned(),
         })?;
@@ -1524,15 +1524,14 @@ fn agent_answer_outcome_value(
     step: &WorkflowStep,
     answer: &JsonValue,
 ) -> Result<RunOutcome, RuntimeError> {
-    let outcome = agent_answer_outcome_or_completed(answer).map_err(|error| {
-        RuntimeError::InvalidRunStep {
+    let outcome =
+        agent_answer_outcome_or_completed(answer).map_err(|error| RuntimeError::StepFailed {
             step_id: step.id.clone(),
             reason: format!("{error}"),
-        }
-    })?;
+        })?;
     if let StepKind::Agent(task) = &step.kind {
         crate::execution::outcome::check_turn_requirements(&task.requires, answer, outcome)
-            .map_err(|reason| RuntimeError::InvalidRunStep {
+            .map_err(|reason| RuntimeError::StepFailed {
                 step_id: step.id.clone(),
                 reason,
             })?;
@@ -1704,7 +1703,7 @@ fn run_question_step<A>(
 where
     A: SkillAdapter,
 {
-    let invalid = |reason: String| RuntimeError::InvalidRunStep {
+    let invalid = |reason: String| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason,
     };

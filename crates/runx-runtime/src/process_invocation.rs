@@ -101,7 +101,7 @@ pub(crate) fn process_workspace(
 ) -> Result<std::path::PathBuf, RuntimeError> {
     match workspace_cwd(base_env)? {
         Some(cwd) => Ok(cwd),
-        None => std::env::current_dir().map_err(|error| RuntimeError::InvalidRunStep {
+        None => std::env::current_dir().map_err(|error| RuntimeError::StepFailed {
             step_id: "mcp".to_owned(),
             reason: error.to_string(),
         }),
