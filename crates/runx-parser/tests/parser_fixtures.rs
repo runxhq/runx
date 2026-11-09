@@ -27,7 +27,7 @@ const METHOD_MANIFEST_FIXTURES: &[&str] = &[
 
 const TOOL_MANIFEST_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/tool-manifests/process.json"),
-    include_str!("../../../fixtures/parser/tool-manifests/validation-source-missing-command.json"),
+    include_str!("../../../fixtures/parser/tool-manifests/validation-process-missing-command.json"),
 ];
 
 const INSTALL_FIXTURES: &[&str] = &[include_str!(
