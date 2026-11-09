@@ -16,7 +16,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, STRINGS, bareWord, codeProse, fencedBlocks, inPath, markdownCode, stayFor, stringLiterals } from "./words.mjs";
+import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, bareWord, fencedBlocks, proseSites, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records and vendored copies.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -52,12 +52,8 @@ function main([root, ...rest]) {
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
     if (file.endsWith(".json") && SIGNED.test(text)) continue;
-    // A prose-only word is stale only in prose: Markdown outside its code,
-    // and the strings a person reads in code.
-    const code = file.endsWith(".md") ? markdownCode(text) : undefined;
-    const strings = STRINGS.test(file) ? codeProse(text, file) : undefined;
-    const inProse = (at, token) =>
-      code !== undefined ? !code.some(([from, to]) => at >= from && at < to) : strings !== undefined && strings.some(([from, to]) => at >= from && at < to) && !inPath(text, at, token);
+    // A prose-only word is stale where it's read as code or prose.
+    const inProse = proseSites(file, text);
     const lines = text.split("\n");
     const lineOf = (at) => text.slice(0, at).split("\n").length;
     const literals = (code) => stringLiterals(code, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -139,7 +139,7 @@ test("a bare runner or harness renames everywhere but where a stay keeps it, and
 
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "//! - `runner`: the graph engine.\npub mod runner;\npub mod test;\n");
+  assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "//! - `runner`: the workflow engine.\npub mod runner;\npub mod test;\n");
   assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use crate::execution::runner::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.method.inputs }\n");
   assert.equal(read(root, "crates/runx-runtime/src/skill_package/inspection/method.rs"), "/// The methods a skill declares.\npub fn methods() {}\n");
   assert.equal(read(root, "crates/runx-contracts/src/operational_policy.rs"), "pub struct Policy { pub runners: Vec<Runner> }\n");
@@ -314,7 +314,7 @@ test("Go's build refuses a rename onto a name its scope already declares", (t) =
   assert.equal(read(root, "demo.go"), code);
 });
 
-test("graph is a workflow in prose alone: another graph, code, code spans, link targets and paths keep it", (t) => {
+test("graph is a workflow in prose and in code, and the module it names moves; another graph, code spans, link targets and other paths keep it", (t) => {
   const doc = "# Graphs\n\nCompose skills into a graph. Graphs stay small.\nSteps go through the graph runner.\nThe Rust crate graph is enforced.\nRun `runx list graphs` and read [the guide](docs/graph.md).\n\n```yaml\ngraph: demo\n```\n";
   const code = "pub struct Method {\n    pub graph: Graph,\n}\n";
   const root = tree(t, { "docs/composing.md": doc, "crates/runx-parser/src/graph.rs": code });
@@ -326,11 +326,12 @@ test("graph is a workflow in prose alone: another graph, code, code spans, link 
     const { status, out } = run(RENAME, "apply", "oss", root, "--write");
     assert.equal(status, 0, out);
     assert.equal(read(root, "docs/composing.md"), renamed);
-    assert.equal(read(root, "crates/runx-parser/src/graph.rs"), code);
+    assert.equal(existsSync(path.join(root, "crates/runx-parser/src/graph.rs")), false);
+    assert.equal(read(root, "crates/runx-parser/src/workflow.rs"), "pub struct Method {\n    pub workflow: Workflow,\n}\n");
   }
 });
 
-test("graph is a workflow in the strings a person reads in code, and stays a word, a key, a document, a path, a comment or a name", (t) => {
+test("graph is a workflow in code, its comments and placeholders, and the strings a person reads, and stays a wire value, a document or a path the rename doesn't move", (t) => {
   const code = [
     '#[error("graph step \'{step_id}\' is missing")]',
     "Missing { step_id: String },",
@@ -346,7 +347,10 @@ test("graph is a workflow in the strings a person reads in code, and stays a wor
   assert.equal(status, 0, out);
   assert.equal(
     read(root, "crates/runx-runtime/src/error.rs"),
-    code.replace("\"graph step", "\"workflow step").replace('format!("graph {}', 'format!("workflow {}'),
+    code
+      .replace("\"graph step", "\"workflow step")
+      .replace("// a graph comment", "// a workflow comment")
+      .replace('format!("graph {} did not succeed: {graph}", graph.name)', 'format!("workflow {} did not succeed: {workflow}", workflow.name)'),
   );
 });
 

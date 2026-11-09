@@ -37,7 +37,7 @@ test("the guard fails on runner as a method and harness as a test, and passes th
   );
 });
 
-test("the guard fails on graph as a workflow in prose, and passes another graph, code and code spans", (t) => {
+test("the guard fails on graph as a workflow in prose and in code, and passes another graph and code spans", (t) => {
   const root = tree(t, {
     "README.md": "Compose skills into a graph.\nThe Rust crate graph is enforced.\nRun `runx list graphs`.\n\n```yaml\ngraph: demo\n```\n",
     "crates/runx-parser/src/workflow.rs": "pub struct Method { pub graph: Graph }\n",
@@ -47,18 +47,21 @@ test("the guard fails on graph as a workflow in prose, and passes another graph,
   assert.equal(
     run.stdout,
     "README.md:1\tgraph\tgraph\tCompose skills into a graph.\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose and 0 of a key the format removes, in 1 files\n",
+      "crates/runx-parser/src/workflow.rs:1\tgraph\tgraph\tpub struct Method { pub graph: Graph }\n" +
+      "crates/runx-parser/src/workflow.rs:1\tgraph\tGraph\tpub struct Method { pub graph: Graph }\n" +
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 3 of graph as a workflow in prose and 0 of a key the format removes, in 2 files\n",
   );
 });
 
-test("the guard counts graph in a message a person reads, and not a wire value or a name", (t) => {
+test("the guard counts graph in a message a person reads and in a name, and not a wire value", (t) => {
   const root = tree(t, { "crates/runx-runtime/src/error.rs": 'pub const FAILED: &str = "graph step failed";\npub const KIND: &str = "graph";\nfn graph() {}\n' });
   const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
     'crates/runx-runtime/src/error.rs:1\tgraph\tgraph\tpub const FAILED: &str = "graph step failed";\n' +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose and 0 of a key the format removes, in 1 files\n",
+      "crates/runx-runtime/src/error.rs:3\tgraph\tgraph\tfn graph() {}\n" +
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 2 of graph as a workflow in prose and 0 of a key the format removes, in 1 files\n",
   );
 });
 

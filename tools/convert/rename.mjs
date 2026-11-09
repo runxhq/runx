@@ -23,7 +23,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, PROSE_ONLY, SOURCE, STAYING_PATHS, bareWord, codeProse, decisionsFor, fencedBlocks, inPath, markdownCode, renamedBare, STRINGS, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, MOVED_PATHS, PROSE_ONLY, SOURCE, STAYING_PATHS, bareWord, decisionsFor, fencedBlocks, proseSites, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -486,14 +486,8 @@ function apply(repo, root, write, list, showStays) {
     // none counts among the names its file holds.
     const pinned = pinnedSpans(pins.filter((pin) => pin.file === file), original);
     const inPin = (at) => pinned.some(([from, to]) => at >= from && at < to);
-    // A prose-only word renames in prose: a Markdown file outside its code,
-    // and the strings a person reads in code.
-    const code = file.endsWith(".md") ? markdownCode(original) : undefined;
-    const strings = STRINGS.test(file) ? codeProse(original, file) : undefined;
-    const inProse = (at, token) =>
-      code !== undefined
-        ? !code.some(([from, to]) => at >= from && at < to)
-        : strings !== undefined && strings.some(([from, to]) => at >= from && at < to) && !inPath(original, at, token);
+    // A prose-only word renames where it's read as code or prose: see proseSites.
+    const inProse = proseSites(file, original);
     const held = new Set([...original.matchAll(TOKEN)].filter((m) => !inPin(m.index)).map((m) => m[0]));
     let count = 0;
     const edits = [];
@@ -608,7 +602,8 @@ function apply(repo, root, write, list, showStays) {
       const stem = dot > 0 ? part.slice(0, dot) : part;
       let to = renames.get(stem);
       const upTo = parts.slice(0, index + 1).join("/") + (last ? "" : "/");
-      if (to === undefined && bareWord(stem) !== undefined && !PROSE_ONLY.has(bareWord(stem)) && !STAYING_PATHS.test(upTo)) to = renamedBare(stem, "");
+      const moving = PROSE_ONLY.has(bareWord(stem)) ? MOVED_PATHS.test(upTo) : !STAYING_PATHS.test(upTo);
+      if (to === undefined && bareWord(stem) !== undefined && moving) to = renamedBare(stem, "");
       return to === undefined ? part : to + (dot > 0 ? part.slice(dot) : "");
     });
     const target = renamed.join("/");

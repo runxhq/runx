@@ -12,10 +12,58 @@ export const WORDS = {
   graph: { graph: "workflow", graphs: "workflows" },
 };
 
-// A word renamed in prose alone: Markdown outside its code. In code, a graph
-// is an identifier the table decides, a path stays where it is, and an inline
-// or fenced code span quotes code, a command or a file as it is.
+// A word renamed where a person or a program reads it as code or prose, but
+// never where it's data: in code, its identifiers and comments; in prose,
+// Markdown outside its code and the strings a person reads; and in a path
+// that names a module or folder the rename moves. A string a program reads
+// as a value, such as a wire value or a folder's name, keeps its bytes, and a
+// fenced or inline code span quotes code, a command or a file as it is.
 export const PROSE_ONLY = new Set(["graph"]);
+
+/**
+ * The paths the graph's rename moves: the parser's workflow module, the
+ * runtime's two workflow files, and the test fixtures' folder of workflow
+ * packages. A skill's own `graph/` folder of stage packages is the package
+ * format's, and keeps its name.
+ */
+export const MOVED_PATHS = /^(crates\/runx-parser\/src\/graph(\.rs$|\/)|crates\/runx-runtime\/src\/execution\/(skill_front\/)?graph\.rs$|fixtures\/graphs\/)/;
+const MOVED_REFERENCE = /runx-parser\/src\/graph|src\/graph\/|execution\/graph\.rs|skill_front\/graph\.rs|fixtures\/graphs/;
+
+/** Whether the token at `at` is part of a path naming one of the moved paths. */
+export function inMovedPath(text, at) {
+  let from = at;
+  let to = at;
+  while (from > 0 && /[\w./-]/.test(text[from - 1])) from -= 1;
+  while (to < text.length && /[\w./-]/.test(text[to])) to += 1;
+  return MOVED_REFERENCE.test(text.slice(from, to));
+}
+
+/**
+ * Where a prose-only word renames in one file: a predicate over a token's
+ * offset. Markdown renames it outside its code; a code file outside its
+ * strings, in its identifiers and comments, and in a string a person reads;
+ * any file in a path the rename moves. Data, a JSON or YAML value, renames it
+ * only in such a path, so a wire value or a key keeps its bytes.
+ */
+export function proseSites(file, text) {
+  if (file.endsWith(".md") || /(^|\/)llms\.txt$/.test(file)) {
+    const code = markdownCode(text);
+    return (at) => inMovedPath(text, at) || !code.some(([from, to]) => at >= from && at < to);
+  }
+  if (STRINGS.test(file)) {
+    const literals = stringLiterals(text, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);
+    const prose = codeProse(text, file);
+    return (at, token) => {
+      if (inMovedPath(text, at)) return true;
+      if (!literals.some(([from, to]) => at >= from && at < to)) return true;
+      // A format placeholder, {name} or {name:?}, names the code's variable.
+      if (text[at - 1] === "{" && /^[}:.]/.test(text.slice(at + token.length))) return true;
+      return prose.some(([from, to]) => at >= from && at < to) && !inPath(text, at, token);
+    };
+  }
+  if (/\.(astro|css|scss|sql|rb|sh|mk)$|(^|\/)Makefile$/.test(file)) return () => true;
+  return (at) => inMovedPath(text, at);
+}
 
 /** Each fenced code block in a Markdown text: the span between its fences. */
 export function fencedBlocks(text) {
@@ -285,7 +333,7 @@ export const GENERATED = /^(schemas\/[^/]+\.schema\.json|docs\/api-surface\.md|p
 // by extension, Go and stylesheets among them, and Makefiles by name. A
 // stylesheet's class and id names are names like any other, so a class an
 // element takes renames in the rules that style it.
-export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|css|scss|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)Makefile$/;
+export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|css|scss|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)(Makefile|llms\.txt)$/;
 
 // What can't truthfully change (§4.6), in its text or its path: history
 // documents; Ausca's catalog history, content-addressed immutable purchase
