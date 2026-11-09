@@ -592,15 +592,80 @@ fn a_run_and_its_inspection_name_the_saved_authority_they_start_with() -> Result
         ])),
         Some("ops".to_owned())
     );
-    // Authority is given one way: inline JSON is no flag.
-    assert!(matches!(
-        plan(&["skill", "skills/echo", "--run-authority", r#"{"grants":{}}"#]),
-        RouterAction::Error(message) if message.contains("--run-authority")
-    ));
     assert!(matches!(
         plan(&["skill", "inspect", "skills/echo", "--max-spend", "1"]),
         RouterAction::Error(message) if message.contains("not accepted by inspect")
     ));
+    Ok(())
+}
+
+/// A host states the authority of the run or inspection it starts with
+/// `--run-authority`, as it states the act and the context; an operator's
+/// saved preset is named with `--authority`, and a run takes one of them.
+#[test]
+fn a_host_states_its_invocations_authority_or_names_a_saved_preset() -> Result<(), String> {
+    let stated =
+        r#"{"actor_ref":{"type":"principal","uri":"runx:principal:user_1"},"max_child_depth":2}"#;
+    let RouterAction::RunSkill(run) = plan(&["skill", "skills/echo", "--run-authority", stated])
+    else {
+        return Err("a run plan".to_owned());
+    };
+    let authority = run.run_authority.ok_or("the run carries its authority")?;
+    assert_eq!(authority.max_child_depth, Some(2));
+    assert_eq!(run.authority, None);
+    // Inspect projects readiness under the grants a host would state.
+    let RouterAction::RunSkill(inspect) = plan(&[
+        "skill",
+        "inspect",
+        "skills/echo",
+        "--run-authority",
+        r#"{"grants":{"ausca/inbox":"grant_ausca_1"}}"#,
+    ]) else {
+        return Err("an inspect plan".to_owned());
+    };
+    let grants = inspect
+        .run_authority
+        .ok_or("the inspection carries its authority")?
+        .grants;
+    assert_eq!(
+        grants
+            .iter()
+            .map(|(connector, grant)| (connector.as_str(), grant.as_str()))
+            .collect::<Vec<_>>(),
+        [("ausca/inbox", "grant_ausca_1")]
+    );
+    // The run authority's own refusals, as a saved one's.
+    for refused in [r#"{"actor":"x"}"#, r#"{"grants":{"Not A Name":"grant_1"}}"#] {
+        assert!(matches!(
+            plan(&["skill", "skills/echo", "--run-authority", refused]),
+            RouterAction::Error(message) if message.contains("must be a JSON run authority")
+        ));
+    }
+    // Stated and named both: refused, whichever comes first.
+    for both in [
+        &[
+            "skill",
+            "skills/echo",
+            "--run-authority",
+            "{}",
+            "--authority",
+            "ops",
+        ][..],
+        &[
+            "skill",
+            "inspect",
+            "skills/echo",
+            "--authority",
+            "ops",
+            "--run-authority",
+            "{}",
+        ],
+    ] {
+        assert!(matches!(
+            plan(both),
+            RouterAction::Error(message) if message.contains("not both")
+        ));
+    }
     Ok(())
 }
 

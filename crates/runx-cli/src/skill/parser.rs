@@ -544,11 +544,35 @@ mod tests {
             return Err("inspect took a money limit".to_owned());
         };
         assert!(error.contains("bind a run"), "{error}");
-        // Authority is given one way: inline JSON is no flag.
-        let Err(error) = plan(&["skill", "skills/research", "--run-authority", "{}"]) else {
-            return Err("--run-authority parsed".to_owned());
+        // A host's stated authority takes the limit the same way.
+        let host =
+            r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_fanout":2}"#;
+        let joined = plan(&[
+            "skill",
+            "skills/research",
+            "--run-authority",
+            host,
+            "--max-spend",
+            "1",
+        ])?
+        .run_authority
+        .ok_or("no run authority")?;
+        assert_eq!(
+            (joined.max_fanout, joined.max_spend_micro_usd),
+            (Some(2), Some(1_000_000))
+        );
+        let stated = r#"{"max_spend_micro_usd":500000}"#;
+        let Err(error) = plan(&[
+            "skill",
+            "skills/research",
+            "--run-authority",
+            stated,
+            "--max-spend",
+            "1",
+        ]) else {
+            return Err("two different limits parsed".to_owned());
         };
-        assert!(error.contains("--run-authority"), "{error}");
+        assert!(error.contains("state the limit once"), "{error}");
         Ok(())
     }
 

@@ -214,17 +214,9 @@ impl Project {
         for (name, value) in inputs {
             command.args(["-i", &format!("{name}={value}")]);
         }
-        // A host gives a run its authority by saving it and naming it.
+        // A host states its run's authority for the invocation.
         if let Some(authority) = authority {
-            let name = format!(
-                "test-{}",
-                &runx_contracts::sha256_hex(authority.to_string().as_bytes())[..32]
-            );
-            let saved = self.save_authority(&name, authority, &[])?;
-            if !saved.status.success() {
-                return Ok(saved);
-            }
-            command.args(["--authority", &name]);
+            command.args(["--run-authority", &authority.to_string()]);
         }
         Ok(command.arg("--json").output()?)
     }
@@ -1475,6 +1467,63 @@ fn a_saved_authority_applies_only_where_it_is_named() -> TestResult {
     let removed = project.run_named("skills/notes#recall", &[("key", "tea")], "notes")?;
     assert!(!removed.status.success(), "{}", printed(&removed));
     assert!(printed(&removed).contains("notes"), "{}", printed(&removed));
+    Ok(())
+}
+
+/// A host's stated authority is its own, for the invocation: it needs no
+/// workspace and saves nothing. A saved preset is for the workspaces it
+/// lists, because a repository's config can name one, so a directory that's
+/// no workspace names none.
+#[test]
+fn an_authority_a_host_states_needs_no_workspace() -> TestResult {
+    let project = Project::new("runx-authority-stated")?;
+    project.skill("notes", NOTES)?;
+    json(
+        &project.save_authority("notes", &memory_authority(), &[])?,
+        0,
+    )?;
+    let bare = crate::support::temp_root("runx-authority-bare");
+    std::fs::create_dir_all(&bare)?;
+    let skill = format!("{}#observe", project.root.join("skills/notes").display());
+    let from_bare = |authority: &[&str]| -> TestResult<Output> {
+        let mut command = crate::support::unsigned_runx_command_at(&bare);
+        Ok(command
+            .env("RUNX_CWD", &bare)
+            .env("RUNX_HOME", project.root.join("home"))
+            .args([
+                "skill",
+                &skill,
+                "-i",
+                "key=tea",
+                "-i",
+                "text=takes tea black",
+            ])
+            .args(["-i", "attempt=bare"])
+            .args(authority)
+            .arg("--json")
+            .output()?)
+    };
+    let stated = json(
+        &from_bare(&["--run-authority", &memory_authority().to_string()])?,
+        0,
+    )?;
+    assert_eq!(store_result(&stated)["status"], "committed", "{stated}");
+    assert!(
+        !project
+            .root
+            .join("home/authorities")
+            .join("bare.json")
+            .exists()
+            && std::fs::read_dir(project.root.join("home/authorities"))?.count() == 1,
+        "stating an authority saves nothing"
+    );
+    let named = from_bare(&["--authority", "notes"])?;
+    assert!(!named.status.success(), "{}", printed(&named));
+    assert!(
+        printed(&named).contains("no workspace"),
+        "{}",
+        printed(&named)
+    );
     Ok(())
 }
 
