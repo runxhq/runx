@@ -236,12 +236,15 @@ by identity, the kernel store's committed writes and the rows it reads, the
 receipt directory entries it lists and the receipt index entries it reads and
 writes, the operations it dispatches to providers, and whether a store
 transaction was open across one, each time it takes a run whole, replaying
-the run's record or sealing every call into its receipt, and an artifact's
-bytes at each point they're copied: into the artifact store, out of it, to a
-worker, and into a page a read returns. A CLI process writes these where
-`RUNX_PERF_COUNTS_PATH` names at exit, a bench reads them in process, and a
-unit test reads them in a process of its test binary that runs that test
-alone.
+the run's record or sealing every call into its receipt, an artifact's bytes
+at each point they're copied: into the artifact store, out of it, to a
+worker, and into a page a read returns, and the rows a key listing visits on
+`private`, the ones it passes over among them, the pages of a search, and
+the events read from a key's history. A listing steps the recency index
+itself and keeps the types it was asked for, so the rows it visits are the
+rows it counts. A CLI process writes these where `RUNX_PERF_COUNTS_PATH`
+names at exit, a bench reads them in process, and a unit test reads them in a
+process of its test binary that runs that test alone.
 
 - **Journey 1, cold start.** The capture launches `runx skill inspect` on one
   skill in workspaces of 1, 10, 100 and 1,000 alike packages, each a new
@@ -257,6 +260,14 @@ alone.
   every size. The bench records that at 10, 100 and 1,000 calls, the most
   times per call a call took the run whole, and the provider calls a
   transaction was held open across, with each run's raw counts beside them.
+- **Journey 5, memory.** The runtime bench lays down a personal memory of
+  100, 10,000 and 100,000 entries, each in a fresh home, through the store's
+  own append: a third of them the person's words, a tenth corrected, a
+  twentieth disabled and some observations superseded, placed by their
+  distance from the newest. It runs `runx/memory#index` and `#search` as any
+  caller does, and records the rows the index's listings visited and the most
+  the pages it read could hold with the disabled rows within them, at each
+  size, and the pages a search read per stream and the history rows it read.
 - **Journey 7, artifacts.** The runtime bench takes artifacts of 1 KiB, 1 MiB
   and 64 MiB. It reads each whole with `artifact.read` in 64 KiB pages and
   records the most any page read from the store past the bytes it returned.

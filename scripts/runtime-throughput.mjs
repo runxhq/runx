@@ -238,9 +238,9 @@ function capture(workloads, options) {
     hardware: hardwareIdentity(),
     workloads: metrics,
     // Each journey's structural measurements, from the probes that count
-    // them: journey 1 from launches of the CLI, journeys 2 and 7 from the
-    // runtime bench, which runs them on the runtime its fixtures warmed. A
-    // journey no probe measures is absent, and the quality gate fails it.
+    // them: journey 1 from launches of the CLI, journeys 2, 5 and 7 from the
+    // runtime bench. A journey no probe measures is absent, and the quality
+    // gate fails it.
     journeys: {
       ...(existsSync(runtimeResourceMetricsPath)
         ? readJson(runtimeResourceMetricsPath).journeys ?? {}
@@ -955,7 +955,7 @@ function journeyBudgets() {
       journey: 5,
       name: "Memory",
       budgets: [
-        { id: "index_reads_what_it_shows", says: "The index reads only the pages its budget can show, counted in rows visited from the query plan.", holds: (m) => withinAt(m.index_rows_visited, m.index_rows_its_budget_can_show, ["100", "10000", "100000"]) },
+        { id: "index_reads_what_it_shows", says: "The index reads only the pages its budget reads, counted in rows visited from the query plan: the same at 10,000 entries as at 100,000, and no more than those pages hold with the disabled rows within them.", holds: (m) => flatAcross(m.index_rows_visited, ["10000", "100000"]) && ["100", "10000", "100000"].every((size) => atMost(m.index_rows_visited?.[size], m.index_rows_its_budget_reads?.[size])) },
         { id: "search_one_page_per_stream", says: "Search reads one page per stream.", holds: (m) => exactly(m.search_pages_per_stream, 1) },
         { id: "search_current_entries_only", says: "Search reads current entries only.", holds: (m) => exactly(m.search_history_rows_read, 0) },
       ],
@@ -1008,10 +1008,6 @@ function flatAcross(bySize, sizes) {
 
 function everyAt(bySize, sizes, holds) {
   return sizes.every((size) => holds(bySize?.[size]));
-}
-
-function withinAt(bySize, bound, sizes) {
-  return everyAt(bySize, sizes, (value) => atMost(value, bound));
 }
 
 function journeyChecks(report) {

@@ -77,6 +77,15 @@ try {
     "journey_2.constant_store_writes_per_call",
   );
 
+  const growingIndex = journeys();
+  growingIndex["5"].index_rows_visited["100000"] = 41;
+  growingIndex["5"].index_rows_its_budget_reads["100000"] = 41;
+  expectFail(
+    runQualityVerification(quality({ journeys: growingIndex })),
+    "an index that reads more as the record grows",
+    "journey_5.index_reads_what_it_shows",
+  );
+
   expectFail(
     runQualityVerification(quality({ nativeExtra: { p99_ns: 1_500_000 } })),
     "a percentile of Criterion's batch averages",
@@ -241,7 +250,7 @@ function journeys() {
     },
     5: {
       index_rows_visited: { 100: 40, 10000: 40, 100000: 40 },
-      index_rows_its_budget_can_show: 40,
+      index_rows_its_budget_reads: { 100: 40, 10000: 40, 100000: 40 },
       search_pages_per_stream: 1,
       search_history_rows_read: 0,
     },
