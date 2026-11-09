@@ -195,7 +195,10 @@ const HISTORY = /(^|\/)(migrations|drizzle)\//;
 const KEEPS_NAME = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 // Literals whose exact bytes stored data depends on, in files a token rename
 // would otherwise change them in. Each is masked while its file is renamed,
-// and a pin that isn't found refuses.
+// and a pin that isn't found refuses. A `block` pin names a fenced code block
+// in Markdown by a literal it holds, such as a content-addressed document's
+// id: every byte between its fences is masked, so it comes out byte-exact, and
+// a pin that names no block, or more than one, refuses.
 const PINNED = {
   ausca: [
     { file: "internal/adapters/catalog/release.go", literal: 'json:"runner"', why: "Ausca's catalog revision key: retained history decodes under it (§4.6)" },
@@ -209,8 +212,48 @@ const PINNED = {
       literal: '"purchase-holdings"',
       why: "the lease cipher's key-derivation label: stored ciphertext opens only under these bytes",
     },
+    // Receipts keep their words (§4.6), and OSS's schemas/receipt.schema.json still writes `harness`.
+    { file: "spec/spec.md", literal: '"uri": "runx:run:harness-graph/first#default"', why: "the canonical step receipt's subject: content-addressed bytes (§4.6)" },
+    { file: "spec/spec.md", literal: '"uri": "runx:run:harness-stated#post"', why: "the canonical governed call receipt's subject: content-addressed bytes" },
+    { file: "spec/spec.md", literal: '"uri": "runx:provider_ack:harness-sha256:e99502936df0730d12c15a5e0406da43bb6e3400ec8ee4d16a16dae7cc0be95b"', why: "a governed call receipt's verification ref: content-addressed bytes" },
+    { file: "spec/spec.md", literal: '"uri": "runx:harness:provider-readback:sha256:e99502936df0730d12c15a5e0406da43bb6e3400ec8ee4d16a16dae7cc0be95b"', why: "a governed call receipt's verification ref: content-addressed bytes" },
+    { file: "spec/spec.md", literal: '"uri": "runx:run:harness-graph",', why: "the canonical graph receipt's subject: content-addressed bytes" },
+    { file: "spec/spec.md", literal: '"label": "hello-graph"', why: "the canonical graph receipt's subject label: content-addressed bytes" },
+    { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'ref_type: "harness"', why: "a receipt subject's ref type: 0.12's receipt schema still writes harness" },
+    { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'type: "harness",', why: "a receipt ref's type, the same wire value" },
+    { file: "packages/api/src/receipts/notary-projection.test.ts", literal: "runx:harness:poisoned-secret-locator", why: "that ref's uri, and the secret the test proves is scrubbed from it" },
+    // spec.md's three canonical receipts, each named by its own id: the id and digest cover every byte.
+    { file: "spec/spec.md", block: '"id": "sha256:133fa57fec05b7d488717736317f8c52484b913dc45efc0b74728ecb84b8f0f4"', why: "the canonical step receipt, whose id and digest cover its bytes (§4.6)" },
+    { file: "spec/spec.md", block: '"id": "sha256:1cf7174123f48dc4598c7653af483c89845157250864d88f910f25b656b5f30f"', why: "the canonical governed call receipt, whose id and digest cover its bytes" },
+    { file: "spec/spec.md", block: '"id": "sha256:4ecdfe15d00f7ce518117d505270e4657e6868212a4d756a95249f01f0df8f6a"', why: "the canonical graph receipt, whose id and digest cover its bytes" },
   ],
 };
+
+/** Each fenced code block in a Markdown text: the span between its fences. */
+function fencedBlocks(text) {
+  const blocks = [];
+  let open;
+  for (const fence of text.matchAll(/^ {0,3}(`{3,}|~{3,})([^\n]*)$/gm)) {
+    const [, marks, info] = fence;
+    if (!open) {
+      if (marks[0] === "`" && info.includes("`")) continue;
+      open = { mark: marks[0], length: marks.length, start: fence.index + fence[0].length + 1 };
+    } else if (marks[0] === open.mark && marks.length >= open.length && info.trim() === "") {
+      blocks.push([open.start, fence.index]);
+      open = undefined;
+    }
+  }
+  return blocks;
+}
+
+/** The spans a file's pins mask: each literal's every occurrence, and each pinned block. */
+function pinnedSpans(pins, text) {
+  return pins.flatMap((pin) =>
+    pin.block !== undefined
+      ? fencedBlocks(text).filter(([from, to]) => text.slice(from, to).includes(pin.block))
+      : [...text.matchAll(new RegExp(escape(pin.literal), "g"))].map((m) => [m.index, m.index + pin.literal.length]),
+  );
+}
 
 // The files the tree holds now, tracked or not, minus what git ignores: the
 // converter runs first and writes files git doesn't know yet, and moves or
@@ -349,7 +392,14 @@ function apply(repo, root, write, list, showStays) {
   }
   const pins = PINNED[repo] ?? [];
   for (const pin of pins) {
-    if (!readSource(root, pin.file)?.text?.includes(pin.literal)) {
+    const text = readSource(root, pin.file)?.text ?? "";
+    if (pin.block !== undefined) {
+      const blocks = pinnedSpans([pin], text).length;
+      if (blocks !== 1) {
+        process.stdout.write(`refused ${repo}: the pinned block holding ${pin.block} is ${blocks === 0 ? "no fenced block" : `${blocks} fenced blocks`} in ${pin.file} (${pin.why}); find where it went and pin it there\n`);
+        return 1;
+      }
+    } else if (!text.includes(pin.literal)) {
       process.stdout.write(`refused ${repo}: the pinned ${pin.literal} isn't in ${pin.file} (${pin.why}); find where it went and pin it there\n`);
       return 1;
     }
@@ -426,7 +476,7 @@ function apply(repo, root, write, list, showStays) {
     const original = source.text;
     // A pinned literal keeps its bytes: no token inside one is renamed, and
     // none counts among the names its file holds.
-    const pinned = pins.filter((pin) => pin.file === file).flatMap((pin) => [...original.matchAll(new RegExp(escape(pin.literal), "g"))].map((m) => [m.index, m.index + pin.literal.length]));
+    const pinned = pinnedSpans(pins.filter((pin) => pin.file === file), original);
     const inPin = (at) => pinned.some(([from, to]) => at >= from && at < to);
     const held = new Set([...original.matchAll(TOKEN)].filter((m) => !inPin(m.index)).map((m) => m[0]));
     let count = 0;

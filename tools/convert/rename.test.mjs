@@ -298,8 +298,29 @@ test("Ausca's own runners stay: a shell variable, a GPU job runner, its sandbox'
   assert.equal(read(root, "docs/methods.md"), "The default method reads the catalog.\n");
 });
 
-// Cloud's pinned cipher label, which every Cloud tree holds.
-const cloudPin = { "packages/api/src/payments/holdings-postgres.ts": 'export const label = "purchase-holdings";\n' };
+// Cloud's pins, which every Cloud tree holds: the lease cipher's label, the
+// receipt words a test keeps, and spec.md's three canonical receipts.
+const cloudSpec = "# Runx spec\n\nThe harness context names a run.\n\n```json\n{\n  \"schema\": \"runx.receipt.v1\",\n  \"id\": \"sha256:133fa57fec05b7d488717736317f8c52484b913dc45efc0b74728ecb84b8f0f4\",\n  \"subject\": { \"uri\": \"runx:run:harness-graph/first#default\", \"runner\": \"default\" }\n}\n```\n\n```json\n{\n  \"id\": \"sha256:1cf7174123f48dc4598c7653af483c89845157250864d88f910f25b656b5f30f\",\n  \"subject\": { \"uri\": \"runx:run:harness-stated#post\" },\n  \"verification\": [\n    { \"uri\": \"runx:provider_ack:harness-sha256:e99502936df0730d12c15a5e0406da43bb6e3400ec8ee4d16a16dae7cc0be95b\" },\n    { \"uri\": \"runx:harness:provider-readback:sha256:e99502936df0730d12c15a5e0406da43bb6e3400ec8ee4d16a16dae7cc0be95b\" }\n  ]\n}\n```\n\n```json\n{\n  \"id\": \"sha256:4ecdfe15d00f7ce518117d505270e4657e6868212a4d756a95249f01f0df8f6a\",\n  \"subject\": { \"uri\": \"runx:run:harness-graph\", \"label\": \"hello-graph\" }\n}\n```\n";
+const cloudPin = {
+  "packages/api/src/payments/holdings-postgres.ts": 'export const label = "purchase-holdings";\n',
+  "packages/api/src/receipts/notary-projection.test.ts": 'export const subject = { ref_type: "harness" };\nexport const ref = { type: "harness", uri: "runx:harness:poisoned-secret-locator" };\n',
+  "spec/spec.md": cloudSpec,
+};
+
+test("a pinned block in Markdown comes out byte-exact, while the rest of its file renames", (t) => {
+  const root = tree(t, cloudPin);
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "spec/spec.md"), cloudSpec.replace("The harness context names a run.", "The run context names a run."));
+  assert.equal(read(root, "packages/api/src/receipts/notary-projection.test.ts"), cloudPin["packages/api/src/receipts/notary-projection.test.ts"]);
+});
+
+test("a block pin that names no fenced block refuses", (t) => {
+  const root = tree(t, { ...cloudPin, "spec/spec.md": cloudSpec.replace(/^\`\`\`(json)?$/gm, "") });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 1, out);
+  assert.match(out, /^refused cloud: the pinned block holding "id": "sha256:133fa57f[0-9a-f]+" is no fenced block in spec\/spec\.md/m);
+});
 
 test("a row of bare-words.tsv names what a bare word becomes at its site, so Cloud's client.harness is client.tests", (t) => {
   const root = tree(t, {
