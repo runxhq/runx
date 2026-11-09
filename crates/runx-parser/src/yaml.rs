@@ -551,7 +551,7 @@ mod tests {
         let sequence_result = assert_execution_profile_yaml_subset(
             "method_manifest",
             r#"
-skill: demo
+minimum_runx: 0.12.0
 methods:
   demo:
     steps:
