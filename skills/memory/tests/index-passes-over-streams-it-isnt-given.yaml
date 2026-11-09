@@ -1,0 +1,10 @@
+name: index-passes-over-streams-it-isnt-given
+method: index
+inputs:
+  levels: [{level: personal}]
+expect:
+  status: sealed
+  step_outputs:
+    index:
+      subset:
+        entries_omitted: false

@@ -1,0 +1,6 @@
+name: read-refuses-a-stream-that-isnt-memorys
+method: read
+inputs:
+  handle: "memory:notes:personal#key@1"
+expect:
+  status: failure

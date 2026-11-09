@@ -1,0 +1,7 @@
+name: search-passes-over-streams-it-isnt-given
+method: search
+inputs:
+  levels: [{level: personal}]
+  query: tea
+expect:
+  status: sealed

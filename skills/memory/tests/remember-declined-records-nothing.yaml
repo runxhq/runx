@@ -1,0 +1,24 @@
+name: remember-declined-records-nothing
+method: remember
+inputs:
+  level: personal
+  text: I write in Australian English.
+  date: 2026-11-08
+  sources: [conversation]
+host:
+  approvals:
+    memory.remember: false
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: policy_denied
+  steps: [entry, current, change, confirm]

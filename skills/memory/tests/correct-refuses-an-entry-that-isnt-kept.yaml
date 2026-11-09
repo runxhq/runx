@@ -1,0 +1,20 @@
+name: correct-refuses-an-entry-that-isnt-kept
+method: correct
+inputs:
+  handle: "memory:said:personal#0000000000000000000000000000000000000000000000000000000000000000@1"
+  text: I write in British English.
+  date: 2026-11-09
+  sources: [conversation]
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: failure

@@ -1,0 +1,20 @@
+name: observe-keeps-an-observation
+method: observe
+inputs:
+  level: personal
+  text: The build runs on Node 26.
+  date: 2026-11-09
+  sources: [package.json]
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: sealed

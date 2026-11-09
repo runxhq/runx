@@ -1,0 +1,20 @@
+name: a-workspace-level-needs-a-workspace
+method: remember
+inputs:
+  level: workspace
+  text: This workspace ships on Fridays.
+  date: 2026-11-08
+  sources: [conversation]
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: failure

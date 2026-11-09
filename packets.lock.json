@@ -110,6 +110,10 @@
       "digest": "sha256:e247c128a0e747aec813551a2baff4b4f7d7a2508643acf16ec4a70069e302a7"
     },
     {
+      "id": "runx/memory.entries.v1",
+      "digest": "sha256:376cf8602adbf7bdd899e11120082c8df4e1bf250d407083a5b351ac1097e3bd"
+    },
+    {
       "id": "runx/message-send.notification_plan.v1",
       "digest": "sha256:48b829d1b58690b8b463c3de0d947eed5ffe7ae8413ed7631f3ee487e5af7142"
     },

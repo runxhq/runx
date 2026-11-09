@@ -1,0 +1,308 @@
+# runx/memory in run.yaml's final shape (run-yaml.md), for the methods in
+# memory.md, on the `private` connector (files/connectors/private). A Stage 2
+# contract file: the package the build writes is this file, with its modules,
+# and a difference is a contract change.
+#
+# Every write has one shape: name the entry, inspect its key, decide (`change`
+# refuses a handle that isn't current and names the idempotency key and what
+# a gate shows), append at the inspected version, read back. A write after an
+# ask is guarded on that ask's yes, so with no yes nothing is recorded. A new
+# entry's key is the digest of its kind, level and content, so the same words
+# name one entry. A correction and a superseding observation are their entry's
+# next version, so the store's current entries are memory's current entries.
+# An operation step's result is read as $steps.<id>.provider_operation.result.
+# An output that's a contract names its packet. memory.mjs is a worker with no
+# I/O. Only this package writes its streams, and the workspace id comes from
+# the runx home ($run.workspace_id, null outside a workspace), never an input.
+version: "0.1.0"
+minimum_runx: 0.12.0
+default_method: index
+catalog:
+  visibility: public
+  category: data
+  tags: [memory, context]
+shared_inputs:
+  level:
+    type: string
+    enum: [personal, workspace, project, brand]
+    description: Whose memory. The person's own, this workspace's, or a project's or brand's in this workspace.
+  project:
+    type: string
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    maxLength: 64
+    optional: true
+    description: The project, when level is project. Missing there is a visible missing input, never a default.
+  brand:
+    type: string
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    maxLength: 64
+    optional: true
+    description: The brand, when level is brand. Missing there is a visible missing input, never a default.
+  levels:
+    type: array
+    minItems: 1
+    maxItems: 8
+    description: The levels to read. Streams the run's authority doesn't reach are passed over, never an error.
+    items:
+      type: object
+      additionalProperties: false
+      required: [level]
+      properties:
+        level: { enum: [personal, workspace, project, brand] }
+        project: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", maxLength: 64 }
+        brand: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", maxLength: 64 }
+  text:
+    type: string
+    minLength: 1
+    maxLength: 4000
+    description: The words, exactly.
+  date:
+    type: string
+    format: date
+    description: The fact's own date, never when it was stored, so a date from a model or a page can't reorder anything (D35).
+  sources:
+    type: array
+    minItems: 1
+    maxItems: 16
+    items: { type: string, minLength: 1, maxLength: 2048 }
+    description: Where it came from.
+  handle:
+    type: string
+    pattern: "^memory:[^#]+#[^#]+@[0-9]+$"
+    maxLength: 512
+    description: One entry at one version, memory:<stream>#<key>@<version>.
+methods:
+  remember:
+    description: Keep the person's exact words, once they're confirmed as theirs. Nothing is recorded without the confirmation.
+    inputs: { level: {}, project: {}, brand: {}, text: {}, date: {}, sources: {} }
+    examples:
+      - { level: personal, text: I write in Australian English., date: 2026-11-08, sources: [conversation] }
+    steps:
+      - id: entry
+        tool: { module: memory.mjs, export: newEntry }
+        inputs: { kind: said, level: $input.level, project: $input.project, brand: $input.brand, workspace_id: $run.workspace_id, text: $input.text, date: $input.date, sources: $input.sources }
+        outputs:
+          stream: { type: string }
+          key: { type: string }
+          version: { type: integer }
+      - id: current
+        operation: private/key.inspect
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: change
+        tool: { module: memory.mjs, export: change }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.remembered, data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: CONF } }
+        outputs:
+          reason: { type: string }
+          idempotency_key: { type: string }
+      - id: confirm
+        ask: { gate: memory.remember, reason: $steps.change.reason, type: person_words }
+        inputs: { quote: $input.text, sources: $input.sources, stream: $steps.entry.stream }
+      - id: append
+        operation: private/events.append
+        guard:
+          - { value: $steps.confirm.approval_decision.approved, equals: true }
+        inputs:
+          stream: $steps.entry.stream
+          key: $steps.entry.key
+          expected_version: $steps.current.provider_operation.result.version
+          type: memory.remembered
+          data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+        idempotency_key: $steps.change.idempotency_key
+      - id: readback
+        operation: private/key.inspect
+        confirms: append
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: handle
+        tool: { module: memory.mjs, export: entryHandle }
+        inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
+        outputs:
+          handle: { type: string }
+  correct:
+    description: Replace the person's words with corrected words, as the entry's next version. Its earlier words stay in its history.
+    inputs: { handle: {}, text: {}, date: {}, sources: {} }
+    steps:
+      - id: entry
+        tool: { module: memory.mjs, export: parseHandle }
+        inputs: { handle: $input.handle, kind: said }
+        outputs:
+          stream: { type: string }
+          key: { type: string }
+          version: { type: integer }
+          after_version: { type: integer }
+      - id: current
+        operation: private/key.inspect
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: change
+        tool: { module: memory.mjs, export: change }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.corrected, data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: CONF } }
+        outputs:
+          reason: { type: string }
+          idempotency_key: { type: string }
+      - id: confirm
+        ask: { gate: memory.correct, reason: $steps.change.reason }
+        inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, text: $input.text, date: $input.date, sources: $input.sources }
+      - id: append
+        operation: private/events.append
+        guard:
+          - { value: $steps.confirm.approval_decision.approved, equals: true }
+        inputs:
+          stream: $steps.entry.stream
+          key: $steps.entry.key
+          expected_version: $steps.current.provider_operation.result.version
+          type: memory.corrected
+          data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+        idempotency_key: $steps.change.idempotency_key
+      - id: readback
+        operation: private/key.inspect
+        confirms: append
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: handle
+        tool: { module: memory.mjs, export: entryHandle }
+        inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
+        outputs:
+          handle: { type: string }
+  disable:
+    description: Stop an entry applying. The record keeps it, and reading history still reaches it.
+    inputs: 
+      handle: {}
+      reason: { type: string, minLength: 1, maxLength: 1000, description: Why it stops applying. }
+    steps:
+      - id: entry
+        tool: { module: memory.mjs, export: parseHandle }
+        inputs: { handle: $input.handle }
+        outputs:
+          stream: { type: string }
+          key: { type: string }
+          version: { type: integer }
+          after_version: { type: integer }
+      - id: current
+        operation: private/key.inspect
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: change
+        tool: { module: memory.mjs, export: change }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.disabled, data: { reason: $input.reason, confirmation: CONF } }
+        outputs:
+          reason: { type: string }
+          idempotency_key: { type: string }
+      - id: confirm
+        ask: { gate: memory.disable, reason: $steps.change.reason }
+        inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, reason: $input.reason }
+      - id: append
+        operation: private/events.append
+        guard:
+          - { value: $steps.confirm.approval_decision.approved, equals: true }
+        inputs:
+          stream: $steps.entry.stream
+          key: $steps.entry.key
+          expected_version: $steps.current.provider_operation.result.version
+          type: memory.disabled
+          data: { reason: $input.reason, confirmation: $steps.confirm }
+        idempotency_key: $steps.change.idempotency_key
+      - id: readback
+        operation: private/key.inspect
+        confirms: append
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: handle
+        tool: { module: memory.mjs, export: entryHandle }
+        inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
+        outputs:
+          handle: { type: string }
+  observe:
+    description: Keep what an agent found, with its date and sources. Naming the observation it supersedes makes this that entry's next version, and the one it replaces stays in the entry's history. Never promoted into an instruction or a confirmed memory.
+    inputs: 
+      level: {}
+      project: {}
+      brand: {}
+      text: {}
+      date: {}
+      sources: {}
+      supersedes: { type: string, pattern: "^memory:observed:[^#]+#[^#]+@[0-9]+$", maxLength: 512, optional: true, description: "The observation this one replaces, at its current version." }
+    steps:
+      - id: entry
+        tool: { module: memory.mjs, export: newEntry }
+        inputs: { kind: observed, level: $input.level, project: $input.project, brand: $input.brand, workspace_id: $run.workspace_id, text: $input.text, date: $input.date, sources: $input.sources, supersedes: $input.supersedes }
+        outputs:
+          stream: { type: string }
+          key: { type: string }
+          version: { type: integer }
+      - id: current
+        operation: private/key.inspect
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: change
+        tool: { module: memory.mjs, export: change }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.observed, data: { text: $input.text, date: $input.date, sources: $input.sources } }
+        outputs:
+          reason: { type: string }
+          idempotency_key: { type: string }
+      - id: append
+        operation: private/events.append
+        inputs:
+          stream: $steps.entry.stream
+          key: $steps.entry.key
+          expected_version: $steps.current.provider_operation.result.version
+          type: memory.observed
+          data: { text: $input.text, date: $input.date, sources: $input.sources }
+        idempotency_key: $steps.change.idempotency_key
+      - id: readback
+        operation: private/key.inspect
+        confirms: append
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
+      - id: handle
+        tool: { module: memory.mjs, export: entryHandle }
+        inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
+        outputs:
+          handle: { type: string }
+  index:
+    description: A bounded index of the entries the run may read, for a turn's context. The person's words first, then observations, newest first within each, each line capped and dated. Past its limit, lines lose their preview before any entry goes.
+    inputs:
+      levels: {}
+      max_characters: { type: integer, minimum: 256, maximum: 32768, default: 4096, optional: true, description: The most characters the index may hold. }
+    examples:
+      - { levels: [{ level: personal }] }
+    steps:
+      - id: index
+        script: { module: memory.mjs, export: index }
+        inputs: { levels: $input.levels, max_characters: $input.max_characters, workspace_id: $run.workspace_id }
+        calls:
+          operations: [private/keys.list]
+        max_calls: 64
+        effects: none
+        outputs:
+          entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values." }
+          entries_omitted: { type: boolean, description: "Some entries didn't fit, and search and read reach them." }
+  search:
+    description: Ranked matches among the current entries of the streams the run may read. Reading history is explicit, with read.
+    inputs:
+      levels: {}
+      query: { type: string, minLength: 1, maxLength: 512 }
+      limit: { type: integer, minimum: 1, maximum: 50, default: 10, optional: true }
+    steps:
+      - id: search
+        script: { module: memory.mjs, export: search }
+        inputs: { levels: $input.levels, query: $input.query, limit: $input.limit, workspace_id: $run.workspace_id }
+        calls:
+          operations: [private/keys.search]
+        max_calls: 16
+        effects: none
+        outputs:
+          entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values, best match first." }
+  read:
+    description: One entry by handle, at the version the handle names, whether or not it's still current.
+    inputs: { handle: {} }
+    steps:
+      - id: entry
+        tool: { module: memory.mjs, export: parseHandle }
+        inputs: { handle: $input.handle }
+        outputs:
+          stream: { type: string }
+          key: { type: string }
+          version: { type: integer }
+          after_version: { type: integer }
+      - id: read
+        operation: private/events.read
+        inputs: { stream: $steps.entry.stream, key: $steps.entry.key, after_version: $steps.entry.after_version, limit: 1 }
+      - id: context
+        tool: { module: memory.mjs, export: contextEntry }
+        inputs: { handle: $input.handle, read: $steps.read.provider_operation.result }
+        outputs:
+          entry: { type: object, packet: runx.context_entry.v1 }

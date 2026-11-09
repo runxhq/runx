@@ -1,0 +1,27 @@
+name: remember-keeps-confirmed-words
+method: remember
+inputs:
+  level: personal
+  text: I write in Australian English.
+  date: 2026-11-08
+  sources: [conversation]
+host:
+  approvals:
+    memory.remember: true
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: sealed
+  step_outputs:
+    handle:
+      subset:
+        handle: "memory:said:personal#fc68c62dfafa60f0185b47a8c674cbb1ac25a4b310d980fce880bccc5c1a9768@1"

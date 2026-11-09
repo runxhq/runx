@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/memory/entries/v1.json",
+  "x-runx-packet-id": "runx/memory.entries.v1",
+  "title": "Memory entries",
+  "description": "The entries memory's index or search gives a turn, each a runx.context_entry.v1, in the order the method ranks them.",
+  "type": "array",
+  "items": { "$ref": "https://schemas.runx.ai/runx/context-entry/v1.json" }
+}

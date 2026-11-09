@@ -13,7 +13,7 @@ const names = [
   "skill-build", "skill-review", "skill-adopt", "diagnose-skill-run",
   "run-history", "receipt-query", "receipt-audit", "least-privilege",
   "policy-draft", "sign-receipt", "agent",
-  "revert",
+  "revert", "memory",
 ];
 const binary = resolveNativeRunxBinary();
 const skills = names.map((name) => {
