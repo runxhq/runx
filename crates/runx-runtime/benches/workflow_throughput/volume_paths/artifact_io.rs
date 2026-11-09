@@ -241,11 +241,15 @@ const JOURNEY_SIZES: [(&str, usize); 3] = [
 
 /// performance.md's journey 7, artifacts, counted at each size. A page read
 /// is an `artifact.read` of 64 KiB, and what it reads from the store past
-/// the bytes its page holds is past its range. A byte's copies are counted at
-/// each point from the store to a worker: copied into the store, read from
-/// it, and handed to the worker in a page, as a module reads a JSON array
-/// artifact page by page; over the artifact's bytes, a bounded number of
-/// copies reads the same at every size.
+/// the bytes its page holds is past its range. The store checks a snapshot
+/// in chunks of 64 KiB, its unit of verification, so a page reads the chunks
+/// its range covers: these pages start on a chunk, and read none past their
+/// range, while a page that starts or ends inside a chunk reads up to that
+/// chunk past each end, and the budget holds no more than that. A byte's
+/// copies are counted at each point from the store to a worker: copied into
+/// the store, read from it, and handed to the worker in a page, as a module
+/// reads a JSON array artifact page by page; over the artifact's bytes, a
+/// bounded number of copies reads the same at every size.
 fn artifacts_journey() -> Result<JsonValue, Box<dyn Error>> {
     let reads = ToolCalls::new()?;
     let worker = PagedWorker::new()?;
