@@ -10,7 +10,7 @@ Rust runtime work has four explicit gates:
 | Local fast | Tight edit loop for nearby package/runtime changes. | `pnpm verify:fast` or a focused `cargo test --manifest-path crates/Cargo.toml -p <crate> ...` |
 | CI fast | Deterministic semantic and boundary checks that should run on every review. | `pnpm boundary:check`, `pnpm typecheck`, focused Rust contract/runtime tests |
 | Heavy | Perf, MCP, external-process, and oracle checks that are useful before release or risky runtime changes. | `pnpm stress:runtime:*`, `pnpm perf:runtime:check -- --baseline <path>`, `runtime quality` workflow |
-| Soak | Long-running replay/stress loops that should be invoked intentionally, never hidden inside the default workspace test. | Repeated stress commands under an external method with captured JSON output |
+| Soak | Long-running replay/stress loops that should be invoked intentionally, never hidden inside the default workspace test. | Repeated stress commands under an external process with captured JSON output |
 
 On macOS 26, complete the
 [Developer Tools permission prerequisite](../CONTRIBUTING.md#macos-developer-tools-permission)
@@ -39,7 +39,7 @@ local payment behavior is limited to the three mock fixtures:
 ```bash
 cargo test --manifest-path crates/Cargo.toml -p runx-cli --test integration
 runx test fixtures/skills/mock-pay
-runx test skills/pay/fixtures/hosted-contract.yaml
+runx test skills/pay/tests/hosted-contract.yaml
 ```
 
 For one file:
@@ -85,7 +85,7 @@ Use checked-in fixtures when a behavior should remain stable:
 - `examples/` for public docs examples that should also be executable
 
 Prefer small fixtures with one purpose. If an example appears in docs, add a
-test or test so the docs fail loudly when the runtime shape changes.
+test so the docs fail loudly when the runtime shape changes.
 
 Test replay is owned by Rust. The fixture registry lives in
 `runx_runtime::test::list_cases()`, and the
