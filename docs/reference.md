@@ -285,6 +285,15 @@ with `effects` and where its tools may go with `reach` (see Effects and reach,
 below); a host whose own agent works the run sets `effects: ask` and
 `reach: workspace`.
 
+A run's authority may set `packages`, the packages every call's chain must be
+covered by, on whichever connector instance the call resolves: `<publisher>/<name>`
+for a registry or bundled package and `project:<name>` for one the project
+authored, `*` standing for one segment, so `acme/*` covers acme's packages and
+`project:*` the project's own. A call made from a child skill the list doesn't
+cover is refused before anything is sent, its receipt's execution term names
+the chain, and an empty list covers nothing. A delegation's terms carry the same
+`packages` bound, and a delegation states its own.
+
 A run's authority may also set `max_spend_micro_usd`, the most the run may spend in
 integer micro-USD (1 = $0.000001); `runx skill --max-spend <usd>` sets it for a
 local run. Every priced call's quote, and every amount a call moves in USD or
