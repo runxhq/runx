@@ -357,7 +357,16 @@ A step receives exactly what it binds. Its `inputs`, and an operation step's
 - `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a field
   of it;
 - `$run.id`: the run's own id, which only an operation step's
-  `idempotency_key` reads.
+  `idempotency_key` reads;
+- `$run.workspace_id`: the id of the workspace the run runs in, which any
+  value, condition or guard may read. The runx home mints it the first time a
+  step reads it there, keyed by the workspace's canonical path, and never
+  reads it from the workspace, so a repository can't name another workspace.
+  It's `null` where there's no workspace (a directory with `.git`,
+  `pnpm-workspace.yaml`, `skills/` or `connectors/`), and a run whose runx home
+  fell back to the workspace refuses to read it. `runx workspace list` shows
+  the ids, and `runx workspace rebind <old path>` gives a moved workspace back
+  the one it had.
 
 Paths are dotted, and a numeric segment indexes a list. A step's result is
 the values it declares: a reference reads an output's value, never the

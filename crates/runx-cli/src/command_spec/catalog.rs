@@ -156,6 +156,19 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &["--from reference", "-j, --json"],
     },
     CommandSpec {
+        name: "workspace",
+        top_level_usage: &["runx workspace list|rebind ... [-j|--json]"],
+        usage: &[
+            "runx workspace list [-j|--json]",
+            "runx workspace rebind <old path> [-j|--json]",
+        ],
+        notes: &[
+            "Each workspace you run runx in is named by an id the runx home mints the first time a step reads $run.workspace_id there, keyed by the workspace's canonical path. A workspace is a directory with .git, pnpm-workspace.yaml, skills/ or connectors/; elsewhere a run reads a null workspace id. The id is never read from the workspace, so a repository can't name another workspace's memory, and a home that fell back to the workspace mints none.",
+            "runx can't tell a move from a copy, so a moved workspace is minted a new id. `rebind <old path>`, run in the workspace where it is now, gives it back the id it had at the old path; the id minted for it here goes, and what was kept under that id stays under it. `list` shows each id and its path.",
+        ],
+        options: &["-j, --json"],
+    },
+    CommandSpec {
         name: "connector",
         top_level_usage: &["runx connector list|inspect|use|revoke|import-mcp ... [-j|--json]"],
         usage: &[

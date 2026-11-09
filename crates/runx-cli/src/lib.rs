@@ -22,6 +22,7 @@ pub mod secret;
 pub mod skill;
 pub mod tool;
 pub mod verify;
+pub mod workspace;
 
 #[cfg(test)]
 mod release_identity_tests {

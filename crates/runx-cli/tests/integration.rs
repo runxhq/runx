@@ -33,4 +33,5 @@ mod support;
 mod test;
 mod tool;
 mod verify;
+mod workspace;
 mod writes;
