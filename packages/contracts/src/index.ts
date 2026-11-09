@@ -36,7 +36,6 @@ export {
   operationAmount,
   type HttpMethod,
   type HttpReadback,
-  type LeaseEvidence,
   type HttpRequest,
   type JsonObject,
   type JsonValue,

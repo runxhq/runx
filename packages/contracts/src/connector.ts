@@ -99,13 +99,6 @@ export type OperationLease =
   | { readonly renew: string; readonly expires_at: Template }
   | { readonly release: string };
 
-/** Where runx Connect put a leased value in a provider answer, as `{"$lease": ...}`. */
-export interface LeaseEvidence {
-  readonly target: string;
-  readonly expires_at: string;
-  readonly value_digest: string;
-}
-
 export interface HttpRequest {
   readonly id: string;
   readonly each?: Template;
