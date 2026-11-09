@@ -425,13 +425,12 @@ fn an_append_reaches_only_the_stream_admission_rendered() {
 }
 
 /// An event's digest covers its writer, its type and its data, so the same
-/// data from other bytes is another event; one written before writers were
-/// recorded covers its data alone, as it was written.
+/// data from other bytes is another event.
 #[test]
 fn an_events_digest_covers_its_writer() {
     use super::model::{EventRecord, Writer, event_digest};
     let data = JsonObject::from([("label".to_owned(), JsonValue::String("one".to_owned()))]);
-    let event = |writer: Option<Writer>, event_type: &str| EventRecord {
+    let event = |writer: Writer, event_type: &str| EventRecord {
         id: String::new(),
         version: 1,
         event_type: event_type.to_owned(),
@@ -446,14 +445,14 @@ fn an_events_digest_covers_its_writer() {
         digest: digest.to_owned(),
     };
     let one = event_digest(&event(
-        Some(writer(&format!("sha256:{}", "1".repeat(64)))),
+        writer(&format!("sha256:{}", "1".repeat(64))),
         "item.labelled",
     ))
     .unwrap();
     assert_ne!(
         one,
         event_digest(&event(
-            Some(writer(&format!("sha256:{}", "2".repeat(64)))),
+            writer(&format!("sha256:{}", "2".repeat(64))),
             "item.labelled"
         ))
         .unwrap()
@@ -461,14 +460,10 @@ fn an_events_digest_covers_its_writer() {
     assert_ne!(
         one,
         event_digest(&event(
-            Some(writer(&format!("sha256:{}", "1".repeat(64)))),
+            writer(&format!("sha256:{}", "1".repeat(64))),
             "item.renamed"
         ))
         .unwrap()
-    );
-    assert_eq!(
-        event_digest(&event(None, "item.labelled")).unwrap(),
-        super::model::digest(&JsonValue::Object(data.clone())).unwrap()
     );
 }
 

@@ -3947,7 +3947,7 @@ export type StoreEventContract = {
   readonly data: {
     readonly [key: string]: unknown;
   };
-  /** Covers the writer, the type and the data; an event written before writers were recorded covers its data alone. */
+  /** Covers the writer, the type and the data. */
   readonly digest: string;
   /** A length-delimited encoding of stream, key and version. */
   readonly id: string;
@@ -3955,8 +3955,8 @@ export type StoreEventContract = {
   /** Declared by the writer, never guessed. */
   readonly type: string;
   readonly version: number;
-  /** Absent on an event written before 0.12. */
-  readonly writer?: StoreWriterContract;
+  /** The package that wrote it and the digest of the exact bytes it ran from, set by the runtime: every event records one. */
+  readonly writer: StoreWriterContract;
 };
 
 /** The event an append committed or replayed. */

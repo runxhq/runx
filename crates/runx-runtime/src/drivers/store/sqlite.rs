@@ -40,8 +40,8 @@ CREATE TABLE store_events (
   digest TEXT NOT NULL,
   data TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  writer_package TEXT,
-  writer_digest TEXT,
+  writer_package TEXT NOT NULL,
+  writer_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key, version),
   UNIQUE (stream, key, idempotency_key)
 );
@@ -55,8 +55,8 @@ CREATE TABLE store_keys (
   idempotency_key TEXT NOT NULL,
   data TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  writer_package TEXT,
-  writer_digest TEXT,
+  writer_package TEXT NOT NULL,
+  writer_digest TEXT NOT NULL,
   chain_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key)
 );
@@ -410,10 +410,11 @@ fn data_json(record: &EventRecord) -> Result<String, StoreError> {
         .map_err(|error| StoreError::invalid(format!("encoding the event: {error}")))
 }
 
-fn writer_columns(record: &EventRecord) -> (Option<&str>, Option<&str>) {
-    record.writer.as_ref().map_or((None, None), |writer| {
-        (Some(writer.package.as_str()), Some(writer.digest.as_str()))
-    })
+fn writer_columns(record: &EventRecord) -> (&str, &str) {
+    (
+        record.writer.package.as_str(),
+        record.writer.digest.as_str(),
+    )
 }
 
 fn insert_event(
@@ -514,12 +515,9 @@ fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRe
     let data = row.get::<_, String>(offset + 6)?;
     let data = serde_json::from_str::<JsonObject>(&data)
         .map_err(|error| corrupt(offset + 6, Box::new(error)))?;
-    let writer = match (
-        row.get::<_, Option<String>>(offset + 7)?,
-        row.get::<_, Option<String>>(offset + 8)?,
-    ) {
-        (Some(package), Some(digest)) => Some(Writer { package, digest }),
-        _ => None,
+    let writer = Writer {
+        package: row.get(offset + 7)?,
+        digest: row.get(offset + 8)?,
     };
     Ok(EventRecord {
         id: row.get(offset)?,

@@ -34,8 +34,8 @@ CREATE TABLE store_events (
   digest TEXT NOT NULL,
   data TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  writer_package TEXT,
-  writer_digest TEXT,
+  writer_package TEXT NOT NULL,
+  writer_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key, version),
   UNIQUE (stream, key, idempotency_key)
 );
@@ -49,8 +49,8 @@ CREATE TABLE store_keys (
   idempotency_key TEXT NOT NULL,
   data TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  writer_package TEXT,
-  writer_digest TEXT,
+  writer_package TEXT NOT NULL,
+  writer_digest TEXT NOT NULL,
   chain_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key)
 );
@@ -342,10 +342,8 @@ fn upsert_key(
     Ok(())
 }
 
-fn writer_columns(record: &EventRecord) -> (Option<String>, Option<String>) {
-    record.writer.as_ref().map_or((None, None), |writer| {
-        (Some(writer.package.clone()), Some(writer.digest.clone()))
-    })
+fn writer_columns(record: &EventRecord) -> (String, String) {
+    (record.writer.package.clone(), record.writer.digest.clone())
 }
 
 fn state(client: &mut impl GenericClient, at: Key<'_>) -> Result<KeyState, StoreError> {
@@ -387,12 +385,9 @@ fn existing(
 
 fn record_at(row: &Row, offset: usize) -> Result<EventRecord, StoreError> {
     let data: String = row.get(offset + 6);
-    let writer = match (
-        row.get::<_, Option<String>>(offset + 7),
-        row.get::<_, Option<String>>(offset + 8),
-    ) {
-        (Some(package), Some(digest)) => Some(Writer { package, digest }),
-        _ => None,
+    let writer = Writer {
+        package: row.get(offset + 7),
+        digest: row.get(offset + 8),
     };
     Ok(EventRecord {
         id: row.get(offset),

@@ -1,7 +1,6 @@
 //! Events, a key's state and the answers, the same for every backend
-//! (`store.md`). An event's digest covers its writer, its type and its data;
-//! one written before events recorded a writer covers its data alone, as it
-//! was written. A key's `chain_digest` chains its events, its hash input
+//! (`store.md`). Every event records its writer, and its digest covers its
+//! writer, its type and its data. A key's `chain_digest` chains its events, its hash input
 //! keeping the field names it always had, so existing chains still verify.
 
 use base64::Engine as _;
@@ -31,8 +30,8 @@ pub(super) struct EventRecord {
     pub digest: String,
     pub idempotency_key: String,
     pub committed_at: String,
-    /// Absent on an event written before events recorded their writer.
-    pub writer: Option<Writer>,
+    /// The package that wrote it, and the digest of the bytes it ran from.
+    pub writer: Writer,
 }
 
 /// One key's state: its version, its newest event, and the digest that
@@ -114,23 +113,19 @@ pub(super) fn record(
         digest: String::new(),
         idempotency_key: idempotency_key.to_owned(),
         committed_at: normalize_time(committed_at)?,
-        writer: Some(writer.clone()),
+        writer: writer.clone(),
     };
     record.digest = event_digest(&record)?;
     Ok(record)
 }
 
-/// What an event's digest covers: its writer, type and data from the event
-/// version that records a writer on, and its data alone before it.
+/// What an event's digest covers: its writer, its type and its data.
 pub(super) fn event_digest(record: &EventRecord) -> Result<String, StoreError> {
-    match &record.writer {
-        None => digest(&JsonValue::Object(record.data.clone())),
-        Some(writer) => digest(&JsonValue::Object(JsonObject::from([
-            ("data".to_owned(), JsonValue::Object(record.data.clone())),
-            ("type".to_owned(), text(&record.event_type)),
-            ("writer".to_owned(), writer_object(writer)),
-        ]))),
-    }
+    digest(&JsonValue::Object(JsonObject::from([
+        ("data".to_owned(), JsonValue::Object(record.data.clone())),
+        ("type".to_owned(), text(&record.event_type)),
+        ("writer".to_owned(), writer_object(&record.writer)),
+    ])))
 }
 
 pub(super) fn empty_state() -> Result<KeyState, StoreError> {
@@ -215,7 +210,7 @@ fn writer_object(writer: &Writer) -> JsonValue {
 
 /// An event as every answer and every JSON backend holds it.
 pub(super) fn record_object(record: &EventRecord) -> JsonObject {
-    let mut object = JsonObject::from([
+    JsonObject::from([
         ("id".to_owned(), text(&record.id)),
         ("version".to_owned(), number(record.version)),
         ("type".to_owned(), text(&record.event_type)),
@@ -223,11 +218,8 @@ pub(super) fn record_object(record: &EventRecord) -> JsonObject {
         ("digest".to_owned(), text(&record.digest)),
         ("idempotency_key".to_owned(), text(&record.idempotency_key)),
         ("committed_at".to_owned(), text(&record.committed_at)),
-    ]);
-    if let Some(writer) = &record.writer {
-        object.insert("writer".to_owned(), writer_object(writer));
-    }
-    object
+        ("writer".to_owned(), writer_object(&record.writer)),
+    ])
 }
 
 /// A record back from the object [`record_object`] wrote, as a backend that
@@ -244,24 +236,20 @@ pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, Store
             .map(str::to_owned)
             .ok_or_else(|| StoreError::corrupt(format!("a stored event has no {name}")))
     };
-    let writer = match object.get("writer") {
-        None => None,
-        Some(writer) => {
-            let writer = writer
-                .as_object()
-                .ok_or_else(|| StoreError::corrupt("a stored event's writer is not an object"))?;
-            let part = |name: &str| {
-                writer
-                    .get(name)
-                    .and_then(JsonValue::as_str)
-                    .map(str::to_owned)
-                    .ok_or_else(|| StoreError::corrupt(format!("a stored writer has no {name}")))
-            };
-            Some(Writer {
-                package: part("package")?,
-                digest: part("digest")?,
-            })
-        }
+    let writer = object
+        .get("writer")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| StoreError::corrupt("a stored event has no writer"))?;
+    let part = |name: &str| {
+        writer
+            .get(name)
+            .and_then(JsonValue::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| StoreError::corrupt(format!("a stored writer has no {name}")))
+    };
+    let writer = Writer {
+        package: part("package")?,
+        digest: part("digest")?,
     };
     Ok(EventRecord {
         id: field("id")?,

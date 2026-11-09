@@ -39335,7 +39335,7 @@ export const runxSchemaArtifacts = {
                   "type": "object"
                 },
                 "digest": {
-                  "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                  "description": "Covers the writer, the type and the data.",
                   "maxLength": 71,
                   "pattern": "^sha256:[0-9a-f]{64}$",
                   "type": "string"
@@ -39362,7 +39362,7 @@ export const runxSchemaArtifacts = {
                 },
                 "writer": {
                   "additionalProperties": false,
-                  "description": "Absent on an event written before 0.12.",
+                  "description": "The package that wrote it and the digest of the exact bytes it ran from, set by the runtime: every event records one.",
                   "properties": {
                     "digest": {
                       "maxLength": 71,
@@ -39389,7 +39389,8 @@ export const runxSchemaArtifacts = {
                 "data",
                 "digest",
                 "idempotency_key",
-                "committed_at"
+                "committed_at",
+                "writer"
               ],
               "title": "StoreEvent",
               "type": "object"
@@ -39501,7 +39502,7 @@ export const runxSchemaArtifacts = {
                     "type": "object"
                   },
                   "digest": {
-                    "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                    "description": "Covers the writer, the type and the data.",
                     "maxLength": 71,
                     "pattern": "^sha256:[0-9a-f]{64}$",
                     "type": "string"
@@ -39528,7 +39529,7 @@ export const runxSchemaArtifacts = {
                   },
                   "writer": {
                     "additionalProperties": false,
-                    "description": "Absent on an event written before 0.12.",
+                    "description": "The package that wrote it and the digest of the exact bytes it ran from, set by the runtime: every event records one.",
                     "properties": {
                       "digest": {
                         "maxLength": 71,
@@ -39555,7 +39556,8 @@ export const runxSchemaArtifacts = {
                   "data",
                   "digest",
                   "idempotency_key",
-                  "committed_at"
+                  "committed_at",
+                  "writer"
                 ],
                 "title": "StoreEvent",
                 "type": "object"
@@ -39651,7 +39653,7 @@ export const runxSchemaArtifacts = {
                       "type": "object"
                     },
                     "digest": {
-                      "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                      "description": "Covers the writer, the type and the data.",
                       "maxLength": 71,
                       "pattern": "^sha256:[0-9a-f]{64}$",
                       "type": "string"
@@ -39678,7 +39680,7 @@ export const runxSchemaArtifacts = {
                     },
                     "writer": {
                       "additionalProperties": false,
-                      "description": "Absent on an event written before 0.12.",
+                      "description": "The package that wrote it and the digest of the exact bytes it ran from, set by the runtime: every event records one.",
                       "properties": {
                         "digest": {
                           "maxLength": 71,
@@ -39705,7 +39707,8 @@ export const runxSchemaArtifacts = {
                     "data",
                     "digest",
                     "idempotency_key",
-                    "committed_at"
+                    "committed_at",
+                    "writer"
                   ],
                   "title": "StoreEvent",
                   "type": "object"
@@ -39811,7 +39814,7 @@ export const runxSchemaArtifacts = {
                       "type": "object"
                     },
                     "digest": {
-                      "description": "Covers the writer, the type and the data; an event written before writers were recorded covers its data alone.",
+                      "description": "Covers the writer, the type and the data.",
                       "maxLength": 71,
                       "pattern": "^sha256:[0-9a-f]{64}$",
                       "type": "string"
@@ -39838,7 +39841,7 @@ export const runxSchemaArtifacts = {
                     },
                     "writer": {
                       "additionalProperties": false,
-                      "description": "Absent on an event written before 0.12.",
+                      "description": "The package that wrote it and the digest of the exact bytes it ran from, set by the runtime: every event records one.",
                       "properties": {
                         "digest": {
                           "maxLength": 71,
@@ -39865,7 +39868,8 @@ export const runxSchemaArtifacts = {
                     "data",
                     "digest",
                     "idempotency_key",
-                    "committed_at"
+                    "committed_at",
+                    "writer"
                   ],
                   "title": "StoreEvent",
                   "type": "object"

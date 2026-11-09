@@ -131,15 +131,14 @@ pub struct StoreEvent {
     #[serde(rename = "type")]
     pub event_type: StoreEventType,
     pub data: JsonObject,
-    /// Covers the writer, the type and the data; an event written before
-    /// writers were recorded covers its data alone.
+    /// Covers the writer, the type and the data.
     pub digest: Digest,
     pub idempotency_key: NonEmptyString,
     /// When the store committed it; a fact's own date is in its data.
     pub committed_at: IsoDateTime,
-    /// Absent on an event written before 0.12.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub writer: Option<StoreWriter>,
+    /// The package that wrote it and the digest of the exact bytes it ran
+    /// from, set by the runtime: every event records one.
+    pub writer: StoreWriter,
 }
 
 /// An append that committed or replayed.
