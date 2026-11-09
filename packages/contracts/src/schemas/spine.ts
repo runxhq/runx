@@ -29,7 +29,6 @@ import type {
   ReceiptIssuerContract,
   ReceiptSignatureContract,
   ReferenceContract,
-  ReferenceLinkContract,
   ReferenceTypeContract,
   RunOutcomeContract,
   SignalAuthenticityContract,
@@ -46,7 +45,6 @@ function schemaAt<TStatic>(
 }
 
 export const referenceSchema = generatedSchema<ReferenceContract>("reference.schema.json");
-export const referenceLinkSchema = generatedSchema<ReferenceLinkContract>("reference-link.schema.json");
 export const signalSchema = generatedSchema<SignalContract>("signal.schema.json");
 export const authoritySubsetProofSchema = generatedSchema<AuthoritySubsetProofContract>(
   "authority-subset-proof.schema.json",

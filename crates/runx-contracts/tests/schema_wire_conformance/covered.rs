@@ -20,7 +20,7 @@ use runx_contracts::orchestrator_handoff::{
 use runx_contracts::output::Output;
 use runx_contracts::packet_lock::PacketLock;
 use runx_contracts::receipt::Receipt;
-use runx_contracts::reference::{Reference, ReferenceLink};
+use runx_contracts::reference::Reference;
 use runx_contracts::registry_binding::RegistryBinding;
 use runx_contracts::run_read::{RunEventRecord, RunRead};
 use runx_contracts::schema::RunxSchema;
@@ -44,11 +44,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "reference.schema.json",
             emitted: Reference::json_schema(),
             corpus: reference_corpus(),
-        },
-        Covered {
-            file_name: "reference-link.schema.json",
-            emitted: ReferenceLink::json_schema(),
-            corpus: reference_link_corpus(),
         },
         Covered {
             file_name: "doctor.schema.json",

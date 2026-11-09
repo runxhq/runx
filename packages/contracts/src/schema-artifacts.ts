@@ -16289,8 +16289,6 @@ export const runxSchemaArtifacts = {
       },
       "publication_refs": {
         "items": {
-          "$id": "https://schemas.runx.ai/runx/reference-link/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
             "ref": {
@@ -16381,8 +16379,7 @@ export const runxSchemaArtifacts = {
             "ref"
           ],
           "title": "ReferenceLink",
-          "type": "object",
-          "x-runx-schema": "runx.reference_link.v1"
+          "type": "object"
         },
         "type": "array"
       },
@@ -16591,8 +16588,6 @@ export const runxSchemaArtifacts = {
       },
       "result_refs": {
         "items": {
-          "$id": "https://schemas.runx.ai/runx/reference-link/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
             "ref": {
@@ -16683,8 +16678,7 @@ export const runxSchemaArtifacts = {
             "ref"
           ],
           "title": "ReferenceLink",
-          "type": "object",
-          "x-runx-schema": "runx.reference_link.v1"
+          "type": "object"
         },
         "type": "array"
       },
@@ -24923,102 +24917,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.receipt.v1"
-  } as JsonSchema,
-  "reference-link.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/reference-link/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "title": "ProofKind",
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": {
-            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "surface",
-              "target",
-              "skill_binding",
-              "principal",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "title": "ReferenceType",
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "title": "Reference",
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
-      },
-      "role": {
-        "minLength": 1,
-        "type": "string"
-      }
-    },
-    "required": [
-      "role",
-      "ref"
-    ],
-    "title": "ReferenceLink",
-    "type": "object",
-    "x-runx-schema": "runx.reference_link.v1"
   } as JsonSchema,
   "reference.schema.json": {
     "$id": "https://schemas.runx.ai/runx/reference/v1.json",

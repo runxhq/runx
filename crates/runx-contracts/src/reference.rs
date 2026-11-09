@@ -184,7 +184,6 @@ impl Reference {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.reference_link.v1")]
 pub struct ReferenceLink {
     pub role: NonEmptyString,
     #[serde(rename = "ref")]

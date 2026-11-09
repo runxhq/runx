@@ -498,8 +498,6 @@
     },
     "publication_refs": {
       "items": {
-        "$id": "https://schemas.runx.ai/runx/reference-link/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "ref": {
@@ -590,8 +588,7 @@
           "ref"
         ],
         "title": "ReferenceLink",
-        "type": "object",
-        "x-runx-schema": "runx.reference_link.v1"
+        "type": "object"
       },
       "type": "array"
     },
@@ -800,8 +797,6 @@
     },
     "result_refs": {
       "items": {
-        "$id": "https://schemas.runx.ai/runx/reference-link/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "ref": {
@@ -892,8 +887,7 @@
           "ref"
         ],
         "title": "ReferenceLink",
-        "type": "object",
-        "x-runx-schema": "runx.reference_link.v1"
+        "type": "object"
       },
       "type": "array"
     },

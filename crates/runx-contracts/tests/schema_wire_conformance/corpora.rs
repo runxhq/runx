@@ -2099,43 +2099,6 @@ pub(super) fn reference_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn reference_link_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "role": "source_thread",
-        "ref": {
-            "type": "thread",
-            "uri": "provider://workspace/channel/thread",
-            "provider": "example",
-            "locator": "workspace/channel/thread",
-            "label": "source thread"
-        }
-    });
-
-    vec![
-        ("valid", valid.clone()),
-        ("missing role", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "role");
-            v
-        }),
-        ("missing ref", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "ref");
-            v
-        }),
-        ("empty role", {
-            let mut v = valid.clone();
-            v["role"] = json!("");
-            v
-        }),
-        ("additional property", {
-            let mut v = valid.clone();
-            v["bogus"] = json!(true);
-            v
-        }),
-    ]
-}
-
 fn run_event() -> Value {
     json!({
         "stream": "run_1/review",

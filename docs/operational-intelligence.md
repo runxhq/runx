@@ -68,8 +68,9 @@ All source, result, publication, evidence, artifact, receipt, story, and
 outcome pointers use central reusable reference contracts.
 
 - `runx.reference.v1` is the only object used for a concrete pointer.
-- `runx.reference_link.v1` wraps a `Reference` with a role when the surrounding
-  packet needs to say why a reference is present.
+- A reference link wraps a `Reference` with a role when the surrounding packet
+  needs to say why a reference is present. It is a definition inside the
+  packet that holds it, not a document of its own.
 - `runx.operational_proposal.v1` uses those shapes for proposal refs and
   proposal ref links.
 - External reference types never name a provider: `thread`, `event`,
