@@ -5,8 +5,9 @@
 //! An exact call gets an [`Admission`]: its checks run in order, each
 //! refusing before the next, and an admitted call carries the execution term
 //! derived from its capability and delegations, with one subset proof per
-//! parent. Anything less exact gets a [`Readiness`] projection from the same
-//! checks.
+//! parent. Its authorization, [`Authorized`], is the checks of its terms and
+//! evidence alone, with nothing charged and no attempt prepared. Anything
+//! less exact gets a [`Readiness`] projection from the same checks.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -264,8 +265,49 @@ impl Reasons {
     }
 }
 
-/// Admit one exact call.
-pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError> {
+impl Evaluation<'_> {
+    /// What the run may spend, when it has a money limit.
+    fn money_limit(&self) -> Option<u64> {
+        self.run_authority
+            .and_then(|authority| authority.max_spend_micro_usd)
+    }
+}
+
+/// One call's authorization: whether the run may make it at all, from the
+/// checks that read its terms and evidence (the requirement, the instance
+/// and its pins, the call's shape, store authority, capability, delegation
+/// and `packages`), with nothing charged, no use counted and no attempt
+/// prepared. Admission makes a call from it, and reuse asks it of each read
+/// a source recorded, under the reusing run's chain and authority.
+pub(crate) struct Authorized {
+    /// The requirement's and the instance's passes. Capability and
+    /// delegation pass once admission has counted the call's uses against
+    /// their bounds.
+    reasons: Reasons,
+    connector: Arc<LoadedConnector>,
+    operation: OperationName,
+    instance: ConnectorInstance,
+    target: String,
+    request_key: Option<String>,
+    /// The call's one gate, which its intent binds.
+    approval: Option<ApprovalText>,
+    waits_for: Vec<ApprovalText>,
+    capability: Capability,
+    actor_ref: Reference,
+    delegations: Vec<AuthorityTerm>,
+    delegation_sources: Vec<Reference>,
+    mandate_ref: Option<Reference>,
+    intent: OperationIntent,
+    intent_digest: Digest,
+    term_request: AttenuationRequest,
+    /// The term derived for the intent, which proves capability and
+    /// delegation together.
+    term: AuthorityTerm,
+    derivation: AuthorityDerivation,
+}
+
+/// Authorize one exact call.
+pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, AdmitError> {
     let mut reasons = Reasons(Vec::new(), None);
     let call = evaluation.call;
 
@@ -320,7 +362,6 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
 
     // The call's shape: target, request key, amount, approval text. These
     // are the caller's errors, refused before any evidence is read.
-    let access = operation_spec.access();
     let shape = call_shape(evaluation, operation_spec, &instance);
     let (target, request_key, amount) = match shape {
         Ok(shape) => shape,
@@ -358,14 +399,6 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         });
     }
     let mut waits_for = Vec::new();
-    // What the call spends, counted only under a money limit.
-    let limit = evaluation
-        .run_authority
-        .and_then(|authority| authority.max_spend_micro_usd);
-    let charge = limit
-        .map(|_| spend::charge(operation_spec, amount.as_ref()))
-        .transpose()
-        .map(|charge| charge.filter(|charge| charge.usd_micro > 0));
 
     // Capability: what the principal can do at the provider.
     let capability = match capability::evidence(&CapabilityRequest {
@@ -450,12 +483,8 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let mandate_ref = evaluation
         .run_authority
         .and_then(|authority| authority.mandate_ref.clone());
-    let parent_limits = std::iter::once(&capability.term)
-        .chain(delegations.iter())
-        .filter_map(|term| term.bounds.uses.as_ref())
-        .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
-        .collect::<Vec<_>>();
-    if usage_approval_required(operation_spec, limit, &parent_limits) {
+    let parent_limits = use_limits(&capability, &delegations);
+    if usage_approval_required(operation_spec, evaluation.money_limit(), &parent_limits) {
         // A scoped use bound is standing authority for provider usage. Without
         // one, one exact native approval authorizes this unpriced call; no
         // caller boolean or invented USD conversion can substitute for it.
@@ -536,14 +565,68 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             return Err(reasons.refuse(check, detail));
         }
     };
+    Ok(Authorized {
+        reasons,
+        connector,
+        operation: operation_name,
+        instance,
+        target,
+        request_key,
+        approval,
+        waits_for,
+        capability,
+        actor_ref,
+        delegations,
+        delegation_sources,
+        mandate_ref,
+        intent,
+        intent_digest,
+        term_request,
+        term,
+        derivation,
+    })
+}
+
+/// Admit one exact call: authorize it, then count its uses against their
+/// bounds, charge it against the run's money limit, and find the act's
+/// attempts.
+pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError> {
+    let Authorized {
+        mut reasons,
+        connector,
+        operation: operation_name,
+        instance,
+        target,
+        request_key,
+        approval,
+        waits_for,
+        capability,
+        actor_ref,
+        delegations,
+        delegation_sources,
+        mandate_ref,
+        intent,
+        intent_digest,
+        term_request,
+        term,
+        derivation,
+    } = authorize(evaluation)?;
+    let manifest = &connector.manifest;
+    let operation_spec = &manifest.operations[&operation_name];
+    // What the call spends, counted only under a money limit.
+    let limit = evaluation.money_limit();
+    let charge = limit
+        .map(|_| spend::charge(operation_spec, intent.amount.as_ref()))
+        .transpose()
+        .map(|charge| charge.filter(|charge| charge.usd_micro > 0));
 
     // Custody: the act's attempts, from any run. A call recovers an
     // unsettled attempt of its own intent and is held by any other; a
     // bounded call takes the use of the attempt sequence it joins.
     let spends = matches!(charge, Ok(Some(_)));
-    let custody = (access == OperationAccess::Mutate
+    let custody = (operation_spec.access() == OperationAccess::Mutate
         || operation_spec.is_metered()
-        || !parent_limits.is_empty()
+        || !use_limits(&capability, &delegations).is_empty()
         || spends)
         .then(|| {
             EffectCustody::for_act(
@@ -1256,6 +1339,18 @@ const PROBED_CALL: &str = "probe";
 
 /// The gate type of a write the floor holds under `effects: ask`.
 pub(crate) const WRITE_GATE: &str = "write";
+
+/// The use bounds the call's capability and its delegations set.
+fn use_limits<'a>(
+    capability: &'a Capability,
+    delegations: &'a [AuthorityTerm],
+) -> Vec<&'a AuthorityUseLimit> {
+    std::iter::once(&capability.term)
+        .chain(delegations.iter())
+        .filter_map(|term| term.bounds.uses.as_ref())
+        .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
+        .collect()
+}
 
 fn usage_approval_required(
     operation: &ConnectorOperation,

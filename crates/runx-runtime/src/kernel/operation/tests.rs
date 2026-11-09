@@ -582,6 +582,42 @@ impl Fixture {
             .map(|admission| admission.expect("an operation step is owned by the effect"))
     }
 
+    /// Authorize the call [`Self::admit_as`] would admit, as reuse asks of
+    /// a read a source recorded.
+    fn authorize_as(
+        &self,
+        step: &str,
+        inputs: &JsonObject,
+        run_authority: Option<&crate::RunAuthority>,
+    ) -> Result<admission::Authorized, AdmitError> {
+        let step = &self.steps[step];
+        let target = step.operation().unwrap();
+        let call = OperationCall::decode(inputs).unwrap();
+        let paths = crate::paths::RunxPaths::resolve(&self.env, self.root.path());
+        let store = KernelStore::for_project(&paths).unwrap();
+        let scope = ConnectorScope::of_operation(target, self.root.path(), &paths).unwrap();
+        let instances = Instances::new(Arc::clone(&store));
+        admission::authorize(&Evaluation {
+            step: target,
+            call: &call,
+            retry_unknown_outcomes: step.retry_unknown_outcomes,
+            fixture_stand_in: self.effect.fixture_stand_in,
+            run_authority,
+            held_by_effects: false,
+            store: &store,
+            run_id: self.run_id,
+            chain: &[],
+            context: Context {
+                scope: &scope,
+                instances: &instances,
+                hosted: &self.effect.placements.hosted,
+                env: &self.env,
+                cwd: self.root.path(),
+            },
+            clock: &crate::RunClock::System,
+        })
+    }
+
     fn prepare(
         &self,
         step: &str,
@@ -1757,6 +1793,47 @@ fn a_money_limit_refuses_unknown_and_unpriced_quotes_before_dispatch() {
         assert!(error.to_string().contains("no USD quote"), "{error}");
         assert_eq!(fixture.provider.calls(), 0);
     }
+}
+
+/// Authorization is admission's checks of the run's terms and evidence with
+/// nothing charged: a paid read a zero-spend run can't make is still one it
+/// may make, so a result reused by reference doesn't fail that run, and
+/// what the run's terms refuse, authorization refuses as admission does.
+#[test]
+fn authorization_charges_nothing_and_refuses_what_the_terms_refuse() {
+    let fixture = Fixture::new(&["channel.post"]);
+    price_advisories(&fixture, 5_000);
+    let zero_spend = limited(0);
+    let refused = fixture
+        .admit_as("advisories", &advisories("ADV-1"), Some(&zero_spend))
+        .expect_err("a zero-spend run can't make a paid read");
+    assert!(
+        matches!(refused, RuntimeEffectError::CostLimitExceeded { .. }),
+        "{refused}"
+    );
+    fixture
+        .authorize_as("advisories", &advisories("ADV-1"), Some(&zero_spend))
+        .expect("authorization charges nothing");
+
+    let packaged = crate::RunAuthority {
+        packages: Some(vec![
+            runx_contracts::PackagePattern::new("project:work").unwrap(),
+        ]),
+        ..limited(0)
+    };
+    let refused = fixture
+        .authorize_as("advisories", &advisories("ADV-1"), Some(&packaged))
+        .err()
+        .expect("the run's packages cover no package the call is made from");
+    assert!(
+        matches!(
+            &refused,
+            AdmitError::Refused(refusal) if refusal.check == AdmissionCheck::Delegation
+                && refusal.message().contains("made from no package")
+        ),
+        "{refused:?}"
+    );
+    assert_eq!(fixture.provider.calls(), 0);
 }
 
 #[test]
