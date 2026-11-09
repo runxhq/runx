@@ -1,8 +1,8 @@
 # Examples
 
 Runnable reference skills that demonstrate each runx front. These are examples,
-not catalog entries: `runx list skills|graphs|tools` scans `skills/`, `graphs/`,
-and `tools/`, so the examples here are intentionally absent from that catalog.
+not catalog entries: `runx list skills|tools|packets` reads `skills/` and `tools/`,
+so the examples here are intentionally absent from that catalog.
 Run them directly instead.
 
 For a curated list of runnable proof demos and offline receipt verification, see
