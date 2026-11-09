@@ -13,7 +13,6 @@ import {
   hostedHttp,
   isRuntimeCapabilityConnector,
   RUNTIME_CAPABILITY_CONNECTORS,
-  operationAmount,
   renderDeclaredRequest,
   renderOAuth2TokenEndpoint,
   renderTemplate,
@@ -65,19 +64,6 @@ describe("where an operation runs", () => {
     expect(connectorImplements(connector, entry.operation, "local")).toBe(entry.expected.local);
     expect(connectorImplements(connector, entry.operation, "hosted")).toBe(entry.expected.hosted);
     expect(hostedHttp(connector, entry.operation)).toBe(entry.expected.hosted ? entry.operation.implementation?.http : undefined);
-  });
-});
-
-describe("bound financial amounts", () => {
-  const amounts = JSON.parse(readFileSync(new URL("../../../fixtures/contracts/connector-amount.json", import.meta.url), "utf8")) as {
-    binding: ConnectorManifest["operations"][string]["amount"];
-    decimal_binding: ConnectorManifest["operations"][string]["amount"];
-    cases: Array<{ name: string; arguments: JsonObject; expected?: unknown; error?: boolean; decimal?: boolean }>;
-  };
-  for (const entry of amounts.cases) it(entry.name, () => {
-    const resolve = () => operationAmount({ amount: entry.decimal ? amounts.decimal_binding : amounts.binding } as ConnectorManifest["operations"][string], entry.arguments);
-    if (entry.error) expect(resolve).toThrow();
-    else expect(resolve()).toEqual(entry.expected);
   });
 });
 

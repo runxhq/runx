@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { operationAmount, operationInputError, renderDeclaredRequest, renderTemplate, renderOAuth2TokenEndpoint } from "../../../packages/contracts/dist/index.js";
+import { operationInputError, renderDeclaredRequest, renderTemplate, renderOAuth2TokenEndpoint } from "../../../packages/contracts/dist/index.js";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const isolated = mkdtempSync(path.join(tmpdir(), "paypal-connector-inspect-"));
@@ -41,7 +41,7 @@ test("order creation exposes the buyer approval path without claiming payment", 
     purchase_units: [{ reference_id: "invoice-42", custom_id: key, payee: { merchant_id: terms.account_id }, amount: { currency_code: "USD", value: "12.50" } }],
     payment_source: { paypal: { experience_context: { return_url: args.return_url, cancel_url: args.cancel_url, user_action: "PAY_NOW" } } },
   });
-  assert.equal(operationAmount(manifest.operations["payment.paypal.order.create"], args), undefined);
+  assert.equal(manifest.operations["payment.paypal.order.create"].amount, undefined, "creating an order debits no budget");
   assert.ok(manifest.operations["payment.paypal.order.create"].result_fields.includes("links"));
 });
 
@@ -60,14 +60,18 @@ test("capture requires an approved order and exact merchant terms before dispatc
   const acknowledged = { payment_id: "CAPTURE42" };
   assert.equal(render("payment.paypal", "capture_read", collect, acknowledged).url, "https://api-m.paypal.com/v2/payments/captures/CAPTURE42");
   assert.equal(operation.implementation.http.readbacks.length, 2);
-  assert.equal(operationAmount(operation, collect), undefined, "incoming collection does not debit an outgoing budget");
+  assert.equal(operation.amount, undefined, "incoming collection does not debit an outgoing budget");
 });
 
 test("a refund's wire amount is the same exact amount admitted by the native budget", () => {
   const request = render("payment.paypal.refund", "refund", refund);
   assert.equal(request.url, "https://api-m.paypal.com/v2/payments/captures/CAPTURE42/refund");
   assert.deepEqual(JSON.parse(request.body), { amount: { value: "5.00", currency_code: "USD" }, custom_id: key });
-  assert.deepEqual(operationAmount(manifest.operations["payment.paypal.refund"], refund), { units: 500, unit: "USD" });
+  // The native budget admits the amount from the same arguments the wire sends.
+  assert.deepEqual(manifest.operations["payment.paypal.refund"].amount, {
+    units: { $minor_units: { decimal: { $argument: "/amount_decimal" }, scale: { $argument: "/precision" } } },
+    currency: { $argument: "/currency" },
+  });
   assert.equal(render("payment.paypal.refund", "original_capture", refund).url, "https://api-m.paypal.com/v2/payments/captures/CAPTURE42");
   assert.equal(render("payment.paypal.refund", "refund_read", refund, { refund_id: "REFUND42" }).url, "https://api-m.paypal.com/v2/payments/refunds/REFUND42");
 });
@@ -78,7 +82,6 @@ test("the declared currency precision refuses rounding and a smaller budget repr
     const zero = ["HUF", "JPY", "TWD"].includes(currency);
     const args = { ...refund, currency, amount_decimal: zero ? "500" : "5.00", precision: zero ? 0 : 2 };
     assert.equal(operationInputError(operation, args), undefined, currency);
-    assert.deepEqual(operationAmount(operation, args), { units: 500, unit: currency });
     assert.equal(typeof operationInputError(operation, { ...args, precision: zero ? 2 : 0 }), "string");
   }
   for (const amount_decimal of ["0.00", "-5.00", "5.001", "5.0", "05.00", "5e2"]) assert.equal(typeof operationInputError(operation, { ...refund, amount_decimal }), "string");

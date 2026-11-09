@@ -33,7 +33,6 @@ export {
   type DeclaredRequestCall,
   type HttpImplementation,
   type HttpAuth,
-  operationAmount,
   type HttpMethod,
   type HttpReadback,
   type HttpRequest,

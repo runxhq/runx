@@ -177,18 +177,6 @@ export interface ConnectorOperation {
   };
 }
 
-/** The native admission amount, resolved from the same inputs sent to the
- * provider. Currency/asset codes are canonical uppercase; no FX is implied. */
-export function operationAmount(operation: ConnectorOperation, arguments_: JsonObject): { readonly units: number; readonly unit: string } | undefined {
-  if (operation.amount === undefined || operation.amount === "none") return undefined;
-  const inputs = { arguments: arguments_ };
-  const units = renderTemplate(operation.amount.units, inputs);
-  const currency = renderTemplate(operation.amount.currency, inputs);
-  if (typeof units !== "number" || !Number.isSafeInteger(units) || units < 0) throw new TemplateError("the operation's amount units must be a portable nonnegative integer");
-  if (typeof currency !== "string" || !/^[A-Za-z][A-Za-z0-9]{2,15}$/.test(currency)) throw new TemplateError("the operation's amount currency must be an ASCII currency or asset code");
-  return { units, unit: currency.toUpperCase() };
-}
-
 /** The request that names whose authority a session or a delegated grant holds. */
 export interface PrincipalRequest {
   /** An https URL the authority may be sent to. */

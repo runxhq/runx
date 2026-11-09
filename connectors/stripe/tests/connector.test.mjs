@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { operationAmount, operationInputError, renderDeclaredRequest } from "../../../packages/contracts/dist/index.js";
+import { operationInputError, renderDeclaredRequest } from "../../../packages/contracts/dist/index.js";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const isolated = mkdtempSync(path.join(tmpdir(), "stripe-connector-inspect-"));
@@ -83,8 +83,11 @@ test("merchant collection is not advertised as a buyer wallet or an unlimited re
   assert.equal(manifest.operations["payment.stripe.refund"].guarantees?.provider_idempotency ?? "none", "none");
   assert.equal(manifest.operations["payment.stripe"].approval, "required");
   assert.equal(manifest.operations["payment.stripe.refund"].approval, "required");
-  assert.equal(operationAmount(manifest.operations["payment.stripe"], input), undefined);
-  assert.deepEqual(operationAmount(manifest.operations["payment.stripe.refund"], { amount_minor: 500, currency: "aud" }), { units: 500, unit: "AUD" });
+  assert.equal(manifest.operations["payment.stripe"].amount, undefined);
+  assert.deepEqual(manifest.operations["payment.stripe.refund"].amount, {
+    units: { $argument: "/amount_minor" },
+    currency: { $argument: "/currency" },
+  });
 });
 
 test("all requests pin one stable provider API and charge reads expose cumulative refunds", () => {
