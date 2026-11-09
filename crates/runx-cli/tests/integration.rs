@@ -10,6 +10,7 @@
 //! See .scafld/specs/active/test-surface-build-consolidation.md.
 
 mod connector;
+mod crash_points;
 mod credential;
 mod doctor;
 mod drivers;

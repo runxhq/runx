@@ -433,20 +433,21 @@ where
                 self.run(AnsweringHost::new(host, Some(&waiting)), Made::of(&call))
             }
             // A claimed call runs again only on the host's exact
-            // acknowledgement, which its new claim records.
+            // acknowledgement, which its new claim records; with no answer
+            // yet it still waits on its retry.
             CallOutcome::Claimed(retry) => {
                 let mut answering = AnsweringHost::new(host, Some(&retry));
-                let acknowledged = answering
-                    .resolve(resolution_request(&retry)?)?
-                    .is_some_and(|response| response.payload == retry_acknowledgement());
-                if !acknowledged {
-                    return Err(RuntimeError::ContinuationRejected {
+                match answering.resolve(resolution_request(&retry)?)? {
+                    None => self.result(&Made::of(&call), &call.outcome, &call.outputs),
+                    Some(response) if response.payload == retry_acknowledgement() => {
+                        self.run(answering, Made::of(&call))
+                    }
+                    Some(_) => Err(RuntimeError::ContinuationRejected {
                         reason: format!(
                             "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
                         ),
-                    });
+                    }),
                 }
-                self.run(answering, Made::of(&call))
             }
             settled => self.result(&Made::of(&call), &settled, &call.outputs),
         }
@@ -590,13 +591,33 @@ where
         mut host: AnsweringHost<'_>,
         made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
+        #[cfg(feature = "crash-points")]
+        let call = self.call_address(made.index);
+        #[cfg(feature = "crash-points")]
+        crate::crash::at("before_admission", &call);
         match self.admit_made(&mut host, made)? {
             Admission::Settled(result) => Ok(*result),
             Admission::Admitted(admitted) => {
+                #[cfg(feature = "crash-points")]
+                crate::crash::at("after_admission", &call);
                 let executed = self.execute_admitted(&mut host, *admitted)?;
+                // For a skill call, its child run has sealed here and the
+                // call isn't recorded yet.
+                #[cfg(feature = "crash-points")]
+                crate::crash::at("after_execution", &call);
                 self.conclude_executed(executed)
             }
         }
+    }
+
+    /// Call `index`'s address in its run: `<step>/<index>`.
+    #[cfg(feature = "crash-points")]
+    fn call_address(&self, index: u32) -> String {
+        self.scope
+            .runtime
+            .options
+            .run
+            .address(&call_step_id(self.scope.step_id, index))
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is

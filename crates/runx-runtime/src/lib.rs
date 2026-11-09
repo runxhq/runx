@@ -18,6 +18,8 @@ pub mod approval;
 mod bytes;
 mod capability;
 pub mod config;
+#[cfg(feature = "crash-points")]
+mod crash;
 pub mod credentials;
 pub mod doctor;
 mod drivers;
