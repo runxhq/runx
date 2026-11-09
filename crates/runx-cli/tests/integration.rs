@@ -28,6 +28,7 @@ mod registry_fixture;
 mod router;
 mod skill;
 mod skill_build_authoring;
+mod store;
 mod support;
 mod test;
 mod tool;
