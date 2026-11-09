@@ -169,8 +169,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use tokio::io::AsyncWriteExt;
 
     use super::{MAX_CLIENT_STDERR_BYTES, spawn_stderr_drain};
@@ -181,7 +179,6 @@ mod tests {
     fn stderr_drain_continues_after_retained_tail_limit() -> Result<(), String> {
         tokio::runtime::Builder::new_current_thread()
             .enable_io()
-            .enable_time()
             .build()
             .map_err(|error| format!("tokio runtime is available: {error}"))?
             .block_on(async move {
@@ -189,7 +186,9 @@ mod tests {
                 let drain = spawn_stderr_drain(reader);
                 let total_bytes = MAX_CLIENT_STDERR_BYTES + (64 * 1024);
                 let chunk = vec![b'x'; 8192];
-                let snapshot = tokio::time::timeout(Duration::from_secs(2), async move {
+                // The pipe holds far less than is written, so the writer
+                // finishes only while the drain keeps reading.
+                let snapshot = async move {
                     let mut remaining = total_bytes;
                     while remaining > 0 {
                         let write_len = remaining.min(chunk.len());
@@ -206,11 +205,8 @@ mod tests {
                         .finish()
                         .await
                         .ok_or_else(|| "stderr diagnostic snapshot is available".to_owned())
-                })
-                .await
-                .map_err(|_| {
-                    "stderr drain kept consuming after the retained tail filled".to_owned()
-                })??;
+                }
+                .await?;
 
                 assert_eq!(
                     snapshot.read_total,

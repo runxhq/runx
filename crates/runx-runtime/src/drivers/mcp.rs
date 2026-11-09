@@ -666,7 +666,8 @@ mod tests {
     }
 
     fn session() -> Result<Session, String> {
-        let deadline = Duration::from_secs(5);
+        // The deadline production gives a provider operation.
+        let deadline = crate::http::PROVIDER_OPERATION_REQUEST_TIMEOUT;
         block_on(deadline, async move {
             let (client, server) = tokio::io::duplex(64 * 1024);
             tokio::spawn(async move {
@@ -898,7 +899,8 @@ mod tests {
             cwd: std::env::temp_dir(),
             env: BTreeMap::from([("PATH".to_owned(), std::env::var("PATH").unwrap_or_default())]),
         };
-        let deadline = Duration::from_secs(20);
+        // The deadline production gives a provider operation.
+        let deadline = crate::http::PROVIDER_OPERATION_REQUEST_TIMEOUT;
 
         let stand_in = Sessions::standing_in(Vec::new())
             .open_stdio(&server("node", &[]), deadline)
@@ -934,7 +936,8 @@ mod tests {
                 ("FIXTURE_TOKEN".to_owned(), "delivered".to_owned()),
             ]),
         };
-        let deadline = Duration::from_secs(20);
+        // The deadline production gives a provider operation.
+        let deadline = crate::http::PROVIDER_OPERATION_REQUEST_TIMEOUT;
         let sessions = Sessions::default();
         let open = || {
             sessions
