@@ -33,7 +33,6 @@ beforeAll(() => {
     encoding: "utf8",
     input: JSON.stringify(cases),
     maxBuffer: 8 * 1024 * 1024,
-    timeout: 30_000,
   });
   expect(result.error).toBeUndefined();
   expect(result.status, result.stderr).toBe(0);

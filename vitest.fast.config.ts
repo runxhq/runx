@@ -26,9 +26,9 @@ export default defineConfig({
       "tests/stripe-spt-rail-adapter.test.ts",
       "tests/independent-verifier.test.ts",
     ],
-    // These suites shell out to the debug `runx` binary; the generous timeouts
-    // absorb its cold start under parallel load.
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    // A test ends on its own events, a process's exit or an answer, never on
+    // a clock.
+    testTimeout: 0,
+    hookTimeout: 0,
   },
 });

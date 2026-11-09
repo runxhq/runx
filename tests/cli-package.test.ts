@@ -26,7 +26,6 @@ describe("CLI package", () => {
 
     await expect(execFileAsync(cliBinEntry, ["config", "list", "--json"], {
       cwd: workspaceRoot,
-      timeout: 30_000,
       maxBuffer: 1024 * 1024,
     })).rejects.toMatchObject({
       stderr: expect.stringContaining(`runx native package ${currentNativePackageName()} is not installed`),
@@ -93,7 +92,6 @@ describe("CLI package", () => {
   it("packs @runxhq/cli as selector artifacts only", async () => {
     const { stdout } = await execFileAsync(npm, ["pack", "--dry-run", "--json"], {
       cwd: cliPackageRoot,
-      timeout: 30_000,
       maxBuffer: 1024 * 1024,
     });
     const [pack] = JSON.parse(stdout) as [

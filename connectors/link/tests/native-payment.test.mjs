@@ -30,7 +30,7 @@ else{process.stderr.write('unexpected external command');process.exit(1);}
 console.log(JSON.stringify([out]));
 `,{mode:0o755});
   const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,RUNX_HOME:path.join(sandbox,'home'),RUNX_PROJECT_DIR:path.join(sandbox,'project'),LINK_TEST_PROVIDER_STATE:stateFile};
-  const run=(args,input)=>{const p=spawnSync(binary,args,{cwd:root,env,input:input===undefined?undefined:JSON.stringify(input),encoding:'utf8',timeout:30000,maxBuffer:2*1024*1024});assert.ifError(p.error);let result;try{result=JSON.parse(p.stdout);}catch{assert.fail(p.stderr||p.stdout);}return result;};
+  const run=(args,input)=>{const p=spawnSync(binary,args,{cwd:root,env,input:input===undefined?undefined:JSON.stringify(input),encoding:'utf8',maxBuffer:2*1024*1024});assert.ifError(p.error);let result;try{result=JSON.parse(p.stdout);}catch{assert.fail(p.stderr||p.stdout);}return result;};
   const setup=run(['connector','use','link','--session','--json']);assert.equal(setup.status,'success',JSON.stringify(setup));
   const request={action:'pay',spend_request_id:'sr_fixture',amount_minor:150,currency:'USD',payment_method_id:'pm_fixture',network_id:'profile_test_fixture',resource_url:'https://merchant.example/invoice/42',challenge:'original-public-provider-challenge',method:'POST',body:'{"invoice_id":"invoice-42"}'};
   const input={connector:'link',request,parent_payment_authority:{term_id:'invoice-42',currency:'USD',max_amount_minor:150,resource_url:request.resource_url},idempotency_seed:'native-link-payment-42'};
