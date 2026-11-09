@@ -177,8 +177,8 @@ cloud	OperationHold	4	hold	OperationLease	the lease family	apps/web/src/content/
 cloud	PublishHarnessProducer	4	harness	PublishTestProducer	the test sense	packages/api/src/registry/publication.ts
 cloud	purchase-holdings	4	hold	leases	the lease family: the module. The cipher label with the same bytes is pinned in rename.mjs	packages/api/src/payments/holdings-postgres.ts packages/auth/src/index.ts
 cloud	RegistryClosureOptions	4	closure	RegistryClosureOptions	a package's closure, or English: stays	packages/registry/src/closure.ts packages/registry/src/index.ts
-cloud	runner_id	4	runner	method_id		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
-cloud	runner_ids	4	runner	method_ids		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
+cloud	runner_id	4	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
+cloud	runner_ids	4	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
 cloud	runner_inspections	4	runner	method_inspections		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	RunnerInspection	4	runner	MethodInspection		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	runnerNames	4	runner	methodNames		packages/api/src/testing/native-skill-package-materializer.ts packages/registry/src/ingest.ts
@@ -482,8 +482,8 @@ frantic	next_runner	1	runner	next_method		runx/skills/frantic-broadcast/SKILL.md
 frantic	operator-runner	1	runner	operator-method		apps/api/src/internal-read-routes.test.ts
 frantic	plausible-graph	1	graph	plausible-workflow		runx/skills/frantic-operator/references/archive/bounty-board-v0-live.md
 frantic	Runner	1	runner	?	a bare word: code or prose, read in place	packages/db/src/signup.test.ts
-frantic	runner_id	1	runner	method_id		config/runx-frantic-policy.json
-frantic	runner_ids	1	runner	method_ids		config/runx-frantic-policy.json
+frantic	runner_id	1	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	config/runx-frantic-policy.json
+frantic	runner_ids	1	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	config/runx-frantic-policy.json
 frantic	runner-driven	1	runner	runner-driven	Frantic's seed playbook runner: stays	packages/seed/src/runner.ts
 frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/verifier/src/checks/runx-skill.test.ts
 frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
@@ -496,8 +496,8 @@ nitrosend	runners	7	runner	?	a bare word: code or prose, read in place	.runx/run
 nitrosend	sentryRunner	7	runner	sentryMethod		scripts/runx-issue-flow.test.mjs
 nitrosend	agent_act_closed	3	agent_act	turn_closed		skills/nitrosend/issue-intake/X.yaml skills/nitrosend/team-slack/X.yaml
 nitrosend	api-runner	3	runner	api-runner	the Make target that runs Rails's runner (make api-runner CMD='puts 1'): stays	Makefile
-nitrosend	runner_id	3	runner	method_id		.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
-nitrosend	runner_ids	3	runner	method_ids		.runx/runx-issue-flow.json
+nitrosend	runner_id	3	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
+nitrosend	runner_ids	3	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	.runx/runx-issue-flow.json
 nitrosend	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	scripts/scafld-verify.sh
 nitrosend	Graph	2	graph	Graph	Microsoft Graph, and the flow editor's graph utilities: stays	CONVENTIONS.md artifacts/releases/outreach-sending-2026-10-19.md
 nitrosend	hold	2	hold	hold	English: stays	AGENTS.md artifacts/aws-marketplace/submission-packet.md

@@ -171,6 +171,15 @@ function readDecisions(repo) {
 // as their rules, and scafld's own records.
 // Vendored copies are replaced by their sync, never edited in place.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
+// Where a consumer's runx words live, when the product around them has its
+// own vocabulary: Nitrosend's Flow builder has a node graph, its dogfood
+// audits have harnesses and a runner, and Rails has a runner command. Only
+// these paths are renamed there; every other repo is renamed whole.
+const SCOPES = {
+  nitrosend: /^(skills|connectors|\.runx)\/|^\.agents\/skills\/support\/|(^|\/)runx-[^/]*$/,
+};
+// The repo being renamed's scope, set once from the command line.
+let scope = /(?:)/;
 // A package's files are renamed like any other source, once the converter has
 // written them in the 0.12 shape: a name a step, a test or a module shares is
 // one name in all of them. So the rename refuses a package file the converter
@@ -257,7 +266,7 @@ function workingFiles(root) {
     encoding: "utf8",
     maxBuffer: 1 << 28,
   });
-  return [...new Set(listed.split("\n").filter(Boolean))].filter((file) => existsSync(path.join(root, file)));
+  return [...new Set(listed.split("\n").filter(Boolean))].filter((file) => scope.test(file) && existsSync(path.join(root, file)));
 }
 
 // A lockfile is its package manager's: Cargo.lock, pnpm-lock.yaml,
@@ -669,6 +678,7 @@ function main([command, repo, root, ...rest]) {
     process.stderr.write("usage: rename.mjs scan <repo> <root> | apply <repo> <root> [--write] [--list] [--stays]\n");
     return 2;
   }
+  scope = SCOPES[repo] ?? scope;
   return command === "scan" ? scan(repo, root) : apply(repo, root, rest.includes("--write"), rest.includes("--list"), rest.includes("--stays"));
 }
 

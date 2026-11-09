@@ -519,3 +519,34 @@ test("Ausca's catalog keys are pinned, so retained history decodes, while the co
   assert.equal(read(root, "catalog/source/offers.yaml"), auscaPins["catalog/source/offers.yaml"]);
   assert.equal(read(root, "internal/catalogcompiler/compiler_test.go"), auscaPins["internal/catalogcompiler/compiler_test.go"]);
 });
+
+test("a consumer's other senses keep their words: JSON-LD's @graph, Microsoft Graph, Rails' runner and its own runx policy's runners", (t) => {
+  const kept = {
+    "src/review.test.mjs": 'const html = `<script type="application/ld+json">{"@graph": [{"@type": "Person"}]}</script>`;\n',
+    "docs/mail.md": "Microsoft accepted the test reply through Graph. Microsoft Graph sends it.\n",
+    "Makefile": 'reset:\n\tbundle exec rails runner "$(CMD)"\n\t@echo "  make reset  # Run Rails runner"\n',
+    "config/runx-frantic-policy.json": '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a", "runner_ids": ["a"]}]}\n',
+  };
+  const root = tree(t, { ...kept, "docs/flow.md": "The graph runs each step.\n" });
+  const { status, out } = run(RENAME, "apply", "frantic", root, "--write");
+  assert.equal(status, 0, out);
+  for (const [file, text] of Object.entries(kept)) assert.equal(read(root, file), text, file);
+  assert.equal(read(root, "docs/flow.md"), "The workflow runs each step.\n");
+});
+
+test("nitrosend renames only where runx's words live, and its own product keeps its vocabulary", (t) => {
+  const root = tree(t, {
+    "skills/support/notes.md": "The harness runs first.\n",
+    ".runx/runx-issue-flow.json": '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a"}]}\n',
+    "scripts/runx-issue-flow.test.mjs": "assert.equal(policy.runners.length, 1);\n",
+    "dogfood/audit/runner.mjs": "// the runner uses Expect\n",
+    "frontend/flow.md": "An interactive node graph, and the email builder's regression harness.\n",
+  });
+  const { status, out } = run(RENAME, "apply", "nitrosend", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "skills/support/notes.md"), "The test runs first.\n");
+  assert.equal(read(root, ".runx/runx-issue-flow.json"), '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a"}]}\n');
+  assert.equal(read(root, "scripts/runx-issue-flow.test.mjs"), "assert.equal(policy.runners.length, 1);\n");
+  assert.equal(read(root, "dogfood/audit/runner.mjs"), "// the runner uses Expect\n");
+  assert.equal(read(root, "frontend/flow.md"), "An interactive node graph, and the email builder's regression harness.\n");
+});

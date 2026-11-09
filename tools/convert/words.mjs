@@ -250,8 +250,8 @@ export function renamedBare(token, after) {
 }
 
 // Where each word keeps its old sense. A stay names its reason, the files it
-// holds in (all when it says none), and what must sit just before or just
-// after the word on its line.
+// holds in (all when it says none), the exact token when its case decides it,
+// and what must sit just before or just after the word on its line.
 export const STAYS = [
   // runner: the machinery that executes runs (§4.2). The test runner's module
   // is named at its path before and after the rename moves it, so the rename
@@ -300,6 +300,15 @@ export const STAYS = [
   { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
   // harness: a fixture post's own words, which its approved payload digest binds.
   { word: "harness", why: "a fixture post's own words, which its approved payload digest binds", file: /^skills\/moltbook\/tests\/publish-creates-and-reads-back-post\.yaml$/ },
+  // graph: JSON-LD's @graph keyword, and Microsoft Graph, a product's name.
+  { word: "graph", why: "JSON-LD's @graph keyword", before: /@$/ },
+  { word: "graph", why: "Microsoft Graph, a product's name", token: "Graph", before: /\b(Microsoft|through) $/ },
+  // runner: Rails' runner command, which runs a script in the app.
+  { word: "runner", why: "Rails' runner command", before: /\brails $/i },
+  // runner: a consumer's own runx operational policy, whose runners are
+  // machinery as OSS's are, and the code that reads it.
+  { word: "runner", why: "the operational policy's runners, in a consumer's own policy", file: /^(config\/runx-frantic-policy\.json|\.runx\/runx-issue-flow\.json)$/ },
+  { word: "runner", why: "the operational policy's runners, as the code reading a consumer's policy names them", file: /^scripts\/runx-issue-flow\.test\.mjs$/, before: /\bpolicy\.$/ },
   // harness: a product's own production check, which its dogfood target
   // verifies (Nitrosend's Makefile help), not a runx test.
   { word: "harness", why: "a product's own production check harness, which a dogfood target verifies", file: /^Makefile$/, before: /\bproduction $/ },
@@ -314,7 +323,7 @@ export function stayFor(file, line, index, token) {
   if (word === undefined) return undefined;
   const before = line.slice(0, index);
   const after = line.slice(index + token.length);
-  return STAYS.find((stay) => stay.word === word && (!stay.file || stay.file.test(file)) && (!stay.before || stay.before.test(before)) && (!stay.after || stay.after.test(after)));
+  return STAYS.find((stay) => stay.word === word && (!stay.token || stay.token === token) && (!stay.file || stay.file.test(file)) && (!stay.before || stay.before.test(before)) && (!stay.after || stay.after.test(after)));
 }
 
 /**
