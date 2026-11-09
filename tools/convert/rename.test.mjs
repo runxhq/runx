@@ -32,7 +32,7 @@ test("scan reads a name's run sense from whole segments, so a test's harness-ref
   // scan writes the table beside the program, so it runs on a copy of both.
   const program = tree(t, {});
   copyFileSync(RENAME, path.join(program, "rename.mjs"));
-  for (const file of ["words.mjs", "script-collisions.mjs", "rust-collisions.mjs", "identifiers.tsv"]) copyFileSync(new URL(`./${file}`, import.meta.url), path.join(program, file));
+  for (const file of ["words.mjs", "script-collisions.mjs", "rust-collisions.mjs", "go-collisions.mjs", "renamed-tree.mjs", "identifiers.tsv"]) copyFileSync(new URL(`./${file}`, import.meta.url), path.join(program, file));
   const root = tree(t, { "src/case.mjs": 'export const id = "checkout-harness-references";\nexport const ref = "checkout-harness-ref";\n' });
   const { status, out } = run(path.join(program, "rename.mjs"), "scan", "oss", root);
   assert.equal(status, 0, out);
@@ -295,6 +295,23 @@ test("the test runner's module keeps its word where the rename moves it, so a se
   assert.equal(again.status, 0, again.out);
   assert.match(again.out, /oss: 0 names in 0 files, 0 of them bare words, \d+ bare words kept, 0 paths moved/);
   assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use super::runner::Case;\npub fn run_case() {}\n");
+});
+
+test("Go's build decides a landing: another function's method is no collision for a local renamed to method", (t) => {
+  const code = 'package demo\n\nfunc Other(method string) string { return method }\n\nfunc Name() string {\n\trunner := "a"\n\treturn runner\n}\n';
+  const root = tree(t, { "go.mod": "module demo\n\ngo 1.22\n", "demo.go": code });
+  const { status, out } = runInCache(t, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "demo.go"), code.replaceAll("runner", "method"));
+});
+
+test("Go's build refuses a rename onto a name its scope already declares", (t) => {
+  const code = 'package demo\n\nfunc Pick(method string) string {\n\trunner := method + "!"\n\treturn runner\n}\n';
+  const root = tree(t, { "go.mod": "module demo\n\ngo 1.22\n", "demo.go": code });
+  const { status, out } = runInCache(t, "apply", "oss", root, "--write");
+  assert.equal(status, 1, out);
+  assert.match(out, /^  demo\.go:4\trunner -> method\tgo build: no new variables on left side of :=/m);
+  assert.equal(read(root, "demo.go"), code);
 });
 
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {

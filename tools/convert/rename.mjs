@@ -20,6 +20,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
 import { GENERATED, HISTORY as HISTORY_DOCS, SOURCE, STAYING_PATHS, bareWord, decisionsFor, renamedBare, stayFor } from "./words.mjs";
@@ -343,8 +344,8 @@ function scan(repo, root) {
 
 /**
  * The landing sites that collide: TypeScript, JavaScript and Astro by their
- * AST, Rust by compiling, and other code, or a file neither check can read,
- * by the file-level rule. A site that passes says how it was checked. A
+ * AST, Rust and Go by building them, and other code, or a file no check can
+ * read, by the file-level rule. A site that passes says how it was checked. A
  * collision no renamed site carries, such as a table rename's, is refused
  * where it is.
  */
@@ -353,7 +354,9 @@ function landingCollisions(root, landings, edited, writes, moves) {
   const landed = [...edited].filter(([, entry]) => entry.sites.length > 0);
   const scripts = landed.filter(([file]) => SCRIPT.test(file)).map(([file, entry]) => ({ file, ...entry }));
   const rust = new Map(landed.filter(([file]) => RUST.test(file)));
-  const verdicts = new Map([...checkScripts(scripts), ...checkRust({ root, files: rust, edited, writes, moves, cache: process.env.RUNX_CONVERT_CACHE })]);
+  const golang = new Map(landed.filter(([file]) => GO.test(file)));
+  const cache = process.env.RUNX_CONVERT_CACHE;
+  const verdicts = new Map([...checkScripts(scripts), ...checkRust({ root, files: rust, edited, writes, moves, cache }), ...checkGo({ root, files: golang, edited, writes, moves, cache })]);
   const collisions = [];
   for (const site of landings) {
     const verdict = verdicts.get(site.file);
@@ -363,7 +366,7 @@ function landingCollisions(root, landings, edited, writes, moves) {
     }
     const reasons = verdict.refused.filter((one) => !one.unattributed && one.site.at === site.at).map((one) => one.reason);
     if (reasons.length > 0) collisions.push({ ...site, reason: [...new Set(reasons)].join("; ") });
-    else site.checked = SCRIPT.test(site.file) ? "no collision in its AST" : "no new error or shadow when compiled";
+    else site.checked = SCRIPT.test(site.file) ? "no collision in its AST" : GO.test(site.file) ? "no new error or vet finding when built" : "no new error or shadow when compiled";
   }
   for (const [file, verdict] of verdicts) {
     for (const one of verdict.refused?.filter((entry) => entry.unattributed) ?? []) {
@@ -471,8 +474,8 @@ function apply(repo, root, write, list, showStays) {
   // row of bare-words.tsv decides what it becomes. A renamed bare word that
   // lands on a name its code file already holds is checked, because two names
   // made one is a duplicate or a shadowing binding the compiler may never
-  // see: TypeScript, JavaScript and Astro by their AST, Rust by compiling, and
-  // any other code by the file-level rule, which refuses each such site. A
+  // see: TypeScript, JavaScript and Astro by their AST, Rust and Go by
+  // building them, and any other code by the file-level rule, which refuses each such site. A
   // row decides a site either way. Prose landing on a word it already uses,
   // such as "tests", is only English, and data names no binding. Nothing is
   // written until every refusal has passed.

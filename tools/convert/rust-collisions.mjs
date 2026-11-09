@@ -5,11 +5,12 @@
 // or a shadow warning, spans it. A site in a file no target compiles is left
 // to the file-level refusal.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { renamedTree } from "./renamed-tree.mjs";
 import { mapping } from "./script-collisions.mjs";
 
 export const RUST = /\.rs$/;
@@ -87,19 +88,7 @@ export function checkRust({ root, files, edited, writes, moves, cache }) {
   if (byWorkspace.size === 0) return verdicts;
 
   // The renamed tree: every file the repo holds, renamed and moved as the rename would.
-  const tree = path.join(scratch, "renamed");
-  rmSync(tree, { recursive: true, force: true });
-  const listed = execFileSync("git", ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8", maxBuffer: 1 << 28 })
-    .split("\n")
-    .filter((file) => file && existsSync(path.join(root, file)));
-  const written = new Map(writes);
-  for (const file of listed) {
-    const to = path.join(tree, moves.get(file) ?? file);
-    mkdirSync(path.dirname(to), { recursive: true });
-    if (written.has(file)) writeFileSync(to, written.get(file));
-    else copyFileSync(path.join(root, file), to);
-  }
-  const back = new Map([...moves].map(([from, to]) => [to, from]));
+  const { tree, back } = renamedTree({ root, writes, moves, dir: path.join(scratch, "renamed") });
 
   for (const [workspace, members] of byWorkspace) {
     const runs = {};
