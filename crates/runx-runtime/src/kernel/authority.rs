@@ -342,6 +342,47 @@ mod tests {
         Ok(())
     }
 
+    /// `max_concurrency` bounds the calls a run has executing at once, from 1
+    /// to the kernel's ceiling, which is what applies when a host states none;
+    /// a step's `concurrency` only narrows it, and a child run keeps it
+    /// (authority.md, §4.11).
+    #[test]
+    fn max_concurrency_is_one_to_the_kernel_ceiling_and_a_step_only_narrows_it()
+    -> Result<(), serde_json::Error> {
+        use super::{MAX_CONCURRENCY_CEILING, run_concurrency, step_concurrency};
+        let read = |value: serde_json::Value| serde_json::from_value::<RunAuthority>(value);
+        let two = read(serde_json::json!({"max_concurrency": 2}))?;
+        assert_eq!(run_concurrency(Some(&two)), 2);
+        assert!(
+            read(serde_json::json!({"max_concurrency": 0})).is_err(),
+            "0 runs nothing"
+        );
+        assert!(
+            read(serde_json::json!({"max_concurrency": MAX_CONCURRENCY_CEILING + 1})).is_err(),
+            "a host sets it under the kernel's ceiling"
+        );
+        assert!(read(serde_json::json!({"max_concurrency": MAX_CONCURRENCY_CEILING})).is_ok());
+        // With none stated, the ceiling applies.
+        assert_eq!(run_concurrency(None), MAX_CONCURRENCY_CEILING);
+        assert_eq!(
+            run_concurrency(Some(&RunAuthority::default())),
+            MAX_CONCURRENCY_CEILING
+        );
+        // A step's concurrency only narrows the run's.
+        assert_eq!(step_concurrency(Some(&two), 4), 2);
+        assert_eq!(step_concurrency(Some(&two), 1), 1);
+        assert_eq!(step_concurrency(None, 4), 4);
+        assert_eq!(step_concurrency(None, 64), MAX_CONCURRENCY_CEILING);
+        // A child run holds its parent's.
+        let child = RunAuthority::of_step(Some(two.clone()), &step(None, None));
+        assert_eq!(run_concurrency(child.as_ref()), 2);
+        assert_eq!(
+            serde_json::to_value(&two)?,
+            serde_json::json!({"max_concurrency": 2})
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_run_authority_reads_effects_and_reach_and_leaves_their_defaults_off_the_wire()
     -> Result<(), serde_json::Error> {
