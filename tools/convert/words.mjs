@@ -214,6 +214,7 @@ export const STAYS = [
   { word: "graph", why: "a graph of receipts", before: /\breceipt $/i },
   { word: "graph", why: "a graph database", after: /^ (database|databases|db|store|query)\b/i },
   { word: "graph", why: "a chart", before: /\b(bar|line|pie|time-series|latency|throughput) $/i },
+  { word: "graph", why: "a kind filter's value, which is wire: the catalog kinds are skill and graph", before: /\bkind filter: skill or $/ },
   { word: "graph", why: "the hello-workflow example's message, which its run.yaml and fixtures write", before: /\bhello from $/ },
   // harness: a receipt's harness reference, whose words receipts keep (§4.6):
   // its type, the runx:harness: references a run's receipts carry, and the

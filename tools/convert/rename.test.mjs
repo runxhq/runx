@@ -350,6 +350,14 @@ test("graph is a workflow in the strings a person reads in code, and stays a wor
   );
 });
 
+test("a kind filter's description names its wire values, so its graph stays", (t) => {
+  const code = 'queryParameter("kind", "Catalog kind filter: skill or graph."),\nqueryParameter("q", "Text query over a skill or graph."),\n';
+  const root = tree(t, { "packages/openapi-catalog/src/openapi-route-catalog.ts": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "packages/openapi-catalog/src/openapi-route-catalog.ts"), code.replace("over a skill or graph.", "over a skill or workflow."));
+});
+
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
   const generated = "type Purchase struct {\n\tRunner string `json:\"runner\"`\n}\n";
   const root = tree(t, {
