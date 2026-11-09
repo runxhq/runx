@@ -64,4 +64,6 @@ export const prebuiltBinEnv = {
   RUNX_PURCHASE_FIXTURES_BIN: examplePath("runx-purchase-fixtures"),
   RUNX_PRINCIPAL_ID_FIXTURES_BIN: examplePath("runx-principal-id-fixtures"),
   RUNX_X402_FIXTURES_BIN: examplePath("runx-x402-fixtures"),
+  RUNX_PARSER_EVAL_BIN: examplePath("parser_eval"),
+  RUNX_KERNEL_EVAL_BIN: examplePath("kernel_eval_batch"),
 };

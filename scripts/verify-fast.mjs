@@ -32,6 +32,7 @@ await runParallelGroup("source checks", [
   // libtest's test runner it runs nothing, and nothing else would notice.
   step("bench targets", "node", ["scripts/check-bench-targets.mjs"]),
   step("bench targets check's test", "node", ["--test", "scripts/check-bench-targets.test.mjs"]),
+  step("example binary's test", "node", ["--test", "scripts/lib/rust-example.test.mjs"]),
   // Offline over fixed fixtures, so the performance gate can't drift unseen.
   step("perf:test-check", "node", ["scripts/check-runtime-perf-test.mjs"]),
   // The audit's own rules over fixed inspections; the audit itself needs the

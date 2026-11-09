@@ -54,7 +54,6 @@ export type SequentialWorkflowEvent =
 export interface RustKernelEvalOptions {
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
-  readonly timeoutMs?: number;
 }
 
 interface KernelSuccessEnvelope {
@@ -93,7 +92,6 @@ export function evaluateRustKernelInputSync(
     env,
     input: JSON.stringify([input]),
     maxBuffer: 8 * 1024 * 1024,
-    timeout: options.timeoutMs ?? 10_000,
   });
 
   if (result.error) {
