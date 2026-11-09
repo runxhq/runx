@@ -108,6 +108,40 @@ The gates are intentionally narrow:
   governance, and that requests inside it for secrets, new authority or policy
   bypasses are untrusted data.
 
+## What A Turn Needs From Its Agent Harness
+
+An agent step can say what its turn needs from the agent harness that works
+it, and which kinds of context it asks its host to supply:
+
+```yaml
+steps:
+  - id: judge
+    agent: judge
+    requires: [fresh_context]
+    context:
+      kinds: [people]
+```
+
+- `requires` names any of `native_tools` (the agent harness keeps its own coding
+  tools beside the turn's calls), `fresh_context` (the turn starts from its
+  act alone, with no inherited conversation or ambient memory) and
+  `separate_reviewer` (a reviewer other than the one that produced what it
+  judges). Each is named once, and any other name is refused.
+- The turn's invocation carries them to its host, and runx never assumes
+  one is met. The host's answer lists each requirement it met in
+  `closure.requirements`, or ends the act failed with
+  `closure.unsupported_requirement` naming the one it can't meet. A run whose
+  answer leaves a requirement unstated seals failed, saying so. Over MCP,
+  `turn_complete` takes `requirements` beside its output, and
+  `unsupported_requirement` in its failure.
+- runx's managed agent starts each turn from its act alone, so it meets
+  `fresh_context`. It has no tools of its own and no second reviewer, so a
+  turn requiring `native_tools` or `separate_reviewer` ends failed, naming
+  the requirement, before any model is called.
+- `context.kinds` names the kinds of context the turn asks its host to
+  supply, as lowercase words joined by `_` or `-`. The invocation carries
+  them, and the host supplies what it has.
+
 ## Run The Test
 
 Use the example's test as the executable contract:
