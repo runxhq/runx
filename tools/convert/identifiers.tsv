@@ -1672,6 +1672,9 @@ oss	web-fetch-composes-in-graph	1	graph	web-fetch-composes-in-workflow		skills/w
 oss	web-search-composes-in-graph	1	graph	web-search-composes-in-workflow		skills/web-search/tests/composes-in-workflow.yaml
 oss	webhook-handoff-composes-in-graph	1	graph	webhook-handoff-composes-in-workflow		skills/webhook-handoff/tests/composes-in-workflow.yaml
 oss	write-harness	1	harness	write-harness	a retired package's own name, in a dated decision record: stays	docs/core-skill-review.md
+oss	check-bench-harness	4	harness	check-bench-harness	Cargo's harness key, which the check holds every bench target to: stays	scripts/check-bench-harness.test.mjs scripts/verify-fast.mjs
+oss	harnessFalse	4	harness	harnessFalse	Cargo's harness = false, which the bench harness check reads: stays	scripts/check-bench-harness.mjs
+oss	runx-bench-harness	1	harness	runx-bench-harness	the bench harness check's fixture directory, named for Cargo's key: stays	scripts/check-bench-harness.test.mjs
 oss	wrong-closure	1	closure	wrong-closure	a package's closure, or English: stays	crates/runx-cli/tests/operator_journeys.rs
 oss	agent		decided	agent	one thing: the skill's name, which agent-session takes	
 oss	input_mode		decided	inputs_via	how a process gets its inputs, the format's word (rename-table.tsv row 44), in the tool manifest's contract too	

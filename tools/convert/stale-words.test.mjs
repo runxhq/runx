@@ -92,16 +92,21 @@ test("the guard fails on a key the format removes where it's written as one, and
   assert.match(run.stdout, /and 8 of a key the format removes, in 4 files\n$/);
 });
 
-test("Cargo's harness key in a bench or test table is Cargo's, and stays", (t) => {
+test("Cargo's harness key in a bench or test table is Cargo's, and stays, as does the check that reads it", (t) => {
   const root = tree(t, {
     "crates/runx-runtime/Cargo.toml": '[package]\nname = "runx-runtime"\n\n[[bench]]\nname = "throughput"\nharness = false\n\n[[test]]\nname = "integration"\nharness = true\n',
     "crates/runx-runtime/benches/throughput.rs": "// Run the harness over each case.\nfn main() {}\n",
+    "scripts/check-bench-harness.mjs":
+      '// Without it Cargo runs the target under libtest\'s harness.\nif (key === "harness") current.harnessFalse = value === "false";\n',
+    "scripts/verify-fast.mjs":
+      '// Benches run only as harness = false targets.\nstep("bench harness", "node", ["scripts/check-bench-harness.mjs"]),\n// The harness ran.\n',
   });
   const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
     "crates/runx-runtime/benches/throughput.rs:1\tharness\tharness\t// Run the harness over each case.\n" +
-      "stale: 0 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose and 0 of a key the format removes, in 1 files\n",
+      "scripts/verify-fast.mjs:3\tharness\tharness\t// The harness ran.\n" +
+      "stale: 0 uses of runner as a method, 2 of harness as a test or run, 0 of graph as a workflow in prose and 0 of a key the format removes, in 2 files\n",
   );
 });
