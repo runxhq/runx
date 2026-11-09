@@ -33,8 +33,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 pub use runx_contracts::RunState;
 use runx_contracts::{
-    CallAct, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest, RunCallOutput,
-    RunDriver, RunListEntry, RunOutcome, StandingApproval, TurnTarget, UnreadableRun,
+    CallAct, CallTarget, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
+    RunCallOutput, RunDriver, RunListEntry, RunOutcome, StandingApproval, UnreadableRun,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -253,7 +253,7 @@ struct CallEvent {
     /// The id its host pinned on the call, unique within its turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     call_id: Option<String>,
-    target: TurnTarget,
+    target: CallTarget,
     /// Blob: the call's input.
     input: String,
     outcome: CallOutcomeEvent,
@@ -420,7 +420,7 @@ pub(crate) struct RecordedCall {
     pub attempt: u32,
     pub index: u32,
     pub call_id: Option<String>,
-    pub target: TurnTarget,
+    pub target: CallTarget,
     pub input: JsonObject,
     pub standing: Option<StandingApproval>,
     pub outcome: CallOutcome,
@@ -456,7 +456,7 @@ pub(crate) struct CallRecord<'a> {
     pub turn: Option<&'a PendingRequest>,
     pub index: u32,
     pub call_id: Option<&'a str>,
-    pub target: &'a TurnTarget,
+    pub target: &'a CallTarget,
     pub input: &'a JsonObject,
     pub outcome: &'a CallOutcome,
     /// A completed call's output, persisted as project artifacts.

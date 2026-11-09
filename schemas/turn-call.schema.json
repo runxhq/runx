@@ -23,7 +23,7 @@
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnCallOutcome"
     },
     "target": {
-      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnTarget"
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
     }
   },
   "required": [

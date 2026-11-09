@@ -415,7 +415,7 @@ fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult
     let [tool] = loaded.tools.as_slice() else {
         return Err(format!("its one method is bound: {loaded:?}").into());
     };
-    let runx_contracts::TurnTarget::Skill { skill, .. } = &tool.target else {
+    let runx_contracts::CallTarget::Skill { skill, .. } = &tool.target else {
         return Err(format!("a bound method: {tool:?}").into());
     };
     assert!(skill.as_str().starts_with("runx/receipt-query@"), "{skill}");

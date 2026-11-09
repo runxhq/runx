@@ -1685,3 +1685,5 @@ oss	TurnEnvelope		moved	TurnViewEnvelope	the plan's name (§4.2): host_protocol.
 oss	TurnInvocation		moved	TurnView	the plan's name (§4.2): host_protocol.rs:618	
 oss	TurnInvocationContract		decided	TurnViewContract	the plan's name (§4.2): today's TurnInvocation's contract type	
 oss	write	0		write	stays: the agent's write method takes the word, and every other write keeps it	skills/agent/run.yaml
+oss	TurnTarget	93	decided	CallTarget	the ledger's call target, what any call names, a turn's or a script's (9 November): a wait is offered to no turn	crates/runx-contracts/src/host_protocol.rs crates/runx-runtime/src/execution/runner/turn.rs
+oss	TurnTargetContract		decided	CallTargetContract	its contract type	packages/contracts/src/generated/contract-types.ts

@@ -18,9 +18,9 @@ use std::sync::Arc;
 use runx_contracts::connector::ConnectorBinding;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    ApprovalGate, AuthorityVerb, BoundClosure, CatalogRule, JsonObject, JsonValue, LoadedMethod,
-    LoadedMethodInput, LoadedPackage, ProjectBinding, ResolutionRequest, SkillManual, TrustTier,
-    TurnLoad, TurnTarget, TurnTool,
+    ApprovalGate, AuthorityVerb, BoundClosure, CallTarget, CatalogRule, JsonObject, JsonValue,
+    LoadedMethod, LoadedMethodInput, LoadedPackage, ProjectBinding, ResolutionRequest, SkillManual,
+    TrustTier, TurnLoad, TurnTool,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{LoadStep, LoadTarget};
@@ -279,7 +279,7 @@ fn bind_skill(
                 &super::super::turn::loaded_tool_name(&package_name, method),
                 description.clone(),
                 &manifest.methods[method],
-                TurnTarget::Skill {
+                CallTarget::Skill {
                     skill: skill.clone(),
                     method: Some(method.as_str().into()),
                     bound: Some(BoundClosure {

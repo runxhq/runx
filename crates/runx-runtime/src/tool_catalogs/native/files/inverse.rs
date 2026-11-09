@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::schema::{NonEmptyString, NonEmptyVec};
 use runx_contracts::{
-    Digest, FileBoundDelete, FileBundleDelete, FileBundleWrite, FileInverseBundle, JsonObject,
-    JsonValue, RunCallOutcome, RunEventFact, TurnTarget,
+    CallTarget, Digest, FileBoundDelete, FileBundleDelete, FileBundleWrite, FileInverseBundle,
+    JsonObject, JsonValue, RunCallOutcome, RunEventFact,
 };
 use serde::{Deserialize, Serialize};
 
@@ -181,7 +181,7 @@ fn recorded_edits(
                 step_id,
                 attempt,
                 index,
-                target: TurnTarget::Tool { tool },
+                target: CallTarget::Tool { tool },
                 call_id,
                 outcome,
                 ..

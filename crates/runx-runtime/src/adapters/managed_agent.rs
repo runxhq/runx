@@ -9,8 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use runx_contracts::{
-    AgentContextEnvelope, JsonObject, JsonValue, LoadedPackage, OutputField, TurnCallOutcome,
-    TurnCallResult, TurnLoad, TurnLocator, TurnTarget, TurnViewEnvelope,
+    AgentContextEnvelope, CallTarget, JsonObject, JsonValue, LoadedPackage, OutputField,
+    TurnCallOutcome, TurnCallResult, TurnLoad, TurnLocator, TurnViewEnvelope,
 };
 use serde::Serialize;
 
@@ -164,7 +164,7 @@ struct TurnCalls<'a> {
     /// controls.
     offered: AgentToolNameMap,
     /// The turn's tools by name.
-    targets: BTreeMap<String, TurnTarget>,
+    targets: BTreeMap<String, CallTarget>,
     /// The digests of the manuals the model has been given this pass.
     given: BTreeSet<String>,
 }
@@ -274,7 +274,7 @@ impl ToolExecutor for TurnCalls<'_> {
             | TurnCallOutcome::Refused { .. }
             | TurnCallOutcome::Cancelled => true,
         };
-        if result.target == TurnTarget::Load && !is_error {
+        if result.target == CallTarget::Load && !is_error {
             self.refresh()?;
         }
         let guidance = take_manual(&mut result, &mut self.given)?;
@@ -295,7 +295,7 @@ fn take_manual(
     given: &mut BTreeSet<String>,
 ) -> Result<Option<String>, RuntimeError> {
     let reading = |error: String| RuntimeError::effect_state("reading a load", error);
-    let (TurnTarget::Load, TurnCallOutcome::Completed { output, .. }) =
+    let (CallTarget::Load, TurnCallOutcome::Completed { output, .. }) =
         (&result.target, &mut result.outcome)
     else {
         return Ok(None);
@@ -676,7 +676,7 @@ mod tests {
     fn a_later_pass_reads_the_calls_the_turn_already_made() -> Result<(), ManagedAgentError> {
         let call = runx_contracts::TurnCallResult {
             index: 0,
-            target: runx_contracts::TurnTarget::Ask,
+            target: runx_contracts::CallTarget::Ask,
             input_digest: "sha256:ask".into(),
             call_id: None,
             outcome: runx_contracts::TurnCallOutcome::Refused {
@@ -685,7 +685,7 @@ mod tests {
         };
         let long = runx_contracts::TurnCallResult {
             index: 1,
-            target: runx_contracts::TurnTarget::Tool {
+            target: runx_contracts::CallTarget::Tool {
                 tool: "fs.read".into(),
             },
             input_digest: "sha256:read".into(),
@@ -740,7 +740,7 @@ mod tests {
             };
             Ok(TurnCallResult {
                 index,
-                target: TurnTarget::Load,
+                target: CallTarget::Load,
                 input_digest: non_empty("sha256:input"),
                 call_id: None,
                 outcome: TurnCallOutcome::Completed {

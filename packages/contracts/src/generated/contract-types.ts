@@ -349,6 +349,25 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
+/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists. */
+export type CallTargetContract = {
+  readonly kind: "tool";
+  readonly tool: string;
+} | {
+  readonly kind: "operation";
+  readonly operation: string;
+  readonly requirement: string;
+} | {
+  readonly bound?: BoundClosureContract;
+  readonly kind: "skill";
+  readonly method?: string;
+  readonly skill: string;
+} | {
+  readonly kind: "ask";
+} | {
+  readonly kind: "load";
+};
+
 /** One package `registry.search` found. */
 export type CatalogHitContract = {
   readonly kind: CatalogPackageKindContract;
@@ -2725,7 +2744,7 @@ export type RunEventFactContract = {
   /** The standing approval that admitted it on the approval floor, when one did. */
   readonly standing?: StandingApprovalContract;
   readonly step_id: string;
-  readonly target: TurnTargetContract;
+  readonly target: CallTargetContract;
   /** The address of the turn the call was made in; a script's calls belong to no turn. */
   readonly turn?: string;
 } | {
@@ -3679,7 +3698,7 @@ export type TurnCallResultContract = {
   /** `sha256:` over the canonical JSON of the call's input (`runx.stable-json.v1`), so a host that recorded a call before making it can prove which call sits at this index. */
   readonly input_digest: string;
   readonly outcome: TurnCallOutcomeContract;
-  readonly target: TurnTargetContract;
+  readonly target: CallTargetContract;
 };
 
 /** One context entry of an act as a model reads it in an index: what it is, whom it may be shared with, how large it is, and the locator `turn_read` reads its data by. */
@@ -3741,25 +3760,6 @@ export type TurnStatusContract = {
   readonly tools: readonly TurnToolContract[];
 };
 
-/** What a turn call names: one entry of the turn's allowance. */
-export type TurnTargetContract = {
-  readonly kind: "tool";
-  readonly tool: string;
-} | {
-  readonly kind: "operation";
-  readonly operation: string;
-  readonly requirement: string;
-} | {
-  readonly bound?: BoundClosureContract;
-  readonly kind: "skill";
-  readonly method?: string;
-  readonly skill: string;
-} | {
-  readonly kind: "ask";
-} | {
-  readonly kind: "load";
-};
-
 /** One call an open turn offers its agent: an allowance entry, named for MCP, with the input it takes. */
 export type TurnToolContract = {
   readonly description: string;
@@ -3768,7 +3768,7 @@ export type TurnToolContract = {
   };
   /** Distinct within the turn, in the MCP tool-name grammar. */
   readonly name: string;
-  readonly target: TurnTargetContract;
+  readonly target: CallTargetContract;
 };
 
 /** An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */

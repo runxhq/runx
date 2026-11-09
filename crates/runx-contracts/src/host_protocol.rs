@@ -471,10 +471,13 @@ pub struct AllowedOperation {
     pub operation: NonEmptyString,
 }
 
-/// What a turn call names: one entry of the turn's allowance.
+/// What a call names, a turn's or a script's, as its step's ledger admits
+/// and records it. A turn is offered a tool, an operation or a skill its
+/// allowance lists, and `ask` and `load` where its step allows them; a script
+/// is offered a tool, an operation or a skill its step's `calls` lists.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum TurnTarget {
+pub enum CallTarget {
     Tool {
         tool: NonEmptyString,
     },
@@ -622,7 +625,7 @@ pub enum LoadedPackage {
 pub struct TurnCallResult {
     /// The call's place in the turn, from 0.
     pub index: u32,
-    pub target: TurnTarget,
+    pub target: CallTarget,
     /// `sha256:` over the canonical JSON of the call's input
     /// (`runx.stable-json.v1`), so a host that recorded a call before making
     /// it can prove which call sits at this index.
@@ -674,7 +677,7 @@ pub struct TurnTool {
     /// Distinct within the turn, in the MCP tool-name grammar.
     pub name: NonEmptyString,
     pub description: NonEmptyString,
-    pub target: TurnTarget,
+    pub target: CallTarget,
     pub input_schema: JsonObject,
 }
 

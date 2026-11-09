@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    JsonObject, JsonValue, LoadedPackage, ResolutionRequest, TrustTier, TurnCallOutcome,
-    TurnCallResult, TurnLoad, TurnTarget,
+    CallTarget, JsonObject, JsonValue, LoadedPackage, ResolutionRequest, TrustTier,
+    TurnCallOutcome, TurnCallResult, TurnLoad,
 };
 use runx_runtime::{
     LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
@@ -301,7 +301,7 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     let [tool] = bound.tools.as_slice() else {
         return Err(format!("one loaded method: {bound:?}").into());
     };
-    let TurnTarget::Skill {
+    let CallTarget::Skill {
         skill,
         method: Some(method),
         bound: Some(_),

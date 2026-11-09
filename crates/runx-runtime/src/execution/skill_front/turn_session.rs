@@ -311,8 +311,8 @@ mod tests {
     use std::sync::Arc;
 
     use runx_contracts::{
-        CloseOutcome, JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RunClose,
-        RunOutcome, SealReason, TurnCallOutcome, TurnTarget,
+        CallTarget, CloseOutcome, JsonObject, JsonValue, ResolutionRequest, ResumeDocument,
+        RunClose, RunOutcome, SealReason, TurnCallOutcome,
     };
 
     use crate::execution::orchestrator::{
@@ -533,7 +533,7 @@ mod tests {
             turn: Some(&turn),
             index: 0,
             call_id: None,
-            target: &TurnTarget::Tool {
+            target: &CallTarget::Tool {
                 tool: "data.digest".into(),
             },
             input: &serde_json::from_value(

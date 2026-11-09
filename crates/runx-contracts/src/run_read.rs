@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::Artifact;
-use crate::host_protocol::{ResolutionRequest, ResolutionResponseActor, TurnTarget};
+use crate::host_protocol::{CallTarget, ResolutionRequest, ResolutionResponseActor};
 use crate::receipt::RunOutcome;
 use crate::schema::{NonEmptyString, RunxSchema};
 
@@ -150,7 +150,7 @@ pub enum RunEventFact {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         turn: Option<NonEmptyString>,
         index: u32,
-        target: TurnTarget,
+        target: CallTarget,
         input_digest: NonEmptyString,
         /// The id its host pinned on the call.
         #[serde(skip_serializing_if = "Option::is_none")]

@@ -516,7 +516,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     let turn_request = turn("answer");
     log.record_request("answer", 1, &turn_request).unwrap();
     let turn = waiting_requests(&store, "run_turn_1").unwrap().remove(0);
-    let target = TurnTarget::Tool {
+    let target = CallTarget::Tool {
         tool: "data.digest".into(),
     };
     let input = JsonObject::from([("value".to_owned(), JsonValue::String("a".to_owned()))]);
@@ -646,7 +646,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             turn: Some(&child_turn),
             index: 0,
             call_id: None,
-            target: &TurnTarget::Ask,
+            target: &CallTarget::Ask,
             input: &JsonObject::new(),
             outcome: &CallOutcome::Pending(PendingRequest {
                 id: child.address("report/0"),
@@ -665,7 +665,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         turn: Some(&root_turn),
         index: 0,
         call_id: None,
-        target: &TurnTarget::Skill {
+        target: &CallTarget::Skill {
             skill: "./report".into(),
             method: None,
             bound: None,

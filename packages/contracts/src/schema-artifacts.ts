@@ -2056,6 +2056,107 @@ export const runxSchemaArtifacts = {
         "title": "CallCost",
         "type": "object"
       },
+      "CallTarget": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "tool",
+                "type": "string"
+              },
+              "tool": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "tool"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "operation",
+                "type": "string"
+              },
+              "operation": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "requirement": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "requirement",
+              "operation"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
+            "properties": {
+              "bound": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/BoundClosure"
+              },
+              "kind": {
+                "const": "skill",
+                "type": "string"
+              },
+              "method": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "skill": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "skill"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The call's input is `{reason}`; the human approves or declines it.",
+            "properties": {
+              "kind": {
+                "const": "ask",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
+            "properties": {
+              "kind": {
+                "const": "load",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists.",
+        "title": "CallTarget"
+      },
       "CatalogHit": {
         "additionalProperties": false,
         "description": "One package `registry.search` found.",
@@ -7965,7 +8066,7 @@ export const runxSchemaArtifacts = {
                 "type": "string"
               },
               "target": {
-                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnTarget"
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
               },
               "turn": {
                 "description": "The address of the turn the call was made in; a script's calls belong to no turn.",
@@ -10529,107 +10630,6 @@ export const runxSchemaArtifacts = {
         "title": "TurnRequirement",
         "type": "string"
       },
-      "TurnTarget": {
-        "anyOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "tool",
-                "type": "string"
-              },
-              "tool": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "tool"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "operation",
-                "type": "string"
-              },
-              "operation": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "requirement": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "requirement",
-              "operation"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "description": "A child skill: one the allowance names, run by its default method, or one method of a skill a load bound, run as the load bound it.",
-            "properties": {
-              "bound": {
-                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/BoundClosure"
-              },
-              "kind": {
-                "const": "skill",
-                "type": "string"
-              },
-              "method": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "skill": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "skill"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "description": "The call's input is `{reason}`; the human approves or declines it.",
-            "properties": {
-              "kind": {
-                "const": "ask",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "description": "The call's input is `{skill, method?}` or `{connector}`: a package a catalog rule admits, whose methods or operations the turn offers from then on.",
-            "properties": {
-              "kind": {
-                "const": "load",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          }
-        ],
-        "description": "What a turn call names: one entry of the turn's allowance.",
-        "title": "TurnTarget"
-      },
       "TurnTool": {
         "additionalProperties": false,
         "description": "One call an open turn offers its agent: an allowance entry, named for MCP, with the input it takes.",
@@ -10648,7 +10648,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "target": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnTarget"
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
           }
         },
         "required": [
@@ -14581,7 +14581,7 @@ export const runxSchemaArtifacts = {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnCallOutcome"
       },
       "target": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnTarget"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
       }
     },
     "required": [

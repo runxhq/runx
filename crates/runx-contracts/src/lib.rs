@@ -109,13 +109,13 @@ pub use external_job::{
     ExternalJobStage, ExternalJobStageRequest, ExternalJobStageResult, ExternalJobState,
 };
 pub use host_protocol::{
-    AllowedOperation, ApprovalGate, BoundClosure, CatalogRule, CatalogTrust, ExecutionEvent,
-    LoadedMethod, LoadedMethodInput, LoadedPackage, PURCHASE_BALANCE_CHOICE, ProjectBinding,
-    PurchaseMethod, PurchasePaymentOption, PurchaseQuote, PurchaseRequest, Question,
-    QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend,
-    SkillAllowance, SkillManual, TURN_READ_PAGE_CHARS, TurnAllowance, TurnCallOutcome,
+    AllowedOperation, ApprovalGate, BoundClosure, CallTarget, CatalogRule, CatalogTrust,
+    ExecutionEvent, LoadedMethod, LoadedMethodInput, LoadedPackage, PURCHASE_BALANCE_CHOICE,
+    ProjectBinding, PurchaseMethod, PurchasePaymentOption, PurchaseQuote, PurchaseRequest,
+    Question, QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    RetryResend, SkillAllowance, SkillManual, TURN_READ_PAGE_CHARS, TurnAllowance, TurnCallOutcome,
     TurnCallResult, TurnContextLine, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage,
-    TurnRequirement, TurnStatus, TurnTarget, TurnTool, TurnView, TurnViewEnvelope, check_answer,
+    TurnRequirement, TurnStatus, TurnTool, TurnView, TurnViewEnvelope, check_answer,
 };
 pub use json::{JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_string_field};
 pub use list::{

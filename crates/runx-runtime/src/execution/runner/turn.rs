@@ -14,10 +14,10 @@ use std::path::Path;
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
-    AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, InputDefinition, JsonObject,
-    JsonValue, LoadedPackage, ProjectBinding, ProvenanceEntry, Reference, ReferenceType,
-    ResolutionRequest, RunCallOutput, TurnAllowance, TurnCallOutcome, TurnCallResult,
-    TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus, TurnTarget, TurnTool,
+    AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, CallTarget, InputDefinition,
+    JsonObject, JsonValue, LoadedPackage, ProjectBinding, ProvenanceEntry, Reference,
+    ReferenceType, ResolutionRequest, RunCallOutput, TurnAllowance, TurnCallOutcome,
+    TurnCallResult, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus, TurnTool,
     TurnView,
 };
 use runx_parser::{
@@ -118,7 +118,7 @@ pub trait Turn {
         &mut self,
         host: &mut dyn Host,
         call_id: Option<String>,
-        target: TurnTarget,
+        target: CallTarget,
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError> {
         match self.admit(host, call_id, target, input)? {
@@ -140,7 +140,7 @@ pub trait Turn {
         &mut self,
         host: &mut dyn Host,
         call_id: Option<String>,
-        target: TurnTarget,
+        target: CallTarget,
         input: JsonObject,
     ) -> Result<Admission, RuntimeError>;
 
@@ -186,7 +186,7 @@ pub(crate) fn admit_tool(
 }
 
 /// What the tool a turn offers as `tool` names.
-fn offered_target(turn: &dyn Turn, tool: &str) -> Result<TurnTarget, RuntimeError> {
+fn offered_target(turn: &dyn Turn, tool: &str) -> Result<CallTarget, RuntimeError> {
     let tools = turn.tools()?;
     let names = tools
         .iter()
@@ -315,7 +315,7 @@ where
     fn run_call_step(
         &self,
         call: &CallStep,
-        target: &TurnTarget,
+        target: &CallTarget,
         admitted_by: Vec<Reference>,
         held_by_effects: bool,
         host: &mut dyn Host,
@@ -343,12 +343,12 @@ where
             ask_reason: None,
         };
         let result = match target {
-            TurnTarget::Skill {
+            CallTarget::Skill {
                 bound: Some(bound), ..
             } => self
                 .bound_skill(step, bound)
                 .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
-            TurnTarget::Skill { .. } => load_step_skill(
+            CallTarget::Skill { .. } => load_step_skill(
                 scope.workflow_dir,
                 step,
                 StepSkillLoadOptions::of_run(&scope.runtime.options),
@@ -461,7 +461,7 @@ pub(super) struct OpenTurn<'a, A> {
 struct Made {
     index: u32,
     call_id: Option<String>,
-    target: TurnTarget,
+    target: CallTarget,
     input: JsonObject,
     /// The standing approval that admitted it on the floor, if one did.
     standing: Option<runx_contracts::StandingApproval>,
@@ -738,12 +738,12 @@ where
     }
 
     /// Why the turn's allowance refuses `target`, if it does.
-    fn refusal(&self, target: &TurnTarget) -> Result<Option<String>, RuntimeError> {
+    fn refusal(&self, target: &CallTarget) -> Result<Option<String>, RuntimeError> {
         let allowance = &self.scope.allowance;
         let allowed =
             match target {
-                TurnTarget::Tool { tool } => allowance.tools.contains(tool),
-                TurnTarget::Operation {
+                CallTarget::Tool { tool } => allowance.tools.contains(tool),
+                CallTarget::Operation {
                     requirement,
                     operation,
                 } => {
@@ -751,14 +751,14 @@ where
                         &item.requirement == requirement && &item.operation == operation
                     }) || self.loaded_offers(target)?
                 }
-                TurnTarget::Skill {
+                CallTarget::Skill {
                     skill,
                     method: None,
                     bound: None,
                 } => allowance.named_skills().any(|listed| listed == skill),
-                TurnTarget::Skill { .. } => self.loaded_offers(target)?,
-                TurnTarget::Ask => allowance.asks,
-                TurnTarget::Load => allowance.rules().next().is_some(),
+                CallTarget::Skill { .. } => self.loaded_offers(target)?,
+                CallTarget::Ask => allowance.asks,
+                CallTarget::Load => allowance.rules().next().is_some(),
             };
         if !allowed {
             return Ok(Some(format!(
@@ -766,7 +766,7 @@ where
                 label(target)
             )));
         }
-        if matches!(target, TurnTarget::Skill { .. }) {
+        if matches!(target, CallTarget::Skill { .. }) {
             return self.child_refusal();
         }
         Ok(None)
@@ -788,7 +788,7 @@ where
         };
         let mut started = 0_usize;
         for call in self.recorded()? {
-            if !matches!(call.target, TurnTarget::Skill { .. }) {
+            if !matches!(call.target, CallTarget::Skill { .. }) {
                 continue;
             }
             let child = options
@@ -825,7 +825,7 @@ where
         &mut self,
         host: &mut dyn Host,
         index: u32,
-        target: TurnTarget,
+        target: CallTarget,
         input: JsonObject,
     ) -> Result<Admission, RuntimeError> {
         self.admit_at(
@@ -946,15 +946,15 @@ where
             _ if super::reaches_world(&call.step.kind) => {
                 CallOutcome::Claimed(self.retry(made.index, &call.step)?)
             }
-            TurnTarget::Skill { .. } => {
+            CallTarget::Skill { .. } => {
                 CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
             }
             // A call that reaches nothing holds no claim: it runs now, under
             // the driver.
-            TurnTarget::Tool { .. }
-            | TurnTarget::Operation { .. }
-            | TurnTarget::Ask
-            | TurnTarget::Load => {
+            CallTarget::Tool { .. }
+            | CallTarget::Operation { .. }
+            | CallTarget::Ask
+            | CallTarget::Load => {
                 let ran = self.scope.run_call_step(
                     &call,
                     &made.target,
@@ -1364,7 +1364,7 @@ where
     fn call_step(
         &self,
         index: u32,
-        target: &TurnTarget,
+        target: &CallTarget,
         input: &JsonObject,
     ) -> Result<CallStep, String> {
         let step_id = call_step_id(self.scope.step_id, index);
@@ -1372,11 +1372,11 @@ where
         let mut act = None;
         let kind = match target {
             // A tool the turn lists resolves before its call runs.
-            TurnTarget::Tool { tool } => {
+            CallTarget::Tool { tool } => {
                 self.resolve_tool(tool.as_str())?;
                 StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned()))
             }
-            TurnTarget::Operation {
+            CallTarget::Operation {
                 requirement,
                 operation,
             } => {
@@ -1424,7 +1424,7 @@ where
                 }
                 StepKind::Operation(target)
             }
-            TurnTarget::Skill { skill, method, .. } => {
+            CallTarget::Skill { skill, method, .. } => {
                 // `act` is never a skill input: it is why the skill is run.
                 act = inputs
                     .remove("act")
@@ -1439,7 +1439,7 @@ where
                 };
                 StepKind::Skill(target)
             }
-            TurnTarget::Load => StepKind::Load(LoadStep {
+            CallTarget::Load => StepKind::Load(LoadStep {
                 target: load_target(input)?,
                 rules: self.scope.allowance.rules().copied().collect(),
                 held: self.held().map_err(|error| error.to_string())?,
@@ -1447,7 +1447,7 @@ where
             }),
             // An ask is a yes or no on its reason, or questions the person
             // answers.
-            TurnTarget::Ask if input.len() == 1 && input.contains_key("questions") => {
+            CallTarget::Ask if input.len() == 1 && input.contains_key("questions") => {
                 let questions = super::step_handlers::ask_questions(&input["questions"])?;
                 StepKind::Ask(AskGate {
                     gate: step_id.clone(),
@@ -1461,7 +1461,7 @@ where
                     gate_type: Some(super::step_handlers::QUESTIONS_GATE.to_owned()),
                 })
             }
-            TurnTarget::Ask => {
+            CallTarget::Ask => {
                 let reason = input
                     .get("reason")
                     .and_then(JsonValue::as_str)
@@ -1509,7 +1509,7 @@ where
     fn admit_references(
         &self,
         step: &mut WorkflowStep,
-        target: &TurnTarget,
+        target: &CallTarget,
     ) -> Result<Vec<Fed>, String> {
         let given = step
             .inputs
@@ -1598,11 +1598,11 @@ where
     fn declared_inputs(
         &self,
         step: &WorkflowStep,
-        target: &TurnTarget,
+        target: &CallTarget,
     ) -> Result<(&'static str, BTreeMap<String, InputDefinition>), String> {
         let options = &self.scope.runtime.options;
         match target {
-            TurnTarget::Tool { tool } => crate::tool_catalogs::dispatch::inspect_catalog_tool(
+            CallTarget::Tool { tool } => crate::tool_catalogs::dispatch::inspect_catalog_tool(
                 tool.as_str(),
                 &options.env,
                 self.scope.workflow_dir,
@@ -1610,7 +1610,7 @@ where
             )
             .map(|inspected| ("tool", inspected.inputs))
             .map_err(|error| format!("tool {tool} could not be resolved: {error}")),
-            TurnTarget::Skill {
+            CallTarget::Skill {
                 skill,
                 bound: Some(bound),
                 ..
@@ -1619,14 +1619,14 @@ where
                 .bound_skill(step, bound)
                 .map(|loaded| ("method", loaded.method.inputs))
                 .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
-            TurnTarget::Skill { skill, .. } => load_step_skill(
+            CallTarget::Skill { skill, .. } => load_step_skill(
                 self.scope.workflow_dir,
                 step,
                 StepSkillLoadOptions::of_run(options),
             )
             .map(|loaded| ("method", loaded.method.inputs))
             .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
-            TurnTarget::Operation { .. } | TurnTarget::Ask | TurnTarget::Load => {
+            CallTarget::Operation { .. } | CallTarget::Ask | CallTarget::Load => {
                 Ok(("call", BTreeMap::new()))
             }
         }
@@ -1683,7 +1683,7 @@ where
     }
 
     /// A listed child skill's tool, named for the skill.
-    fn skill_tool(&self, target: TurnTarget, name: String) -> Result<TurnTool, RuntimeError> {
+    fn skill_tool(&self, target: CallTarget, name: String) -> Result<TurnTool, RuntimeError> {
         let call = self
             .call_step(0, &target, &JsonObject::new())
             .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
@@ -1699,7 +1699,7 @@ where
     fn loads(&self) -> Result<Vec<TurnLoad>, RuntimeError> {
         self.recorded()?
             .iter()
-            .filter(|call| call.target == TurnTarget::Load)
+            .filter(|call| call.target == CallTarget::Load)
             .filter_map(|call| match &call.outcome {
                 CallOutcome::Completed(run) if run.outcome.succeeded() => Some(run),
                 _ => None,
@@ -1715,7 +1715,7 @@ where
     }
 
     /// Whether a load of this turn offers `target`.
-    fn loaded_offers(&self, target: &TurnTarget) -> Result<bool, RuntimeError> {
+    fn loaded_offers(&self, target: &CallTarget) -> Result<bool, RuntimeError> {
         Ok(self
             .loads()?
             .iter()
@@ -1746,7 +1746,7 @@ where
                     .tools
                     .iter()
                     .filter_map(|tool| match &tool.target {
-                        TurnTarget::Operation { operation, .. } => {
+                        CallTarget::Operation { operation, .. } => {
                             OperationName::new(operation.as_str().to_owned())
                         }
                         _ => None,
@@ -1864,7 +1864,7 @@ where
             runx_contracts::call_input_schema(&inspected.inputs).map_err(|error| {
                 RuntimeError::effect_state("describing a tool", error.to_string())
             })?,
-            TurnTarget::Tool { tool: tool.clone() },
+            CallTarget::Tool { tool: tool.clone() },
         ))
     }
 
@@ -1907,7 +1907,7 @@ where
         }
         for skill in allowance.named_skills() {
             tools.push(self.ledger.skill_tool(
-                TurnTarget::Skill {
+                CallTarget::Skill {
                     skill: skill.clone(),
                     method: None,
                     bound: None,
@@ -1921,14 +1921,14 @@ where
                 "Load a skill or connector the turn's catalog rules admit: {skill, method?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its methods, each with its purpose and inputs; it binds the method named, or the skill's only method, and with no method named a skill of several binds none, so read the manual and load again naming one. Each method or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier, or a project package that reaches a connector this turn does not, waits on the person's trust."
                     .to_owned(),
                 load_schema()?,
-                TurnTarget::Load,
+                CallTarget::Load,
             ));
         }
         // What a load added, as it described it when it bound it: a package
         // that changed since is refused at its call, never re-read here.
         for load in self.ledger.loads()? {
             tools.extend(load.tools.into_iter().filter(|tool| {
-                !matches!(&tool.target, TurnTarget::Operation { requirement, operation }
+                !matches!(&tool.target, CallTarget::Operation { requirement, operation }
                 if allowance.operations.iter().any(|allowed| {
                     &allowed.requirement == requirement && &allowed.operation == operation
                 }))
@@ -1940,7 +1940,7 @@ where
                 "Ask the human: a yes or no on your reason, or one to three questions, each with up to four options (the recommended first) and free text where it allows. The call stays pending until they answer."
                     .to_owned(),
                 ask_schema()?,
-                TurnTarget::Ask,
+                CallTarget::Ask,
             ));
         }
         distinct_names(&mut tools);
@@ -1962,7 +1962,7 @@ where
         &mut self,
         host: &mut dyn Host,
         call_id: Option<String>,
-        target: TurnTarget,
+        target: CallTarget,
         input: JsonObject,
     ) -> Result<Admission, RuntimeError> {
         if let Some(call_id) = &call_id {
@@ -2055,21 +2055,21 @@ fn reason(text: String) -> NonEmptyString {
     NonEmptyString::new(text).unwrap_or_else(|| "the call gave no reason".into())
 }
 
-fn label(target: &TurnTarget) -> String {
+fn label(target: &CallTarget) -> String {
     match target {
-        TurnTarget::Tool { tool } => format!("tool {tool}"),
-        TurnTarget::Operation {
+        CallTarget::Tool { tool } => format!("tool {tool}"),
+        CallTarget::Operation {
             requirement,
             operation,
         } => format!("operation {requirement}/{operation}"),
-        TurnTarget::Skill {
+        CallTarget::Skill {
             skill,
             method: Some(method),
             ..
         } => format!("skill {skill}#{method}"),
-        TurnTarget::Skill { skill, .. } => format!("skill {skill}"),
-        TurnTarget::Ask => "ask".to_owned(),
-        TurnTarget::Load => "load".to_owned(),
+        CallTarget::Skill { skill, .. } => format!("skill {skill}"),
+        CallTarget::Ask => "ask".to_owned(),
+        CallTarget::Load => "load".to_owned(),
     }
 }
 
@@ -2166,7 +2166,7 @@ pub(super) fn operation_descriptor(
         &format!("{}__{}", allowed.requirement, allowed.operation),
         description,
         input_schema,
-        TurnTarget::Operation {
+        CallTarget::Operation {
             requirement: allowed.requirement.clone(),
             operation: allowed.operation.clone(),
         },
@@ -2179,7 +2179,7 @@ pub(super) fn skill_descriptor(
     name: &str,
     skill_description: Option<String>,
     method: &runx_parser::SkillMethodDefinition,
-    target: TurnTarget,
+    target: CallTarget,
 ) -> Result<TurnTool, RuntimeError> {
     let describing =
         |message: String| RuntimeError::effect_state("describing a child skill", message);
@@ -2264,7 +2264,7 @@ fn offered(
     name: &str,
     description: String,
     input_schema: JsonObject,
-    target: TurnTarget,
+    target: CallTarget,
 ) -> TurnTool {
     TurnTool {
         name: mcp_name(name).into(),
@@ -2417,7 +2417,7 @@ mod tests {
             name,
             "a tool".to_owned(),
             JsonObject::new(),
-            TurnTarget::Ask,
+            CallTarget::Ask,
         )
     }
 

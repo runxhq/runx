@@ -16,7 +16,7 @@ use runx_contracts::javascript_worker::{
     ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
     ScriptSettlement,
 };
-use runx_contracts::{JsonObject, JsonValue, TurnCallOutcome, TurnTarget};
+use runx_contracts::{CallTarget, JsonObject, JsonValue, TurnCallOutcome};
 use runx_parser::ScriptStep;
 
 use super::super::super::run_record::{CallOutcome, RecordedCall};
@@ -583,14 +583,14 @@ fn diverged(step_id: &str, position: u32, why: &str) -> RuntimeError {
 /// A script's call as the ledger records it: what it names and its input.
 /// `None` for `ctx.now()`, which isn't a call the ledger makes; an error for
 /// a call the ledger can't name.
-fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(TurnTarget, JsonObject)>, String> {
+fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObject)>, String> {
     let object = |inputs: &serde_json::Value| {
         serde_json::from_value::<JsonObject>(inputs.clone())
             .map_err(|error| format!("a call's inputs are a JSON object: {error}"))
     };
     Ok(Some(match target {
         ScriptCallTarget::Skill { reference, inputs } => (
-            TurnTarget::Skill {
+            CallTarget::Skill {
                 skill: reference.as_str().into(),
                 method: None,
                 bound: None,
@@ -598,7 +598,7 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(TurnTarget, JsonObje
             object(inputs)?,
         ),
         ScriptCallTarget::Tool { name, inputs } => (
-            TurnTarget::Tool {
+            CallTarget::Tool {
                 tool: name.as_str().into(),
             },
             object(inputs)?,
@@ -619,7 +619,7 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(TurnTarget, JsonObje
                 );
             }
             (
-                TurnTarget::Operation {
+                CallTarget::Operation {
                     requirement: requirement.into(),
                     operation: operation.into(),
                 },
