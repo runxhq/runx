@@ -8,7 +8,9 @@ use super::{BUSY_TIMEOUT, KernelStoreError};
 
 /// `RUNK`: marks a kernel store. A `store` connector's database never carries it.
 const APPLICATION_ID: i64 = 0x5255_4e4b;
-const SCHEMA_VERSION: i64 = 2;
+/// 0.12 raised it from 2 when `kernel_streams` and its `kind` became
+/// `kernel_keys` and `stream`, so a released runx refuses the store it opens.
+const SCHEMA_VERSION: i64 = 3;
 
 /// The acts whose provider effects runx 0.10 left in flight in its store.
 /// 0.11 reads none of that log, and its own idempotency keys differ, so a
@@ -53,28 +55,28 @@ pub(super) fn retired_effects_in_flight(retired: &Path) -> Result<Vec<String>, K
 }
 
 const SCHEMA: &str = "
-CREATE TABLE kernel_streams (
-  kind TEXT NOT NULL,
+CREATE TABLE kernel_keys (
+  stream TEXT NOT NULL,
   key TEXT NOT NULL,
   version INTEGER NOT NULL CHECK (version > 0),
   event_type TEXT NOT NULL,
   chain TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (kind, key)
+  PRIMARY KEY (stream, key)
 ) WITHOUT ROWID;
 
 CREATE TABLE kernel_events (
-  kind TEXT NOT NULL,
+  stream TEXT NOT NULL,
   key TEXT NOT NULL,
   version INTEGER NOT NULL CHECK (version > 0),
   event_type TEXT NOT NULL,
   data BLOB NOT NULL,
   chain TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  PRIMARY KEY (kind, key, version)
+  PRIMARY KEY (stream, key, version)
 ) WITHOUT ROWID;
 
-CREATE INDEX kernel_streams_recent ON kernel_streams (kind, updated_at, key);
+CREATE INDEX kernel_keys_recent ON kernel_keys (stream, updated_at, key);
 
 CREATE TABLE kernel_blobs (
   digest TEXT NOT NULL PRIMARY KEY,
@@ -103,6 +105,7 @@ pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
         .map_err(database("reading the schema version"))?;
     match (application_id, version) {
         (APPLICATION_ID, SCHEMA_VERSION) => {}
+        (APPLICATION_ID, 2) => migrate_from_2(&mut connection, path)?,
         (0, 0) => initialize(&mut connection, path)?,
         _ => {
             return Err(KernelStoreError::Foreign {
@@ -118,6 +121,47 @@ pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
         .pragma_update(None, "synchronous", "FULL")
         .map_err(database("requiring durable commits"))?;
     Ok(connection)
+}
+
+/// Version 2 named a stream's table `kernel_streams` and its stream `kind`.
+/// The names change and nothing else, so every chain verifies as it did.
+const MIGRATE_FROM_2: &str = "
+ALTER TABLE kernel_streams RENAME TO kernel_keys;
+ALTER TABLE kernel_keys RENAME COLUMN kind TO stream;
+ALTER TABLE kernel_events RENAME COLUMN kind TO stream;
+DROP INDEX kernel_streams_recent;
+CREATE INDEX kernel_keys_recent ON kernel_keys (stream, updated_at, key);
+";
+
+fn migrate_from_2(connection: &mut Connection, path: &Path) -> Result<(), KernelStoreError> {
+    let database = |operation: &'static str| {
+        move |source| KernelStoreError::Database {
+            path: path.to_path_buf(),
+            operation,
+            source,
+        }
+    };
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(database("locking the migration"))?;
+    let version: i64 = transaction
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(database("rechecking the schema version"))?;
+    if version == SCHEMA_VERSION {
+        // Another process migrated it while this one waited for the lock.
+        return transaction
+            .commit()
+            .map_err(database("closing the migration"));
+    }
+    transaction
+        .execute_batch(MIGRATE_FROM_2)
+        .map_err(database("migrating the schema"))?;
+    transaction
+        .pragma_update(None, "user_version", SCHEMA_VERSION)
+        .map_err(database("sealing the schema version"))?;
+    transaction
+        .commit()
+        .map_err(database("committing the migration"))
 }
 
 fn initialize(connection: &mut Connection, path: &Path) -> Result<(), KernelStoreError> {

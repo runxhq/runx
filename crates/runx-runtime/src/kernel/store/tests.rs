@@ -517,3 +517,43 @@ fn a_tree_holds_its_root_and_descendants_only() {
     assert_eq!(keys, ["run", "run/a", "run/a/0", "run/b"]);
     assert!(store.tree_heads::<Ledger>("missing").unwrap().is_empty());
 }
+
+/// A store runx 0.11 wrote, version 2, named its table of streams
+/// `kernel_streams` and a stream `kind`. It opens as version 3 under the
+/// store's names, and every stream reads and verifies as it did.
+#[test]
+fn a_version_2_store_opens_under_its_new_names_and_verifies() {
+    let root = tempfile::tempdir().unwrap();
+    {
+        let store = KernelStore::open(root.path()).unwrap();
+        moves(&store, "a", 3);
+    }
+    let path = root.path().join(KERNEL_STORE_FILE);
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "DROP INDEX kernel_keys_recent;
+             ALTER TABLE kernel_keys RENAME COLUMN stream TO kind;
+             ALTER TABLE kernel_events RENAME COLUMN stream TO kind;
+             ALTER TABLE kernel_keys RENAME TO kernel_streams;
+             CREATE INDEX kernel_streams_recent ON kernel_streams (kind, updated_at, key);
+             PRAGMA user_version = 2;",
+        )
+        .unwrap();
+    let store = KernelStore::open(root.path()).unwrap();
+    assert_eq!(store.read::<Ledger>("a").unwrap().len(), 3);
+    drop(store);
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    let version: i64 = connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 3);
+    let streams: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM kernel_keys WHERE stream = ?1",
+            [Ledger::KIND],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(streams, 1);
+}

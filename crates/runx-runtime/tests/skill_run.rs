@@ -2583,12 +2583,12 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     let store = temp.path().join(".runx/kernel-v2.sqlite");
     let database = rusqlite::Connection::open(&store)?;
     let original_event: Vec<u8> = database.query_row(
-        "SELECT data FROM kernel_events WHERE kind = 'run' AND key = 'run_pinned_counter' AND version = 2",
+        "SELECT data FROM kernel_events WHERE stream = 'run' AND key = 'run_pinned_counter' AND version = 2",
         [],
         |row| row.get(0),
     )?;
     database.execute(
-        "UPDATE kernel_events SET data = ?1 WHERE kind = 'run' AND key = 'run_pinned_counter' AND version = 2",
+        "UPDATE kernel_events SET data = ?1 WHERE stream = 'run' AND key = 'run_pinned_counter' AND version = 2",
         [b"{}".to_vec()],
     )?;
     let error = run_skill(request.clone())
@@ -2597,7 +2597,7 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     assert!(error.to_string().contains("integrity chain"), "{error}");
     assert_eq!(fs::read_to_string(&count_file)?, "1");
     database.execute(
-        "UPDATE kernel_events SET data = ?1 WHERE kind = 'run' AND key = 'run_pinned_counter' AND version = 2",
+        "UPDATE kernel_events SET data = ?1 WHERE stream = 'run' AND key = 'run_pinned_counter' AND version = 2",
         [original_event],
     )?;
     drop(database);

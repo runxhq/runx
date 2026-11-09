@@ -327,7 +327,7 @@ impl KernelStore {
         for append in &batch {
             let head: Option<(u64, String)> = transaction
                 .query_row(
-                    "SELECT version, chain FROM kernel_streams WHERE kind = ?1 AND key = ?2",
+                    "SELECT version, chain FROM kernel_keys WHERE stream = ?1 AND key = ?2",
                     params![append.kind, append.key],
                     |row| Ok((row.get::<_, i64>(0)? as u64, row.get(1)?)),
                 )
@@ -346,7 +346,7 @@ impl KernelStore {
             let chain = chain_link(&previous_chain, append.event_type, &append.data);
             transaction
                 .execute(
-                    "INSERT INTO kernel_events (kind, key, version, event_type, data, chain, committed_at)
+                    "INSERT INTO kernel_events (stream, key, version, event_type, data, chain, committed_at)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                     params![
                         append.kind,
@@ -361,9 +361,9 @@ impl KernelStore {
                 .map_err(|source| self.database("appending an event", source))?;
             transaction
                 .execute(
-                    "INSERT INTO kernel_streams (kind, key, version, event_type, chain, updated_at)
+                    "INSERT INTO kernel_keys (stream, key, version, event_type, chain, updated_at)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                     ON CONFLICT (kind, key) DO UPDATE SET
+                     ON CONFLICT (stream, key) DO UPDATE SET
                        version = excluded.version, event_type = excluded.event_type,
                        chain = excluded.chain, updated_at = excluded.updated_at",
                     params![
@@ -419,7 +419,7 @@ impl KernelStore {
             .lock()
             .query_row(
                 "SELECT event_type, data, chain, committed_at FROM kernel_events
-                 WHERE kind = ?1 AND key = ?2 AND version = 1",
+                 WHERE stream = ?1 AND key = ?2 AND version = 1",
                 params![E::KIND, key],
                 |row| {
                     Ok((
@@ -478,8 +478,8 @@ impl KernelStore {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
-                "SELECT key, version, event_type, updated_at FROM kernel_streams
-                 WHERE kind = ?1 AND (key = ?2 OR (key >= ?3 AND key < ?4)) ORDER BY key",
+                "SELECT key, version, event_type, updated_at FROM kernel_keys
+                 WHERE stream = ?1 AND (key = ?2 OR (key >= ?3 AND key < ?4)) ORDER BY key",
             )
             .map_err(|source| self.database("preparing a stream tree listing", source))?;
         statement
@@ -502,7 +502,7 @@ impl KernelStore {
         let mut statement = connection
             .prepare_cached(
                 "SELECT DISTINCT key FROM kernel_events
-                 WHERE kind = ?1 AND event_type = ?2 AND (key = ?3 OR (key >= ?4 AND key < ?5))
+                 WHERE stream = ?1 AND event_type = ?2 AND (key = ?3 OR (key >= ?4 AND key < ?5))
                  ORDER BY key",
             )
             .map_err(|source| self.database("preparing a stream tree search", source))?;
@@ -541,8 +541,8 @@ impl KernelStore {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
-                "SELECT key, version, event_type, updated_at FROM kernel_streams
-                 WHERE kind = ?1 AND (?2 IS NULL OR (updated_at, key) < (?2, ?3))
+                "SELECT key, version, event_type, updated_at FROM kernel_keys
+                 WHERE stream = ?1 AND (?2 IS NULL OR (updated_at, key) < (?2, ?3))
                  ORDER BY updated_at DESC, key DESC LIMIT ?4",
             )
             .map_err(|source| self.database("preparing a recent head listing", source))?;
@@ -610,7 +610,7 @@ impl KernelStore {
         let mut statement = connection
             .prepare_cached(
                 "SELECT version, event_type, data, chain, committed_at FROM kernel_events
-                 WHERE kind = ?1 AND key = ?2 AND version >= ?3 ORDER BY version LIMIT ?4",
+                 WHERE stream = ?1 AND key = ?2 AND version >= ?3 ORDER BY version LIMIT ?4",
             )
             .map_err(|source| self.database("preparing a stream read", source))?;
         let anchored = after > 0;
@@ -677,7 +677,7 @@ impl KernelStore {
     fn version_of(&self, kind: &str, key: &str) -> Result<u64, KernelStoreError> {
         self.lock()
             .query_row(
-                "SELECT version FROM kernel_streams WHERE kind = ?1 AND key = ?2",
+                "SELECT version FROM kernel_keys WHERE stream = ?1 AND key = ?2",
                 params![kind, key],
                 |row| row.get::<_, i64>(0),
             )
@@ -695,8 +695,8 @@ impl KernelStore {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
-                "SELECT key, version, event_type, updated_at FROM kernel_streams
-                 WHERE kind = ?1 AND key > ?2 ORDER BY key LIMIT ?3",
+                "SELECT key, version, event_type, updated_at FROM kernel_keys
+                 WHERE stream = ?1 AND key > ?2 ORDER BY key LIMIT ?3",
             )
             .map_err(|source| self.database("preparing a head listing", source))?;
         statement
@@ -742,11 +742,11 @@ fn latest_kind_on<E: StreamEvent>(
         .query_row(
             "SELECT s.version, s.event_type, s.chain, e.event_type, e.data, e.chain, e.committed_at,
                     (SELECT p.chain FROM kernel_events p
-                     WHERE p.kind = s.kind AND p.key = s.key AND p.version = s.version - 1)
-             FROM kernel_streams s
-             LEFT JOIN kernel_events e ON e.kind = s.kind AND e.key = s.key
+                     WHERE p.stream = s.stream AND p.key = s.key AND p.version = s.version - 1)
+             FROM kernel_keys s
+             LEFT JOIN kernel_events e ON e.stream = s.stream AND e.key = s.key
                   AND e.version = s.version
-             WHERE s.kind = ?1 AND s.key = ?2",
+             WHERE s.stream = ?1 AND s.key = ?2",
             params![kind, key],
             |row| {
                 Ok((
