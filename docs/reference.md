@@ -418,7 +418,7 @@ inspection:
   "receipt_id": "sha256:...",
   "result": {},
   "trace": {
-    "graph": "example-read",
+    "workflow": "example-read",
     "status": "succeeded",
     "steps": [
       {

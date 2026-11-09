@@ -70,7 +70,7 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
 
     assert_eq!(completed["status"], "sealed");
     assert_eq!(completed["outcome"], "completed");
-    assert_eq!(completed["trace"]["graph"], "skill-build");
+    assert_eq!(completed["trace"]["workflow"], "skill-build");
     // The target holds exactly the files the author wrote, as written.
     let mut written = package_files(&target, &target)?;
     written.sort();

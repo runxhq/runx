@@ -1844,6 +1844,11 @@ fn native_workflow_skill_run_executes_local_tool_step() -> Result<(), Box<dyn st
     let public_result = object_field(output, "result").ok_or("missing result")?;
     let echo = object_field(public_result, "echo").ok_or("missing echo")?;
     assert_eq!(string_field(echo, "message"), Some("Workflow tool bug"));
+    // The envelope's trace names the workflow the run ran under `workflow`,
+    // and under no older key.
+    let trace = object_field(output, "trace").ok_or("missing trace")?;
+    assert_eq!(string_field(trace, "workflow"), Some("workflow-tool"));
+    assert!(!trace.contains_key("graph"), "{trace:?}");
 
     Ok(())
 }

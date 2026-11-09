@@ -1188,7 +1188,7 @@ fn declared_step_outputs(step: &StepRun) -> JsonObject {
 pub(crate) fn workflow_run_trace(run: &WorkflowRun) -> JsonValue {
     let mut trace = JsonObject::new();
     trace.insert(
-        "graph".to_owned(),
+        "workflow".to_owned(),
         JsonValue::String(run.workflow.name.clone()),
     );
     trace.insert(
