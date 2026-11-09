@@ -315,13 +315,19 @@ test("Go's build refuses a rename onto a name its scope already declares", (t) =
 });
 
 test("graph is a workflow in prose alone: another graph, code, code spans, link targets and paths keep it", (t) => {
-  const doc = "# Graphs\n\nCompose skills into a graph. Graphs stay small.\nThe Rust crate graph is enforced.\nRun `runx list graphs` and read [the guide](docs/graph.md).\n\n```yaml\ngraph: demo\n```\n";
+  const doc = "# Graphs\n\nCompose skills into a graph. Graphs stay small.\nSteps go through the graph runner.\nThe Rust crate graph is enforced.\nRun `runx list graphs` and read [the guide](docs/graph.md).\n\n```yaml\ngraph: demo\n```\n";
   const code = "pub struct Method {\n    pub graph: Graph,\n}\n";
   const root = tree(t, { "docs/composing.md": doc, "crates/runx-parser/src/graph.rs": code });
-  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
-  assert.equal(status, 0, out);
-  assert.equal(read(root, "docs/composing.md"), doc.replace("# Graphs", "# Workflows").replace("into a graph. Graphs stay", "into a workflow. Workflows stay"));
-  assert.equal(read(root, "crates/runx-parser/src/graph.rs"), code);
+  const renamed = doc
+    .replace("# Graphs", "# Workflows")
+    .replace("into a graph. Graphs stay", "into a workflow. Workflows stay")
+    .replace("the graph runner", "the workflow runner");
+  for (let pass = 0; pass < 2; pass += 1) {
+    const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+    assert.equal(status, 0, out);
+    assert.equal(read(root, "docs/composing.md"), renamed);
+    assert.equal(read(root, "crates/runx-parser/src/graph.rs"), code);
+  }
 });
 
 test("graph is a workflow in the strings a person reads in code, and stays a word, a key, a document, a path, a comment or a name", (t) => {

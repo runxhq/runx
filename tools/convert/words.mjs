@@ -191,7 +191,9 @@ export const STAYS = [
   { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(lib\.rs|execution\/run_record\.rs|execution\/(harness|test)\/)/, after: /^::/ },
   { word: "runner", why: "the test runner's module", file: /^crates\/runx-runtime\/src\/execution\/(harness|test)\.rs$/, before: /\buse $/, after: /^::/ },
   { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(execution|lib)\.rs$/, before: /`$/, after: /^`/ },
-  { word: "runner", why: "the execution runner", before: /\b(graph|kernel['’]s) $/ },
+  // The graph runner is the workflow runner once graph is renamed in prose, so
+  // the rename reads its own output the same.
+  { word: "runner", why: "the execution runner", before: /\b(graph|workflow|kernel['’]s) $/ },
   { word: "runner", why: "the operational policy's runners", file: /^(crates\/runx-contracts\/src\/operational_policy(\.rs$|\/)|crates\/runx-contracts\/tests\/operational_policy\.rs$|crates\/runx-cli\/(src|tests)\/policy\.rs$|packages\/contracts\/src\/schemas\/operational-policy\.|fixtures\/operational-policy\/|skills\/policy-draft\/|tests\/policy-draft-validation\.test\.ts$)/ },
   { word: "runner", why: "the operational policy's runners, in a corpus or test that holds one policy among others", file: /^(crates\/runx-contracts\/tests\/schema_wire_conformance\/corpora\.rs|packages\/contracts\/src\/index\.test\.ts)$/, before: /^\s*"?$/, after: /^"?: \[\{/ },
   { word: "runner", why: "the kernel fixture runner", file: /^(fixtures\/kernel\/|scripts\/generate-kernel-parity-fixtures\.ts$|tests\/kernel-parity-fixtures\.test\.ts$)/ },
