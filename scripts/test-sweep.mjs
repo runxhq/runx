@@ -18,7 +18,6 @@ import { repositorySkills } from "./lib/skills.mjs";
 
 const schema = "runx.inline_test_sweep.v1";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const defaultPackageTimeoutMs = 120_000;
 
 try {
   const options = parseArgs(process.argv.slice(2));
@@ -69,7 +68,6 @@ async function runSweep(options) {
         tempRoot,
         workspaceDir,
         allowed,
-        options.timeoutMs ?? defaultPackageTimeoutMs,
       );
       results.push(result);
       const label = result.status === "passed"
@@ -129,7 +127,6 @@ async function runSweep(options) {
     exercised_packet_count: packets.length - unexercised.length,
     unexercised_packets: unexercised,
     elapsed_ms: Math.round(performance.now() - started),
-    package_timeout_ms: options.timeoutMs ?? defaultPackageTimeoutMs,
     runx_bin: path.relative(repoRoot, runxBin),
     temp_root: options.keepTemp ? tempRoot : undefined,
     failures,
@@ -219,57 +216,30 @@ async function runSelfTests() {
     ["expected 3 runx-maintained skills, discovered 2"],
     "--expected-count must catch catalog drift",
   );
-  const started = performance.now();
-  const timedOut = await spawnBounded(
-    process.execPath,
-    ["-e", "setInterval(() => {}, 1000)"],
-    { encoding: "utf8" },
-    50,
-  );
-  const elapsedMs = performance.now() - started;
-  if (timedOut.error?.code !== "ETIMEDOUT") {
-    throw new Error(
-      `bounded package execution must time out: ${timedOut.error?.code ?? "no error"}`,
-    );
-  }
-  if (elapsedMs > 2_000) {
-    throw new Error(`bounded package execution exceeded its watchdog: ${elapsedMs}ms`);
-  }
-  // POSIX process groups are owned directly by this Node watchdog. On Windows,
-  // the spawned Runx binary owns the kernel Job Object and its focused Rust
-  // tests exercise descendant containment on a real Windows method.
+  // POSIX process groups are owned directly by this sweep. On Windows, the
+  // spawned Runx binary owns the kernel Job Object and its focused Rust tests
+  // exercise descendant containment on a real Windows method.
   if (process.platform !== "win32") {
-    const treeStarted = performance.now();
-    const tree = await spawnBounded(
+    // A root that exits while a descendant still holds its pipes: the sweep
+    // ends the root's process group and returns once the pipes close, which
+    // happens only when the descendant has died.
+    const tree = await spawnCaptured(
       process.execPath,
       [
         "-e",
         [
           "const { spawn } = require('node:child_process');",
-          "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'],",
-          "  { stdio: ['ignore', 'inherit', 'inherit'] });",
-          "process.stdout.write(`${child.pid}\\n`);",
-          "setInterval(() => {}, 1000);",
+          "spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'],",
+          "  { stdio: ['ignore', 'inherit', 'inherit'] }).unref();",
+          "process.stdout.write('started\\n');",
         ].join(" "),
       ],
       { encoding: "utf8" },
-      250,
     );
-    const treeElapsedMs = performance.now() - treeStarted;
-    if (tree.error?.code !== "ETIMEDOUT") {
+    if (tree.error || tree.status !== 0 || tree.stdout !== "started\n") {
       throw new Error(
-        `bounded process-tree execution must time out: ${tree.error?.code ?? "no error"}`,
+        `a package's descendant must be ended with its root: ${JSON.stringify(tree)}`,
       );
-    }
-    if (treeElapsedMs > 5_000) {
-      throw new Error(`process-tree cleanup exceeded its watchdog: ${treeElapsedMs}ms`);
-    }
-    const descendantPid = Number.parseInt(tree.stdout, 10);
-    if (!Number.isInteger(descendantPid)) {
-      throw new Error("bounded package execution did not report its descendant");
-    }
-    if (!(await processExited(descendantPid, 2_000))) {
-      throw new Error(`timed-out package left descendant ${descendantPid} alive`);
     }
   }
   const internalEmpty = classifyTestResult({
@@ -300,7 +270,7 @@ function assertFailures(actual, expected, message) {
   }
 }
 
-async function runSkillTest(skill, runxBin, tempRoot, workspaceDir, allowed, timeoutMs) {
+async function runSkillTest(skill, runxBin, tempRoot, workspaceDir, allowed) {
   const started = performance.now();
   const skillDir = path.join(repoRoot, "skills", skill.name);
   const receiptDir = path.join(tempRoot, "receipts", skill.name);
@@ -314,7 +284,7 @@ async function runSkillTest(skill, runxBin, tempRoot, workspaceDir, allowed, tim
   if (!existsSync(path.join(skillDir, "run.yaml"))) {
     return failedSkill(skill.name, started, "missing run.yaml");
   }
-  const result = await spawnBounded(
+  const result = await spawnCaptured(
     runxBin,
     ["test", skillDir, "--json", "--receipt-dir", receiptDir],
     {
@@ -323,7 +293,6 @@ async function runSkillTest(skill, runxBin, tempRoot, workspaceDir, allowed, tim
       maxBuffer: 64 * 1024 * 1024,
       env: testEnv(runxBin, tempRoot, skillWorkspaceDir),
     },
-    timeoutMs,
   );
   const elapsedMs = Math.round(performance.now() - started);
   const report = parseTestReport(result.stdout);
@@ -377,7 +346,13 @@ function classifyTestResult({
   return allowed ? "allowed_failure" : "failed";
 }
 
-async function spawnBounded(command, args, options, timeoutMs) {
+/**
+ * Run a package's tests to their end, capturing at most `maxBuffer` bytes of
+ * each stream. A run that writes more is ended with its process group. A run
+ * whose root exits while a descendant still holds its pipes has that group
+ * ended too, and returns once the pipes close.
+ */
+async function spawnCaptured(command, args, options) {
   const {
     encoding,
     maxBuffer = 1024 * 1024,
@@ -461,42 +436,19 @@ async function spawnBounded(command, args, options, timeoutMs) {
     signal = exitSignal;
     finish("completed");
   });
-  let timeoutHandle;
-  const timedOut = new Promise((resolve) => {
-    timeoutHandle = setTimeout(() => resolve("timeout"), timeoutMs);
-  });
-  const outcome = await Promise.race([completion, overflow, timedOut]);
-  clearTimeout(timeoutHandle);
+  const outcome = await Promise.race([completion, overflow]);
 
   let error = spawnError;
-  let cleanupError;
   if (outcome !== "completed" || !rootClosed) {
     try {
       terminateSpawnedProcess(child);
     } catch (candidate) {
-      cleanupError = candidate;
+      error = candidate;
     }
-    await Promise.race([rootClose, delay(1_000)]);
-    if (!rootClosed) {
-      try {
-        child.kill("SIGKILL");
-      } catch (candidate) {
-        if (!isMissingProcess(candidate) && !cleanupError) {
-          cleanupError = candidate;
-        }
-      }
-      await Promise.race([rootClose, delay(1_000)]);
-    }
-    child.stdout.destroy();
-    child.stderr.destroy();
-    child.unref();
+    await rootClose;
   }
-  if (cleanupError) {
-    error = cleanupError;
-  } else if (!error && outcome !== "completed") {
-    error = outcome === "timeout"
-      ? processError("ETIMEDOUT", `${command} timed out after ${timeoutMs}ms`)
-      : overflowError;
+  if (!error && outcome === "overflow") {
+    error = overflowError;
   }
 
   return {
@@ -526,20 +478,6 @@ function terminateSpawnedProcess(child) {
   }
 }
 
-async function processExited(pid, timeoutMs) {
-  const deadline = performance.now() + timeoutMs;
-  while (performance.now() < deadline) {
-    try {
-      process.kill(pid, 0);
-    } catch (error) {
-      if (isMissingProcess(error)) return true;
-      throw error;
-    }
-    await delay(25);
-  }
-  return false;
-}
-
 function isMissingProcess(error) {
   return error instanceof Error && "code" in error && error.code === "ESRCH";
 }
@@ -553,10 +491,6 @@ function processError(code, message) {
 function decodeOutput(chunks, encoding) {
   const output = Buffer.concat(chunks);
   return encoding ? output.toString(encoding) : output;
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function failedSkill(skill, started, error) {
@@ -704,11 +638,6 @@ function parseArgs(argv) {
       options.output = requiredValue(argv, ++index, arg);
     } else if (arg === "--runx-bin") {
       options.runxBin = requiredValue(argv, ++index, arg);
-    } else if (arg === "--timeout-ms") {
-      options.timeoutMs = positiveInteger(requiredValue(argv, ++index, arg), arg);
-      if (options.timeoutMs === 0) {
-        throw new Error("--timeout-ms requires a positive integer");
-      }
     } else if (arg === "--skills") {
       options.skills = requiredValue(argv, ++index, arg).split(/[,\s]+/u).filter(Boolean);
     } else if (arg === "--no-build") {
@@ -718,7 +647,7 @@ function parseArgs(argv) {
     } else if (arg === "--self-test") {
       options.selfTest = true;
     } else if (arg === "--help" || arg === "-h") {
-      throw new Error("usage: node scripts/test-sweep.mjs [--skills skill[,skill]] [--require n] [--allow skill[,skill]] [--expected-count n] [--output path] [--runx-bin path] [--timeout-ms n] [--no-build] [--keep-temp] [--self-test]");
+      throw new Error("usage: node scripts/test-sweep.mjs [--skills skill[,skill]] [--require n] [--allow skill[,skill]] [--expected-count n] [--output path] [--runx-bin path] [--no-build] [--keep-temp] [--self-test]");
     } else {
       throw new Error(`unknown argument '${arg}'`);
     }
