@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::Digest;
 use crate::digest::DigestAlgorithm;
 use crate::schema::RunxSchema;
-use crate::Digest;
 
 /// What `data.digest` returns: the SHA-256 digest of canonical JSON or of
 /// exact UTF-8 text.
