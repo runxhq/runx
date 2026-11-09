@@ -22,8 +22,10 @@ fn stop_asked() -> &'static Arc<AtomicBool> {
 }
 
 thread_local! {
-    /// The stop of the call this thread works, set when its host cancels it.
-    static CALL_STOP: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+    /// The stops of the work this thread does, outermost first: the call its
+    /// host serves, and within it a call its host may cancel alone. Any one
+    /// set stops the work.
+    static CALL_STOPS: RefCell<Vec<Arc<AtomicBool>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Whether `SIGTERM` asked the process to stop.
@@ -33,24 +35,47 @@ pub fn was_stopped() -> bool {
 }
 
 /// Do `work` as one call its host may cancel through `stop`: while it runs on
-/// this thread, a set `stop` stops it as `SIGTERM` stops the process, and
-/// the thread's next call starts clear.
+/// this thread, a set `stop` stops it as `SIGTERM` stops the process, as
+/// does any stop the work it's part of runs under, and the thread's next
+/// call starts clear.
 pub fn while_working<T>(stop: &Arc<AtomicBool>, work: impl FnOnce() -> T) -> T {
-    let previous = CALL_STOP.with(|call| call.replace(Some(Arc::clone(stop))));
-    let result = work();
-    CALL_STOP.with(|call| *call.borrow_mut() = previous);
-    result
+    let mut stops = working_stops();
+    stops.push(Arc::clone(stop));
+    while_working_under(&stops, work)
+}
+
+/// The stops the work on this thread runs under, for a part of it handed to
+/// another thread.
+#[must_use]
+pub(crate) fn working_stops() -> Vec<Arc<AtomicBool>> {
+    CALL_STOPS.with(|stops| stops.borrow().clone())
+}
+
+/// Do `work`, a part of other work handed to this thread, under `stops`, the
+/// stops that work runs under.
+pub(crate) fn while_working_under<T>(stops: &[Arc<AtomicBool>], work: impl FnOnce() -> T) -> T {
+    /// Puts the thread's stops back as they were, however the work ends.
+    struct Restore(Vec<Arc<AtomicBool>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let previous = std::mem::take(&mut self.0);
+            CALL_STOPS.with(|current| *current.borrow_mut() = previous);
+        }
+    }
+    let _restore = Restore(CALL_STOPS.with(|current| current.replace(stops.to_vec())));
+    work()
 }
 
 /// Whether the work on this thread should stop: the process was asked to,
-/// or its host cancelled the call it serves.
+/// or its host cancelled the call it serves, or the call within it.
 #[must_use]
 pub fn stop_requested() -> bool {
     was_stopped()
-        || CALL_STOP.with(|call| {
-            call.borrow()
-                .as_ref()
-                .is_some_and(|stop| stop.load(Ordering::Acquire))
+        || CALL_STOPS.with(|stops| {
+            stops
+                .borrow()
+                .iter()
+                .any(|stop| stop.load(Ordering::Acquire))
         })
 }
 
@@ -188,6 +213,36 @@ mod tests {
             Some(false),
             "another call is not stopped"
         );
+    }
+
+    #[test]
+    fn work_handed_to_another_thread_keeps_its_stops() {
+        let served = Arc::new(AtomicBool::new(false));
+        let handed = while_working(&served, working_stops);
+        let part = std::thread::spawn({
+            let served = Arc::clone(&served);
+            move || {
+                while_working_under(&handed, || {
+                    let before = stop_requested();
+                    served.store(true, Ordering::Release);
+                    (before, stop_requested())
+                })
+            }
+        });
+        assert_eq!(
+            part.join().ok(),
+            Some((false, true)),
+            "a cancel of the call it's part of stops it"
+        );
+        let own = Arc::new(AtomicBool::new(true));
+        served.store(false, Ordering::Release);
+        while_working(&served, || {
+            assert!(!stop_requested());
+            while_working(&own, || {
+                assert!(stop_requested(), "its own cancel stops it")
+            });
+            assert!(!stop_requested(), "and only it");
+        });
     }
 
     #[test]

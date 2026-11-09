@@ -276,6 +276,10 @@ where
         // Each call runs on a thread of its own with its own host.
         Some(hosts) => {
             let scope = ledger.scope();
+            // A call on its own thread still stops as the work it's part of
+            // stops.
+            let stops = crate::interrupt::working_stops();
+            let stops = &stops;
             std::thread::scope(|threads| {
                 run_bounded(
                     admitted.into_iter().zip(hosts),
@@ -283,7 +287,9 @@ where
                     |(call, mut detached), done| {
                         threads.spawn(move || {
                             let executed = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                                scope.execute_call(&mut detached, call)
+                                crate::interrupt::while_working_under(stops, || {
+                                    scope.execute_call(&mut detached, call)
+                                })
                             }))
                             .unwrap_or_else(|_| {
                                 Err(RuntimeError::EngineInvariant {
