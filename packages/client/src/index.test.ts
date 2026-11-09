@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createRunxClient, executionBindingFromInspection, executionClosureFromInspection, RunxClientError } from "./index.js";
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
@@ -19,7 +19,7 @@ async function setup(source = "process.stdout.write('{}');") {
   await Promise.all([cwd, projectDir, home, receiptDir].map((dir) => mkdir(dir)));
   const command = path.join(root, "runx.mjs");
   await writeFile(command, `#!${process.execPath}\n${source}`); await chmod(command, 0o755);
-  const config = { command, cwd, projectDir, home, environment: { PATH: process.env.PATH }, timeoutMs: 3000 };
+  const config = { command, cwd, projectDir, home, environment: { PATH: process.env.PATH } };
   await storeReceipt(receiptDir);
   return { root, config, receiptDir };
 }
@@ -33,6 +33,25 @@ async function artifact(projectDir: string, value: unknown, label = "request") {
 const receiptFixture = JSON.parse(await readFile(new URL("../../../fixtures/receipt-verify/valid-production/receipt.json", import.meta.url), "utf8"));
 async function storeReceipt(receiptDir: string) {
   await writeFile(path.join(receiptDir, receiptFixture.id.replace(":", "-") + ".json"), JSON.stringify(receiptFixture));
+}
+// The client's own default. invoke requires a timeout, and no test here is
+// about one, so none is held to a bound of its own.
+const timeoutMs = 15 * 60 * 1000;
+/** A loopback server a test's child connects to once it's running. */
+async function listening() {
+  const server = net.createServer(); await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as net.AddressInfo;
+  const connected = new Promise<net.Socket>((resolve) => server.once("connection", resolve));
+  return { server, port, connected };
+}
+/** The child's connection, or a failure once `settled` does first: the child exited without connecting. */
+async function connectedBefore(connected: Promise<net.Socket>, settled: Promise<unknown>) {
+  const first = await Promise.race([connected.then((socket) => ({ socket })), settled.then((outcome) => ({ outcome }))]);
+  if ("outcome" in first) {
+    const outcome = first.outcome instanceof Error ? first.outcome.message : JSON.stringify(first.outcome);
+    throw new Error(`runx settled before its child connected: ${outcome}`);
+  }
+  return first.socket;
 }
 const inputRequest = { id: "input.message", kind: "input", questions: [{ id: "message", prompt: "Message", required: true, type: "string" }] };
 const output = (status: string, outcome: string, fields = {}) => ({ schema: "runx.skill_run.v1", status, outcome, run_id: "run_test", ...(status === "sealed" ? { receipt_id: receiptFixture.id } : {}), ...fields });
@@ -366,39 +385,53 @@ describe("native invocation and decoding", () => {
 describe("process lifetime", () => {
   it("bounds combined byte output and stdin", async () => {
     const { config } = await setup();
-    const base = { ...config, env: {}, args: [], maxOutputBytes: 100, maxInputBytes: 10, timeoutMs: 1000 };
+    const base = { ...config, env: {}, args: [], maxOutputBytes: 100, maxInputBytes: 10, timeoutMs };
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write('a'.repeat(60)); process.stderr.write('b'.repeat(60));`);
     await expect(invoke(base)).rejects.toMatchObject({ reason: "output_limit" });
     await expect(invoke({ ...base, input: "x".repeat(11) })).rejects.toMatchObject({ reason: "input_limit" });
   });
   it("handles spawn failure and both early and live abort", async () => {
-    const { config } = await setup("setInterval(() => {}, 1000);");
-    const base = { ...config, env: {}, args: [], maxOutputBytes: 1000, maxInputBytes: 100, timeoutMs: 1000 };
+    const { config } = await setup();
+    const { server, port, connected } = await listening();
+    // The child connects once it's running, then runs until it's stopped.
+    await writeFile(config.command, `#!${process.execPath}\nimport net from 'node:net'; net.connect(${port}, '127.0.0.1'); setInterval(() => {}, 1000);`);
+    const base = { ...config, env: {}, args: [], maxOutputBytes: 1000, maxInputBytes: 100, timeoutMs };
     await expect(invoke({ ...base, command: path.join(config.cwd, "absent") })).rejects.toMatchObject({ reason: "spawn" });
     await expect(invoke({ ...base, signal: AbortSignal.abort() })).rejects.toMatchObject({ reason: "aborted" });
     const controller = new AbortController();
-    const pending = invoke({ ...base, signal: controller.signal }); setTimeout(() => controller.abort(), 50);
-    await expect(pending).rejects.toMatchObject({ reason: "aborted" });
+    const pending = invoke({ ...base, signal: controller.signal }).catch((error: unknown) => error);
+    (await connectedBefore(connected, pending)).destroy();
+    controller.abort();
+    expect(await pending).toMatchObject({ reason: "aborted" });
+    server.close();
   });
   it.skipIf(process.platform === "win32")("kills a descendant that ignores SIGTERM after the direct child exits", async () => {
-    const { root, config } = await setup();
-    const pidFile = path.join(root, "descendant.pid");
-    const childCode = `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`;
+    const { config } = await setup();
+    const { server, port, connected } = await listening();
+    // The descendant connects once it's alive and answers on its connection
+    // while it lives; its connection closes when it dies.
+    const childCode = `const s = require('node:net').connect(${port}, '127.0.0.1'); s.on('data', () => s.write('alive')); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`;
     await writeFile(config.command, `#!${process.execPath}\nimport { spawn } from 'node:child_process'; spawn(${JSON.stringify(process.execPath)}, ['-e', ${JSON.stringify(childCode)}], { stdio: 'ignore' }); setInterval(() => {}, 1000);`);
     const controller = new AbortController();
-    const result = invoke({ ...config, env: {}, args: [], maxOutputBytes: 1000, maxInputBytes: 100, timeoutMs: 5000, signal: controller.signal }).catch((error: unknown) => error);
-    let pid = 0;
+    const result = invoke({ ...config, env: {}, args: [], maxOutputBytes: 1000, maxInputBytes: 100, timeoutMs, signal: controller.signal }).catch((error: unknown) => error);
+    let descendant: net.Socket;
     try {
       // Exercise group termination only once the descendant is actually alive.
-      await vi.waitFor(async () => { pid = Number(await readFile(pidFile, "utf8")); expect(pid).toBeGreaterThan(0); }, { timeout: 3000 });
+      descendant = await connectedBefore(connected, result);
     } finally {
       controller.abort();
     }
     expect(await result).toMatchObject({ reason: "aborted" });
-    // The process may briefly remain a zombie until its new parent reaps it.
-    const probe = spawn("ps", ["-o", "stat=", "-p", String(pid)]);
-    let stat = ""; probe.stdout.on("data", (chunk) => { stat += chunk; });
-    await new Promise((resolve) => probe.on("close", resolve));
-    expect(stat.trim() === "" || stat.trim().startsWith("Z")).toBe(true);
+    // runx's group kill came before it settled, so a killed descendant can't
+    // answer: its connection closes. One that survived answers.
+    const fate = await new Promise<string>((resolve) => {
+      if (descendant.destroyed) return resolve("gone");
+      descendant.once("data", () => resolve("alive"));
+      descendant.once("close", () => resolve("gone"));
+      descendant.once("error", () => resolve("gone"));
+      descendant.write("ping");
+    });
+    expect(fate).toBe("gone");
+    server.close();
   });
 });
