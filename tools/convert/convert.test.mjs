@@ -513,3 +513,53 @@ test("a converted package's test still loses RUNX_CWD, as converting it from the
   assert.match(out, /already in the 0\.12 shape, 1 files changed/);
   assert.equal(read(dir, "tests/reads-invoice.yaml"), "name: reads-invoice\nmethod: pay\ninputs:\n  path: fixtures/support/invoice.txt\nexpect:\n  status: sealed\n");
 });
+
+test("a worker's limit is its cpu_seconds in either shape, and a process keeps timeout_seconds", (t) => {
+  const old = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": `skill: demo
+version: "0.1.0"
+runners:
+  run:
+    steps:
+      - id: compute
+        tool: { module: compute.mjs, timeout_seconds: 5 }
+      - id: shell
+        tool: { command: sh, args: [-c, "true"], timeout_seconds: 5 }
+`,
+  });
+  const settled = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": `minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      # The worker's limit.
+      - id: compute
+        tool:
+          module: compute.mjs
+          timeout_seconds: 5
+      - id: shell
+        tool: {command: sh, args: [-c, "true"], timeout_seconds: 5}
+`,
+  });
+  const { status, out } = convert("--write", old, settled);
+  assert.equal(status, 0, out);
+  assert.match(read(old, "run.yaml"), /- id: compute\n        tool: \{module: compute\.mjs, cpu_seconds: 5\}\n/);
+  assert.match(read(old, "run.yaml"), /- id: shell\n        tool: \{command: sh, args: \[-c, "true"\], timeout_seconds: 5\}\n/);
+  assert.equal(read(settled, "run.yaml"), `minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      # The worker's limit.
+      - id: compute
+        tool:
+          module: compute.mjs
+          cpu_seconds: 5
+      - id: shell
+        tool: {command: sh, args: [-c, "true"], timeout_seconds: 5}
+`);
+  const again = snapshot(settled);
+  assert.equal(convert("--write", settled).status, 0);
+  assert.deepEqual(snapshot(settled), again);
+});

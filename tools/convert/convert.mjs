@@ -39,7 +39,7 @@ const STEP_KIND_KEYS = {
   ask: ["inputs"],
   operation: ["operation_name", "input", "approval", "amount", "expected_result", "result_fields", "optional_result_fields", "ephemeral_result_paths", "readback_of", "idempotency_key", "act", "duplicates"],
 };
-const TOOL_KEYS = ["module", "export", "requires", "timeout_seconds", "environment", "pages", "command", "args", "cwd", "input_mode"];
+const TOOL_KEYS = ["module", "export", "requires", "timeout_seconds", "cpu_seconds", "environment", "pages", "command", "args", "cwd", "input_mode"];
 const PAGES_KEYS = { artifact_from: "artifact", path_from: "path", path_scope_from: "path_scope", framing: "framing", media_type: "media_type", page_bytes: "page_bytes" };
 const INPUT_KEYS = ["type", "required", "description", "default", "artifact", "packet", "schema"];
 const OUTPUT_KEYS = ["type", "description", "required", "enum", "schema"];
@@ -200,6 +200,7 @@ function convertStep(doc, step, scope, notes) {
         rename(tool, "pages", "paged_input");
       }
       rename(tool, "input_mode", "inputs_via");
+      workerLimit(tool);
     }
   }
   if (kind === "skill") {
@@ -910,7 +911,7 @@ function convertPackage(dir) {
   const doc = YAML.parseDocument(runText);
   if (doc.errors.length) refuse(`run.yaml doesn't parse: ${doc.errors[0].message}`);
   const root = doc.contents;
-  if (isMap(root) && has(root, "minimum_runx")) return settlePackage(dir, doc);
+  if (isMap(root) && has(root, "minimum_runx")) return settlePackage(dir, doc, runPath, style);
   only(root, ROOT_KEYS, "run.yaml");
 
   const declared = read(root, "skill");
@@ -1100,10 +1101,19 @@ function convertPackage(dir) {
 // only from the old shape (settleSharedInputs).
 const ROOT_KEYS_012 = ["version", "minimum_runx", "default_method", "catalog", "shared_inputs", "connectors", "methods"];
 
-function settlePackage(dir, doc) {
+function settlePackage(dir, doc, runPath, style) {
   const notes = [];
   const files = new Map();
   only(doc.contents, ROOT_KEYS_012, "run.yaml, which says minimum_runx,");
+  // The one rule that also holds in the 0.12 shape: a worker's limit.
+  let limited = false;
+  for (const method of node(doc.contents, "methods")?.items ?? []) {
+    for (const step of node(method.value, "steps")?.items ?? []) {
+      const tool = isMap(step) ? node(step, "tool") : undefined;
+      if (isMap(tool)) limited = workerLimit(tool) || limited;
+    }
+  }
+  if (limited) files.set(runPath, doc.toString(style));
   const testsDir = path.join(dir, "tests");
   let tests = 0;
   for (const entry of existsSync(testsDir) ? readdirSync(testsDir).sort() : []) {
@@ -1118,6 +1128,15 @@ function settlePackage(dir, doc) {
   }
   convertToolManifests(dir, files, notes);
   return { files, notes, tests, graphs: 0, settled: true };
+}
+
+// A worker's limit is the CPU time one invocation spends, `cpu_seconds`; a
+// process keeps its wall-clock `timeout_seconds` (run-yaml.md, "Found while
+// building"). Whether the tool's map changed.
+function workerLimit(tool) {
+  if (!has(tool, "module") || !has(tool, "timeout_seconds")) return false;
+  rename(tool, "timeout_seconds", "cpu_seconds");
+  return true;
 }
 
 // ---- Tool manifests a package or connector owns
