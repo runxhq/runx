@@ -107,7 +107,7 @@ export const MENTIONED = new Set([
  * to prove it's refused, and the package metadata's own runtime_capability.
  */
 export const KEPT = [
-  { file: /^crates\/runx-parser\/src\/graph\/validate\.rs$/, key: "effects", line: /effects: free\\n/, why: "the parser's test that effects: free is refused" },
+  { file: /^crates\/runx-parser\/src\/workflow\/validate\.rs$/, key: "effects", line: /effects: free\\n/, why: "the parser's test that effects: free is refused" },
   { file: /^crates\/runx-parser\/tests\/parser_skill_package\.rs$/, key: "skill", line: /\\nskill: other\\n/, why: "the parser's test that a root skill is refused" },
   // connector.yaml's runtime_capability went; the package metadata's boolean
   // (registry/package_metadata.rs), derived from the connector's origin and
