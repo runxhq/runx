@@ -54,98 +54,90 @@ ausca	TestResourceIssuerRefusesAHoldOnAnotherResource	1	hold	TestResourceIssuerR
 ausca	TestSnapshotContainsExactlyItsArtifactClosure	1	closure	TestSnapshotContainsExactlyItsArtifactClosure	runxsync's file closure: stays	tools/cmd/runxsync/main_test.go
 ausca	wallet-holding	1	hold	wallet-holding	English, or a skill's own word: stays	DISTRIBUTION.md
 ausca	workerd-harness	1	harness	workerd-test	the test sense	services/browser-session/tests/support/workerd.ts
-cloud	harness	1326	harness	?	a bare word: code or prose, read in place	apps/public-read/src/index.test.ts apps/public-read/src/index.ts
-cloud	runner	813	runner	?	stored: runs.runner and run_summaries.runner, which Cloud's 0091_run_methods.sql renames to method and keeps their rows; elsewhere a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
-cloud	holds	297	hold	?	a bare word: code or prose, read in place	apps/public-read/src/index.ts apps/web/src/components/receipts/ReceiptVerify.astro
-cloud	held	235	hold	?	a bare word: code or prose, read in place	apps/public-read/src/index.ts apps/web/src/components/connectors/ConnectorSetup.astro
+cloud	harness	1139	harness	?	a bare word: code or prose, read in place	README.md apps/public-read/src/index.test.ts
+cloud	runner	602	runner	?	stored: runs.runner and run_summaries.runner, which Cloud's 0091_run_methods.sql renames to method and keeps their rows; elsewhere a bare word: code or prose, read in place	README.md apps/web/src/components/skills/SkillExecution.astro
+cloud	holds	288	hold	?	a bare word: code or prose, read in place	apps/public-read/src/index.ts apps/web/src/components/receipts/ReceiptVerify.astro
+cloud	held	194	hold	?	a bare word: code or prose, read in place	apps/public-read/src/index.ts apps/web/src/components/connectors/ConnectorSetup.astro
 cloud	holdings	147	hold	?	a bare word: code or prose, read in place	packages/api/src/app/route-options.ts packages/api/src/options/billing.ts
-cloud	executionClosureDigest	132	closure	executionClosureDigest	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
-cloud	hold	120	hold	?	a bare word: code or prose, read in place	apps/web/src/content/home/questions.ts apps/web/src/content/release/schemas/dist/packets/runx/code-intake/intake.v1.schema.json
-cloud	holding	117	hold	?	a bare word: code or prose, read in place	apps/public-read/src/index.test.ts apps/web/scripts/brand-assets.ts
-cloud	graph	106	graph	?	a bare word: code or prose, read in place	apps/web/src/content/release/context7.json apps/web/src/content/release/schemas/schemas/list.schema.json
-cloud	execution_closure_digest	93	closure	execution_closure_digest	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/external-job-continuation.schema.json apps/web/src/content/release/schemas/schemas/external-job-schedule.schema.json
-cloud	closure	92	closure	?	a bare word: code or prose, read in place	apps/web/src/content/release/schemas/schemas/external-job-continuation.schema.json apps/web/src/content/release/schemas/schemas/external-job-schedule-intent.schema.json
-cloud	runner_names	79	runner	method_names		apps/web/src/components/skills/PackageFacts.astro apps/web/src/components/skills/SkillExecution.astro
-cloud	runners	76	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
-cloud	harness_cases	44	harness	test_cases	the test sense	apps/web/src/content/release/schemas/schemas/list.schema.json apps/web/src/content/release/schemas/schemas/skill-authoring-context.schema.json
+cloud	executionClosureDigest	113	closure	executionClosureDigest	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
+cloud	holding	112	hold	?	a bare word: code or prose, read in place	apps/public-read/src/index.test.ts apps/web/scripts/brand-assets.ts
+cloud	graph	111	graph	?	a bare word: code or prose, read in place	apps/web/src/lib/home/globe.ts apps/web/src/pages/doctrine.astro
+cloud	hold	110	hold	?	a bare word: code or prose, read in place	README.md apps/web/src/content/home/questions.ts
+cloud	runner_names	80	runner	method_names		apps/web/src/components/skills/PackageFacts.astro apps/web/src/components/skills/SkillExecution.astro
+cloud	closure	73	closure	?	a bare word: code or prose, read in place	README.md docs/hosted-platform.md
+cloud	runners	61	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
+cloud	harness_cases	42	harness	test_cases	the test sense	packages/api/src/native-runtime.test.ts packages/api/src/public/site-data.test.ts
+cloud	execution_closure_digest	41	closure	execution_closure_digest	a package's closure, or English: stays	packages/api/src/hosted-execution-composition.ts packages/api/src/registry/verified-runs.test.ts
 cloud	test-closure	37	closure	test-closure	a package's closure, or English: stays	packages/api/src/governance/operations.test.ts packages/api/src/index.test.ts
 cloud	publishHarnessValidator	34	harness	publishTestValidator	the test sense	packages/api/src/app.ts packages/api/src/app/route-options.ts
 cloud	PublishHarnessSummary	28	harness	PublishTestSummary	the test sense	packages/api/src/registry/native-harness.ts packages/api/src/registry/publication.ts
 cloud	HoldPurchase	27	hold	LeasePurchase	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
 cloud	PASSING_HARNESS	26	harness	PASSING_TEST	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.test.ts
-cloud	purchase_holdings	26	hold	leases	stored: Cloud's 0089_leases.sql renames the table and keeps its rows; the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings-postgres.ts
 cloud	holds_namespace	24	hold	holds_namespace	English, or a skill's own word: stays	packages/api/src/connect/hosted-connectors.ts packages/api/src/connectors/catalog.ts
 cloud	withHarness	24	harness	withRegistry	the registry under test, whose callback is test: withTest made two bindings one (fc108d8e)	packages/registry/src/store-contract.test-support.ts
-cloud	execution_closure	23	closure	execution_closure	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
-cloud	PublicHarnessResult	23	harness	PublicTestResult	the test sense	apps/web/src/components/skills/SkillEvidence.astro packages/api/src/generated/public-protocol-schemas.ts
 cloud	mppSettlementHarness	22	harness	mppSettlementTest	the test sense	packages/api/src/payments/mpp/paid-skill-settlement.test.ts packages/api/src/payments/mpp/settlement.test-support.ts
 cloud	PurchaseHoldingStore	22	hold	PurchaseLeaseStore	the lease family	packages/api/src/app/route-options.ts packages/api/src/options/billing.ts
 cloud	awsHarness	21	harness	awsTest	the test sense	packages/provider-connectors/src/aws-sdk-adapter.test.ts
-cloud	closure_digest	21	closure	closure_digest	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/run-event.schema.json apps/web/src/content/release/schemas/schemas/run-read.schema.json
+cloud	graph_case_count	21	graph	workflow_case_count		packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.test.ts
 cloud	PurchaseHoldings	21	hold	Leases	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
-cloud	agent_act	20	agent_act	turn		apps/web/src/content/release/schemas/schemas/act-result.schema.json apps/web/src/content/release/schemas/schemas/resolution-request.schema.json
-cloud	graph_case_count	20	graph	workflow_case_count		packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.test.ts
-cloud	paidHarness	20	harness	paidTest	the test sense	packages/api/src/payments/purchases/outcomes.test.ts
-cloud	harness_run	17	harness	test_run	stored: Cloud's 0090_test_runs.sql rewrites public_evidence_events.kind; the test sense	packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.test.ts
+cloud	harness_run	20	harness	test_run	stored: Cloud's 0090_test_runs.sql rewrites public_evidence_events.kind; the test sense	README.md packages/api/src/admin/publication-integration.test.ts
+cloud	PublicHarnessResult	20	harness	PublicTestResult	the test sense	apps/web/src/components/skills/SkillEvidence.astro packages/api/src/public/evidence.ts
+cloud	agent_act	19	agent_act	turn		packages/api/src/index.test.ts packages/api/src/protocol-hosted-control-alignment.test.ts
+cloud	execution_closure	17	closure	execution_closure	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-store.test.ts
 cloud	HeldResource	17	hold	LeasedResource	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
 cloud	HoldingOwner	16	hold	LeaseOwner	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
-cloud	agent-act-invocation	15	agent_act	agent-act-invocation		apps/web/src/content/release/release.json apps/web/src/content/release/schemas/schemas/act-result.schema.json
+cloud	purchase_holdings	16	hold	leases	stored: Cloud's 0089_leases.sql renames the table and keeps its rows; the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings-postgres.ts
 cloud	keyRequestHarness	15	harness	keyRequestTest	the test sense	packages/auth/src/provider-credential/declared-requests.private.test.ts
 cloud	listHarnessResults	15	harness	listTestResults	the test sense	packages/api/src/admin/service.test.ts packages/api/src/public/evidence.ts
-cloud	PublicHarnessSummary	15	harness	PublicTestSummary	the test sense	apps/web/src/lib/api/skills.ts packages/api/src/generated/public-protocol-schemas.ts
+cloud	paidHarness	15	harness	paidTest	the test sense	packages/api/src/payments/purchases/outcomes.test.ts
 cloud	requestedRunner	15	runner	requestedMethod		packages/api/src/hosted-runtime-admission.ts packages/api/src/runs/submission.ts
-cloud	executionClosureFromInspection	14	closure	executionClosureFromInspection	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
 cloud	purchaseHoldings	14	hold	leases	the lease family	packages/api/src/app.ts packages/api/src/app/route-options.ts
-cloud	CLOSURE_DIGEST	12	closure	CLOSURE_DIGEST	a package's closure, or English: stays	packages/api/src/execution-package-store.test.ts packages/api/src/external-job-runtime-executor.test.ts
+cloud	executionClosureFromInspection	12	closure	executionClosureFromInspection	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
+cloud	PublicHarnessSummary	12	harness	PublicTestSummary	the test sense	apps/web/src/lib/api/skills.ts packages/api/src/public/site-data.ts
 cloud	readPublicHarnessSummary	12	harness	readPublicTestSummary	the test sense	packages/api/src/public/site-data.ts packages/api/src/public/site-harness.test.ts
 cloud	RegistryClosureError	12	closure	RegistryClosureError	a package's closure, or English: stays	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
 cloud	HARNESS_RESULT_KIND	11	harness	TEST_RESULT_KIND	the test sense	packages/api/src/admin/service.ts packages/api/src/public/evidence.ts
 cloud	HoldOwnerRef	11	hold	LeaseOwnerRef	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
-cloud	PaidSkillRunnerOfferContract	11	runner	PaidSkillMethodOfferContract		packages/api/src/generated/public-protocol-schemas.ts packages/api/src/payments/skills/run-admission.ts
 cloud	purchaseHoldingStore	11	hold	purchaseLeaseStore	the lease family	packages/api/src/payments/purchases/composition.ts packages/api/src/server-persistence.ts
 cloud	requestHarness	11	harness	requestTest	the test sense	packages/auth/src/provider-credential/declared-requests.private.test.ts
-cloud	expected_execution_closure_digest	10	closure	expected_execution_closure_digest	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/external-job-runtime-executor.test.ts
+cloud	Harness	10	harness	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillEvidence.astro packages/api/src/admin/service.test.ts
 cloud	heldBy	10	hold	heldBy	English, or a skill's own word: stays	packages/db/src/registry-store.ts packages/registry/src/memory-store.ts
-cloud	stage_runner	10	runner	stage_runner	another runner: stays	apps/web/src/content/release/schemas/schemas/external-job-schedule-intent.schema.json packages/api/src/payments/purchases/outcomes.test.ts
+cloud	validatePublishHarness	10	harness	validatePublishTest	the test sense	packages/api/src/index.test.ts packages/api/src/native-runtime.test.ts
+cloud	agent-act-invocation	9	agent_act	agent-act-invocation		packages/api/src/protocol-control-artifacts.test.ts packages/api/src/public/protocol/model.ts
+cloud	closure_digest	9	closure	closure_digest	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-store.test.ts
+cloud	execution-closure	9	closure	execution-closure	a package's closure, or English: stays	README.md docs/hosted-platform.md
 cloud	holdPurchaseOf	9	hold	leasePurchaseOf	the lease family	packages/api/src/payments/holdings.ts packages/api/src/payments/purchases/receipts.ts
 cloud	holdsNamespace	9	hold	holdsNamespace	English, or a skill's own word: stays	packages/api/src/connect/hosted-connectors.test.ts packages/api/src/connectors/readiness.ts
+cloud	PaidSkillRunnerOfferContract	9	runner	PaidSkillMethodOfferContract		packages/api/src/payments/skills/run-admission.ts packages/api/src/payments/x402/paid-skill-provider.ts
 cloud	PublishHarnessValidator	9	harness	PublishTestValidator	the test sense	packages/api/src/app/route-options.ts packages/api/src/options/workflows.ts
 cloud	readPublicSkillHarness	9	harness	readPublicSkillTest	the test sense	packages/api/src/public/read-service.ts packages/api/src/public/site-data.test.ts
-cloud	validatePublishHarness	9	harness	validatePublishTest	the test sense	packages/api/src/index.test.ts packages/api/src/native-runtime.test.ts
 cloud	credentialHarness	8	harness	credentialTest	the test sense	packages/auth/src/provider-credential/credential-driver.private.test.ts
-cloud	execution-closure	8	closure	execution-closure	a package's closure, or English: stays	packages/db/migrations/0024_run_execution_closure_binding.sql packages/db/migrations/0059_run_execution_binding_required.sql
-cloud	Harness	8	harness	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillEvidence.astro packages/api/src/admin/service.test.ts
+cloud	expected_execution_closure_digest	8	closure	expected_execution_closure_digest	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/worker/src/contracts.ts
 cloud	harnessFor	8	harness	testFor	the test sense	packages/provider-connectors/src/aws.test.ts
 cloud	harnessProducer	8	harness	testProducer	the test sense	packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.ts
 cloud	heldRow	8	hold	heldRow	English, or a skill's own word: stays	packages/db/src/registry-publisher-store.ts
 cloud	HoldingRow	8	hold	HoldingRow	English, or a skill's own word: stays	packages/api/src/payments/holdings-postgres.ts
 cloud	refuseVersionHeldByOtherKind	8	hold	refuseVersionHeldByOtherKind	English, or a skill's own word: stays	packages/api/src/registry/connector-publish.ts packages/api/src/registry/publication.ts
+cloud	Runners	8	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/PackageFacts.astro apps/web/src/components/skills/SkillExecution.astro
+cloud	runx-harness	8	harness	runx-test	the test sense	packages/api/src/openapi-responses.test.ts packages/api/src/public/site-harness.test.ts
 cloud	sellerHarness	8	harness	sellerTest	the test sense	packages/api/src/execution-package-composition.test.ts
 cloud	graphTree	7	graph	workflowTree		packages/receipts-store/src/receipt-tree.test.ts
 cloud	heldPublisher	7	hold	heldPublisher	English, or a skill's own word: stays	packages/db/src/registry-publisher-store.ts packages/registry/src/publishers.ts
 cloud	Holding	7	hold	?	a bare word: code or prose, read in place	packages/api/src/payments/holdings.ts
 cloud	InMemoryPurchaseHoldingStore	7	hold	InMemoryPurchaseLeaseStore	the lease family	packages/api/src/payments/holdings.test.ts packages/api/src/payments/holdings.ts
-cloud	RegistryClosure	7	closure	RegistryClosure	a package's closure, or English: stays	packages/registry/src/closure.ts packages/registry/src/index.ts
-cloud	registryClosureEnvironment	7	closure	registryClosureEnvironment	a package's closure, or English: stays	packages/api/src/registry/native-registry.ts packages/registry/src/closure.ts
-cloud	Runner	7	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
 cloud	serviceHarness	7	harness	serviceTest	the test sense	packages/api/src/payments/purchases/routes.test.ts
 cloud	skill_harness_failed	7	harness	skill_test_failed	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
-cloud	sourceRunner	7	runner	sourceMethod		packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
 cloud	StoreHarness	7	harness	StoreTest	the test sense	packages/auth/src/grant-revocation-regression.test.ts packages/purchases/src/store-contract.test-support.ts
-cloud	agent_act_invocation	6	agent_act	turn_invocation		apps/web/src/content/release/schemas/schemas/act-result.schema.json apps/web/src/content/release/schemas/schemas/agent-act-invocation.schema.json
-cloud	AgentActInvocation	6	agent_act	TurnInvocation	the plan's name	apps/web/src/content/release/schemas/schemas/act-result.schema.json apps/web/src/content/release/schemas/schemas/agent-act-invocation.schema.json
-cloud	bindRunnerWithinPackage	6	runner	bindMethodWithinPackage		packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
-cloud	BoundClosure	6	closure	BoundClosure	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/run-event.schema.json apps/web/src/content/release/schemas/schemas/run-read.schema.json
-cloud	graph_blocked	6	graph	workflow_blocked	the plan's name	apps/web/src/content/release/schemas/schemas/skill-output.schema.json packages/api/src/receipts/projection-feed.test.ts
+cloud	graph_blocked	6	graph	workflow_blocked	the plan's name	packages/api/src/receipts/projection-feed.test.ts packages/db/src/receipt-projections.test.ts
 cloud	heldValueDigest	6	hold	leasedValueDigest	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.test-support.ts
 cloud	inboxHarness	6	harness	inboxTest	the test sense	packages/auth/src/provider-credential/declared-requests.private.test.ts
 cloud	installRegistryClosure	6	closure	installRegistryClosure	a package's closure, or English: stays	packages/api/src/registry/native-registry.ts packages/registry/src/closure.ts
-cloud	materializeRegistryClosure	6	closure	materializeRegistryClosure	a package's closure, or English: stays	packages/api/src/registry/native-registry.ts packages/registry/src/closure.ts
 cloud	not_held	6	hold	not_held	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts packages/api/src/payments/skills/run-admission.ts
-cloud	PublicSkillHarnessResponse	6	harness	PublicSkillTestResponse	the test sense	packages/api/src/generated/public-protocol-schemas.ts packages/api/src/protocol-artifacts.test.ts
 cloud	run_graph	6	graph	run_workflow		packages/api/src/least-privilege-job.test.ts packages/receipts-store/src/receipt-tree.test.ts
-cloud	Runners	6	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/PackageFacts.astro apps/web/src/components/skills/SkillExecution.astro
 cloud	assertPublishHarnessQuality	5	harness	assertPublishTestQuality	the test sense	packages/api/src/registry/publish-service.ts scripts/registry-live-readiness.ts
+cloud	CLOSURE_DIGEST	5	closure	CLOSURE_DIGEST	a package's closure, or English: stays	packages/api/src/execution-package-store.test.ts
+cloud	graphs	5	graph	?	a bare word: code or prose, read in place	README.md apps/web/src/pages/start.astro
+cloud	harness-state	5	harness	test-state	the test sense	apps/web/src/components/skills/SkillEvidence.astro apps/web/src/styles/skill.css
 cloud	HarnessResultQuery	5	harness	TestResultQuery	the test sense	packages/api/src/public/evidence.ts
 cloud	heldResource	5	hold	heldResource	English, or a skill's own word: stays	packages/api/src/payments/holdings-postgres.ts
 cloud	holdingStoreContract	5	hold	leaseStoreContract	the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings.test-support.ts
@@ -156,36 +148,32 @@ cloud	normalizeHarnessResult	5	harness	normalizeTestResult	the test sense	packag
 cloud	parsePublishHarnessSummary	5	harness	parsePublishTestSummary	the test sense	packages/api/src/registry/native-harness.ts packages/api/src/request-utils.ts
 cloud	payerHarness	5	harness	payerTest	the test sense	packages/api/src/payments/skills/account-payer.test.ts
 cloud	PostgresPurchaseHoldingStore	5	hold	PostgresPurchaseLeaseStore	the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings-postgres.ts
+cloud	PublicSkillHarnessResponse	5	harness	PublicSkillTestResponse	the test sense	packages/api/src/protocol-artifacts.test.ts packages/api/src/public/read-service.ts
 cloud	resolveHoldOwner	5	hold	resolveHoldOwner	English, or a skill's own word: stays	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
-cloud	runx-harness	5	harness	runx-test	the test sense	packages/api/src/openapi-responses.test.ts packages/api/src/public/site-harness.test.ts
+cloud	Runner	5	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
 cloud	skillHolds	5	hold	skillHolds	English, or a skill's own word: stays	packages/db/src/registry-store.ts packages/registry/src/memory-store.ts
-cloud	stageRunner	5	runner	stageMethod		packages/api/src/external-job-composition.ts packages/api/src/payments/purchases/outcomes.test.ts
 cloud	buildPublishHarnessEvidenceEvent	4	harness	buildPublishTestEvidenceEvent	the test sense	packages/api/src/registry/publication.ts packages/api/src/registry/publish-service.ts
 cloud	getHostedPublicSkillHarnessResponse	4	harness	getHostedPublicSkillTestResponse	the test sense	packages/api/src/public/api-service.ts packages/api/src/public/read-routes.ts
 cloud	GRAPH_EXAMPLE	4	graph	WORKFLOW_EXAMPLE		apps/web/src/pages/what.astro apps/web/src/pages/why-skills.astro
 cloud	graphCaseCount	4	graph	workflowCaseCount		packages/api/src/request-utils.ts
-cloud	graphs	4	graph	?	a bare word: code or prose, read in place	apps/web/src/content/release/schemas/schemas/list.schema.json apps/web/src/pages/start.astro
 cloud	HARNESS_EVENT_ID_PREFIX	4	harness	TEST_EVENT_ID_PREFIX	the test sense	packages/api/src/public/evidence.ts
 cloud	harnessCases	4	harness	testCases	the test sense	packages/api/src/registry/native-package.ts packages/api/src/testing/native-skill-package-materializer.ts
+cloud	harnesses	4	harness	?	a bare word: code or prose, read in place	README.md packages/api/src/registry/publish-routes.test.ts
 cloud	HarnessPublishSummary	4	harness	TestPublishSummary	the test sense	packages/api/src/openapi-public-schemas.ts
 cloud	harnessResultEventId	4	harness	testResultEventId	the test sense	packages/api/src/public/evidence.ts packages/api/src/registry/publication.ts
 cloud	has_passing_graph_case	4	graph	has_passing_workflow_case		packages/api/src/registry/publication.ts packages/api/src/registry/publish-service.ts
 cloud	heldPath	4	hold	heldPath	English, or a skill's own word: stays	packages/auth/src/provider-credential/declared-requests.private.ts
 cloud	holdRun	4	hold	holdRun	English, or a skill's own word: stays	apps/web/src/lib/home/presentation.ts
 cloud	MAX_HARNESS_RESULTS	4	harness	MAX_TEST_RESULTS	the test sense	packages/api/src/public/evidence.ts packages/api/src/public/site-harness.ts
-cloud	OperationHold	4	hold	OperationLease	the lease family	apps/web/src/content/release/schemas/schemas/connector.schema.json packages/auth/src/provider-credential/declared-requests.private.ts
 cloud	PublishHarnessProducer	4	harness	PublishTestProducer	the test sense	packages/api/src/registry/publication.ts
 cloud	purchase-holdings	4	hold	leases	the lease family: the module. The cipher label with the same bytes is pinned in rename.mjs	packages/api/src/payments/holdings-postgres.ts packages/auth/src/index.ts
 cloud	RegistryClosureOptions	4	closure	RegistryClosureOptions	a package's closure, or English: stays	packages/registry/src/closure.ts packages/registry/src/index.ts
-cloud	runner_id	4	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
-cloud	runner_ids	4	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
-cloud	runner_inspections	4	runner	method_inspections		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
-cloud	RunnerInspection	4	runner	MethodInspection		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	runnerNames	4	runner	methodNames		packages/api/src/testing/native-skill-package-materializer.ts packages/registry/src/ingest.ts
 cloud	rx_research_harness_1	4	harness	rx_research_test_1	the test sense	spec/spec.md
 cloud	rx_research_harness_2	4	harness	rx_research_test_2	the test sense	spec/spec.md
 cloud	skill_harness_incomplete	4	harness	skill_test_incomplete	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
 cloud	skill_harness_not_declared	4	harness	skill_test_not_declared	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
+cloud	step-runner	4	runner	step-method		apps/web/src/components/skills/SkillOverview.astro apps/web/src/styles/skill.css
 cloud	user_runner	4	runner	user_method		packages/api/src/registry/verified-runs.test.ts packages/db/src/skill-verified-runs.test.ts
 cloud	x-runx-skill-runner	4	runner	x-runx-skill-method		packages/api/src/payments/skills/run-routes.test.ts packages/api/src/runs/routes.ts
 cloud	admittedHold	3	hold	admittedHold	English, or a skill's own word: stays	packages/auth/src/provider-credential/declared-requests.private.ts
@@ -193,27 +181,25 @@ cloud	assertHarnessPassed	3	harness	assertTestPassed	the test sense	packages/api
 cloud	CapacityStoreHarness	3	harness	CapacityStoreTest	the test sense	packages/purchases/src/capacity-store-contract.test-support.ts
 cloud	discoveryRunnerValue	3	runner	discoveryMethodValue		packages/api/src/runs/routes.ts
 cloud	evidenceEventToHarnessFeedItem	3	harness	evidenceEventToTestFeedItem	the test sense	packages/api/src/public/site-activity.ts packages/api/src/public/site.ts
-cloud	exercises_runner	3	runner	exercises_method		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	expiredHolds	3	hold	expiredHolds	English, or a skill's own word: stays	packages/api/src/payments/purchases/composition.ts
 cloud	FAILING_HARNESS	3	harness	FAILING_TEST	the test sense	packages/api/src/registry/publish-routes.test.ts
 cloud	grant_graph	3	graph	grant_workflow		packages/api/src/least-privilege-job.test.ts
 cloud	HARNESS_COLUMNS	3	harness	TEST_COLUMNS	the test sense	packages/api/src/public/evidence.ts
-cloud	harness_ref	3	harness	run_ref	the run sense	apps/web/src/content/release/schemas/schemas/artifact.schema.json apps/web/src/content/release/schemas/schemas/credential-delivery-observation.schema.json
-cloud	harness-context	3	harness	run-context	the run sense	apps/web/src/content/release/release.json apps/web/src/content/release/schemas/schemas/harness-context.schema.json
 cloud	harness-fixture	3	harness	test-fixture	the test sense	packages/registry/src/fixtures/legacy-registry/runx/mock-charge/sha-52ddd89e5172.json packages/registry/src/fixtures/legacy-registry/runx/mock-charge/sha-63adf988a726.json
 cloud	harnessCalled	3	harness	testCalled	the test sense	packages/api/src/registry/publish-routes.test.ts
 cloud	harnessCalls	3	harness	testCalls	the test sense	packages/api/src/registry/publish-routes.test.ts
 cloud	harnessLimit	3	harness	testLimit	the test sense	packages/api/src/public/evidence.ts
 cloud	HELD_DIGEST	3	hold	HELD_DIGEST	English, or a skill's own word: stays	packages/auth/src/provider-credential/declared-requests.private.test.ts
-cloud	hello-graph	3	graph	hello-workflow		spec/spec.md
+cloud	Holds	3	hold	?	a bare word: code or prose, read in place	deploy/README.md docs/payments.md
 cloud	installRegistryClosureFor	3	closure	installRegistryClosureFor	a package's closure, or English: stays	packages/worker/src/native-runtime-service-client.ts
 cloud	keyboardFocusHeld	3	hold	keyboardFocusHeld	English, or a skill's own word: stays	apps/web/src/lib/home/presentation.ts
 cloud	listingRunner	3	runner	listingMethod		packages/api/src/runs/submission.ts
 cloud	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, or English: stays	packages/registry/src/closure.ts
+cloud	OperationHold	3	hold	OperationLease	the lease family	packages/auth/src/provider-credential/declared-requests.private.ts
 cloud	parseReportedPublishHarness	3	harness	parseReportedPublishTest	the test sense	packages/api/src/admin/service.ts packages/api/src/request-utils.ts
 cloud	publishHarnessEvidenceUrl	3	harness	publishTestEvidenceUrl	the test sense	packages/api/src/registry/publication.ts packages/api/src/registry/publish-service.ts
 cloud	REGISTRY_HARNESS_PRODUCER	3	harness	REGISTRY_TEST_PRODUCER	the test sense	packages/api/src/registry/publication.ts packages/api/src/registry/publish-service.ts
-cloud	registryClosureFor	3	closure	registryClosureFor	a package's closure, or English: stays	packages/worker/src/native-runtime-service-client.ts
+cloud	RegistryClosure	3	closure	RegistryClosure	a package's closure, or English: stays	packages/registry/src/closure.ts packages/registry/src/index.ts
 cloud	RegistryContractHarness	3	harness	RegistryContractTest	the test sense	packages/registry/src/store-contract.test-support.ts
 cloud	runnerCount	3	runner	methodCount		apps/web/src/components/skills/PackageFacts.astro
 cloud	rx_graph	3	graph	rx_workflow		packages/receipts-store/src/tenant-projections.test.ts
@@ -225,33 +211,25 @@ cloud	$held	2	hold	?	a bare word: code or prose, read in place	packages/auth/src
 cloud	admittedClosureFiles	2	closure	admittedClosureFiles	a package's closure, or English: stays	packages/execution-packages/src/snapshot-store.ts
 cloud	agentActInvocation	2	agent_act	turnInvocation		packages/api/src/protocol-control-artifacts.test.ts packages/api/src/public/protocol/model.ts
 cloud	assertHolds	2	hold	assertHolds	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.ts
-cloud	available_runner_count	2	runner	available_method_count		apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
 cloud	bindingStoreHarnesses	2	harness	bindingStoreTests	the test sense	packages/auth/src/provider-bindings.test.ts
 cloud	buildPaidSkillRunnerOffer	2	runner	buildPaidSkillMethodOffer		packages/registry/src/ingest.ts
-cloud	CatalogRunner	2	runner	CatalogMethod		apps/web/src/content/release/schemas/schemas/list.schema.json apps/web/src/content/release/schemas/schemas/registry-search.schema.json
 cloud	closureDigest	2	closure	closureDigest	a package's closure, or English: stays	packages/worker/src/index.test.ts
 cloud	deploy-closure-v1	2	closure	deploy-closure-v1	a package's closure, or English: stays	packages/api/src/runs/principal-access.test.ts
 cloud	echo-closure-v1	2	closure	echo-closure-v1	a package's closure, or English: stays	packages/db/src/migrations.test.ts
 cloud	execution-closure-digest	2	closure	execution-closure-digest	a package's closure, or English: stays	packages/worker/src/native-runtime-service-client.test.ts
 cloud	Graph	2	graph	?	a bare word: code or prose, read in place	apps/web/src/pages/doctrine.astro apps/web/src/pages/what.astro
-cloud	graph_depth	2	graph	workflow_depth		packages/api/src/generated/public-protocol-schemas.ts packages/protocol/src/public/index.ts
 cloud	graph-run	2	graph	workflow-run		packages/api/src/payments/purchases/receipts.test.ts
 cloud	graph-stage	2	graph	workflow-stage		packages/api/src/registry/publish-routes.test.ts spec/core/run.schema.json
-cloud	graphId	2	graph	workflowId		apps/web/src/content/release/schemas/fixtures/kernel/schema/state-machine.schema.json
 cloud	Graphs	2	graph	?	a bare word: code or prose, read in place	apps/web/src/pages/doctrine.astro apps/web/src/pages/why-skills.astro
-cloud	harness_context	2	harness	run_context	the run sense	apps/web/src/content/release/schemas/dist/packets/runx/code-plan/work_plan.v1.schema.json apps/web/src/content/release/schemas/schemas/harness-context.schema.json
 cloud	HARNESS_RECORDSET	2	harness	TEST_RECORDSET	the test sense	packages/api/src/public/evidence.ts
-cloud	harness_verified	2	harness	test_verified	the test sense	apps/web/src/content/release/schemas/schemas/registry-binding.schema.json
-cloud	harness-graph	2	harness,graph	test-workflow	the test sense	spec/spec.md
-cloud	harness-sha256	2	harness	test-sha256	the test sense	spec/spec.md
 cloud	harnessCaller	2	harness	testCaller	the test sense	spec/core/run.schema.json
 cloud	harnessCase	2	harness	testCase	the test sense	spec/core/run.schema.json
 cloud	harnessCountsFromMetadata	2	harness	testCountsFromMetadata	the test sense	packages/api/src/public/evidence.ts
-cloud	harnesses	2	harness	?	a bare word: code or prose, read in place	packages/api/src/registry/publish-routes.test.ts packages/registry/src/fixtures/legacy-registry/runx/mock-charge/sha-52ddd89e5172.json
 cloud	harnessExample	2	harness	testExample	the test sense	packages/api/src/protocol-artifacts.test.ts
 cloud	harnessExpectation	2	harness	testExpectation	the test sense	spec/core/run.schema.json
 cloud	heldNamespaces	2	hold	heldNamespaces	English, or a skill's own word: stays	packages/api/src/connectors/catalog.ts
 cloud	heldPurchase	2	hold	heldPurchase	English, or a skill's own word: stays	packages/api/src/payments/purchases/receipts.test.ts
+cloud	hello-graph	2	graph	hello-workflow		spec/spec.md
 cloud	holdingKey	2	hold	holdingKey	English, or a skill's own word: stays	packages/api/src/payments/holdings.ts
 cloud	holdings-postgres	2	hold	leases-postgres	the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/server-persistence.ts
 cloud	HoldingState	2	hold	HoldingState	English, or a skill's own word: stays	packages/api/src/payments/holdings.ts
@@ -265,13 +243,9 @@ cloud	nitrosend-closure-v1	2	closure	nitrosend-closure-v1	a package's closure, o
 cloud	normalizeHarnessEvent	2	harness	normalizeTestEvent	the test sense	packages/api/src/public/evidence.ts
 cloud	normalizeRegistryHarnessCases	2	harness	normalizeRegistryTestCases	the test sense	packages/registry/src/store.ts
 cloud	NOT_DECLARED_HARNESS	2	harness	NOT_DECLARED_TEST	the test sense	packages/api/src/registry/publish-routes.test.ts
-cloud	OperationalPolicyRunnerState	2	runner	OperationalPolicyMethodState		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
 cloud	optionalRunner	2	runner	optionalMethod		packages/api/src/runs/service.ts
-cloud	OTHER_CLOSURE_DIGEST	2	closure	OTHER_CLOSURE_DIGEST	a package's closure, or English: stays	packages/api/src/execution-package-store.test.ts
-cloud	private_execution_package_ref_principal_id_skill_runner_pa_fkey	2	runner	private_execution_package_ref_principal_id_skill_runner_pa_fkey	only in applied migrations: 0047 dropped it, so nothing holds it: stays	packages/db/migrations/0033_private_execution_packages.sql packages/db/migrations/0047_private_execution_closure_identity.sql
 cloud	PUBLISH_HARNESS_SUITE	2	harness	PUBLISH_TEST_SUITE	the test sense	packages/api/src/registry/publication.ts
 cloud	publishHarnessAdmissionCheck	2	harness	publishTestAdmissionCheck	the test sense	scripts/registry-live-readiness.ts
-cloud	purchase_holdings_owner_kind_check	2	hold	leases_owner_kind_check	stored: Cloud's 0089_leases.sql renames the constraint; the lease family	packages/db/migrations/0084_purchases.sql
 cloud	recordedHoldings	2	hold	recordedHoldings	English, or a skill's own word: stays	packages/auth/src/provider-credential/declared-requests.private.test.ts
 cloud	RegistryConnectorContractHarness	2	harness	RegistryConnectorContractTest	the test sense	packages/registry/src/connector-store-contract.test-support.ts
 cloud	RegistryHarnessCaseMetadata	2	harness	RegistryTestCaseMetadata	the test sense	packages/registry/src/ingest.ts
@@ -280,13 +254,10 @@ cloud	releaseHeld	2	hold	releaseHeld	English, or a skill's own word: stays	packa
 cloud	reportedHarnessEvent	2	harness	reportedTestEvent	the test sense	packages/api/src/admin/service.ts
 cloud	resolveClosureRef	2	closure	resolveClosureRef	a package's closure, or English: stays	packages/registry/src/closure.ts
 cloud	run_closure_1	2	closure	run_closure_1	a package's closure, or English: stays	packages/worker/src/native-runtime-service-client.test.ts
-cloud	run_summaries_execution_closure_binding_required	2	closure	run_summaries_execution_closure_binding_required	a package's closure, or English: stays	packages/db/migrations/0024_run_execution_closure_binding.sql packages/db/migrations/0059_run_execution_binding_required.sql
-cloud	RunHold	2	hold	RunHold	a run waiting: stays	apps/web/src/content/release/schemas/schemas/run-event.schema.json apps/web/src/content/release/schemas/schemas/run-read.schema.json
+cloud	runner_inspections	2	runner	method_inspections		packages/registry/src/closure.ts
 cloud	runnerInputs	2	runner	methodInputs		spec/core/run.schema.json
-cloud	RunnerInspectionEntry	2	runner	MethodInspectionEntry		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	RunnerPlan	2	runner	MethodPlan		scripts/frantic-board-sync.d.mts
 cloud	runPublishHarness	2	harness	runPublishTest	the test sense	packages/api/src/registry/native-harness.ts
-cloud	runs_execution_closure_binding_required	2	closure	runs_execution_closure_binding_required	a package's closure, or English: stays	packages/db/migrations/0024_run_execution_closure_binding.sql packages/db/migrations/0059_run_execution_binding_required.sql
 cloud	rx_harness_sourcey	2	harness	rx_test_sourcey	the test sense	packages/api/src/index.test.ts
 cloud	selectHarnessResults	2	harness	selectTestResults	the test sense	packages/api/src/public/evidence.ts
 cloud	selectListingRunner	2	runner	selectListingMethod		packages/api/src/runs/submission.ts
@@ -301,18 +272,15 @@ cloud	_runner	1	runner	_method		packages/api/src/server-worker.test.ts
 cloud	admitted-closure	1	closure	admitted-closure	a package's closure, or English: stays	packages/worker/src/index.test.ts
 cloud	agent_runner	1	runner	agent_method		packages/worker/src/hosted-run-projection.test.ts
 cloud	caller-held	1	hold	caller-held	English, or a skill's own word: stays	packages/api/src/rate-limit.ts
-cloud	capture_harness_context	1	harness	capture_run_context	the run sense	apps/web/src/content/release/schemas/schemas/harness-context.schema.json
 cloud	changed-closure	1	closure	changed-closure	a package's closure, or English: stays	packages/worker/src/index.test.ts
-cloud	createSequentialGraph	1	graph	createSequentialWorkflow		apps/web/src/content/release/schemas/fixtures/kernel/schema/state-machine.schema.json
 cloud	ExecutionClosureInspection	1	closure	ExecutionClosureInspection	a package's closure, or English: stays	packages/worker/src/execution-binding.ts
+cloud	exercises_runner	1	runner	exercises_method		spec/core/run.schema.json
 cloud	getPublicSkillHarness	1	harness	getPublicSkillTest	the test sense	packages/openapi-catalog/src/openapi-route-catalog.ts
 cloud	graph_closed	1	graph	workflow_closed		packages/registry/src/fixtures/legacy-registry/runx/mock-charge/sha-52ddd89e5172.json
-cloud	graph_step_failed	1	graph	workflow_step_failed	the plan's name	apps/web/src/content/release/schemas/schemas/skill-output.schema.json
+cloud	graph_depth	1	graph	workflow_depth		packages/protocol/src/public/index.ts
+cloud	graph_step_failed	1	graph	workflow_step_failed	the plan's name	spec/spec.md
 cloud	GraphQL	1	graph	GraphQL	another graph: stays	packages/registry/src/fixtures/connectors.json
 cloud	Harness-derived	1	harness	Test-derived	the test sense	packages/registry/src/maturity.ts
-cloud	harness-state	1	harness	test-state	the test sense	apps/web/src/components/skills/SkillEvidence.astro
-cloud	harness-stated	1	harness	test-stated	the test sense	spec/spec.md
-cloud	HarnessContext	1	harness	RunContext	the run sense	apps/web/src/content/release/schemas/schemas/harness-context.schema.json
 cloud	held-1	1	hold	held-1	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
 cloud	held-2	1	hold	held-2	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
 cloud	held-3	1	hold	held-3	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
@@ -322,26 +290,10 @@ cloud	held-6	1	hold	held-6	English, or a skill's own word: stays	packages/api/sr
 cloud	held-7	1	hold	held-7	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
 cloud	Hold	1	hold	?	a bare word: code or prose, read in place	packages/api/src/payments/holdings.ts
 cloud	hold-moving	1	hold	hold-moving	English, or a skill's own word: stays	packages/api/src/payments/holdings.ts
-cloud	HoldAction	1	hold	LeaseAction	the lease family	apps/web/src/content/release/schemas/schemas/connector.schema.json
-cloud	Holds	1	hold	?	a bare word: code or prose, read in place	packages/api/src/payments/purchases/composition.ts
-cloud	LoadedRunner	1	runner	LoadedMethod		apps/web/src/content/release/schemas/schemas/turn-load.schema.json
-cloud	LoadedRunnerInput	1	runner	LoadedMethodInput		apps/web/src/content/release/schemas/schemas/turn-load.schema.json
-cloud	needs_consequential_harness_approval	1	harness	needs_consequential_test_approval	the test sense	apps/web/src/content/release/schemas/schemas/skill-validation.schema.json
-cloud	next_harness_checks	1	harness	next_test_checks	the test sense	apps/web/src/content/release/schemas/dist/packets/runx/diagnose-skill-run/diagnosis.v1.schema.json
 cloud	nitrosend-closure-v2	1	closure	nitrosend-closure-v2	a package's closure, or English: stays	packages/db/src/index.test.ts
 cloud	non-harness	1	harness	non-test	the test sense	packages/api/src/public/evidence.ts
-cloud	OperationalPolicyRunnerReadback	1	runner	OperationalPolicyMethodReadback		apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
-cloud	OperationalPolicyRunnerRule	1	runner	OperationalPolicyMethodRule		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json
-cloud	PaidSkillRunnerOffer	1	runner	PaidSkillMethodOffer		apps/web/src/content/release/schemas/schemas/paid-skill-listing.schema.json
-cloud	planSequentialGraphTransition	1	graph	planSequentialWorkflowTransition		apps/web/src/content/release/schemas/fixtures/kernel/schema/state-machine.schema.json
-cloud	public_evidence_events_harness_subject_idx	1	harness	public_evidence_events_test_subject_idx	stored: Cloud's 0090_test_runs.sql recreates the index on kind = 'test_run'; the test sense	packages/db/migrations/0065_public_evidence_harness_identity.sql
 cloud	publish-harness	1	harness	publish-test	the test sense	packages/api/src/registry/native-harness.ts
 cloud	purchase_holding	1	hold	purchase_holding	English, or a skill's own word: stays	packages/api/src/payments/holdings-postgres.ts
-cloud	purchase_holdings_expiry_idx	1	hold	leases_expiry_idx	stored: Cloud's 0089_leases.sql renames the index; the lease family	packages/db/migrations/0071_purchase_holdings.sql
-cloud	purchase_holdings_owner_idx	1	hold	leases_owner_idx	stored: Cloud's 0089_leases.sql renames the index; the lease family	packages/db/migrations/0071_purchase_holdings.sql
-cloud	PurchaseHold	1	hold	PurchaseLease	the lease family	apps/web/src/content/release/schemas/schemas/purchase-read.schema.json
-cloud	RegistryBindingHarness	1	harness	RegistryBindingTest	the test sense	apps/web/src/content/release/schemas/schemas/registry-binding.schema.json
-cloud	RegistryHarnessState	1	harness	RegistryTestState	the test sense	apps/web/src/content/release/schemas/schemas/registry-binding.schema.json
 cloud	run_graphs	1	graph	run_workflows		packages/receipts-store/src/receipt-tree.test.ts
 cloud	run_top_level_harness	1	harness	run_top_level_test	the test sense	tests/receipt-archive-postgres.test.ts
 cloud	run-receipt-held	1	hold	run-receipt-held	English, or a skill's own word: stays	packages/api/src/payments/purchases/receipts.test.ts
@@ -354,7 +306,6 @@ cloud	runx-native-harness-env	1	harness	runx-native-test-env	the test sense	pack
 cloud	runx-native-registry-closure	1	closure	runx-native-registry-closure	a package's closure, or English: stays	packages/worker/src/native-runtime-service-client.test.ts
 cloud	runx-paid-holds	1	hold	runx-paid-holds	English, or a skill's own word: stays	packages/api/src/payments/purchases/receipts.test.ts
 cloud	runx-publish-harness	1	harness	runx-publish-test	the test sense	packages/api/src/registry/native-harness.ts
-cloud	runx-registry-closure	1	closure	runx-registry-closure	a package's closure, or English: stays	packages/registry/src/closure.ts
 cloud	runx-reported-harness	1	harness	runx-reported-test	the test sense	packages/api/src/admin/service.test.ts
 cloud	runx-skill-publish-harness	1	harness	runx-skill-publish-test	the test sense	packages/api/src/registry/publish-routes.test.ts
 cloud	runx-skill-publish-harness-crash	1	harness	runx-skill-publish-test-crash	the test sense	packages/api/src/registry/publish-routes.test.ts
@@ -366,11 +317,60 @@ cloud	rx_harness_1	1	harness	rx_test_1	the test sense	packages/api/src/index.tes
 cloud	rx_top_level_harness	1	harness	rx_top_level_test	the test sense	packages/receipts-store/src/index.test.ts
 cloud	skill-harness	1	harness	skill-test	the test sense	scripts/smoke-public-surface.ts
 cloud	sourcey-closure-v1	1	closure	sourcey-closure-v1	a package's closure, or English: stays	packages/db/src/postgres.test.ts
-cloud	step-runner	1	runner	step-method		apps/web/src/components/skills/SkillOverview.astro
-cloud	transitionSequentialGraph	1	graph	transitionSequentialWorkflow		apps/web/src/content/release/schemas/fixtures/kernel/schema/state-machine.schema.json
-cloud	turn		decided	turn	one thing: an agent's turn, the name agent_act takes	
-cloud	TurnEnvelope		decided	TurnViewEnvelope	the plan's name (§4.2), in Cloud's copy of the turn schema	
-cloud	TurnInvocation		decided	TurnView	the plan's name (§4.2), in Cloud's copy of the turn schema	
+cloud	agent_act_invocation	0	agent_act	turn_invocation		
+cloud	AgentActInvocation	0	agent_act	TurnInvocation	the plan's name	
+cloud	available_runner_count	0	runner	available_method_count		
+cloud	bindRunnerWithinPackage	0	runner	bindMethodWithinPackage		
+cloud	BoundClosure	0	closure	BoundClosure	a package's closure, or English: stays	
+cloud	capture_harness_context	0	harness	capture_run_context	the run sense	
+cloud	CatalogRunner	0	runner	CatalogMethod		
+cloud	createSequentialGraph	0	graph	createSequentialWorkflow		
+cloud	graphId	0	graph	workflowId		
+cloud	harness_context	0	harness	run_context	the run sense	
+cloud	harness_ref	0	harness	run_ref	the run sense	
+cloud	harness_verified	0	harness	test_verified	the test sense	
+cloud	harness-context	0	harness	run-context	the run sense	
+cloud	harness-graph	0	harness,graph	test-workflow	the test sense	
+cloud	harness-sha256	0	harness	test-sha256	the test sense	
+cloud	harness-stated	0	harness	test-stated	the test sense	
+cloud	HarnessContext	0	harness	RunContext	the run sense	
+cloud	HoldAction	0	hold	LeaseAction	the lease family	
+cloud	LoadedRunner	0	runner	LoadedMethod		
+cloud	LoadedRunnerInput	0	runner	LoadedMethodInput		
+cloud	materializeRegistryClosure	0	closure	materializeRegistryClosure	a package's closure, or English: stays	
+cloud	needs_consequential_harness_approval	0	harness	needs_consequential_test_approval	the test sense	
+cloud	next_harness_checks	0	harness	next_test_checks	the test sense	
+cloud	OperationalPolicyRunnerReadback	0	runner	OperationalPolicyMethodReadback		
+cloud	OperationalPolicyRunnerRule	0	runner	OperationalPolicyMethodRule		
+cloud	OperationalPolicyRunnerState	0	runner	OperationalPolicyMethodState		
+cloud	OTHER_CLOSURE_DIGEST	0	closure	OTHER_CLOSURE_DIGEST	a package's closure, or English: stays	
+cloud	PaidSkillRunnerOffer	0	runner	PaidSkillMethodOffer		
+cloud	planSequentialGraphTransition	0	graph	planSequentialWorkflowTransition		
+cloud	private_execution_package_ref_principal_id_skill_runner_pa_fkey	0	runner	private_execution_package_ref_principal_id_skill_runner_pa_fkey	only in applied migrations: 0047 dropped it, so nothing holds it: stays	
+cloud	public_evidence_events_harness_subject_idx	0	harness	public_evidence_events_test_subject_idx	stored: Cloud's 0090_test_runs.sql recreates the index on kind = 'test_run'; the test sense	
+cloud	purchase_holdings_expiry_idx	0	hold	leases_expiry_idx	stored: Cloud's 0089_leases.sql renames the index; the lease family	
+cloud	purchase_holdings_owner_idx	0	hold	leases_owner_idx	stored: Cloud's 0089_leases.sql renames the index; the lease family	
+cloud	purchase_holdings_owner_kind_check	0	hold	leases_owner_kind_check	stored: Cloud's 0089_leases.sql renames the constraint; the lease family	
+cloud	PurchaseHold	0	hold	PurchaseLease	the lease family	
+cloud	RegistryBindingHarness	0	harness	RegistryBindingTest	the test sense	
+cloud	registryClosureEnvironment	0	closure	registryClosureEnvironment	a package's closure, or English: stays	
+cloud	registryClosureFor	0	closure	registryClosureFor	a package's closure, or English: stays	
+cloud	RegistryHarnessState	0	harness	RegistryTestState	the test sense	
+cloud	run_summaries_execution_closure_binding_required	0	closure	run_summaries_execution_closure_binding_required	a package's closure, or English: stays	
+cloud	RunHold	0	hold	RunHold	a run waiting: stays	
+cloud	runner_id	0	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	
+cloud	runner_ids	0	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	
+cloud	RunnerInspection	0	runner	MethodInspection		
+cloud	RunnerInspectionEntry	0	runner	MethodInspectionEntry		
+cloud	runs_execution_closure_binding_required	0	closure	runs_execution_closure_binding_required	a package's closure, or English: stays	
+cloud	runx-registry-closure	0	closure	runx-registry-closure	a package's closure, or English: stays	
+cloud	sourceRunner	0	runner	sourceMethod		
+cloud	stage_runner	0	runner	stage_runner	another runner: stays	
+cloud	stageRunner	0	runner	stageMethod		
+cloud	transitionSequentialGraph	0	graph	transitionSequentialWorkflow		
+cloud	turn	0	decided	turn	one thing: an agent's turn, the name agent_act takes	
+cloud	TurnEnvelope	0	decided	TurnViewEnvelope	the plan's name (§4.2), in Cloud's copy of the turn schema	
+cloud	TurnInvocation	0	decided	TurnView	the plan's name (§4.2), in Cloud's copy of the turn schema	
 fieldwork	held	141	hold	?	a bare word: code or prose, read in place	src/agent/context.ts src/agent/session.ts
 fieldwork	holds	100	hold	?	a bare word: code or prose, read in place	scripts/check-structure.mjs scripts/check-structure.test.mjs
 fieldwork	runner	88	runner	?	a bare word: code or prose, read in place	scripts/env.mjs src/agent/prompts.ts

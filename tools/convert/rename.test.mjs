@@ -41,6 +41,23 @@ test("scan reads a name's run sense from whole segments, so a test's harness-ref
   assert.deepEqual(rows.find((row) => row[1] === "checkout-harness-ref")?.slice(4, 6), ["checkout-run-ref", "the run sense"]);
 });
 
+test("scan refreshes a decided row's uses and files from the tree, and keeps its decision", (t) => {
+  const program = tree(t, {});
+  copyFileSync(RENAME, path.join(program, "rename.mjs"));
+  for (const file of ["words.mjs", "script-collisions.mjs", "rust-collisions.mjs", "go-collisions.mjs", "renamed-tree.mjs", "identifiers.tsv"]) copyFileSync(new URL(`./${file}`, import.meta.url), path.join(program, file));
+  const rowOf = (name) => read(program, "identifiers.tsv").split("\n").map((line) => line.split("\t")).find((row) => row[0] === "oss" && row[1] === name);
+  const root = tree(t, { "src/a.mjs": 'export const a = "checkout-harness-ref";\n', "src/b.mjs": 'export const b = "checkout-harness-ref";\nexport const c = "gone-harness-ref";\n' });
+  assert.equal(run(path.join(program, "rename.mjs"), "scan", "oss", root).status, 0);
+  // A decision made by hand stays, whatever the tree now holds.
+  writeFileSync(path.join(program, "identifiers.tsv"), read(program, "identifiers.tsv").replace(/^(oss\tcheckout-harness-ref\t\d+\t[^\t]*\t)[^\t]*\t[^\t]*/m, "$1checkout-run-reference\tdecided by hand"));
+  writeFileSync(path.join(root, "src/b.mjs"), 'export const b = "checkout-harness-ref";\nexport const d = "checkout-harness-ref";\n');
+  const { status, out } = run(path.join(program, "rename.mjs"), "scan", "oss", root);
+  assert.equal(status, 0, out);
+  assert.deepEqual(rowOf("checkout-harness-ref")?.slice(2), ["3", "harness", "checkout-run-reference", "decided by hand", "src/a.mjs src/b.mjs"]);
+  assert.deepEqual(rowOf("gone-harness-ref")?.slice(2, 3), ["0"]);
+  assert.equal(rowOf("gone-harness-ref")?.[6], "");
+});
+
 const agentManual = `---
 name: agent-session
 description: One turn of a host's agent.

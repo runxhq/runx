@@ -316,9 +316,17 @@ function inventory(root) {
 
 function scan(repo, root) {
   const rows = readTable();
-  const known = new Set(rows.filter((row) => row.repo === repo).map((row) => row.identifier));
+  const found = inventory(root);
+  const known = new Map(rows.filter((row) => row.repo === repo).map((row) => [row.identifier, row]));
+  // A decided row keeps its decision, and its uses and files are the tree's
+  // now, so the table never holds a count from an older tree.
+  for (const [identifier, row] of known) {
+    const now = found.get(identifier);
+    row.uses = String(now?.uses ?? 0);
+    row.where = now ? [...now.where].sort().join(" ") : "";
+  }
   let added = 0;
-  for (const [token, { uses, where }] of inventory(root)) {
+  for (const [token, { uses, where }] of found) {
     if (known.has(token)) continue;
     const { words, to, note } = propose(token);
     rows.push({ repo, identifier: token, uses: String(uses), words: words.join(","), to, note, where: [...where].sort().join(" ") });
