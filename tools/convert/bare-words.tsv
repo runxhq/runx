@@ -72,6 +72,12 @@ oss	crates/runx-contracts/src/skill_authoring.rs	Graph	Workflow	^\s+$	^,$	skill 
 oss	skills/skill-build/SKILL.md	graph	workflow	`manual`, `$	^`, `agent`	skill-build names the execution lanes by their wire values
 oss	skills/skill-build/tests/composes-in-workflow.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
 oss	skills/skill-build/tests/skill-build-designs-bounded-package.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
+oss	*	graph	workflow	\bsubject_kind: $	^$	a receipt's subject kind, whose wire value for the whole run is workflow now
+oss	crates/runx-cli/tests/skill.rs	graph	workflow	\bkinds\("$	^"\)	the test reads the run receipts' subject kind, workflow now
+oss	*	graph	workflow	\btest:heavy:$		the heavy workflow scenarios' script, as package.json and CI name it
+oss	.github/workflows/ci.yml	graph	workflow	\bHeavy $	^ scenarios$	the CI step that runs the heavy workflow scenarios
+oss	skills/dispute-respond/run.yaml	graph	workflow	\bnative source packets for a $		the method's description is prose
+oss	fixtures/skills/mcp-approval-workflow/run.yaml	graph	workflow	\bApprove the MCP $	^ run\.	the ask's reason is what a person reads
 cloud	packages/api/src/payments/skills/purchases.ts	holds	leases	^\s*$	^: holds\.map\(	PurchaseRead's leases, the key the purchase read writes
 cloud	packages/api/src/payments/skills/bazaar.ts	holds	leases	^\s*$	^: \{ type: "array"	PurchaseRead's leases, in the Bazaar declaration bazaar.test holds to OSS's purchase-read schema
 cloud	packages/api/src/payments/skills/purchases.test.ts	holds	leases	^\s*$	^: \[\{	PurchaseRead's leases, in the read the test expects
