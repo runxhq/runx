@@ -1,7 +1,7 @@
 //! A host cancels one call by its address while the others go on (script
 //! step contract, "Completion and cleanup"; D36): through the run's one
 //! cancel, which serves a turn's calls and a script's alike. Each call is
-//! held where the test needs it by a named pipe, which blocks its process
+//! kept where the test needs it by a named pipe, which blocks its process
 //! until the test opens the other end, so nothing here waits on a clock.
 
 use std::collections::BTreeMap;
@@ -101,7 +101,7 @@ fn pipe(path: &Path) -> TestResult<PathBuf> {
     Ok(path.to_path_buf())
 }
 
-/// Wait until the call holding `started` says so.
+/// Wait until the call waiting on `started` says so.
 fn started(started: &Path) -> TestResult {
     let mut said = String::new();
     std::fs::File::open(started)?.read_to_string(&mut said)?;
@@ -277,21 +277,21 @@ fn a_scripts_call_not_started_settles_cancelled_and_an_effect_in_flight_as_it_en
     let root = temp.path();
     let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
     crate::support::write_test_skill_package(
-        &root.join("hold"),
-        "---\nname: hold\ndescription: Says it started, then waits to be released.\n---\n# Hold\n\nHold.\n",
+        &root.join("pause"),
+        "---\nname: pause\ndescription: Says it started, then waits to be released.\n---\n# Pause\n\nPause.\n",
         &format!(
             r#"minimum_runx: 0.12.0
 methods:
-  hold:
+  pause:
     steps:
-      - id: hold
+      - id: pause
         tool:
           command: sh
           args:
             - -c
-            - 'printf x > "{on}" && read line < "{off}" && printf "{{\"held\":true}}\n"'
+            - 'printf x > "{on}" && read line < "{off}" && printf "{{\"paused\":true}}\n"'
         outputs:
-          held: {{type: boolean}}
+          paused: {{type: boolean}}
 "#,
             on = on.display(),
             off = off.display(),
@@ -300,7 +300,7 @@ methods:
     let batch = root.join("batch");
     crate::support::write_test_skill_package(
         &batch,
-        "---\nname: batch\ndescription: Holds, then digests.\n---\n# Batch\n\nHold, then digest.\n",
+        "---\nname: batch\ndescription: Pauses, then digests.\n---\n# Batch\n\nPause, then digest.\n",
         r#"minimum_runx: 0.12.0
 methods:
   prepare:
@@ -308,22 +308,22 @@ methods:
       - id: prepare
         script: {module: prepare.mjs}
         calls:
-          skills: [../hold]
+          skills: [../pause]
           tools: [data.digest]
         max_calls: 2
         outputs:
-          held: {type: string}
+          paused: {type: string}
           digest: {type: string}
 "#,
     )?;
     std::fs::write(
         batch.join("prepare.mjs"),
         r#"export default async function (ctx) {
-  const [held, digest] = await Promise.allSettled([
-    ctx.skill("../hold", {}),
+  const [paused, digest] = await Promise.allSettled([
+    ctx.skill("../pause", {}),
     ctx.tool("data.digest", { value: "hello", encoding: "utf8_text" }),
   ]);
-  return { held: held.status, digest: digest.status === "rejected" ? digest.reason.reason : "resolved" };
+  return { paused: paused.status, digest: digest.status === "rejected" ? digest.reason.reason : "resolved" };
 }
 "#,
     )?;
@@ -333,7 +333,7 @@ methods:
         let session = Arc::clone(&session);
         move || session.call(TURN, "skill__batch", None, JsonObject::new())
     });
-    // Its concurrency is one: call 0 holds, and call 1 waits its turn.
+    // Its concurrency is one: call 0 pauses, and call 1 waits its turn.
     started(&on)?;
     assert_eq!(session.cancel("answer/0#prepare/1")?, CallCancel::Cancelled);
     assert_eq!(
@@ -347,7 +347,7 @@ methods:
     };
     assert_eq!(
         serde_json::to_value(output)?,
-        serde_json::json!({"held": "rejected", "digest": "cancelled"})
+        serde_json::json!({"paused": "rejected", "digest": "cancelled"})
     );
     let script = calls(root, &run_id, &format!("{run_id}/answer/0"))?;
     assert_eq!(
@@ -363,12 +363,12 @@ methods:
     Ok(())
 }
 
-/// A connector whose `hold.wait` reads: its process takes the first free
+/// A connector whose `slot.take` reads: its process takes the first free
 /// slot under the directory it's given, says it started on that slot's pipe,
 /// and waits to be released on the slot's other.
-const HOLD_CONNECTOR: &str = r#"schema: runx.connector.v1
-name: hold
-title: Hold
+const SLOT_CONNECTOR: &str = r#"schema: runx.connector.v1
+name: slot
+title: Slot
 description: Reads once it is released.
 auth:
   none: {}
@@ -376,10 +376,10 @@ placements:
   local:
     auth: [none]
 operations:
-  hold.wait:
+  slot.take:
     description: Take a slot, wait to be released, then read.
     verb: read
-    scopes: [hold.read]
+    scopes: [slot.read]
     target:
       template: {"$argument": "/dir"}
     input_schema:
@@ -388,15 +388,15 @@ operations:
       additionalProperties: false
       properties:
         dir: {type: string, minLength: 1}
-    result_fields: [held]
+    result_fields: [taken]
     implementation:
       process:
-        tool: hold.wait
+        tool: slot.take
 "#;
 
-const HOLD_TOOL: &str = r#"{
+const SLOT_TOOL: &str = r#"{
   "schema": "runx.tool.manifest.v1",
-  "name": "hold.wait",
+  "name": "slot.take",
   "version": "0.1.0",
   "description": "Take a slot, say it started, wait to be released, then read.",
   "process": {
@@ -409,41 +409,41 @@ const HOLD_TOOL: &str = r#"{
 }
 "#;
 
-const HOLD_SCRIPT: &str = "#!/bin/sh\nset -eu\nfor n in 0 1 2 3; do mkdir \"$1/slot-$n\" 2>/dev/null && break; done\nprintf x > \"$1/s$n\"\nread line < \"$1/r$n\"\nprintf '{\"held\":true}\\n'\n";
+const SLOT_SCRIPT: &str = "#!/bin/sh\nset -eu\nfor n in 0 1 2 3; do mkdir \"$1/slot-$n\" 2>/dev/null && break; done\nprintf x > \"$1/s$n\"\nread line < \"$1/r$n\"\nprintf '{\"taken\":true}\\n'\n";
 
 /// A run's `max_concurrency` caps a script's `concurrency`: under a run
 /// authority of 2, a script that declares 4 has two calls executing while
 /// the other two haven't started, which the run's cancel counts. Each call is
 /// a child run that reads, so nothing but the cap keeps them apart, and the
 /// calls the scheduler dispatches at once are in flight before any runs, so a
-/// cap that didn't hold would find calls 2 and 3 started.
+/// cap that failed would find calls 2 and 3 started.
 #[test]
 fn a_runs_max_concurrency_caps_how_many_of_a_scripts_calls_execute_at_once() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
-    let tool = root.join("connectors/hold/tools/hold/wait");
+    let tool = root.join("connectors/slot/tools/slot/take");
     std::fs::create_dir_all(&tool)?;
-    std::fs::write(root.join("connectors/hold/connector.yaml"), HOLD_CONNECTOR)?;
-    std::fs::write(tool.join("manifest.json"), HOLD_TOOL)?;
-    std::fs::write(tool.join("wait.sh"), HOLD_SCRIPT)?;
-    let held = root.join("held");
-    std::fs::create_dir_all(&held)?;
+    std::fs::write(root.join("connectors/slot/connector.yaml"), SLOT_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), SLOT_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), SLOT_SCRIPT)?;
+    let slots = root.join("slots");
+    std::fs::create_dir_all(&slots)?;
     for slot in 0..4 {
-        pipe(&held.join(format!("s{slot}")))?;
-        pipe(&held.join(format!("r{slot}")))?;
+        pipe(&slots.join(format!("s{slot}")))?;
+        pipe(&slots.join(format!("r{slot}")))?;
     }
     crate::support::write_test_skill_package(
-        &root.join("hold"),
-        "---\nname: hold\ndescription: Holds a slot until it is released.\n---\n# Hold\n\nHold.\n",
+        &root.join("take"),
+        "---\nname: take\ndescription: Takes a slot until it is released.\n---\n# Take\n\nTake a slot.\n",
         &format!(
-            "minimum_runx: 0.12.0\nmethods:\n  hold:\n    steps:\n      - id: hold\n        operation: hold/hold.wait\n        inputs: {{dir: \"{}\"}}\n",
-            held.display()
+            "minimum_runx: 0.12.0\nmethods:\n  take:\n    steps:\n      - id: take\n        operation: slot/slot.take\n        inputs: {{dir: \"{}\"}}\n",
+            slots.display()
         ),
     )?;
     let batch = root.join("batch");
     crate::support::write_test_skill_package(
         &batch,
-        "---\nname: batch\ndescription: Holds four at once.\n---\n# Batch\n\nHold four.\n",
+        "---\nname: batch\ndescription: Takes four slots at once.\n---\n# Batch\n\nTake four.\n",
         r#"minimum_runx: 0.12.0
 methods:
   prepare:
@@ -451,7 +451,7 @@ methods:
       - id: prepare
         script: {module: prepare.mjs}
         calls:
-          skills: [../hold]
+          skills: [../take]
         max_calls: 4
         concurrency: 4
         outputs:
@@ -461,8 +461,8 @@ methods:
     std::fs::write(
         batch.join("prepare.mjs"),
         r#"export default async function (ctx) {
-  const settled = await Promise.allSettled([0, 1, 2, 3].map(() => ctx.skill("../hold", {})));
-  return { outcomes: settled.map((call) => (call.status === "fulfilled" ? "held" : call.reason.reason)) };
+  const settled = await Promise.allSettled([0, 1, 2, 3].map(() => ctx.skill("../take", {})));
+  return { outcomes: settled.map((call) => (call.status === "fulfilled" ? "taken" : call.reason.reason)) };
 }
 "#,
     )?;
@@ -472,7 +472,7 @@ methods:
         let session = Arc::clone(&session);
         move || session.call(TURN, "skill__batch", None, JsonObject::new())
     });
-    let slot = |name: String| held.join(name);
+    let slot = |name: String| slots.join(name);
     started(&slot("s0".to_owned()))?;
     started(&slot("s1".to_owned()))?;
     // Two are executing; count the rest.
@@ -500,12 +500,12 @@ methods:
     };
     assert_eq!(
         serde_json::to_value(output)?,
-        serde_json::json!({"outcomes": ["held", "held", "cancelled", "cancelled"]})
+        serde_json::json!({"outcomes": ["taken", "taken", "cancelled", "cancelled"]})
     );
     Ok(())
 }
 
-/// A cancel reaches a skill call's child run by the same rule: held inside
+/// A cancel reaches a skill call's child run by the same rule: paused inside
 /// the first of its two effects, the first completes, the second never
 /// starts, and the child seals killed because its caller cancelled it. The
 /// child committed an effect, so the parent's call settles as the child
@@ -581,7 +581,7 @@ methods:
     Ok(())
 }
 
-/// A skill call whose child run committed no effect settles cancelled: held
+/// A skill call whose child run committed no effect settles cancelled: paused
 /// inside a read, the cancel stops the read, and the child seals killed.
 #[test]
 fn a_cancelled_skill_call_whose_child_only_read_settles_cancelled() -> TestResult {
