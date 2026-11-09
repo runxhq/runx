@@ -46,8 +46,11 @@ const descriptor = (symbol) => symbol.split(" ").slice(4).join(" ");
 const isOurs = (symbol) => symbol.startsWith(PREFIX) && crateOf(symbol).startsWith("runx-");
 const isTestDoc = (file) => /(^|\/)tests\//.test(file) || /(^|\/)build\.rs$/.test(file) || /_tests?\.rs$/.test(file);
 const isBenchDoc = (file) => /(^|\/)benches\//.test(file);
-const isTestSymbol = (symbol) => descriptor(symbol).split("/").some((segment) => segment === "tests" || segment === "test" || segment.endsWith("_tests"));
-const exampleOf = (file) => /(^|\/)examples\/([^/]+)\.rs$/.exec(file)?.[2];
+// A module named `test` is the product's `runx test` (execution/test) or a
+// publish's own test run, so only `tests` and `*_tests` mark test code here;
+// #[cfg(test)] code is found by its attribute below.
+const isTestSymbol = (symbol) => descriptor(symbol).split("/").some((segment) => segment === "tests" || segment.endsWith("_tests"));
+const exampleOf = (file) => /(^|\/)examples\/([^/]+?)(?:\.rs|\/.+\.rs)$/.exec(file)?.[2];
 
 const as4 = (r) => (r.length === 3 ? [r[0], r[1], r[0], r[2]] : r);
 const within = (outer, inner) => {
@@ -74,7 +77,8 @@ function cfgTestCode(file) {
   }
   const lines = text.split("\n");
   const lineAt = (offset) => text.slice(0, offset).split("\n").length - 1;
-  for (const m of text.matchAll(/#\[cfg\(test\)\]/g)) {
+  // `cfg(all(test, ...))` compiles only for tests too.
+  for (const m of text.matchAll(/#\[cfg\((?:test|all\(test\b[^\]]*\))\)\]/g)) {
     // The item follows its other attributes and doc comments.
     let line = lineAt(m.index) + 1;
     while (line < lines.length && /^\s*(#\[|\/\/|$)/.test(lines[line])) line += 1;
@@ -175,7 +179,10 @@ for (const doc of docs) {
     if (o.roles & 1 || o.symbol.startsWith("local") || !isOurs(o.symbol)) continue;
     let owner;
     for (const d of defs) if (within(d.enclosing, o.range) && (!owner || smaller(d.enclosing, owner.enclosing))) owner = d;
-    if (!owner || defined.get(owner.symbol).test) continue;
+    // Whether the owner is test code is this file's own say: a build script's
+    // `main` shares its symbol with an example's, and mustn't hide the
+    // example's calls.
+    if (!owner || isTestSymbol(owner.symbol) || inCfgTest(doc.path, owner.range[0])) continue;
     // A module's `use` items and `impl` headers aren't uses of what they name.
     if (descriptor(owner.symbol).endsWith("/") && useLines.has(o.range[0])) continue;
     const shared = defined.get(owner.symbol).path !== doc.path || /^(crate\/|main\(\)\.)$/.test(descriptor(owner.symbol));
@@ -237,10 +244,23 @@ for (const symbol of defined.keys()) {
   const m = /(?:^|\/)([A-Za-z0-9_]+)#([A-Za-z0-9_]+)\(\)\.$/.exec(d);
   if (m) traitMethods.set(`${m[1]}#${m[2]}`, [...(traitMethods.get(`${m[1]}#${m[2]}`) ?? []), symbol]);
 }
+// An impl's associated type or const: `impl#[Type][Trait]Name#` or `NAME.`.
+const IMPL_ITEM = /impl#\[`?([A-Za-z0-9_]+)[^\]]*\]\[`?([A-Za-z0-9_]+)[^\]]*\]([A-Za-z0-9_]+)[#.]$/;
 const implRules = [];
+// An implementation's method -> the trait methods it implements.
+const implements_ = new Map();
 for (const symbol of defined.keys()) {
   const m = IMPL.exec(descriptor(symbol));
-  if (m) implRules.push({ symbol, types: typeSymbols.get(`${crateOf(symbol)} ${m[1]}`) ?? [], traits: traitMethods.get(`${m[2]}#${m[3]}`) ?? [] });
+  if (m) {
+    const traits = traitMethods.get(`${m[2]}#${m[3]}`) ?? [];
+    implRules.push({ symbol, types: typeSymbols.get(`${crateOf(symbol)} ${m[1]}`) ?? [], traits });
+    implements_.set(symbol, traits);
+    continue;
+  }
+  // An associated type or const lives with its impl: its type reached, and
+  // its trait, when the trait is one of ours.
+  const a = IMPL_ITEM.exec(descriptor(symbol));
+  if (a) implRules.push({ symbol, types: typeSymbols.get(`${crateOf(symbol)} ${a[1]}`) ?? [], traits: typeSymbols.get(`${crateOf(symbol)} ${a[2]}`) ?? [] });
 }
 
 const cut = (symbol) => cuts.some((text) => symbol.includes(text));
@@ -258,6 +278,8 @@ function walk(starts, tier) {
       if (parent && defined.has(parent)) stack.push([parent, s, "member of"]);
       for (const member of membersOf.get(s) ?? []) stack.push([member, s, "member"]);
       for (const next of edges.get(s) ?? []) stack.push([next, s, "references"]);
+      // A reached implementation needs the trait method it implements.
+      for (const declared of implements_.get(s) ?? []) stack.push([declared, s, "implemented by"]);
     }
   };
   reach();
