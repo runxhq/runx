@@ -65,7 +65,7 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
             provenance: Vec::new(),
             skill_directory: skill_directory.clone(),
             env: fixture_env(&fixture_root, temp_dir.path())?,
-            requirements: Default::default(),
+            environment: Default::default(),
             credential_delivery: CredentialDelivery::none(),
         })?;
         let duration_ms = started.elapsed().as_millis();

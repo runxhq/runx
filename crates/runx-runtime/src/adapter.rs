@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
-use runx_contracts::{ContextEntry, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry};
+use runx_contracts::{
+    ContextEntry, EnvironmentRequirements, JsonObject, JsonValue, ProvenanceEntry,
+};
 use runx_parser::{AgentTask, OutputArtifacts, ProcessTool, WorkerTool};
 use serde::{Deserialize, Serialize};
 
@@ -74,8 +76,8 @@ pub struct SkillInvocation {
     pub executable: Executable,
     /// Complete output declarations the invocation's result must satisfy.
     pub outputs: Option<JsonObject>,
-    /// Exact non-secret manifest requirements for this executable act.
-    pub requirements: ExecutionRequirements,
+    /// The environment variables this executable act reads, by name.
+    pub environment: EnvironmentRequirements,
     /// Parser-validated artifact contract for this invocation.
     pub artifacts: Option<OutputArtifacts>,
     pub inputs: JsonObject,

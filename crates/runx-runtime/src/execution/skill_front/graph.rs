@@ -1015,7 +1015,7 @@ mod tests {
             skill_name: "fixture".to_owned(),
             step_id: None,
             artifacts: None,
-            requirements: Default::default(),
+            environment: Default::default(),
             executable: crate::adapter::Executable::Agent(runx_parser::AgentTask {
                 task: "review".to_owned(),
                 allowance: Default::default(),
@@ -1240,7 +1240,7 @@ methods:
             skill_name: "credential-observation".to_owned(),
             step_id: None,
             artifacts: None,
-            requirements: Default::default(),
+            environment: Default::default(),
             executable: crate::adapter::Executable::Process(runx_parser::ProcessTool {
                 command: "/bin/sh".to_owned(),
                 args: vec![

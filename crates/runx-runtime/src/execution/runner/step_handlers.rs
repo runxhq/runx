@@ -285,11 +285,7 @@ where
     }
     let mut env = request.runtime.options.env.clone();
     merge_inferred_tool_roots(&mut env, &skill.directory);
-    crate::execution_environment::resolve_declared_environment(
-        &skill.requirements,
-        &env,
-        &skill.directory,
-    )?;
+    crate::execution_environment::resolve_environment(&skill.environment, &env, &skill.directory)?;
     run_nested_workflow_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
 }
 
@@ -879,7 +875,7 @@ where
             });
         }
     };
-    let requirements = step_requirements(&executable);
+    let environment = step_environment(&executable);
     let invocation = SkillInvocation {
         reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         historical_context: Vec::new(),
@@ -887,7 +883,7 @@ where
         step_id: Some(step.id.clone()),
         executable,
         outputs: step.outputs.clone(),
-        requirements,
+        environment,
         artifacts: step.artifacts.clone(),
         inputs,
         resolved_inputs: JsonObject::new(),
@@ -1028,7 +1024,7 @@ where
         });
     };
     let executable = Executable::Agent(agent.clone());
-    let requirements = step_requirements(&executable);
+    let environment = step_environment(&executable);
     // The act's context skills are dated by the run's admission, so the act
     // a step asks again when the run is driven again is the one it waits on.
     let admitted_at = match runtime.options.run.admitted_at()? {
@@ -1042,7 +1038,7 @@ where
         step_id: Some(step.id.clone()),
         executable,
         outputs: step.outputs.clone(),
-        requirements,
+        environment,
         artifacts: step.artifacts.clone(),
         inputs,
         resolved_inputs: JsonObject::new(),
@@ -1153,13 +1149,12 @@ where
     )
 }
 
-fn step_requirements(executable: &Executable) -> runx_contracts::ExecutionRequirements {
-    let environment = match executable {
+fn step_environment(executable: &Executable) -> runx_contracts::EnvironmentRequirements {
+    match executable {
         Executable::Worker(worker) => worker.environment.clone(),
         Executable::Process(process) => process.environment.clone(),
         Executable::Agent(_) => runx_contracts::EnvironmentRequirements::default(),
-    };
-    runx_contracts::ExecutionRequirements { environment }
+    }
 }
 
 // Function rationale: tool execution keeps lookup,
@@ -2089,10 +2084,10 @@ methods:
             return Err("expected a worker step".into());
         };
 
-        let requirements = super::step_requirements(&Executable::Worker(worker.clone()));
+        let environment = super::step_environment(&Executable::Worker(worker.clone()));
 
-        assert_eq!(requirements.environment.required, ["REGION"]);
-        assert_eq!(requirements.environment.optional, ["TRACE_LABEL"]);
+        assert_eq!(environment.required, ["REGION"]);
+        assert_eq!(environment.optional, ["TRACE_LABEL"]);
         Ok(())
     }
 }

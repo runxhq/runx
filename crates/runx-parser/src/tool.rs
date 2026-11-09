@@ -41,18 +41,6 @@ pub struct ValidatedTool {
     pub artifacts: Option<OutputArtifacts>,
 }
 
-impl ValidatedTool {
-    /// Return the exact non-secret execution requirements selected by this
-    /// tool manifest. Runtime callers consume this typed projection instead of
-    /// rescanning the process.
-    #[must_use]
-    pub fn execution_requirements(&self) -> runx_contracts::ExecutionRequirements {
-        runx_contracts::ExecutionRequirements {
-            environment: self.process.environment.clone(),
-        }
-    }
-}
-
 pub fn parse_tool_manifest_yaml(yaml: &str) -> Result<RawToolManifestIr, ParseError> {
     assert_yaml_supported_subset("tool_manifest", yaml)?;
     let parsed: JsonValue =

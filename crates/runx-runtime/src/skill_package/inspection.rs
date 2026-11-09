@@ -104,10 +104,10 @@ pub fn inspect_skill_readiness(
     cwd: &Path,
 ) -> Result<SkillInspection, SkillInspectionError> {
     let mut inspection = inspect_skill_package(skill_path, selected_method, Some(env))?;
-    let Some(requirements) = inspection
+    let Some(environment) = inspection
         .method
         .as_ref()
-        .map(|method| method.requirements.clone())
+        .map(|method| method.environment.clone())
     else {
         return Ok(inspection);
     };
@@ -123,13 +123,13 @@ pub fn inspect_skill_readiness(
         });
         inspection.connector_readiness = readiness;
     }
-    if let Some(environment) = environment_readiness(&requirements, env) {
-        if environment.status != EnvironmentReadinessStatus::Ready {
+    if let Some(readiness) = environment_readiness(&environment, env) {
+        if readiness.status != EnvironmentReadinessStatus::Ready {
             inspection.readiness = Some(InspectionReadiness {
                 status: InspectionReadinessStatus::NeedsEnvironment,
             });
         }
-        inspection.environment = Some(environment);
+        inspection.environment = Some(readiness);
     }
     Ok(inspection)
 }
@@ -137,13 +137,13 @@ pub fn inspect_skill_readiness(
 /// The environment a method reads, by name and availability, never by
 /// value; none when it reads none.
 fn environment_readiness(
-    requirements: &runx_contracts::ExecutionRequirements,
+    environment: &runx_contracts::EnvironmentRequirements,
     env: &BTreeMap<String, String>,
 ) -> Option<EnvironmentReadiness> {
-    if requirements.environment.is_empty() {
+    if environment.is_empty() {
         return None;
     }
-    let variables = crate::environment_requirement_statuses(&requirements.environment, env);
+    let variables = crate::environment_requirement_statuses(environment, env);
     let missing = variables
         .iter()
         .filter(|status| status.required && !status.available)
@@ -540,14 +540,12 @@ mod tests {
 
     #[test]
     fn environment_readiness_names_variables_without_their_values() {
-        let requirements = runx_contracts::ExecutionRequirements {
-            environment: runx_contracts::EnvironmentRequirements {
-                required: vec!["REGION".to_owned()],
-                optional: vec!["TRACE_LABEL".to_owned()],
-            },
+        let environment = runx_contracts::EnvironmentRequirements {
+            required: vec!["REGION".to_owned()],
+            optional: vec!["TRACE_LABEL".to_owned()],
         };
         let readiness = super::environment_readiness(
-            &requirements,
+            &environment,
             &std::collections::BTreeMap::from([(
                 "TRACE_LABEL".to_owned(),
                 "do-not-render".to_owned(),

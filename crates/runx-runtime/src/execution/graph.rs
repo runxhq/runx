@@ -23,7 +23,8 @@ pub(crate) struct LoadedStepSkill {
     pub(crate) version: Option<String>,
     /// The offer the method is sold under, when its package sells it.
     pub(crate) offer: Option<runx_contracts::PaidSkillOfferTerms>,
-    pub(crate) requirements: runx_contracts::ExecutionRequirements,
+    /// The environment variables the method reads, by name.
+    pub(crate) environment: runx_contracts::EnvironmentRequirements,
     pub(crate) directory: PathBuf,
     /// What the skill says it does, as its manual declares.
     pub(crate) description: Option<String>,
@@ -499,7 +500,7 @@ pub(crate) fn step_skill(
         step.skill().and_then(|target| target.method.as_deref()),
     )?
     .clone();
-    let requirements = manifest.execution_requirements(&method);
+    let environment = method.environment();
     let directory = package.directory.clone();
     let manual_path = package.package_root.join("SKILL.md");
     let manual_markdown = package.package.manual_markdown.clone().into();
@@ -509,7 +510,7 @@ pub(crate) fn step_skill(
         version: manifest.version.clone(),
         offer,
         method,
-        requirements,
+        environment,
         directory,
         description: package.package.skill.description.clone(),
         manual_path: manual_path.clone(),

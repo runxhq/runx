@@ -67,8 +67,8 @@ fn envelope(
     package: &crate::LoadedSkillPackage,
     act: Option<&runx_contracts::CallAct>,
 ) -> Result<AgentContextEnvelope, RuntimeError> {
-    crate::execution_environment::resolve_declared_environment(
-        &request.requirements,
+    crate::execution_environment::resolve_environment(
+        &request.environment,
         &request.env,
         &request.skill_directory,
     )?;
@@ -105,9 +105,8 @@ fn envelope(
         instructions: instructions.into(),
         inputs: request.inputs.clone(),
         requirements: AgentExecutionRequirements {
-            declaration: request.requirements.clone(),
             environment: crate::execution_environment::environment_requirement_statuses(
-                &request.requirements.environment,
+                &request.environment,
                 &request.env,
             ),
             execution_boundary: runx_contracts::ExecutionBoundaryObservation {

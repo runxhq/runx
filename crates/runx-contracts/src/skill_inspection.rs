@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
-use crate::{ExecutionRequirements, JsonObject, Readiness};
+use crate::{EnvironmentRequirements, JsonObject, Readiness};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum SkillInspectionSchema {
@@ -112,7 +112,8 @@ pub struct MethodInspection {
     /// The packet each result output declares, by output name, the whole
     /// result's under the name of the output it is.
     pub packets: BTreeMap<String, crate::PacketId>,
-    pub requirements: ExecutionRequirements,
+    /// The environment variables the method reads, by name.
+    pub environment: EnvironmentRequirements,
     /// The connector requirements of the skill, by key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connectors: Option<JsonObject>,

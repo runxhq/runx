@@ -89,7 +89,7 @@ fn run(
 
     let artifacts = resolution.tool.artifacts.clone();
     let declared_inputs = resolution.tool.inputs.clone();
-    let requirements = resolution.tool.execution_requirements();
+    let environment = resolution.tool.process.environment.clone();
     let tool_directory = manifest_directory(&resolution.manifest_path, request.skill_directory);
     let inputs = match crate::input_contract::materialize_tool_inputs(
         &declared_inputs,
@@ -108,7 +108,7 @@ fn run(
         step_id: None,
         executable: crate::adapter::Executable::Process(resolution.tool.process),
         outputs: None,
-        requirements,
+        environment,
         artifacts,
         inputs,
         resolved_inputs: JsonObject::new(),

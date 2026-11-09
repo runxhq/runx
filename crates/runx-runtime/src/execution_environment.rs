@@ -8,9 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use runx_contracts::{
-    EnvironmentRequirementStatus, EnvironmentRequirements, ExecutionRequirements,
-};
+use runx_contracts::{EnvironmentRequirementStatus, EnvironmentRequirements};
 
 use crate::RuntimeError;
 
@@ -73,14 +71,6 @@ fn process_baseline_with_name_case(
                 .map(|value| ((*name).to_owned(), value))
         })
         .collect()
-}
-
-pub(crate) fn resolve_declared_environment(
-    requirements: &ExecutionRequirements,
-    environment: &BTreeMap<String, String>,
-    skill_dir: &Path,
-) -> Result<BTreeMap<String, String>, RuntimeError> {
-    resolve_environment(&requirements.environment, environment, skill_dir)
 }
 
 /// The values of the variables the skill in `skill_dir` declares. A declared

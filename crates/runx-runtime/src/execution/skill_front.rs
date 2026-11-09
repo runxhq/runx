@@ -478,8 +478,8 @@ fn bind_resolved(
         )
         .map_err(|blocked| blocked.error)?;
     }
-    crate::execution_environment::resolve_declared_environment(
-        &manifest.execution_requirements(method),
+    crate::execution_environment::resolve_environment(
+        &method.environment(),
         &skill_env,
         skill_dir,
     )?;

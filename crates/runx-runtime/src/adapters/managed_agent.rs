@@ -781,7 +781,6 @@ mod tests {
             instructions: non_empty(instructions),
             inputs,
             requirements: runx_contracts::AgentExecutionRequirements {
-                declaration: runx_contracts::ExecutionRequirements::default(),
                 environment: Vec::new(),
                 execution_boundary: runx_contracts::ExecutionBoundaryObservation {
                     kind: runx_contracts::ExecutionBoundaryKind::RemoteProvider,

@@ -493,7 +493,6 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
         "instructions": "do the thing",
         "inputs": {},
         "requirements": {
-            "declaration": {},
             "execution_boundary": { "kind": "remote_provider" },
         },
         "current_context": [],
@@ -1476,7 +1475,6 @@ fn agent_context_envelope() -> Value {
         "instructions": "do the thing",
         "inputs": {},
         "requirements": {
-            "declaration": {},
             "execution_boundary": { "kind": "remote_provider" },
         },
         "current_context": [],

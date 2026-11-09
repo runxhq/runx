@@ -81,7 +81,6 @@ mod tests {
             "instructions_digest": "sha256:d264e5fb6c699b5793b06863a0c2d1e77beb6f01e8a7263da65a3986c3836c26",
             "inputs": {},
             "requirements": {
-                "declaration": {},
                 "execution_boundary": { "kind": "remote_provider" }
             },
             "current_context": [],

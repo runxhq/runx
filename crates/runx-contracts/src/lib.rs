@@ -123,7 +123,6 @@ pub use execution::{
 pub use execution_boundary::{ExecutionBoundaryKind, ExecutionBoundaryObservation};
 pub use execution_requirements::{
     AgentExecutionRequirements, EnvironmentRequirementStatus, EnvironmentRequirements,
-    ExecutionRequirements,
 };
 pub use external_job::{
     EXTERNAL_JOB_CONTINUATION_SCHEMA, EXTERNAL_JOB_SCHEDULE_INTENT_SCHEMA,

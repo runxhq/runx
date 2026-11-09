@@ -3,8 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use runx_contracts::{
-    EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue, ProvenanceEntry,
-    sha256_prefixed,
+    EnvironmentRequirements, JsonObject, JsonValue, ProvenanceEntry, sha256_prefixed,
 };
 use runx_parser::{AgentTask, OutputArtifacts};
 
@@ -48,7 +47,7 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
             context_entries: Default::default(),
         }),
         outputs,
-        requirements: ExecutionRequirements::default(),
+        environment: EnvironmentRequirements::default(),
         inputs: JsonObject::new(),
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),
@@ -265,11 +264,9 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
 -> Result<(), Box<dyn std::error::Error>> {
     let skill = temp_skill("Use the declared execution requirements without guessing.")?;
     let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
-    request.requirements = ExecutionRequirements {
-        environment: EnvironmentRequirements {
-            required: vec!["REGION".to_owned()],
-            optional: vec!["TRACE_LABEL".to_owned()],
-        },
+    request.environment = EnvironmentRequirements {
+        required: vec!["REGION".to_owned()],
+        optional: vec!["TRACE_LABEL".to_owned()],
     };
     request.env = BTreeMap::from([
         ("REGION".to_owned(), "ap-southeast-2".to_owned()),
@@ -279,10 +276,6 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
 
     let resolved =
         build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
-    assert_eq!(
-        resolved.envelope.requirements.declaration,
-        request.requirements
-    );
     assert_eq!(
         resolved.envelope.requirements.environment,
         vec![

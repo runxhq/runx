@@ -98,7 +98,6 @@ fn turn(id: &str) -> ResolutionRequest {
         instructions: "Answer.".into(),
         inputs: JsonObject::new(),
         requirements: runx_contracts::AgentExecutionRequirements {
-            declaration: runx_contracts::ExecutionRequirements::default(),
             environment: Vec::new(),
             execution_boundary: runx_contracts::ExecutionBoundaryObservation {
                 kind: runx_contracts::ExecutionBoundaryKind::RemoteProvider,

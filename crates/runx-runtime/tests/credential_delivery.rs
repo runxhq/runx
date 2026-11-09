@@ -92,7 +92,7 @@ fn process_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn
         provenance: Vec::new(),
         skill_directory: std::env::current_dir()?,
         env: process_env(),
-        requirements: Default::default(),
+        environment: Default::default(),
         credential_delivery: delivery,
     })?;
 
@@ -122,7 +122,7 @@ fn process_tool_omits_truncated_output_before_redaction() -> Result<(), Box<dyn 
         provenance: Vec::new(),
         skill_directory: std::env::current_dir()?,
         env: process_env(),
-        requirements: Default::default(),
+        environment: Default::default(),
         credential_delivery: CredentialDelivery::none(),
     })?;
 

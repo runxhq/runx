@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use runx_contracts::{ExecutionRequirements, JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
 use crate::skill::{
@@ -72,17 +72,6 @@ impl SkillMethodManifest {
             Some(name) => self.methods.get(name),
             None if self.methods.len() == 1 => self.methods.values().next(),
             None => None,
-        }
-    }
-
-    /// Return the exact non-secret requirements selected by one method.
-    ///
-    /// This is the parser-owned projection used by inspection and execution;
-    /// downstream consumers must not rescan raw YAML.
-    #[must_use]
-    pub fn execution_requirements(&self, method: &SkillMethodDefinition) -> ExecutionRequirements {
-        ExecutionRequirements {
-            environment: method.environment(),
         }
     }
 }

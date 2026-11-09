@@ -30,7 +30,7 @@ pub(super) fn inspect_method(
             .map(|(name, declaration)| inspect_output(name, declaration))
             .collect(),
         packets: result_packets(method),
-        requirements: manifest.execution_requirements(method),
+        environment: method.environment(),
         connectors: if manifest.connectors.is_empty() {
             None
         } else {

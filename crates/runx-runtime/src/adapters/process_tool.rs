@@ -213,7 +213,7 @@ mod tests {
             skill_name: "default-timeout".to_owned(),
             step_id: None,
             artifacts: None,
-            requirements: Default::default(),
+            environment: Default::default(),
             executable: crate::adapter::Executable::Process(ProcessTool {
                 command: "/bin/sh".to_owned(),
                 args: vec!["-c".to_owned(), "sleep 10".to_owned()],

@@ -579,7 +579,7 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
             environment: Default::default(),
         }),
         outputs: None,
-        requirements: Default::default(),
+        environment: Default::default(),
         artifacts: None,
         inputs,
         resolved_inputs: JsonObject::new(),

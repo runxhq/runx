@@ -84,7 +84,7 @@ impl TwitterFixture {
                 environment: Default::default(),
             }),
             outputs: None,
-            requirements: runx_contracts::ExecutionRequirements::default(),
+            environment: Default::default(),
             artifacts: None,
             inputs: selection_inputs(),
             resolved_inputs: JsonObject::new(),

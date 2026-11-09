@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use runx_contracts::{EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue};
+use runx_contracts::{EnvironmentRequirements, JsonObject, JsonValue};
 use runx_parser::{ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, WorkerTool};
 use runx_runtime::adapter::{
     Executable, InvocationOutput, InvocationStatus, SkillAdapter, SkillInvocation,
@@ -128,9 +128,7 @@ impl JavaScriptPackage {
         worker: WorkerTool,
         env: BTreeMap<String, String>,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        let requirements = ExecutionRequirements {
-            environment: worker.environment.clone(),
-        };
+        let environment = worker.environment.clone();
         self.adapter.invoke(SkillInvocation {
             reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
@@ -139,7 +137,7 @@ impl JavaScriptPackage {
             artifacts: None,
             executable: Executable::Worker(worker),
             outputs: None,
-            requirements,
+            environment,
             inputs,
             resolved_inputs: JsonObject::new(),
             current_context: Vec::new(),

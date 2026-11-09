@@ -48,14 +48,6 @@ impl EnvironmentRequirements {
     }
 }
 
-/// Parser-owned projection of all execution requirements for one act.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ExecutionRequirements {
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub environment: EnvironmentRequirements,
-}
-
 /// Safe environment readiness visible to an operating agent. The value is
 /// deliberately absent: models receive the requirement and its availability,
 /// never ambient or credential material.
@@ -70,7 +62,8 @@ pub struct EnvironmentRequirementStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentExecutionRequirements {
-    pub declaration: ExecutionRequirements,
+    /// Each variable the act declares, whether it's required, and whether
+    /// it's available: the declaration itself, by name, never by value.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub environment: Vec<EnvironmentRequirementStatus>,
     pub execution_boundary: crate::ExecutionBoundaryObservation,
