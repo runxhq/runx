@@ -7,6 +7,7 @@ catalog:
 
 methods:
   turn:
+    description: Decide one loop turn against the loop's policy, continuing, finishing, pausing for a person or refusing, and hand the outer loop its projection update and next-turn handoff.
     inputs:
       loop_id:
         type: string
@@ -63,6 +64,7 @@ methods:
           receipt_notes: {type: object}
 
   context-gate:
+    description: Have an agent review the next turn's plan against the loop operator's advisory context, returning a decision, a summary, the tool it would use and the stop condition.
     inputs:
       objective:
         type: string

@@ -221,6 +221,39 @@ fn refuse_unpinned_registry_refs(
     )))
 }
 
+/// A host shows a package with several methods method by method, each by its
+/// own description, and never the package's (`method_description`). Packaging
+/// refuses one where a method has none, naming each, so no published package
+/// shows a host two methods it can't tell apart.
+fn refuse_undescribed_methods(
+    loaded: &LoadedSkillPackage,
+) -> Result<(), RegistryPublishPackageError> {
+    let Some(manifest) = loaded
+        .manifest()
+        .filter(|manifest| manifest.methods.len() > 1)
+    else {
+        return Ok(());
+    };
+    let undescribed = manifest
+        .methods
+        .iter()
+        .filter(|(_, method)| method.description.is_none())
+        .map(|(name, _)| format!("methods.{name}"))
+        .collect::<Vec<_>>();
+    if undescribed.is_empty() {
+        return Ok(());
+    }
+    let verb = if undescribed.len() == 1 {
+        "has"
+    } else {
+        "have"
+    };
+    Err(RegistryPublishPackageError::invalid(format!(
+        "{} {verb} no description: a package with several methods describes each, so a host can tell them apart",
+        undescribed.join(", ")
+    )))
+}
+
 fn prepare_loaded_package(
     loaded: &LoadedSkillPackage,
     env: &BTreeMap<String, String>,
@@ -230,6 +263,7 @@ fn prepare_loaded_package(
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
     refuse_signatures(loaded, &local_closure)?;
     refuse_unpinned_registry_refs(&local_closure)?;
+    refuse_undescribed_methods(loaded)?;
     let profile_document = loaded
         .profile_path
         .as_deref()
@@ -301,6 +335,51 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(paths, ["runx.package.json"]);
         assert_eq!(package.metadata.name, "manual-only");
+        Ok(())
+    }
+
+    /// A package with several methods is shown method by method, each by its
+    /// own description (surfaces.md), so packaging, and with it publishing,
+    /// refuses one where a method has none, naming it. A lone method borrows
+    /// SKILL.md's description.
+    #[test]
+    fn a_package_with_several_methods_describes_each_or_is_not_packaged()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let package = |run_yaml: &str| -> Result<Result<(), String>, Box<dyn std::error::Error>> {
+            let temp = tempfile::tempdir()?;
+            fs::write(
+                temp.path().join("SKILL.md"),
+                "---\nname: described\ndescription: The package.\n---\n# Described\n",
+            )?;
+            fs::write(temp.path().join("run.yaml"), run_yaml)?;
+            fs::write(
+                temp.path().join("run.mjs"),
+                "export const run = () => ({});\n",
+            )?;
+            Ok(
+                prepare_registry_publish_package(RegistryPublishPackageRequest {
+                    subject: temp.path().to_str().ok_or("temporary path is not UTF-8")?,
+                    env: &BTreeMap::new(),
+                    cwd: temp.path(),
+                })
+                .map(|_| ())
+                .map_err(|error| error.to_string()),
+            )
+        };
+        let step = "    steps:\n      - id: run\n        tool: {module: run.mjs, export: run}\n";
+        let refused = package(&format!(
+            "minimum_runx: 0.12.0\ndefault_method: read\nmethods:\n  read:\n    description: Read one record.\n{step}  write:\n{step}"
+        ))?
+        .err()
+        .ok_or("a package with an undescribed method was packaged")?;
+        assert!(
+            refused.contains("methods.write has no description"),
+            "{refused}"
+        );
+        package(&format!(
+            "minimum_runx: 0.12.0\ndefault_method: read\nmethods:\n  read:\n    description: Read one record.\n{step}  write:\n    description: Write one record.\n{step}"
+        ))??;
+        package(&format!("minimum_runx: 0.12.0\nmethods:\n  run:\n{step}"))??;
         Ok(())
     }
 

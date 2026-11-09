@@ -940,8 +940,10 @@ method by it: the tool a turn offers for the method carries it, the tool
 by it, `skill inspect` shows it, a load lists it, and `registry.search` and
 `runx list skills` show it. Only a skill's one method borrows the skill's
 description when it has none, so that method needs none of its own. In a skill
-with several methods each is told apart by its own description, and each
-method of a runx-maintained skill with several declares one.
+with several methods each is told apart by its own description, so packaging
+refuses one where a method has none, naming the method: `runx registry package`
+and `runx registry publish` refuse it, and the core-skills audit holds each
+runx-maintained skill to it.
 
 The verb, scopes, target and readbacks come from the connector operation, and
 the kernel confirms a write by its declared readbacks before the step

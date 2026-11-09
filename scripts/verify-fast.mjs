@@ -34,6 +34,9 @@ await runParallelGroup("source checks", [
   step("bench harness check's test", "node", ["--test", "scripts/check-bench-harness.test.mjs"]),
   // Offline over fixed fixtures, so the performance gate can't drift unseen.
   step("perf:test-check", "node", ["scripts/check-runtime-perf-test.mjs"]),
+  // The audit's own rules over fixed inspections; the audit itself needs the
+  // built binary and runs in CI's core skills job.
+  step("core skill audit self-test", "node", ["scripts/audit-core-skills.mjs", "--self-test"]),
   step("runx-py", "python3", ["-m", "unittest", "discover", "-s", "packages/sdk-python/tests", "-q"]),
 ]);
 

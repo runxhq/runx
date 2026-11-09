@@ -257,6 +257,7 @@ minimum_runx: 0.12.0
 default_method: default
 methods:
   default:
+    description: Digest a fixed value.
     result_from: [digest]
     steps:
       - id: digest
@@ -264,6 +265,7 @@ methods:
         inputs:
           value: carried
   read:
+    description: Read one issue through fixture/forge.
     inputs:
       repository: {type: string}
       number: {type: integer}
@@ -437,6 +439,7 @@ connectors:
     from: [fixture/automation, fixture/hooks]
 methods:
   default:
+    description: Digest a fixed value.
     inputs:
       provider: {type: string}
     result_from: [digest]
@@ -446,6 +449,7 @@ methods:
         inputs:
           value: connected
   sync:
+    description: List and read forge issues, then deliver a handoff to the webhook chosen for the run.
     inputs:
       provider: {type: string}
     steps:

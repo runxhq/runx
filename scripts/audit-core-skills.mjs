@@ -319,6 +319,13 @@ function validateInspectionClaims({
     if (!hasCanonicalExecutionClosure(methodInspection.execution_closure)) {
       findings.push(`${name}#${expectedMethod}: native inspection omitted the execution closure`);
     }
+    // Inspection resolves the description a host is shown: in a package with
+    // several methods, only the method's own, as packaging requires.
+    if (methodInspections.length > 1 && !methodInspection.method?.description) {
+      findings.push(
+        `${name}#${expectedMethod}: has no description, and a package with several methods describes each`,
+      );
+    }
   }
   return findings;
 }
@@ -618,6 +625,26 @@ function runSelfTests() {
     }).some((finding) => finding.includes("did not inspect every declared method")),
     "an uninspected method must fail",
   );
+  const severalMethods = (otherDescription) => {
+    const other = { name: "other", description: otherDescription };
+    return validateInspectionClaims({
+      name: "alpha",
+      record: maintained[0],
+      decision: { execution: "tool:data.read" },
+      inspection: { ...inspection, methods: ["default", "other"] },
+      methodInspections: [
+        { ...methodInspection, method: { ...inspection.method, description: "Read the fixture." } },
+        { ...methodInspection, method: other },
+      ],
+    });
+  };
+  assert(
+    severalMethods(null).includes(
+      "alpha#other: has no description, and a package with several methods describes each",
+    ),
+    "a method a host can't tell apart from its siblings must fail",
+  );
+  assert(severalMethods("Write the fixture.").length === 0, "methods that each say what they do must pass");
   assert(
     validatePublicInvocationExample("alpha", maintained[0], {
       ...inspection,
