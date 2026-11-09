@@ -506,9 +506,6 @@ nitrosend	graph	1	graph	?	a bare word: code or prose, read in place	connectors/n
 nitrosend	harness-authored	1	harness	harness-authored	mcp-authoring-quality's evaluation harness, which drives candidate models: the agent-host sense the plan keeps, so it stays	skills/nitrosend/mcp-authoring-quality/SKILL.md
 nitrosend	held	1	hold	?	a bare word: code or prose, read in place	skills/nitrosend/load-drill/tools/nitrosend/lib/sends.mjs
 nitrosend	nskey_test_harness	1	harness	nskey_test_key	the test sense, but nskey_test_test reads as a typo; it is load-drill's fake API key	skills/nitrosend/load-drill/tests/check-reads-readiness.yaml
-oss	max_cost_micro	23		max_spend_micro_usd	the authority's spend ceiling, in micro-USD (authority.md)	crates/runx-cli/src/skill/parser.rs crates/runx-contracts/src/authority.rs
-oss	develop	38		write	the agent's write method (D2, §4.2)	skills/agent/run.yaml crates/runx-cli/tests/writes.rs
-oss	write	0		write	stays: the agent's write method takes the word, and every other write keeps it	skills/agent/run.yaml
 oss	runner	2114	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	harness	1143	harness	?	a bare word: code or prose, read in place	.github/workflows/ci.yml .github/workflows/runtime-quality.yml
 oss	graph	1056	graph	?	a bare word: code or prose, read in place	.github/workflows/ci.yml connectors/link/tools/link/payment/link.mjs
@@ -549,6 +546,7 @@ oss	validate_runner_manifest	42	runner	validate_method_manifest		crates/runx-par
 oss	selected_runner	40	runner	selected_method		crates/runx-cli/src/skill.rs crates/runx-contracts/src/host_protocol.rs
 oss	execution-closure-digest	39	closure	execution-closure-digest	a package's closure, or English: stays	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/export/shim.rs
 oss	GraphRun	39	graph	WorkflowRun		crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner.rs
+oss	develop	38		write	the agent's write method (D2, §4.2)	skills/agent/run.yaml crates/runx-cli/tests/writes.rs
 oss	HarnessReplayOutput	36	harness	TestReplayOutput	the test sense	crates/runx-runtime/examples/runx-harness-fixture-oracles.rs crates/runx-runtime/src/execution/harness.rs
 oss	graph_path	35	graph	workflow_path		crates/runx-cli/tests/native_no_ts.rs crates/runx-runtime/src/execution/graph.rs
 oss	harness_fixture	34	harness	test_fixture	the test sense	crates/runx-cli/tests/native_no_ts.rs crates/runx-parser/src/eval.rs
@@ -568,6 +566,7 @@ oss	HarnessFixtureKind	26	harness	TestFixtureKind	the test sense	crates/runx-par
 oss	GraphBlocked	25	graph	WorkflowBlocked		crates/runx-contracts/src/receipt.rs crates/runx-receipts/examples/generate_receipt_verify_corpus.rs
 oss	Held	24	hold	?	a bare word: code or prose, read in place	crates/runx-cli/tests/skill.rs crates/runx-contracts/src/connector_instance.rs
 oss	graph_directory	23	graph	workflow_directory		crates/runx-runtime/src/registry/package_bundle.rs crates/runx-runtime/src/registry/publish_package/bundle.rs
+oss	max_cost_micro	23		max_spend_micro_usd	the authority's spend ceiling, in micro-USD (authority.md)	crates/runx-cli/src/skill/parser.rs crates/runx-contracts/src/authority.rs
 oss	graph_case_count	22	graph	workflow_case_count		crates/runx-cli/src/main.rs crates/runx-runtime/src/execution/harness/package.rs
 oss	SequentialGraphStep	22	graph	SequentialWorkflowStep		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph/index.rs
 oss	harness_path	21	harness	test_path	the test sense	crates/runx-cli/tests/native_no_ts.rs crates/runx-runtime/src/registry/publish_package.rs
@@ -1437,6 +1436,7 @@ oss	Holds	1	hold	?	a bare word: code or prose, read in place	skills/dispute-resp
 oss	holds-changed-head	1	hold	holds-changed-head	English, or a skill's own word: stays	skills/github-pr-review/tests/holds-changed-head.yaml
 oss	holds-identity-conflict	1	hold	holds-identity-conflict	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-identity-conflict.yaml
 oss	holds-invalid-funnel	1	hold	holds-invalid-funnel	English, or a skill's own word: stays	skills/product-analytics/tests/holds-invalid-funnel.yaml
+oss	holds-locked-email	1	hold	holds-locked-email	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-locked-email.yaml
 oss	holds-out-of-scope-context	1	hold	holds-out-of-scope-context	English, or a skill's own word: stays	skills/cold-outreach/tests/holds-out-of-scope-context.yaml
 oss	holds-suppressed-recipient	1	hold	holds-suppressed-recipient	English, or a skill's own word: stays	skills/cold-outreach/tests/holds-suppressed-recipient.yaml
 oss	holds-unknown-contact-policy	1	hold	holds-unknown-contact-policy	English, or a skill's own word: stays	skills/lead-qualify/tests/holds-unknown-contact-policy.yaml
@@ -1684,3 +1684,4 @@ oss	Turn		moved	Turn	Kam, 8 November: today's trait has one implementation, Open
 oss	TurnEnvelope		moved	TurnViewEnvelope	the plan's name (§4.2): host_protocol.rs:651	
 oss	TurnInvocation		moved	TurnView	the plan's name (§4.2): host_protocol.rs:618	
 oss	TurnInvocationContract		decided	TurnViewContract	the plan's name (§4.2): today's TurnInvocation's contract type	
+oss	write	0		write	stays: the agent's write method takes the word, and every other write keeps it	skills/agent/run.yaml
