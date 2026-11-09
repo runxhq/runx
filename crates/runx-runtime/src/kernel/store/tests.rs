@@ -395,7 +395,6 @@ fn recent_heads_page_newest_first() {
                 Append::kernel(key, Expected::Absent, &Ledger::Moved { amount: 1 }).unwrap(),
             ])
             .unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(2));
     }
     store
         .append(vec![
@@ -417,6 +416,33 @@ fn recent_heads_page_newest_first() {
             .collect::<Vec<_>>(),
         ["b"]
     );
+}
+
+#[test]
+fn heads_committed_in_one_instant_page_once_each_newest_first() {
+    let (_root, store) = store();
+    // One batch commits every append at the same instant, so the stamp ties;
+    // the keys run against the commit order.
+    store
+        .append(
+            ["m", "z", "a"]
+                .into_iter()
+                .map(|key| Append::kernel(key, Expected::Absent, &Ledger::Moved { amount: 1 }))
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+        )
+        .unwrap();
+    let mut paged = Vec::new();
+    let mut before = None;
+    loop {
+        let page = store.recent_heads::<Ledger>(before.as_ref(), 1).unwrap();
+        let Some(head) = page.into_iter().next() else {
+            break;
+        };
+        paged.push(head.key.clone());
+        before = Some(head);
+    }
+    assert_eq!(paged, ["a", "z", "m"]);
 }
 
 #[test]

@@ -5,6 +5,9 @@
 //! process writes its counts at exit only when `RUNX_PERF_COUNTS_PATH` names
 //! a file, which only a probe sets; a workspace's `.env` can't set a `RUNX_`
 //! name (`services/env.rs`).
+//!
+//! The counts are the process's, so a test reads them in a process that runs
+//! that test alone ([`alone`]).
 
 use std::cell::Cell;
 use std::collections::BTreeMap;
@@ -33,6 +36,8 @@ pub(crate) enum Work {
     /// A run taken whole: its record replayed from its stream, or every one
     /// of its calls sealed into its receipt.
     RunMaterialization,
+    /// A row the kernel store read: an event, a stream's head or a blob.
+    StoreRowRead,
 }
 
 static PROCESS_SPAWNS: AtomicU64 = AtomicU64::new(0);
@@ -47,6 +52,7 @@ static ARTIFACT_BYTES_ADMITTED: AtomicU64 = AtomicU64::new(0);
 static ARTIFACT_STORE_BYTES_READ: AtomicU64 = AtomicU64::new(0);
 static ARTIFACT_BYTES_TO_WORKER: AtomicU64 = AtomicU64::new(0);
 static ARTIFACT_BYTES_TO_RESULT: AtomicU64 = AtomicU64::new(0);
+static STORE_ROWS_READ: AtomicU64 = AtomicU64::new(0);
 
 /// The points an artifact's bytes are copied at, from the store to a worker
 /// and to a result.
@@ -89,6 +95,11 @@ thread_local! {
 
 /// Count one unit of `work`.
 pub(crate) fn count(work: Work) {
+    count_many(work, 1);
+}
+
+/// Count `units` units of `work`.
+pub(crate) fn count_many(work: Work, units: usize) {
     let counter = match work {
         Work::ProcessSpawn => &PROCESS_SPAWNS,
         Work::NetworkRequest => &NETWORK_REQUESTS,
@@ -96,8 +107,9 @@ pub(crate) fn count(work: Work) {
         Work::StoreWrite => &STORE_WRITES,
         Work::ProviderCall => &PROVIDER_CALLS,
         Work::RunMaterialization => &RUN_MATERIALIZATIONS,
+        Work::StoreRowRead => &STORE_ROWS_READ,
     };
-    counter.fetch_add(1, Ordering::Relaxed);
+    counter.fetch_add(u64::try_from(units).unwrap_or(u64::MAX), Ordering::Relaxed);
 }
 
 /// Count a spawn that succeeded, and pass its result on.
@@ -188,6 +200,8 @@ pub struct WorkCounts {
     pub artifact_bytes_to_worker: u64,
     /// Artifact bytes in the pages reads returned.
     pub artifact_bytes_to_result: u64,
+    /// Rows the kernel store read: events, stream heads and blobs.
+    pub store_rows_read: u64,
 }
 
 #[must_use]
@@ -219,6 +233,7 @@ pub fn snapshot() -> WorkCounts {
         artifact_store_bytes_read: ARTIFACT_STORE_BYTES_READ.load(Ordering::Relaxed),
         artifact_bytes_to_worker: ARTIFACT_BYTES_TO_WORKER.load(Ordering::Relaxed),
         artifact_bytes_to_result: ARTIFACT_BYTES_TO_RESULT.load(Ordering::Relaxed),
+        store_rows_read: STORE_ROWS_READ.load(Ordering::Relaxed),
     }
 }
 
@@ -234,6 +249,54 @@ pub fn record_from_process_env() -> std::io::Result<()> {
     };
     let counts = serde_json::to_vec(&snapshot()).map_err(std::io::Error::other)?;
     std::fs::write(path, counts)
+}
+
+/// The variable naming the one test a process of a test binary runs alone.
+#[cfg(test)]
+const ALONE_ENV: &str = "RUNX_WORK_COUNTS_ALONE";
+
+/// The variable naming the file a test run alone writes what it measured to.
+#[cfg(test)]
+const ALONE_PATH_ENV: &str = "RUNX_WORK_COUNTS_ALONE_PATH";
+
+/// What `measure` returns, measured in a process of this test binary that
+/// runs only the test at `test`, as `module_path!()` and its name spell it,
+/// so no test running beside it moves the counts `measure` reads. The process
+/// that runs it alone runs `measure` and writes what it returned where the
+/// one that launched it reads it back.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn alone<T>(test: &str, measure: impl FnOnce() -> T) -> T
+where
+    T: Serialize + serde::de::DeserializeOwned,
+{
+    let name = test.split_once("::").map_or(test, |(_, name)| name);
+    if std::env::var(ALONE_ENV).as_deref() == Ok(name) {
+        let measured = measure();
+        let path = std::env::var_os(ALONE_PATH_ENV).expect("where to write what it measured");
+        std::fs::write(
+            path,
+            serde_json::to_vec(&measured).expect("what a test measured is JSON"),
+        )
+        .expect("writing what a test measured");
+        return measured;
+    }
+    let directory = tempfile::tempdir().expect("a directory for what a test measures");
+    let path = directory.path().join("measured.json");
+    let output = std::process::Command::new(std::env::current_exe().expect("this test binary"))
+        .args(["--exact", name, "--test-threads=1"])
+        .env(ALONE_ENV, name)
+        .env(ALONE_PATH_ENV, &path)
+        .output()
+        .expect("running a test alone");
+    assert!(
+        output.status.success(),
+        "{name}, run alone:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&std::fs::read(&path).expect("what a test run alone measured"))
+        .expect("what a test measured reads back")
 }
 
 #[cfg(test)]

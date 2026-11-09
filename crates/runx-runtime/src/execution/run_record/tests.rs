@@ -352,7 +352,6 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
     for run_id in ["run_triage_a", "run_triage_b"] {
         let log = RunLog::open(Arc::clone(&store), run_id).unwrap();
         start(&log, &JsonObject::new());
-        std::thread::sleep(std::time::Duration::from_millis(2));
     }
     let paused = RunLog::open(Arc::clone(&store), "run_triage_a").unwrap();
     paused.load().unwrap();
@@ -998,15 +997,17 @@ fn a_read_after_its_cursor_returns_only_new_events_in_every_stream() {
         Some(first.cursor.as_str()),
     )
     .unwrap();
+    // In the order the tree committed them: the child started before the
+    // parent's step was recorded.
     assert_eq!(
         kinds(&second),
         [
-            ("run_read_1".to_owned(), 3, "step".to_owned()),
             (
                 "run_read_1/review".to_owned(),
                 1,
                 "child_started".to_owned()
             ),
+            ("run_read_1".to_owned(), 3, "step".to_owned()),
         ]
     );
     let third = read_run(
@@ -1072,6 +1073,154 @@ fn a_long_record_is_read_in_pages() {
     assert_eq!(rest.events.len(), 21);
     assert!(!rest.more);
     assert_eq!(rest.events[0].version, 501);
+}
+
+#[test]
+fn a_poll_reads_what_changed_since_its_cursor_not_the_tree() {
+    let test = concat!(
+        module_path!(),
+        "::a_poll_reads_what_changed_since_its_cursor_not_the_tree"
+    );
+    // The events a poll returns after one new event, and the rows it reads,
+    // in a run with `children` child runs whose earlier events the cursor
+    // already covers.
+    let poll = |children: usize| -> (usize, u64) {
+        let workspace = tempfile::tempdir().unwrap();
+        let (env, store) = project_env(&workspace);
+        let parent = RunLog::open(Arc::clone(&store), "run_poll").unwrap();
+        start(&parent, &JsonObject::new());
+        let mut last = None;
+        for index in 0..children {
+            let step_id = format!("step-{index}");
+            let child = parent.child(&step_id).unwrap();
+            child
+                .start_child(ChildStart {
+                    parent: "run_poll",
+                    step_id: &step_id,
+                    skill: "review",
+                    inputs: &JsonObject::new(),
+                    act: None,
+                    implementation: &implementation(),
+                    must_match: true,
+                    created_at: "2026-10-09T00:00:00.000Z",
+                })
+                .unwrap();
+            last = Some(child);
+        }
+        parent
+            .record_request("send", 1, &approval("send.approval"))
+            .unwrap();
+        let cursor = read_to_the_end(&env, workspace.path(), "run_poll");
+        last.unwrap()
+            .record_skipped(vec!["later".to_owned()])
+            .unwrap();
+        counted_poll(&env, workspace.path(), "run_poll", &cursor)
+    };
+    let ((small_events, small_rows), (large_events, large_rows)) =
+        crate::work_counts::alone(test, || (poll(10), poll(1_000)));
+    assert_eq!((small_events, large_events), (1, 1));
+    assert_eq!(
+        small_rows, large_rows,
+        "a poll reads what changed, not what exists"
+    );
+}
+
+#[test]
+fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
+    let test = concat!(
+        module_path!(),
+        "::a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn"
+    );
+    // The events a poll returns after one new call, what the run waits on,
+    // and the rows the poll reads, at a turn whose first call still waits on
+    // its approval and which made `calls` calls the cursor already covers.
+    let poll = |calls: u32| -> (usize, Vec<String>, u64) {
+        let workspace = tempfile::tempdir().unwrap();
+        let (env, store) = project_env(&workspace);
+        let log = RunLog::open(Arc::clone(&store), "run_turn_poll").unwrap();
+        start(&log, &JsonObject::new());
+        log.record_request("answer", 1, &turn("answer")).unwrap();
+        let turn = waiting_requests(&store, "run_turn_poll").unwrap().remove(0);
+        let ask = approval("answer/0");
+        let pending = CallOutcome::Pending(PendingRequest {
+            id: "answer/0".to_owned(),
+            value: serde_json::from_value(serde_json::to_value(&ask).unwrap()).unwrap(),
+            digest: request_digest(&ask).unwrap(),
+        });
+        let target = CallTarget::Tool {
+            tool: "data.digest".into(),
+        };
+        let call = |index: u32, outcome: &CallOutcome| {
+            log.record_call(&CallRecord {
+                step_id: "answer",
+                attempt: 1,
+                turn: Some(&turn),
+                index,
+                call_id: None,
+                target: &target,
+                input: &JsonObject::new(),
+                outcome,
+                outputs: &[],
+                standing: None,
+                answers: &[],
+                cancelled: false,
+                inline_bound: None,
+            })
+            .unwrap();
+        };
+        call(0, &pending);
+        for index in 1..calls {
+            call(
+                index,
+                &CallOutcome::Completed(Box::new(step(
+                    "run_turn_poll",
+                    &format!("answer/{index}"),
+                ))),
+            );
+        }
+        let cursor = read_to_the_end(&env, workspace.path(), "run_turn_poll");
+        call(
+            calls,
+            &CallOutcome::Completed(Box::new(step("run_turn_poll", &format!("answer/{calls}")))),
+        );
+        let (events, rows) = counted_poll(&env, workspace.path(), "run_turn_poll", &cursor);
+        (events, waiting_ids(&store, "run_turn_poll"), rows)
+    };
+    let (small, large) = crate::work_counts::alone(test, || (poll(10), poll(1_000)));
+    assert_eq!((small.0, large.0), (1, 1));
+    assert_eq!(small.1, ["answer", "answer/0"]);
+    assert_eq!(large.1, small.1, "the turn still waits on its first call");
+    assert_eq!(
+        small.2, large.2,
+        "a poll at a turn reads what changed, not the turn"
+    );
+}
+
+/// The cursor of a read of `run_id` that reached its last event.
+fn read_to_the_end(env: &BTreeMap<String, String>, cwd: &std::path::Path, run_id: &str) -> String {
+    let mut cursor: Option<String> = None;
+    loop {
+        let read = read_run(env, cwd, run_id, cursor.as_deref()).unwrap();
+        let reached = read.cursor.as_str().to_owned();
+        if !read.more {
+            return reached;
+        }
+        cursor = Some(reached);
+    }
+}
+
+/// The events a poll of `run_id` after `cursor` returns, and the rows of
+/// the store it reads.
+fn counted_poll(
+    env: &BTreeMap<String, String>,
+    cwd: &std::path::Path,
+    run_id: &str,
+    cursor: &str,
+) -> (usize, u64) {
+    let before = crate::work_counts::snapshot().store_rows_read;
+    let read = read_run(env, cwd, run_id, Some(cursor)).unwrap();
+    let rows = crate::work_counts::snapshot().store_rows_read - before;
+    (read.events.len(), rows)
 }
 
 #[test]

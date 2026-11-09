@@ -232,13 +232,14 @@ journey whose owner hasn't added its probe yet.
 A probe counts what the runtime counted, never what it timed. The runtime
 counts its work as it does it (`runx_runtime::work_counts`): the processes it
 spawns, its network requests, the package sources it assembles and verifies,
-by identity, the kernel store's committed writes, the operations it dispatches
-to providers, and whether a store transaction was open across one, each
-time it takes a run whole, replaying the run's record or sealing every call
-into its receipt, and an artifact's bytes at each point they're copied: into
-the artifact store, out of it, to a worker, and into a page a read returns. A
-CLI process writes these where `RUNX_PERF_COUNTS_PATH` names at exit, and a
-bench reads them in process.
+by identity, the kernel store's committed writes and the rows it reads, the
+operations it dispatches to providers, and whether a store transaction was
+open across one, each time it takes a run whole, replaying the run's record or
+sealing every call into its receipt, and an artifact's bytes at each point
+they're copied: into the artifact store, out of it, to a worker, and into a
+page a read returns. A CLI process writes these where `RUNX_PERF_COUNTS_PATH`
+names at exit, a bench reads them in process, and a unit test reads them in a
+process of its test binary that runs that test alone.
 
 - **Journey 1, cold start.** The capture launches `runx skill inspect` on one
   skill in workspaces of 1, 10, 100 and 1,000 alike packages, each a new

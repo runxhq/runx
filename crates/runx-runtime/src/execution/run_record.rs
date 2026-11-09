@@ -228,6 +228,11 @@ enum HoldEvent {
         request_id: String,
         request: String,
         digest: String,
+        /// At a step that makes calls, an agent's turn or a script, its calls
+        /// that still wait, so what the step waits on is read from its hold
+        /// alone.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        waiting: Vec<WaitingCallEvent>,
     },
     /// The step's child run holds the request.
     Child { run_id: String },
@@ -282,6 +287,64 @@ struct CallEvent {
     /// each field past it reached the script by reference to its artifact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     inline_bound: Option<u64>,
+    /// A turn's call leaves its run paused at the turn: the turn's calls that
+    /// still wait once it is recorded, itself among them while it waits, in
+    /// order, so what the turn waits on is read from its latest call alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    waiting: Vec<WaitingCallEvent>,
+}
+
+/// A call of a step that still waits, and on what, as its latest event left
+/// it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "on", rename_all = "snake_case", deny_unknown_fields)]
+enum WaitingCallEvent {
+    /// Its own ask, approval or wait, or the retry of a claim that never
+    /// settled.
+    Request {
+        index: u32,
+        request_id: String,
+        /// Blob: the request.
+        request: String,
+        digest: String,
+    },
+    /// What the child run it started waits on.
+    Child { index: u32, run_id: String },
+}
+
+impl WaitingCallEvent {
+    /// What call `index`, settled by `outcome`, waits on; nothing once it
+    /// has ended.
+    fn of(index: u32, outcome: &CallOutcomeEvent) -> Option<Self> {
+        match outcome {
+            CallOutcomeEvent::Pending {
+                request_id,
+                request,
+                digest,
+            }
+            | CallOutcomeEvent::Claimed {
+                request_id,
+                request,
+                digest,
+            } => Some(Self::Request {
+                index,
+                request_id: request_id.clone(),
+                request: request.clone(),
+                digest: digest.clone(),
+            }),
+            CallOutcomeEvent::Child { run_id } => Some(Self::Child {
+                index,
+                run_id: run_id.clone(),
+            }),
+            CallOutcomeEvent::Completed { .. }
+            | CallOutcomeEvent::Refused { .. }
+            | CallOutcomeEvent::Failed { .. }
+            | CallOutcomeEvent::Cancelled
+            | CallOutcomeEvent::Waited { .. }
+            | CallOutcomeEvent::Read { .. }
+            | CallOutcomeEvent::TooLarge { .. } => None,
+        }
+    }
 }
 
 /// A script read the clock: what `ctx.now()` returned at its position in its
@@ -659,13 +722,16 @@ struct RunLogInner {
     calls: Mutex<CallIndex>,
 }
 
-/// The version of each step's first call or clock read, by step and attempt,
-/// complete for the stream through `through`: a turn's or a script's calls
-/// are read from its first, never from the run's start.
+/// The version of each step's first call or clock read, and the calls of
+/// each step that still wait, by index, by step and attempt, complete for the
+/// stream through `through`: a turn's or a script's calls are read from its
+/// first, never from the run's start, and what a step's calls wait on is
+/// written beside its hold or its turn's call without reading any of them.
 #[derive(Clone, Default)]
 struct CallIndex {
     through: u64,
     first: BTreeMap<(String, u32), u64>,
+    waiting: BTreeMap<(String, u32), BTreeMap<u32, WaitingCallEvent>>,
 }
 
 impl CallIndex {
@@ -679,6 +745,16 @@ impl CallIndex {
 
     /// `event`, at `version`, the next the stream holds.
     fn note(&mut self, version: u64, event: &RunEvent) {
+        if let RunEvent::Call(call) = event {
+            let waiting = self
+                .waiting
+                .entry((call.step_id.clone(), call.attempt))
+                .or_default();
+            match WaitingCallEvent::of(call.index, &call.outcome) {
+                Some(waits) => waiting.insert(call.index, waits),
+                None => waiting.remove(&call.index),
+            };
+        }
         let step = match event {
             RunEvent::Call(call) => Some((&call.step_id, call.attempt)),
             // A script may read the clock before it makes a call.
@@ -1102,6 +1178,10 @@ impl RunLog {
         request: &ResolutionRequest,
     ) -> Result<(), RunRecordError> {
         let (request_id, blob, digest) = request_blob(request)?;
+        let waiting = self
+            .waiting_calls(step_id, attempt)?
+            .into_values()
+            .collect();
         self.append(
             RunEvent::Suspended(Box::new(SuspendedEvent {
                 step_id: step_id.to_owned(),
@@ -1110,6 +1190,7 @@ impl RunLog {
                     request_id,
                     request: blob.digest().to_owned(),
                     digest,
+                    waiting,
                 },
                 answers: Vec::new(),
             })),
@@ -1344,6 +1425,19 @@ impl RunLog {
             .iter()
             .map(|answer| Blob::json(&answer.value))
             .collect::<Result<Vec<_>, _>>()?;
+        // A turn's call is where its run stands, so it names what the turn
+        // waits on; a script stands on its hold, which names it there.
+        let waiting = match &turn_event {
+            Some(_) => {
+                let mut waiting = self.waiting_calls(call.step_id, call.attempt)?;
+                match WaitingCallEvent::of(call.index, &outcome) {
+                    Some(waits) => waiting.insert(call.index, waits),
+                    None => waiting.remove(&call.index),
+                };
+                waiting.into_values().collect()
+            }
+            None => Vec::new(),
+        };
         let event = CallEvent {
             step_id: call.step_id.to_owned(),
             attempt: call.attempt,
@@ -1367,9 +1461,42 @@ impl RunLog {
                 .collect(),
             cancelled: call.cancelled,
             inline_bound: call.inline_bound,
+            waiting,
         };
         blobs.extend(values);
         self.append_settling(RunEvent::Call(Box::new(event)), blobs, settlement)
+    }
+
+    /// The calls of the step at `step_id`'s `attempt` that still wait, by
+    /// index, as the stream stands: from this log's index of calls while it
+    /// is whole, and otherwise from the run read whole once, which leaves a
+    /// driver's index whole.
+    fn waiting_calls(
+        &self,
+        step_id: &str,
+        attempt: u32,
+    ) -> Result<BTreeMap<u32, WaitingCallEvent>, RunRecordError> {
+        let step = (step_id.to_owned(), attempt);
+        let version = *self.version();
+        {
+            let index = self.call_index();
+            if index.through == version {
+                return Ok(index.waiting.get(&step).cloned().unwrap_or_default());
+            }
+        }
+        crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
+        let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
+        let read = CallIndex::of(&events);
+        let waiting = read.waiting.get(&step).cloned().unwrap_or_default();
+        if self.0.strict {
+            if read.through != version {
+                return Err(RunRecordError::Contended {
+                    run_id: self.0.run_id.clone(),
+                });
+            }
+            *self.call_index() = read;
+        }
+        Ok(waiting)
     }
 
     pub(crate) fn record_sealed(
@@ -1760,6 +1887,7 @@ fn replay(
                         request_id,
                         request,
                         digest,
+                        ..
                     } => Hold::Request(PendingRequest {
                         id: request_id,
                         value: store.blob_json(&request)?,
@@ -1839,16 +1967,6 @@ fn replay(
         }
     }
     Ok(Some(record))
-}
-
-/// One turn's calls, each as its latest event settled it, in order.
-fn turn_calls(
-    store: &KernelStore,
-    events: impl IntoIterator<Item = RunEvent>,
-    step_id: &str,
-    attempt: u32,
-) -> Result<Vec<RecordedCall>, RunRecordError> {
-    Ok(step_calls(store, events, step_id, attempt)?.0)
 }
 
 /// A step's calls, by index, each keeping the place of its latest event, and
@@ -2042,27 +2160,24 @@ fn collect_waiting(
     };
     push_waiting(waiting, held.request);
     // A step that makes calls, an agent's turn or a script, waits on every
-    // call of its that waits, each listed once.
-    let events = store.read::<RunEvent>(&held.run_id)?;
-    let calls = turn_calls(
-        store,
-        events.into_iter().map(|event| event.event),
-        &held.step_id,
-        held.attempt,
-    )?;
-    for call in calls {
-        match call.outcome {
-            CallOutcome::Pending(request) | CallOutcome::Claimed(request) => {
-                push_waiting(waiting, request);
-            }
-            CallOutcome::Child(child) => collect_waiting(store, &child, waiting)?,
-            CallOutcome::Completed(_)
-            | CallOutcome::Refused(_)
-            | CallOutcome::Failed(_)
-            | CallOutcome::Cancelled
-            | CallOutcome::Waited(_)
-            | CallOutcome::Read(_)
-            | CallOutcome::TooLarge { .. } => {}
+    // call of its that waits, each listed once, as its hold or its turn's
+    // latest call names them.
+    for call in held.waiting {
+        match call {
+            WaitingCallEvent::Request {
+                request_id,
+                request,
+                digest,
+                ..
+            } => push_waiting(
+                waiting,
+                PendingRequest {
+                    id: request_id,
+                    value: store.blob_json(&request)?,
+                    digest,
+                },
+            ),
+            WaitingCallEvent::Child { run_id, .. } => collect_waiting(store, &run_id, waiting)?,
         }
     }
     Ok(())
@@ -2076,12 +2191,11 @@ fn push_waiting(waiting: &mut Vec<PendingRequest>, request: PendingRequest) {
     }
 }
 
-/// Where a run's step is held: the run and step that asked, and the request.
+/// Where a run's step is held: the request it waits on, and at a step that
+/// makes calls, those that still wait.
 struct Held {
-    run_id: String,
-    step_id: String,
-    attempt: u32,
     request: PendingRequest,
+    waiting: Vec<WaitingCallEvent>,
 }
 
 /// Where `run_id` is held, following the child runs workflow steps hold down to
@@ -2097,29 +2211,30 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
             // A turn's call leaves the run waiting on the turn it was made
             // in.
             RunEvent::Call(call) => {
+                let call = *call;
                 let Some(turn) = call.turn else {
                     return Ok(None);
                 };
                 return Ok(Some(Held {
-                    run_id: current,
                     request: PendingRequest {
                         id: turn.request_id,
                         value: store.blob_json(&turn.request)?,
                         digest: turn.digest,
                     },
-                    step_id: call.step_id,
-                    attempt: call.attempt,
+                    waiting: call.waiting,
                 }));
             }
             _ => return Ok(None),
         };
-        match suspended.hold {
+        // A step waiting on a retry or a claim has made no call that waits.
+        let (request_id, request, digest, waiting) = match suspended.hold {
             HoldEvent::Request {
                 request_id,
                 request,
                 digest,
-            }
-            | HoldEvent::Retry {
+                waiting,
+            } => (request_id, request, digest, waiting),
+            HoldEvent::Retry {
                 request_id,
                 request,
                 digest,
@@ -2129,20 +2244,20 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
                 request_id,
                 request,
                 digest,
-            } => {
-                return Ok(Some(Held {
-                    run_id: current,
-                    request: PendingRequest {
-                        id: request_id,
-                        value: store.blob_json(&request)?,
-                        digest,
-                    },
-                    step_id: suspended.step_id,
-                    attempt: suspended.attempt,
-                }));
+            } => (request_id, request, digest, Vec::new()),
+            HoldEvent::Child { run_id } => {
+                current = run_id;
+                continue;
             }
-            HoldEvent::Child { run_id } => current = run_id,
-        }
+        };
+        return Ok(Some(Held {
+            request: PendingRequest {
+                id: request_id,
+                value: store.blob_json(&request)?,
+                digest,
+            },
+            waiting,
+        }));
     }
 }
 

@@ -55,6 +55,11 @@ pub(super) fn retired_effects_in_flight(retired: &Path) -> Result<Vec<String>, K
     Ok(keys)
 }
 
+/// `sequence` is the store's commit order: one number per event across every
+/// stream, assigned at commit, so it only grows and no two events share one.
+/// A key's row holds its newest event's. `tree` is the root key of the event's
+/// stream tree, its key up to the first `/`, so a tree's events after a commit
+/// are one range of an index.
 const SCHEMA: &str = "
 CREATE TABLE kernel_keys (
   stream TEXT NOT NULL,
@@ -63,6 +68,7 @@ CREATE TABLE kernel_keys (
   event_type TEXT NOT NULL,
   chain TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  sequence INTEGER NOT NULL CHECK (sequence > 0),
   PRIMARY KEY (stream, key)
 ) WITHOUT ROWID;
 
@@ -74,10 +80,13 @@ CREATE TABLE kernel_events (
   data BLOB NOT NULL,
   chain TEXT NOT NULL,
   committed_at TEXT NOT NULL,
+  sequence INTEGER NOT NULL UNIQUE CHECK (sequence > 0),
+  tree TEXT NOT NULL,
   PRIMARY KEY (stream, key, version)
 ) WITHOUT ROWID;
 
-CREATE INDEX kernel_keys_recent ON kernel_keys (stream, updated_at, key);
+CREATE INDEX kernel_keys_recent ON kernel_keys (stream, sequence);
+CREATE INDEX kernel_events_tree ON kernel_events (stream, tree, sequence);
 
 CREATE TABLE kernel_blobs (
   digest TEXT NOT NULL PRIMARY KEY,

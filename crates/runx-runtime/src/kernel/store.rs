@@ -166,6 +166,17 @@ pub struct Head {
     pub version: u64,
     pub event_type: String,
     pub updated_at: String,
+    /// Its newest event's place in the store's commit order.
+    pub sequence: u64,
+}
+
+/// One event of a stream tree: the stream it's in, and its place in the
+/// store's commit order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TreeEvent<E> {
+    pub key: String,
+    pub sequence: u64,
+    pub recorded: Recorded<E>,
 }
 
 #[derive(Debug, Error)]
@@ -328,6 +339,16 @@ impl KernelStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|source| self.database("starting a batch", source))?;
+        // The batch commits after every earlier one, so its events follow
+        // every committed event, in the batch's order.
+        let mut sequence = transaction
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) FROM kernel_events",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|source| self.database("reading the commit sequence", source))?
+            as u64;
         let mut versions = Vec::with_capacity(batch.len());
         for append in &batch {
             let head: Option<(u64, String)> = transaction
@@ -348,11 +369,13 @@ impl KernelStore {
                 });
             }
             let version = actual + 1;
+            sequence += 1;
             let chain = chain_link(&previous_chain, append.event_type, &append.data);
             transaction
                 .execute(
-                    "INSERT INTO kernel_events (stream, key, version, event_type, data, chain, committed_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    "INSERT INTO kernel_events
+                       (stream, key, version, event_type, data, chain, committed_at, sequence, tree)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     params![
                         append.kind,
                         append.key,
@@ -360,24 +383,28 @@ impl KernelStore {
                         append.event_type,
                         append.data,
                         chain,
-                        committed_at
+                        committed_at,
+                        sequence as i64,
+                        tree_of(&append.key)
                     ],
                 )
                 .map_err(|source| self.database("appending an event", source))?;
             transaction
                 .execute(
-                    "INSERT INTO kernel_keys (stream, key, version, event_type, chain, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                    "INSERT INTO kernel_keys (stream, key, version, event_type, chain, updated_at, sequence)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                      ON CONFLICT (stream, key) DO UPDATE SET
                        version = excluded.version, event_type = excluded.event_type,
-                       chain = excluded.chain, updated_at = excluded.updated_at",
+                       chain = excluded.chain, updated_at = excluded.updated_at,
+                       sequence = excluded.sequence",
                     params![
                         append.kind,
                         append.key,
                         version as i64,
                         append.event_type,
                         chain,
-                        committed_at
+                        committed_at,
+                        sequence as i64
                     ],
                 )
                 .map_err(|source| self.database("advancing a stream head", source))?;
@@ -441,6 +468,7 @@ impl KernelStore {
         let Some((event_type, data, chain, committed_at)) = row else {
             return Ok(None);
         };
+        crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
         let invalid = || KernelStoreError::Integrity {
             kind: E::KIND.to_owned(),
             key: key.to_owned(),
@@ -484,7 +512,7 @@ impl KernelStore {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
-                "SELECT key, version, event_type, updated_at FROM kernel_keys
+                "SELECT key, version, event_type, updated_at, sequence FROM kernel_keys
                  WHERE stream = ?1 AND (key = ?2 OR (key >= ?3 AND key < ?4)) ORDER BY key",
             )
             .map_err(|source| self.database("preparing a stream tree listing", source))?;
@@ -521,7 +549,10 @@ impl KernelStore {
                     format!("{root}/"),
                     format!("{root}0")
                 ],
-                |row| row.get::<_, String>(0),
+                |row| {
+                    crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+                    row.get::<_, String>(0)
+                },
             )
             .and_then(Iterator::collect)
             .map_err(|source| self.database("searching a stream tree", source))
@@ -537,6 +568,90 @@ impl KernelStore {
         self.read_range(E::KIND, key, after, None)
     }
 
+    /// At most `limit` events of `root`'s stream tree committed after
+    /// `after`, in the order they were committed, each checked against the
+    /// link before it in its own stream's chain. What it reads is what the
+    /// tree committed since `after`, however much the tree already holds.
+    pub(crate) fn tree_after<E: StreamEvent>(
+        &self,
+        root: &str,
+        after: u64,
+        limit: usize,
+    ) -> Result<Vec<TreeEvent<E>>, KernelStoreError> {
+        let connection = self.lock();
+        let mut statement = connection
+            .prepare_cached(
+                "SELECT e.key, e.version, e.event_type, e.data, e.chain, e.committed_at, e.sequence,
+                        (SELECT p.chain FROM kernel_events p
+                         WHERE p.stream = e.stream AND p.key = e.key AND p.version = e.version - 1)
+                 FROM kernel_events e
+                 WHERE e.stream = ?1 AND e.tree = ?2 AND e.sequence > ?3
+                 ORDER BY e.sequence LIMIT ?4",
+            )
+            .map_err(|source| self.database("preparing a stream tree read", source))?;
+        let rows = statement
+            .query_map(params![E::KIND, root, after as i64, limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)? as u64,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Vec<u8>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, i64>(6)? as u64,
+                    row.get::<_, Option<String>>(7)?,
+                ))
+            })
+            .map_err(|source| self.database("reading a stream tree", source))?;
+        let mut events = Vec::new();
+        for row in rows {
+            let (key, version, event_type, data, chain, committed_at, sequence, previous) =
+                row.map_err(|source| self.database("reading a stream tree", source))?;
+            crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+            let integrity = || KernelStoreError::Integrity {
+                kind: E::KIND.to_owned(),
+                key: key.clone(),
+                version,
+            };
+            if (version > 1 && previous.is_none())
+                || chain_link(previous.as_deref().unwrap_or(""), &event_type, &data) != chain
+            {
+                return Err(integrity());
+            }
+            let event: E = serde_json::from_slice(&data).map_err(KernelStoreError::encode)?;
+            if event.event_type() != event_type {
+                return Err(integrity());
+            }
+            events.push(TreeEvent {
+                key,
+                sequence,
+                recorded: Recorded {
+                    version,
+                    committed_at,
+                    event,
+                },
+            });
+        }
+        Ok(events)
+    }
+
+    /// The last commit in `root`'s stream tree; zero when it holds none.
+    pub(crate) fn tree_sequence<E: StreamEvent>(
+        &self,
+        root: &str,
+    ) -> Result<u64, KernelStoreError> {
+        let sequence = self
+            .lock()
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) FROM kernel_events WHERE stream = ?1 AND tree = ?2",
+                params![E::KIND, root],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|source| self.database("reading a stream tree's last commit", source))?;
+        crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+        Ok(sequence as u64)
+    }
+
     /// At most `limit` events of a kernel stream after version `after`.
     pub(crate) fn read_after<E: StreamEvent>(
         &self,
@@ -547,8 +662,9 @@ impl KernelStore {
         self.read_range(E::KIND, key, after, Some(limit))
     }
 
-    /// Stream heads of one kernel kind, most recently advanced first, strictly
-    /// before the `before` head when one is given.
+    /// Stream heads of one kernel kind, most recently advanced first by the
+    /// store's commit order, strictly before the `before` head when one is
+    /// given. Heads advanced in one instant still page once each.
     pub(crate) fn recent_heads<E: StreamEvent>(
         &self,
         before: Option<&Head>,
@@ -557,17 +673,16 @@ impl KernelStore {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
-                "SELECT key, version, event_type, updated_at FROM kernel_keys
-                 WHERE stream = ?1 AND (?2 IS NULL OR (updated_at, key) < (?2, ?3))
-                 ORDER BY updated_at DESC, key DESC LIMIT ?4",
+                "SELECT key, version, event_type, updated_at, sequence FROM kernel_keys
+                 WHERE stream = ?1 AND (?2 IS NULL OR sequence < ?2)
+                 ORDER BY sequence DESC LIMIT ?3",
             )
             .map_err(|source| self.database("preparing a recent head listing", source))?;
         statement
             .query_map(
                 params![
                     E::KIND,
-                    before.map(|head| head.updated_at.as_str()),
-                    before.map_or("", |head| head.key.as_str()),
+                    before.map(|head| head.sequence as i64),
                     limit.min(1000) as i64
                 ],
                 head_row,
@@ -587,6 +702,7 @@ impl KernelStore {
             )
             .optional()
             .map_err(|source| self.database("reading a blob", source))?;
+        crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
         match data {
             Some(data) if runx_contracts::sha256_prefixed(&data) == digest => Ok(data),
             _ => Err(KernelStoreError::BlobIntegrity {
@@ -655,6 +771,7 @@ impl KernelStore {
         for row in rows {
             let (version, event_type, data, stored_chain, committed_at) =
                 row.map_err(|source| self.database("reading a stream", source))?;
+            crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
             if version != expected {
                 return Err(integrity(version));
             }
@@ -695,7 +812,10 @@ impl KernelStore {
             .query_row(
                 "SELECT version FROM kernel_keys WHERE stream = ?1 AND key = ?2",
                 params![kind, key],
-                |row| row.get::<_, i64>(0),
+                |row| {
+                    crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+                    row.get::<_, i64>(0)
+                },
             )
             .optional()
             .map(|version| version.map_or(0, |version| version as u64))
@@ -711,7 +831,7 @@ impl KernelStore {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
-                "SELECT key, version, event_type, updated_at FROM kernel_keys
+                "SELECT key, version, event_type, updated_at, sequence FROM kernel_keys
                  WHERE stream = ?1 AND key > ?2 ORDER BY key LIMIT ?3",
             )
             .map_err(|source| self.database("preparing a head listing", source))?;
@@ -740,12 +860,19 @@ impl KernelStore {
 }
 
 fn head_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Head> {
+    crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
     Ok(Head {
         key: row.get(0)?,
         version: row.get::<_, i64>(1)? as u64,
         event_type: row.get(2)?,
         updated_at: row.get(3)?,
+        sequence: row.get::<_, i64>(4)? as u64,
     })
+}
+
+/// The root key of `key`'s stream tree: its key up to the first `/`.
+fn tree_of(key: &str) -> &str {
+    key.split_once('/').map_or(key, |(root, _)| root)
 }
 
 fn latest_kind_on<E: StreamEvent>(
@@ -796,6 +923,7 @@ fn latest_kind_on<E: StreamEvent>(
     else {
         return Ok(None);
     };
+    crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
     let invalid = || KernelStoreError::Integrity {
         kind: kind.to_owned(),
         key: key.to_owned(),

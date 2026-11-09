@@ -2,12 +2,13 @@
 //! on, and its record as events after a cursor.
 //!
 //! A run and each of its child runs is a stream of its own, and the store
-//! keeps no order across streams, so events come stream by stream, each in
-//! version order. The cursor holds the last version returned for every stream
-//! of the tree, which is what makes a read after it skip and repeat nothing,
-//! including in child runs that began after the earlier read. The summary and
-//! what the run waits on are read after the events, so they are never older
-//! than the last event returned.
+//! orders every commit, so a run's events come in the order its tree
+//! committed them. The cursor holds the last commit returned, which is what
+//! makes a read after it skip and repeat nothing, including in child runs
+//! that began after the earlier read, and what makes a read cost what the
+//! tree committed since, never what it holds. The summary and what the run
+//! waits on are read after the events, so they are never older than the last
+//! event returned.
 
 use std::collections::BTreeMap;
 
@@ -49,44 +50,22 @@ pub fn read_run(
         Some(RunEvent::Started(started)) => started,
         _ => return Err(unknown()),
     };
-    let heads = store.tree_heads::<RunEvent>(run_id)?;
-    let mut positions = match after {
-        Some(cursor) => Cursor::decode(cursor, run_id)?.at,
-        None => BTreeMap::new(),
+    let after = match after {
+        Some(cursor) => Cursor::decode(cursor, run_id)?.after,
+        None => 0,
     };
-    // A cursor names only streams of this tree, at versions they hold.
-    for (stream, version) in &positions {
-        let key = stream_key(run_id, stream);
-        if !heads
-            .iter()
-            .any(|head| head.key == key && *version <= head.version)
-        {
-            return Err(RunRecordError::InvalidCursor);
-        }
+    // A cursor names a commit this tree has reached.
+    if after > store.tree_sequence::<RunEvent>(run_id)? {
+        return Err(RunRecordError::InvalidCursor);
     }
-    let mut events = Vec::new();
-    let mut more = false;
-    for head in &heads {
-        let relative = relative_stream(run_id, &head.key);
-        let at = positions.get(relative).copied().unwrap_or(0);
-        if head.version <= at {
-            continue;
-        }
-        let room = PAGE - events.len();
-        if room == 0 {
-            more = true;
-            break;
-        }
-        let page = store.read_after::<RunEvent>(&head.key, at, room)?;
-        let Some(last) = page.last().map(|recorded| recorded.version) else {
-            continue;
-        };
-        for recorded in page {
-            events.push(project(&store, &head.key, recorded)?);
-        }
-        positions.insert(relative.to_owned(), last);
-        more |= last < head.version;
-    }
+    let mut page = store.tree_after::<RunEvent>(run_id, after, PAGE + 1)?;
+    let more = page.len() > PAGE;
+    page.truncate(PAGE);
+    let reached = page.last().map_or(after, |event| event.sequence);
+    let events = page
+        .into_iter()
+        .map(|event| project(&store, &event.key, event.recorded))
+        .collect::<Result<Vec<_>, _>>()?;
     // An admitted answer updates the run but leaves it where it waits.
     let updated_at = store
         .latest::<RunEvent>(run_id)?
@@ -127,7 +106,7 @@ pub fn read_run(
         events,
         cursor: Cursor {
             run: run_id.to_owned(),
-            at: positions,
+            after: reached,
         }
         .encode(run_id)?
         .into(),
@@ -135,13 +114,12 @@ pub fn read_run(
     })
 }
 
-/// The read position: the run, and the last version returned for each
-/// stream of its tree, by its path below the run (`""` for the run itself).
+/// The read position: the run, and the last commit of its tree returned.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Cursor {
     run: String,
-    at: BTreeMap<String, u64>,
+    after: u64,
 }
 
 impl Cursor {
@@ -164,20 +142,6 @@ impl Cursor {
             });
         }
         Ok(decoded)
-    }
-}
-
-/// A stream's path below `run_id`: `""` for the run, `step/0` for a child.
-fn relative_stream<'a>(run_id: &str, key: &'a str) -> &'a str {
-    key.strip_prefix(run_id)
-        .map_or(key, |rest| rest.strip_prefix('/').unwrap_or(rest))
-}
-
-fn stream_key(run_id: &str, relative: &str) -> String {
-    if relative.is_empty() {
-        run_id.to_owned()
-    } else {
-        format!("{run_id}/{relative}")
     }
 }
 
