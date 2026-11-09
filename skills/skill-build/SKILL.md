@@ -552,16 +552,16 @@ For every public package, declare both operator contexts before authoring:
 - `chain_use` names accepted typed inputs, the reusable result, prior evidence
   and effects that survive the boundary, and work that must not repeat.
 
-The proof plan must contain distinct `selection_trial`,
-`standalone_operator_journey`, and `composed_operator_journey` entries for a
-public package. They are different claims: intuitive selection, useful direct
-completion, and evidence-preserving composition. A generic test or sealed
-receipt may supplement them but cannot replace them. The selection trial names
-at least two real public catalog confusors; the standalone journey runs the
-actual default; and the composed journey names both reused prior evidence and
-work that must not repeat. The final candidate proves the standalone journey
-with a sealed test of its default method, and carries the journeys in its
-`evals/evals.json`.
+The proof plan must contain distinct `trigger_eval`, `direct_use_eval`, and
+`chain_use_eval` entries for a public package. They are different claims:
+intuitive selection, useful direct completion, and evidence-preserving
+composition. A generic test or sealed receipt may supplement them but cannot
+replace them. The trigger eval's queries include requests for at least two real
+nearby public skills, which must not trigger this one; the direct-use eval runs
+the actual default; and the chain-use eval names both reused prior evidence and
+work that must not repeat. The final candidate proves the direct-use eval with a
+sealed test of its default method, carries both evals in its `evals/evals.json`,
+and carries the trigger eval's queries in its `eval_queries.json`.
 
 Declare effects, authority scopes, approval meaning, provider boundary, skill
 routes, resource ceilings, preservation obligations, exact intended deletions,

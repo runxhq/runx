@@ -98,9 +98,9 @@ pub enum SkillProofKind {
     Regression,
     Security,
     Performance,
-    SelectionTrial,
-    StandaloneOperatorJourney,
-    ComposedOperatorJourney,
+    TriggerEval,
+    DirectUseEval,
+    ChainUseEval,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]

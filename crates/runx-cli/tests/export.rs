@@ -1249,8 +1249,8 @@ impl ExportFixture {
     }
 }
 
-/// The sealed test that proves `method` of the package at `dir`, and the
-/// eval its standalone operator journey became.
+/// The sealed test that proves `method` of the package at `dir`, and its
+/// direct-use eval.
 fn write_readiness_test(
     dir: &Path,
     name: &str,

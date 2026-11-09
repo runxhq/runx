@@ -133,18 +133,18 @@ fn architecture(choice: SkillArchitectureChoice, deletes: &[&str]) -> SkillArchi
         "proof_plan": if implements_package {
             json!([
                 {
-                    "name": "cold-selection",
-                    "kind": "selection_trial",
+                    "name": "trigger-eval",
+                    "kind": "trigger_eval",
                     "expected": "The natural request selects demo and a publish request does not."
                 },
                 {
                     "name": "standalone-result",
-                    "kind": "standalone_operator_journey",
+                    "kind": "direct_use_eval",
                     "expected": "The direct request returns a decision."
                 },
                 {
                     "name": "composed-reuse",
-                    "kind": "composed_operator_journey",
+                    "kind": "chain_use_eval",
                     "expected": "Prior evidence is reused without rediscovery."
                 }
             ])
@@ -392,16 +392,16 @@ fn skill_authoring_plan_digest_binds_the_base_and_architecture()
 }
 
 #[test]
-fn skill_authoring_rejects_public_architecture_without_operator_contract_and_each_journey_proof() {
+fn skill_authoring_rejects_public_architecture_without_operator_contract_and_each_eval_proof() {
     let digest = format!("sha256:{}", "a".repeat(64));
     let mut missing_identity = architecture(SkillArchitectureChoice::Build, &[]);
     missing_identity.identity = None;
     assert!(plan_skill_architecture(&digest, missing_identity).is_err());
 
     for missing in [
-        SkillProofKind::SelectionTrial,
-        SkillProofKind::StandaloneOperatorJourney,
-        SkillProofKind::ComposedOperatorJourney,
+        SkillProofKind::TriggerEval,
+        SkillProofKind::DirectUseEval,
+        SkillProofKind::ChainUseEval,
     ] {
         let mut incomplete = architecture(SkillArchitectureChoice::Build, &[]);
         incomplete.proof_plan.retain(|proof| proof.kind != missing);

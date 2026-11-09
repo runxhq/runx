@@ -81,13 +81,13 @@ host:
         deletions: []
         proof_plan:
           - name: release-notes-selection
-            kind: selection_trial
+            kind: trigger_eval
             expected: Release-note preparation selects release while a publication-only request does not select this method.
           - name: release-notes-standalone
-            kind: standalone_operator_journey
+            kind: direct_use_eval
             expected: A direct change set produces reviewable notes without claiming publication.
           - name: release-notes-composed
-            kind: composed_operator_journey
+            kind: chain_use_eval
             expected: Prior change evidence is reused by the release lane without rediscovery.
 expect:
   status: sealed

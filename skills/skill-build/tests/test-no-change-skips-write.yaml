@@ -79,13 +79,13 @@ host:
         deletions: []
         proof_plan:
           - name: test-selection
-            kind: selection_trial
+            kind: trigger_eval
             expected: A reproducible test request selects this lane and a speculative production change does not.
           - name: vague-report-no-change
-            kind: standalone_operator_journey
+            kind: direct_use_eval
             expected: The direct vague report returns unchanged without filesystem mutation.
           - name: test-evidence-reuse
-            kind: composed_operator_journey
+            kind: chain_use_eval
             expected: Supplied failure evidence is reused without inventing or replaying unrelated work.
     author:
       change_draft:

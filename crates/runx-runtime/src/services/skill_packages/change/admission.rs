@@ -245,15 +245,15 @@ fn validate_operator_proofs(architecture: &SkillArchitectureDecision) -> Result<
         .map(|proof| proof.kind)
         .collect::<BTreeSet<_>>();
     let required = [
-        SkillProofKind::SelectionTrial,
-        SkillProofKind::StandaloneOperatorJourney,
-        SkillProofKind::ComposedOperatorJourney,
+        SkillProofKind::TriggerEval,
+        SkillProofKind::DirectUseEval,
+        SkillProofKind::ChainUseEval,
     ];
     if required.iter().all(|kind| kinds.contains(kind)) {
         return Ok(());
     }
     Err(invalid_skill_change(
-        "public architectures require selection_trial, standalone_operator_journey, and composed_operator_journey proofs",
+        "public architectures require trigger_eval, direct_use_eval, and chain_use_eval proofs",
     ))
 }
 

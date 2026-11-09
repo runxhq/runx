@@ -87,13 +87,13 @@ host:
         deletions: []
         proof_plan:
           - name: improvement-selection
-            kind: selection_trial
+            kind: trigger_eval
             expected: Evidence-backed improvement selects Skill Build and an unverified change request does not proceed.
           - name: no-change-without-proof
-            kind: standalone_operator_journey
+            kind: direct_use_eval
             expected: Weak direct evidence produces no filesystem mutation.
           - name: failure-evidence-reuse
-            kind: composed_operator_journey
+            kind: chain_use_eval
             expected: A supplied diagnosis packet is reused without repeating the failed operation.
     author:
       change_draft:

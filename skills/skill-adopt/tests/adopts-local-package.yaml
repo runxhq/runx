@@ -72,13 +72,13 @@ host:
         deletions: []
         proof_plan:
           - name: decision-note-selection
-            kind: selection_trial
+            kind: trigger_eval
             expected: A decision-note request selects the skill and an execution request does not.
           - name: decision-note-standalone
-            kind: standalone_operator_journey
+            kind: direct_use_eval
             expected: The direct objective produces a useful decision note.
           - name: decision-note-composed
-            kind: composed_operator_journey
+            kind: chain_use_eval
             expected: A prior objective artifact is reused without reacquisition.
     author:
       change_draft:

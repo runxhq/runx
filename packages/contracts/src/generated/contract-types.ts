@@ -3862,7 +3862,7 @@ export type SkillPackageMetricsContract = {
 
 export type SkillPackageVisibilityContract = "public" | "internal";
 
-export type SkillProofKindContract = "contract" | "test" | "regression" | "security" | "performance" | "selection_trial" | "standalone_operator_journey" | "composed_operator_journey";
+export type SkillProofKindContract = "contract" | "test" | "regression" | "security" | "performance" | "trigger_eval" | "direct_use_eval" | "chain_use_eval";
 
 export type SkillProofRequirementContract = {
   readonly expected: string;

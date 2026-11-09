@@ -36432,9 +36432,9 @@ export const runxSchemaArtifacts = {
                 "regression",
                 "security",
                 "performance",
-                "selection_trial",
-                "standalone_operator_journey",
-                "composed_operator_journey"
+                "trigger_eval",
+                "direct_use_eval",
+                "chain_use_eval"
               ],
               "title": "SkillProofKind",
               "type": "string"
@@ -36908,9 +36908,9 @@ export const runxSchemaArtifacts = {
                     "regression",
                     "security",
                     "performance",
-                    "selection_trial",
-                    "standalone_operator_journey",
-                    "composed_operator_journey"
+                    "trigger_eval",
+                    "direct_use_eval",
+                    "chain_use_eval"
                   ],
                   "title": "SkillProofKind",
                   "type": "string"
@@ -37666,9 +37666,9 @@ export const runxSchemaArtifacts = {
                     "regression",
                     "security",
                     "performance",
-                    "selection_trial",
-                    "standalone_operator_journey",
-                    "composed_operator_journey"
+                    "trigger_eval",
+                    "direct_use_eval",
+                    "chain_use_eval"
                   ],
                   "title": "SkillProofKind",
                   "type": "string"

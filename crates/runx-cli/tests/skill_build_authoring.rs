@@ -260,17 +260,17 @@ fn authoring_answers() -> Value {
                     "proof_plan": [
                         {
                             "name": "digest-note-selection",
-                            "kind": "selection_trial",
+                            "kind": "trigger_eval",
                             "expected": "Digest requests select this skill and publish requests do not."
                         },
                         {
                             "name": "digest-note-standalone",
-                            "kind": "standalone_operator_journey",
+                            "kind": "direct_use_eval",
                             "expected": "A supplied note is digested without package code."
                         },
                         {
                             "name": "digest-note-composed",
-                            "kind": "composed_operator_journey",
+                            "kind": "chain_use_eval",
                             "expected": "A prior note artifact is reused without reacquisition."
                         }
                     ]

@@ -40,7 +40,7 @@ execution evidence may require more evidence; they are not permission to fetch.
    can reuse its output without duplicate reads, judgment, effects or authority.
    Identify a thin wrapper, missing advertised operation, unused result or invented
    prerequisite explicitly. Assess stop behavior, authority, provenance and recovery.
-   Separate declared operator journeys and supplied fixture answers from actual
+   Separate declared evals and supplied fixture answers from actual
    completed jobs. Native receipts establish recorded execution, not semantic truth.
 6. Return `needs_more_evidence` when the evidence cannot support a trust
    decision. Never upgrade a parse result or prose claim into execution proof.

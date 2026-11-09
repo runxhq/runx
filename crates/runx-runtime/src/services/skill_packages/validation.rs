@@ -419,18 +419,18 @@ mod tests {
             "deletions": [],
             "proof_plan": [
                 {
-                    "name": "cold-selection",
-                    "kind": "selection_trial",
+                    "name": "trigger-eval",
+                    "kind": "trigger_eval",
                     "expected": "The natural request selects demo and a publish request does not."
                 },
                 {
                     "name": "standalone-result",
-                    "kind": "standalone_operator_journey",
+                    "kind": "direct_use_eval",
                     "expected": "The direct request returns a decision."
                 },
                 {
                     "name": "composed-reuse",
-                    "kind": "composed_operator_journey",
+                    "kind": "chain_use_eval",
                     "expected": "Prior evidence is reused without rediscovery."
                 }
             ]
