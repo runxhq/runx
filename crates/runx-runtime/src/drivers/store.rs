@@ -360,6 +360,7 @@ fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
 
 /// One event of a history a probe lays down: on a stream as it's stored,
 /// under its package, written by `writer_package`.
+#[cfg(feature = "probe-fixtures")]
 pub struct HistoryEvent {
     pub stream: String,
     pub key: String,
@@ -373,6 +374,7 @@ pub struct HistoryEvent {
 /// transaction, each event at the next version of its key, exactly as an
 /// append writes it: how a probe gives memory a long record without a call per
 /// event.
+#[cfg(feature = "probe-fixtures")]
 pub(crate) fn lay_down_private_history(
     env: &std::collections::BTreeMap<String, String>,
     history: &[HistoryEvent],

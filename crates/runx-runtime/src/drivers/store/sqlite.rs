@@ -80,6 +80,7 @@ impl Sqlite {
     /// Append each event of `history` in one transaction, each at its own
     /// `committed_at` and at the version it expects, as a probe lays down a
     /// long record. A call appends one event in a transaction of its own.
+    #[cfg(feature = "probe-fixtures")]
     pub(super) fn append_history(
         &mut self,
         history: &[(Append<'_>, String)],

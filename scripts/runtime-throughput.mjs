@@ -38,7 +38,7 @@ let cachedNativeCliProbe;
 const runtimeBench = {
   package: "runx-runtime",
   bench: "workflow_throughput",
-  features: "agent",
+  features: "agent,probe-fixtures",
   workloads: new Set([
     "workflow_planning",
     "workflow_receipt_sealing",

@@ -25,6 +25,10 @@ default = []
 # call, chosen by RUNX_CRASH_AT. Only a test build enables it (runx-cli's
 # dev-dependency), so no build that ships has them.
 crash-points = []
+# What a performance probe lays down before it counts, such as a long history
+# in `private`. Only the benches enable it, as their required features, so no
+# build that ships has it.
+probe-fixtures = []
 mcp = ["dep:rmcp", "rmcp/transport-streamable-http-client-reqwest", "dep:sse-stream", "dep:bytes", "dep:http-body-util", "tokio/process", "tokio/io-util", "tokio/sync"]
 # Expose the governed MCP server over streamable HTTP/SSE (rmcp's tower service
 # driven by hyper). Inbound HTTP server surface; gated behind its own feature.
@@ -142,4 +146,4 @@ path = "tests/integration.rs"
 [[bench]]
 name = "workflow_throughput"
 harness = false
-required-features = ["agent"]
+required-features = ["agent", "probe-fixtures"]

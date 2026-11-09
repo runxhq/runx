@@ -65,8 +65,9 @@ pub mod saved_authorities;
 pub mod tool_catalogs;
 pub mod work_counts;
 
-/// What a performance probe lays down before it counts: never a product
-/// surface, and nothing calls it but a probe.
+/// What a performance probe lays down before it counts. Only the benches
+/// enable `probe-fixtures`, so no build that ships has it.
+#[cfg(feature = "probe-fixtures")]
 #[doc(hidden)]
 pub mod probe_fixtures {
     pub use crate::drivers::store::HistoryEvent;
