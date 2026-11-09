@@ -121,6 +121,19 @@ impl WorkspaceEnv {
         &self.paths
     }
 
+    /// The path an operator typed, from the directory they typed it in, when
+    /// it names one there: `.` inside a package is that package, never the
+    /// workspace around it. A name, a ref, or a path that names nothing
+    /// there is none of these, and resolves from the workspace as written.
+    #[must_use]
+    pub fn invoked_path(&self, typed: &Path) -> Option<PathBuf> {
+        if typed.is_absolute() {
+            return None;
+        }
+        let candidate = self.paths.cwd().join(typed);
+        candidate.exists().then_some(candidate)
+    }
+
     /// The receipt root of a run here: `explicit_dir`, else `RUNX_RECEIPT_DIR`,
     /// else the project's receipts.
     pub(crate) fn receipt_path(&self, explicit_dir: Option<&Path>) -> ResolvedReceiptPath {

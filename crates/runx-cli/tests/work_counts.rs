@@ -149,3 +149,71 @@ fn each_call_of_a_run_writes_the_store_alike_and_takes_the_run_whole_never() -> 
     );
     Ok(())
 }
+
+/// What `runx <args>` printed and counted, launched in `dir` with its home
+/// under `root` and no workspace named, so runx finds the workspace from `dir`
+/// as an operator's shell would.
+fn launched_in(dir: &Path, root: &Path, args: &[&str]) -> TestResult<(Value, Value)> {
+    let counts = root.join("counts.json");
+    let output = crate::support::unsigned_runx_command_with_inherited_cwd()
+        .current_dir(dir)
+        .env("RUNX_HOME", root.join("home"))
+        .env("RUNX_PERF_COUNTS_PATH", &counts)
+        .args(args)
+        .output()?;
+    assert!(
+        output.status.success(),
+        "stdout={}\nstderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok((
+        serde_json::from_slice(&output.stdout)?,
+        serde_json::from_slice(&fs::read(&counts)?)?,
+    ))
+}
+
+/// `.` names the directory it's typed in: packaging `.` inside a package
+/// packages that package, never the workspace around it, and reads as much
+/// beside 20 other packages as beside none. The workspace root here is a
+/// package itself, so packaging it would carry every package below it.
+#[test]
+fn packaging_dot_inside_a_package_packages_that_package_whatever_else_is_in_the_workspace()
+-> TestResult {
+    let package = |others: usize| -> TestResult<(Value, Value)> {
+        let root = crate::support::temp_root(&format!("runx-work-counts-dot-{others}"));
+        fs::create_dir_all(root.join("home"))?;
+        fs::write(
+            root.join("SKILL.md"),
+            "---\nname: workspace\ndescription: The workspace's own package.\n---\n# Workspace\n",
+        )?;
+        native_package(&root, "inner", 1)?;
+        for other in 0..others {
+            native_package(&root, &format!("other-{other:03}"), 1)?;
+        }
+        launched_in(
+            &root.join("skills/inner"),
+            &root,
+            &["registry", "package", ".", "--json"],
+        )
+    };
+    let (alone, alone_counts) = package(0)?;
+    let (among, among_counts) = package(20)?;
+    for packaged in [&alone, &among] {
+        let markdown = packaged["registry"]["package"]["markdown"]
+            .as_str()
+            .ok_or_else(|| format!("no packaged manual in {packaged}"))?;
+        assert!(markdown.contains("name: inner"), "{markdown}");
+    }
+    assert_eq!(
+        alone["registry"]["package"]["package_files"],
+        among["registry"]["package"]["package_files"],
+        "alone={alone}\namong={among}"
+    );
+    assert_eq!(
+        count_of(&among_counts, "packages_read")?,
+        count_of(&alone_counts, "packages_read")?,
+        "alone={alone_counts}\namong={among_counts}"
+    );
+    Ok(())
+}

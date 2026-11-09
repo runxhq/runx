@@ -259,7 +259,13 @@ fn run_native_config(
     }
 }
 
-fn run_native_test(plan: TestPlan, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
+fn run_native_test(mut plan: TestPlan, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
+    // What to test is named by its path, from where the operator typed it.
+    for typed in &mut plan.fixture_paths {
+        if let Some(invoked) = workspace.invoked_path(Path::new(typed.as_os_str())) {
+            *typed = invoked.into_os_string();
+        }
+    }
     if contains_skill_package(&plan.fixture_paths) {
         let [target] = plan.fixture_paths.as_slice() else {
             let _ignored = write_stderr_line(

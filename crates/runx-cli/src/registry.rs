@@ -70,8 +70,19 @@ impl RegistryPlan {
     }
 }
 
-pub fn run_native_registry(plan: RegistryPlan, workspace: &WorkspaceEnv) -> ExitCode {
+pub fn run_native_registry(mut plan: RegistryPlan, workspace: &WorkspaceEnv) -> ExitCode {
     let json = plan.json;
+    // A package to package or publish is named by its path, from where the
+    // operator typed it.
+    if matches!(
+        plan.action,
+        RegistryAction::Package | RegistryAction::Publish
+    ) && let Some(invoked) = workspace
+        .invoked_path(Path::new(&plan.subject))
+        .and_then(|path| path.to_str().map(str::to_owned))
+    {
+        plan.subject = invoked;
+    }
     match run_registry(plan, workspace.env(), workspace.cwd()) {
         Ok(output) => crate::cli_io::write_stdout_code(&output.stdout, output.exit_code),
         Err(error) => {
