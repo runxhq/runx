@@ -3,7 +3,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::RegistryPublishPackageError;
 use crate::registry::{RegistryPackageFile, RegistryPublishTestReport};
@@ -134,21 +134,37 @@ fn publish_test_env(
     env
 }
 
+/// A directory this process alone owns, removed when it drops.
 struct TempDirectory(PathBuf);
+
+/// Each temporary directory this process names takes the next number, so two
+/// made at the same instant on two threads never share a name.
+static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 impl TempDirectory {
     fn create(prefix: &str) -> Result<Self, RegistryPublishPackageError> {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
-            .as_nanos();
-        let path = env::temp_dir().join(format!("{prefix}-{}-{nanos}", process::id()));
-        fs::create_dir_all(&path).map_err(|error| {
-            RegistryPublishPackageError::invalid(format!(
-                "failed to create temporary directory {}: {error}",
-                path.display()
-            ))
-        })?;
+        loop {
+            let number = NEXT_TEMP_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+            let path = env::temp_dir().join(format!("{prefix}-{}-{number}", process::id()));
+            match Self::claim(path.clone()) {
+                Ok(directory) => return Ok(directory),
+                // Left by an earlier process with this id: take the next name.
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => {
+                    return Err(RegistryPublishPackageError::invalid(format!(
+                        "failed to create temporary directory {}: {error}",
+                        path.display()
+                    )));
+                }
+            }
+        }
+    }
+
+    /// Take `path` as this directory's own, refusing one that already
+    /// exists: a directory another owner holds is never shared, so its
+    /// cleanup can't remove what this one holds.
+    fn claim(path: PathBuf) -> std::io::Result<Self> {
+        fs::create_dir(&path)?;
         Ok(Self(path))
     }
 
@@ -166,6 +182,24 @@ impl Drop for TempDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A staging directory is its own: another claim of its name is refused,
+    /// so no other staging's cleanup can remove what it holds. Two stagings
+    /// on threads of one process used to take the same name when the clock
+    /// gave them the same instant, and the first one dropped removed the
+    /// other's files under it.
+    #[test]
+    fn a_staging_directory_is_never_shared() -> Result<(), Box<dyn std::error::Error>> {
+        let first = TempDirectory::create("runx-publish-profile-test")?;
+        let same_name = TempDirectory::claim(first.path().to_path_buf());
+        assert!(same_name.is_err(), "a second claim of one name is refused");
+        drop(same_name);
+        fs::write(first.path().join("SKILL.md"), "# staged")?;
+
+        let second = TempDirectory::create("runx-publish-profile-test")?;
+        assert_ne!(first.path(), second.path());
+        Ok(())
+    }
 
     #[test]
     fn test_environment_removes_hosted_and_agent_credentials() {
