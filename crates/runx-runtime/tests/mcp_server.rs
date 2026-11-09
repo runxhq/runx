@@ -175,11 +175,19 @@ fn mcp_server_handles_many_calls_in_one_streaming_session() -> Result<(), Box<dy
     Ok(())
 }
 
+/// The slow skill waits on a gate the server's own output opens once it holds
+/// the fast call's answer, so the slow call answers only after the fast one,
+/// and the fast one is answered at all only if it was served while the slow
+/// one ran.
 #[test]
-#[cfg(feature = "mcp")]
+#[cfg(all(feature = "mcp", unix))]
 fn mcp_server_concurrent_call_completes_while_slow_skill_runs()
 -> Result<(), Box<dyn std::error::Error>> {
     let slow_skill = tempfile::tempdir()?;
+    let gates = tempfile::tempdir()?;
+    let gate = gates.path().join("gate");
+    let made = std::process::Command::new("mkfifo").arg(&gate).status()?;
+    assert!(made.success(), "mkfifo {}", gate.display());
     fs::write(
         slow_skill.path().join("SKILL.md"),
         r#"---
@@ -199,14 +207,17 @@ methods:
     inputs: {}
     steps:
       - id: default
-        tool: {command: sh, args: [./run.sh], timeout_seconds: 5}
+        tool: {command: sh, args: [./run.sh]}
         outputs:
           slow: {type: boolean}
 "#,
     )?;
     fs::write(
         slow_skill.path().join("run.sh"),
-        "#!/bin/sh\nsleep 0.2\nprintf '%s\\n' '{\"slow\":true}'\n",
+        format!(
+            "#!/bin/sh\nread go < '{}'\nprintf '%s\\n' '{{\"slow\":true}}'\n",
+            gate.display()
+        ),
     )?;
     let mut options = McpServerOptions::from_skill_paths_with_execution(
         &[slow_skill.path().to_path_buf()],
@@ -240,7 +251,23 @@ methods:
     ]
     .concat();
 
-    let responses = parse_frames(&run_raw_output_with_options(input, options)?)?;
+    let output = Arc::new(Mutex::new(Vec::new()));
+    serve_mcp_json_rpc(
+        Cursor::new(input),
+        OpenGateOnAnswer {
+            bytes: Arc::clone(&output),
+            gate,
+            id: 2,
+            opened: None,
+        },
+        options,
+    )?;
+    let responses = parse_frames(
+        &output
+            .lock()
+            .map_err(|_| "MCP test output lock failed")?
+            .clone(),
+    )?;
     let fast_position = responses
         .iter()
         .position(|response| response_id(response) == Some(2))
@@ -1133,6 +1160,52 @@ fn runx_status(status: &str) -> JsonObject {
 
 fn runx_content(status: &str) -> JsonObject {
     [("runx".to_owned(), JsonValue::Object(runx_status(status)))].into()
+}
+
+/// The server's output, which opens `gate` once it holds the answer to request
+/// `id`. Both ends of the gate are opened without waiting and held while the
+/// output lives, so the script reading it gets its line whenever it gets
+/// there.
+#[cfg(unix)]
+struct OpenGateOnAnswer {
+    bytes: Arc<Mutex<Vec<u8>>>,
+    gate: PathBuf,
+    id: i64,
+    opened: Option<(fs::File, fs::File)>,
+}
+
+#[cfg(unix)]
+impl std::io::Write for OpenGateOnAnswer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let mut bytes = self
+            .bytes
+            .lock()
+            .map_err(|_| std::io::Error::other("MCP test output lock failed"))?;
+        bytes.extend_from_slice(buf);
+        let answered = bytes
+            .split(|byte| *byte == b'\n')
+            .filter_map(|line| serde_json::from_slice::<JsonValue>(line).ok())
+            .any(|message| response_id(&message) == Some(self.id));
+        if answered && self.opened.is_none() {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            let nonblocking = rustix::fs::OFlags::NONBLOCK.bits() as i32;
+            let reader = fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(nonblocking)
+                .open(&self.gate)?;
+            let mut writer = fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(nonblocking)
+                .open(&self.gate)?;
+            writer.write_all(b"go\n")?;
+            self.opened = Some((reader, writer));
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
