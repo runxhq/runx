@@ -166,13 +166,6 @@ pub fn call_input_schema(
     Ok(schema)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct IdempotencyPolicy {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub key: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::{InputDefinition, JsonValue};
