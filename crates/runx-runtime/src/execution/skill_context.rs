@@ -26,7 +26,7 @@ pub fn load_context_skills(
         return Err(RuntimeError::StepFailed {
             step_id: step_id.to_owned(),
             reason: format!(
-                "context_skills declares {} skills; the maximum is {MAX_CONTEXT_SKILLS}",
+                "context.skills declares {} skills; the maximum is {MAX_CONTEXT_SKILLS}",
                 refs.len()
             ),
         });
@@ -55,13 +55,13 @@ pub fn load_context_skills(
                     .checked_add(entry_bytes)
                     .ok_or_else(|| RuntimeError::StepFailed {
                         step_id: step_id.to_owned(),
-                        reason: "context_skills total size overflowed".to_owned(),
+                        reason: "context.skills total size overflowed".to_owned(),
                     })?;
             if total_bytes > MAX_CONTEXT_SKILLS_TOTAL_BYTES {
                 return Err(RuntimeError::StepFailed {
                     step_id: step_id.to_owned(),
                     reason: format!(
-                        "context_skills resolved to more than {MAX_CONTEXT_SKILLS_TOTAL_BYTES} bytes"
+                        "context.skills resolved to more than {MAX_CONTEXT_SKILLS_TOTAL_BYTES} bytes"
                     ),
                 });
             }

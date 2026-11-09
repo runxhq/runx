@@ -144,12 +144,12 @@ fn collect_step_context_refs(
     for reference in references {
         if !seen.insert(reference) {
             return Err(SkillPackageError::invalid(
-                format!("{step_field}.context_skills"),
+                format!("{step_field}.context.skills"),
                 format!("context skill ref {reference:?} is declared more than once"),
             ));
         }
         context_refs.push(ContextReference {
-            field: format!("{step_field}.context_skills"),
+            field: format!("{step_field}.context.skills"),
             profile_dir: profile_dir.to_owned(),
             reference: reference.clone(),
         });
