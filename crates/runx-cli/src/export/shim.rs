@@ -150,11 +150,12 @@ fn render_server_method(
 ) -> String {
     let tool = server_tool_name(skill, method);
     let title = method.name.as_deref().unwrap_or("default");
+    let described = described(method);
     format!(
         "\
 ## Default method: `{title}`
 
-This skill's agent makes governed calls, so it runs on the `{MCP_SERVER_NAME}` MCP server rather than the shell. Call the `{tool}` tool with one object built from the user's actual task and admitted evidence, matching the tool's input schema, and state the requested purpose in `act`. Do not copy example values unless the user's job supplies them.
+{described}This skill's agent makes governed calls, so it runs on the `{MCP_SERVER_NAME}` MCP server rather than the shell. Call the `{tool}` tool with one object built from the user's actual task and admitted evidence, matching the tool's input schema, and state the requested purpose in `act`. Do not copy example values unless the user's job supplies them.
 
 If it reports that the run needs agent work, work the run's open turns on the same connection until it seals:
 
@@ -220,6 +221,7 @@ fn render_default_method(
     let mut output = String::new();
     let title = method.name.as_deref().unwrap_or("default");
     output.push_str(&format!("## Default method: `{title}`\n\n"));
+    output.push_str(&described(method));
     output.push_str("Inspect the exact input and effect contract on demand:\n\n```bash\n");
     output.push_str(&render_inspect_command(command_target, method, runx_bin));
     output.push_str("\n```\n\n");
@@ -255,20 +257,32 @@ fn render_method_index(
     );
     for method in methods {
         let name = method.name.as_deref().unwrap_or("default");
+        let description = method
+            .description
+            .as_deref()
+            .map_or_else(String::new, |description| format!("{description} "));
         if method.makes_calls {
             let tool = runx_runtime::export::skill_tool_name(skill, method.name.as_deref());
             output.push_str(&format!(
-                "- `{name}`: the `{tool}` tool on the `{MCP_SERVER_NAME}` MCP server\n",
+                "- `{name}`: {description}Run it as the `{tool}` tool on the `{MCP_SERVER_NAME}` MCP server.\n",
             ));
             continue;
         }
         output.push_str(&format!(
-            "- `{name}`: `{}`\n",
+            "- `{name}`: {description}Inspect it with `{}`.\n",
             render_inspect_command(command_target, method, runx_bin)
         ));
     }
     output.push('\n');
     output
+}
+
+/// A method's description as its own paragraph, or nothing when it has none.
+fn described(method: &RunxExportMethod) -> String {
+    method
+        .description
+        .as_deref()
+        .map_or_else(String::new, |description| format!("{description}\n\n"))
 }
 
 fn render_inspect_command(

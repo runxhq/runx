@@ -796,3 +796,39 @@ fn every_taxonomy_category_mark_passes_the_mark_check() {
     }
     assert!(checked > 0);
 }
+
+/// A method is shown by its own description. Only a package's one method
+/// borrows SKILL.md's, so a package with several never shows the same words
+/// for two of them.
+#[test]
+fn a_method_is_described_in_its_own_words_and_only_a_lone_method_borrows_the_packages()
+-> Result<(), String> {
+    let manifest = |yaml: &str| {
+        runx_parser::parse_method_manifest_yaml(yaml)
+            .map_err(|error| error.to_string())
+            .and_then(|raw| {
+                runx_parser::validate_method_manifest("demo", raw)
+                    .map_err(|error| error.to_string())
+            })
+    };
+    let step = "    steps:\n      - id: run\n        tool: {module: run.mjs, export: run}\n";
+    let lone = manifest(&format!("minimum_runx: 0.12.0\nmethods:\n  run:\n{step}"))?;
+    let run = &lone.methods["run"];
+    assert_eq!(
+        lone.method_description(run, Some("The package.")),
+        Some("The package.")
+    );
+
+    let several = manifest(&format!(
+        "minimum_runx: 0.12.0\ndefault_method: read\nmethods:\n  read:\n    description: Read one record.\n{step}  write:\n{step}"
+    ))?;
+    assert_eq!(
+        several.method_description(&several.methods["read"], Some("The package.")),
+        Some("Read one record.")
+    );
+    assert_eq!(
+        several.method_description(&several.methods["write"], Some("The package.")),
+        None
+    );
+    Ok(())
+}

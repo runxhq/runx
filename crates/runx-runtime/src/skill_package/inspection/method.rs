@@ -8,10 +8,14 @@ use super::SkillInspectionError;
 pub(super) fn inspect_method(
     manifest: &SkillMethodManifest,
     method: &SkillMethodDefinition,
+    package_description: Option<&str>,
     examples: &[JsonObject],
 ) -> Result<MethodInspection, SkillInspectionError> {
     Ok(MethodInspection {
         name: method.name.clone(),
+        description: manifest
+            .method_description(method, package_description)
+            .map(str::to_owned),
         input_schema: runx_contracts::input_contract_schema_with_examples(&method.inputs, examples),
         schemas: method
             .schemas()

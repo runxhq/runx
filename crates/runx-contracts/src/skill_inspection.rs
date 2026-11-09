@@ -103,6 +103,10 @@ pub struct MethodSchemas {
 #[serde(deny_unknown_fields)]
 pub struct MethodInspection {
     pub name: String,
+    /// What the method does, in its own words, or the package's `SKILL.md`
+    /// description when the package has this one method.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Its inputs as one JSON schema, with the method's examples.
     pub input_schema: JsonObject,
     /// Its derived input and output schemas and their digests.

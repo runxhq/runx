@@ -931,10 +931,13 @@ methods:
 
 A method states its purpose in `description`: what it does and when to use it
 rather than the skill's other methods, in a sentence or two. A model chooses a
-method by it: the tool a turn offers for the method carries it, a load lists
-it, and `registry.search` and `runx list skills` show it. A method without one
-is described by its skill's description, so a skill's only method needs none;
-each method of a runx-maintained skill with several declares one.
+method by it: the tool a turn offers for the method carries it, the tool
+`runx mcp` serves for it carries it, an export's method index lists each method
+by it, `skill inspect` shows it, a load lists it, and `registry.search` and
+`runx list skills` show it. Only a skill's one method borrows the skill's
+description when it has none, so that method needs none of its own. In a skill
+with several methods each is told apart by its own description, and each
+method of a runx-maintained skill with several declares one.
 
 The verb, scopes, target and readbacks come from the connector operation, and
 the kernel confirms a write by its declared readbacks before the step

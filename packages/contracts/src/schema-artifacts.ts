@@ -4866,6 +4866,10 @@ export const runxSchemaArtifacts = {
             "description": "The connector requirements of the skill, by key.",
             "type": "object"
           },
+          "description": {
+            "description": "What the method does, in its own words, or the package's `SKILL.md` description when the package has this one method.",
+            "type": "string"
+          },
           "environment": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EnvironmentRequirements",
             "description": "The environment variables the method reads, by name."

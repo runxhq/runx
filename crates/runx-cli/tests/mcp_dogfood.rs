@@ -168,6 +168,33 @@ fn mcp_serves_a_skill_ref_not_only_a_path() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
+/// A tool's description is its method's own: a server given github's plan
+/// offers plan's words, and one given the package offers its default
+/// method's, never SKILL.md's.
+#[test]
+fn an_mcp_tool_carries_its_methods_own_description() -> Result<(), Box<dyn std::error::Error>> {
+    let expected = crate::support::github_method_descriptions()?;
+    for (served, method) in [("skills/github", "github"), ("skills/github#plan", "plan")] {
+        let mut server = spawn_mcp_server(&[served.to_owned()])?;
+        write_frame(server.stdin_mut()?, &initialize_request(1))?;
+        server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+        write_frame(server.stdin_mut()?, &initialized_notification())?;
+        write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
+        let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+        let description = expected
+            .iter()
+            .find(|(name, _)| name == method)
+            .map(|(_, description)| description.as_str())
+            .ok_or("an expected method")?;
+        assert_eq!(
+            path_text(&tools, &["result", "tools", "0", "description"])?,
+            description,
+            "{served}"
+        );
+    }
+    Ok(())
+}
+
 #[test]
 fn mcp_native_binary_reports_mid_session_framing_fault() -> Result<(), Box<dyn std::error::Error>> {
     let skill_path = repo_root()?.join("fixtures/skills/mcp-echo");

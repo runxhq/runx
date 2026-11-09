@@ -72,6 +72,9 @@ pub struct RunxExportMethod {
     /// A run of this method reaches an agent turn that makes calls, so a host
     /// works it through the MCP tool `skill_tool_name` names.
     pub makes_calls: bool,
+    /// What the method does, as `SkillMethodManifest::method_description`
+    /// gives it: its own words, or `SKILL.md`'s for a package's one method.
+    pub description: Option<String>,
 }
 
 /// The MCP tool a skill server offers for a method: the skill's name for its
@@ -292,6 +295,7 @@ fn export_methods(
             execution_closure_digest: None,
             inputs: std::collections::BTreeMap::new(),
             makes_calls: false,
+            description: package.skill.description.clone(),
         }];
     };
     let default = manifest.default_method().map(|method| method.name.as_str());
@@ -308,6 +312,9 @@ fn export_methods(
             execution_closure_digest: None,
             inputs: method.inputs.clone(),
             makes_calls: false,
+            description: manifest
+                .method_description(method, package.skill.description.as_deref())
+                .map(str::to_owned),
         })
         .collect::<Vec<_>>();
     methods.sort_by(|left, right| {

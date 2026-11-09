@@ -10,6 +10,42 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const FIXTURE_SIGNING_SEED: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
 
+/// The methods of the package at `skill` (relative to the repository root),
+/// each with the description its `run.yaml` gives it.
+pub fn method_descriptions(
+    skill: &str,
+) -> Result<std::collections::BTreeMap<String, Option<String>>, Box<dyn std::error::Error>> {
+    let raw = runx_parser::parse_method_manifest_yaml(&fs::read_to_string(
+        repo_root()?.join(skill).join("run.yaml"),
+    )?)?;
+    let manifest = runx_parser::validate_method_manifest(skill, raw)?;
+    Ok(manifest
+        .methods
+        .into_iter()
+        .map(|(name, method)| (name, method.description))
+        .collect())
+}
+
+/// github's read (its default method, `github`), plan, pull and activity
+/// descriptions, each its own and each different from the others.
+pub fn github_method_descriptions() -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
+    let descriptions = method_descriptions("skills/github")?;
+    let mut seen = std::collections::BTreeSet::new();
+    let mut methods = Vec::new();
+    for name in ["github", "plan", "pull", "activity"] {
+        let description = descriptions
+            .get(name)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| format!("github's {name} method has no description"))?;
+        if !seen.insert(description.clone()) {
+            return Err(format!("github's {name} description repeats another's").into());
+        }
+        methods.push((name.to_owned(), description));
+    }
+    Ok(methods)
+}
+
 pub fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

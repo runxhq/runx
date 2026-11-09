@@ -74,6 +74,22 @@ impl SkillMethodManifest {
             None => None,
         }
     }
+
+    /// What `method` says it does, as a host is shown it: its own
+    /// `description`, or `package`'s, the `SKILL.md` description, only when
+    /// the package has this one method. A package with several methods tells
+    /// each apart by its own words, so it never borrows the package's.
+    #[must_use]
+    pub fn method_description<'a>(
+        &self,
+        method: &'a SkillMethodDefinition,
+        package: Option<&'a str>,
+    ) -> Option<&'a str> {
+        method
+            .description
+            .as_deref()
+            .or_else(|| package.filter(|_| self.methods.len() == 1))
+    }
 }
 
 pub fn parse_method_manifest_yaml(yaml: &str) -> Result<RawMethodManifestIr, ParseError> {

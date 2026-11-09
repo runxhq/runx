@@ -1565,6 +1565,8 @@ export type MethodInspectionContract = {
   readonly connectors?: {
     readonly [key: string]: unknown;
   };
+  /** What the method does, in its own words, or the package's `SKILL.md` description when the package has this one method. */
+  readonly description?: string;
   /** The environment variables the method reads, by name. */
   readonly environment: EnvironmentRequirementsContract;
   /** Its inputs as one JSON schema, with the method's examples. */

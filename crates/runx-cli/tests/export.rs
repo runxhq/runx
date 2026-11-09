@@ -482,6 +482,81 @@ fn exports_default_method_inputs_when_skill_frontmatter_has_none()
     Ok(())
 }
 
+/// An export lists each method by its own description, the default's
+/// beside its heading and each other method's in the index.
+#[test]
+fn an_export_lists_each_method_with_its_own_description() -> Result<(), Box<dyn std::error::Error>>
+{
+    let fixture = ExportFixture::new("runx-export-method-descriptions")?;
+    let repo = crate::support::repo_root()?;
+    copy_tree(
+        &repo.join("skills/github"),
+        &fixture.project.join("skills/github"),
+    )?;
+    copy_tree(
+        &repo.join("connectors/github"),
+        &fixture.project.join("connectors/github"),
+    )?;
+
+    run_export_command(
+        &ExportPlan {
+            target: Target::Claude,
+            refs: vec!["github".to_owned()],
+            project: false,
+            json: false,
+        },
+        &fixture.project,
+        &fixture.env,
+    )?;
+
+    let shim = fixture.read_home_file(".claude/skills/github/SKILL.md")?;
+    let descriptions = crate::support::method_descriptions("skills/github")?;
+    let (_, read) = &crate::support::github_method_descriptions()?[0];
+    let default_section = shim
+        .split("## Default method: `github`")
+        .nth(1)
+        .ok_or("the export names its default method")?;
+    assert!(
+        default_section.trim_start().starts_with(read.as_str()),
+        "{shim}"
+    );
+    let index = shim
+        .split("## Other methods")
+        .nth(1)
+        .ok_or("the export indexes its other methods")?;
+    let mut listed = 0;
+    for line in index.lines().filter(|line| line.starts_with("- `")) {
+        let name = line
+            .trim_start_matches("- `")
+            .split('`')
+            .next()
+            .ok_or("a listed method's name")?;
+        let description = descriptions
+            .get(name)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| format!("{name} has no description"))?;
+        assert!(line.contains(&description), "{name}: {line}");
+        listed += 1;
+    }
+    assert!(listed >= 2, "{index}");
+    Ok(())
+}
+
+fn copy_tree(from: &Path, to: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_tree(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn omits_multi_method_skill_without_default() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-multi-method-selection")?;

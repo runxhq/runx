@@ -1441,3 +1441,41 @@ fn pending_request_artifact(
         .ok_or("missing pending request artifact path")?;
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
+
+/// `skill inspect` shows each method's own description: github's read,
+/// plan, pull and activity are told apart, the inspected method's among them.
+#[test]
+fn skill_inspect_shows_each_methods_own_description() -> Result<(), Box<dyn std::error::Error>> {
+    let expected = crate::support::github_method_descriptions()?;
+    let repo = crate::support::repo_root()?;
+    let mut command = crate::support::isolated_runx_command_with_inherited_cwd("inspect-test-key");
+    let output = command
+        .current_dir(&repo)
+        .env("RUNX_CWD", &repo)
+        .args(["skill", "inspect", "skills/github", "--json"])
+        .output()?;
+    let inspected = assert_json(&output, Some(0))?;
+    let described = inspected["method_inspections"]
+        .as_array()
+        .ok_or("inspection lists its methods")?
+        .iter()
+        .map(|entry| {
+            (
+                entry["method"]["name"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
+                entry["method"]["description"].clone(),
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for (name, description) in &expected {
+        assert_eq!(described.get(name), Some(&json!(description)), "{name}");
+    }
+    assert_eq!(
+        inspected["method"]["description"],
+        json!(expected[0].1),
+        "the default method, github's read"
+    );
+    Ok(())
+}

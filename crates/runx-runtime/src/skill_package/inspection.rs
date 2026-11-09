@@ -331,14 +331,24 @@ pub(crate) fn inspect_loaded_skill_package(
                 output.execution_closure = Some(execution_closure.clone());
             }
             output.method_inspections.push(MethodInspectionEntry {
-                method: inspect_method(manifest, definition, &definition.examples)?,
+                method: inspect_method(
+                    manifest,
+                    definition,
+                    loaded.package.skill.description.as_deref(),
+                    &definition.examples,
+                )?,
                 execution_closure,
             });
         }
     }
     if let Some(method) = method {
         let manifest = manifest.ok_or(SkillInspectionError::ManifestUnavailable)?;
-        output.method = Some(inspect_method(manifest, method, &method.examples)?);
+        output.method = Some(inspect_method(
+            manifest,
+            method,
+            loaded.package.skill.description.as_deref(),
+            &method.examples,
+        )?);
         output.readiness = Some(InspectionReadiness {
             status: InspectionReadinessStatus::Ready,
         });
