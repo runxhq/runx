@@ -99,9 +99,10 @@ static LIST: TypedNativeCapability<RunListInput, RunListOutput> = TypedNativeCap
 );
 
 /// One run's record, as `runx history <run-id>` reads it: its summary, what it
-/// waits on, and its events after `after`. Without `run_id` it reads the run
-/// making the call, whose id a step never names (`$run.id` only keys an
-/// operation), so a method can read back what its own turns did.
+/// waits on, and its events and its child runs' after `after`. Without
+/// `run_id` it reads the run the call is made in, from its root, whose id a
+/// step never names (`$run.id` only keys an operation), so a method reads back
+/// what its own turns and child runs did.
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct RunReadInput {
@@ -124,7 +125,7 @@ impl CapabilityOutput for RunReadOutput {}
 const READ_FIELDS: &[CapabilityField] = &[
     field(
         "run_id",
-        "A run of this workspace; without it, the run making the call.",
+        "A run of this workspace; without it, the run the call is made in, from its root.",
     ),
     field("after", "The cursor an earlier read returned."),
 ];
@@ -154,7 +155,7 @@ fn read(invocation: &NativeInvocation<'_, RunReadInput>) -> Result<RunReadOutput
     };
     let run_id = match (&invocation.inputs.run_id, invocation.call) {
         (Some(run_id), _) => run_id.as_str(),
-        (None, Some(call)) => call.run_id.as_str(),
+        (None, Some(call)) => crate::execution::run_record::root_run_id(&call.run_id),
         (None, None) => {
             return Err(failed(
                 "run_id is required outside a run, which has no run of its own to read".to_owned(),
