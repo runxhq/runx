@@ -170,98 +170,32 @@ fn a_foreign_database_is_refused() {
     ));
 }
 
-/// A store as runx 0.10 left it: its streams' heads, in WAL mode.
-fn retired_store(root: &std::path::Path, heads: &[(&str, &str, &str)]) -> std::path::PathBuf {
-    let path = root.join(RETIRED_KERNEL_STORE_FILE);
-    let connection = Connection::open(&path).unwrap();
-    connection
-        .execute_batch(
-            "PRAGMA journal_mode = WAL;
-             CREATE TABLE kernel_streams (
-               kind TEXT NOT NULL, key TEXT NOT NULL, version INTEGER NOT NULL,
-               event_type TEXT NOT NULL, chain TEXT NOT NULL, updated_at TEXT NOT NULL,
-               PRIMARY KEY (kind, key)
-             ) WITHOUT ROWID;
-             PRAGMA application_id = 1381322315;
-             PRAGMA user_version = 1;",
-        )
-        .unwrap();
-    for (kind, key, head) in heads {
-        connection
-            .execute(
-                "INSERT INTO kernel_streams VALUES (?1, ?2, 2, ?3, 'chain', 'now')",
-                params![kind, key, head],
-            )
-            .unwrap();
-    }
-    path
-}
-
+/// A `kernel.sqlite` beside the store is a file this runx never opens. Its
+/// store is `KERNEL_STORE_FILE`, opened and written as though the other
+/// weren't there, and the other is left as it was, with nothing beside it.
+/// It isn't a database at all here, so any open of it would fail.
 #[test]
-fn a_store_runx_010_left_settled_stays_put_and_a_new_one_opens() {
+fn a_kernel_sqlite_beside_the_store_is_never_opened() {
     let root = tempfile::tempdir().unwrap();
-    let retired = retired_store(
-        root.path(),
-        &[
-            ("effect", "act-paid", "finalized"),
-            ("effect", "act-refused", "rejected"),
-            ("run", "run-paused", "started"),
-        ],
-    );
-    let before = std::fs::read(&retired).unwrap();
+    let other = root.path().join("kernel.sqlite");
+    std::fs::write(&other, "not a database").unwrap();
 
     let store = KernelStore::open(root.path()).unwrap();
+    store
+        .append(vec![
+            Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 1 }).unwrap(),
+        ])
+        .unwrap();
 
     assert_eq!(store.path().file_name().unwrap(), KERNEL_STORE_FILE);
-    assert_eq!(
-        store.version::<Ledger>("a").unwrap(),
-        0,
-        "the new log starts empty"
-    );
-    assert_eq!(
-        std::fs::read(&retired).unwrap(),
-        before,
-        "runx 0.10's log is kept as it was"
-    );
-}
-
-#[test]
-fn effects_runx_010_left_in_flight_refuse_a_new_store() {
-    let root = tempfile::tempdir().unwrap();
-    let retired = retired_store(
-        root.path(),
-        &[
-            ("effect", "act-sent", "acknowledged"),
-            ("effect", "act-paid", "finalized"),
-            ("effect", "act-lost", "unknown"),
-        ],
-    );
-
-    let refused = KernelStore::open(root.path()).unwrap_err();
-
-    let KernelStoreError::RetiredEffectsInFlight { path, acts } = &refused else {
-        unreachable!("expected the in-flight effects to refuse, got {refused}");
-    };
-    assert_eq!(path.file_name(), retired.file_name());
-    assert_eq!(acts, &["act-lost".to_owned(), "act-sent".to_owned()]);
-    assert!(
-        refused
-            .to_string()
-            .contains("finish or reconcile these runs with runx 0.10")
-    );
-    assert!(
-        !root.path().join(KERNEL_STORE_FILE).exists(),
-        "no new log was started"
-    );
-}
-
-#[test]
-fn a_new_store_never_consults_the_one_runx_010_left() {
-    let root = tempfile::tempdir().unwrap();
-    drop(KernelStore::open(root.path()).unwrap());
-    retired_store(root.path(), &[("effect", "act-sent", "attempted")]);
-
-    assert!(KernelStore::open(root.path()).is_ok());
+    assert_eq!(store.version::<Ledger>("a").unwrap(), 1);
+    assert_eq!(std::fs::read(&other).unwrap(), b"not a database");
+    let beside = std::fs::read_dir(root.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("kernel.sqlite"))
+        .collect::<Vec<_>>();
+    assert_eq!(beside, ["kernel.sqlite"]);
 }
 
 #[test]

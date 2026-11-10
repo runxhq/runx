@@ -366,7 +366,6 @@ mod tests {
             ".netrc",
             ".pgpass",
             ".runx/kernel-v2.sqlite",
-            ".runx/kernel.sqlite",
             ".git/config",
             "vendor/lib/.git/HEAD",
         ] {

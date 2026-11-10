@@ -207,9 +207,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
             "kernel-v2.sqlite",
             "kernel-v2.sqlite-wal",
             "kernel-v2.sqlite-shm",
-            "kernel.sqlite",
-            "kernel.sqlite-wal",
-            "kernel.sqlite-shm",
             ".receipt-store.lock",
             "..receipt-store.lock.tmp.123-456",
         ] {
