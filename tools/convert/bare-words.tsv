@@ -129,3 +129,11 @@ frantic	config/runx-frantic-policy.json	runners	automations			the operational po
 nitrosend	.runx/runx-issue-flow.json	runners	automations			the operational policy's automations, in Nitrosend's own policy (rename ruling 12)
 nitrosend	scripts/runx-issue-flow.test.mjs	runner	automation			the operational policy's automation, as the code reading Nitrosend's policy names it (rename ruling 12)
 nitrosend	scripts/runx-issue-flow.test.mjs	runners	automations			the operational policy's automations, as the code reading Nitrosend's policy names them (rename ruling 12)
+cloud	packages/api/src/execution-package-composition.test.ts	closure_digest	digest		^: BINDING\.executionClosureDigest	an inspected closure's own digest, closure.digest (the coordinator's ruling, 10 November)
+cloud	packages/api/src/execution-package-store.test.ts	closure_digest	digest		^: CLOSURE_DIGEST	an inspected closure's own digest, closure.digest
+cloud	packages/worker/src/index.test.ts	closure_digest	digest		^: closureDigest,	an inspected closure's own digest, closure.digest, in the test's closure
+cloud	packages/worker/src/native-runtime-service-client.test.ts	closure_digest	digest		^: "sha256:	an inspected closure's own digest, closure.digest
+cloud	packages/worker/src/runtime-service-boundary.test.ts	closure_digest	digest		^: "sha256:test-closure"	an inspected closure's own digest, closure.digest
+cloud	tests/hosted-api-worker-contract.test.ts	closure_digest	digest		^: "sha256:test-closure"	an inspected closure's own digest, closure.digest
+cloud	tests/hosted-api-worker.test.ts	closure_digest	digest		^: "sha256:test-closure"	an inspected closure's own digest, closure.digest
+cloud	packages/api/src/native-runtime.test.ts	closure_digest	digest	\bexecution_closure: \{ $		an inspected closure's own digest, closure.digest
