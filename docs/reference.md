@@ -588,7 +588,8 @@ confirmed, the streams live in the workspace store, a SQLite file at
 `.runx/store.sqlite`; `runx connector use store --parameter url=...` moves them
 to another SQLite file, Postgres or Redis. The person's own data uses the
 `private` connector, its own file in the runx home, where every call needs a
-term.
+term, whose events can also be standing and end on a date, which its listings
+and searches select by.
 
 Large local inputs use `artifact.admit` and `artifact.read`. Admission snapshots
 one contained regular file, binds its media type, byte count, and whole-file

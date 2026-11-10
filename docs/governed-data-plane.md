@@ -12,6 +12,8 @@ boundary between domain skills and the storage they keep their records in.
   and `keys.list`.
 - The **private** connector keeps the person's own data, such as memory and
   people, with the same operations and the same tables, plus `keys.search`.
+  An event on `private` can also be standing, and can state the last date it's
+  valid, and its listings and searches select by both.
 - A **store instance** chooses where the streams live: SQLite, Postgres or
   Redis. Skills never name a backend.
 - A **store result** (`runx.store.result.v1`) is the evidence a skill reads
@@ -100,8 +102,8 @@ connector opens the other's file.
 | `events.append` | Append one event, its `type` declared beside its `data`, when its key is at `expected_version` |
 | `events.read` | Read one page of a key's events in version order: the latest page, or the page after `after_version` |
 | `key.inspect` | Read a key's version, its newest event whole, and the digest that chains its events |
-| `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type |
-| `keys.search` | On `private` only, rank one stream's keys by a full-text match against each key's newest event |
+| `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type, and on `private` by `standing` and `valid_at` |
+| `keys.search` | On `private` only, rank one stream's keys by a full-text match against each key's newest event, by type, `standing` and `valid_at` too |
 
 An append is keyed by the idempotency key the kernel derives from the call's
 intent, which includes the caller's `idempotency_key`. The same call answers
@@ -122,7 +124,27 @@ Postgres or Redis answers the same reads with the same digests.
 
 `keys.search` quotes its query, so search syntax is plain words, and searches
 what's current, never history: an append replaces its key's entry. Matches come
-in score order, ties broken by key, a page at a time.
+in score order, equal scores newest commit first, then by key, a page at a
+time.
+
+## Standing keys and end dates
+
+On `private`, an append may say two things beside the event's `type`, and its
+digest covers each when it says it:
+
+- `standing: true`: the key is standing while this is its newest event. A
+  listing or a search that names `standing` reads only the standing keys, or
+  only the others. A listing walks an index of its own,
+  `(stream, standing, committed_at DESC, key)`, so neither visits the other's
+  rows. Memory keeps a person's standing rules this way, so its index reads
+  every rule without walking the facts.
+- `valid_until`: the last date the event is valid, `YYYY-MM-DD`. A listing or a
+  search given `valid_at`, a date, passes over a key whose newest event ended
+  before it. A listing counts it as passed over, as it does a type it wasn't
+  asked for, so nothing ended reaches the caller.
+
+An event that says neither digests as it always has. `store` refuses both, so
+an event on Postgres or Redis is never standing or dated.
 
 ## Stores from before streams had owners
 
