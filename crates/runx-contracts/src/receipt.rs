@@ -264,6 +264,11 @@ pub struct Lineage {
     /// The receipts of the subject's direct children, each committed by its
     /// id and signed-body digest.
     pub children: Vec<Reference>,
+    /// The receipt of the source run whose result a reused call settled
+    /// with, which names that run and verifies on its own (reuse, D32).
+    /// Absent when nothing was reused, so no other receipt changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reused_from: Option<NonEmptyString>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -341,4 +346,31 @@ pub struct Receipt {
     pub acts: Vec<ReceiptAct>,
     pub seal: Seal,
     pub lineage: Lineage,
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::Lineage;
+
+    /// A receipt names the source a reused call settled with, and every
+    /// other receipt's lineage encodes exactly as before.
+    #[test]
+    fn a_lineage_names_a_reused_source_only_when_there_is_one() {
+        assert_eq!(
+            serde_json::to_value(Lineage::default()).unwrap(),
+            serde_json::json!({"children": []})
+        );
+        let reused = Lineage {
+            children: Vec::new(),
+            reused_from: Some("sha256:source".into()),
+        };
+        let encoded = serde_json::to_value(&reused).unwrap();
+        assert_eq!(
+            encoded,
+            serde_json::json!({"children": [], "reused_from": "sha256:source"})
+        );
+        assert_eq!(serde_json::from_value::<Lineage>(encoded).unwrap(), reused);
+    }
 }

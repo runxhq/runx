@@ -603,7 +603,10 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         children,
         authority,
     } = parts;
-    let lineage = Lineage { children };
+    let lineage = Lineage {
+        children,
+        reused_from: None,
+    };
     let subject_uri = node.uri(scope.run_id);
     UnsealedReceipt(Receipt {
         schema: ReceiptSchema::V1,
