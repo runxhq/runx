@@ -171,7 +171,7 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
     model.finish()?;
     let output = output?;
     assert_eq!(output["status"], "sealed", "{output}");
-    let evidence = &output["result"]["evidence"]["data"];
+    let evidence = &output["result"]["evidence"];
     assert_eq!(evidence["schema"], "runx.eval_evidence.v1", "{output}");
     assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
     assert_eq!(evidence["repeats"], 3, "{evidence}");
@@ -352,7 +352,7 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     model.finish()?;
     let output = output?;
     assert_eq!(output["status"], "sealed", "{output}");
-    let evidence = &output["result"]["evidence"]["data"];
+    let evidence = &output["result"]["evidence"];
     assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
     let hosts = evidence["hosts"].as_array().ok_or("a host's numbers")?;
     assert_eq!(hosts.len(), 1, "{evidence}");
