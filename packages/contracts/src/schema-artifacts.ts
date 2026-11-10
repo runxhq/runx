@@ -7559,6 +7559,7 @@ export const runxSchemaArtifacts = {
         "description": "Why a call that asked to reuse a result ran again.",
         "enum": [
           "no_candidate",
+          "no_identity",
           "ineligible",
           "not_allowed",
           "changed",

@@ -2458,7 +2458,7 @@ export type ReceiptSignatureContract = {
 };
 
 /** Why a call that asked to reuse a result ran again. */
-export type RecomputeReasonContract = "no_candidate" | "ineligible" | "not_allowed" | "changed" | "too_old" | "other_model";
+export type RecomputeReasonContract = "no_candidate" | "no_identity" | "ineligible" | "not_allowed" | "changed" | "too_old" | "other_model";
 
 export type ReferenceContract = {
   readonly label?: string;
