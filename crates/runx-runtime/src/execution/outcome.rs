@@ -191,6 +191,22 @@ fn stating(answer: JsonValue, key: &str, value: JsonValue) -> Result<JsonValue, 
     Ok(JsonValue::Object(answer))
 }
 
+/// Whether an agent turn's answer states its agent harness met `requirement`, in
+/// its closure's `requirements`.
+pub(crate) fn states_met(answer: &JsonValue, requirement: runx_contracts::TurnRequirement) -> bool {
+    answer
+        .as_object()
+        .and_then(|answer| answer.get("closure"))
+        .and_then(JsonValue::as_object)
+        .and_then(|closure| closure.get("requirements"))
+        .and_then(JsonValue::as_array)
+        .is_some_and(|stated| {
+            stated
+                .iter()
+                .any(|stated| stated.as_str() == Some(requirement.as_str()))
+        })
+}
+
 /// The longest model name an answer may state.
 const MAX_MODEL: usize = 200;
 

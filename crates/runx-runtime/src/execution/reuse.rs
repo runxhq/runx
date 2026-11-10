@@ -131,3 +131,123 @@ pub(crate) fn index(
         settled => settled,
     }
 }
+
+/// Whether the run `run_id`, a source of `workflow`, shows on positive
+/// evidence that runx saw all it did and all it saw (reuse.md, check 1). It
+/// sealed completed, under runx's managed driver, as one method run with no
+/// child runs. Every step it could run is a native tool that only reads, a
+/// worker, a turn, a script, or an operation that only read, and everything
+/// its turns and scripts called is a native tool that only reads, a read of
+/// a result, or an operation that only read. An operation counts only when
+/// its packet shows runx made the read itself, not through a process it
+/// started. No person answered it, and runx's managed agent answered each
+/// turn from a fresh context, stating the model that answered.
+pub(crate) fn eligible(
+    store: &std::sync::Arc<KernelStore>,
+    run_id: &str,
+    workflow: &runx_parser::Workflow,
+) -> Result<bool, super::run_record::RunRecordError> {
+    use super::run_record::{Origin, Replayed, RunLog};
+    let log = RunLog::open(std::sync::Arc::clone(store), run_id)?;
+    let Some(record) = log.load()? else {
+        return Ok(false);
+    };
+    if record
+        .sealed
+        .as_ref()
+        .is_none_or(|sealed| sealed.outcome != runx_contracts::RunOutcome::Completed)
+    {
+        return Ok(false);
+    }
+    let root = match &record.origin {
+        Origin::Run(started) => Some(started.driver),
+        _ => match RunLog::open(
+            std::sync::Arc::clone(store),
+            super::run_record::root_run_id(run_id),
+        )?
+        .load()?
+        .map(|root| root.origin)
+        {
+            Some(Origin::Run(started)) => Some(started.driver),
+            _ => None,
+        },
+    };
+    if root != Some(runx_contracts::RunDriver::Managed)
+        || !workflow.steps.iter().all(step_is_seen)
+        || !record.answers.iter().all(answered_by_runx)
+    {
+        return Ok(false);
+    }
+    // What each operation step read, what each step called, and no clock
+    // read, which a result read from the time can't be reused past.
+    for fact in &record.facts {
+        let Replayed::Step(step) = fact else {
+            continue;
+        };
+        let operation = workflow.steps.iter().any(|defined| {
+            defined.id == step.step_id
+                && matches!(defined.kind, runx_parser::StepKind::Operation(_))
+        });
+        if operation && !read_runx_made(step) {
+            return Ok(false);
+        }
+        let (calls, clocks) = log.step_calls(&step.step_id, step.attempt)?;
+        if !clocks.is_empty() || !calls.iter().all(call_is_seen) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Whether runx sees all a step of this kind does.
+fn step_is_seen(step: &runx_parser::WorkflowStep) -> bool {
+    use runx_parser::{StepKind, ToolTarget};
+    match &step.kind {
+        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
+        // An operation step is seen by what its record shows it read.
+        StepKind::Tool(ToolTarget::Worker(_))
+        | StepKind::Agent(_)
+        | StepKind::Script(_)
+        | StepKind::Operation(_) => true,
+        StepKind::Tool(ToolTarget::Process(_))
+        | StepKind::Ask(_)
+        | StepKind::Skill(_)
+        | StepKind::Load(_) => false,
+    }
+}
+
+/// Whether runx sees all `call` did.
+fn call_is_seen(call: &super::run_record::RecordedCall) -> bool {
+    match &call.target {
+        runx_contracts::CallTarget::Tool { tool } => {
+            crate::tool_catalogs::native::only_reads(tool.as_str())
+        }
+        runx_contracts::CallTarget::Read { .. } => true,
+        runx_contracts::CallTarget::Operation { .. } => matches!(
+            &call.outcome,
+            super::run_record::CallOutcome::Completed(run) if read_runx_made(run)
+        ),
+        _ => false,
+    }
+}
+
+/// Whether the operation `run` made only read, and runx read it itself: its
+/// packet shows read access through a transport that isn't a process runx
+/// started, a local process or an MCP server that may be one.
+fn read_runx_made(run: &crate::StepRun) -> bool {
+    let Some(runx_contracts::JsonValue::Object(packet)) = run.output("provider_operation") else {
+        return false;
+    };
+    let field = |name: &str| packet.get(name).and_then(runx_contracts::JsonValue::as_str);
+    field("access") == Some("read")
+        && field("transport")
+            .is_some_and(|transport| !matches!(transport, "local_process" | "local_mcp"))
+}
+
+/// Whether runx's managed agent gave `answer`: no person did, and it states
+/// the model that answered and that the turn started from a fresh context.
+fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
+    !answer.human
+        && super::outcome::stated_model(&answer.value).is_ok_and(|model| model.is_some())
+        && super::outcome::states_met(&answer.value, runx_contracts::TurnRequirement::FreshContext)
+}

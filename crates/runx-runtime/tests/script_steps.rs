@@ -1904,3 +1904,173 @@ fn a_child_that_settles_after_a_resume_is_indexed() -> TestResult {
     );
     Ok(())
 }
+
+/// Run `skill_dir` under runx's managed driver, whose turns only runx's
+/// managed agent works, on the kernel's local effects.
+fn run_managed(root: &Path, skill_dir: PathBuf) -> TestResult<RunResult> {
+    let orchestrator = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        env(root),
+    );
+    Ok(orchestrator.run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("hello".to_owned()))]),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(2)?,
+        },
+        None,
+        None,
+        None,
+    )?)
+}
+
+/// A source runx drove whose every step it saw whole, a native tool that
+/// only reads, is eligible: a later call asking the same finds it and, until
+/// its reads are authorized for this run, recomputes as not allowed. The same
+/// source under a host's driver isn't eligible (reuse.md, D2).
+#[test]
+fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
+    use runx_contracts::RecomputeReason::{NoCandidate, NotAllowed};
+    let temp = tempdir()?;
+    write_digest_child(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../digest-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+        r#"export default async function (ctx, { value }) {
+  await ctx.skill("../digest-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  return { done: true };
+}
+"#,
+    )?;
+    for expected in [NoCandidate, NotAllowed] {
+        let ran = run_managed(temp.path(), skill_dir.clone())?;
+        let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
+        assert_eq!(
+            reuse_decisions(temp.path(), run_id)?,
+            BTreeMap::from([(0, recomputed(expected))])
+        );
+    }
+    Ok(())
+}
+
+/// A source that asked a person isn't eligible, even under runx's managed
+/// driver: a person's answer is something runx can't see again.
+#[test]
+fn a_source_that_asked_a_person_is_ineligible() -> TestResult {
+    use runx_contracts::RecomputeReason::{Ineligible, NoCandidate};
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  const confirmed = await ctx.skill("../confirm-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  return { confirmed: Object.keys(confirmed) };
+}
+"#,
+        "          confirmed: {type: array}\n",
+    )?;
+    let started = run_managed(temp.path(), skill_dir.clone())?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let waiting = requests(&started)?;
+    let sealed = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {waiting[0].as_str(): true}}),
+    )?;
+    assert_eq!(text(object(&sealed.output)?, "status"), Some("sealed"));
+    assert_eq!(
+        reuse_decisions(temp.path(), &run_id)?,
+        BTreeMap::from([(0, recomputed(NoCandidate))])
+    );
+    let again = run_managed(temp.path(), skill_dir)?;
+    let again_id = text(object(&again.output)?, "run_id").ok_or("missing run_id")?;
+    assert_eq!(
+        reuse_decisions(temp.path(), again_id)?,
+        BTreeMap::from([(0, recomputed(Ineligible))])
+    );
+    Ok(())
+}
+
+/// A source, `store-child`, whose method's one step is `step`, beside
+/// `module` when its step is a script, asked twice under runx's managed
+/// driver: what the second ask was answered.
+fn second_ask_of(step: &str, module: Option<&str>) -> TestResult<runx_contracts::ReuseDecision> {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("store-child"),
+        "---\nname: store-child\ndescription: Uses its own store.\n---\n# Store child\n\nUse it.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  use:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: use\n{step}"
+        ),
+    )?;
+    if let Some(module) = module {
+        std::fs::write(temp.path().join("store-child/use.mjs"), module)?;
+    }
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../store-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n          why: {type: string, optional: true}\n",
+        r#"export default async function (ctx, { value }) {
+  try {
+    await ctx.skill("../store-child", { value }, { reuse: { max_age_seconds: 604800 } });
+    return { done: true };
+  } catch (rejected) {
+    return { done: false, why: rejected.message };
+  }
+}
+"#,
+    )?;
+    let mut decisions = Vec::new();
+    for _ in 0..2 {
+        let ran = run_managed(temp.path(), skill_dir.clone())?;
+        let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
+        // The source's call resolved, so what it's answered turns on what
+        // its operation did, never on a failure.
+        let result = object(object(&ran.output)?.get("result").ok_or("no result")?)?;
+        assert_eq!(
+            result.get("done"),
+            Some(&JsonValue::Bool(true)),
+            "{result:?}"
+        );
+        decisions.extend(reuse_decisions(temp.path(), run_id)?.into_values());
+    }
+    assert_eq!(
+        decisions[0],
+        recomputed(runx_contracts::RecomputeReason::NoCandidate)
+    );
+    Ok(decisions[1].clone())
+}
+
+/// A read runx makes itself is eligible: the source whose script read its
+/// own store recomputes as not allowed until its read is authorized for this
+/// run. A source whose step wrote anything isn't eligible (reuse.md, check 1).
+#[test]
+fn a_source_that_read_is_eligible_and_one_that_wrote_is_not() -> TestResult {
+    use runx_contracts::RecomputeReason::{Ineligible, NotAllowed};
+    assert_eq!(
+        second_ask_of(
+            "        script: {module: use.mjs}\n        inputs: {value: $input.value}\n        calls:\n          operations: [store/events.read]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+            Some(
+                "export default async function (ctx, { value }) {\n  await ctx.operation(\"store/events.read\", { stream: \"notes\", key: value, limit: 1 });\n  return { done: true };\n}\n"
+            ),
+        )?,
+        recomputed(NotAllowed)
+    );
+    assert_eq!(
+        second_ask_of(
+            "        operation: store/events.append\n        idempotency_key: $input.value\n        inputs: {stream: notes, key: $input.value, expected_version: 0, type: note.added, data: {}}\n",
+            None,
+        )?,
+        recomputed(Ineligible)
+    );
+    Ok(())
+}

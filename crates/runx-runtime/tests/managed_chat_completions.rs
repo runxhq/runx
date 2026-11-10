@@ -1428,3 +1428,114 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
     assert_eq!(finish_server(server)?.len(), 4);
     Ok(())
 }
+
+/// A turn runx's managed agent worked from a fresh context, stating the
+/// model that answered, leaves its run an eligible source: a later call that
+/// asks the same finds it and, until its reads are authorized for this run,
+/// recomputes as not allowed rather than ineligible (reuse.md, D2).
+#[test]
+fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let child = temp.path().join("answer-child");
+    fs::create_dir_all(&child)?;
+    fs::write(
+        child.join("SKILL.md"),
+        "---\nname: answer-child\ndescription: Answers once.\n---\n# Answer child\n\n## Agent task: answer\n\nFinish with status done.\n",
+    )?;
+    fs::write(
+        child.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        inputs: {value: $input.value}\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let parent = temp.path().join("asker");
+    fs::create_dir_all(&parent)?;
+    fs::write(
+        parent.join("SKILL.md"),
+        "---\nname: asker\ndescription: Asks its child once.\n---\n# Asker\n\nAsk.\n",
+    )?;
+    fs::write(
+        parent.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  ask:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: ask\n        script: {module: ask.mjs}\n        inputs: {value: $input.value}\n        calls:\n          skills: [../answer-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+    )?;
+    fs::write(
+        parent.join("ask.mjs"),
+        "export default async function (ctx, { value }) {\n  await ctx.skill(\"../answer-child\", { value }, { reuse: { max_age_seconds: 604800 } });\n  return { done: true };\n}\n",
+    )?;
+
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let done = json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]});
+    let server = std::thread::spawn(move || serve_responses(listener, [done.clone(), done]));
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        (
+            "RUNX_CWD".to_owned(),
+            temp.path().to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let mut decisions = Vec::new();
+    for _ in 0..2 {
+        let result = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: parent.clone(),
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("x".to_owned()))]),
+                env: env.clone(),
+                cwd: temp.path().to_path_buf(),
+                managed_agent: ManagedAgentPolicy::inline(3)?,
+            },
+            None,
+            None,
+            None,
+        )?;
+        let output = serde_json::to_value(&result.output)?;
+        assert_eq!(output["status"], "sealed", "{output}");
+        let run_id = output["run_id"].as_str().ok_or("missing run_id")?;
+        let read = runx_runtime::run_record::read_run(&env, temp.path(), run_id, None)?;
+        decisions.extend(
+            read.events
+                .into_iter()
+                .filter_map(|record| match record.event {
+                    runx_contracts::RunEventFact::Call {
+                        reuse: Some(reuse), ..
+                    } if record.stream.as_str() == run_id
+                        || runx_runtime::run_record::is_calls_stream_of(
+                            record.stream.as_str(),
+                            run_id,
+                        ) =>
+                    {
+                        Some(reuse.decision)
+                    }
+                    _ => None,
+                }),
+        );
+    }
+    finish_server(server)?;
+    let recomputed = |reason| runx_contracts::ReuseDecision::Recomputed { reason };
+    assert_eq!(
+        decisions,
+        [
+            recomputed(runx_contracts::RecomputeReason::NoCandidate),
+            recomputed(runx_contracts::RecomputeReason::NotAllowed),
+        ]
+    );
+    Ok(())
+}

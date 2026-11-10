@@ -1061,8 +1061,9 @@ where
     }
 
     /// What a skill call that asked to reuse a result is answered, and the
-    /// identity its child is indexed under. Until a source's eligibility is
-    /// checked, a call that finds one recomputes as ineligible.
+    /// identity its child is indexed under. A source that isn't eligible
+    /// recomputes as ineligible, and one that is recomputes as not allowed
+    /// until its reads are authorized for this run.
     fn reuse_candidate(
         &self,
         call: &CallStep,
@@ -1101,13 +1102,26 @@ where
             crate::execution::reuse::head(options.run.store(), &identity).map_err(|error| {
                 RuntimeError::effect_state("reading the reuse index", error.to_string())
             })?;
-        Ok((
-            recomputed(match found {
-                None => RecomputeReason::NoCandidate,
-                Some(_) => RecomputeReason::Ineligible,
-            }),
-            identity,
-        ))
+        let reason = match found {
+            None => RecomputeReason::NoCandidate,
+            Some(source) => {
+                let eligible = crate::execution::reuse::eligible(
+                    options.run.store(),
+                    &source.run_id,
+                    &skill.method.workflow,
+                )
+                .map_err(|error| {
+                    RuntimeError::effect_state("reading a reuse source", error.to_string())
+                })?;
+                if eligible {
+                    // Until its reads are authorized for this run.
+                    RecomputeReason::NotAllowed
+                } else {
+                    RecomputeReason::Ineligible
+                }
+            }
+        };
+        Ok((recomputed(reason), identity))
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is
