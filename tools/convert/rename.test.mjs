@@ -297,7 +297,7 @@ test("a receipt carries no harness reference: the test lane's readback is a test
   assert.equal(read(root, "crates/runx-runtime/src/execution/test/provider_responses.rs"), responses.replaceAll("harness", "test"));
 });
 
-test("the act engine and the test replay take their modules' names where the rename moves them, so a second run changes nothing", (t) => {
+test("the act engine, the test replay and the run control plane take their own names where the rename moves them, so a second run changes nothing", (t) => {
   const root = tree(t, {
     "crates/runx-runtime/src/execution.rs": "pub mod runner;\npub mod test;\n",
     "crates/runx-runtime/src/execution/runner.rs": "mod workflow_engine;\nuse workflow_engine::Steps;\n",
@@ -305,6 +305,7 @@ test("the act engine and the test replay take their modules' names where the ren
     "crates/runx-runtime/src/execution/test.rs": "pub mod runner;\npub use runner::run_case;\n",
     "crates/runx-runtime/src/execution/test/runner.rs": "use crate::execution::runner::Steps;\npub fn run_case() {}\n",
     "fixtures/kernel/runner/runner-rejects-malformed-state.json": '{ "name": "runner-rejects-malformed-state" }\n',
+    "docs/harness-control-plane.md": "# Run Control Plane\n",
   });
   const replay = "use crate::execution::engine::Steps;\npub fn run_case() {}\n";
   for (let pass = 0; pass < 2; pass += 1) {
@@ -318,6 +319,7 @@ test("the act engine and the test replay take their modules' names where the ren
     assert.equal(read(root, "fixtures/kernel/evaluation/evaluation-rejects-malformed-state.json"), '{ "name": "evaluation-rejects-malformed-state" }\n');
     assert.equal(existsSync(path.join(root, "crates/runx-runtime/src/execution/runner")), false);
     assert.equal(existsSync(path.join(root, "fixtures/kernel/runner")), false);
+    assert.equal(read(root, "docs/run-control-plane.md"), "# Run Control Plane\n");
     if (pass === 1) assert.match(out, /oss: 0 names in 0 files, 0 of them bare words, \d+ bare words kept, 0 paths moved/);
   }
 });

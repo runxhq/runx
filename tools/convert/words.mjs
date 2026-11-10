@@ -36,6 +36,7 @@ export const PROSE_ONLY = new Set(["graph"]);
  * - The test replay, which loads fixtures, invokes adapters, asserts receipts
  *   and seals workflow replay.
  * - The kernel fixture evaluation, whose error is kernel.fixture.evaluation_failed.
+ * - The run control plane, the document's own title.
  */
 export const MOVED_PATHS = [
   ["crates/runx-parser/src/graph.rs", "crates/runx-parser/src/workflow.rs"],
@@ -47,6 +48,7 @@ export const MOVED_PATHS = [
   ["crates/runx-runtime/src/execution/runner/", "crates/runx-runtime/src/execution/engine/"],
   ["crates/runx-runtime/src/execution/test/runner.rs", "crates/runx-runtime/src/execution/test/replay.rs"],
   ["fixtures/kernel/runner/", "fixtures/kernel/evaluation/"],
+  ["docs/harness-control-plane.md", "docs/run-control-plane.md"],
 ];
 
 /** Where MOVED_PATHS moves a path, or the path itself when no move holds it. */
