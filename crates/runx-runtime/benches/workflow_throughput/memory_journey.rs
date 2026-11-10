@@ -271,6 +271,9 @@ impl Memory {
                         valid_until: valid_until
                             .filter(|_| event_type != "memory.disabled")
                             .map(str::to_owned),
+                        // As memory names them: what a search matches.
+                        searchable: (event_type != "memory.disabled")
+                            .then(|| vec!["text".to_owned(), "summary".to_owned()]),
                         committed_at: at(half),
                         writer_package: PACKAGE.to_owned(),
                     });

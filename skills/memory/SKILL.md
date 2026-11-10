@@ -41,7 +41,8 @@ out doesn't confirm a summary of it or the force it's given.
 - `disable`: stop an entry applying. The record keeps it.
 - `observe`: keep what an agent found, or supersede an earlier observation.
 - `index`: a bounded index for a turn's context, the default method.
-- `search`: ranked matches among current entries.
+- `search`: ranked matches among current entries, by their text and
+  summary only, never a confirmation's wording, a purpose or a source.
 - `read`: one entry by handle, at the version it names.
 
 An entry's handle is `memory:<stream>#<key>@<version>`.

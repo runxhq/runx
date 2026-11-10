@@ -41,6 +41,9 @@ pub(super) struct Append<'a> {
     pub standing: bool,
     /// On `private`, the last date the event is valid, `YYYY-MM-DD`.
     pub valid_until: Option<&'a str>,
+    /// On `private`, the fields of `data` a search matches the key by while
+    /// the event is its newest.
+    pub searchable: Option<Vec<&'a str>>,
 }
 
 pub(super) struct ReadEvents<'a> {
@@ -88,13 +91,16 @@ pub(super) struct SearchKeys<'a> {
 
 impl Request<'_> {
     /// Whether the call names what only `private` keeps: a standing event,
-    /// an end date, or a selection by either.
+    /// an end date, what a search matches, or a selection by either of the
+    /// first two.
     pub(super) fn is_private(&self) -> bool {
         let selects = |selection: &Selection<'_>| {
             selection.standing.is_some() || selection.valid_at.is_some()
         };
         match self {
-            Self::Append(append) => append.standing || append.valid_until.is_some(),
+            Self::Append(append) => {
+                append.standing || append.valid_until.is_some() || append.searchable.is_some()
+            }
             Self::List(list) => selects(&list.selection),
             Self::Search(search) => selects(&search.selection),
             Self::Read(_) | Self::Inspect(_) => false,
@@ -115,6 +121,8 @@ pub(super) struct AppendInput {
     standing: bool,
     #[serde(default)]
     valid_until: Option<String>,
+    #[serde(default)]
+    searchable: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -252,6 +260,7 @@ impl Input {
                     writer,
                     standing: input.standing,
                     valid_until: date("valid_until", input.valid_until.as_deref())?,
+                    searchable: searchable(input.searchable.as_deref(), &input.data)?,
                 })
             }
             Self::Read(input) => {
@@ -352,6 +361,37 @@ fn types(values: &[String]) -> Result<Vec<&str>, StoreError> {
         }
     }
     Ok(types)
+}
+
+/// The fields a search matches, when an append names them: 1 to 16
+/// distinct fields, each one `data` holds, so a typo can't leave a key
+/// silently unsearchable.
+fn searchable<'a>(
+    fields: Option<&'a [String]>,
+    data: &JsonObject,
+) -> Result<Option<Vec<&'a str>>, StoreError> {
+    let Some(fields) = fields else {
+        return Ok(None);
+    };
+    if !(1..=16).contains(&fields.len()) {
+        return Err(StoreError::invalid(
+            "searchable names 1 to 16 fields of the event's data",
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    for field in fields {
+        if !seen.insert(field.as_str()) {
+            return Err(StoreError::invalid(format!(
+                "searchable names {field} twice"
+            )));
+        }
+        if !data.contains_key(field) {
+            return Err(StoreError::invalid(format!(
+                "searchable names {field}, which the event's data doesn't hold"
+            )));
+        }
+    }
+    Ok(Some(fields.iter().map(String::as_str).collect()))
 }
 
 /// `value`, when it's a calendar date, `YYYY-MM-DD`.

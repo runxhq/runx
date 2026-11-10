@@ -10248,7 +10248,7 @@ export const runxSchemaArtifacts = {
             "type": "object"
           },
           "digest": {
-            "description": "Covers the writer, the type and the data, and whether the event is standing and its end date when it states them.",
+            "description": "Covers the writer, the type and the data, and whether the event is standing, its end date and what's searchable when it states them.",
             "maxLength": 71,
             "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
@@ -10261,6 +10261,18 @@ export const runxSchemaArtifacts = {
           "idempotency_key": {
             "minLength": 1,
             "type": "string"
+          },
+          "searchable": {
+            "description": "On `private`, the fields of its `data` a search matches its key by while this is its newest event. An event that names none puts its key in no search.",
+            "items": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
           },
           "standing": {
             "const": true,

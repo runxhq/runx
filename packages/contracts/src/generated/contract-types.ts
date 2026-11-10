@@ -3517,11 +3517,13 @@ export type StoreEventContract = {
   readonly data: {
     readonly [key: string]: unknown;
   };
-  /** Covers the writer, the type and the data, and whether the event is standing and its end date when it states them. */
+  /** Covers the writer, the type and the data, and whether the event is standing, its end date and what's searchable when it states them. */
   readonly digest: string;
   /** A length-delimited encoding of stream, key and version. */
   readonly id: string;
   readonly idempotency_key: string;
+  /** On `private`, the fields of its `data` a search matches its key by while this is its newest event. An event that names none puts its key in no search. */
+  readonly searchable?: readonly string[];
   /** On `private`, whether its key is standing while this is its newest event: a listing or a search reads the standing keys apart from the others. */
   readonly standing?: true;
   /** Declared by the writer, never guessed. */

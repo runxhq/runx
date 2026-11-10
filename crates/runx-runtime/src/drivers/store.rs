@@ -4,11 +4,12 @@
 //! order, inspected, and listed newest first; on `private`, a stream's
 //! current entries searched.
 //!
-//! On `private`, an event can also be standing, and can state the last date
-//! it's valid. A listing or a search reads a stream's standing keys apart
-//! from the others, by an index of their own, and one valid at a date passes
-//! over a key whose newest event ended before it. They're `private`'s, so
-//! `store` refuses them.
+//! On `private`, an event can also be standing, can state the last date it's
+//! valid, and names the fields of its data a search matches it by. A listing
+//! or a search reads a stream's standing keys apart from the others, by an
+//! index of their own, and one valid at a date passes over a key whose
+//! newest event ended before it. They're `private`'s, so `store` refuses
+//! them.
 //!
 //! A stream belongs to a package. The author writes its own name, and the
 //! runtime places it under the package the call is made from, rendering the
@@ -366,6 +367,7 @@ pub struct HistoryEvent {
     pub data: JsonObject,
     pub standing: bool,
     pub valid_until: Option<String>,
+    pub searchable: Option<Vec<String>>,
     pub committed_at: String,
     pub writer_package: String,
 }
@@ -421,6 +423,10 @@ pub(crate) fn lay_down_private_history(
                     },
                     standing: event.standing,
                     valid_until: event.valid_until.as_deref(),
+                    searchable: event
+                        .searchable
+                        .as_ref()
+                        .map(|fields| fields.iter().map(String::as_str).collect()),
                 },
                 event.committed_at.clone(),
             )
@@ -449,7 +455,7 @@ impl Store<'_> {
             input.request(self.call.target, self.call.idempotency_key, writer.as_ref())?;
         if Kind::of(self.call.connector) != Kind::Private && request.is_private() {
             return Err(StoreError::invalid(
-                "standing, valid_until and valid_at are private's: a store event is neither standing nor dated",
+                "standing, valid_until, valid_at and searchable are private's: a store event is never standing, dated or searchable",
             ));
         }
         let mut backend = open(self.call)?;

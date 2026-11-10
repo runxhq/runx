@@ -103,7 +103,7 @@ connector opens the other's file.
 | `events.read` | Read one page of a key's events in version order: the latest page, or the page after `after_version` |
 | `key.inspect` | Read a key's version, its newest event whole, and the digest that chains its events |
 | `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type, and on `private` by `standing` and `valid_at` |
-| `keys.search` | On `private` only, rank one stream's keys by a full-text match against each key's newest event, by type, `standing` and `valid_at` too |
+| `keys.search` | On `private` only, rank one stream's keys by a full-text match against the fields each key's newest event names `searchable`, by type, `standing` and `valid_at` too |
 
 An append is keyed by the idempotency key the kernel derives from the call's
 intent, which includes the caller's `idempotency_key`. The same call answers
@@ -123,7 +123,10 @@ Every backend keeps the same streams with the same digests: a key's
 Postgres or Redis answers the same reads with the same digests.
 
 `keys.search` quotes its query, so search syntax is plain words, and searches
-what's current, never history: an append replaces its key's entry. Matches come
+what's current, never history: an append replaces its key's entry. It matches
+only the strings under the `data` fields the key's newest event names
+`searchable`, so a writer says what's searchable and the store never guesses:
+an event that names none puts its key in no search. Matches come
 in score order, equal scores newest commit first, then by key, a page at a
 time.
 
@@ -143,8 +146,10 @@ digest covers each when it says it:
   before it. A listing counts it as passed over, as it does a type it wasn't
   asked for, so nothing ended reaches the caller.
 
-An event that says neither digests as it always has. `store` refuses both, so
-an event on Postgres or Redis is never standing or dated.
+An append may also name `searchable`, 1 to 16 distinct fields its `data`
+holds, which a search matches the key by. An event that says none of the
+three digests as it always has. `store` refuses all three, so an event on
+Postgres or Redis is never standing, dated or searchable.
 
 ## Stores from before streams had owners
 

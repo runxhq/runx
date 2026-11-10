@@ -5,8 +5,8 @@
 //! `private`, so it is never the kernel's protected store, another
 //! program's file, or the other connector's: a `store` instance naming the
 //! private file is refused, and so is the reverse. `private`'s file also
-//! keeps a full-text index of each key's newest event, which `keys.search`
-//! ranks with BM25 (SQLite FTS5), and an index of each stream's keys by
+//! keeps a full-text index of the fields each key's newest event names
+//! searchable, which `keys.search` ranks with BM25 (SQLite FTS5), and an index of each stream's keys by
 //! whether they're standing, which a listing that names `standing` walks;
 //! an append replaces its key's entry in both.
 
@@ -46,6 +46,7 @@ CREATE TABLE store_events (
   writer_digest TEXT NOT NULL,
   standing INTEGER NOT NULL DEFAULT 0,
   valid_until TEXT,
+  searchable TEXT,
   PRIMARY KEY (stream, key, version),
   UNIQUE (stream, key, idempotency_key)
 );
@@ -63,6 +64,7 @@ CREATE TABLE store_keys (
   writer_digest TEXT NOT NULL,
   standing INTEGER NOT NULL DEFAULT 0,
   valid_until TEXT,
+  searchable TEXT,
   chain_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key)
 );
@@ -79,7 +81,7 @@ CREATE VIRTUAL TABLE store_search USING fts5(text);
 CREATE INDEX store_keys_standing_recent ON store_keys (stream, standing, committed_at DESC, key ASC);
 "#;
 
-const EVENT_COLUMNS: &str = "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest, standing, valid_until";
+const EVENT_COLUMNS: &str = "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest, standing, valid_until, searchable";
 
 pub(super) struct Sqlite {
     connection: Connection,
@@ -453,7 +455,8 @@ impl Streams for SqliteStreams<'_> {
         insert_event(&self.0, at, record)?;
         upsert_key(&self.0, at, record, state)?;
         if self.1 == Kind::Private {
-            // The key's entry is its newest event: an append replaces it.
+            // The key's entry is its newest event's searchable fields: an
+            // append replaces it, and one that names none removes it.
             let rowid: i64 = self
                 .0
                 .query_row(
@@ -465,12 +468,14 @@ impl Streams for SqliteStreams<'_> {
             self.0
                 .execute("DELETE FROM store_search WHERE rowid = ?1", params![rowid])
                 .map_err(|error| database("replacing the key's index entry", &error))?;
-            self.0
-                .execute(
-                    "INSERT INTO store_search (rowid, text) VALUES (?1, ?2)",
-                    params![rowid, model::searchable_text(&record.data)],
-                )
-                .map_err(|error| database("indexing the key", &error))?;
+            if let Some(text) = model::searchable_text(record) {
+                self.0
+                    .execute(
+                        "INSERT INTO store_search (rowid, text) VALUES (?1, ?2)",
+                        params![rowid, text],
+                    )
+                    .map_err(|error| database("indexing the key", &error))?;
+            }
         }
         Ok(())
     }
@@ -479,6 +484,19 @@ impl Streams for SqliteStreams<'_> {
 fn data_json(record: &EventRecord) -> Result<String, StoreError> {
     serde_json::to_string(&record.data)
         .map_err(|error| StoreError::invalid(format!("encoding the event: {error}")))
+}
+
+/// The fields an event names searchable, as their column holds them: a JSON
+/// list, or nothing.
+fn searchable_json(record: &EventRecord) -> Result<Option<String>, StoreError> {
+    record
+        .searchable
+        .as_ref()
+        .map(|fields| {
+            serde_json::to_string(fields)
+                .map_err(|error| StoreError::invalid(format!("encoding the event: {error}")))
+        })
+        .transpose()
 }
 
 fn writer_columns(record: &EventRecord) -> (&str, &str) {
@@ -496,7 +514,7 @@ fn insert_event(
     let (writer_package, writer_digest) = writer_columns(record);
     connection
         .execute(
-            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest, standing, valid_until) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest, standing, valid_until, searchable) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 at.stream,
                 at.key,
@@ -511,6 +529,7 @@ fn insert_event(
                 writer_digest,
                 record.standing,
                 record.valid_until,
+                searchable_json(record)?,
             ],
         )
         .map_err(|error| database("inserting the event", &error))?;
@@ -526,7 +545,7 @@ fn upsert_key(
     let (writer_package, writer_digest) = writer_columns(record);
     connection
         .execute(
-            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, standing, valid_until, chain_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, standing = excluded.standing, valid_until = excluded.valid_until, chain_digest = excluded.chain_digest",
+            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, standing, valid_until, searchable, chain_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, standing = excluded.standing, valid_until = excluded.valid_until, searchable = excluded.searchable, chain_digest = excluded.chain_digest",
             params![
                 at.stream,
                 at.key,
@@ -541,6 +560,7 @@ fn upsert_key(
                 writer_digest,
                 record.standing,
                 record.valid_until,
+                searchable_json(record)?,
                 state.chain_digest,
             ],
         )
@@ -622,6 +642,11 @@ fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRe
         writer,
         standing: row.get(offset + 9)?,
         valid_until: row.get(offset + 10)?,
+        searchable: row
+            .get::<_, Option<String>>(offset + 11)?
+            .map(|fields| serde_json::from_str::<Vec<String>>(&fields))
+            .transpose()
+            .map_err(|error| corrupt(offset + 11, Box::new(error)))?,
     })
 }
 

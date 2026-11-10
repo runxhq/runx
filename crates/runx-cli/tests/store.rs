@@ -878,6 +878,7 @@ methods:
           expected_version: $steps.before.provider_operation.result.version
           type: notes.kept
           data: {text: $input.text}
+          searchable: [text]
   recall:
     inputs:
       key: {type: string}

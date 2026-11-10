@@ -39,6 +39,8 @@ pub(super) struct EventRecord {
     pub standing: bool,
     /// On `private`, the last date it's valid, `YYYY-MM-DD`.
     pub valid_until: Option<String>,
+    /// On `private`, the fields of its data a search matches its key by.
+    pub searchable: Option<Vec<String>>,
 }
 
 /// One key's state: its version, its newest event, and the digest that
@@ -119,14 +121,19 @@ pub(super) fn record(
         writer: append.writer.clone(),
         standing: append.standing,
         valid_until: append.valid_until.map(str::to_owned),
+        searchable: append
+            .searchable
+            .as_ref()
+            .map(|fields| fields.iter().map(|field| (*field).to_owned()).collect()),
     };
     record.digest = event_digest(&record)?;
     Ok(record)
 }
 
 /// What an event's digest covers: its writer, its type and its data, and
-/// whether it's standing and its end date when it states them. An event that
-/// states neither digests as every event did before either was stated.
+/// whether it's standing, its end date and what's searchable when it states
+/// them. An event that states none digests as every event did before any
+/// was stated.
 pub(super) fn event_digest(record: &EventRecord) -> Result<String, StoreError> {
     let mut covered = JsonObject::from([
         ("data".to_owned(), JsonValue::Object(record.data.clone())),
@@ -137,14 +144,20 @@ pub(super) fn event_digest(record: &EventRecord) -> Result<String, StoreError> {
     digest(&JsonValue::Object(covered))
 }
 
-/// Whether `record` is standing and its end date, into `object`, each only
-/// when it states it.
+/// Whether `record` is standing, its end date and what's searchable, into
+/// `object`, each only when it states it.
 fn stated(object: &mut JsonObject, record: &EventRecord) {
     if record.standing {
         object.insert("standing".to_owned(), JsonValue::Bool(true));
     }
     if let Some(until) = &record.valid_until {
         object.insert("valid_until".to_owned(), text(until));
+    }
+    if let Some(fields) = &record.searchable {
+        object.insert(
+            "searchable".to_owned(),
+            JsonValue::Array(fields.iter().map(|field| text(field)).collect()),
+        );
     }
 }
 
@@ -294,6 +307,16 @@ pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, Store
             .get("valid_until")
             .and_then(JsonValue::as_str)
             .map(str::to_owned),
+        searchable: object
+            .get("searchable")
+            .and_then(JsonValue::as_array)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .filter_map(JsonValue::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            }),
     })
 }
 
@@ -610,9 +633,10 @@ fn encode_search_cursor(cursor: &SearchCursor) -> Result<String, StoreError> {
     ]))
 }
 
-/// The words an event's data holds, which a search on `private` matches:
-/// every string in it, its keys left out.
-pub(super) fn searchable_text(data: &JsonObject) -> String {
+/// The words a search on `private` matches an event by: every string under
+/// the fields of its data it names searchable, their keys left out. None
+/// when it names none, so its key is in no search.
+pub(super) fn searchable_text(record: &EventRecord) -> Option<String> {
     fn collect(value: &JsonValue, words: &mut Vec<String>) {
         match value {
             JsonValue::String(text) => words.push(text.clone()),
@@ -621,9 +645,14 @@ pub(super) fn searchable_text(data: &JsonObject) -> String {
             _ => {}
         }
     }
+    let fields = record.searchable.as_ref()?;
     let mut words = Vec::new();
-    data.values().for_each(|value| collect(value, &mut words));
-    words.join("\n")
+    for field in fields {
+        if let Some(value) = record.data.get(field) {
+            collect(value, &mut words);
+        }
+    }
+    Some(words.join("\n"))
 }
 
 /// A query as plain words: each run of letters and digits quoted, any of

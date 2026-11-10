@@ -899,3 +899,28 @@ fn words_that_supersede_an_entry_correct_it_at_the_corrections_gate() -> TestRes
     assert_eq!(index[0]["data"]["text"], "I take my tea with milk.");
     Ok(())
 }
+
+/// A search matches an entry only by its text and its summary, the fields
+/// memory names searchable: never the words of its confirmation, its
+/// purpose, its date or its sources. So words that share nothing with what's
+/// kept are kept at once.
+#[test]
+fn a_search_matches_an_entrys_words_and_never_its_confirmation() -> TestResult {
+    let memory = Memory::new("runx-memory-searchable")?;
+    let tea = memory.remember(words("I take my tea black."))?;
+    for word in [
+        "approved",
+        "remember",
+        "person",
+        "confirmed",
+        "conversation",
+        "2026",
+    ] {
+        assert!(memory.search(word)?.is_empty(), "{word}");
+    }
+    assert_eq!(handles(&memory.search("tea")?), [tea.as_str()]);
+    let (result, _) =
+        memory.remember_shown(unsaid(words("Remember that the office closes early.")))?;
+    assert!(entries(&result["matches"])?.is_empty(), "{result}");
+    Ok(())
+}

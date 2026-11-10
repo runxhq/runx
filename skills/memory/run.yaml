@@ -13,7 +13,8 @@
 # A said entry's purpose decides whether it stands as a rule, which its event
 # says as `standing`, beside its type, where private lists it apart; any
 # entry's `valid_until` is its event's own too, so the store passes over what
-# has ended (memory.md, 10 November).
+# has ended, and every write names `text` and `summary` searchable, so a
+# search never matches a confirmation's wording (memory.md, 10 November).
 # An operation step's result is read as $steps.<id>.provider_operation.result.
 # An output that's a contract names its packet. memory.mjs is a worker with no
 # I/O. Only this package writes its streams, and the workspace id comes from
@@ -158,6 +159,7 @@ methods:
           expected_version: $steps.current.provider_operation.result.version
           type: memory.remembered
           data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+          searchable: [text, summary]
           standing: $steps.change.standing
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
@@ -207,6 +209,7 @@ methods:
           expected_version: $steps.current.provider_operation.result.version
           type: memory.corrected
           data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+          searchable: [text, summary]
           standing: $steps.change.standing
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
@@ -315,6 +318,7 @@ methods:
           expected_version: $steps.current.provider_operation.result.version
           type: memory.observed
           data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }
+          searchable: [text, summary]
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
       - id: readback

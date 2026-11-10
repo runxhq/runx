@@ -46,6 +46,27 @@ where
     Ok(items)
 }
 
+/// [`deserialize_some_unique_items`] for an optional list with bounds.
+pub fn deserialize_some_unique_bounded_items<
+    'de,
+    D,
+    T,
+    const MIN_ITEMS: usize,
+    const MAX_ITEMS: usize,
+>(
+    deserializer: D,
+) -> Result<Option<BoundedVec<T, MIN_ITEMS, MAX_ITEMS>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + PartialEq + Serialize,
+{
+    let items = Option::<BoundedVec<T, MIN_ITEMS, MAX_ITEMS>>::deserialize(deserializer)?;
+    if let Some(items) = &items {
+        refuse_repeats::<T, D::Error>(items)?;
+    }
+    Ok(items)
+}
+
 fn refuse_repeats<T: PartialEq + Serialize, E: de::Error>(items: &[T]) -> Result<(), E> {
     for (index, item) in items.iter().enumerate() {
         if items[..index].contains(item) {

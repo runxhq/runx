@@ -20,6 +20,8 @@ pub type StoreStream = BoundedString<512>;
 pub type StoreKey = BoundedString<192>;
 /// An event's type, within the 128 characters an append's input allows.
 pub type StoreEventType = BoundedString<128>;
+/// The name of a field of an event's `data`.
+pub type StoreDataField = BoundedString<128>;
 
 /// One shape per operation, so an answer says only what its operation does.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -132,7 +134,7 @@ pub struct StoreEvent {
     pub event_type: StoreEventType,
     pub data: JsonObject,
     /// Covers the writer, the type and the data, and whether the event is
-    /// standing and its end date when it states them.
+    /// standing, its end date and what's searchable when it states them.
     pub digest: Digest,
     pub idempotency_key: NonEmptyString,
     /// When the store committed it; a fact's own date is in its data.
@@ -150,6 +152,16 @@ pub struct StoreEvent {
     /// newest event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valid_until: Option<IsoDate>,
+    /// On `private`, the fields of its `data` a search matches its key by
+    /// while this is its newest event. An event that names none puts its key
+    /// in no search.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::schema::deserialize_some_unique_bounded_items"
+    )]
+    #[runx_schema(unique_items)]
+    pub searchable: Option<BoundedVec<StoreDataField, 1, 16>>,
 }
 
 /// An append that committed or replayed.

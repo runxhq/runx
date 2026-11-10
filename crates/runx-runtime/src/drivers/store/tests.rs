@@ -442,6 +442,7 @@ fn an_events_digest_covers_its_writer() {
         writer,
         standing: false,
         valid_until: None,
+        searchable: None,
     };
     let writer = |digest: &str| Writer {
         package: OWNER.to_owned(),
@@ -652,6 +653,7 @@ fn kept(
 ) -> serde_json::Value {
     let mut call = append(idempotency, key, expected, text);
     call["data"] = serde_json::json!({"text": text});
+    call["searchable"] = serde_json::json!(["text"]);
     if standing {
         call["standing"] = true.into();
     }
@@ -694,6 +696,7 @@ fn keep_at(
         },
         standing,
         valid_until,
+        searchable: Some(vec!["text"]),
     };
     let appended = store
         .append(&append, &format!("2026-01-01T00:00:{second:02}.000Z"))
@@ -793,6 +796,7 @@ fn an_event_naming_neither_digests_as_it_always_has() {
         writer: writer.clone(),
         standing: false,
         valid_until: None,
+        searchable: None,
     };
     let before = super::model::digest(&JsonValue::Object(JsonObject::from([
         ("data".to_owned(), JsonValue::Object(data)),
@@ -816,10 +820,15 @@ fn an_event_naming_neither_digests_as_it_always_has() {
     };
     let ending = EventRecord {
         valid_until: Some("2026-12-31".to_owned()),
+        ..event.clone()
+    };
+    let searched = EventRecord {
+        searchable: Some(vec!["label".to_owned()]),
         ..event
     };
     assert_ne!(event_digest(&standing).unwrap(), before);
     assert_ne!(event_digest(&ending).unwrap(), before);
+    assert_ne!(event_digest(&searched).unwrap(), before);
     assert_ne!(
         event_digest(&standing).unwrap(),
         event_digest(&ending).unwrap()
@@ -994,15 +1003,19 @@ fn a_listing_and_a_search_valid_at_a_date_pass_over_what_ended_before_it() {
     );
 }
 
-/// Standing keys and end dates are `private`'s: `store` refuses an append
-/// or a listing that names them, and keeps nothing.
+/// Standing keys, end dates and what a search matches are `private`'s:
+/// `store` refuses an append or a listing that names them, and keeps
+/// nothing.
 #[test]
-fn store_refuses_standing_and_end_dates() {
+fn store_refuses_standing_end_dates_and_searchable_fields() {
     let root = tempfile::tempdir().unwrap();
     let store = Test::workspace(root.path());
+    let mut searchable = append("k3", "plain", 0, "Tea, black.");
+    searchable["searchable"] = serde_json::json!(["label"]);
     for call in [
         kept("k1", "rule", 0, "Sign off as Kam.", true, None),
         kept("k2", "tea", 0, "Tea, black.", false, Some("2026-12-31")),
+        searchable,
     ] {
         let refused = store.call("events.append", call).err().unwrap();
         assert!(refused.contains("private"), "{refused}");
@@ -1071,6 +1084,7 @@ fn private_searches_one_streams_current_entries() {
     let keep = |idempotency: &str, key: &str, expected: u64, text: &str| {
         let mut call = append(idempotency, key, expected, text);
         call["data"] = serde_json::json!({"text": text});
+        call["searchable"] = serde_json::json!(["text"]);
         let kept = private.call("events.append", call).unwrap();
         assert_eq!(kept.text("status"), "committed");
     };
@@ -1347,4 +1361,89 @@ mod old {
                 .unwrap();
         }
     }
+}
+
+/// A search matches a key only by the strings under the `data` fields its
+/// newest event names `searchable`: never another field's words, and nothing
+/// for an event that names none. The writer says what's searchable, and the
+/// store doesn't guess.
+#[test]
+fn a_search_matches_only_the_fields_its_event_names_searchable() {
+    let root = tempfile::tempdir().unwrap();
+    let private = Test::private(root.path());
+    let mut named = append("k1", "tea", 0, "unused");
+    named["data"] = serde_json::json!({
+        "text": "I take my tea black.",
+        "summary": "Tea",
+        "confirmation": {"gate_id": "memory.remember", "status": "approved"},
+        "sources": ["conversation"],
+    });
+    named["searchable"] = serde_json::json!(["text", "summary"]);
+    private.call("events.append", named).unwrap();
+    let mut unnamed = append("k2", "coffee", 0, "unused");
+    unnamed["data"] = serde_json::json!({"text": "Coffee before noon, approved."});
+    private.call("events.append", unnamed).unwrap();
+    let search = |query: &str| {
+        private
+            .call(
+                "keys.search",
+                serde_json::json!({"stream": "items", "query": query}),
+            )
+            .unwrap()
+            .keys("matches")
+    };
+    assert_eq!(search("black"), vec!["tea"]);
+    assert_eq!(search("tea"), vec!["tea"]);
+    for unnamed_words in ["approved", "remember", "conversation", "coffee"] {
+        assert!(search(unnamed_words).is_empty(), "{unnamed_words}");
+    }
+    // The event holds what it named, and its next event replaces the row.
+    let last = private
+        .call(
+            "key.inspect",
+            serde_json::json!({"stream": "items", "key": "tea"}),
+        )
+        .unwrap()
+        .field("last_event")
+        .as_object()
+        .unwrap()
+        .clone();
+    assert_eq!(
+        last["searchable"],
+        serde_json::from_value::<JsonValue>(serde_json::json!(["text", "summary"])).unwrap()
+    );
+    let mut next = append("k3", "tea", 1, "unused");
+    next["data"] = serde_json::json!({"text": "I take my tea with milk.", "note": "black"});
+    next["searchable"] = serde_json::json!(["text"]);
+    private.call("events.append", next).unwrap();
+    assert!(search("black").is_empty());
+    assert_eq!(search("milk"), vec!["tea"]);
+}
+
+/// `searchable` names 1 to 16 distinct fields, each one the event's data
+/// holds, so a typo can't leave a key silently unsearchable.
+#[test]
+fn searchable_names_distinct_fields_of_the_data() {
+    let root = tempfile::tempdir().unwrap();
+    let private = Test::private(root.path());
+    let with = |fields: serde_json::Value| {
+        let mut call = append("k1", "tea", 0, "unused");
+        call["data"] = serde_json::json!({"text": "Tea, black.", "summary": "Tea"});
+        call["searchable"] = fields;
+        private.call("events.append", call)
+    };
+    for refused in [
+        serde_json::json!(["txt"]),
+        serde_json::json!(["text", "text"]),
+        serde_json::json!([]),
+        serde_json::json!((0..17).map(|n| format!("f{n}")).collect::<Vec<_>>()),
+    ] {
+        assert!(with(refused.clone()).is_err(), "{refused}");
+    }
+    assert_eq!(
+        with(serde_json::json!(["text", "summary"]))
+            .unwrap()
+            .text("status"),
+        "committed"
+    );
 }

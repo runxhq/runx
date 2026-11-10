@@ -69,7 +69,7 @@ placements:
     auth: [none, credentials]
 operations:
   events.append:
-    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended. An event can be standing, and can state the last date it's valid.
+    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended. An event can be standing, can state the last date it's valid, and names the fields of its data a search matches it by.
     verb: write
     scopes: [store.append]
     credentials: [password]
@@ -86,6 +86,13 @@ operations:
         data: {type: object}
         standing: {type: boolean, description: "The key is standing while this is its newest event, so a listing or a search reads it apart from the others."}
         valid_until: {type: string, format: date, description: "The last date the event is valid: a listing or a search valid at a later date passes over its key while this is its newest event."}
+        searchable:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 128}
+          description: "The fields of data a search matches the key by while this is its newest event, each one data holds. Without it, the key is in no search."
     result_fields: [schema, operation, stream, key, backend, result_digest, status, before_version, version, event, chain_digest]
     implementation:
       store: {}
@@ -149,7 +156,7 @@ operations:
     implementation:
       store: {}
   keys.search:
-    description: Rank one stream's keys by a full-text match against each key's newest event, in score order with ties newest commit first, then by key, one page at a time, optionally only keys whose newest event has one of the given types, only the standing keys or only the others, and only those still valid at a date. It searches what's current, never history. The query is quoted, so its words are plain words.
+    description: Rank one stream's keys by a full-text match against the fields each key's newest event names searchable, in score order with ties newest commit first, then by key, one page at a time, optionally only keys whose newest event has one of the given types, only the standing keys or only the others, and only those still valid at a date. It searches what's current, never history. The query is quoted, so its words are plain words.
     verb: read
     scopes: [store.read]
     credentials: [password]

@@ -249,7 +249,8 @@ pub struct WorkCounts {
     /// Rows the `private` store's key listings visited, as SQLite's recency
     /// index stepped them.
     pub store_key_rows_visited: u64,
-    /// Of those, the rows a listing passed over for their type.
+    /// Of those, the rows a listing passed over: their newest event of a type
+    /// it wasn't asked for, or ended before the date it lists at.
     pub store_key_rows_passed_over: u64,
     /// Pages of the `private` store's stream searches.
     pub store_search_pages: u64,
