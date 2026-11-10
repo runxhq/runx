@@ -45,6 +45,7 @@ approved draft under its key. Memory levels it's given go to each lead's
 - `ghostwrite#verify`
 - `lead-enrichment#enrich`
 - `lead-qualify#qualify`
+- `memory#search`
 
 ## Outreach judgment
 
