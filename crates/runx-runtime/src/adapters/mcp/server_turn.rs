@@ -232,7 +232,9 @@ pub(super) fn execute_mcp_turn_tool(
                 .map(|call| {
                     let failed = matches!(
                         call.outcome,
-                        TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. }
+                        TurnCallOutcome::Failed { .. }
+                            | TurnCallOutcome::Refused { .. }
+                            | TurnCallOutcome::Declined { .. }
                     );
                     structured(&call, failed)
                 })

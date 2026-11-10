@@ -1680,7 +1680,7 @@
           },
           {
             "path": "tests/remember-declined-records-nothing.yaml",
-            "content": "name: remember-declined-records-nothing\nmethod: remember\ninputs:\n  level: personal\n  text: I write in Australian English.\n  date: 2026-11-08\n  sources: [conversation]\nhost:\n  approvals:\n    memory.remember: false\nsetup:\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read, write]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read, store.append]\n              targets: [\"runx/memory/said:*\", \"runx/memory/observed:*\", \"project:memory/said:*\", \"project:memory/observed:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: policy_denied\n  steps: [entry, current, change, confirm]\n"
+            "content": "name: remember-declined-records-nothing\nmethod: remember\ninputs:\n  level: personal\n  text: I write in Australian English.\n  date: 2026-11-08\n  sources: [conversation]\nhost:\n  approvals:\n    memory.remember: false\nsetup:\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read, write]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read, store.append]\n              targets: [\"runx/memory/said:*\", \"runx/memory/observed:*\", \"project:memory/said:*\", \"project:memory/observed:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: declined\n  steps: [entry, current, change, confirm]\n"
           },
           {
             "path": "tests/remember-keeps-confirmed-words.yaml",
@@ -1739,7 +1739,7 @@
             {
               "name": "remember-declined-records-nothing",
               "method": "remember",
-              "expected_status": "policy_denied"
+              "expected_status": "declined"
             },
             {
               "name": "remember-keeps-confirmed-words",

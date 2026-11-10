@@ -241,6 +241,13 @@ fn refused(call: &TurnCallResult) -> TestResult<String> {
     }
 }
 
+fn declined(call: &TurnCallResult) -> TestResult<String> {
+    match &call.outcome {
+        TurnCallOutcome::Declined { reason } => Ok(reason.as_str().to_owned()),
+        _ => Err(format!("the person declined the call: {call:?}").into()),
+    }
+}
+
 /// The trust approval a pending load waits on, at `address`.
 fn trust_gate(call: &TurnCallResult, address: &str) -> TestResult<runx_contracts::ApprovalGate> {
     let TurnCallOutcome::Pending { waiting } = &call.outcome else {
@@ -435,14 +442,15 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     trust_gate(&revised, "work/1/trust")?;
     drop(turn);
 
-    // A person who does not trust it refuses the load.
+    // A person who does not trust it declines the load (changed 10
+    // November: it read as refused).
     project.resume(
         &again,
         serde_json::json!({"approvals": {"work/1/trust": false}}),
     )?;
     let turn = project.open(&again)?;
     let status = turn.status(TURN)?;
-    refused(status.calls.get(1).ok_or("the second load is recorded")?)?;
+    declined(status.calls.get(1).ok_or("the second load is recorded")?)?;
     Ok(())
 }
 

@@ -160,6 +160,7 @@ fn registry_test_cases(tests: &BTreeMap<String, TestFixture>) -> Vec<RegistryTes
                     runx_parser::test_fixture::TestExpectedStatus::Failure => "failure",
                     runx_parser::test_fixture::TestExpectedStatus::NeedsAgent => "needs_agent",
                     runx_parser::test_fixture::TestExpectedStatus::PolicyDenied => "policy_denied",
+                    runx_parser::test_fixture::TestExpectedStatus::Declined => "declined",
                     runx_parser::test_fixture::TestExpectedStatus::Escalated => "escalated",
                 }
                 .to_owned()

@@ -220,8 +220,7 @@ pub(super) fn hold<A>(
     };
     match resolution {
         ApprovalResolution::Approved { .. } => Ok(Admitted::Person),
-        ApprovalResolution::Denied { reason, .. } => Err(RuntimeError::AuthorityDenied {
-            verb: AuthorityVerb::Execute,
+        ApprovalResolution::Declined { reason, .. } => Err(RuntimeError::Declined {
             step_id: step.id.clone(),
             reason: reason.unwrap_or_else(|| format!("the person declined {}", gate.reason)),
         }),

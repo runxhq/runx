@@ -171,6 +171,7 @@ fn replay_cases(
         let name = fixture.name.clone();
         let is_workflow = fixture.package.is_some();
         let denial_expected = fixture.expect.status == Some(TestExpectedStatus::PolicyDenied);
+        let decline_expected = fixture.expect.status == Some(TestExpectedStatus::Declined);
         match run_test_case_with_adapter(fixture, target_path, ExecutableAdapter, options) {
             Ok(output) => {
                 persist_fixture_receipts(&receipt_services, &test.receipt_dir, &output)?;
@@ -180,7 +181,10 @@ fn replay_cases(
                 report.case_names.push(output.fixture.name);
                 report.receipt_ids.push(output.receipt.id.to_string());
             }
-            Err(error) if denial_expected && is_authority_denial(&error) => {
+            Err(error)
+                if (denial_expected && is_authority_denial(&error))
+                    || (decline_expected && is_decline(&error)) =>
+            {
                 if is_workflow {
                     report.workflow_case_count += 1;
                 }
@@ -201,6 +205,16 @@ fn is_authority_denial(error: &TestReplayError) -> bool {
     matches!(
         error,
         TestReplayError::Runtime(RuntimeError::AuthorityDenied { .. })
+    )
+}
+
+/// A person's decline, returned below the skill front as a native authority
+/// denial is, stands for a case that expects `declined`, and nothing else
+/// does.
+fn is_decline(error: &TestReplayError) -> bool {
+    matches!(
+        error,
+        TestReplayError::Runtime(RuntimeError::Declined { .. })
     )
 }
 

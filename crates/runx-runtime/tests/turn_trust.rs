@@ -266,6 +266,13 @@ fn refused(call: &TurnCallResult) -> TestResult<String> {
     }
 }
 
+fn declined(call: &TurnCallResult) -> TestResult<String> {
+    match &call.outcome {
+        TurnCallOutcome::Declined { reason } => Ok(reason.as_str().to_owned()),
+        _ => Err(format!("the person declined the call: {call:?}").into()),
+    }
+}
+
 /// The closures a trust approval covers.
 fn closures(gate: &runx_contracts::ApprovalGate) -> TestResult<Vec<String>> {
     let payload = serde_json::to_value(gate.payload.as_ref().ok_or("the gate's payload")?)?;
@@ -438,8 +445,10 @@ fn a_project_skill_reaching_a_connector_waits_on_trust_and_runs_once_trusted() -
         "trust",
     )?;
     drop(turn);
+    // The person's no is theirs, never runx's refusal (changed 10 November:
+    // it read as refused).
     ws.answer(&run_id, "read/0/trust", false)?;
-    refused(&ws.recorded(&run_id, 0)?)?;
+    declined(&ws.recorded(&run_id, 0)?)?;
     assert!(!ws.marker().exists());
     Ok(())
 }

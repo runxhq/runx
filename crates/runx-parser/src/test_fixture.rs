@@ -15,6 +15,8 @@ pub enum TestExpectedStatus {
     Failure,
     NeedsAgent,
     PolicyDenied,
+    /// A person declined an approval the run waited on.
+    Declined,
     Escalated,
 }
 

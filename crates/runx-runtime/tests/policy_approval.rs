@@ -46,7 +46,7 @@ fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 }
 
 #[test]
-fn scoped_write_does_not_invent_approval_and_an_explicit_denied_guard_still_blocks()
+fn scoped_write_does_not_invent_approval_and_an_explicit_declined_guard_still_blocks()
 -> Result<(), Box<dyn std::error::Error>> {
     let routine_workspace = tempfile::tempdir()?;
     let routine_workflow = policy_write_workflow(routine_workspace.path(), false)?;
@@ -69,9 +69,11 @@ fn scoped_write_does_not_invent_approval_and_an_explicit_denied_guard_still_bloc
             &mut ApprovalHost::new(false),
         ) {
         Err(error) => error,
-        Ok(_) => return Err("an explicit denied approval guard did not fail closed".into()),
+        Ok(_) => return Err("an explicit declined approval guard did not fail closed".into()),
     };
-    assert!(matches!(error, RuntimeError::AuthorityDenied { .. }));
+    // A person's no is declined, never a refusal (changed 10 November: it
+    // was authority denied).
+    assert!(matches!(error, RuntimeError::Declined { .. }));
     assert!(error.to_string().contains("approval guard"));
     assert!(!guarded_workspace.path().join("approved.txt").exists());
     Ok(())

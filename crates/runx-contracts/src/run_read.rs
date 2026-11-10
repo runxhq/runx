@@ -274,6 +274,10 @@ pub enum RunCallOutcome {
     Refused {
         reason: NonEmptyString,
     },
+    /// A person declined its approval; nothing ran.
+    Declined {
+        reason: NonEmptyString,
+    },
     /// The call could not run.
     Failed {
         reason: NonEmptyString,

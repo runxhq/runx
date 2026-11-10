@@ -89,7 +89,7 @@ export type ApprovalDecisionPacketContract = {
   readonly status: ApprovalDecisionStatusContract;
 };
 
-export type ApprovalDecisionStatusContract = "approved" | "denied" | "pending";
+export type ApprovalDecisionStatusContract = "approved" | "declined" | "pending";
 
 export type ApprovalFloorContract = "none" | "required";
 
@@ -2575,6 +2575,9 @@ export type RunCallOutcomeContract = {
   readonly status: "refused";
 } | {
   readonly reason: string;
+  readonly status: "declined";
+} | {
+  readonly reason: string;
   readonly status: "failed";
 } | {
   readonly address: string;
@@ -2915,7 +2918,7 @@ export type SealContract = {
 };
 
 /** Why a receipt's subject ended as it did, beyond its outcome. */
-export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "managed_agent_provider_failed" | "managed_agent_resolution_failed" | "managed_agent_empty_turn_budget_exhausted" | "managed_agent_tool_execution_failed" | "managed_agent_round_budget_exhausted" | "host_closed" | "cancelled";
+export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "approval_declined" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "managed_agent_provider_failed" | "managed_agent_resolution_failed" | "managed_agent_empty_turn_budget_exhausted" | "managed_agent_tool_execution_failed" | "managed_agent_round_budget_exhausted" | "host_closed" | "cancelled";
 
 /** A local session: authority the person already holds on this machine. */
 export type SessionAuthContract = {
@@ -3633,6 +3636,9 @@ export type TurnCallOutcomeContract = {
 } | {
   readonly reason: string;
   readonly status: "refused";
+} | {
+  readonly reason: string;
+  readonly status: "declined";
 } | {
   readonly status: "pending";
   readonly waiting: readonly ResolutionRequestContract[];

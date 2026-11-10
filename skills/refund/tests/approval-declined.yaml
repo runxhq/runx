@@ -1,4 +1,4 @@
-name: refund-denied-approval
+name: refund-declined-approval
 method: refund
 inputs:
   connector: coinbase/cdp
@@ -23,4 +23,4 @@ providers:
         - payment.x402.merchant.write
     operations: []
 expect:
-  status: policy_denied
+  status: declined

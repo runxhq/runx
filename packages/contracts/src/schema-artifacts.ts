@@ -1475,7 +1475,7 @@ export const runxSchemaArtifacts = {
       "ApprovalDecisionStatus": {
         "enum": [
           "approved",
-          "denied",
+          "declined",
           "pending"
         ],
         "title": "ApprovalDecisionStatus",
@@ -7759,6 +7759,25 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
+            "description": "A person declined its approval; nothing ran.",
+            "properties": {
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "const": "declined",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
             "description": "The call could not run.",
             "properties": {
               "reason": {
@@ -8783,6 +8802,7 @@ export const runxSchemaArtifacts = {
           "workflow_step_failed",
           "workflow_blocked",
           "authority_denied",
+          "approval_declined",
           "cost_limit_exceeded",
           "receipt_budget_exceeded",
           "resolution_pending",
@@ -10680,7 +10700,7 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "Admission refused the call; nothing ran.",
+            "description": "Admission refused the call; nothing ran. A refusal is runx's policy saying no.",
             "properties": {
               "reason": {
                 "minLength": 1,
@@ -10688,6 +10708,25 @@ export const runxSchemaArtifacts = {
               },
               "status": {
                 "const": "refused",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A person declined its approval; nothing ran. It's the person's no, not runx's policy, so the agent doesn't route around it.",
+            "properties": {
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "const": "declined",
                 "type": "string"
               }
             },

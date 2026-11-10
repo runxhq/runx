@@ -27,7 +27,8 @@ pub struct ApprovalDecisionPacket {
 #[serde(rename_all = "snake_case")]
 pub enum ApprovalDecisionStatus {
     Approved,
-    Denied,
+    /// A person said no.
+    Declined,
     Pending,
 }
 

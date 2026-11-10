@@ -1047,10 +1047,9 @@ pub(super) fn enforce_guards(step: &WorkflowStep, runs: &[StepRun]) -> Result<()
                 && value == &JsonValue::Bool(false)
                 && approval_decision_of(&gate.value).is_some()
             {
-                return Err(crate::RuntimeError::AuthorityDenied {
-                    verb: runx_contracts::AuthorityVerb::Execute,
+                return Err(crate::RuntimeError::Declined {
                     step_id: step.id.clone(),
-                    reason: format!("approval guard '{shown}' was denied"),
+                    reason: format!("the person declined approval guard '{shown}'"),
                 });
             }
             return Err(RuntimeError::WorkflowBlocked {

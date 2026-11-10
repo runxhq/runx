@@ -594,6 +594,7 @@ fn settled(outcome: &CallOutcome) -> bool {
         outcome,
         CallOutcome::Completed(_)
             | CallOutcome::Refused(_)
+            | CallOutcome::Declined(_)
             | CallOutcome::Failed(_)
             | CallOutcome::Cancelled
             | CallOutcome::Waited(_)
@@ -677,6 +678,7 @@ where
         CallOutcome::Completed(run) => rejected(ScriptRejection::Failed, output_error(run)),
         CallOutcome::Failed(reason) => rejected(ScriptRejection::Failed, reason.clone()),
         CallOutcome::Refused(reason) => rejected(ScriptRejection::Refused, reason.clone()),
+        CallOutcome::Declined(reason) => rejected(ScriptRejection::Declined, reason.clone()),
         CallOutcome::Cancelled => rejected(
             ScriptRejection::Cancelled,
             "its host cancelled the call before it settled".to_owned(),

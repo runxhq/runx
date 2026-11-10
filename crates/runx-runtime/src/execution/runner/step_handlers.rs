@@ -2128,7 +2128,7 @@ pub(super) fn approved_value(resolution: &ApprovalResolution) -> JsonValue {
 pub(super) fn approval_status(resolution: &ApprovalResolution) -> &'static str {
     match resolution {
         ApprovalResolution::Approved { .. } => "approved",
-        ApprovalResolution::Denied { .. } => "denied",
+        ApprovalResolution::Declined { .. } => "declined",
         ApprovalResolution::Pending { .. } => "pending",
     }
 }

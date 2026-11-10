@@ -85,6 +85,10 @@ pub enum RuntimeError {
         step_id: String,
         reason: String,
     },
+    /// A person declined the approval the step waited on: their no, not a
+    /// refusal of runx's.
+    #[error("a person declined workflow step '{step_id}': {reason}")]
+    Declined { step_id: String, reason: String },
     /// A call would spend more than is left of the run's money limit;
     /// nothing was sent.
     #[error("workflow step '{step_id}' exceeds the run's money limit: {reason}")]
@@ -230,6 +234,7 @@ impl RuntimeError {
         // provable denial into an anonymous engine fault.
         match source {
             source @ (Self::AuthorityDenied { .. }
+            | Self::Declined { .. }
             | Self::CostLimitExceeded { .. }
             | Self::ReceiptBudgetExceeded { .. }
             | Self::WorkflowBlocked { .. }
@@ -274,6 +279,7 @@ impl RuntimeError {
             | Self::StepClosed { .. }
             | Self::ContextEdgeUnresolved(_)
             | Self::AuthorityDenied { .. }
+            | Self::Declined { .. }
             | Self::CostLimitExceeded { .. }
             | Self::ReceiptBudgetExceeded { .. }
             | Self::UnsupportedAdapter { .. }
@@ -388,6 +394,11 @@ impl RuntimeError {
                 }
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
+            Self::Declined { step_id, reason } => {
+                projection.insert("code".to_owned(), JsonValue::String("declined".to_owned()));
+                projection.insert("step_id".to_owned(), JsonValue::String(step_id.clone()));
+                projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
+            }
             Self::CostLimitExceeded { step_id, reason } => {
                 projection.insert(
                     "code".to_owned(),
@@ -461,6 +472,7 @@ impl RuntimeError {
             | Self::ResolutionPending { step_id, .. }
             | Self::StepClosed { step_id, .. }
             | Self::AuthorityDenied { step_id, .. }
+            | Self::Declined { step_id, .. }
             | Self::CostLimitExceeded { step_id, .. }
             | Self::ReceiptBudgetExceeded { step_id, .. }
             | Self::WorkflowPlanningFailed { step_id, .. }
@@ -514,6 +526,10 @@ impl RuntimeError {
             },
             Self::AuthorityDenied { verb, reason, .. } => Self::AuthorityDenied {
                 verb,
+                step_id: step_id.to_owned(),
+                reason,
+            },
+            Self::Declined { reason, .. } => Self::Declined {
                 step_id: step_id.to_owned(),
                 reason,
             },

@@ -652,8 +652,7 @@ fn ask_trust<A>(
             }
             Ok(())
         }
-        ApprovalResolution::Denied { reason, .. } => Err(RuntimeError::AuthorityDenied {
-            verb: AuthorityVerb::Execute,
+        ApprovalResolution::Declined { reason, .. } => Err(RuntimeError::Declined {
             step_id: step.id.clone(),
             reason: reason.unwrap_or_else(|| format!("the person did not trust {what}")),
         }),

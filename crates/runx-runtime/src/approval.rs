@@ -36,7 +36,8 @@ pub enum ApprovalResolution {
         idempotency_key: String,
         reason: Option<String>,
     },
-    Denied {
+    /// A person said no.
+    Declined {
         actor: ResolutionResponseActor,
         idempotency_key: String,
         reason: Option<String>,
@@ -51,7 +52,7 @@ impl ApprovalResolution {
     pub fn approved(&self) -> Option<bool> {
         match self {
             Self::Approved { .. } => Some(true),
-            Self::Denied { .. } => Some(false),
+            Self::Declined { .. } => Some(false),
             Self::Pending { .. } => None,
         }
     }
@@ -59,7 +60,7 @@ impl ApprovalResolution {
     #[must_use]
     pub fn actor(&self) -> Option<&ResolutionResponseActor> {
         match self {
-            Self::Approved { actor, .. } | Self::Denied { actor, .. } => Some(actor),
+            Self::Approved { actor, .. } | Self::Declined { actor, .. } => Some(actor),
             Self::Pending { .. } => None,
         }
     }
@@ -67,7 +68,7 @@ impl ApprovalResolution {
     #[must_use]
     pub fn reason(&self) -> Option<&str> {
         match self {
-            Self::Approved { reason, .. } | Self::Denied { reason, .. } => reason.as_deref(),
+            Self::Approved { reason, .. } | Self::Declined { reason, .. } => reason.as_deref(),
             Self::Pending { .. } => None,
         }
     }
@@ -78,7 +79,7 @@ impl ApprovalResolution {
             Self::Approved {
                 idempotency_key, ..
             }
-            | Self::Denied {
+            | Self::Declined {
                 idempotency_key, ..
             }
             | Self::Pending { idempotency_key } => idempotency_key,
@@ -260,7 +261,7 @@ impl CachedApproval {
                 reason: self.reason.clone(),
             }
         } else {
-            ApprovalResolution::Denied {
+            ApprovalResolution::Declined {
                 actor: self.actor.clone(),
                 idempotency_key,
                 reason: self.reason.clone(),
@@ -294,7 +295,7 @@ fn resolved_event(
     let decision = if approval.approved {
         "approved"
     } else {
-        "denied"
+        "declined"
     };
     ExecutionEvent::ResolutionResolved {
         message: format!("approval {} {decision}", gate.id),

@@ -1,4 +1,4 @@
-name: stripe-dispute-denies-formal-submission
+name: stripe-dispute-declines-formal-submission
 setup:
   credentials:
     - stripe
@@ -74,4 +74,4 @@ providers:
           content-type: application/json
         body: '{"id":"ch_original42","payment_intent":"pi_original42","amount":200,"amount_refunded":0,"currency":"usd","status":"succeeded"}'
 expect:
-  status: policy_denied
+  status: declined

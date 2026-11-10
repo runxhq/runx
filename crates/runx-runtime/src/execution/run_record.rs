@@ -354,6 +354,7 @@ impl WaitingCallEvent {
             CallOutcomeEvent::Executing
             | CallOutcomeEvent::Completed { .. }
             | CallOutcomeEvent::Refused { .. }
+            | CallOutcomeEvent::Declined { .. }
             | CallOutcomeEvent::Failed { .. }
             | CallOutcomeEvent::Cancelled
             | CallOutcomeEvent::Waited { .. }
@@ -411,6 +412,8 @@ enum CallOutcomeEvent {
     },
     /// Admission refused the call; nothing ran.
     Refused { reason: String },
+    /// A person declined its approval; nothing ran.
+    Declined { reason: String },
     /// The call could not run.
     Failed { reason: String },
     /// The call waits on its own ask or approval.
@@ -576,6 +579,8 @@ pub(crate) struct RecordedCall {
 pub(crate) enum CallOutcome {
     Completed(Box<StepRun>),
     Refused(String),
+    /// A person declined its approval; nothing ran.
+    Declined(String),
     Failed(String),
     /// Waits on its own ask or approval.
     Pending(PendingRequest),
@@ -1625,6 +1630,9 @@ impl RunLog {
             CallOutcome::Refused(reason) => CallOutcomeEvent::Refused {
                 reason: reason.clone(),
             },
+            CallOutcome::Declined(reason) => CallOutcomeEvent::Declined {
+                reason: reason.clone(),
+            },
             CallOutcome::Failed(reason) => CallOutcomeEvent::Failed {
                 reason: reason.clone(),
             },
@@ -2348,6 +2356,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             Nested::Read,
         )?)),
         CallOutcomeEvent::Refused { reason } => CallOutcome::Refused(reason.clone()),
+        CallOutcomeEvent::Declined { reason } => CallOutcome::Declined(reason.clone()),
         CallOutcomeEvent::Failed { reason } => CallOutcome::Failed(reason.clone()),
         CallOutcomeEvent::Pending {
             request_id,

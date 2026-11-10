@@ -97,11 +97,10 @@ pub(super) fn status_from_outcome(outcome: &RunOutcome) -> TestExpectedStatus {
         RunOutcome::Completed => TestExpectedStatus::Sealed,
         RunOutcome::Deferred => TestExpectedStatus::NeedsAgent,
         RunOutcome::Blocked => TestExpectedStatus::PolicyDenied,
-        RunOutcome::TimedOut
-        | RunOutcome::Declined
-        | RunOutcome::Failed
-        | RunOutcome::Killed
-        | RunOutcome::Superseded => TestExpectedStatus::Failure,
+        RunOutcome::Declined => TestExpectedStatus::Declined,
+        RunOutcome::TimedOut | RunOutcome::Failed | RunOutcome::Killed | RunOutcome::Superseded => {
+            TestExpectedStatus::Failure
+        }
     }
 }
 
@@ -322,6 +321,7 @@ pub(crate) fn status_name(status: &TestExpectedStatus) -> &'static str {
         TestExpectedStatus::Failure => "failure",
         TestExpectedStatus::NeedsAgent => "needs_agent",
         TestExpectedStatus::PolicyDenied => "policy_denied",
+        TestExpectedStatus::Declined => "declined",
         TestExpectedStatus::Escalated => "escalated",
     }
 }

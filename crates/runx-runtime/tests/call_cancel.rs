@@ -204,6 +204,7 @@ fn calls(root: &Path, run_id: &str, stream: &str) -> TestResult<Vec<(u32, &'stat
                 match *outcome {
                     RunCallOutcome::Completed { .. } => "completed",
                     RunCallOutcome::Refused { .. } => "refused",
+                    RunCallOutcome::Declined { .. } => "declined",
                     RunCallOutcome::Failed { .. } => "failed",
                     RunCallOutcome::Pending { .. } => "pending",
                     RunCallOutcome::Claimed { .. } => "claimed",

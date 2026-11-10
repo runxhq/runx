@@ -208,6 +208,8 @@ pub enum SealReason {
     WorkflowBlocked,
     /// A call's authority did not admit it.
     AuthorityDenied,
+    /// A person declined the approval a step waited on.
+    ApprovalDeclined,
     /// A call would spend more than is left of the run's money limit.
     CostLimitExceeded,
     /// A step or call would take the run's receipt tree past its bound.
@@ -241,6 +243,7 @@ impl SealReason {
             Self::WorkflowStepFailed => "workflow_step_failed",
             Self::WorkflowBlocked => "workflow_blocked",
             Self::AuthorityDenied => "authority_denied",
+            Self::ApprovalDeclined => "approval_declined",
             Self::CostLimitExceeded => "cost_limit_exceeded",
             Self::ReceiptBudgetExceeded => "receipt_budget_exceeded",
             Self::ResolutionPending => "resolution_pending",

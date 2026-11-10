@@ -855,6 +855,11 @@ fn sealing_stop(
             Some(SealReason::AuthorityDenied),
             StopKind::Blocked,
         ),
+        RuntimeError::Declined { step_id, .. } => (
+            step_id.clone(),
+            Some(SealReason::ApprovalDeclined),
+            StopKind::Closed(RunOutcome::Declined),
+        ),
         RuntimeError::CostLimitExceeded { step_id, .. } => (
             step_id.clone(),
             Some(SealReason::CostLimitExceeded),
@@ -897,6 +902,11 @@ pub(crate) fn workflow_stop_ending(
             step_id,
             RunOutcome::Blocked,
             Some(SealReason::AuthorityDenied),
+        ),
+        RuntimeError::Declined { step_id, .. } => (
+            step_id,
+            RunOutcome::Declined,
+            Some(SealReason::ApprovalDeclined),
         ),
         RuntimeError::CostLimitExceeded { step_id, .. } => (
             step_id,

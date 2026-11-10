@@ -279,6 +279,7 @@ impl ToolExecutor for TurnCalls<'_> {
             TurnCallOutcome::Completed { .. } => false,
             TurnCallOutcome::Failed { .. }
             | TurnCallOutcome::Refused { .. }
+            | TurnCallOutcome::Declined { .. }
             | TurnCallOutcome::Cancelled => true,
         };
         if result.target == CallTarget::Load && !is_error {
@@ -499,6 +500,7 @@ fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
         TurnCallOutcome::Completed { output, .. } => ("completed", pretty(output)?),
         TurnCallOutcome::Failed { reason, .. } => ("failed", reason.as_str().to_owned()),
         TurnCallOutcome::Refused { reason } => ("refused", reason.as_str().to_owned()),
+        TurnCallOutcome::Declined { reason } => ("declined", reason.as_str().to_owned()),
         TurnCallOutcome::Pending { waiting } => {
             ("pending", format!("waits on {} request(s)", waiting.len()))
         }

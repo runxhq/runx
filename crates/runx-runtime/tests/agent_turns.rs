@@ -286,6 +286,7 @@ fn statuses(status: &TurnStatus) -> Vec<&'static str> {
             TurnCallOutcome::Completed { .. } => "completed",
             TurnCallOutcome::Failed { .. } => "failed",
             TurnCallOutcome::Refused { .. } => "refused",
+            TurnCallOutcome::Declined { .. } => "declined",
             TurnCallOutcome::Pending { .. } => "pending",
             TurnCallOutcome::Cancelled => "cancelled",
         })
@@ -1818,8 +1819,10 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
     floor_gate(&declined, "answer/1/tool")?;
     drop(turn);
     paused.resume(serde_json::json!({"approvals": {"answer/1/tool": false}}))?;
+    // A person's no reads as theirs, never as runx's refusal (changed 10
+    // November: it read as refused).
     let turn = paused.open()?;
-    assert_eq!(statuses(&turn.status(TURN)?), ["completed", "refused"]);
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed", "declined"]);
     assert!(!root.join("other.md").exists());
     Ok(())
 }

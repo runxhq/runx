@@ -48,6 +48,7 @@ where
             Ok(()) => {}
             Err(
                 source @ (RuntimeEffectError::Denied { .. }
+                | RuntimeEffectError::Declined { .. }
                 | RuntimeEffectError::CostLimitExceeded { .. }),
             ) => return Ok(Some(runtime_effect_error(step, source))),
             Err(source) => return Err(runtime_effect_error(step, source)),
@@ -181,6 +182,10 @@ fn effect_receipt_request<'a>(
 fn runtime_effect_error(step: &WorkflowStep, source: RuntimeEffectError) -> RuntimeError {
     match source {
         RuntimeEffectError::Denied { verb, message, .. } => authority_denied(step, verb, message),
+        RuntimeEffectError::Declined { message, .. } => RuntimeError::Declined {
+            step_id: step.id.clone(),
+            reason: message,
+        },
         RuntimeEffectError::CostLimitExceeded { message, .. } => RuntimeError::CostLimitExceeded {
             step_id: step.id.clone(),
             reason: message,

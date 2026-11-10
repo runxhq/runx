@@ -2493,11 +2493,11 @@ fn human(
             ),
             Vec::new(),
         )))),
-        ApprovalResolution::Denied { reason, .. } => {
-            Err(denied(reason.unwrap_or_else(|| {
-                format!("operation step '{}' was denied", step.id)
-            })))
-        }
+        ApprovalResolution::Declined { reason, .. } => Err(RuntimeEffectError::Declined {
+            family: OPERATION_EFFECT_FAMILY.to_owned(),
+            message: reason
+                .unwrap_or_else(|| format!("the person declined operation step '{}'", step.id)),
+        }),
         ApprovalResolution::Pending { .. } => Ok(Lane::Pending {
             reason: format!("approval {gate_id:?} for step '{}' is pending", step.id),
             request: Box::new(request),

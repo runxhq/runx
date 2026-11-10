@@ -146,6 +146,7 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<(u32, &'static str)>
                 match *outcome {
                     RunCallOutcome::Completed { .. } => "completed",
                     RunCallOutcome::Refused { .. } => "refused",
+                    RunCallOutcome::Declined { .. } => "declined",
                     RunCallOutcome::Failed { .. } => "failed",
                     RunCallOutcome::Pending { .. } => "pending",
                     RunCallOutcome::Claimed { .. } => "claimed",
@@ -2026,6 +2027,81 @@ fn an_unhandled_rejection_drops_its_siblings_and_fails_with_its_reason() -> Test
     let events = call_events(temp.path(), &run_id)?;
     assert_eq!(last_of(&events, 0), Some("cancelled"), "{events:?}");
     assert_eq!(last_of(&events, 1), Some("refused"), "{events:?}");
+    Ok(())
+}
+
+/// A person declining a call's approval rejects its promise with the reason
+/// `declined`, which the script catches like any rejection; nothing ran.
+#[test]
+fn a_declined_approval_rejects_its_call_as_declined_and_the_script_catches_it() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_cleanup_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  try {
+    await ctx.tool("fs.write", { path: "never.txt", contents: value });
+    return { done: "written" };
+  } catch (rejected) {
+    return { done: `${rejected.reason}/${rejected.code}` };
+  }
+}
+"#,
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    assert_eq!(requests(&started)?, ["prepare/0/tool"]);
+
+    let sealed = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {"prepare/0/tool": false}}),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        object(output.get("result").ok_or("no result")?)?.get("done"),
+        Some(&JsonValue::String("declined/declined".to_owned()))
+    );
+    assert!(!temp.path().join("never.txt").exists());
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [(0, "pending"), (0, "declined")]
+    );
+    Ok(())
+}
+
+/// A fixed step whose approval a person declines seals the run declined,
+/// the person's no, never a refusal of runx's.
+#[test]
+fn a_fixed_step_a_person_declines_seals_its_run_declined() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("fixed-write");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: fixed-write\ndescription: Writes a file.\n---\n# Fixed write\n\nWrite it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    inputs:\n      value: {type: string}\n    effects: ask\n    steps:\n      - id: write\n        tool: fs.write\n        inputs: {path: never.txt, contents: $input.value}\n",
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    assert_eq!(requests(&started)?, ["write/tool"]);
+
+    let sealed = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {"write/tool": false}}),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "outcome"), Some("declined"), "{output:?}");
+    assert_eq!(
+        text(output, "seal_reason"),
+        Some("approval_declined"),
+        "{output:?}"
+    );
+    assert!(!temp.path().join("never.txt").exists());
     Ok(())
 }
 

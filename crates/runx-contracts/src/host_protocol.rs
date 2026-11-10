@@ -672,8 +672,12 @@ pub enum TurnCallOutcome {
         #[serde(skip_serializing_if = "Option::is_none")]
         receipt_id: Option<NonEmptyString>,
     },
-    /// Admission refused the call; nothing ran.
+    /// Admission refused the call; nothing ran. A refusal is runx's policy
+    /// saying no.
     Refused { reason: NonEmptyString },
+    /// A person declined its approval; nothing ran. It's the person's no,
+    /// not runx's policy, so the agent doesn't route around it.
+    Declined { reason: NonEmptyString },
     /// The call has not settled. `waiting` is what it waits on, each request
     /// by its address: its own ask or approval, its retry while its effect
     /// is unconfirmed, or what the child run it started waits on, including

@@ -366,6 +366,9 @@ where
                 RuntimeError::AuthorityDenied { reason, .. }
                 | RuntimeError::CostLimitExceeded { reason, .. },
             ) => Ran::Settled(CallOutcome::Refused(reason)),
+            Err(RuntimeError::Declined { reason, .. }) => {
+                Ran::Settled(CallOutcome::Declined(reason))
+            }
             Err(RuntimeError::ReceiptBudgetExceeded { bound, .. }) => Ran::Settled(
                 CallOutcome::Refused(crate::error::receipt_budget_reason(bound)),
             ),
@@ -928,6 +931,7 @@ where
                 | CallOutcome::Child(_) => Some(call.index),
                 CallOutcome::Completed(_)
                 | CallOutcome::Refused(_)
+                | CallOutcome::Declined(_)
                 | CallOutcome::Failed(_)
                 | CallOutcome::Cancelled
                 | CallOutcome::Waited(_)
@@ -1194,6 +1198,10 @@ where
             Err(RuntimeError::AuthorityDenied { reason, .. }) => {
                 let answers = host.answers.clone();
                 return settled(self, made, CallOutcome::Refused(reason), &answers);
+            }
+            Err(RuntimeError::Declined { reason, .. }) => {
+                let answers = host.answers.clone();
+                return settled(self, made, CallOutcome::Declined(reason), &answers);
             }
             Err(error) if error.is_fatal_step_fault() => return Err(error),
             // A call whose effect cannot even be described could not run.
@@ -1697,6 +1705,9 @@ where
                 receipt_id: Some(run.receipt.id.to_string().into()),
             },
             CallOutcome::Refused(why) => TurnCallOutcome::Refused {
+                reason: reason(why.clone()),
+            },
+            CallOutcome::Declined(why) => TurnCallOutcome::Declined {
                 reason: reason(why.clone()),
             },
             CallOutcome::Failed(why) => TurnCallOutcome::Failed {

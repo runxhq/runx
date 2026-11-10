@@ -252,6 +252,9 @@ fn project(
                 CallOutcomeEvent::Refused { reason: why } => RunCallOutcome::Refused {
                     reason: reason(why),
                 },
+                CallOutcomeEvent::Declined { reason: why } => RunCallOutcome::Declined {
+                    reason: reason(why),
+                },
                 CallOutcomeEvent::Failed { reason: why } => RunCallOutcome::Failed {
                     reason: reason(why),
                 },

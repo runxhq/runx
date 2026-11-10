@@ -20,5 +20,5 @@ setup:
               targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
               packages: [runx/memory, project:memory]
 expect:
-  status: policy_denied
+  status: declined
   steps: [entry, current, change, confirm]
