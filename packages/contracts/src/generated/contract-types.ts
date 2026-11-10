@@ -2912,9 +2912,21 @@ export type RunxX402PurchaseExtensionInfoContract = {
 /** Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run. It closes when the receipt is created, so the receipt's `created_at` is its one time. */
 export type SealContract = {
   readonly criteria: readonly CriterionBindingContract[];
+  /** Why a failed step failed. Every failed step's receipt carries it, and no other receipt does. */
+  readonly failure?: SealFailureContract;
   readonly outcome: RunOutcomeContract;
   /** Why it ended so, where the outcome alone does not say. */
   readonly reason?: SealReasonContract;
+};
+
+/** Why a step failed, as runx recorded the failure: its code, the reason, whether a retry is offered, and the failure's own structured fields, such as each field a provider's answer contradicts. A value from a field the call marks never to persist is recorded by its digest, and a presented credential never appears. */
+export type SealFailureContract = {
+  readonly code: string;
+  readonly fields?: {
+    readonly [key: string]: unknown;
+  };
+  readonly reason: string;
+  readonly retryable: boolean;
 };
 
 /** Why a receipt's subject ended as it did, beyond its outcome. */

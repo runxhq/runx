@@ -8729,6 +8729,10 @@ export const runxSchemaArtifacts = {
             },
             "type": "array"
           },
+          "failure": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SealFailure",
+            "description": "Why a failed step failed. Every failed step's receipt carries it, and no other receipt does."
+          },
           "outcome": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunOutcome"
           },
@@ -8742,6 +8746,35 @@ export const runxSchemaArtifacts = {
           "criteria"
         ],
         "title": "Seal",
+        "type": "object"
+      },
+      "SealFailure": {
+        "additionalProperties": false,
+        "description": "Why a step failed, as runx recorded the failure: its code, the reason, whether a retry is offered, and the failure's own structured fields, such as each field a provider's answer contradicts. A value from a field the call marks never to persist is recorded by its digest, and a presented credential never appears.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {},
+            "minProperties": 1,
+            "type": "object"
+          },
+          "reason": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "reason",
+          "retryable"
+        ],
+        "title": "SealFailure",
         "type": "object"
       },
       "SealReason": {
