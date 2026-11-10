@@ -4669,6 +4669,11 @@ export const runxSchemaArtifacts = {
               "$ref": "https://schemas.runx.ai/runx/reference/v1.json"
             },
             "type": "array"
+          },
+          "reused_from": {
+            "description": "The receipt of the source run whose result a reused call settled with, which names that run and verifies on its own (reuse, D32). Absent when nothing was reused, so no other receipt changes.",
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
@@ -7550,6 +7555,19 @@ export const runxSchemaArtifacts = {
         "title": "ReceiptSignature",
         "type": "object"
       },
+      "RecomputeReason": {
+        "description": "Why a call that asked to reuse a result ran again.",
+        "enum": [
+          "no_candidate",
+          "ineligible",
+          "not_allowed",
+          "changed",
+          "too_old",
+          "other_model"
+        ],
+        "title": "RecomputeReason",
+        "type": "string"
+      },
       "ReferenceDeclaration": {
         "additionalProperties": false,
         "description": "One kind of thing a connector's locators name.",
@@ -7638,6 +7656,49 @@ export const runxSchemaArtifacts = {
         ],
         "title": "ResolutionResponseActor",
         "type": "string"
+      },
+      "ReuseDecision": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "It settled from the source run whose receipt this is.",
+            "properties": {
+              "from": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "reused",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "from"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "It ran again, for this reason.",
+            "properties": {
+              "kind": {
+                "const": "recomputed",
+                "type": "string"
+              },
+              "reason": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RecomputeReason"
+              }
+            },
+            "required": [
+              "kind",
+              "reason"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Whether a call that asked to reuse a result reused one.",
+        "title": "ReuseDecision"
       },
       "RunCallOutcome": {
         "anyOf": [
@@ -7876,6 +7937,31 @@ export const runxSchemaArtifacts = {
         "title": "RunCallOutput",
         "type": "object"
       },
+      "RunCallReuse": {
+        "additionalProperties": false,
+        "description": "What a call that asked to reuse a result asked, and what it was answered (reuse, D32): the source it settled from, or why it ran again, so reuse that never fires shows up.",
+        "properties": {
+          "decision": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ReuseDecision"
+          },
+          "max_age_seconds": {
+            "description": "How old a result it reused could be, counted from its original source, in seconds.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "model": {
+            "description": "Only a result this model made, when the call named one.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "max_age_seconds",
+          "decision"
+        ],
+        "title": "RunCallReuse",
+        "type": "object"
+      },
       "RunClose": {
         "additionalProperties": false,
         "description": "Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed.",
@@ -8071,6 +8157,10 @@ export const runxSchemaArtifacts = {
               },
               "outcome": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
+              },
+              "reuse": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallReuse",
+                "description": "What the call asked of reuse, and what it was answered. Absent when it asked for none."
               },
               "standing": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/StandingApproval",

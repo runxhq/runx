@@ -1385,6 +1385,8 @@ export type LeaseTakeContract = {
 export type LineageContract = {
   /** The receipts of the subject's direct children, each committed by its id and signed-body digest. */
   readonly children: readonly ReferenceContract[];
+  /** The receipt of the source run whose result a reused call settled with, which names that run and verifies on its own (reuse, D32). Absent when nothing was reused, so no other receipt changes. */
+  readonly reused_from?: string;
 };
 
 /** One method of a loaded skill, as a model chooses it. */
@@ -2455,6 +2457,9 @@ export type ReceiptSignatureContract = {
   readonly value: string;
 };
 
+/** Why a call that asked to reuse a result ran again. */
+export type RecomputeReasonContract = "no_candidate" | "ineligible" | "not_allowed" | "changed" | "too_old" | "other_model";
+
 export type ReferenceContract = {
   readonly label?: string;
   readonly locator?: string;
@@ -2547,6 +2552,15 @@ export type ResumeDocumentContract = {
 /** Whether sending a claimed call again could repeat its effect. */
 export type RetryResendContract = "safe" | "unsafe";
 
+/** Whether a call that asked to reuse a result reused one. */
+export type ReuseDecisionContract = {
+  readonly from: string;
+  readonly kind: "reused";
+} | {
+  readonly kind: "recomputed";
+  readonly reason: RecomputeReasonContract;
+};
+
 /** How a call stood when this event recorded it. */
 export type RunCallOutcomeContract = {
   /** The call's output as project artifacts of its run: one per packet output, and one for the rest. */
@@ -2592,6 +2606,15 @@ export type RunCallOutputContract = {
   readonly artifact: ArtifactContract;
   /** The packet output it holds; absent on the artifact of the call's other outputs. */
   readonly output?: string;
+};
+
+/** What a call that asked to reuse a result asked, and what it was answered (reuse, D32): the source it settled from, or why it ran again, so reuse that never fires shows up. */
+export type RunCallReuseContract = {
+  readonly decision: ReuseDecisionContract;
+  /** How old a result it reused could be, counted from its original source, in seconds. */
+  readonly max_age_seconds: number;
+  /** Only a result this model made, when the call named one. */
+  readonly model?: string;
 };
 
 /** Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed. */
@@ -2653,6 +2676,8 @@ export type RunEventFactContract = {
   readonly input_digest: string;
   readonly kind: "call";
   readonly outcome: RunCallOutcomeContract;
+  /** What the call asked of reuse, and what it was answered. Absent when it asked for none. */
+  readonly reuse?: RunCallReuseContract;
   /** The standing approval that admitted it on the approval floor, when one did. */
   readonly standing?: StandingApprovalContract;
   readonly step_id: string;
