@@ -39,6 +39,7 @@ mod registry_connector_install;
 mod registry_fixture;
 mod registry_install;
 mod script_steps;
+mod scripted_model;
 mod skill_author_runtime_fixtures;
 mod skill_manual_context;
 mod skill_run;

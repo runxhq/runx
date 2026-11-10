@@ -1,8 +1,8 @@
 #![cfg(feature = "agent")]
 
 use std::cell::Cell;
-use std::io::{self, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io;
+use std::net::TcpListener;
 use std::{collections::BTreeMap, fs};
 
 use runx_contracts::{JsonObject, JsonValue};
@@ -51,37 +51,6 @@ impl ToolExecutor for ReadExecutor {
     }
 }
 
-fn read_request(stream: &mut TcpStream) -> io::Result<Value> {
-    let mut bytes = Vec::new();
-    let mut chunk = [0_u8; 4096];
-    let (header_end, content_length) = loop {
-        let n = stream.read(&mut chunk)?;
-        assert!(n > 0, "request ended before headers");
-        bytes.extend_from_slice(&chunk[..n]);
-        if let Some(index) = bytes.windows(4).position(|part| part == b"\r\n\r\n") {
-            let headers = String::from_utf8_lossy(&bytes[..index]).to_ascii_lowercase();
-            assert!(headers.starts_with("post /v1/chat/completions http/1.1"));
-            assert!(
-                !headers.contains("authorization:"),
-                "keyless local call must carry no API key"
-            );
-            let length = headers
-                .lines()
-                .find_map(|line| line.strip_prefix("content-length:"))
-                .and_then(|value| value.trim().parse::<usize>().ok())
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "content length"))?;
-            break (index + 4, length);
-        }
-    };
-    while bytes.len() - header_end < content_length {
-        let n = stream.read(&mut chunk)?;
-        assert!(n > 0, "request ended before body");
-        bytes.extend_from_slice(&chunk[..n]);
-    }
-    serde_json::from_slice(&bytes[header_end..header_end + content_length])
-        .map_err(io::Error::other)
-}
-
 fn serve_responses<const N: usize>(
     listener: TcpListener,
     responses: [Value; N],
@@ -90,13 +59,8 @@ fn serve_responses<const N: usize>(
     for response in responses {
         // The client sends its whole request or closes, so the read ends.
         let (mut stream, _) = listener.accept()?;
-        requests.push(read_request(&mut stream)?);
-        let body = response.to_string();
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        )?;
+        requests.push(crate::scripted_model::read_chat_request(&mut stream)?);
+        crate::scripted_model::write_chat_response(&mut stream, &response)?;
     }
     Ok(requests)
 }
@@ -194,17 +158,12 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
     let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
     let server = std::thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
-        let _request = read_request(&mut stream)?;
+        let _request = crate::scripted_model::read_chat_request(&mut stream)?;
         let body = json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[
             {"id":"first","type":"function","function":{"name":"fixture_read","arguments":"{\"value\":\"proof\"}"}},
             {"id":"second","type":"function","function":{"name":"unoffered_tool","arguments":"{}"}}
-        ]}}]}).to_string();
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        )?;
-        Ok(())
+        ]}}]});
+        crate::scripted_model::write_chat_response(&mut stream, &body)
     });
     let tools = AgentToolNameMap::new(vec![AgentToolDefinition {
         name: "fixture.read".to_owned(),
@@ -887,7 +846,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
         let mut requests = Vec::new();
         for turn in 0..3 {
             let (mut stream, _) = listener.accept()?;
-            let request = read_request(&mut stream)?;
+            let request = crate::scripted_model::read_chat_request(&mut stream)?;
             let response = match turn {
                 0 => tool_call("call-input", "turn_read", json!({"locator": "input:kept"})),
                 1 => {
@@ -905,12 +864,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
                 _ => tool_call("call-final", "turn_complete", json!({"status": "done"})),
             };
             requests.push(request);
-            let body = response.to_string();
-            write!(
-                stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            )?;
+            crate::scripted_model::write_chat_response(&mut stream, &response)?;
         }
         Ok(requests)
     });
