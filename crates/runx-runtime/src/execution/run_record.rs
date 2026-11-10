@@ -453,6 +453,10 @@ struct AnswerEvent {
     /// The turn's `input_digest`, when the answer is an agent turn's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     input_digest: Option<String>,
+    /// The type of the approval gate the answer decided, when it answered
+    /// an approval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gate: Option<String>,
 }
 
 /// A person's decision a resume admitted, in the stream of the run that
@@ -501,6 +505,10 @@ pub(crate) struct Answer {
     /// An agent turn's `input_digest`: what the turn asked, beside the
     /// address and run its request names.
     pub input_digest: Option<String>,
+    /// The type of the approval gate the answer decided, when it answered
+    /// an approval, so a person's approval to spend on a read is told from
+    /// any other answer.
+    pub gate: Option<String>,
 }
 
 /// Where a suspended run waits.
@@ -679,6 +687,7 @@ impl RunRecord {
                 value: store.blob_json(&answer.value)?,
                 human: answer.human,
                 input_digest: answer.input_digest.clone(),
+                gate: answer.gate.clone(),
             });
         }
         Ok(())
@@ -707,6 +716,7 @@ fn answer_event(answer: &Answer, value: &Blob) -> AnswerEvent {
         value: value.digest().to_owned(),
         human: answer.human,
         input_digest: answer.input_digest.clone(),
+        gate: answer.gate.clone(),
     }
 }
 
@@ -2244,6 +2254,7 @@ impl RunRecord {
                     value: store.blob_json(&answered.value)?,
                     human: answered.human,
                     input_digest: None,
+                    gate: None,
                 });
             }
             RunEvent::Sealed(sealed) => {

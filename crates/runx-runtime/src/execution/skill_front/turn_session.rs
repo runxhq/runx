@@ -742,6 +742,7 @@ mod tests {
             value: serde_json::from_value(serde_json::json!({"approved": true}))?,
             human: true,
             input_digest: None,
+            gate: None,
         })?;
         let read = crate::execution::run_record::read_run(&env(root), root, &run_id, None)?;
         assert!(read.events.iter().any(|record| matches!(

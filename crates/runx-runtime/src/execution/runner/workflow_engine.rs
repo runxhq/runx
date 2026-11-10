@@ -98,6 +98,11 @@ impl Host for AnsweringHost<'_> {
                 reason: format!("{request_id} is not the request the run waited on"),
             });
         }
+        // The approval gate the answer decides, when it's an approval.
+        let gate = match &request {
+            runx_contracts::ResolutionRequest::Approval { gate, .. } => gate.gate_type.clone(),
+            _ => None,
+        };
         // What a turn asked, as reuse compares it (D32).
         let input_digest = match &request {
             runx_contracts::ResolutionRequest::Turn { invocation, .. } => {
@@ -113,6 +118,7 @@ impl Host for AnsweringHost<'_> {
                 value: response.payload.clone(),
                 human: response.actor == runx_contracts::ResolutionResponseActor::Human,
                 input_digest,
+                gate,
             });
         }
         Ok(response)
@@ -1303,6 +1309,23 @@ mod tests {
             },
         }))
         .expect("a turn request")
+    }
+
+    /// An answer to an approval is kept with the type of the gate it
+    /// decided, so a person's approval to spend on a read is told from any
+    /// other answer.
+    #[test]
+    fn an_approvals_answer_keeps_its_gates_type() {
+        let mut agent = Agent;
+        let mut host = AnsweringHost::new(&mut agent, None);
+        let approval: ResolutionRequest = serde_json::from_value(serde_json::json!({
+            "kind": "approval",
+            "id": "read",
+            "gate": {"id": "read", "reason": "Spend on this read.", "type": "provider_usage"},
+        }))
+        .expect("an approval request");
+        host.resolve(approval).expect("answered");
+        assert_eq!(host.answers[0].gate.as_deref(), Some("provider_usage"));
     }
 
     /// A turn's answer is kept with what the turn asked: the same request

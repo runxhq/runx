@@ -223,6 +223,7 @@ impl ResolutionAnswers {
                 value: entry.value.clone(),
                 human: entry.human,
                 input_digest: None,
+                gate: None,
             })
             .collect()
     }
@@ -593,6 +594,7 @@ mod tests {
             ),
             human: true,
             input_digest: None,
+            gate: None,
         };
         let mut empty = ResolutionAnswers::default();
         empty.join_recorded(vec![recorded()]);

@@ -190,6 +190,7 @@ fn a_run_replays_its_steps_suspension_and_answers() {
             value: JsonValue::Bool(true),
             human: true,
             input_digest: Some("sha256:asked".to_owned()),
+            gate: Some("write".to_owned()),
         }],
     )
     .unwrap();
@@ -202,6 +203,7 @@ fn a_run_replays_its_steps_suspension_and_answers() {
         record.answers[0].input_digest.as_deref(),
         Some("sha256:asked")
     );
+    assert_eq!(record.answers[0].gate.as_deref(), Some("write"));
     assert!(waiting_ids(&store, "run_triage_1").is_empty());
 }
 
@@ -894,6 +896,7 @@ fn an_admitted_answer_waits_in_the_record_until_a_step_uses_it() {
         value: JsonValue::Bool(true),
         human: true,
         input_digest: None,
+        gate: None,
     };
     log.record_answer(&answer).unwrap();
 

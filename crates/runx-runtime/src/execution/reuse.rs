@@ -173,8 +173,9 @@ fn index_at(
 /// its turns and scripts called is a native tool that only reads, a read of
 /// a result, or an operation that only read. An operation counts only when
 /// its packet shows runx made the read itself, not through a process it
-/// started. No person answered it, and runx's managed agent answered each
-/// turn from a fresh context, stating the model that answered.
+/// started. No person answered it, except to approve spending on a metered
+/// read, and runx's managed agent answered each turn from a fresh context,
+/// stating the model that answered.
 pub(crate) fn eligible(
     store: &std::sync::Arc<KernelStore>,
     run_id: &str,
@@ -207,7 +208,7 @@ pub(crate) fn eligible(
     };
     if root != Some(runx_contracts::RunDriver::Managed)
         || !workflow.steps.iter().all(step_is_seen)
-        || !record.answers.iter().all(answered_by_runx)
+        || !record.answers.iter().all(answer_allowed)
     {
         return Ok(false);
     }
@@ -292,6 +293,21 @@ fn packet_read_runx_made(packet: &runx_contracts::JsonObject) -> bool {
         && field("transport").is_some_and(|transport| RUNX_TRANSPORTS.contains(&transport))
 }
 
+/// The gate a person approves spending on a metered read at.
+const SPEND_GATE: &str = "provider_usage";
+
+/// Whether `answer` leaves its source eligible: runx's managed agent gave
+/// it, or a person approved spending on a metered read, since approving
+/// spend isn't asking. Any other answer from a person is something runx
+/// can't see again.
+fn answer_allowed(answer: &super::run_record::Answer) -> bool {
+    if answer.human {
+        answer.gate.as_deref() == Some(SPEND_GATE)
+    } else {
+        answered_by_runx(answer)
+    }
+}
+
 /// Whether runx's managed agent gave `answer`: no person did, and it states
 /// the model that answered and that the turn started from a fresh context.
 fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
@@ -304,7 +320,7 @@ fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
 mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-    use super::{Source, decide, head, index_at, packet_read_runx_made};
+    use super::{Source, answer_allowed, decide, head, index_at, packet_read_runx_made};
     use crate::kernel::store::KernelStore;
 
     fn source(run: &str) -> Source {
@@ -387,5 +403,40 @@ mod tests {
             );
         }
         assert!(!packet_read_runx_made(&packet("mutate", "local_store")));
+    }
+
+    /// A person's approval to spend on a metered read leaves its source
+    /// eligible, since approving spend isn't asking; any other answer a person
+    /// gave, to a question or a write's approval, doesn't. runx's managed agent
+    /// answers, stating its model and a fresh context.
+    #[test]
+    fn a_persons_approval_to_spend_on_a_read_leaves_a_source_eligible() {
+        let answer = |human: bool, gate: Option<&str>, value: serde_json::Value| {
+            crate::execution::run_record::Answer {
+                request_id: "read".to_owned(),
+                request_digest: "sha256:request".to_owned(),
+                value: serde_json::from_value(value).unwrap(),
+                human,
+                input_digest: None,
+                gate: gate.map(str::to_owned),
+            }
+        };
+        let approved = serde_json::json!({"approved": true});
+        assert!(answer_allowed(&answer(
+            true,
+            Some("provider_usage"),
+            approved.clone()
+        )));
+        assert!(!answer_allowed(&answer(
+            true,
+            Some("write"),
+            approved.clone()
+        )));
+        assert!(!answer_allowed(&answer(true, None, approved)));
+        assert!(answer_allowed(&answer(
+            false,
+            None,
+            serde_json::json!({"closure": {"outcome": "completed", "model": "fixture-model", "requirements": ["fresh_context"]}}),
+        )));
     }
 }
