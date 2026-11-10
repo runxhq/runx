@@ -1,6 +1,8 @@
 //! performance.md's journey 5, memory, counted: the index and search over a
 //! personal memory of 100, 10,000 and 100,000 entries. Each size is laid down
-//! in a fresh home through the store's own append, a third of them the
+//! in a fresh home through the store's own append, each entry keyed by a
+//! digest as memory keys one, so an index line shows a key's start as it
+//! would for a real memory, a third of them the
 //! person's words, a tenth corrected, a twentieth disabled, some observations
 //! superseded, and a seventh dated, half of those ended, placed by their
 //! distance from the newest so the newest pages read alike at every size.
@@ -255,7 +257,10 @@ impl Memory {
                 "{PACKAGE}/{}:personal",
                 if said { "said" } else { "observed" }
             );
-            let key = format!("{index:064x}");
+            // A digest, as memory names an entry.
+            let key = runx_contracts::sha256_prefixed(format!("entry {index}").as_bytes())
+                .trim_start_matches("sha256:")
+                .to_owned();
             let text = if rule.is_some() {
                 format!("Entry {index} is a rule the probe keeps standing.")
             } else if distance % 50 == 1 {
