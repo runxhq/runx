@@ -54,6 +54,15 @@ pub struct HostEvidence {
     pub results: EvalResults,
 }
 
+/// Which of a package's evals a run measured: its selection, from
+/// `eval_queries.json`, or its evals, from `evals/evals.json`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalEvidenceKind {
+    Selection,
+    Evals,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EvalResults {

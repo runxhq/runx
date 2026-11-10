@@ -2,7 +2,7 @@
 // hosted, install, publish, trust, and signed-manifest envelopes evolve under
 // one serialization contract.
 pub use runx_contracts::TrustTier;
-use runx_contracts::maturity::MaturityTier;
+use runx_contracts::maturity::Maturity;
 use runx_contracts::{CopyableCommand, JsonValue, PaidSkillListing};
 use serde::{Deserialize, Serialize};
 
@@ -148,8 +148,10 @@ pub struct RegistrySkillVersion {
     pub paid_listing: Option<PaidSkillListing>,
     pub method_names: Vec<String>,
     pub trust_tier: TrustTier,
-    #[serde(default)]
-    pub maturity: MaturityTier,
+    /// How ready the version is and what that rests on, when the registry
+    /// states it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maturity: Option<Maturity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog_visibility: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

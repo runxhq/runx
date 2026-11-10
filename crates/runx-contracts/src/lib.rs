@@ -94,8 +94,8 @@ pub use doctor::{
     DoctorStatus, DoctorSummary,
 };
 pub use eval_evidence::{
-    EVAL_EVIDENCE_SCHEMA, EvalAttempt, EvalAttempts, EvalEvidence, EvalEvidenceSchema, EvalResults,
-    HostEvidence, QuerySelection, Tally,
+    EVAL_EVIDENCE_SCHEMA, EvalAttempt, EvalAttempts, EvalEvidence, EvalEvidenceKind,
+    EvalEvidenceSchema, EvalResults, HostEvidence, QuerySelection, Tally,
 };
 pub use execution::{
     InputDefinition, call_input_schema, input_contract_schema, input_contract_schema_with_examples,
