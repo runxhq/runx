@@ -220,7 +220,7 @@ pub use resume::{
 pub use run_read::{
     RecomputeReason, ReuseDecision, RunCallOutcome, RunCallOutput, RunCallReuse, RunDriver,
     RunEventFact, RunEventRecord, RunHold, RunImplementation, RunRead, RunReadSchema,
-    RunReadSummary, RunState, WaitedRequest,
+    RunReadSummary, RunState, TurnHost, WaitedRequest,
 };
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,

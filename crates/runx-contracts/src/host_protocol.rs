@@ -344,12 +344,14 @@ pub struct TurnInvocation {
 
 /// The fields of an agent's answer that are runx's own, beside the outputs
 /// its step declares: how the turn ended (`ending`, else completed) and why,
-/// the model that answered, and the requirements its agent harness met or the
-/// one it couldn't. A step can't declare an output of the same name.
-pub const RESERVED_ANSWER_FIELDS: [&str; 5] = [
+/// the model that answered and the host that gave the answer, and the
+/// requirements its agent harness met or the one it couldn't. A step can't
+/// declare an output of the same name.
+pub const RESERVED_ANSWER_FIELDS: [&str; 6] = [
     "ending",
     "ending_reason",
     "model",
+    "host",
     "requirements",
     "unsupported_requirement",
 ];

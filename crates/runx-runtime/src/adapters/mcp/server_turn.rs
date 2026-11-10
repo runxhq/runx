@@ -199,6 +199,7 @@ pub(super) fn execute_mcp_turn_tool(
     tool: &McpTurnTool,
     arguments: JsonObject,
     served: &str,
+    client: Option<&runx_contracts::TurnHost>,
 ) -> McpToolResult {
     let result = session(&tool.runs, &arguments, served).and_then(|session| match tool.action {
         McpTurnAction::List => session
@@ -261,10 +262,15 @@ pub(super) fn execute_mcp_turn_tool(
             let ended = match (arguments.get("output"), arguments.get("failure")) {
                 (Some(_), None) => {
                     let met = requirements(&arguments)?;
-                    let answer = crate::execution::outcome::with_met_requirements(
+                    let mut answer = crate::execution::outcome::with_met_requirements(
                         JsonValue::Object(object(&arguments, "output")?),
                         &met,
                     )?;
+                    // The answer records the client that gave it, as its
+                    // initialize named it.
+                    if let Some(client) = client {
+                        answer = crate::execution::outcome::with_stated_host(answer, client)?;
+                    }
                     let JsonValue::Object(answer) = answer else {
                         return Err("turn_complete's output must be an object".to_owned());
                     };

@@ -2659,6 +2659,8 @@ export type RunEventFactContract = {
   readonly step_id: string;
 } | {
   readonly attempt: number;
+  /** The host that gave an agent step's turn its answer, as the answer records it. Absent when the answer records none, and on every other step. */
+  readonly host?: TurnHostContract;
   readonly kind: "step";
   /** The model an agent step's turn stated in its answer. Absent when the turn stated none, and on every other step. */
   readonly model?: string;
@@ -3682,6 +3684,16 @@ export type TurnContextLineContract = {
   readonly size_bytes: number;
   readonly summary?: string;
   readonly type: string;
+};
+
+/** The host that answered a turn, as its answer records it. One run's turns can each be answered by a different host over its life, so the host is recorded per answer, never per run. */
+export type TurnHostContract = {
+  readonly kind: "managed_agent";
+  readonly provider: string;
+} | {
+  readonly kind: "mcp_client";
+  readonly name: string;
+  readonly version: string;
 };
 
 export type TurnInvocationContract = {

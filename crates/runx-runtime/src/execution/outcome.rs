@@ -156,6 +156,20 @@ pub(crate) fn with_stated_model(answer: JsonValue, model: &str) -> Result<JsonVa
     stating(answer, "model", JsonValue::String(model.to_owned()))
 }
 
+/// `answer`, recording the host that gave it in its `host`.
+///
+/// # Errors
+///
+/// Returns an error when the answer isn't an object.
+#[cfg(any(feature = "agent", feature = "mcp"))]
+pub(crate) fn with_stated_host(
+    answer: JsonValue,
+    host: &runx_contracts::TurnHost,
+) -> Result<JsonValue, String> {
+    let host = JsonValue::from_serialize(host).map_err(|error| error.to_string())?;
+    stating(answer, "host", host)
+}
+
 /// `answer` with `value` at its `key`.
 #[cfg(any(feature = "agent", feature = "mcp"))]
 fn stating(answer: JsonValue, key: &str, value: JsonValue) -> Result<JsonValue, String> {
@@ -178,6 +192,24 @@ pub(crate) fn states_met(answer: &JsonValue, requirement: runx_contracts::TurnRe
                 .iter()
                 .any(|stated| stated.as_str() == Some(requirement.as_str()))
         })
+}
+
+/// The host an agent turn's answer records as the one that gave it, in its
+/// `host`; none when it records none.
+///
+/// # Errors
+///
+/// Returns an error when the answer's host isn't a host.
+pub(crate) fn stated_host(answer: &JsonValue) -> Result<Option<runx_contracts::TurnHost>, String> {
+    answer
+        .as_object()
+        .and_then(|answer| answer.get("host"))
+        .map(|host| {
+            host.clone()
+                .deserialize_into::<runx_contracts::TurnHost>()
+                .map_err(|error| format!("agent answer host names no host: {error}"))
+        })
+        .transpose()
 }
 
 /// The longest model name an answer may state.

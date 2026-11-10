@@ -189,8 +189,10 @@ fn project(
         }
         RunEvent::Step(event) => {
             let (outcome, receipt_id) = step(&event.record, &event.receipt)?;
+            let (model, host) = turn_statements(store, stream, &event.answers)?;
             RunEventFact::Step {
-                model: turn_model(store, stream, &event.answers)?,
+                model,
+                host,
                 step_id: event.step_id.into(),
                 attempt: event.attempt,
                 succeeded: outcome.succeeded(),
@@ -341,20 +343,23 @@ fn invalid(run_id: &str, reason: String) -> RunRecordError {
     }
 }
 
-/// The model an agent step's turn stated, from the answer it consumed: the
-/// turn's answer is the one that carries the turn's input digest.
-fn turn_model(
+/// The model an agent step's turn stated and the host that answered it,
+/// from the answer it consumed: the turn's answer is the one that carries the
+/// turn's input digest.
+fn turn_statements(
     store: &KernelStore,
     stream: &str,
     answers: &[AnswerEvent],
-) -> Result<Option<NonEmptyString>, RunRecordError> {
+) -> Result<(Option<NonEmptyString>, Option<runx_contracts::TurnHost>), RunRecordError> {
     let Some(answer) = answers.iter().find(|answer| answer.input_digest.is_some()) else {
-        return Ok(None);
+        return Ok((None, None));
     };
     let value: JsonValue = store.blob_json(&answer.value)?;
     let model = crate::execution::outcome::stated_model(&value)
         .map_err(|reason| invalid(stream, format!("a turn's answer: {reason}")))?;
-    Ok(model.map(Into::into))
+    let host = crate::execution::outcome::stated_host(&value)
+        .map_err(|reason| invalid(stream, format!("a turn's answer: {reason}")))?;
+    Ok((model.map(Into::into), host))
 }
 
 /// The package a load bound, from what its record holds: a completed load's

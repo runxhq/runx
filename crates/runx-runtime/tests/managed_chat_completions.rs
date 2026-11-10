@@ -611,6 +611,11 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
         .find(|event| event["kind"] == "step" && event["step_id"] == "work")
         .ok_or_else(|| format!("the turn's step is recorded: {read}"))?;
     assert_eq!(step["model"], "fixture-model", "{step}");
+    assert_eq!(
+        step["host"],
+        json!({"kind": "managed_agent", "provider": "scripted"}),
+        "{step}"
+    );
     // The run reads its own record through `run.read`, as the CLI's history
     // does, and finds the same load.
     let own = &output["result"]["run_read"]["data"];

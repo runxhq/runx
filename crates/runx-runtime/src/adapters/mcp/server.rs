@@ -345,6 +345,17 @@ async fn execute_rmcp_tool_call(
             arguments,
             served,
         } => {
+            // The client a turn's answer records, as its initialize named it.
+            let client = context.peer.peer_info().and_then(|info| {
+                Some(runx_contracts::TurnHost::McpClient {
+                    name: runx_contracts::schema::NonEmptyString::new(
+                        info.client_info.name.clone(),
+                    )?,
+                    version: runx_contracts::schema::NonEmptyString::new(
+                        info.client_info.version.clone(),
+                    )?,
+                })
+            });
             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
             let watch = tokio::spawn({
                 let stop = Arc::clone(&stop);
@@ -355,7 +366,12 @@ async fn execute_rmcp_tool_call(
             });
             let result = off_runtime(move || {
                 crate::interrupt::while_working(&stop, || {
-                    super::server_turn::execute_mcp_turn_tool(&tool, arguments, &served)
+                    super::server_turn::execute_mcp_turn_tool(
+                        &tool,
+                        arguments,
+                        &served,
+                        client.as_ref(),
+                    )
                 })
             })
             .await;
@@ -793,6 +809,7 @@ mod tests {
             ]
             .into(),
             &state.served_run_prefix(),
+            None,
         );
         assert!(both.is_error, "{both:?}");
         // An agent harness states the requirements it met, or the one it couldn't,
@@ -828,6 +845,7 @@ mod tests {
                 ]
                 .into(),
                 &state.served_run_prefix(),
+                None,
             )
         };
         let misnamed = refuse(
@@ -873,10 +891,14 @@ mod tests {
                 .and_then(JsonValue::as_array)
                 .is_some_and(|required| required.contains(&JsonValue::String("call_id".to_owned())))
         );
+        let client = runx_contracts::TurnHost::McpClient {
+            name: "claude-code".into(),
+            version: "2.1.293".into(),
+        };
         let completed = super::super::server_turn::execute_mcp_turn_tool(
             &complete,
             [
-                ("run".to_owned(), JsonValue::String(run_id)),
+                ("run".to_owned(), JsonValue::String(run_id.clone())),
                 ("turn".to_owned(), JsonValue::String("default".to_owned())),
                 (
                     "output".to_owned(),
@@ -891,12 +913,28 @@ mod tests {
             ]
             .into(),
             &state.served_run_prefix(),
+            Some(&client),
         );
         assert!(!completed.is_error, "{completed:?}");
         assert_eq!(
             runx(&completed).get("status"),
             Some(&JsonValue::String("sealed".to_owned()))
         );
+        // The turn's answer records the client that gave it, as its
+        // initialize named it.
+        let read = crate::execution::run_record::read_run(
+            &[("RUNX_CWD".to_owned(), root.path().display().to_string())].into(),
+            root.path(),
+            &run_id,
+            None,
+        )?;
+        let host = read.events.iter().find_map(|record| match &record.event {
+            runx_contracts::RunEventFact::Step {
+                host: Some(host), ..
+            } => Some(host.clone()),
+            _ => None,
+        });
+        assert_eq!(host, Some(client));
         Ok(())
     }
 

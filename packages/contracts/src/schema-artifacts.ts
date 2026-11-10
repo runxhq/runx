@@ -8039,6 +8039,10 @@ export const runxSchemaArtifacts = {
                 "minimum": 0,
                 "type": "integer"
               },
+              "host": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnHost",
+                "description": "The host that gave an agent step's turn its answer, as the answer records it. Absent when the answer records none, and on every other step."
+              },
               "kind": {
                 "const": "step",
                 "type": "string"
@@ -10805,6 +10809,55 @@ export const runxSchemaArtifacts = {
         ],
         "title": "TurnContextLine",
         "type": "object"
+      },
+      "TurnHost": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "runx's managed agent, through the provider it names. A `scripted` provider is a scripted model, never a real one.",
+            "properties": {
+              "kind": {
+                "const": "managed_agent",
+                "type": "string"
+              },
+              "provider": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "provider"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "An MCP client attached to the run, by the name and version its `initialize` gave.",
+            "properties": {
+              "kind": {
+                "const": "mcp_client",
+                "type": "string"
+              },
+              "name": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "version": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "version"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "The host that answered a turn, as its answer records it. One run's turns can each be answered by a different host over its life, so the host is recorded per answer, never per run.",
+        "title": "TurnHost"
       },
       "TurnRequirement": {
         "description": "What a turn can need from the agent harness that works it.",

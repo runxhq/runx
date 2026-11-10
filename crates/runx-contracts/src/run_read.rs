@@ -143,6 +143,11 @@ pub enum RunEventFact {
         /// the turn stated none, and on every other step.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         model: Option<NonEmptyString>,
+        /// The host that gave an agent step's turn its answer, as the answer
+        /// records it. Absent when the answer records none, and on every
+        /// other step.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        host: Option<TurnHost>,
     },
     Skipped {
         step_ids: Vec<NonEmptyString>,
@@ -212,6 +217,23 @@ pub enum RunEventFact {
         /// `sha256:` over the answer's value.
         answer_digest: NonEmptyString,
         actor: ResolutionResponseActor,
+    },
+}
+
+/// The host that answered a turn, as its answer records it. One run's turns
+/// can each be answered by a different host over its life, so the host is
+/// recorded per answer, never per run.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TurnHost {
+    /// runx's managed agent, through the provider it names. A `scripted`
+    /// provider is a scripted model, never a real one.
+    ManagedAgent { provider: NonEmptyString },
+    /// An MCP client attached to the run, by the name and version its
+    /// `initialize` gave.
+    McpClient {
+        name: NonEmptyString,
+        version: NonEmptyString,
     },
 }
 

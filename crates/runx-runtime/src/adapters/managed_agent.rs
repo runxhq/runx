@@ -144,11 +144,20 @@ impl ManagedAgent {
             })?;
         end.answer
             .map(|answer| {
-                // It states what it always meets, a fresh context, and the
-                // model that answered.
+                // It states what it always meets, a fresh context, the
+                // model that answered, and itself as the host, through its
+                // provider.
                 crate::execution::outcome::with_met_requirements(answer, &MANAGED_AGENT_MEETS)
                     .and_then(|answer| {
                         crate::execution::outcome::with_stated_model(answer, &config.model)
+                    })
+                    .and_then(|answer| {
+                        crate::execution::outcome::with_stated_host(
+                            answer,
+                            &runx_contracts::TurnHost::ManagedAgent {
+                                provider: config.provider.clone(),
+                            },
+                        )
                     })
             })
             .transpose()
