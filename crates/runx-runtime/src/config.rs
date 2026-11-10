@@ -253,8 +253,7 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
     }
 }
 
-/// The home's config file, upgraded first when it was written in an earlier
-/// shape.
+/// The home's config file, read in the one shape this runx writes.
 pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, ConfigError> {
     let contents = match fs::read_to_string(config_path) {
         Ok(contents) => contents,
@@ -263,109 +262,20 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
         }
         Err(error) => return Err(ConfigError::Io(error)),
     };
-    let mut value =
+    let value =
         serde_json::from_str::<Value>(&contents).map_err(|error| ConfigError::InvalidJson {
             path: config_path.to_path_buf(),
             message: error.to_string(),
         })?;
-    let Some(object) = value.as_object_mut() else {
+    if !value.is_object() {
         return Err(ConfigError::NonObjectJson {
             path: config_path.to_path_buf(),
         });
-    };
-    let upgraded = upgrade_to_secrets(object, config_path)?;
-    let config: RunxConfigFile =
-        serde_json::from_value(value).map_err(|error| ConfigError::InvalidConfig {
-            path: config_path.to_path_buf(),
-            message: error.to_string(),
-        })?;
-    if upgraded {
-        write_runx_config_file(config_path, &config)?;
     }
-    Ok(config)
-}
-
-/// The home file before `runx secret`: connector credential profiles, each
-/// a sealed file, and the managed agent's own key.
-#[derive(Deserialize)]
-struct LegacyCredentials {
-    #[serde(default)]
-    profiles: BTreeMap<String, LegacyProfile>,
-}
-
-#[derive(Deserialize)]
-struct LegacyProfile {
-    secret_ref: String,
-}
-
-/// Reshape a home file written before `runx secret`. Each credential profile
-/// becomes the secret of its name over the same sealed file. The managed
-/// agent's own key, stored or its reference and pin, becomes the secret
-/// `agent`, or the first `agent-<n>` no profile holds, and `agent.secret`
-/// names it. Nothing is read or sealed again: only records move, so the
-/// upgrade gives the same file however often it runs. `false` when the file
-/// has nothing to reshape.
-fn upgrade_to_secrets(
-    config: &mut serde_json::Map<String, Value>,
-    path: &Path,
-) -> Result<bool, ConfigError> {
-    let invalid = |message: String| ConfigError::InvalidConfig {
-        path: path.to_path_buf(),
-        message,
-    };
-    let profiles = config
-        .remove("credentials")
-        .map(serde_json::from_value::<LegacyCredentials>)
-        .transpose()
-        .map_err(|error| invalid(format!("credentials: {error}")))?;
-    let mut key = BTreeMap::new();
-    if let Some(agent) = config.get_mut("agent").and_then(Value::as_object_mut) {
-        for field in ["api_key_ref", "api_key_from", "api_key_pinned"] {
-            if let Some(value) = agent.remove(field) {
-                key.insert(field, value);
-            }
-        }
-    }
-    if profiles.is_none() && key.is_empty() {
-        return Ok(false);
-    }
-    let text = |field: &str| {
-        key.get(field)
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-    };
-    let agent_key = match (text("api_key_from"), text("api_key_ref")) {
-        (Some(reference), _) => Some(serde_json::json!({
-            "reference": {"reference": reference, "pinned": text("api_key_pinned")}
-        })),
-        (None, Some(material_id)) => {
-            Some(serde_json::json!({"stored": {"material_id": material_id}}))
-        }
-        (None, None) => None,
-    };
-    let secrets = config
-        .entry("secrets")
-        .or_insert_with(|| Value::Object(serde_json::Map::new()))
-        .as_object_mut()
-        .ok_or_else(|| invalid("secrets is not an object".to_owned()))?;
-    for (name, profile) in profiles.map(|held| held.profiles).unwrap_or_default() {
-        secrets.insert(
-            name,
-            serde_json::json!({"stored": {"material_id": profile.secret_ref}}),
-        );
-    }
-    if let Some(record) = agent_key {
-        let name = std::iter::once("agent".to_owned())
-            .chain((2..=secrets.len() + 1).map(|n| format!("agent-{n}")))
-            .find(|name| !secrets.contains_key(name))
-            .ok_or_else(|| invalid("no free name for the agent's key".to_owned()))?;
-        secrets.insert(name.clone(), record);
-        if let Some(agent) = config.get_mut("agent").and_then(Value::as_object_mut) {
-            agent.insert("secret".to_owned(), Value::String(name));
-        }
-    }
-    Ok(true)
+    serde_json::from_value(value).map_err(|error| ConfigError::InvalidConfig {
+        path: config_path.to_path_buf(),
+        message: error.to_string(),
+    })
 }
 
 pub fn write_runx_config_file(
@@ -525,59 +435,41 @@ mod tests {
         Ok(())
     }
 
-    /// A home from before `runx secret` keeps every value: its profiles and
-    /// the agent's key become secrets over the same sealed files.
+    /// A home from before `runx secret`, its credentials as profiles and the
+    /// agent's key on the agent, is refused by the typed read, naming the
+    /// file and the key it doesn't read, and is left as it was.
     #[test]
-    fn a_home_written_before_secrets_is_upgraded_once_and_keeps_every_value()
+    fn a_home_from_before_runx_secret_is_refused_and_left_as_it_was()
     -> Result<(), Box<dyn std::error::Error>> {
         let home = tempfile::tempdir()?;
-        let path = home.path().join("config.json");
-        fs::write(
-            &path,
-            r#"{
-              "agent": {"provider": "anthropic", "model": "m", "api_key_ref": "local_agent_key_1"},
-              "credentials": {"profiles": {
-                "agent": {"connector": "x", "credential_declaration_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "credential": "token", "secret_ref": "local_credential_2"},
-                "github": {"connector": "github", "credential_declaration_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "credential": "token", "secret_ref": "local_credential_3"}
-              }}
-            }"#,
-        )?;
+        for (contents, key) in [
+            (
+                r#"{"credentials": {"profiles": {"github": {"connector": "github", "credential": "token", "secret_ref": "local_credential_3"}}}}"#,
+                "credentials",
+            ),
+            (
+                r#"{"agent": {"provider": "anthropic", "model": "m", "api_key_ref": "local_agent_key_1"}}"#,
+                "api_key_ref",
+            ),
+            (
+                r#"{"agent": {"api_key_from": "aws-sm://team/env#KEY", "api_key_pinned": "arn:aws:secretsmanager:eu-west-2:1:secret:team/env-Ab"}}"#,
+                "api_key_from",
+            ),
+        ] {
+            let path = home.path().join("config.json");
+            fs::write(&path, contents)?;
 
-        let config = load_runx_config_file(&path)?;
+            let refused = load_runx_config_file(&path)
+                .err()
+                .ok_or("the home is refused")?;
 
-        let stored = |material_id: &str| RunxSecretRecord::Stored {
-            material_id: material_id.to_owned(),
-        };
-        let named = |name: &str| SecretName::new(name).ok_or("a secret name");
-        assert_eq!(
-            config.secrets.get(&named("github")?),
-            Some(&stored("local_credential_3"))
-        );
-        assert_eq!(
-            config.secrets.get(&named("agent")?),
-            Some(&stored("local_credential_2"))
-        );
-        assert_eq!(
-            config.secrets.get(&named("agent-2")?),
-            Some(&stored("local_agent_key_1"))
-        );
-        assert_eq!(
-            config
-                .agent
-                .as_ref()
-                .and_then(|agent| agent.secret.as_ref()),
-            Some(&named("agent-2")?)
-        );
-        let written = fs::read_to_string(&path)?;
-        assert!(
-            !written.contains("credentials") && !written.contains("api_key_ref"),
-            "{written}"
-        );
-        assert_eq!(
-            load_runx_config_file(&path)?,
-            config,
-            "upgraded once, read as it is after"
-        );
+            let ConfigError::InvalidConfig { path: named, .. } = &refused else {
+                return Err(format!("expected an invalid config, got {refused}").into());
+            };
+            assert_eq!(named, &path);
+            assert!(refused.to_string().contains(key), "{refused}");
+            assert_eq!(fs::read_to_string(&path)?, contents, "nothing is rewritten");
+        }
         Ok(())
     }
 
@@ -601,30 +493,6 @@ mod tests {
         assert_eq!(named, &path);
         assert!(refused.to_string().contains("api_token_ref"), "{refused}");
         assert_eq!(fs::read_to_string(&path)?, contents, "nothing is rewritten");
-        Ok(())
-    }
-
-    #[test]
-    fn an_agent_reference_becomes_a_secret_with_its_pin() -> Result<(), Box<dyn std::error::Error>>
-    {
-        let home = tempfile::tempdir()?;
-        let path = home.path().join("config.json");
-        fs::write(
-            &path,
-            r#"{"agent": {"api_key_from": "aws-sm://team/env#KEY", "api_key_pinned": "arn:aws:secretsmanager:eu-west-2:1:secret:team/env-Ab"}}"#,
-        )?;
-
-        let config = load_runx_config_file(&path)?;
-
-        assert_eq!(
-            config
-                .secrets
-                .get(&SecretName::new("agent").ok_or("a secret name")?),
-            Some(&RunxSecretRecord::Reference {
-                reference: SecretReference::new("aws-sm://team/env#KEY").ok_or("a reference")?,
-                pinned: Some("arn:aws:secretsmanager:eu-west-2:1:secret:team/env-Ab".to_owned()),
-            })
-        );
         Ok(())
     }
 }
