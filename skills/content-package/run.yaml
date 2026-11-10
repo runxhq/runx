@@ -165,6 +165,7 @@ methods:
         outputs:
           content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
           content_publish_packet: {packet: runx/ghostwrite.publish.v1}
+          content_handoff_packet: {packet: runx/ghostwrite.handoff.v1, optional: true}
 
   from-research:
     description: Prepare channel content from a completed research packet, with no acquisition or repeat synthesis.
