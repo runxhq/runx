@@ -517,7 +517,7 @@ oss	hold	246	hold	?	a bare word: code or prose, read in place	.github/workflows/
 oss	graph_dir	160	graph	workflow_dir		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs crates/runx-runtime/src/effects/mod.rs
 oss	runner_id	132	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy.rs crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	GraphStep	116	graph	WorkflowStep	the plan's name	crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/step.rs
-oss	execution_closure_digest	105	closure	execution_closure_digest	a package's closure, or English: stays	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/resume.rs
+oss	execution_closure_digest	105	closure	closure_digest	closure is the one name for a package's closure (rename ruling 3)	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/resume.rs
 oss	graph_name	90	graph	workflow_name		crates/runx-cli/src/history.rs crates/runx-cli/src/verify.rs
 oss	runner_names	85	runner	method_names		crates/runx-cli/src/registry.rs crates/runx-cli/tests/registry.rs
 oss	SkillRunnerManifest	84	runner	SkillMethodManifest		crates/runx-parser/src/lib.rs crates/runx-parser/src/package.rs
@@ -528,10 +528,10 @@ oss	runner_ids	74	runner	runner_ids	the operational policy's runners are machine
 oss	Graph	69	graph	?	a bare word: code or prose, read in place	crates/runx-cli/src/list.rs crates/runx-cli/tests/local_credential.rs
 oss	holding	68	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/doctor.rs
 oss	SequentialGraph	64	graph	SequentialWorkflow	the core state machine's run of a workflow, a different type from the parser's definition (ExecutionGraph, which becomes Workflow), so they can't share a name	crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
-oss	closure_digest	63	closure	closure_digest	a package's closure, or English: stays	crates/runx-cli/src/export/shim.rs crates/runx-cli/tests/export.rs
+oss	closure_digest	63	closure	closure_digest	a package's closure, closure's one meaning	crates/runx-cli/src/export/shim.rs crates/runx-cli/tests/export.rs
 oss	SkillRunnerDefinition	62	runner	SkillMethodDefinition		crates/runx-parser/src/lib.rs crates/runx-parser/src/package.rs
 oss	GraphStepState	61	graph	WorkflowStepState		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph/planning.rs
-oss	execution_closure	58	closure	execution_closure	a package's closure, or English: stays	crates/runx-cli/src/export/shim.rs crates/runx-cli/tests/skill.rs
+oss	execution_closure	58	closure	closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-cli/src/export/shim.rs crates/runx-cli/tests/skill.rs
 oss	harness_output	58	harness	test_output	the test sense	crates/runx-runtime/bundled-skills.json skills/diagnose-skill-run/diagnose-skill-run.mjs
 oss	SequentialGraphEvent	52	graph	SequentialWorkflowEvent		crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
 oss	runner_name	51	runner	method_name		crates/runx-cli/src/skill/operator_context.rs crates/runx-cli/tests/runx_maintained_skill_admission.rs
@@ -544,7 +544,7 @@ oss	graphs	43	graph	?	a bare word: code or prose, read in place	crates/runx-cli/
 oss	SequentialGraphStepDefinition	43	graph	SequentialWorkflowStepDefinition		crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
 oss	validate_runner_manifest	42	runner	validate_method_manifest		crates/runx-parser/src/eval.rs crates/runx-parser/src/lib.rs
 oss	selected_runner	40	runner	selected_method		crates/runx-cli/src/skill.rs crates/runx-contracts/src/host_protocol.rs
-oss	execution-closure-digest	39	closure	execution-closure-digest	a package's closure, or English: stays	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/export/shim.rs
+oss	execution-closure-digest	39	closure	closure-digest	closure is the one name for a package's closure (rename ruling 3)	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/export/shim.rs
 oss	GraphRun	39	graph	WorkflowRun		crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner.rs
 oss	develop	38		write	the agent's write method (D2, §4.2)	skills/agent/run.yaml crates/runx-cli/tests/writes.rs
 oss	HarnessReplayOutput	36	harness	TestReplayOutput	the test sense	crates/runx-runtime/examples/runx-harness-fixture-oracles.rs crates/runx-runtime/src/execution/harness.rs
@@ -552,7 +552,7 @@ oss	graph_path	35	graph	workflow_path		crates/runx-cli/tests/native_no_ts.rs cra
 oss	harness_fixture	34	harness	test_fixture	the test sense	crates/runx-cli/tests/native_no_ts.rs crates/runx-parser/src/eval.rs
 oss	AgentActInvocation	33	agent_act	TurnInvocation	the plan's name	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	agent_act	32	agent_act	turn		crates/runx-cli/src/skill/output.rs crates/runx-cli/tests/native_no_ts.rs
-oss	expected_execution_closure_digest	32	closure	expected_execution_closure_digest	a package's closure, or English: stays	crates/runx-cli/src/project.rs crates/runx-cli/src/resume.rs
+oss	expected_execution_closure_digest	32	closure	expected_closure_digest	closure is the one name for a package's closure (rename ruling 3)	crates/runx-cli/src/project.rs crates/runx-cli/src/resume.rs
 oss	Harness	32	harness	?	a bare word: code or prose, read in place	crates/runx-cli/tests/export.rs crates/runx-cli/tests/harness.rs
 oss	harness-spine	32	harness	run-spine	the run sense	crates/runx-contracts/tests/harness_spine_fixtures.rs crates/runx-contracts/tests/schema_validation.rs
 oss	held_by_effects	32	hold	held_by_effects	English, or a skill's own word: stays	crates/runx-runtime/src/effects/mod.rs crates/runx-runtime/src/effects/types.rs
@@ -577,7 +577,7 @@ oss	RegistryPublishHarnessReport	20	harness	RegistryPublishTestReport	the test s
 oss	runner_manifest	20	runner	method_manifest		crates/runx-parser/src/runner.rs crates/runx-parser/src/yaml.rs
 oss	RuntimeHarnessHttpRequestBody	20	harness	RuntimeTestHttpRequestBody	the test sense	crates/runx-runtime/src/drivers/web.rs crates/runx-runtime/src/execution/harness/transport.rs
 oss	ToolRunner	20	runner	Tools	the tools a step gives a process implementation: runx's own, so not another runner	crates/runx-runtime/src/drivers/process.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
-oss	BoundClosure	19	closure	BoundClosure	a package's closure, or English: stays	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
+oss	BoundClosure	19	closure	BoundClosure	a package's closure, closure's one meaning	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	graph_receipt	19	graph	workflow_receipt		crates/runx-receipts/src/tree/structural_tests.rs crates/runx-runtime/benches/graph_throughput.rs
 oss	HoldEvent	19	hold	HoldEvent	a run waiting: stays	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
 oss	OperationalPolicyRunnerRule	19	runner	OperationalPolicyRunnerRule	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
@@ -600,12 +600,12 @@ oss	OperationalPolicyRunnerState	16	runner	OperationalPolicyRunnerState	the oper
 oss	PackageHarnessReport	16	harness	PackageTestReport	the test sense	crates/runx-cli/src/main.rs crates/runx-runtime/src/execution/harness.rs
 oss	requested_runner	16	runner	requested_method		crates/runx-runtime/src/execution/graph.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	Runner	16	runner	?	a bare word: code or prose, read in place	crates/runx-cli/src/skill/operator_context.rs crates/runx-cli/tests/skill.rs
-oss	execution-closure	15	closure	execution-closure	a package's closure, or English: stays	crates/runx-runtime/bundled-skills.json crates/runx-runtime/src/adapters/mcp/server_skill.rs
+oss	execution-closure	15	closure	closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/bundled-skills.json crates/runx-runtime/src/adapters/mcp/server_skill.rs
 oss	exercises_runner	15	runner	exercises_method		crates/runx-contracts/src/skill_inspection.rs crates/runx-parser/src/harness_fixture.rs
 oss	graph_with_steps	15	graph	workflow_with_steps		crates/runx-runtime/tests/receipt_tree.rs
 oss	graphId	15	graph	workflowId		crates/runx-core/tests/kernel_eval.rs fixtures/kernel/schema/state-machine.schema.json
 oss	harness_context	15	harness	run_context	the run sense	crates/runx-contracts/src/native_packets/control.rs crates/runx-runtime/src/tool_catalogs/native/data.rs
-oss	LocalExecutionClosure	15	closure	LocalExecutionClosure	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package/bundle.rs crates/runx-runtime/src/skill_package.rs
+oss	LocalExecutionClosure	15	closure	LocalClosure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/registry/publish_package/bundle.rs crates/runx-runtime/src/skill_package.rs
 oss	PaidSkillRunnerOffer	15	runner	PaidSkillMethodOffer		crates/runx-contracts/src/lib.rs crates/runx-contracts/src/paid_skill_listing.rs
 oss	RawGraphIr	15	graph	RawWorkflowIr		crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/types.rs
 oss	RunnerInspection	15	runner	MethodInspection		crates/runx-contracts/src/lib.rs crates/runx-contracts/src/skill_inspection.rs
@@ -640,8 +640,8 @@ oss	OperationHold	11	hold	OperationLease	the lease family	crates/runx-contracts/
 oss	run_graph_with_host	11	graph	run_workflow_with_host		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs crates/runx-runtime/benches/graph_throughput/volume_paths/artifact_io.rs
 oss	selected_runner_name	11	runner	selected_method_name		crates/runx-runtime/src/execution/operator_context.rs crates/runx-runtime/src/execution/prepared_skill.rs
 oss	apply_sequential_graph_event_owned_indexed	10	graph	apply_sequential_workflow_event_owned_indexed		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
-oss	CaseClosureTarget	10	closure	CaseClosureTarget	a package's closure, or English: stays	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner/step_handlers/load.rs
-oss	ClosureAccumulator	10	closure	ClosureAccumulator	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	CaseClosureTarget	10	closure	CaseClosureTarget	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner/step_handlers/load.rs
+oss	ClosureAccumulator	10	closure	ClosureAccumulator	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	createSequentialGraph	10	graph	createSequentialWorkflow		crates/runx-core/src/kernel_eval/input.rs crates/runx-core/tests/kernel_eval.rs
 oss	graph_receipt_with_closure	10	closure,graph	workflow_receipt_with_ending	how a run ended	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	graph_run_result	10	graph	workflow_run_result		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/skill_front/graph.rs
@@ -656,8 +656,8 @@ oss	load_harness_fixture	10	harness	load_test_fixture	the test sense	crates/runx
 oss	plan_sequential_graph_transition_indexed_from	10	graph	plan_sequential_workflow_transition_indexed_from		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
 oss	runnerName	10	runner	methodName		scripts/audit-core-skills.mjs scripts/collect-packets.ts
 oss	transitionSequentialGraph	10	graph	transitionSequentialWorkflow		crates/runx-core/src/kernel_eval/input.rs crates/runx-core/tests/state_machine_fixtures.rs
-oss	closureDigest	9	closure	closureDigest	a package's closure, or English: stays	packages/client/src/inspection.ts scripts/check-codex-export.mjs
-oss	executionClosureDigest	9	closure	executionClosureDigest	a package's closure, or English: stays	packages/client/src/index.ts packages/client/src/inspection.ts
+oss	closureDigest	9	closure	closureDigest	a package's closure, closure's one meaning	packages/client/src/inspection.ts scripts/check-codex-export.mjs
+oss	executionClosureDigest	9	closure	closureDigest	closure is the one name for a package's closure (rename ruling 3)	packages/client/src/index.ts packages/client/src/inspection.ts
 oss	graph_blocked	9	graph	workflow_blocked	the plan's name	crates/runx-contracts/src/receipt.rs crates/runx-contracts/src/skill_output.rs
 oss	GraphExecution	9	graph	WorkflowExecution		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	HARNESS_PROVIDER_BASE_URL	9	harness	TEST_PROVIDER_BASE_URL	the test sense	crates/runx-runtime/src/execution/harness/provider_responses.rs crates/runx-runtime/src/execution/harness/transport.rs
@@ -672,7 +672,7 @@ oss	succeed_sequential_graph_step_indexed	9	graph	succeed_sequential_workflow_st
 oss	capture_harness_context	8	harness	capture_run_context	the run sense	crates/runx-contracts/src/native_packets/control.rs crates/runx-runtime/src/tool_catalogs/native/data.rs
 oss	child_graph	8	graph	child_workflow		crates/runx-runtime/tests/execution_integrity.rs crates/runx-runtime/tests/policy_approval.rs
 oss	CLOSURE	8	closure	?	a bare word: code or prose, read in place	crates/runx-runtime/src/registry/trust_record.rs
-oss	ExecutionClosureInspector	8	closure	ExecutionClosureInspector	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	ExecutionClosureInspector	8	closure	ClosureInspector	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	graph_run_context	8	graph	workflow_run_context		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	HarnessHttpResponseFixture	8	harness	TestHttpResponseFixture	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
 oss	HarnessMcpCallFixture	8	harness	TestMcpCallFixture	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
@@ -681,7 +681,7 @@ oss	hold-content	8	hold	hold-content	English, or a skill's own word: stays	skill
 oss	LoadedRunner	8	runner	LoadedMethod		crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	materialize_complete_runner_inputs	8	runner	materialize_complete_method_inputs		crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	OperationalPolicyRunnerReadback	8	runner	OperationalPolicyRunnerReadback	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
-oss	PublishClosureError	8	closure	PublishClosureError	a package's closure, or English: stays	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
+oss	PublishClosureError	8	closure	PublishClosureError	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	RunnerHarnessCase	8	harness,runner	MethodTestCase	the test sense	crates/runx-parser/src/lib.rs crates/runx-parser/src/skill.rs
 oss	RunnerHarnessManifest	8	harness,runner	MethodTestManifest	the test sense	crates/runx-parser/src/lib.rs crates/runx-parser/src/runner.rs
 oss	runnerId	8	runner	runnerId	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
@@ -689,9 +689,9 @@ oss	unknown_runner	8	runner	unknown_runner	the operational policy's runners are 
 oss	agent-session	7	agent_session	agent	the plan's name	crates/runx-runtime/bundled-skills.json scripts/classify-ci-changes.test.mjs
 oss	allow_execute_harness	7	harness	allow_execute_test	the test sense	crates/runx-runtime/bundled-skills.json crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	approval-graph	7	graph	approval-workflow		crates/runx-cli/tests/skill.rs
-oss	case_closure_connectors	7	closure	case_closure_connectors	a package's closure, or English: stays	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner/step_handlers/load.rs
-oss	ClosureInvalid	7	closure	ClosureInvalid	a package's closure: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	executionClosureFromInspection	7	closure	executionClosureFromInspection	a package's closure, or English: stays	packages/client/src/index.test.ts packages/client/src/index.ts
+oss	case_closure_connectors	7	closure	case_closure_connectors	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner/step_handlers/load.rs
+oss	ClosureInvalid	7	closure	ClosureInvalid	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	executionClosureFromInspection	7	closure	closureFromInspection	closure is the one name for a package's closure (rename ruling 3)	packages/client/src/index.test.ts packages/client/src/index.ts
 oss	FailGraph	7	graph	FailWorkflow		crates/runx-core/src/state_machine/sequential_graph/transition.rs crates/runx-core/src/state_machine/types.rs
 oss	graph_run_skill_output	7	graph	workflow_run_skill_output		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	graph_throughput	7	graph	workflow_throughput		crates/runx-runtime/Cargo.toml crates/runx-runtime/benches/graph_throughput.rs
@@ -738,7 +738,7 @@ oss	harness-receipts	6	harness	test-receipts	the test sense	crates/runx-cli/src/
 oss	HarnessFixtureStepOracle	6	harness	TestFixtureStepOracle	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/fixtures.rs
 oss	HarnessReplayReceipt	6	harness	TestReplayReceipt	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/assertions.rs
 oss	held_connectors	6	hold	connectors_with_leases	the lease family: the connectors that hold the fixture's leases	crates/runx-runtime/src/execution/harness/provider_responses.rs crates/runx-runtime/src/execution/harness/transport.rs
-oss	inspect_loaded_execution_closure_binding	6	closure	inspect_loaded_execution_closure_binding	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs crates/runx-runtime/src/export.rs
+oss	inspect_loaded_execution_closure_binding	6	closure	inspect_loaded_closure_binding	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/execution/prepared_skill.rs crates/runx-runtime/src/export.rs
 oss	isolate_harness_environment	6	harness	isolate_test_environment	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/package.rs
 oss	isolated_harness_env	6	harness	isolated_test_env	the test sense	crates/runx-runtime/src/services/skill_packages/staging.rs crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	materialize_present_runner_inputs	6	runner	materialize_present_method_inputs		crates/runx-runtime/src/execution/prepared_skill.rs crates/runx-runtime/src/execution/skill_front.rs
@@ -756,8 +756,8 @@ oss	target_action_without_runner	6	runner	target_action_without_runner	the opera
 oss	validate_graph_document	6	graph	validate_workflow_document		crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/validate.rs
 oss	AgentActInvocationContract	5	agent_act	TurnInvocationContract		packages/contracts/src/generated/contract-types.ts packages/contracts/src/schemas/agent-act.ts
 oss	agentActInvocationSchema	5	agent_act	turnInvocationSchema		packages/contracts/src/index.test.ts packages/contracts/src/index.ts
-oss	closure_of	5	closure	closure_of	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/tests/skill_run.rs
-oss	closure_registry_refs	5	closure	closure_registry_refs	a package's closure, or English: stays	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/skill_package.rs
+oss	closure_of	5	closure	closure_of	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/tests/skill_run.rs
+oss	closure_registry_refs	5	closure	closure_registry_refs	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/skill_package.rs
 oss	context_graph	5	graph	context_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	ExecutionGraphIndex	5	graph	ExecutionWorkflowIndex		crates/runx-runtime/src/execution/graph_index.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	GovernedHarnessFixture	5	harness	GovernedTestFixture	the test sense	crates/runx-cli/tests/support/mod.rs
@@ -776,11 +776,11 @@ oss	HarnessContextOutput	5	harness	RunContextOutput	the run sense	crates/runx-ru
 oss	has_passing_graph_case	5	graph	has_passing_workflow_case		crates/runx-contracts/src/maturity.rs crates/runx-runtime/src/registry/types.rs
 oss	isRunnerKernelFixture	5	runner	isEvaluationKernelFixture	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts tests/kernel-parity-fixtures.test.ts
 oss	load_harness_case	5	harness	load_test_case	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/execution/harness/runner.rs
-oss	materialize_publish_closure	5	closure	materialize_publish_closure	a package's closure, or English: stays	crates/runx-cli/src/registry.rs crates/runx-runtime/src/registry.rs
+oss	materialize_publish_closure	5	closure	materialize_publish_closure	a package's closure, closure's one meaning	crates/runx-cli/src/registry.rs crates/runx-runtime/src/registry.rs
 oss	native_graph	5	graph	native_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	overlay_harness_env	5	harness	overlay_test_env	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
 oss	provider_graph	5	graph	provider_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
-oss	PublishClosure	5	closure	PublishClosure	a package's closure, or English: stays	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
+oss	PublishClosure	5	closure	PublishClosure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	PublishHarnessPackage	5	harness	PublishTestPackage	the test sense	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/registry/publish_package/harness.rs
 oss	PurchaseHold	5	hold	PurchaseLease	the lease family	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/purchase.rs
 oss	RegistryBindingHarness	5	harness	RegistryBindingTest	the test sense	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/registry_binding.rs
@@ -840,7 +840,7 @@ oss	hello_graph	4	graph	hello_workflow		crates/runx-runtime/tests/hello_graph.rs
 oss	hold-plan	4	hold	hold-plan	English, or a skill's own word: stays	skills/message-send/run.yaml
 oss	inline-graph-timeout	4	graph	inline-workflow-timeout		crates/runx-cli/tests/local_credential.rs
 oss	inspect_runner	4	runner	inspect_method		crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/runner.rs
-oss	install_registry_closure	4	closure	install_registry_closure	a package's closure, or English: stays	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
+oss	install_registry_closure	4	closure	install_registry_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	invalid_harness_http_url	4	harness	invalid_test_http_url	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	invalid-no-available-runner	4	runner	invalid-no-available-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-cli/tests/policy.rs crates/runx-contracts/tests/operational_policy.rs
 oss	LangGraph	4	graph	LangGraph	another graph: stays	docs/loop-orchestration.md docs/orchestrator-integrations.md
@@ -886,11 +886,11 @@ oss	catalog_runners	3	runner	catalog_methods		crates/runx-runtime/src/list.rs cr
 oss	CatalogRunnerContract	3	runner	CatalogMethodContract		packages/contracts/src/generated/contract-types.ts
 oss	check-inline-harness-summary-snapshot	3	harness	check-inline-test-summary-snapshot	the test sense	package.json scripts/check-inline-harness-summary-snapshot.mjs
 oss	check-rust-crate-graph	3	graph	check-rust-crate-graph	a dependency graph: stays	crates/deny.toml package.json
-oss	closure_accumulators	3	closure	closure_accumulators	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	closure_accumulators	3	closure	closure_accumulators	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	collect_graph_references	3	graph	collect_workflow_references		crates/runx-parser/src/package/validate/references.rs
 oss	collect_harness_fixture_references	3	harness	collect_test_fixture_references	the test sense	crates/runx-parser/src/package/validate.rs crates/runx-parser/src/package/validate/references.rs
 oss	complete_graph	3	graph	complete_workflow		crates/runx-runtime/src/execution/runner/graph_engine.rs
-oss	ExecutionClosureInspection	3	closure	ExecutionClosureInspection	a package's closure, or English: stays	packages/client/src/index.ts packages/client/src/inspection.ts
+oss	ExecutionClosureInspection	3	closure	ClosureInspection	closure is the one name for a package's closure (rename ruling 3)	packages/client/src/index.ts packages/client/src/inspection.ts
 oss	existing_runner_manifest	3	runner	existing_method_manifest		crates/runx-runtime/src/registry/install.rs
 oss	expand_runner_node	3	runner	expand_method_node		crates/runx-runtime/src/execution/operator_context.rs
 oss	fail_graph	3	graph	fail_workflow		crates/runx-runtime/src/execution/runner/graph_engine.rs scripts/rust-kernel-eval.ts
@@ -922,28 +922,28 @@ oss	HarnessProviderGrantFixture	3	harness	TestProviderGrantFixture	the test sens
 oss	HarnessProviderHoldFixture	3	harness,hold	TestProviderLeaseFixture	the test sense; the lease family	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
 oss	HarnessProviderOperationFixture	3	harness	TestProviderOperationFixture	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
 oss	HarnessSpineFixture	3	harness	RunSpineFixture	the run sense	packages/contracts/src/canonical-json.test.ts
-oss	hasCanonicalExecutionClosure	3	closure	hasCanonicalExecutionClosure	a package's closure, or English: stays	scripts/audit-core-skills.mjs
+oss	hasCanonicalExecutionClosure	3	closure	hasCanonicalClosure	closure is the one name for a package's closure (rename ruling 3)	scripts/audit-core-skills.mjs
 oss	hello_graph_path	3	graph	hello_workflow_path		crates/runx-runtime/tests/governance_witness.rs
 oss	HOLD_EVIDENCE_KEY	3	hold	LEASE_EVIDENCE_KEY	the lease family	crates/runx-contracts/src/connector.rs crates/runx-runtime/src/drivers/http.rs
 oss	HoldEvidence	3	hold	LeaseEvidence	the lease family	crates/runx-contracts/src/connector.rs packages/contracts/src/connector.ts
 oss	holdMessage	3	hold	holdMessage	English, or a skill's own word: stays	skills/message-send/message-send.test.mjs skills/message-send/reply.mjs
 oss	inspect_graph_accumulator	3	graph	inspect_workflow_accumulator		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	inspect_harness_graph_accumulator	3	harness,graph	inspect_test_workflow_accumulator	the test sense	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	inspect_loaded_local_execution_closure	3	closure	inspect_loaded_local_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/skill_package.rs
-oss	inspect_local_execution_closure	3	closure	inspect_local_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	inspect_method_closure_methods	3	closure	inspect_method_closure_methods	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	inspect_method_execution_closure	3	closure	inspect_method_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	inspect_runner_closure_runners	3	closure,runner	inspect_method_closure_methods	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	inspect_runner_execution_closure	3	closure,runner	inspect_method_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	inspect_loaded_local_execution_closure	3	closure	inspect_loaded_local_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/skill_package.rs
+oss	inspect_local_execution_closure	3	closure	inspect_local_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	inspect_method_closure_methods	3	closure	inspect_method_closure_methods	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	inspect_method_execution_closure	3	closure	inspect_method_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	inspect_runner_closure_runners	3	closure,runner	inspect_method_closure_methods	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	inspect_runner_execution_closure	3	closure,runner	inspect_method_execution_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	inspected_runner	3	runner	inspected_method		crates/runx-runtime/src/skill_package/inspection.rs
-oss	InspectedExecutionClosureBinding	3	closure	InspectedExecutionClosureBinding	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs
-oss	into_local_execution_closure	3	closure	into_local_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	InspectedExecutionClosureBinding	3	closure	InspectedClosureBinding	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
+oss	into_local_execution_closure	3	closure	into_local_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	invalid-unknown-runner	3	runner	invalid-unknown-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs fixtures/operational-policy/invalid-unknown-runner.json
-oss	is_governed_step_closure	3	closure	is_governed_step_closure	a package's closure, or English: stays	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
+oss	is_governed_step_closure	3	closure	is_governed_step_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	is_graph	3	graph	is_workflow		crates/runx-runtime/src/execution/harness/package.rs
 oss	isRunnerFixture	3	runner	isEvaluationFixture	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts
-oss	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_closure.rs
-oss	merge_local_execution_closure	3	closure	merge_local_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_closure.rs
+oss	merge_local_execution_closure	3	closure	merge_local_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	nested_graph_ref	3	graph	nested_workflow_ref		crates/runx-runtime/tests/skill_run.rs
 oss	nested_runner	3	runner	nested_method		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	NestedGraph	3	graph	NestedWorkflow		crates/runx-runtime/src/execution/runner/step_handlers.rs
@@ -978,7 +978,7 @@ oss	RUNX_HARNESS_FIXTURE_ORACLE_BIN	3	harness	RUNX_TEST_FIXTURE_ORACLE_BIN	the t
 oss	select_harness_runner	3	harness,runner	select_test_method	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
 oss	select_step_runner	3	runner	select_step_method		crates/runx-runtime/src/execution/graph.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	sequential-create-graph	3	graph	sequential-create-workflow		crates/runx-core/tests/state_machine_fixtures.rs fixtures/kernel/state-machine/sequential-create-graph.json
-oss	serialize_closure	3	closure	serialize_closure	a package's closure: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	serialize_closure	3	closure	serialize_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	start_sequential_graph_step	3	graph	start_sequential_workflow_step		crates/runx-core/src/state_machine/sequential_graph/transition.rs
 oss	startedGraph	3	graph	startedWorkflow		scripts/generate-kernel-parity-fixtures.ts
 oss	succeed_sequential_graph_step	3	graph	succeed_sequential_workflow_step		crates/runx-core/src/state_machine/sequential_graph/transition.rs
@@ -996,7 +996,7 @@ oss	write_graph_tool_skill_at	3	graph	write_workflow_tool_skill_at		crates/runx-
 oss	write_runner_input_skill_at	3	runner	write_method_input_skill_at		crates/runx-cli/tests/export.rs
 oss	write_skill_with_runner_inputs	3	runner	write_skill_with_method_inputs		crates/runx-cli/tests/export.rs
 oss	add_inline_harness_case	2	harness	add_inline_test_case	the test sense	crates/runx-runtime/src/doctor.rs fixtures/doctor/skill-fixture-missing/expected.json
-oss	AdmittedClosure	2	closure	AdmittedClosure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	AdmittedClosure	2	closure	AdmittedClosure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	adopt_nested_graph_result	2	graph	adopt_nested_workflow_result		crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	agent_act_invocation_corpus	2	agent_act	turn_invocation_corpus		crates/runx-contracts/tests/schema_wire_conformance/corpora.rs crates/runx-contracts/tests/schema_wire_conformance/covered.rs
 oss	agent_graph	2	graph	agent_workflow		crates/runx-runtime/src/receipts/seal.rs
@@ -1011,16 +1011,16 @@ oss	assert_runner_manifest_fixture	2	runner	assert_method_manifest_fixture		crat
 oss	assert_runner_manifest_rejection	2	runner	assert_method_manifest_rejection		crates/runx-parser/tests/parser_fixtures.rs
 oss	bench_graph_throughput	2	graph	bench_workflow_throughput		crates/runx-runtime/benches/graph_throughput.rs
 oss	bind_graph_operations	2	graph	bind_workflow_operations		crates/runx-parser/src/skill/connectors.rs
-oss	BoundClosureContract	2	closure	BoundClosureContract	a package's closure, or English: stays	packages/contracts/src/generated/contract-types.ts
+oss	BoundClosureContract	2	closure	BoundClosureContract	a package's closure, closure's one meaning	packages/contracts/src/generated/contract-types.ts
 oss	build_graph_receipt	2	graph	build_workflow_receipt		crates/runx-runtime/src/receipts/seal.rs
 oss	build_runner_node	2	runner	build_method_node		crates/runx-runtime/src/execution/operator_context.rs
 oss	bundled_graph_directory	2	graph	bundled_workflow_directory		crates/runx-runtime/src/registry/publish_package/bundle.rs
 oss	child_policy_graph	2	graph	child_policy_workflow		crates/runx-runtime/tests/policy_approval.rs
 oss	classify_runner	2	runner	classify_method		crates/runx-runtime/src/services/skill_packages/validation/resources.rs
-oss	closure_only	2	closure	closure_only	a package's closure, or English: stays	crates/runx-cli/src/skill/parser.rs
-oss	ClosureDigestMismatch	2	closure	ClosureDigestMismatch	a package's closure, or English: stays	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
-oss	ClosureMissing	2	closure	ClosureMissing	a package's closure: stays	crates/runx-runtime/src/skill_package/inspection.rs
-oss	ClosureNotFullyBound	2	closure	ClosureNotFullyBound	a package's closure, or English: stays	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
+oss	closure_only	2	closure	closure_only	a package's closure, closure's one meaning	crates/runx-cli/src/skill/parser.rs
+oss	ClosureDigestMismatch	2	closure	ClosureDigestMismatch	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
+oss	ClosureMissing	2	closure	ClosureMissing	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs
+oss	ClosureNotFullyBound	2	closure	ClosureNotFullyBound	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
 oss	ClosureNotObject	2	closure	EndingNotObject	how a run ended	crates/runx-runtime/src/execution/outcome.rs
 oss	collect_runner_findings	2	runner	collect_runner_findings	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	collect_runner_target_findings	2	runner	collect_runner_target_findings	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
@@ -1033,7 +1033,7 @@ oss	DeclaredHold	2	hold	DeclaredLease	the lease family	crates/runx-runtime/src/e
 oss	diagnose-skill-run-passes-on-paused-graph	2	graph	diagnose-skill-run-passes-on-paused-workflow		crates/runx-runtime/bundled-skills.json
 oss	discover_skill_and_graph_list_items	2	graph	discover_skill_and_workflow_list_items		crates/runx-runtime/src/list.rs
 oss	execute_nested_graph	2	graph	execute_nested_workflow		crates/runx-runtime/src/execution/runner/step_handlers.rs
-oss	ExecutionClosure	2	closure	ExecutionClosure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	ExecutionClosure	2	closure	Closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	expand_graph_step	2	graph	expand_workflow_step		crates/runx-runtime/src/execution/operator_context.rs
 oss	expand_graph_steps	2	graph	expand_workflow_steps		crates/runx-runtime/src/execution/operator_context.rs
 oss	explicit-runner	2	runner	explicit-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
@@ -1042,7 +1042,7 @@ oss	failed_package_harness_report	2	harness	failed_package_test_report	the test 
 oss	failedOnceGraph	2	graph	failedOnceWorkflow		scripts/generate-kernel-parity-fixtures.ts
 oss	from_graph	2	graph	from_workflow		crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	governed_harness_document	2	harness	governed_test_document	the test sense	crates/runx-cli/tests/support/mod.rs
-oss	granted_closure	2	closure	granted_closure	a package's closure, or English: stays	crates/runx-runtime/src/execution/harness/runner.rs
+oss	granted_closure	2	closure	granted_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/harness/runner.rs
 oss	graph_completed	2	graph	workflow_completed		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/lifecycle.rs
 oss	GRAPH_FIXTURES	2	graph	WORKFLOW_FIXTURES		crates/runx-parser/tests/parser_fixtures.rs
 oss	graph_self	2	graph	workflow_self		crates/runx-runtime/src/services/receipt_read/tests.rs
@@ -1087,7 +1087,7 @@ oss	HoldActionContract	2	hold	LeaseActionContract	the lease family	packages/cont
 oss	indented_graph	2	graph	indented_workflow		crates/runx-runtime/tests/policy_approval.rs
 oss	inline_harness_report_snapshot	2	harness	inline_test_report_snapshot	the test sense	fixtures/harness/oracle/inline-summary.issue-intake.json scripts/check-inline-harness-summary-snapshot.mjs
 oss	inspect_root_runner	2	runner	inspect_root_method		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	install_candidate_closure	2	closure	install_candidate_closure	a package's closure, or English: stays	crates/runx-runtime/src/services/skill_packages/validation.rs
+oss	install_candidate_closure	2	closure	install_candidate_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	INVALID_HARNESS_STATUS_PROFILE	2	harness	INVALID_TEST_STATUS_PROFILE	the test sense	crates/runx-runtime/src/doctor.rs
 oss	INVALID_NO_AVAILABLE_RUNNER	2	runner	INVALID_NO_AVAILABLE_RUNNER	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
 oss	INVALID_UNKNOWN_RUNNER	2	runner	INVALID_UNKNOWN_RUNNER	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
@@ -1096,7 +1096,7 @@ oss	is_declared_harness_executable	2	harness	is_declared_test_executable	the tes
 oss	is_graph_complete	2	graph	is_workflow_complete		crates/runx-core/src/state_machine/sequential_graph/transition.rs
 oss	LoadedRunnerContract	2	runner	LoadedMethodContract		packages/contracts/src/generated/contract-types.ts
 oss	LoadedRunnerInputContract	2	runner	LoadedMethodInputContract		packages/contracts/src/generated/contract-types.ts
-oss	local_closure	2	closure	local_closure	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
+oss	local_closure	2	closure	local_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_package.rs
 oss	local_graph	2	graph	local_workflow		crates/runx-runtime/tests/receipt_signing.rs
 oss	local_harness	2	harness	local_test	the test sense	crates/runx-runtime/bundled-skills.json
 oss	local-pr-runner	2	runner	local-pr-runner	the operational policy's runners, whose name awaits a ruling: stays	fixtures/operational-policy/invalid-not-scafld-target.json
@@ -1107,7 +1107,7 @@ oss	NATIVE_GRAPH	2	graph	NATIVE_WORKFLOW		crates/runx-runtime/benches/graph_thro
 oss	native_harness_plan	2	harness	native_test_plan	the test sense	crates/runx-cli/src/router.rs
 oss	NeedsConsequentialHarnessApproval	2	harness	NeedsConsequentialTestApproval	the test sense	crates/runx-contracts/src/skill_authoring.rs crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	nested_graph_id	2	graph	nested_workflow_id		crates/runx-runtime/tests/skill_run.rs
-oss	not-the-closure	2	closure	not-the-closure	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs
+oss	not-the-closure	2	closure	not-the-closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
 oss	OperationalPolicyRunnerReadbackContract	2	runner	OperationalPolicyRunnerReadbackContract	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/generated/contract-types.ts
 oss	OperationalPolicyRunnerRuleContract	2	runner	OperationalPolicyRunnerRuleContract	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/generated/contract-types.ts
 oss	operationalPolicyRunnerStates	2	runner	operationalPolicyRunnerStates	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/index.ts packages/contracts/src/schemas/operational-policy.ts
@@ -1121,7 +1121,7 @@ oss	parseHarnessReport	2	harness	parseTestReport	the test sense	scripts/harness-
 oss	per-runner	2	runner	per-method		crates/runx-runtime/bundled-skills.json
 oss	persist_harness_receipts	2	harness	persist_test_receipts	the test sense	crates/runx-runtime/src/execution/orchestrator.rs
 oss	prod_graph	2	graph	prod_workflow		crates/runx-runtime/tests/receipt_signing.rs
-oss	publish_closure	2	closure	publish_closure	a package's closure, or English: stays	crates/runx-runtime/src/registry.rs
+oss	publish_closure	2	closure	publish_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs
 oss	purchase_graph	2	graph	purchase_workflow		crates/runx-runtime/src/execution/graph.rs crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	PurchaseHoldContract	2	hold	PurchaseLeaseContract	the lease family	packages/contracts/src/generated/contract-types.ts
 oss	referenced-agent-runner	2	runner	referenced-agent-method		crates/runx-runtime/src/execution/skill_front/graph.rs crates/runx-runtime/tests/skill_manual_context.rs
@@ -1200,7 +1200,7 @@ oss	SubSkillNamedRunnerMissing	2	runner	SubSkillNamedMethodMissing		crates/runx-
 oss	target_admits_runner	2	runner	target_admits_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	throughput_graph	2	graph	throughput_workflow		crates/runx-runtime/benches/graph_throughput.rs
 oss	tool_runner	2	runner	tool_method	the method a server's tool name carries	crates/runx-runtime/src/adapters/mcp/server_skill.rs
-oss	tool_source_closure	2	closure	tool_source_closure	a package's closure, or English: stays	crates/runx-runtime/src/tool_catalogs/build.rs
+oss	tool_source_closure	2	closure	tool_source_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/tool_catalogs/build.rs
 oss	validate_graph_result_contracts	2	graph	validate_workflow_result_contracts		crates/runx-runtime/src/execution/operator_context.rs
 oss	validate_harness_caller	2	harness	validate_test_caller	the test sense	crates/runx-parser/src/skill/fixtures.rs
 oss	validate_harness_case	2	harness	validate_test_case	the test sense	crates/runx-parser/src/skill/fixtures.rs
@@ -1244,11 +1244,11 @@ oss	write_sequential_graph_smoke_harness	2	harness,graph	write_sequential_workfl
 oss	write_skill_root_skill_with_runner_inputs	2	runner	write_skill_root_skill_with_method_inputs		crates/runx-cli/tests/export.rs
 oss	$RUNNER_OS	1	runner	$RUNNER_OS	GitHub's runner: stays	.github/actions/setup-runx/action.yml
 oss	a_candidates_harness_reads_its_registry_children_from_the_operators_registry	1	harness	a_candidates_test_reads_its_registry_children_from_the_operators_registry	the test sense	crates/runx-runtime/tests/skill_run.rs
-oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_grant_refuses_a_connector_its_closure_carries_twice	a package's closure, or English: stays	crates/runx-cli/tests/registry.rs
+oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_grant_refuses_a_connector_its_closure_carries_twice	a package's closure, closure's one meaning	crates/runx-cli/tests/registry.rs
 oss	a_changed_act_is_held_by_the_unsettled_attempt_of_another	1	hold	a_changed_act_is_held_by_the_unsettled_attempt_of_another	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	a_child_run_holds_the_request_its_parent_step_waits_on	1	hold	a_child_run_holds_the_request_its_parent_step_waits_on	a run waiting: stays	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	a_child_skill_runs_the_runner_its_parent_admitted	1	runner	a_child_skill_runs_the_method_its_parent_admitted		crates/runx-runtime/tests/execution_integrity.rs
-oss	a_closure_digest_leaves_runx_version_out	1	closure	a_closure_digest_leaves_runx_version_out	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	a_closure_digest_leaves_runx_version_out	1	closure	a_closure_digest_leaves_runx_version_out	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	a_composed_runner_returns_its_steps_not_runner_outputs	1	runner	a_composed_method_returns_its_steps_not_method_outputs		crates/runx-parser/tests/parser_turn_limits.rs
 oss	a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement	1	hold	a_connector_whose_credential_only_connect_leases_takes_its_hosted_placement	the lease family	crates/runx-runtime/src/kernel/connector_setup/tests.rs
 oss	a_credential_with_a_local_home_stays_local_though_connect_could_hold_it	1	hold	a_credential_with_a_local_home_stays_local_though_connect_could_lease_it	the lease family	crates/runx-runtime/src/kernel/connector_setup/tests.rs
@@ -1269,12 +1269,12 @@ oss	a_model_key_held_by_a_manager_is_one_source_among_the_others	1	hold	a_model_
 oss	a_model_key_variable_holding_a_reference_is_refused_not_sent	1	hold	a_model_key_variable_holding_a_reference_is_refused_not_sent	English, or a skill's own word: stays	crates/runx-runtime/tests/config.rs
 oss	a_namespace_holding_a_connector_and_surfaces_is_refused	1	hold	a_namespace_holding_a_connector_and_surfaces_is_refused	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/connectors/tests.rs
 oss	a_one_turn_runner_hands_its_agent_the_run_inputs	1	runner	a_one_turn_method_hands_its_agent_the_run_inputs		crates/runx-runtime/tests/agent_turns.rs
-oss	a_package_below_the_rule_waits_on_trust_once_per_closure	1	closure	a_package_below_the_rule_waits_on_trust_once_per_closure	a package's closure, or English: stays	crates/runx-runtime/tests/turn_loads.rs
+oss	a_package_below_the_rule_waits_on_trust_once_per_closure	1	closure	a_package_below_the_rule_waits_on_trust_once_per_closure	a package's closure, closure's one meaning	crates/runx-runtime/tests/turn_loads.rs
 oss	a_package_holding_a_signature_is_never_published	1	hold	a_package_holding_a_signature_is_never_published	English, or a skill's own word: stays	crates/runx-runtime/src/registry/publish_package.rs
 oss	a_packages_tests_read_the_registry_children_its_project_holds	1	hold	a_packages_tests_read_the_registry_children_its_project_holds	English, or a skill's own word: stays	crates/runx-cli/tests/registry.rs
 oss	a_paused_graph_reads_its_original_snapshot_after_process_exit	1	graph	a_paused_workflow_reads_its_original_snapshot_after_process_exit		crates/runx-cli/tests/operator_journeys.rs
 oss	a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process	1	hold	a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process	English, or a skill's own word: stays	crates/runx-runtime/tests/turn_trust.rs
-oss	a_publish_refuses_a_closure_record_its_registry_did_not_sign	1	closure	a_publish_refuses_a_closure_record_its_registry_did_not_sign	a package's closure, or English: stays	crates/runx-runtime/tests/skill_run.rs
+oss	a_publish_refuses_a_closure_record_its_registry_did_not_sign	1	closure	a_publish_refuses_a_closure_record_its_registry_did_not_sign	a package's closure, closure's one meaning	crates/runx-runtime/tests/skill_run.rs
 oss	a_purchase_credential_is_held_by_runx_alone	1	hold	a_purchase_credential_is_leased_by_runx_alone	the lease family	crates/runx-parser/src/connector/tests.rs
 oss	a_purchase_credential_is_taken_from_the_answer_and_held_per_resource	1	hold	a_purchase_credential_is_taken_from_the_answer_and_leased_per_resource	the lease family	crates/runx-parser/src/connector/tests.rs
 oss	a_recorded_refusal_keeps_only_what_is_known_to_hold_no_secret	1	hold	a_recorded_refusal_keeps_only_what_is_known_to_hold_no_secret	English, or a skill's own word: stays	crates/runx-runtime/src/secrets/reference.rs
@@ -1310,9 +1310,9 @@ oss	an_unknown_write_is_held_when_its_instance_was_rebound	1	hold	an_unknown_wri
 oss	attention-review-composes-in-graph	1	graph	attention-review-composes-in-workflow		skills/attention-review/tests/composes-in-workflow.yaml
 oss	attention-review-holds-invented-source	1	hold	attention-review-holds-invented-source	English, or a skill's own word: stays	skills/attention-review/tests/attention-review-holds-invented-source.yaml
 oss	attention-review-holds-invented-work	1	hold	attention-review-holds-invented-work	English, or a skill's own word: stays	skills/attention-review/tests/attention-review-holds-invented-work.yaml
-oss	bound_continuation_persists_closure_for_resume	1	closure	bound_continuation_persists_closure_for_resume	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs
-oss	bound_continuation_rechecks_execution_closure_without_reapproval	1	closure	bound_continuation_rechecks_execution_closure_without_reapproval	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs
-oss	bound_execution_requires_package_and_closure_digests	1	closure	bound_execution_requires_package_and_closure_digests	a package's closure, or English: stays	crates/runx-cli/src/skill/parser.rs
+oss	bound_continuation_persists_closure_for_resume	1	closure	bound_continuation_persists_closure_for_resume	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
+oss	bound_continuation_rechecks_execution_closure_without_reapproval	1	closure	bound_continuation_rechecks_closure_without_reapproval	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/execution/prepared_skill.rs
+oss	bound_execution_requires_package_and_closure_digests	1	closure	bound_execution_requires_package_and_closure_digests	a package's closure, closure's one meaning	crates/runx-cli/src/skill/parser.rs
 oss	boundary_graph	1	graph	boundary_workflow		crates/runx-runtime/src/receipts/seal.rs
 oss	catalog_discovery_excludes_nested_harness_fixture_packages	1	harness	catalog_discovery_excludes_nested_test_fixture_packages	the test sense	crates/runx-runtime/src/skill_package.rs
 oss	catalog_enforcement_keeps_explicit_internal_mock_runners_admissible	1	runner	catalog_enforcement_keeps_explicit_internal_mock_methods_admissible		crates/runx-parser/tests/parser_skill_package.rs
@@ -1343,11 +1343,11 @@ oss	evaluates_harness_fixture_validation	1	harness	evaluates_test_fixture_valida
 oss	every_agent_turn_receives_its_runners_explicit_operations	1	runner	every_agent_turn_receives_its_methods_explicit_operations		crates/runx-parser/tests/parser_turn_limits.rs
 oss	every_bundled_core_runner_expands_its_operator_context	1	runner	every_bundled_core_method_expands_its_operator_context		crates/runx-runtime/src/execution/operator_context.rs
 oss	every_bundled_core_runner_prepares_through_the_cli_runtime	1	runner	every_bundled_core_method_prepares_through_the_cli_runtime		crates/runx-cli/tests/runx_maintained_skill_admission.rs
-oss	execution_closure_distinguishes_direct_external_skills_from_private_stages	1	closure	execution_closure_distinguishes_direct_external_skills_from_private_stages	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs
-oss	execution_closure_pins_what_an_agent_turn_may_call	1	closure	execution_closure_pins_what_an_agent_turn_may_call	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs
-oss	execution_closure_projects_transitive_environment_requirements	1	closure	execution_closure_projects_transitive_environment_requirements	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs
-oss	execution_closure_uses_validated_names_and_transitive_native_tools	1	closure	execution_closure_uses_validated_names_and_transitive_native_tools	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection.rs
-oss	execution-closure-bound	1	closure	execution-closure-bound	a package's closure, or English: stays	docs/agent-skills.md
+oss	execution_closure_distinguishes_direct_external_skills_from_private_stages	1	closure	closure_distinguishes_direct_external_skills_from_private_stages	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
+oss	execution_closure_pins_what_an_agent_turn_may_call	1	closure	closure_pins_what_an_agent_turn_may_call	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
+oss	execution_closure_projects_transitive_environment_requirements	1	closure	closure_projects_transitive_environment_requirements	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
+oss	execution_closure_uses_validated_names_and_transitive_native_tools	1	closure	closure_uses_validated_names_and_transitive_native_tools	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
+oss	execution-closure-bound	1	closure	closure-bound	closure is the one name for a package's closure (rename ruling 3)	docs/agent-skills.md
 oss	explicit_harness_workspace_owns_disposable_run_state	1	harness	explicit_test_workspace_owns_disposable_run_state	the test sense	crates/runx-runtime/src/execution/harness/package.rs
 oss	explicit_runner_with_unallowed_action_is_returned_then_denied_by_validation	1	runner	explicit_runner_with_unallowed_action_is_returned_then_denied_by_validation	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
 oss	exports_default_runner_inputs_when_skill_frontmatter_has_none	1	runner	exports_default_method_inputs_when_skill_frontmatter_has_none		crates/runx-cli/tests/export.rs
@@ -1356,7 +1356,7 @@ oss	facts-to-qualified-fit-with-contact-hold	1	hold	facts-to-qualified-fit-with-
 oss	failing_the_graph_is_unconditional	1	graph	failing_the_workflow_is_unconditional		crates/runx-core/tests/state_machine_proptest.rs
 oss	fixture_sequential_create_graph	1	graph	fixture_sequential_create_workflow		crates/runx-core/tests/state_machine_fixtures.rs
 oss	focused_harness	1	harness	focused_test	the test sense	crates/runx-runtime/src/services/skill_packages/change/application.rs
-oss	from_copy_closure_with_captures	1	closure	from_copy_closure_with_captures	a package's closure, or English: stays	crates/runx-js-worker/src/engine/globals.rs
+oss	from_copy_closure_with_captures	1	closure	from_copy_closure_with_captures	a package's closure, closure's one meaning	crates/runx-js-worker/src/engine/globals.rs
 oss	generate_harness_spine_fixtures	1	harness	generate_run_spine_fixtures	the run sense	crates/runx-receipts/examples/generate_harness_spine_fixtures.rs
 oss	ghostwrite-composes-in-graph	1	graph	ghostwrite-composes-in-workflow		skills/ghostwrite/tests/composes-in-workflow.yaml
 oss	github-composes-in-graph	1	graph	github-composes-in-workflow		skills/github/tests/composes-in-workflow.yaml
@@ -1553,8 +1553,8 @@ oss	positional_runner_without_inputs_executes_runner	1	runner	positional_method_
 oss	postmortem-draft-composes-in-graph	1	graph	postmortem-draft-composes-in-workflow		skills/postmortem-draft/tests/composes-in-workflow.yaml
 oss	prepared_governance_consumes_typed_graph_step_contract	1	graph	prepared_governance_consumes_typed_workflow_step_contract		crates/runx-runtime/src/execution/prepared_skill.rs
 oss	prepared_governance_includes_terminal_runner_scopes	1	runner	prepared_governance_includes_terminal_method_scopes		crates/runx-runtime/src/execution/prepared_skill.rs
-oss	prepared_skill_rechecks_sibling_closure_at_execution_boundary	1	closure	prepared_skill_rechecks_sibling_closure_at_execution_boundary	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs
-oss	prepared_skill_rejects_execution_closure_drift	1	closure	prepared_skill_rejects_execution_closure_drift	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs
+oss	prepared_skill_rechecks_sibling_closure_at_execution_boundary	1	closure	prepared_skill_rechecks_sibling_closure_at_execution_boundary	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
+oss	prepared_skill_rejects_execution_closure_drift	1	closure	prepared_skill_rejects_closure_drift	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/execution/prepared_skill.rs
 oss	prior-art-composes-in-graph	1	graph	prior-art-composes-in-workflow		skills/prior-art/tests/composes-in-workflow.yaml
 oss	privacy-request-review-composes-in-graph	1	graph	privacy-request-review-composes-in-workflow		skills/privacy-request-review/tests/composes-in-workflow.yaml
 oss	procurement-policy-check-composes-in-graph	1	graph	procurement-policy-check-composes-in-workflow		skills/procurement-policy-check/tests/composes-in-workflow.yaml
@@ -1562,7 +1562,7 @@ oss	product-analytics-composes-in-graph	1	graph	product-analytics-composes-in-wo
 oss	provider_policy_denies_unknown_target_before_runner_selection	1	runner	provider_policy_denies_unknown_target_before_runner_selection	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
 oss	publish_admin_sends_publisher_and_harness_and_no_upsert	1	harness	publish_admin_sends_publisher_and_test_and_no_upsert	the test sense	crates/runx-runtime/src/registry/publish/tests.rs
 oss	publish_harness_preserves_local_sibling_execution_closure	1	harness,closure	publish_test_preserves_local_sibling_execution_closure	the test sense; a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
-oss	publish_test_preserves_local_sibling_execution_closure	1	closure	publish_test_preserves_local_sibling_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
+oss	publish_test_preserves_local_sibling_execution_closure	1	closure	publish_test_preserves_local_sibling_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs
 oss	publish-harness	1	harness	publish-test	the test sense	crates/runx-runtime/src/execution/harness/package.rs
 oss	read-graph	1	graph	read-workflow		crates/runx-cli/tests/operator_journeys.rs
 oss	receipt-audit-composes-in-graph	1	graph	receipt-audit-composes-in-workflow		crates/runx-runtime/bundled-skills.json
@@ -1599,7 +1599,7 @@ oss	runner-scope-grant-denies-widening	1	runner	evaluation-scope-grant-denies-wi
 oss	runners_opt_into_connector_calls_without_changing_graph_operations	1	graph,runner	methods_opt_into_connector_calls_without_changing_workflow_operations		crates/runx-parser/tests/parser_turn_limits.rs
 oss	runtime_resolver_verifies_graph_receipt_with_children	1	graph	runtime_resolver_verifies_workflow_receipt_with_children		crates/runx-runtime/tests/receipt_tree.rs
 oss	runtime_tree_verifies_graph_receipt_with_children	1	graph	runtime_tree_verifies_workflow_receipt_with_children		crates/runx-runtime/tests/receipt_tree.rs
-oss	runx_closure_metadata_is_not_treated_as_a_declared_skill_output	1	closure	runx_closure_metadata_is_not_treated_as_a_declared_skill_output	a package's closure, or English: stays	crates/runx-runtime/src/agent_contract.rs
+oss	runx_closure_metadata_is_not_treated_as_a_declared_skill_output	1	closure	runx_closure_metadata_is_not_treated_as_a_declared_skill_output	a package's closure, closure's one meaning	crates/runx-runtime/src/agent_contract.rs
 oss	RUNX_HARNESS_SWEEP_RUNX_BIN	1	harness	RUNX_TEST_SWEEP_RUNX_BIN	the test sense	scripts/harness-sweep.mjs
 oss	RUNX_RUST_HARNESS	1	harness	RUNX_RUST_TEST	the test sense	scripts/check-rust-cli-release-artifacts.ts
 oss	runx-cli-inline-graph-timeout	1	graph	runx-cli-inline-workflow-timeout		crates/runx-cli/tests/local_credential.rs
@@ -1620,10 +1620,10 @@ oss	runx-package-harness-nested-receipts	1	harness	runx-package-test-nested-rece
 oss	runx-package-harness-union	1	harness	runx-package-test-union	the test sense	crates/runx-cli/tests/harness.rs
 oss	runx-perf-harness	1	harness	runx-perf-test	the test sense	scripts/check-runtime-perf-harness.mjs
 oss	runx-process-harness-stand-in	1	harness	runx-process-test-stand-in	the test sense	crates/runx-cli/tests/credential.rs
-oss	runx-publish-closure	1	closure	runx-publish-closure	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_closure.rs
+oss	runx-publish-closure	1	closure	runx-publish-closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_closure.rs
 oss	runx-publish-harness	1	harness	runx-publish-test	the test sense	crates/runx-runtime/src/registry/publish_package/harness.rs
 oss	runx-publish-profile-harness	1	harness	runx-publish-profile-test	the test sense	crates/runx-runtime/src/registry/publish_package/harness.rs
-oss	runx-skill-inspect-registry-closure	1	closure	runx-skill-inspect-registry-closure	a package's closure, or English: stays	crates/runx-cli/tests/skill.rs
+oss	runx-skill-inspect-registry-closure	1	closure	runx-skill-inspect-registry-closure	a package's closure, closure's one meaning	crates/runx-cli/tests/skill.rs
 oss	runx-skill-positional-runner	1	runner	runx-skill-positional-method		crates/runx-cli/tests/skill.rs
 oss	runx-standalone-harness-receipts	1	harness	runx-standalone-test-receipts	the test sense	crates/runx-cli/tests/harness.rs
 oss	rx_harness_1	1	harness	rx_test_1	the test sense	crates/runx-runtime/src/registry/publish/tests.rs
@@ -1638,14 +1638,14 @@ oss	skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold	
 oss	skill_package_admits_explicit_profile_relative_harness_files	1	harness	skill_package_admits_explicit_profile_relative_test_files	the test sense	crates/runx-parser/tests/parser_skill_package.rs
 oss	skill_package_allows_explicit_selection_from_multiple_non_default_runners	1	runner	skill_package_allows_explicit_selection_from_multiple_non_default_methods		crates/runx-parser/tests/parser_skill_package.rs
 oss	skill_package_consumes_conventional_graph_harness_closure	1	harness,closure,graph	skill_package_consumes_conventional_workflow_test_closure	the test sense; a package's closure, or English: stays	crates/runx-parser/tests/parser_skill_package.rs
-oss	skill_package_consumes_conventional_workflow_test_closure	1	closure	skill_package_consumes_conventional_workflow_test_closure	a package's closure, or English: stays	crates/runx-parser/tests/parser_skill_package.rs
+oss	skill_package_consumes_conventional_workflow_test_closure	1	closure	skill_package_consumes_conventional_workflow_test_closure	a package's closure, closure's one meaning	crates/runx-parser/tests/parser_skill_package.rs
 oss	skill_package_parses_owned_harness_fixtures	1	harness	skill_package_parses_owned_test_fixtures	the test sense	crates/runx-parser/tests/parser_skill_package.rs
 oss	skill_package_rejects_missing_or_unsafe_harness_files	1	harness	skill_package_rejects_missing_or_unsafe_test_files	the test sense	crates/runx-parser/tests/parser_skill_package.rs
-oss	skill_package_validates_bundled_tools_and_records_their_source_closure	1	closure	skill_package_validates_bundled_tools_and_records_their_source_closure	a package's closure, or English: stays	crates/runx-parser/tests/parser_skill_package.rs
+oss	skill_package_validates_bundled_tools_and_records_their_source_closure	1	closure	skill_package_validates_bundled_tools_and_records_their_source_closure	a package's closure, closure's one meaning	crates/runx-parser/tests/parser_skill_package.rs
 oss	skill_without_inputs_executes_default_runner	1	runner	skill_without_inputs_executes_default_method		crates/runx-cli/src/skill/parser.rs
 oss	skill-review-composes-in-graph	1	graph	skill-review-composes-in-workflow		crates/runx-runtime/bundled-skills.json
 oss	slack-composes-in-graph	1	graph	slack-composes-in-workflow		skills/slack/tests/composes-in-workflow.yaml
-oss	source_issue_closure_without_verification	1	closure	source_issue_closure_without_verification	a package's closure, or English: stays	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	source_issue_closure_without_verification	1	closure	source_issue_closure_without_verification	a package's closure, closure's one meaning	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	standalone_default_harness	1	harness	standalone_default_test	the test sense	crates/runx-parser/src/skill/catalog.rs
 oss	stripe-dispute-holds-missing-fulfillment	1	hold	stripe-dispute-holds-missing-fulfillment	English, or a skill's own word: stays	skills/dispute-respond/tests/holds-missing-evidence.yaml
 oss	succeeded_graph_requires_a_contributing_result_producer	1	graph	succeeded_workflow_requires_a_contributing_result_producer		crates/runx-runtime/src/execution/runner.rs
@@ -1671,7 +1671,7 @@ oss	web-fetch-composes-in-graph	1	graph	web-fetch-composes-in-workflow		skills/w
 oss	web-search-composes-in-graph	1	graph	web-search-composes-in-workflow		skills/web-search/tests/composes-in-workflow.yaml
 oss	webhook-handoff-composes-in-graph	1	graph	webhook-handoff-composes-in-workflow		skills/webhook-handoff/tests/composes-in-workflow.yaml
 oss	write-harness	1	harness	write-harness	a retired package's own name, in a dated decision record: stays	docs/core-skill-review.md
-oss	wrong-closure	1	closure	wrong-closure	a package's closure, or English: stays	crates/runx-cli/tests/operator_journeys.rs
+oss	wrong-closure	1	closure	wrong-closure	a package's closure, closure's one meaning	crates/runx-cli/tests/operator_journeys.rs
 oss	agent		decided	agent	one thing: the skill's name, which agent-session takes	
 oss	input_mode		decided	inputs_via	how a process gets its inputs, the format's word (rename-table.tsv row 44), in the tool manifest's contract too	
 oss	OpenTurn		decided	OpenTurn	the open turn (turn.rs:230). The MCP server's private listing line of the same name (server_turn.rs:271) becomes ListedTurn by hand	
@@ -1688,3 +1688,30 @@ oss	TurnTarget	93	decided	CallTarget	the ledger's call target, what any call nam
 oss	TurnTargetContract		decided	CallTargetContract	its contract type	packages/contracts/src/generated/contract-types.ts
 oss	workflow_engine		decided	steps	the act engine's workflow steps module, engine/steps.rs, since execution/workflow.rs exists (rename ruling 1)	
 oss	steps		decided	steps	one name for the engine's steps module and a workflow's steps, which Rust's module and value namespaces keep apart	
+oss	inspect_execution_closures		decided	inspect_closures	closure is the one name for a package's closure (rename ruling 3)	
+oss	execution_closures		decided	closures	closure is the one name for a package's closure (rename ruling 3)	
+oss	closure_uses_validated_names_and_transitive_native_tools		decided	closure_uses_validated_names_and_transitive_native_tools	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	expected_closure_digest		decided	expected_closure_digest	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	inspect_loaded_local_closure		decided	inspect_loaded_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	prepared_skill_rejects_closure_drift		decided	prepared_skill_rejects_closure_drift	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closures		decided	closures	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	inspect_closures		decided	inspect_closures	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closure_distinguishes_direct_external_skills_from_private_stages		decided	closure_distinguishes_direct_external_skills_from_private_stages	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	inspect_local_closure		decided	inspect_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	Closure		decided	Closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	into_local_closure		decided	into_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closure_pins_what_an_agent_turn_may_call		decided	closure_pins_what_an_agent_turn_may_call	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	ClosureInspection		decided	ClosureInspection	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closure-bound		decided	closure-bound	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closure-digest		decided	closure-digest	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	LocalClosure		decided	LocalClosure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	publish_test_preserves_local_sibling_closure		decided	publish_test_preserves_local_sibling_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	InspectedClosureBinding		decided	InspectedClosureBinding	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closure_projects_transitive_environment_requirements		decided	closure_projects_transitive_environment_requirements	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	hasCanonicalClosure		decided	hasCanonicalClosure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	inspect_loaded_closure_binding		decided	inspect_loaded_closure_binding	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	ClosureInspector		decided	ClosureInspector	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	merge_local_closure		decided	merge_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	bound_continuation_rechecks_closure_without_reapproval		decided	bound_continuation_rechecks_closure_without_reapproval	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	inspect_method_closure		decided	inspect_method_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	closureFromInspection		decided	closureFromInspection	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	

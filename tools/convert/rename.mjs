@@ -104,7 +104,7 @@ function sense(word, token) {
   if (word === "runner") return STAYS.runner.test(token) ? ["stays", "another runner: stays"] : ["rename", ""];
   if (word === "graph") return STAYS.graph.test(token) ? ["stays", "another graph: stays"] : ["rename", ""];
   if (word === "harness") return RUN_HARNESS.test(token) ? ["run", "the run sense"] : ["test", "the test sense"];
-  if (word === "closure") return ENDING.test(token) ? ["rename", "how a run ended"] : ["stays", "a package's closure, or English: stays"];
+  if (word === "closure") return ENDING.test(token) ? ["rename", "how a run ended"] : ["stays", "a package's closure, closure's one meaning"];
   if (word === "hold") {
     if (LEASE.test(token)) return ["rename", "the lease family"];
     return RUN_HOLD.test(token) ? ["stays", "a run waiting: stays"] : ["stays", "English, or a skill's own word: stays"];
