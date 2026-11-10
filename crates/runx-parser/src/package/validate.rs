@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use runx_contracts::{JsonValue, sha256_prefixed};
+use runx_contracts::package_evals::{EvalQuery, PackageEval, PackageEvals};
+use runx_contracts::sha256_prefixed;
 
 use super::path::validate_source_paths;
 use super::{SkillPackageError, SkillPackageSource, ValidatedSkillPackage};
@@ -64,7 +65,8 @@ pub fn validate_skill_package(
     consumed_files.extend(execution_files.iter().cloned());
     consumed_files.extend(test_files.iter().cloned());
     consumed_files.extend(validate_operator_reference_files(&source)?);
-    consumed_files.extend(validate_eval_files(&source, &skill.name)?);
+    let eval_files = validate_eval_files(&source, &skill.name)?;
+    consumed_files.extend(eval_files.paths);
     consumed_files.extend(validate_nested_package_consumed_files(&source)?);
     if let Some(mark) = source.files.get(crate::mark::MARK_FILE) {
         crate::mark::validate_mark_svg(mark).map_err(|reason| {
@@ -100,71 +102,84 @@ pub fn validate_skill_package(
         test_fixtures,
         context_skills,
         packets,
+        eval_queries: eval_files.queries,
+        evals: eval_files.evals,
         source,
     })
 }
 
+/// A package's Agent Skills evaluation files, as it declares them.
+struct EvalFiles {
+    paths: BTreeSet<String>,
+    queries: Vec<EvalQuery>,
+    evals: Vec<PackageEval>,
+}
+
+const EVALS_FILE: &str = "evals/evals.json";
+const EVAL_QUERIES_FILE: &str = "eval_queries.json";
+
 /// The Agent Skills evaluation files: `evals/evals.json`, naming this skill
 /// and holding its evals, and `eval_queries.json`, the queries a host should
-/// or should not select this skill for. They evaluate a package; they are
-/// never a requirement of its format.
+/// or should not select this skill for, each validated against its contract.
+/// They evaluate a package; they are never a requirement of its format.
 fn validate_eval_files(
     source: &SkillPackageSource,
     skill: &str,
-) -> Result<BTreeSet<String>, SkillPackageError> {
-    let mut files = BTreeSet::new();
-    for path in ["evals/evals.json", "eval_queries.json"] {
-        let Some(contents) = source.files.get(path) else {
-            continue;
-        };
-        let value = serde_json::from_str::<JsonValue>(text_file(path, contents)?)
-            .map_err(|error| SkillPackageError::invalid(path, format!("is not JSON: {error}")))?;
-        if path == "evals/evals.json" {
-            validate_evals(path, &value, skill)?;
-        } else {
-            validate_eval_queries(path, &value)?;
-        }
-        files.insert(path.to_owned());
+) -> Result<EvalFiles, SkillPackageError> {
+    let mut files = EvalFiles {
+        paths: BTreeSet::new(),
+        queries: Vec::new(),
+        evals: Vec::new(),
+    };
+    if let Some(contents) = source.files.get(EVALS_FILE) {
+        files.evals = validate_evals(text_file(EVALS_FILE, contents)?, skill)?;
+        files.paths.insert(EVALS_FILE.to_owned());
+    }
+    if let Some(contents) = source.files.get(EVAL_QUERIES_FILE) {
+        files.queries = validate_eval_queries(text_file(EVAL_QUERIES_FILE, contents)?)?;
+        files.paths.insert(EVAL_QUERIES_FILE.to_owned());
     }
     Ok(files)
 }
 
-fn validate_evals(path: &str, value: &JsonValue, skill: &str) -> Result<(), SkillPackageError> {
-    let JsonValue::Object(evals) = value else {
-        return Err(SkillPackageError::invalid(path, "is an object"));
-    };
-    if evals.get("skill_name").and_then(JsonValue::as_str) != Some(skill) {
+/// The evals under this skill's name, each id listed once.
+fn validate_evals(text: &str, skill: &str) -> Result<Vec<PackageEval>, SkillPackageError> {
+    let file = serde_json::from_str::<PackageEvals>(text).map_err(|error| {
+        SkillPackageError::invalid(
+            EVALS_FILE,
+            format!("is the Agent Skills evals format: {error}"),
+        )
+    })?;
+    if file.skill_name.as_str() != skill {
         return Err(SkillPackageError::invalid(
-            path,
+            EVALS_FILE,
             format!("skill_name is the package's name, {skill}"),
         ));
     }
-    if !matches!(evals.get("evals"), Some(JsonValue::Array(_))) {
-        return Err(SkillPackageError::invalid(path, "evals is a list"));
+    let mut ids = BTreeSet::new();
+    if let Some(eval) = file.evals.iter().find(|eval| !ids.insert(eval.id)) {
+        return Err(SkillPackageError::invalid(
+            EVALS_FILE,
+            format!("eval {} is listed twice", eval.id),
+        ));
     }
-    Ok(())
+    Ok(file.evals)
 }
 
-/// Each trigger query is exactly a non-empty `query` and a boolean
+/// Each trigger query is exactly a `query` with words in it and a boolean
 /// `should_trigger`, and the file holds at least one.
-fn validate_eval_queries(path: &str, value: &JsonValue) -> Result<(), SkillPackageError> {
-    let is_query = |entry: &JsonValue| {
-        entry.as_object().is_some_and(|entry| {
-            entry.len() == 2
-                && entry
-                    .get("query")
-                    .and_then(JsonValue::as_str)
-                    .is_some_and(|query| !query.trim().is_empty())
-                && entry
-                    .get("should_trigger")
-                    .and_then(JsonValue::as_bool)
-                    .is_some()
-        })
-    };
-    match value {
-        JsonValue::Array(queries) if !queries.is_empty() && queries.iter().all(is_query) => Ok(()),
+fn validate_eval_queries(text: &str) -> Result<Vec<EvalQuery>, SkillPackageError> {
+    match serde_json::from_str::<Vec<EvalQuery>>(text) {
+        Ok(queries)
+            if !queries.is_empty()
+                && queries
+                    .iter()
+                    .all(|query| !query.query.as_str().trim().is_empty()) =>
+        {
+            Ok(queries)
+        }
         _ => Err(SkillPackageError::invalid(
-            path,
+            EVAL_QUERIES_FILE,
             "is a list of { query, should_trigger }",
         )),
     }

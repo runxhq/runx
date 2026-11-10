@@ -142,6 +142,12 @@ pub struct ValidatedSkillPackage {
     pub context_skills: Vec<String>,
     /// Every packet schema in `packets/`, by id.
     pub packets: BTreeMap<runx_contracts::PacketId, PackagePacket>,
+    /// The queries of its `eval_queries.json`, as validated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub eval_queries: Vec<runx_contracts::package_evals::EvalQuery>,
+    /// The evals of its `evals/evals.json`, as validated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evals: Vec<runx_contracts::package_evals::PackageEval>,
     pub source: SkillPackageSource,
 }
 

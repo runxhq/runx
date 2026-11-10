@@ -942,6 +942,14 @@ export type EvalEvidenceKindContract = "selection" | "evals";
 
 export type EvalEvidenceSchemaContract = "runx.eval_evidence.v1";
 
+/** One query of `eval_queries.json`. */
+export type EvalQueryContract = {
+  /** A request, as a person would make it. */
+  readonly query: string;
+  /** Whether a host should select the package for it. */
+  readonly should_trigger: boolean;
+};
+
 export type EvalResultsContract = {
   readonly kind: "selection";
   readonly passed: number;
@@ -1908,6 +1916,22 @@ export type OutputFieldContract = {
   readonly optional?: boolean;
   readonly packet?: string;
   readonly [key: string]: unknown;
+};
+
+/** One eval: a prompt, and what the work it asks for should produce. */
+export type PackageEvalContract = {
+  /** Each further expectation an attempt is held to, every one required. */
+  readonly expectations?: readonly string[];
+  /** What a met attempt produces. */
+  readonly expected_output: string;
+  /** The files the eval gives an attempt, relative to the package. */
+  readonly files?: readonly string[];
+  /** Its id, unique among the package's evals. */
+  readonly id: number;
+  /** The package's method the eval is of, when it names one. */
+  readonly method?: string;
+  /** The request an attempt is given. */
+  readonly prompt: string;
 };
 
 /** Immutable marketplace identity and commercial terms for paid methods in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`. */
@@ -3280,6 +3304,10 @@ export type SkillInspectionContract = {
   };
   /** The environment the method reads, by name and availability, never by value. */
   readonly environment?: EnvironmentReadinessContract;
+  /** The queries a host should or shouldn't select the package for, from its `eval_queries.json`, as the parser validated them. */
+  readonly eval_queries?: readonly EvalQueryContract[];
+  /** Its evals, from its `evals/evals.json`, as the parser validated them. */
+  readonly evals?: readonly PackageEvalContract[];
   readonly examples?: readonly string[];
   readonly manual_digest: string;
   /** The method inspected: the one named, else the default. */

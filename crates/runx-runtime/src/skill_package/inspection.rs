@@ -514,6 +514,8 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, Skill
         manual_digest: package.manual_digest.clone(),
         package_digest: package.package_digest.clone(),
         distribution_digest: None,
+        eval_queries: package.eval_queries.clone(),
+        evals: package.evals.clone(),
         description: package.skill.description.clone(),
         version: manifest.and_then(|manifest| manifest.version.clone()),
         catalog: manifest
@@ -677,6 +679,35 @@ methods:
         let distributed = super::inspect_skill_package(&copy, None, Some(&env))?;
         assert_eq!(distributed.package_digest, distribution);
         assert_eq!(distributed.distribution_digest, Some(distribution));
+        Ok(())
+    }
+
+    /// An inspection carries the package's eval queries and evals as the
+    /// parser validated them, so a reader never reads the files.
+    #[test]
+    fn an_inspection_carries_the_packages_eval_queries_and_evals()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path().join("child");
+        fs::create_dir_all(root.join("evals"))?;
+        fs::write(root.join("SKILL.md"), CHILD_MANUAL)?;
+        fs::write(root.join("run.yaml"), CHILD_MANIFEST)?;
+        let queries = serde_json::json!([
+            {"query": "Digest this for me.", "should_trigger": true},
+            {"query": "What's the weather?", "should_trigger": false}
+        ]);
+        let evals = serde_json::json!([
+            {"id": 1, "prompt": "Digest proof.", "expected_output": "Its digest.", "expectations": ["It digests once."]}
+        ]);
+        fs::write(root.join("eval_queries.json"), queries.to_string())?;
+        fs::write(
+            root.join("evals/evals.json"),
+            serde_json::json!({"skill_name": "child", "evals": evals}).to_string(),
+        )?;
+
+        let inspected = super::inspect_skill_package(&root, None, None)?;
+        assert_eq!(serde_json::to_value(&inspected.eval_queries)?, queries);
+        assert_eq!(serde_json::to_value(&inspected.evals)?, evals);
         Ok(())
     }
 

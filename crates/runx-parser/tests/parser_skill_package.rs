@@ -367,12 +367,20 @@ fn eval_queries_is_a_list_of_query_and_should_trigger() {
     )
     .expect("well-formed trigger queries validate");
     assert!(validated.consumed_files.contains("eval_queries.json"));
+    assert_eq!(
+        serde_json::to_value(&validated.eval_queries).expect("queries serialize"),
+        serde_json::json!([
+            {"query": "Fetch this page.", "should_trigger": true},
+            {"query": "Search the web.", "should_trigger": false}
+        ])
+    );
 
     for malformed in [
         "{}",
         "[]",
         r#"["Fetch this page."]"#,
         r#"[{"query": "", "should_trigger": true}]"#,
+        r#"[{"query": "  ", "should_trigger": true}]"#,
         r#"[{"query": "Fetch this page.", "should_trigger": "yes"}]"#,
         r#"[{"query": "Fetch this page."}]"#,
         r#"[{"query": "Fetch this page.", "should_trigger": true, "skill": "web-fetch"}]"#,
@@ -383,6 +391,54 @@ fn eval_queries_is_a_list_of_query_and_should_trigger() {
             "eval_queries.json: is a list of { query, should_trigger }",
             "{malformed}"
         );
+    }
+}
+
+#[test]
+fn evals_json_states_the_packages_evals_under_its_name() {
+    let with_evals = |evals: &str| {
+        validate_skill_package(package([
+            ("SKILL.md", manual("triggered")),
+            ("evals/evals.json", evals.to_owned()),
+        ]))
+    };
+    let validated = with_evals(
+        r#"{"skill_name": "triggered", "evals": [
+            {"id": 1, "prompt": "Fetch this page.", "expected_output": "The page's text, by digest.", "files": []},
+            {"id": 2, "prompt": "Fetch it twice.", "expected_output": "One read.", "files": [], "expectations": ["It reads once."], "method": "fetch"}
+        ]}"#,
+    )
+    .expect("well-formed evals validate");
+    assert!(validated.consumed_files.contains("evals/evals.json"));
+    assert_eq!(
+        serde_json::to_value(&validated.evals).expect("evals serialize"),
+        serde_json::json!([
+            {"id": 1, "prompt": "Fetch this page.", "expected_output": "The page's text, by digest."},
+            {"id": 2, "prompt": "Fetch it twice.", "expected_output": "One read.", "expectations": ["It reads once."], "method": "fetch"}
+        ])
+    );
+
+    for (malformed, refusal) in [
+        ("[]", "evals/evals.json: is the Agent Skills evals format"),
+        (
+            r#"{"skill_name": "other", "evals": []}"#,
+            "evals/evals.json: skill_name is the package's name, triggered",
+        ),
+        (
+            r#"{"skill_name": "triggered", "evals": [{"id": 1, "expected_output": "x"}]}"#,
+            "evals/evals.json: is the Agent Skills evals format",
+        ),
+        (
+            r#"{"skill_name": "triggered", "evals": [{"id": 1, "prompt": "p", "expected_output": "x", "grader": "me"}]}"#,
+            "evals/evals.json: is the Agent Skills evals format",
+        ),
+        (
+            r#"{"skill_name": "triggered", "evals": [{"id": 1, "prompt": "p", "expected_output": "x"}, {"id": 1, "prompt": "q", "expected_output": "y"}]}"#,
+            "evals/evals.json: eval 1 is listed twice",
+        ),
+    ] {
+        let error = with_evals(malformed).expect_err(malformed).to_string();
+        assert!(error.starts_with(refusal), "{malformed}: {error}");
     }
 }
 

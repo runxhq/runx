@@ -3496,6 +3496,27 @@ export const runxSchemaArtifacts = {
         "title": "EvalEvidenceSchema",
         "type": "string"
       },
+      "EvalQuery": {
+        "additionalProperties": false,
+        "description": "One query of `eval_queries.json`.",
+        "properties": {
+          "query": {
+            "description": "A request, as a person would make it.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "should_trigger": {
+            "description": "Whether a host should select the package for it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "should_trigger"
+        ],
+        "title": "EvalQuery",
+        "type": "object"
+      },
       "EvalResults": {
         "anyOf": [
           {
@@ -6224,6 +6245,57 @@ export const runxSchemaArtifacts = {
           }
         },
         "title": "OutputField",
+        "type": "object"
+      },
+      "PackageEval": {
+        "additionalProperties": false,
+        "description": "One eval: a prompt, and what the work it asks for should produce.",
+        "properties": {
+          "expectations": {
+            "description": "Each further expectation an attempt is held to, every one required.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "expected_output": {
+            "description": "What a met attempt produces.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "files": {
+            "description": "The files the eval gives an attempt, relative to the package.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "id": {
+            "description": "Its id, unique among the package's evals.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "method": {
+            "description": "The package's method the eval is of, when it names one.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt": {
+            "description": "The request an attempt is given.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "prompt",
+          "expected_output"
+        ],
+        "title": "PackageEval",
         "type": "object"
       },
       "PaidSkillMethodOffer": {
@@ -14475,6 +14547,22 @@ export const runxSchemaArtifacts = {
       "environment": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EnvironmentReadiness",
         "description": "The environment the method reads, by name and availability, never by value."
+      },
+      "eval_queries": {
+        "description": "The queries a host should or shouldn't select the package for, from its `eval_queries.json`, as the parser validated them.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalQuery"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "evals": {
+        "description": "Its evals, from its `evals/evals.json`, as the parser validated them.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/PackageEval"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "examples": {
         "items": {

@@ -42,6 +42,13 @@ pub struct SkillInspection {
     /// when the inspection was given no environment to package it in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub distribution_digest: Option<String>,
+    /// The queries a host should or shouldn't select the package for, from
+    /// its `eval_queries.json`, as the parser validated them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub eval_queries: Vec<crate::package_evals::EvalQuery>,
+    /// Its evals, from its `evals/evals.json`, as the parser validated them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evals: Vec<crate::package_evals::PackageEval>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

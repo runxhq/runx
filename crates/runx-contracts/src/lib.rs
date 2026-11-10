@@ -31,6 +31,7 @@ pub mod native_packets;
 pub mod operational_policy;
 pub mod orchestrator_handoff;
 pub mod output;
+pub mod package_evals;
 pub mod packet_id;
 pub mod paid_skill_listing;
 pub mod provider_operation;
