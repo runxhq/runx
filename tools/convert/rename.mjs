@@ -224,10 +224,6 @@ const PINNED = {
       literal: '"purchase-holdings"',
       why: "the lease cipher's key-derivation label: stored ciphertext opens only under these bytes",
     },
-    // Receipts keep their words (§4.6), and OSS's schemas/receipt.schema.json still writes `harness`.
-    { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'ref_type: "harness"', why: "a receipt subject's ref type: 0.12's receipt schema still writes harness" },
-    { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'type: "harness",', why: "a receipt ref's type, the same wire value" },
-    { file: "packages/api/src/receipts/notary-projection.test.ts", literal: "runx:harness:poisoned-secret-locator", why: "that ref's uri, and the secret the test proves is scrubbed from it" },
     // Retired schemas' entries, which the release check refuses by their
     // published URLs: each URL, and the record of what took its place.
     { file: "scripts/site-release.ts", literal: '"https://schemas.runx.ai/runx/control/harness-context/v1.json"', why: "a retired schema's URL, which the release check names to refuse it" },

@@ -527,11 +527,10 @@ test("Ausca's GPU job runner, its sandbox's and GitHub's runner limit stay, and 
   assert.equal(read(root, "docs/methods.md"), "The default method reads the catalog.\n");
 });
 
-// Cloud's pins, which every Cloud tree holds: the lease cipher's label, the
-// receipt words a test keeps, and the retired schemas' entries.
+// Cloud's pins, which every Cloud tree holds: the lease cipher's label and
+// the retired schemas' entries.
 const cloudPin = {
   "packages/api/src/payments/leases-postgres.ts": 'export const label = "purchase-holdings";\n',
-  "packages/api/src/receipts/notary-projection.test.ts": 'export const subject = { ref_type: "harness" };\nexport const ref = { type: "harness", uri: "runx:harness:poisoned-secret-locator" };\n',
   "scripts/site-release.ts":
     'export const retired = {\n  "https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." },\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": {},\n};\n',
 };
@@ -542,7 +541,15 @@ test("Cloud's spec renames as prose, and its canonical receipts, which OSS's gen
   const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
   assert.equal(status, 0, out);
   assert.equal(read(root, "spec/spec.md"), `# Runx spec\n\nThe run context names a run.\n\n${receipt}`);
-  assert.equal(read(root, "packages/api/src/receipts/notary-projection.test.ts"), cloudPin["packages/api/src/receipts/notary-projection.test.ts"]);
+});
+
+test("Cloud's notary test names a host's receipt references host, as 0.12's receipts write them", (t) => {
+  const notary = (word) =>
+    `const subject = { kind: "step", ref_type: "${word}" };\nconst secrets = ["private stderr body", "runx:${word}:poisoned-secret-locator"];\nconst ref = {\n  type: "${word}",\n  uri: "runx:${word}:poisoned-secret-locator",\n};\nexport { subject, secrets, ref };\n`;
+  const root = tree(t, { ...cloudPin, "packages/api/src/receipts/notary-projection.test.ts": notary("harness") });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "packages/api/src/receipts/notary-projection.test.ts"), notary("host"));
 });
 
 test("a pinned literal keeps its bytes, its phrases among them, and lands on nothing, though its file already holds the name the table renames it to", (t) => {
