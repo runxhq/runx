@@ -18,7 +18,7 @@ const FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/contracts/host-protocol/event-step_waiting_resolution.json"),
     include_str!("../../../fixtures/contracts/host-protocol/event-warning.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-approval-request.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/resolution-agent-act-request.json"),
+    include_str!("../../../fixtures/contracts/host-protocol/resolution-turn-request.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-input-request.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-response.json"),
 ];

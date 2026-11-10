@@ -18,7 +18,7 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
         "receipt.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/host-protocol/resolution-agent-act-request.json",
+        "fixtures/contracts/host-protocol/resolution-turn-request.json",
         "/expected",
         "resolution-request.schema.json",
     ),

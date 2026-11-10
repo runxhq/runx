@@ -31,7 +31,7 @@ pub(crate) fn agent_contract_checks_with_artifacts(
     let ResolutionRequest::Turn { invocation, .. } = request else {
         return Err(RuntimeError::SkillFailed {
             skill_name: "agent".to_owned(),
-            message: "agent result verification requires an agent-act request".to_owned(),
+            message: "agent result verification requires a turn request".to_owned(),
         });
     };
     let contract_payload = agent_output_contract_payload(payload);
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn fixture_contract_is_the_declared_object_field() -> Result<(), Box<dyn std::error::Error>> {
         let ResolutionRequest::Turn { invocation, .. } = request()? else {
-            return Err("expected agent-act request".into());
+            return Err("expected a turn request".into());
         };
         assert_eq!(
             invocation.envelope.output,

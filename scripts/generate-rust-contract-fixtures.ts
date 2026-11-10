@@ -239,7 +239,7 @@ function buildHostProtocolFixtures(): readonly ContractFixture[] {
     ...eventFixtures(),
     hostFixture("resolution-input-request", "resolution_request", inputResolutionRequest()),
     hostFixture("resolution-approval-request", "resolution_request", approvalResolutionRequest()),
-    hostFixture("resolution-agent-act-request", "resolution_request", turnResolutionRequest()),
+    hostFixture("resolution-turn-request", "resolution_request", turnResolutionRequest()),
     hostFixture("resolution-response", "resolution_response", {
       actor: "human",
       payload: {

@@ -6,7 +6,7 @@ import type {
 } from "../generated/contract-types.js";
 
 export const turnInvocationSchema = generatedSchema<TurnInvocationContract>(
-  "agent-act-invocation.schema.json",
+  "turn-invocation.schema.json",
 );
 
 export const questionSchema = generatedSchema<QuestionContract>("question.schema.json");

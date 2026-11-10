@@ -71,7 +71,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<Readiness>("readiness.schema.json"),
         schema_artifact::<AuthorityDerivation>("authority-derivation.schema.json"),
         schema_artifact::<AgentContextEnvelope>("agent-context-envelope.schema.json"),
-        schema_artifact::<TurnInvocation>("agent-act-invocation.schema.json"),
+        schema_artifact::<TurnInvocation>("turn-invocation.schema.json"),
         schema_artifact::<TurnCallResult>("turn-call.schema.json"),
         schema_artifact::<TurnStatus>("turn-status.schema.json"),
         schema_artifact::<TurnLoad>("turn-load.schema.json"),

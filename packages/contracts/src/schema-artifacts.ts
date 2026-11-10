@@ -17,55 +17,6 @@ export const runxReceiptTreeLimits = {
 } as const;
 
 export const runxSchemaArtifacts = {
-  "agent-act-invocation.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "allowance": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnAllowance",
-        "description": "What the agent may call while its turn is open."
-      },
-      "context_kinds": {
-        "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "envelope": {
-        "$ref": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json"
-      },
-      "id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "requires": {
-        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the act failed with `unsupported_requirement`.",
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnRequirement"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "task": {
-        "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
-        "minLength": 1,
-        "type": "string"
-      }
-    },
-    "required": [
-      "id",
-      "task",
-      "envelope",
-      "allowance"
-    ],
-    "title": "TurnInvocation",
-    "type": "object",
-    "x-runx-schema": "runx.turn_invocation.v1"
-  } as JsonSchema,
   "agent-context-envelope.schema.json": {
     "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -14429,6 +14380,55 @@ export const runxSchemaArtifacts = {
     "title": "TurnCallResult",
     "type": "object",
     "x-runx-schema": "runx.turn_call.v1"
+  } as JsonSchema,
+  "turn-invocation.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "allowance": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnAllowance",
+        "description": "What the agent may call while its turn is open."
+      },
+      "context_kinds": {
+        "description": "The kinds of context the turn asks its host to supply, as its step's `context.kinds` (N22): a child run's turn gets only what this and its act declare (D31).",
+        "items": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "envelope": {
+        "$ref": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json"
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "requires": {
+        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the act failed with `unsupported_requirement`.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnRequirement"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "task": {
+        "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "task",
+      "envelope",
+      "allowance"
+    ],
+    "title": "TurnInvocation",
+    "type": "object",
+    "x-runx-schema": "runx.turn_invocation.v1"
   } as JsonSchema,
   "turn-load.schema.json": {
     "$id": "https://schemas.runx.ai/runx/turn-load/v1.json",

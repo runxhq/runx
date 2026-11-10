@@ -113,7 +113,7 @@ pub(super) fn covered() -> Vec<Covered> {
             corpus: agent_context_envelope_corpus(),
         },
         Covered {
-            file_name: "agent-act-invocation.schema.json",
+            file_name: "turn-invocation.schema.json",
             emitted: TurnInvocation::json_schema(),
             corpus: turn_invocation_corpus(),
         },
