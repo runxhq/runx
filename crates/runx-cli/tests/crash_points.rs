@@ -738,6 +738,38 @@ fn result_of(sealed: &serde_json::Value) -> TestResult<serde_json::Value> {
     }
 }
 
+/// The run's ledger as it ended: each call's target, its input's digest and
+/// how it settled, by position, with each output by its digest. A receipt
+/// isn't in it, since each run seals its own.
+fn ledger(read: &serde_json::Value) -> std::collections::BTreeMap<u64, serde_json::Value> {
+    call_events(read, RUN_ID)
+        .map(|call| {
+            let outcome = &call["outcome"];
+            let outputs = outcome["outputs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|output| {
+                    serde_json::json!({
+                        "output": output["output"],
+                        "digest": output["artifact"]["digest"],
+                    })
+                })
+                .collect::<Vec<_>>();
+            (
+                call["index"].as_u64().unwrap_or(u64::MAX),
+                serde_json::json!({
+                    "target": call["target"],
+                    "input_digest": call["input_digest"],
+                    "status": outcome["status"],
+                    "succeeded": outcome["succeeded"],
+                    "outputs": outputs,
+                }),
+            )
+        })
+        .collect()
+}
+
 fn counted(counts: &serde_json::Value, name: &str) -> u64 {
     counts[name].as_u64().unwrap_or(u64::MAX)
 }
@@ -808,6 +840,18 @@ fn a_lost_worker_is_rebuilt_from_its_record_and_live_running_never_replays() -> 
             settled,
             completed(&whole_history(&root)?),
             "{size}: the script saw its calls settle in the order the record holds"
+        );
+        // The batch run live and the same batch run by replay leave matching
+        // ledgers: every call at its position, with its input and how it
+        // settled, and the same outputs.
+        let (replayed, uncrashed) = (
+            ledger(&whole_history(&root)?),
+            ledger(&whole_history(&reference)?),
+        );
+        assert_eq!(replayed.len(), size, "{size}");
+        assert_eq!(
+            replayed, uncrashed,
+            "{size}: the live and replayed ledgers differ"
         );
         let counts = counts.ok_or("the recovery wrote its counts")?;
         assert_eq!(counted(&counts, "script_passes"), 1, "{size}: {counts}");
