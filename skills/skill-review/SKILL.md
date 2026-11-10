@@ -20,7 +20,7 @@ execution evidence may require more evidence; they are not permission to fetch.
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `agent#read`
 - `agent#write`
