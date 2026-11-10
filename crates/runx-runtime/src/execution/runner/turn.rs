@@ -824,30 +824,6 @@ where
         Ok(Some((artifact, content)))
     }
 
-    /// What a script's read of `artifact` returns: exactly what the field
-    /// it holds would have held inline, so a packet output's data in its
-    /// envelope, as the call's result carries it.
-    pub(super) fn read_value(&self, artifact: &Artifact) -> Result<JsonValue, RuntimeError> {
-        let content = self.content(artifact)?;
-        let packet = self.recorded()?.iter().any(|call| {
-            let CallOutcome::Completed(run) = &call.outcome else {
-                return false;
-            };
-            call.outputs.iter().any(|part| {
-                part.artifact.digest == artifact.digest
-                    && part
-                        .output
-                        .as_ref()
-                        .is_some_and(|output| run.artifact_outputs.contains(output.as_str()))
-            })
-        });
-        Ok(if packet {
-            crate::output_contract::data_envelope(content)
-        } else {
-            content
-        })
-    }
-
     /// The content of `artifact`, a call's output this run holds.
     pub(super) fn content(&self, artifact: &Artifact) -> Result<JsonValue, RuntimeError> {
         let options = &self.scope.runtime.options;

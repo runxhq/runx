@@ -556,9 +556,11 @@ fn settled(outcome: &CallOutcome) -> bool {
 
 /// What `call` settled to, as the script's promise takes it. A result the
 /// ledger withholds, as it withholds it from a turn, is refused, and the
-/// script never sees what it read. A field of its result past the bound its
-/// record holds reaches the script as a reference to the artifact the call
-/// recorded it in.
+/// script never sees what it read. A packet output reaches the script as its
+/// data, as a `$steps` reference reads it in a workflow; its envelope is how
+/// the record keeps it. A field of its result past the bound its record holds
+/// reaches the script as a reference to the artifact the call recorded it
+/// in, which holds what the field would have held inline.
 fn settlement<A>(
     ledger: &CallLedger<'_, A>,
     call: &RecordedCall,
@@ -578,7 +580,13 @@ where
         CallOutcome::Completed(run) if run.outcome.succeeded() => {
             let mut value = JsonObject::new();
             let mut references = Vec::new();
-            for (field, held) in &run.contract {
+            for field in run.contract.keys() {
+                let held = run
+                    .output(field)
+                    .ok_or_else(|| RuntimeError::EngineInvariant {
+                        context: "delivering a call's result",
+                        message: format!("packet output {field} holds no data"),
+                    })?;
                 if !past_inline_bound(held, call.inline_bound)? {
                     value.insert(field.clone(), held.clone());
                     continue;
@@ -609,7 +617,7 @@ where
             }
         }
         CallOutcome::Read(artifact) => ScriptCallOutcome::Resolved {
-            value: serde_json::to_value(ledger.read_value(artifact)?).map_err(delivering)?,
+            value: serde_json::to_value(ledger.content(artifact)?).map_err(delivering)?,
             references: Vec::new(),
         },
         CallOutcome::TooLarge { size_bytes, bound } => rejected(

@@ -1524,11 +1524,68 @@ fn write_letters_packet(skill_dir: &Path, field: &str) -> TestResult {
     Ok(())
 }
 
+/// A packet output reaches a script as its data, exactly as a `$steps`
+/// reference reads it in a workflow, so it passes straight into another
+/// call's packet input, as the contract's own example passes an enrichment
+/// into qualification.
+#[test]
+fn a_packet_output_passes_straight_into_the_next_calls_packet_input() -> TestResult {
+    let temp = tempdir()?;
+    write_pack(temp.path(), 4)?;
+    let unpack = temp.path().join("unpack");
+    crate::support::write_test_skill_package(
+        &unpack,
+        "---\nname: unpack\ndescription: Counts packed letters.\n---\n# Unpack\n\nCount them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  unpack:\n    inputs:\n      letters:\n        packet: acme/unpack.letters.v1\n    steps:\n      - id: count\n        tool: {module: unpack.mjs, export: count}\n        inputs: {letters: $input.letters}\n        outputs:\n          length: {type: number}\n",
+    )?;
+    std::fs::create_dir_all(unpack.join("packets"))?;
+    std::fs::write(
+        unpack.join("packets/letters.v1.schema.json"),
+        r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/acme/unpack/letters/v1.json",
+  "x-runx-packet-id": "acme/unpack.letters.v1",
+  "type": "object",
+  "required": ["text"],
+  "properties": { "text": { "type": "string" } },
+  "additionalProperties": false
+}"#,
+    )?;
+    std::fs::write(
+        unpack.join("unpack.mjs"),
+        "export const count = ({ letters }) => ({ length: letters.text.length });\n",
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../pack, ../unpack]\n        max_calls: 2\n        outputs:\n          letters: {type: object}\n          length: {type: number}\n",
+        r#"export default async function (ctx) {
+  const packed = await ctx.skill("../pack", {});
+  const counted = await ctx.skill("../unpack", { letters: packed.letters });
+  return { letters: packed.letters, length: counted.length };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "outcome"), Some("completed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        serde_json::to_value(result.get("letters").ok_or("letters")?)?,
+        serde_json::json!({ "text": "aaaa" }),
+        "the script held the packet's data"
+    );
+    assert_eq!(
+        serde_json::to_value(result.get("length").ok_or("length")?)?,
+        serde_json::json!(4)
+    );
+    Ok(())
+}
+
 /// A packet output's field past the inline bound reaches the script as a
 /// reference to the packet's artifact. `ctx.read` of it returns exactly what
-/// the field would have held inline, the packet in its envelope, and the
-/// reference returned as the script's own packet output is the packet,
-/// checked against that output's packet schema.
+/// the field would have held inline, the packet's data, and the reference
+/// returned as the script's own packet output is the packet, checked against
+/// that output's packet schema.
 #[test]
 fn a_large_packet_reads_as_its_inline_value_and_returns_as_a_checked_packet() -> TestResult {
     let script = r#"export default async function (ctx) {
@@ -1554,7 +1611,7 @@ fn a_large_packet_reads_as_its_inline_value_and_returns_as_a_checked_packet() ->
     );
     assert_eq!(
         serde_json::to_value(result.get("read").ok_or("read")?)?,
-        serde_json::json!({ "data": letters }),
+        letters,
         "ctx.read returns the field as it would have held it inline"
     );
     assert_eq!(
