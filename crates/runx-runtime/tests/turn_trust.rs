@@ -444,6 +444,44 @@ fn a_project_skill_reaching_a_connector_waits_on_trust_and_runs_once_trusted() -
     Ok(())
 }
 
+/// A load waiting on the person's trust has already bound its package, and
+/// the run's record names it, by its digest, while it waits.
+#[test]
+fn a_load_waiting_on_trust_reads_back_the_package_it_bound() -> TestResult {
+    let temp = tempdir()?;
+    let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
+    let digest = runx_runtime::load_validated_skill_package(&ws.root.join("skills/reach"))?
+        .package
+        .package_digest
+        .clone();
+
+    let run_id = ws.start()?;
+    let turn = ws.open(&run_id)?;
+    waits_on(
+        &load(&turn, serde_json::json!({"skill": "skills/reach"}))?,
+        "trust",
+    )?;
+    drop(turn);
+
+    let read = serde_json::to_value(runx_runtime::run_record::read_run(
+        &ws.env(),
+        &ws.root,
+        &run_id,
+        None,
+    )?)?;
+    let load = read["events"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|record| &record["event"])
+        .find(|event| event["kind"] == "call" && event["target"]["kind"] == "load")
+        .ok_or_else(|| format!("the load is recorded: {read}"))?;
+    assert_eq!(load["outcome"]["status"], "pending", "{load}");
+    assert_eq!(load["loaded"]["skill"], "skills/reach", "{load}");
+    assert_eq!(load["loaded"]["package_digest"], digest.as_str(), "{load}");
+    Ok(())
+}
+
 #[test]
 fn a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process()
 -> TestResult {

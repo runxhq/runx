@@ -16,14 +16,15 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    JsonObject, ResolutionRequest, ResolutionResponseActor, RunCallOutcome, RunEventFact,
-    RunEventRecord, RunHold, RunRead, RunReadSchema, RunReadSummary, WaitedRequest,
+    CallTarget, JsonObject, JsonValue, LoadedPackage, ResolutionRequest, ResolutionResponseActor,
+    RunCallOutcome, RunEventFact, RunEventRecord, RunHold, RunRead, RunReadSchema, RunReadSummary,
+    WaitedRequest,
 };
 use serde::{Deserialize, Serialize};
 
 use super::{
-    CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, driven, input_digest, standing,
-    standing_event, validate_run_id, waiting_requests,
+    AnswerEvent, CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, driven, input_digest,
+    standing, standing_event, validate_run_id, waiting_requests,
 };
 use crate::execution::runner::StepOutcome;
 use crate::kernel::store::{KernelStore, Recorded};
@@ -64,7 +65,7 @@ pub fn read_run(
     let reached = page.last().map_or(after, |event| event.sequence);
     let events = page
         .into_iter()
-        .filter_map(|event| project(&store, &event.key, event.recorded).transpose())
+        .filter_map(|event| project(&store, &paths, &event.key, event.recorded).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     // An admitted answer updates the run but leaves it where it waits.
     let updated_at = store
@@ -161,6 +162,7 @@ struct ReceiptId {
 /// used, which the run records beside the call that the read shows.
 fn project(
     store: &KernelStore,
+    paths: &RunxPaths,
     stream: &str,
     recorded: Recorded<RunEvent>,
 ) -> Result<Option<RunEventRecord>, RunRecordError> {
@@ -188,6 +190,7 @@ fn project(
         RunEvent::Step(event) => {
             let (outcome, receipt_id) = step(&event.record, &event.receipt)?;
             RunEventFact::Step {
+                model: turn_model(store, stream, &event.answers)?,
                 step_id: event.step_id.into(),
                 attempt: event.attempt,
                 succeeded: outcome.succeeded(),
@@ -226,6 +229,10 @@ fn project(
         },
         RunEvent::Call(call) => {
             let input: JsonObject = store.blob_json(&call.input)?;
+            let loaded = match call.target {
+                CallTarget::Load => loaded(store, paths, stream, &call.outcome)?,
+                _ => None,
+            };
             let outcome = match call.outcome {
                 CallOutcomeEvent::Completed {
                     record,
@@ -282,6 +289,7 @@ fn project(
                 outcome: Box::new(outcome),
                 cancelled: call.cancelled,
                 reuse: call.reuse,
+                loaded: loaded.map(Box::new),
             }
         }
         RunEvent::Clock(read) => RunEventFact::Clock {
@@ -326,5 +334,72 @@ fn invalid(run_id: &str, reason: String) -> RunRecordError {
     RunRecordError::Invalid {
         run_id: run_id.to_owned(),
         reason,
+    }
+}
+
+/// The model an agent step's turn stated, from the answer it consumed: the
+/// turn's answer is the one that carries the turn's input digest.
+fn turn_model(
+    store: &KernelStore,
+    stream: &str,
+    answers: &[AnswerEvent],
+) -> Result<Option<NonEmptyString>, RunRecordError> {
+    let Some(answer) = answers.iter().find(|answer| answer.input_digest.is_some()) else {
+        return Ok(None);
+    };
+    let value: JsonValue = store.blob_json(&answer.value)?;
+    let model = crate::execution::outcome::stated_model(&value)
+        .map_err(|reason| invalid(stream, format!("a turn's answer: {reason}")))?;
+    Ok(model.map(Into::into))
+}
+
+/// The package a load bound, from what its record holds: a completed load's
+/// result, or, while it waits on the person's trust, what its request asks
+/// them to trust. A load refused before it bound one names none.
+fn loaded(
+    store: &KernelStore,
+    paths: &RunxPaths,
+    stream: &str,
+    outcome: &CallOutcomeEvent,
+) -> Result<Option<LoadedPackage>, RunRecordError> {
+    #[derive(Deserialize)]
+    struct Bound {
+        package: LoadedPackage,
+    }
+    /// A load's record: how it ended, and what it reported when it bound.
+    #[derive(Deserialize)]
+    struct LoadRecord {
+        outcome: StepOutcome,
+        contract: JsonObject,
+    }
+    match outcome {
+        CallOutcomeEvent::Completed { record, .. } => {
+            let record: LoadRecord = store.blob_json(record)?;
+            if !record.outcome.succeeded() {
+                return Ok(None);
+            }
+            let bound: Bound = serde_json::to_value(&record.contract)
+                .and_then(serde_json::from_value)
+                .map_err(|error| invalid(stream, format!("a load's result: {error}")))?;
+            Ok(Some(bound.package))
+        }
+        CallOutcomeEvent::Pending { request, .. } => {
+            let ResolutionRequest::Approval { gate, .. } = store.blob_json(request)? else {
+                return Ok(None);
+            };
+            let payload = match (&gate.payload, &gate.payload_artifact) {
+                (Some(payload), _) => payload.clone(),
+                (None, Some(artifact)) => {
+                    crate::services::read_json_artifact(&paths.artifacts(), artifact)
+                        .map_err(|reason| invalid(stream, format!("a load's request: {reason}")))?
+                }
+                (None, None) => return Ok(None),
+            };
+            let bound: Bound = serde_json::to_value(&payload)
+                .and_then(serde_json::from_value)
+                .map_err(|error| invalid(stream, format!("a load's request: {error}")))?;
+            Ok(Some(bound.package))
+        }
+        _ => Ok(None),
     }
 }

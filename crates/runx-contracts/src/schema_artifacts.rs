@@ -77,7 +77,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         schema_artifact::<TurnLoad>("turn-load.schema.json"),
         schema_artifact::<TurnReadPage>("turn-read.schema.json"),
         schema_artifact::<SkillInspection>("skill-inspection.schema.json"),
-        schema_artifact::<crate::RunRead>("run-read.schema.json"),
+        public_packet_artifact::<crate::RunRead>("run-read.schema.json"),
         schema_artifact::<crate::ResumeDocument>("resume.schema.json"),
         schema_artifact::<crate::RunEventRecord>("run-event.schema.json"),
         schema_artifact::<Question>("question.schema.json"),

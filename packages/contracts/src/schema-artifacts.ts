@@ -8059,6 +8059,11 @@ export const runxSchemaArtifacts = {
                 "const": "step",
                 "type": "string"
               },
+              "model": {
+                "description": "The model an agent step's turn stated in its answer. Absent when the turn stated none, and on every other step.",
+                "minLength": 1,
+                "type": "string"
+              },
               "receipt_id": {
                 "minLength": 1,
                 "type": "string"
@@ -8156,6 +8161,10 @@ export const runxSchemaArtifacts = {
               "kind": {
                 "const": "call",
                 "type": "string"
+              },
+              "loaded": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/LoadedPackage",
+                "description": "The package a load bound, whether it completed or waits on the person's trust. Absent on every other call, and on a load refused before it bound one."
               },
               "outcome": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
@@ -13375,6 +13384,7 @@ export const runxSchemaArtifacts = {
     ],
     "title": "RunRead",
     "type": "object",
+    "x-runx-packet": true,
     "x-runx-schema": "runx.run_read.v1"
   } as JsonSchema,
   "runx-x402-purchase-extension-v1.schema.json": {

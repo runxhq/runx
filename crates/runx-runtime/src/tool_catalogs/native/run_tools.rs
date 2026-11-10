@@ -1,15 +1,16 @@
-//! `run.list`: the workspace's runs, read from their records.
+//! `run.list` and `run.read`: the workspace's runs, read from their records,
+//! the tool forms of `runx history` and `runx history <run-id>`.
 
 use runx_contracts::schema::BoundedVec;
 use runx_contracts::{
-    JsonNumber, JsonObject, JsonValue, RUN_LIST_MAX_RUNS, RunList, RunListSchema,
+    JsonNumber, JsonObject, JsonValue, RUN_LIST_MAX_RUNS, RunList, RunListSchema, RunRead,
 };
 use serde::{Deserialize, Serialize};
 
 use super::NativeInvocation;
 use super::capability::{NativeCapability, TypedNativeCapability};
 use crate::RuntimeError;
-use crate::execution::run_record::{RunFilter, list_runs};
+use crate::execution::run_record::{RunFilter, list_runs, read_run};
 use crate::{
     CapabilityApproval, CapabilityArtifacts, CapabilityDefinition, CapabilityEffect,
     CapabilityField, CapabilityInput, CapabilityOutput,
@@ -97,7 +98,78 @@ static LIST: TypedNativeCapability<RunListInput, RunListOutput> = TypedNativeCap
     list,
 );
 
-pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&LIST];
+/// One run's record, as `runx history <run-id>` reads it: its summary, what it
+/// waits on, and its events after `after`. Without `run_id` it reads the run
+/// making the call, whose id a step never names (`$run.id` only keys an
+/// operation), so a method can read back what its own turns did.
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct RunReadInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after: Option<String>,
+}
+
+impl CapabilityInput for RunReadInput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct RunReadOutput {
+    run_read: RunRead,
+}
+
+impl CapabilityOutput for RunReadOutput {}
+
+const READ_FIELDS: &[CapabilityField] = &[
+    field(
+        "run_id",
+        "A run of this workspace; without it, the run making the call.",
+    ),
+    field("after", "The cursor an earlier read returned."),
+];
+
+static READ: TypedNativeCapability<RunReadInput, RunReadOutput> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "run.read",
+        source: "runx-runtime/runs",
+        summary: "Read one run's record: its summary, what it waits on, and its events and its child runs' in commit order.",
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Named {
+            output: "run_read",
+            packet: "runx.run_read.v1",
+        },
+        fields: READ_FIELDS,
+    },
+    read,
+);
+
+pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&LIST, &READ];
+
+fn read(invocation: &NativeInvocation<'_, RunReadInput>) -> Result<RunReadOutput, RuntimeError> {
+    let failed = |message: String| RuntimeError::SkillFailed {
+        skill_name: "run.read".to_owned(),
+        message,
+    };
+    let run_id = match (&invocation.inputs.run_id, invocation.call) {
+        (Some(run_id), _) => run_id.as_str(),
+        (None, Some(call)) => call.run_id.as_str(),
+        (None, None) => {
+            return Err(failed(
+                "run_id is required outside a run, which has no run of its own to read".to_owned(),
+            ));
+        }
+    };
+    let run_read = read_run(
+        invocation.env,
+        invocation.skill_directory,
+        run_id,
+        invocation.inputs.after.as_deref(),
+    )
+    .map_err(|error| failed(error.to_string()))?;
+    Ok(RunReadOutput { run_read })
+}
 
 fn list(invocation: &NativeInvocation<'_, RunListInput>) -> Result<RunListOutput, RuntimeError> {
     let inputs = invocation.inputs;

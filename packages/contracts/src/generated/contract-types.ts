@@ -2655,6 +2655,8 @@ export type RunEventFactContract = {
 } | {
   readonly attempt: number;
   readonly kind: "step";
+  /** The model an agent step's turn stated in its answer. Absent when the turn stated none, and on every other step. */
+  readonly model?: string;
   readonly receipt_id: string;
   readonly step_id: string;
   readonly succeeded: boolean;
@@ -2675,6 +2677,8 @@ export type RunEventFactContract = {
   readonly index: number;
   readonly input_digest: string;
   readonly kind: "call";
+  /** The package a load bound, whether it completed or waits on the person's trust. Absent on every other call, and on a load refused before it bound one. */
+  readonly loaded?: LoadedPackageContract;
   readonly outcome: RunCallOutcomeContract;
   /** What the call asked of reuse, and what it was answered. Absent when it asked for none. */
   readonly reuse?: RunCallReuseContract;

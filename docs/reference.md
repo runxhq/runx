@@ -123,7 +123,11 @@ drives it, and its events stream by stream. A turn call's event carries the
 `call_id` its host pinned, and its outcome: a completed call's output as
 project artifacts of the run (one per packet output, named, and one for the
 rest, each with its digest and media type), and a refused or failed call's
-reason, so a host reads every call's outcome from the run alone. The read's
+reason, so a host reads every call's outcome from the run alone. A load's
+event names the package it bound, `{ skill, package_digest }`, whether it
+completed or waits on the person's trust, and an agent step's event names the
+model its turn stated. A skill reads the same through the `run.read` tool,
+which without a `run_id` reads the run making the call. The read's
 `cursor`, passed back as `--after`, returns only what followed. A sealed run is
 terminal; inspect its receipt with `runx verify <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both

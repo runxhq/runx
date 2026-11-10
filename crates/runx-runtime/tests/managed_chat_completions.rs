@@ -546,6 +546,125 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
     Ok(())
 }
 
+/// A run's record reads back what its turn did: the package a load bound, by
+/// its digest, and the model the turn's answer stated. A reader learns both
+/// from the record, never from what the turn claims.
+#[test]
+fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let child_dir = temp.path().join("skills").join("child");
+    fs::create_dir_all(&child_dir)?;
+    fs::write(
+        child_dir.join("SKILL.md"),
+        "---\nname: child\ndescription: Digests values.\n---\n# Child\n\nDigest the exact value the person gave.\n",
+    )?;
+    fs::write(
+        child_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  digest:\n    description: Digest one value.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+    )?;
+    let child_digest = runx_runtime::load_validated_skill_package(&child_dir)?
+        .package
+        .package_digest
+        .clone();
+    let skill_dir = temp.path().join("session");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\n## Agent task: work\n\nLoad the child, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    result_from: [record]\n    steps:\n      - id: work\n        agent: work\n        calls:\n          load: [{project: true}]\n        inputs: $input\n        outputs:\n          status: {type: string}\n      - id: record\n        tool: run.read\n",
+    )?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-load","type":"function","function":{"name":"load","arguments":"{\"skill\":\"skills/child\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    finish_server(server)?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let run_id = output["run_id"].as_str().ok_or("the run has an id")?;
+    let read = serde_json::to_value(runx_runtime::run_record::read_run(
+        &env,
+        temp.path(),
+        run_id,
+        None,
+    )?)?;
+    let events = read["events"].as_array().ok_or("the read has events")?;
+    let load = events
+        .iter()
+        .map(|record| &record["event"])
+        .find(|event| event["kind"] == "call" && event["target"]["kind"] == "load")
+        .ok_or_else(|| format!("the load is recorded: {read}"))?;
+    assert_eq!(load["loaded"]["skill"], "skills/child", "{load}");
+    assert_eq!(
+        load["loaded"]["package_digest"],
+        child_digest.as_str(),
+        "{load}"
+    );
+    let step = events
+        .iter()
+        .map(|record| &record["event"])
+        .find(|event| event["kind"] == "step" && event["step_id"] == "work")
+        .ok_or_else(|| format!("the turn's step is recorded: {read}"))?;
+    assert_eq!(step["model"], "fixture-model", "{step}");
+    // The run reads its own record through `run.read`, as the CLI's history
+    // does, and finds the same load.
+    let own = &output["result"]["run_read"]["data"];
+    let own_load = own["events"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|record| &record["event"])
+        .find(|event| event["kind"] == "call" && event["target"]["kind"] == "load")
+        .ok_or_else(|| format!("the run reads its load back: {output}"))?;
+    assert_eq!(own_load["loaded"], load["loaded"], "{own_load}");
+    assert_eq!(own["run"]["run_id"], run_id, "{own}");
+    Ok(())
+}
+
 #[test]
 fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
 -> Result<(), Box<dyn std::error::Error>> {

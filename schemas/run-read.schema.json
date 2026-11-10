@@ -43,5 +43,6 @@
   ],
   "title": "RunRead",
   "type": "object",
+  "x-runx-packet": true,
   "x-runx-schema": "runx.run_read.v1"
 }

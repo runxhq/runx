@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::Artifact;
-use crate::host_protocol::{CallTarget, ResolutionRequest, ResolutionResponseActor};
+use crate::host_protocol::{CallTarget, LoadedPackage, ResolutionRequest, ResolutionResponseActor};
 use crate::receipt::RunOutcome;
 use crate::schema::{NonEmptyString, RunxSchema};
 
@@ -139,6 +139,10 @@ pub enum RunEventFact {
         attempt: u32,
         succeeded: bool,
         receipt_id: NonEmptyString,
+        /// The model an agent step's turn stated in its answer. Absent when
+        /// the turn stated none, and on every other step.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model: Option<NonEmptyString>,
     },
     Skipped {
         step_ids: Vec<NonEmptyString>,
@@ -175,6 +179,11 @@ pub enum RunEventFact {
         /// when it asked for none.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reuse: Option<RunCallReuse>,
+        /// The package a load bound, whether it completed or waits on the
+        /// person's trust. Absent on every other call, and on a load refused
+        /// before it bound one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        loaded: Option<Box<LoadedPackage>>,
     },
     /// A script read the clock: what `ctx.now()` returned at its position
     /// in its step, in milliseconds since the epoch, so its replay returns
