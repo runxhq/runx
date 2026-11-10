@@ -74,7 +74,7 @@ A core skill earns its place by providing specialized workflow, domain expertise
 4. **Builder skills** make designing, testing, improving, packaging, or distributing skills materially easier and strengthen the Runx ecosystem flywheel.
 5. **Context skills** create reusable bounded packets that improve downstream work without claiming an external mutation.
 
-Every archetype must have a truthful closure, explicit authority and stop conditions, a declared artifact or effect, and replayable proof appropriate to its claim. Provider execution needs real readback. Agent-authored work needs a stable output contract and realistic test or forward-test evidence.
+Every archetype must have a truthful ending, explicit authority and stop conditions, a declared artifact or effect, and replayable proof appropriate to its claim. Provider execution needs real readback. Agent-authored work needs a stable output contract and realistic test or forward-test evidence.
 
 Provider operations follow one evidence contract: runtime-resolved credentials,
 pre-call scope and idempotency checks, optional exact approval only when the

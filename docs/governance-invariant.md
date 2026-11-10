@@ -57,7 +57,7 @@ Every executed lane records one typed `ExecutionBoundaryObservation`:
 
 The orchestration seals the outcome centrally with its admission witness,
 resolved grant references, public credential observations, typed execution
-boundary, output hashes, and closure state. Raw credential material and ambient
+boundary, output hashes, and how it ended. Raw credential material and ambient
 environment never enter the proof.
 
 ## Adding an execution front

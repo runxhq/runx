@@ -78,7 +78,7 @@ are sealed.
 The context packet is `runx/release.context.v1`. It carries exact argument
 strings, including empty values; native command planning owns their validation.
 
-## Authority and closure
+## Authority and ending
 
 Preparation and note drafting do not require human approval. The one approval
 gate binds the profile digest, version, channel, and native publish command-plan

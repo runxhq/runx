@@ -74,7 +74,7 @@ fails, `policy-draft` returns `reject` with the findings, and it rejects a
 proposal that widens an existing policy before lint runs. The receipt of that
 run proves which draft was linted. It does not approve or install the policy.
 
-Terminal post-merge observation must seal a receipt with closure and
+Terminal post-merge observation must seal a receipt with its outcome and
 verification proof before publishing the final source-thread update or closing
 the source issue.
 

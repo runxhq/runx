@@ -490,7 +490,7 @@ A receipt answers the questions that matter after the agent has moved on:
 | What ran? | Skill identity, source and execution digests, and method metadata. |
 | Who or what admitted it? | Actor references, grant references, and execution terms. |
 | What was allowed? | Scopes, resolved grants, and approval decisions. |
-| What happened? | Acts, output references, execution outcomes, and closure. |
+| What happened? | Acts, output references and how each ended. |
 | How did the work connect? | Linked child receipts and artifact provenance. |
 | Can I check it later? | A content-addressed ID, canonical digest, and signature. |
 
