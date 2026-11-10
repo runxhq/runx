@@ -300,6 +300,16 @@ test("execution closure in prose, a comment or a string is a closure, with its c
   }
 });
 
+test("agent act in prose is a turn, with its case, article and plural, and an agent's actor and a code span keep theirs", (t) => {
+  const doc = "An agent act loads its manual. Agent acts yield needs_agent, and native runx loads the chain for agent acts. An agent actor approves; `agent act` is quoted.\n";
+  const root = tree(t, { "docs/turns.md": doc });
+  for (let pass = 0; pass < 2; pass += 1) {
+    const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+    assert.equal(status, 0, out);
+    assert.equal(read(root, "docs/turns.md"), "A turn loads its manual. Turns yield needs_agent, and native runx loads the chain for turns. An agent actor approves; `agent act` is quoted.\n");
+  }
+});
+
 test("a name an applied migration only mentions in a comment stores nothing, and one it writes as a value is stored", (t) => {
   const migration = "-- binds the package and execution-closure digest\ncreate table runs (id text primary key);\n";
   const code = 'export const flag = "--execution-closure-digest";\n';
