@@ -26,6 +26,10 @@ const MAX_SEALED_BYTES: u64 = 64 * 1024;
 pub enum SealedError {
     #[error("the runx key file {path} is corrupted or unreadable{suffix}")]
     Corrupt { path: PathBuf, suffix: String },
+    #[error(
+        "the sealed file {path} carries no id label, as every file this runx seals does, so it isn't read; seal its value again"
+    )]
+    Unlabelled { path: PathBuf },
     #[error("runx key crypto failed: {0}")]
     Crypto(String),
     #[error("{path} {fault}")]
@@ -44,16 +48,18 @@ fn private(path: &Path) -> impl FnOnce(PrivateFileFault) -> SealedError + '_ {
     }
 }
 
+/// A sealed file as it's read: labelled with its `id`, as this runx labels
+/// every file it seals. A file without that label isn't read.
 #[derive(Deserialize)]
 struct SealedPayload {
+    id: Option<String>,
     alg: String,
     iv: String,
     ciphertext: String,
     auth_tag: String,
 }
 
-/// What a sealed file holds. `id` labels the file; reading never needs it,
-/// so a file sealed by runx 0.10 under its `ref` label reads the same.
+/// What a sealed file holds, labelled with its `id`.
 #[derive(Serialize)]
 struct StoredSealedPayload<'a> {
     id: &'a str,
@@ -109,6 +115,9 @@ pub(crate) fn load(paths: &RunxPaths, material_id: &str) -> Result<String, Seale
         .ok_or_else(|| corrupt(&path, Some("it does not exist".to_owned())))?;
     let payload: SealedPayload = serde_json::from_slice(&contents)
         .map_err(|error| corrupt(&path, Some(error.to_string())))?;
+    if payload.id.is_none() {
+        return Err(SealedError::Unlabelled { path });
+    }
     if payload.alg != "aes-256-gcm" {
         return Err(corrupt(&path, None));
     }
@@ -195,4 +204,47 @@ fn corrupt(path: &Path, cause: Option<String>) -> SealedError {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::paths::RUNX_HOME_ENV;
+
+    /// A file sealed under a `ref` label, as an earlier home kept it, is
+    /// refused by name, to be sealed again: its value, though whole, isn't
+    /// read.
+    #[test]
+    fn a_file_sealed_without_its_id_label_is_refused_by_name() -> Result<(), String> {
+        let home = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let env = BTreeMap::from([(RUNX_HOME_ENV.to_owned(), home.path().display().to_string())]);
+        let paths = RunxPaths::resolve(&env, home.path());
+        let material_id =
+            store(&paths, "value", "local_secret").map_err(|error| error.to_string())?;
+        assert_eq!(
+            load(&paths, &material_id).map_err(|error| error.to_string())?,
+            "value"
+        );
+        let path = paths.keys().join(format!("{material_id}.json"));
+        let sealed = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let relabelled = sealed.replacen("\"id\":", "\"ref\":", 1);
+        assert_ne!(relabelled, sealed);
+        fs::write(&path, relabelled).map_err(|error| error.to_string())?;
+
+        let refused = load(&paths, &material_id)
+            .err()
+            .ok_or("the file is refused")?;
+
+        assert!(
+            matches!(&refused, SealedError::Unlabelled { path: named } if named == &path),
+            "{refused}"
+        );
+        assert!(
+            refused.to_string().contains("seal its value again"),
+            "{refused}"
+        );
+        Ok(())
+    }
 }
