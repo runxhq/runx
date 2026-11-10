@@ -5,6 +5,13 @@ catalog:
   visibility: public
   category: growth
 shared_inputs:
+  memory:
+    type: array
+    description: The memory levels the draft recalls this recipient from, as runx/memory#search takes them, so a contact memory already holds is drafted as known. Without them nothing is recalled, and the run reads only the streams its authority names.
+    minItems: 1
+    maxItems: 8
+    items: {type: object, additionalProperties: true}
+    optional: true
   sender:
     type: object
     description: Exact approved writing identity; does not grant send authority.
@@ -85,6 +92,7 @@ methods:
         optional: true
       brand_context: {packet: runx/brand-voice.context.v1, description: 'Scoped validated brand voice, selected by the caller.', optional: true}
       taste_context: {packet: runx/taste-profile.context.v1, description: 'Scoped validated taste, selected by the caller.', optional: true}
+      memory: {}
     result_from: [hold, review]
     examples:
     - sender:
@@ -130,7 +138,16 @@ methods:
         contact_policy: $input.contact_policy
         qualification: $input.qualification
         evidence_context: $steps.admit-evidence.evidence_context
+        memory: $input.memory
       outputs:
+        memory_search:
+          type: object
+          additionalProperties: false
+          required: [path]
+          properties:
+            path: {enum: [search, none]}
+            levels: {type: array, items: {type: object, additionalProperties: true}}
+            query: {type: string}
         contact_brief:
           type: object
           additionalProperties: false
@@ -228,9 +245,17 @@ methods:
               properties:
                 draft: {type: 'null'}
                 draft_packet_digest: {type: 'null'}
+    - id: memory
+      when: {value: $steps.admit.memory_search.path, equals: search}
+      skill: runx/memory#search
+      inputs:
+        levels: $steps.admit.memory_search.levels
+        query: $steps.admit.memory_search.query
     - id: draft
       when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
       agent: cold-outreach-draft
+      context:
+        entries: [$steps.memory.entries]
       outputs:
         content_draft:
           type: object
@@ -438,6 +463,7 @@ methods:
         type: string
         description: The evaluation time of every lead's enrichment. No host clock is read, so an unchanged lead is qualified from the same packet in a revised batch.
         format: date-time
+      memory: {}
       leads:
         type: array
         description: The leads, each prepared on its own. One lead's hold or failure is that lead's outcome.
@@ -544,6 +570,7 @@ methods:
         criteria: $input.criteria
         requested_fields: $input.requested_fields
         as_of: $input.as_of
+        memory: $input.memory
         leads: $input.leads
       calls:
         skills: [../lead-enrichment#enrich, ../lead-qualify#qualify, .#prepare]

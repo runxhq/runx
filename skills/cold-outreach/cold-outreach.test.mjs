@@ -69,3 +69,16 @@ test("requires a supported draft and the exact footer before review readiness", 
   assert.equal(review({ ...valid, draft: { title: "Subject\nBcc: other@example.org", body: valid.draft.body } }).draft, null);
   assert.deepEqual(review({ ...valid, draft: { title: "A useful review", body: "Useful offer." } }).blockers, ["the exact required footer is missing"]);
 });
+
+test("memory is searched for the recipient only for a draft, and only at the levels the caller names", () => {
+  const levels = [{ level: "personal" }];
+  assert.deepEqual(admitContact({ ...inputs(), memory: levels }).memory_search, {
+    path: "search",
+    levels,
+    query: "operator@example.org",
+  });
+  assert.deepEqual(admitContact(inputs()).memory_search, { path: "none" });
+  const held = { ...inputs(), memory: levels };
+  held.contact_policy = { ...held.contact_policy, suppressed: true };
+  assert.deepEqual(admitContact(held).memory_search, { path: "none" });
+});

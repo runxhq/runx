@@ -388,3 +388,98 @@ fn the_index_counts_every_row_it_visits_the_ones_it_passes_over_included() -> Te
     assert_eq!(counted["store_key_rows_passed_over"], 1, "{counted}");
     Ok(())
 }
+
+/// A contact memory already holds is drafted as known: cold-outreach's
+/// prepare searches memory for its recipient at the levels its caller
+/// names, under a term that reads memory, and its draft is given what memory
+/// observed, labelled by memory's own run. Named no levels, it searches
+/// nothing and its draft is given none, as before (plans 390a69f).
+#[test]
+fn a_known_contact_is_drafted_as_known() -> TestResult {
+    let memory = Memory::new("runx-memory-outreach")?;
+    let observed = "Morgan at Example SaaS asked to hear back after their launch in December.";
+    let term = |packages: &[&str]| {
+        json!({"delegations": [{"connector": "private", "terms": [{
+            "verbs": ["read", "write"],
+            "bounds": {
+                "operations": ["private/*"],
+                "scopes": ["store.read", "store.append"],
+                "targets": ["runx/memory/said:*", "runx/memory/observed:*"],
+                "packages": packages,
+            },
+        }]}]})
+        .to_string()
+    };
+    fs::write(
+        memory.root.join("observe.json"),
+        json!({"level": "personal", "text": observed, "date": "2026-10-20", "sources": ["crm:morgan"]})
+            .to_string(),
+    )?;
+    let kept: Value = serde_json::from_slice(
+        &memory
+            .runx(&[
+                "skill",
+                "runx/memory#observe",
+                "--inputs",
+                "observe.json",
+                "--run-authority",
+                &term(&["runx/memory"]),
+                "--json",
+            ])?
+            .stdout,
+    )?;
+    assert_eq!(kept["outcome"], "completed", "{kept}");
+
+    let prepare = format!(
+        "{}#prepare",
+        crate::support::repo_root()?
+            .join("skills/cold-outreach")
+            .display()
+    );
+    // The request cold-outreach's draft waits on, with `levels` named and
+    // the run under `authority`.
+    let draft = |levels: Option<Value>, authority: Option<String>| -> TestResult<String> {
+        let mut inputs = json!({
+            "sender": {"name": "Example Ops", "from_address": "ops@example.com", "reply_to": "ops@example.com"},
+            "prospect": {"email": "morgan@example.org", "name": "Morgan", "company": "Example SaaS"},
+            "audience": "engineering maintainers",
+            "purpose": "Offer a relevant release-automation review.",
+            "offer": "A source-bound build notification workflow.",
+            "required_footer": "Example Ops - reply to opt out.",
+            "contact_policy": {"recipient": "morgan@example.org", "status": "eligible", "suppressed": false, "policy_id": "fixture:demo", "evidence_ids": ["fixture:explicit-demo-consent"]},
+            "facts": ["The fictional prospect is evaluating release automation."],
+        });
+        if let Some(levels) = levels {
+            inputs["memory"] = levels;
+        }
+        fs::write(memory.root.join("prepare.json"), inputs.to_string())?;
+        let mut args = vec![
+            "skill",
+            prepare.as_str(),
+            "--inputs",
+            "prepare.json",
+            "--json",
+        ];
+        if let Some(authority) = authority.as_deref() {
+            args.extend(["--run-authority", authority]);
+        }
+        let paused: Value = serde_json::from_slice(&memory.runx(&args)?.stdout)?;
+        assert_eq!(paused["status"], "needs_agent", "{paused}");
+        let request = paused["artifacts"][0]["path"]
+            .as_str()
+            .ok_or("the draft's request")?;
+        Ok(fs::read_to_string(request)?)
+    };
+    let known = draft(
+        Some(json!([{"level": "personal"}])),
+        Some(term(&["runx/memory", "project:cold-outreach"])),
+    )?;
+    assert!(known.contains(observed), "{known}");
+    assert!(
+        known.contains(r#""trust":"untrusted_evidence""#),
+        "memory's own label: {known}"
+    );
+    let unasked = draft(None, None)?;
+    assert!(!unasked.contains(observed), "{unasked}");
+    Ok(())
+}

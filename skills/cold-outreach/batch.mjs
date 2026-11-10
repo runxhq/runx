@@ -48,6 +48,7 @@ async function outreach(ctx, lead, inputs) {
       required_footer: inputs.required_footer,
       contact_policy: lead.contact_policy,
       qualification: lead_qualification,
+      ...(inputs.memory === undefined ? {} : { memory: inputs.memory }),
       ...(lead.facts === undefined ? {} : { facts: lead.facts }),
     });
     return outreach_review;

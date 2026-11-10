@@ -1,5 +1,5 @@
 export function admitContact({
-  sender, prospect, purpose, offer, required_footer, contact_policy, qualification, evidence_context,
+  sender, prospect, purpose, offer, required_footer, contact_policy, qualification, evidence_context, memory,
 }) {
   const blockers = [];
   if (qualification) {
@@ -18,6 +18,11 @@ export function admitContact({
   blockers.push(...evidence_context.blockers);
   const eligible = blockers.length === 0 && evidence_context.decision === "ready";
   return {
+    // Memory is searched for the recipient only for a draft, and only at
+    // the levels the caller names.
+    memory_search: eligible && memory
+      ? { path: "search", levels: memory, query: prospect.email }
+      : { path: "none" },
     contact_brief: {
       decision: eligible ? "eligible_for_draft" : "hold",
       sender,

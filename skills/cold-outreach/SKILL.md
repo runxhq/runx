@@ -19,6 +19,12 @@ lead, public address or good commercial fit does not establish contact permissio
 Unknown eligibility, suppression, missing policy evidence or an unsupported draft
 produces a hold. No approval, delivery or provider acknowledgement is implied.
 
+Name memory levels in `memory`, and `prepare` recalls what memory holds about
+the recipient before it drafts, through `runx/memory#search` by the recipient's
+address, so a contact memory already knows is drafted as known. The run reads
+only the memory streams its authority names, and each entry keeps the labels
+memory gave it. With no levels named, nothing is recalled.
+
 `batch` prepares first contact for each lead of one campaign. Each lead's
 supplied sources go through `lead-enrichment#enrich`, the lead is qualified
 against the criteria by `lead-qualify#qualify`, with its contact policy as its
@@ -28,7 +34,8 @@ lead's alone, and a failure names the stage it stopped at. Each outcome carries
 the `idempotency_key` its send is made under, made from the campaign and the
 recipient and never the draft, so a revised batch never sends a lead twice. The
 batch runs under `effects: none` and sends nothing: a mail capability sends each
-approved draft under its key.
+approved draft under its key. Memory levels it's given go to each lead's
+`prepare`.
 
 ## Composes
 
