@@ -12,7 +12,7 @@ mod wire;
 
 pub use canonical::{
     canonical_receipt_body_digest, canonical_receipt_body_json, canonical_receipt_digest,
-    canonical_receipt_json, content_addressed_receipt_id, content_addressed_receipt_json_id,
+    canonical_receipt_json, content_addressed_receipt_id,
 };
 pub use identity::{SignedDisplayIdentity, signed_display_identity};
 pub use notary::{

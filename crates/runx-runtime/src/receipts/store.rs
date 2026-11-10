@@ -63,7 +63,9 @@ impl LocalReceiptStore {
     ) -> Result<(), ReceiptStoreError> {
         let file_name = receipt_file_name(&receipt.id)?;
         self.ensure_or_create_store_dir()?;
+        self.ensure_own_store()?;
         let _lock = self.lock_mutations()?;
+        self.claim_for_write()?;
         let file_path = self.root.join(&file_name);
         let contents =
             serde_json::to_vec(receipt).map_err(|source| ReceiptStoreError::MalformedReceipt {
@@ -101,7 +103,9 @@ impl LocalReceiptStore {
             return Ok(());
         }
         self.ensure_or_create_store_dir()?;
+        self.ensure_own_store()?;
         let _lock = self.lock_mutations()?;
+        self.claim_for_write()?;
         let mut unique_by_id = BTreeMap::<String, usize>::new();
         let mut unique = Vec::<(&Receipt, String, String, PathBuf, Vec<u8>)>::new();
         for receipt in receipts {
@@ -177,12 +181,7 @@ impl LocalReceiptStore {
             else {
                 continue;
             };
-            match read_receipt_file(&path, &receipt_id, signature_policy) {
-                Ok(receipt) => receipts.push(receipt),
-                // An earlier runx's receipt is that runx's to read.
-                Err(ReceiptStoreError::ReceiptBeforeThisRunx { .. }) => {}
-                Err(error) => return Err(error),
-            }
+            receipts.push(read_receipt_file(&path, &receipt_id, signature_policy)?);
         }
         receipts.sort_by(|left, right| left.id.cmp(&right.id));
         Ok(receipts)
@@ -212,12 +211,7 @@ impl LocalReceiptStore {
             else {
                 continue;
             };
-            match read_receipt_file_without_proof(&path, &receipt_id) {
-                Ok(receipt) => receipts.push(receipt),
-                // An earlier runx's receipt is that runx's to read.
-                Err(ReceiptStoreError::ReceiptBeforeThisRunx { .. }) => {}
-                Err(error) => return Err(error),
-            }
+            receipts.push(read_receipt_file_without_proof(&path, &receipt_id)?);
         }
         receipts.sort_by(|left, right| left.id.cmp(&right.id));
         Ok(receipts)
@@ -255,7 +249,7 @@ impl LocalReceiptStore {
             }
         })?;
         let index = parse_index(&contents, &index_path)?;
-        if !self.indexes_every_receipt_it_reads(&index)? {
+        if self.receipt_file_count()? != index.entries.len() {
             return Err(ReceiptStoreError::ReceiptIndexStale {
                 path: index_path,
                 message: "index entries do not cover every receipt JSON file".to_owned(),
@@ -306,31 +300,23 @@ impl LocalReceiptStore {
         }
     }
 
-    /// Add `entries` to the end of the index, reading none of it. A store
-    /// with no index yet, or one whose index was lost, writes it whole from
-    /// its receipts, and so does one whose last line an earlier append left
-    /// torn; either happens once, not on every append.
+    /// Add `entries` to the end of the index, reading none of it. The index
+    /// is there: a write claimed the store before it. One whose last line an
+    /// earlier append left torn is written whole from its receipts, once, not
+    /// on every append.
     fn append_index_entries(
         &self,
         entries: &[ReceiptStoreIndexEntry],
     ) -> Result<(), ReceiptStoreError> {
-        let index_path = self.index_path();
-        let mut file = match OpenOptions::new().read(true).append(true).open(&index_path) {
-            Ok(file) => file,
-            Err(source) if source.kind() == ErrorKind::NotFound => {
-                return self.rebuild_index_projection().map(|_| ());
-            }
-            Err(source) => {
-                return Err(ReceiptStoreError::StoreUnreadable {
-                    path: index_path,
-                    source,
-                });
-            }
-        };
         let unreadable = |source| ReceiptStoreError::StoreUnreadable {
             path: self.index_path(),
             source,
         };
+        let mut file = OpenOptions::new()
+            .read(true)
+            .append(true)
+            .open(self.index_path())
+            .map_err(unreadable)?;
         if !ends_a_line(&mut file).map_err(unreadable)? {
             return Err(ReceiptStoreError::ReceiptIndexStale {
                 path: self.index_path(),
@@ -356,19 +342,8 @@ impl LocalReceiptStore {
         file.write_all(&lines).map_err(unreadable)
     }
 
-    /// Whether `index` names every receipt file, and only those, but an
-    /// earlier runx's, which a rebuild leaves for that runx. Only a file the
-    /// index doesn't name is read.
-    fn indexes_every_receipt_it_reads(
-        &self,
-        index: &ReceiptStoreIndex,
-    ) -> Result<bool, ReceiptStoreError> {
-        let indexed = index
-            .entries
-            .iter()
-            .map(|entry| entry.file_name.as_str())
-            .collect::<BTreeSet<_>>();
-        let mut found = 0usize;
+    fn receipt_file_count(&self) -> Result<usize, ReceiptStoreError> {
+        let mut count = 0usize;
         for entry in
             fs::read_dir(&self.root).map_err(|source| ReceiptStoreError::StoreUnreadable {
                 path: self.root.clone(),
@@ -381,30 +356,11 @@ impl LocalReceiptStore {
             })?;
             crate::work_counts::count(crate::work_counts::Work::ReceiptDirectoryEntryRead);
             let path = entry.path();
-            let Some(receipt_id) = path
-                .file_stem()
-                .and_then(OsStr::to_str)
-                .filter(|_| is_receipt_json_path(&path))
-                .and_then(receipt_id_from_file_stem)
-            else {
-                continue;
-            };
-            if path
-                .file_name()
-                .and_then(OsStr::to_str)
-                .is_some_and(|name| indexed.contains(name))
-            {
-                found += 1;
-                continue;
-            }
-            if !matches!(
-                read_receipt_file_without_proof(&path, &receipt_id),
-                Err(ReceiptStoreError::ReceiptBeforeThisRunx { .. })
-            ) {
-                return Ok(false);
+            if is_receipt_json_path(&path) {
+                count += 1;
             }
         }
-        Ok(found == indexed.len())
+        Ok(count)
     }
 
     /// Write the whole index, header and entries, in place of whatever was
@@ -458,9 +414,10 @@ impl LocalReceiptStore {
         Ok(ReceiptStoreMutationLock { file })
     }
 
+    /// The store as this runx reads it: a directory, and one of its own.
     fn ensure_store_dir(&self) -> Result<(), ReceiptStoreError> {
         match fs::metadata(&self.root) {
-            Ok(metadata) if metadata.is_dir() => Ok(()),
+            Ok(metadata) if metadata.is_dir() => self.ensure_own_store(),
             Ok(_) => Err(ReceiptStoreError::StoreNotDirectory {
                 path: self.root.clone(),
             }),
@@ -474,6 +431,34 @@ impl LocalReceiptStore {
                 source,
             }),
         }
+    }
+
+    /// A store of this runx's own: one whose index it wrote, which is the
+    /// store's version marker, or one that holds no receipt yet. A directory
+    /// holding receipts and no such index is a store from before 0.12, which
+    /// is refused and nothing in it read.
+    fn ensure_own_store(&self) -> Result<(), ReceiptStoreError> {
+        if self.index_path().exists() || self.receipt_file_count()? == 0 {
+            return Ok(());
+        }
+        Err(ReceiptStoreError::BeforeThisRunx {
+            path: self.root.clone(),
+        })
+    }
+
+    /// Claim the store for a write, under its lock: one of this runx's own,
+    /// checked again now that no other write can change it, whose index a
+    /// new one is given before its first receipt, so a reader never finds a
+    /// receipt this runx wrote without the index that marks it.
+    fn claim_for_write(&self) -> Result<(), ReceiptStoreError> {
+        self.ensure_own_store()?;
+        if self.index_path().exists() {
+            return Ok(());
+        }
+        self.write_index(&ReceiptStoreIndex {
+            schema: RECEIPT_STORE_INDEX_SCHEMA.to_owned(),
+            entries: Vec::new(),
+        })
     }
 
     fn ensure_or_create_store_dir(&self) -> Result<(), ReceiptStoreError> {
@@ -587,13 +572,9 @@ pub enum ReceiptStoreError {
     #[error("receipt {receipt_id} was not found in {}", path.display())]
     ReceiptNotInStore { receipt_id: String, path: PathBuf },
     #[error(
-        "receipt {receipt_id} was written by runx {runx_version}, a runx before 0.12; verify it with that version"
+        "receipt store is from before runx 0.12, which 0.12 doesn't read; move it aside to start a new store"
     )]
-    ReceiptBeforeThisRunx {
-        path: PathBuf,
-        receipt_id: String,
-        runx_version: String,
-    },
+    BeforeThisRunx { path: PathBuf },
 }
 
 impl ReceiptStoreError {
@@ -642,7 +623,9 @@ impl ReceiptStoreError {
             Self::ReceiptNotInStore { receipt_id, .. } => {
                 format!("receipt {receipt_id} was not found in store {store_label}")
             }
-            Self::ReceiptBeforeThisRunx { .. } => self.to_string(),
+            Self::BeforeThisRunx { .. } => format!(
+                "receipt store {store_label} is from before runx 0.12, which 0.12 doesn't read; move it aside to start a new store"
+            ),
         }
     }
 }
@@ -675,19 +658,16 @@ pub struct UnreadableReceiptFile {
     pub message: String,
 }
 
-/// A store's receipt trees, each verified, the files that are not readable
-/// receipts, and the receipts an earlier runx wrote, each that runx's to
-/// verify.
+/// A store's receipt trees, each verified, and the files that are not
+/// readable receipts.
 #[derive(Clone, Debug)]
 pub struct StoreTreeVerification {
     pub trees: Vec<StoredReceiptTree>,
     pub unreadable: Vec<UnreadableReceiptFile>,
-    pub earlier: Vec<UnreadableReceiptFile>,
 }
 
 impl StoreTreeVerification {
-    /// Every tree verifies and every receipt file reads, but an earlier
-    /// runx's.
+    /// Every tree verifies and every receipt file reads.
     #[must_use]
     pub fn valid(&self) -> bool {
         self.unreadable.is_empty() && self.trees.iter().all(|tree| tree.verification.valid)
@@ -711,15 +691,13 @@ impl LocalReceiptStore {
         receipt_id: Option<&str>,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<StoreTreeVerification, ReceiptStoreError> {
+        self.ensure_store_dir()?;
         let unreadable_store = |source| ReceiptStoreError::StoreUnreadable {
             path: self.root.clone(),
             source,
         };
         let mut links = Vec::new();
         let mut unreadable = Vec::new();
-        let mut earlier = Vec::new();
-        // The receipt asked for, when an earlier runx wrote it.
-        let mut asked_earlier = None;
         for entry in fs::read_dir(&self.root).map_err(unreadable_store)? {
             let path = entry.map_err(unreadable_store)?.path();
             let Some(expected_id) = path
@@ -732,15 +710,6 @@ impl LocalReceiptStore {
             };
             match read_receipt_file_without_proof(&path, &expected_id) {
                 Ok(receipt) => links.push(runx_receipts::ReceiptLinks::of(&receipt)),
-                Err(error @ ReceiptStoreError::ReceiptBeforeThisRunx { .. }) => {
-                    earlier.push(UnreadableReceiptFile {
-                        file: path,
-                        message: error.to_string(),
-                    });
-                    if receipt_id == Some(expected_id.as_str()) {
-                        asked_earlier = Some(error);
-                    }
-                }
                 Err(error) => unreadable.push(UnreadableReceiptFile {
                     file: path,
                     message: error.to_string(),
@@ -755,9 +724,6 @@ impl LocalReceiptStore {
         if let Some(receipt_id) = receipt_id
             && groups.is_empty()
         {
-            if let Some(error) = asked_earlier {
-                return Err(error);
-            }
             return Err(ReceiptStoreError::ReceiptNotInStore {
                 receipt_id: receipt_id.to_owned(),
                 path: self.root.clone(),
@@ -779,16 +745,14 @@ impl LocalReceiptStore {
                     .flat_map(|receipt| receipt.children.iter())
                     .map(|child| super::archive::receipt_uri(child)),
             );
-            let relevant_file = |issue: &UnreadableReceiptFile| {
+            unreadable.retain(|issue| {
                 issue
                     .file
                     .file_stem()
                     .and_then(OsStr::to_str)
                     .and_then(receipt_id_from_file_stem)
                     .is_some_and(|id| relevant.contains(&super::archive::receipt_uri(&id)))
-            };
-            unreadable.retain(relevant_file);
-            earlier.retain(relevant_file);
+            });
         }
         drop(links);
         let read = |id: &str| {
@@ -823,11 +787,7 @@ impl LocalReceiptStore {
                 verification,
             });
         }
-        Ok(StoreTreeVerification {
-            trees,
-            unreadable,
-            earlier,
-        })
+        Ok(StoreTreeVerification { trees, unreadable })
     }
 }
 
@@ -998,20 +958,12 @@ fn parse_receipt_contents_without_proof(
             schema: schema.to_owned(),
         });
     }
-    let receipt =
-        runx_receipts::decode_receipt_value(value).map_err(
-            |source| match written_before_this_runx(contents, expected_id) {
-                Some(runx_version) => ReceiptStoreError::ReceiptBeforeThisRunx {
-                    path: path.to_path_buf(),
-                    receipt_id: expected_id.to_owned(),
-                    runx_version,
-                },
-                None => ReceiptStoreError::MalformedReceipt {
-                    path: path.to_path_buf(),
-                    message: source.to_string(),
-                },
-            },
-        )?;
+    let receipt = runx_receipts::decode_receipt_value(value).map_err(|source| {
+        ReceiptStoreError::MalformedReceipt {
+            path: path.to_path_buf(),
+            message: source.to_string(),
+        }
+    })?;
     if receipt.id != expected_id {
         return Err(ReceiptStoreError::IdFilenameMismatch {
             path: path.to_path_buf(),
@@ -1020,25 +972,6 @@ fn parse_receipt_contents_without_proof(
         });
     }
     Ok(receipt)
-}
-
-/// The runx release that wrote the receipt in `contents`, when it is one
-/// before 0.12 and the receipt is whole: it commits its own content address,
-/// `expected_id`, as that runx wrote it. Receipts keep their words, so this
-/// runx names that one rather than read them.
-fn written_before_this_runx(contents: &str, expected_id: &str) -> Option<String> {
-    let receipt = serde_json::from_str::<serde_json::Value>(contents).ok()?;
-    let runx_version = receipt.get("issuer")?.get("runx_version")?.as_str()?;
-    let mut release = runx_version
-        .split(['.', '-', '+'])
-        .map(|part| part.parse::<u64>().ok());
-    let (major, minor) = (release.next()??, release.next()??);
-    let whole = receipt.get("id").and_then(serde_json::Value::as_str) == Some(expected_id)
-        && runx_receipts::content_addressed_receipt_json_id(&receipt)
-            .ok()
-            .as_deref()
-            == Some(expected_id);
-    ((major, minor) < (0, 12) && whole).then(|| runx_version.to_owned())
 }
 
 fn verify_stored_receipt_proof(

@@ -273,7 +273,7 @@ fn history_rejects_invalid_date_filters() -> Result<(), Box<dyn std::error::Erro
 fn malformed_history_store_remains_typed_error() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let store = LocalReceiptStore::new(temp.path());
-    fs::create_dir_all(temp.path())?;
+    mark_own_store(temp.path())?;
     fs::write(store.receipt_path(&valid_content_receipt_id())?, "{")?;
 
     let result = list(
@@ -459,11 +459,22 @@ fn production_generated_receipt(
 }
 
 fn write_receipt_json(dir: &Path, receipt: &Receipt) -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all(dir)?;
+    mark_own_store(dir)?;
     fs::write(
         LocalReceiptStore::new(dir).receipt_path(&receipt.id)?,
         serde_json::to_string(receipt)?,
     )?;
+    Ok(())
+}
+
+/// Make `dir` a store of this runx's own, by its index, the store's version
+/// marker, so a receipt laid down in it by hand is read.
+fn mark_own_store(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(dir)?;
+    let index = dir.join("index.jsonl");
+    if !index.exists() {
+        fs::write(index, "{\"schema\":\"runx.receipt_index.v1\"}\n")?;
+    }
     Ok(())
 }
 

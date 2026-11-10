@@ -1184,6 +1184,11 @@ policy, approvals, and resolution requests still behave the same way.
 
 Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx verify <receipt-id>` shows what a receipt says, with its signature's `verified`, `unverified`, or `invalid` status, and verifies the tree it belongs to. Once a skill package and method resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
+A receipt store's `index.jsonl` marks it as one this runx wrote. A receipt
+directory from before runx 0.12, which holds receipts and no such index, is
+refused by every read and write, saying 0.12 doesn't read it and to move it
+aside to start a new store. Nothing in it is read.
+
 Workflow receipt lineage is an immutable one-way tree. The parent commits each
 child receipt ID and exact signed-body digest; a child never names its parent,
 so receipt identity stays content-addressed. Every verifier applies one rule to

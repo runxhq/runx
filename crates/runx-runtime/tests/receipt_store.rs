@@ -2,6 +2,7 @@
 // workspace expect/unwrap bans are lifted for this test target.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,7 +13,8 @@ use runx_contracts::{JsonObject, Receipt};
 use runx_runtime::receipts::{RuntimeReceiptSignaturePolicy, step_receipt};
 use runx_runtime::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, InvocationOutput, InvocationStatus,
-    LocalReceiptStore, ReceiptStoreError, ReceiptStoreIndex, safe_receipt_store_label,
+    LocalReceiptStore, ReceiptStoreError, ReceiptStoreIndex, ReceiptStoreIndexEntry,
+    safe_receipt_store_label,
 };
 use serde_json::json;
 
@@ -490,21 +492,56 @@ fn write_receipts_coalesces_identical_ids_and_rejects_divergent_content()
     Ok(())
 }
 
+/// The index is the store's version marker. A directory holding receipts and
+/// no index of this runx's, as one an earlier runx kept, is refused with one
+/// message by every read and write, and nothing in it is read or written: its
+/// receipt here isn't even JSON, so a read of it would say so instead.
 #[test]
-fn identical_receipt_retry_repairs_a_missing_index_projection()
+fn a_receipt_directory_with_no_index_of_this_runxs_is_refused_and_left_as_it_was()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
-    let store = LocalReceiptStore::new(temp.path());
     let receipt = success_receipt()?;
-
-    store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
-    fs::remove_file(store.root().join("index.jsonl"))?;
-
-    store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
-
-    let index = written_index(store.root())?;
-    assert_eq!(index.entries.len(), 1);
-    assert_eq!(index.entries[0].receipt_id, receipt.id);
+    fs::write(temp.path().join(receipt_file_name(&receipt.id)), "{")?;
+    fs::write(temp.path().join("index.json"), r#"{"entries":[]}"#)?;
+    let before = fs::read_dir(temp.path())?
+        .map(|entry| {
+            let path = entry?.path();
+            Ok((path.clone(), fs::read(&path)?))
+        })
+        .collect::<Result<BTreeMap<_, _>, std::io::Error>>()?;
+    let store = LocalReceiptStore::new(temp.path());
+    let refused =
+        |result: Result<(), ReceiptStoreError>| -> Result<(), Box<dyn std::error::Error>> {
+            let error = result.err().ok_or("a store from before 0.12 is refused")?;
+            assert!(
+                matches!(error, ReceiptStoreError::BeforeThisRunx { .. }),
+                "{error:?}"
+            );
+            assert_eq!(
+                error.to_string(),
+                "receipt store is from before runx 0.12, which 0.12 doesn't read; move it aside to start a new store"
+            );
+            Ok(())
+        };
+    refused(store.list(crate::support::fixture_policy()?).map(drop))?;
+    refused(
+        store
+            .read_exact(&receipt.id, crate::support::fixture_policy()?)
+            .map(drop),
+    )?;
+    refused(
+        store
+            .verify_trees(None, crate::support::fixture_policy()?)
+            .map(drop),
+    )?;
+    refused(store.write_receipt(&abnormal_receipt()?, crate::support::fixture_policy()?))?;
+    let after = fs::read_dir(temp.path())?
+        .map(|entry| {
+            let path = entry?.path();
+            Ok((path.clone(), fs::read(&path)?))
+        })
+        .collect::<Result<BTreeMap<_, _>, std::io::Error>>()?;
+    assert_eq!(after, before, "nothing is written beside it");
     Ok(())
 }
 
@@ -526,77 +563,6 @@ fn an_append_after_a_torn_one_leaves_an_index_of_every_receipt()
     store.write_receipt(&abnormal_receipt()?, crate::support::fixture_policy()?)?;
 
     assert_eq!(store.index()?.entries.len(), 2);
-    Ok(())
-}
-
-/// A workflow's receipt as runx 0.11.1 wrote it, in that runx's words, which
-/// 0.12's don't read.
-const EARLIER_RUNX_RECEIPT: &str =
-    include_str!("../../../fixtures/receipt-store/runx-0.11.1-workflow.receipt.json");
-
-/// A receipt an earlier runx wrote breaks nothing: a listing skips it, a
-/// write indexes what this runx reads and leaves it out, that runx's own index
-/// stays where it is, and verifying it names the runx that wrote it.
-#[test]
-fn a_receipt_an_earlier_runx_wrote_is_skipped_and_verifying_it_names_that_runx()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = TestDir::new()?;
-    let earlier: serde_json::Value = serde_json::from_str(EARLIER_RUNX_RECEIPT)?;
-    let earlier_id = earlier["id"]
-        .as_str()
-        .ok_or("the receipt names its id")?
-        .to_owned();
-    fs::write(
-        temp.path().join(receipt_file_name(&earlier_id)),
-        EARLIER_RUNX_RECEIPT,
-    )?;
-    // That runx's own index, which it reads if a person goes back to it.
-    let earlier_index = r#"{"schema":"runx.receipt_store_index.v1","entries":[]}"#;
-    fs::write(temp.path().join("index.json"), earlier_index)?;
-    let store = LocalReceiptStore::new(temp.path());
-    assert!(store.list(crate::support::fixture_policy()?)?.is_empty());
-
-    let receipt = success_receipt()?;
-    store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
-
-    let index = store.index()?;
-    assert_eq!(
-        index
-            .entries
-            .iter()
-            .map(|entry| entry.receipt_id.as_str())
-            .collect::<Vec<_>>(),
-        [receipt.id.as_str()]
-    );
-    assert_eq!(
-        fs::read_to_string(temp.path().join("index.json"))?,
-        earlier_index
-    );
-    assert_eq!(store.list(crate::support::fixture_policy()?)?.len(), 1);
-    let history = runx_runtime::receipts::archive::list_receipts(
-        &store,
-        &project_paths(temp.path()),
-        &runx_runtime::receipts::archive::ReceiptFilter::default(),
-        crate::support::fixture_policy()?,
-    )?;
-    assert_eq!(history.receipts.len(), 1);
-    let verified = store.verify_trees(None, crate::support::fixture_policy()?)?;
-    assert!(verified.valid(), "{verified:?}");
-    assert_eq!(verified.earlier.len(), 1);
-    let refused = store
-        .verify_trees(Some(&earlier_id), crate::support::fixture_policy()?)
-        .err()
-        .ok_or("an earlier runx's receipt isn't verified here")?;
-    assert!(
-        matches!(refused, ReceiptStoreError::ReceiptBeforeThisRunx { .. }),
-        "{refused:?}"
-    );
-    assert_eq!(
-        refused.to_string(),
-        format!(
-            "receipt {earlier_id} was written by runx 0.11.1, a runx before 0.12; verify it with that version"
-        )
-    );
     Ok(())
 }
 
@@ -630,6 +596,18 @@ fn unrelated_historical_proof_does_not_block_a_new_receipt_write()
     let mut historical = success_receipt()?;
     historical.signature.value = format!("base64:{}", "C".repeat(86)).into();
     write_json(temp.path(), &receipt_file_name(&historical.id), &historical)?;
+    let mut index = fs::OpenOptions::new()
+        .append(true)
+        .open(temp.path().join("index.jsonl"))?;
+    serde_json::to_writer(
+        &mut index,
+        &ReceiptStoreIndexEntry {
+            receipt_id: historical.id.to_string(),
+            file_name: receipt_file_name(&historical.id),
+            created_at: historical.created_at.to_string(),
+        },
+    )?;
+    std::io::Write::write_all(&mut index, b"\n")?;
     let store = LocalReceiptStore::new(temp.path());
     let receipt = abnormal_receipt()?;
 
@@ -771,11 +749,17 @@ fn receipt_file_name(receipt_id: &str) -> String {
     format!("{receipt_id}.json")
 }
 
+/// Lay `value` down as `file_name` in a store this runx marked as its own,
+/// by its index, as a receipt changed in place would be.
 fn write_json<T: serde::Serialize>(
     dir: &Path,
     file_name: &str,
     value: &T,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let index = dir.join("index.jsonl");
+    if !index.exists() {
+        fs::write(index, "{\"schema\":\"runx.receipt_index.v1\"}\n")?;
+    }
     fs::write(dir.join(file_name), serde_json::to_string(value)?)?;
     Ok(())
 }

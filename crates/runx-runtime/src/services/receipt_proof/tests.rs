@@ -201,11 +201,18 @@ fn issuer_type(proof: &JsonObject) -> Option<&str> {
         .as_str()
 }
 
+/// Lay `receipt` down in `receipt_dir`, a store this runx marked as its own by
+/// its index, the store's version marker.
 fn write_receipt(receipt_dir: &std::path::Path, receipt: &Receipt) -> Result<(), String> {
     let digest = receipt
         .id
         .strip_prefix("sha256:")
         .ok_or("receipt fixture id is not content-addressed")?;
+    let index = receipt_dir.join("index.jsonl");
+    if !index.exists() {
+        fs::write(index, "{\"schema\":\"runx.receipt_index.v1\"}\n")
+            .map_err(|error| error.to_string())?;
+    }
     fs::write(
         receipt_dir.join(format!("sha256-{digest}.json")),
         serde_json::to_vec(receipt).map_err(|error| error.to_string())?,
