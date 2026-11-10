@@ -56,3 +56,34 @@ export function childRuns({ run, events }, host, made) {
 export function within(run, stream) {
   return stream === run || stream.startsWith(`${run}/`);
 }
+
+// Where the run ran and what started it, as its start recorded them.
+export function started({ events }) {
+  const start = events.find(({ event }) => event.kind === "started");
+  if (start === undefined) throw new Error("this run's record holds no start");
+  return { ran_on: start.event.ran_on, implementation: start.event.implementation };
+}
+
+// The host that answered the turn in the run `run`, as its answer records
+// it, and the model it stated: from the agent step's event in that run.
+export function turnOf({ events }, run) {
+  const step = events.find(
+    ({ stream, event }) => within(run, stream) && event.kind === "step" && (event.host || event.model),
+  );
+  return { host: step?.event.host ?? null, model: step?.event.model ?? null };
+}
+
+// `items` grouped by the host each one's turn records, in first-seen order:
+// numbers from different hosts are never blended.
+export function byHost(items, turn) {
+  const groups = new Map();
+  for (const item of items) {
+    const { host, model } = turn(item);
+    const key = JSON.stringify(host);
+    if (!groups.has(key)) groups.set(key, { host, models: new Set(), items: [] });
+    const group = groups.get(key);
+    if (model !== null) group.models.add(model);
+    group.items.push(item);
+  }
+  return [...groups.values()].map(({ host, models, items }) => ({ host, models: [...models], items }));
+}

@@ -3433,6 +3433,140 @@ export const runxSchemaArtifacts = {
         "title": "EnvironmentRequirements",
         "type": "object"
       },
+      "EvalAttempt": {
+        "additionalProperties": false,
+        "description": "One attempt: how its verdict was decided, who judged it, and the receipt its run sealed.",
+        "properties": {
+          "decision": {
+            "$ref": "https://schemas.runx.ai/runx/verdict/decision/v1.json"
+          },
+          "evaluator": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Evaluator"
+          },
+          "receipt_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "EvalAttempt",
+        "type": "object"
+      },
+      "EvalAttempts": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalAttempt"
+            },
+            "type": "array"
+          },
+          "criteria_set": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Pinned",
+            "description": "The criteria set the eval's verdicts answered."
+          },
+          "id": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "criteria_set",
+          "attempts"
+        ],
+        "title": "EvalAttempts",
+        "type": "object"
+      },
+      "EvalEvidenceSchema": {
+        "enum": [
+          "runx.eval_evidence.v1"
+        ],
+        "title": "EvalEvidenceSchema",
+        "type": "string"
+      },
+      "EvalResults": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "How often the host selected the package for each query: a query passes when it was selected in at least half its runs and should have been, or in fewer than half and shouldn't.",
+            "properties": {
+              "kind": {
+                "const": "selection",
+                "type": "string"
+              },
+              "passed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "queries": {
+                "items": {
+                  "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/QuerySelection"
+                },
+                "type": "array"
+              },
+              "should_not_trigger": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Tally"
+              },
+              "should_trigger": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Tally"
+              }
+            },
+            "required": [
+              "kind",
+              "queries",
+              "passed",
+              "should_trigger",
+              "should_not_trigger"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Each eval's attempts and how each verdict was decided.",
+            "properties": {
+              "evals": {
+                "items": {
+                  "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalAttempts"
+                },
+                "type": "array"
+              },
+              "inconclusive": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "evals",
+                "type": "string"
+              },
+              "met": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "not_met": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "refused": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "evals",
+              "met",
+              "not_met",
+              "inconclusive",
+              "refused"
+            ],
+            "type": "object"
+          }
+        ],
+        "title": "EvalResults"
+      },
       "Evaluator": {
         "additionalProperties": false,
         "description": "Who judged: the package and method of the step that returned the verdict, and the run it returned it in.",
@@ -3777,6 +3911,33 @@ export const runxSchemaArtifacts = {
           "files"
         ],
         "title": "GitCommit",
+        "type": "object"
+      },
+      "HostEvidence": {
+        "additionalProperties": false,
+        "description": "What one host's turns measured.",
+        "properties": {
+          "host": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnHost",
+            "description": "The host that answered these turns, as their answers record it; none when they record none."
+          },
+          "models": {
+            "description": "The models these turns stated.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "results": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalResults"
+          }
+        },
+        "required": [
+          "models",
+          "results"
+        ],
+        "title": "HostEvidence",
         "type": "object"
       },
       "HostedAuth": {
@@ -7007,6 +7168,39 @@ export const runxSchemaArtifacts = {
         "title": "PurchaseRequest",
         "type": "object",
         "x-runx-schema": "runx.purchase_request.v1"
+      },
+      "QuerySelection": {
+        "additionalProperties": false,
+        "properties": {
+          "passed": {
+            "type": "boolean"
+          },
+          "query": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "runs": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "selected": {
+            "description": "The runs whose turn loaded the package, by its digest.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "should_trigger": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "should_trigger",
+          "selected",
+          "runs",
+          "passed"
+        ],
+        "title": "QuerySelection",
+        "type": "object"
       },
       "QuestionOption": {
         "additionalProperties": false,
@@ -10518,6 +10712,25 @@ export const runxSchemaArtifacts = {
         "title": "SubjectKind",
         "type": "string"
       },
+      "Tally": {
+        "additionalProperties": false,
+        "properties": {
+          "passed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queries": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queries",
+          "passed"
+        ],
+        "title": "Tally",
+        "type": "object"
+      },
       "TerminalSize": {
         "additionalProperties": false,
         "description": "A terminal's size, in character cells.",
@@ -11221,6 +11434,52 @@ export const runxSchemaArtifacts = {
     "title": "DoctorReport",
     "type": "object",
     "x-runx-schema": "runx.doctor.v1"
+  } as JsonSchema,
+  "eval-evidence.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/eval-evidence/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "hosts": {
+        "description": "What was measured, one entry per host.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/HostEvidence"
+        },
+        "type": "array"
+      },
+      "implementation": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
+        "description": "What started the run that measured."
+      },
+      "package": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Pinned",
+        "description": "The package measured, at the digest it was measured at."
+      },
+      "ran_on": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RanOn",
+        "description": "Where the run that measured ran, as it was started."
+      },
+      "repeats": {
+        "description": "How many times each query or eval was worked.",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "schema": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalEvidenceSchema"
+      }
+    },
+    "required": [
+      "schema",
+      "package",
+      "ran_on",
+      "implementation",
+      "repeats",
+      "hosts"
+    ],
+    "title": "EvalEvidence",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.eval_evidence.v1"
   } as JsonSchema,
   "file-apply-bundle.schema.json": {
     "$id": "https://schemas.runx.ai/runx/fs/apply-bundle/v1.json",

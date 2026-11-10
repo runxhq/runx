@@ -17,6 +17,7 @@ pub mod copyable_command;
 pub mod decision;
 pub mod digest;
 pub mod doctor;
+pub mod eval_evidence;
 pub mod execution;
 pub mod execution_boundary;
 pub mod execution_requirements;
@@ -91,6 +92,10 @@ pub use doctor::{
     DoctorDiagnostic, DoctorDiagnosticSeverity, DoctorLocation, DoctorRepair,
     DoctorRepairConfidence, DoctorRepairKind, DoctorRepairRisk, DoctorReport, DoctorReportSchema,
     DoctorStatus, DoctorSummary,
+};
+pub use eval_evidence::{
+    EVAL_EVIDENCE_SCHEMA, EvalAttempt, EvalAttempts, EvalEvidence, EvalEvidenceSchema, EvalResults,
+    HostEvidence, QuerySelection, Tally,
 };
 pub use execution::{
     InputDefinition, call_input_schema, input_contract_schema, input_contract_schema_with_examples,

@@ -909,6 +909,51 @@ export type EnvironmentRequirementStatusContract = {
   readonly required: boolean;
 };
 
+/** One attempt: how its verdict was decided, who judged it, and the receipt its run sealed. */
+export type EvalAttemptContract = {
+  readonly decision: VerdictDecisionContract;
+  readonly evaluator?: EvaluatorContract;
+  readonly receipt_id?: string;
+};
+
+export type EvalAttemptsContract = {
+  readonly attempts: readonly EvalAttemptContract[];
+  /** The criteria set the eval's verdicts answered. */
+  readonly criteria_set: PinnedContract;
+  readonly id: number;
+};
+
+export type EvalEvidenceContract = {
+  /** What was measured, one entry per host. */
+  readonly hosts: readonly HostEvidenceContract[];
+  /** What started the run that measured. */
+  readonly implementation: RunImplementationContract;
+  /** The package measured, at the digest it was measured at. */
+  readonly package: PinnedContract;
+  /** Where the run that measured ran, as it was started. */
+  readonly ran_on: RanOnContract;
+  /** How many times each query or eval was worked. */
+  readonly repeats: number;
+  readonly schema: EvalEvidenceSchemaContract;
+};
+
+export type EvalEvidenceSchemaContract = "runx.eval_evidence.v1";
+
+export type EvalResultsContract = {
+  readonly kind: "selection";
+  readonly passed: number;
+  readonly queries: readonly QuerySelectionContract[];
+  readonly should_not_trigger: TallyContract;
+  readonly should_trigger: TallyContract;
+} | {
+  readonly evals: readonly EvalAttemptsContract[];
+  readonly inconclusive: number;
+  readonly kind: "evals";
+  readonly met: number;
+  readonly not_met: number;
+  readonly refused: number;
+};
+
 /** Who judged: the package and method of the step that returned the verdict, and the run it returned it in. */
 export type EvaluatorContract = {
   readonly method: string;
@@ -1166,6 +1211,15 @@ export type HostedPlacementContract = {
   readonly callers?: "runtime";
   /** The stored credential used under credential custody. */
   readonly credential?: string;
+};
+
+/** What one host's turns measured. */
+export type HostEvidenceContract = {
+  /** The host that answered these turns, as their answers record it; none when they record none. */
+  readonly host?: TurnHostContract;
+  /** The models these turns stated. */
+  readonly models: readonly string[];
+  readonly results: EvalResultsContract;
 };
 
 /** How one credential authenticates a request. */
@@ -2205,6 +2259,15 @@ export type PurchaseRequestContract = {
   readonly quote: PurchaseQuoteContract;
   readonly seller_ref: PrincipalReferenceContract;
   readonly skill: string;
+};
+
+export type QuerySelectionContract = {
+  readonly passed: boolean;
+  readonly query: string;
+  readonly runs: number;
+  /** The runs whose turn loaded the package, by its digest. */
+  readonly selected: number;
+  readonly should_trigger: boolean;
 };
 
 export type QuestionContract = {
@@ -3579,6 +3642,11 @@ export type SubjectContract = {
 
 /** What a receipt seals: one step's attempt, or the whole workflow a run ran. */
 export type SubjectKindContract = "step" | "workflow";
+
+export type TallyContract = {
+  readonly passed: number;
+  readonly queries: number;
+};
 
 /** A terminal's size, in character cells. */
 export type TerminalSizeContract = {

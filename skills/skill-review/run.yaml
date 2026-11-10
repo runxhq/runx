@@ -341,43 +341,7 @@ methods:
           tools: [fs.read, run.read]
         max_calls: 900
         outputs:
-          trigger_eval:
-            type: object
-            additionalProperties: false
-            required: [package, package_digest, repeats, threshold, queries, passed, should_trigger, should_not_trigger]
-            properties:
-              package: {type: string, minLength: 1}
-              package_digest: {type: string, minLength: 1}
-              repeats: {type: integer, minimum: 1}
-              threshold: {type: number}
-              queries:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [query, should_trigger, selected, runs, rate, passed]
-                  properties:
-                    query: {type: string, minLength: 1}
-                    should_trigger: {type: boolean}
-                    selected: {type: integer, minimum: 0}
-                    runs: {type: integer, minimum: 1}
-                    rate: {type: number, minimum: 0, maximum: 1}
-                    passed: {type: boolean}
-              passed: {type: integer, minimum: 0}
-              should_trigger:
-                type: object
-                additionalProperties: false
-                required: [queries, passed]
-                properties:
-                  queries: {type: integer, minimum: 0}
-                  passed: {type: integer, minimum: 0}
-              should_not_trigger:
-                type: object
-                additionalProperties: false
-                required: [queries, passed]
-                properties:
-                  queries: {type: integer, minimum: 0}
-                  passed: {type: integer, minimum: 0}
+          evidence: {packet: runx.eval_evidence.v1}
   evals:
     description: Run a package's evals, each worked by a fresh turn of the agent skill's write method under the run's authority, and judge each attempt with a verdict the run decides by the one rule.
     inputs:
@@ -406,56 +370,7 @@ methods:
           tools: [fs.read, run.read, verdict.criteria, verdict.decide]
         max_calls: 900
         outputs:
-          eval_results:
-            type: object
-            additionalProperties: false
-            required: [package, package_digest, repeats, evals, met, not_met, inconclusive, refused]
-            properties:
-              package: {type: string, minLength: 1}
-              package_digest: {type: string, minLength: 1}
-              repeats: {type: integer, minimum: 1}
-              evals:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [id, prompt, criteria_set, attempts]
-                  properties:
-                    id: {type: integer}
-                    prompt: {type: string, minLength: 1}
-                    criteria_set:
-                      type: object
-                      additionalProperties: false
-                      required: [ref, revision]
-                      properties:
-                        ref: {type: string, minLength: 1}
-                        revision: {type: string, minLength: 1}
-                    attempts:
-                      type: array
-                      items:
-                        type: object
-                        additionalProperties: false
-                        required: [verdict, calls]
-                        properties:
-                          verdict: {enum: [met, not_met, inconclusive, refused]}
-                          unresolved: {type: array, items: {type: string}}
-                          reason: {type: string}
-                          receipt_id: {type: string}
-                          evaluator: {type: object, additionalProperties: true}
-                          calls:
-                            type: array
-                            items:
-                              type: object
-                              additionalProperties: false
-                              required: [target, outcome]
-                              properties:
-                                target: {type: string, minLength: 1}
-                                outcome: {type: string, minLength: 1}
-                                reason: {type: string}
-              met: {type: integer, minimum: 0}
-              not_met: {type: integer, minimum: 0}
-              inconclusive: {type: integer, minimum: 0}
-              refused: {type: integer, minimum: 0}
+          evidence: {packet: runx.eval_evidence.v1}
   grade:
     description: Judge one eval attempt against its criteria set, from the attempt's record, and return a verdict whose evaluator the runtime names.
     inputs:

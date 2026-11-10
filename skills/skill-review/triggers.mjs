@@ -1,4 +1,4 @@
-import { childRuns, readRecord, within } from "./record.mjs";
+import { byHost, childRuns, readRecord, started, turnOf, within } from "./record.mjs";
 
 // How often a host selects one package for each of its eval queries. Each
 // query is worked by fresh turns of the agent skill's read method, one child
@@ -7,9 +7,9 @@ import { childRuns, readRecord, within } from "./record.mjs";
 // completed or waits on the person's trust. What a turn says it did is never
 // the evidence.
 
-// A query passes when the package is selected at least this often for a
-// request that should select it, and less often for one that shouldn't.
-const THRESHOLD = 0.5;
+// A query passes when the package is selected in at least half its runs for
+// a request that should select it, and in fewer than half for one that
+// shouldn't.
 const DEFAULT_REPEATS = 3;
 // The most queries one measurement takes, so its calls stay inside the
 // step's max_calls: the queries' read, a turn per query and repeat, and the
@@ -28,28 +28,43 @@ export default async function triggers(ctx, { subject, repeats }) {
       turns.push(query);
     }
   }
-  const selected = selections(await readRecord(ctx), digest, turns.length);
+  const record = await readRecord(ctx);
+  const children = childRuns(record, HOST, turns.length);
+  const selected = selections(record, digest, children);
+  const measured = turns.map((query, turn) => ({ query, run: children[turn], selected: selected[turn] }));
+  return {
+    evidence: {
+      schema: "runx.eval_evidence.v1",
+      package: { ref: subject.resolved_path, revision: digest },
+      ...started(record),
+      repeats: runs,
+      hosts: byHost(measured, ({ run }) => turnOf(record, run)).map(({ host, models, items }) => ({
+        ...(host === null ? {} : { host }),
+        models,
+        results: selection(queries, items),
+      })),
+    },
+  };
+}
+
+// One host's selection: each query's runs on it, and whether it passed.
+function selection(queries, measured) {
   const rows = queries.map(({ query, should_trigger }, index) => {
-    const count = turns.filter((query, turn) => query === index && selected[turn]).length;
-    const rate = count / runs;
-    const passed = should_trigger ? rate >= THRESHOLD : rate < THRESHOLD;
-    return { query, should_trigger, selected: count, runs, rate, passed };
-  });
+    const runs = measured.filter((turn) => turn.query === index);
+    const selected = runs.filter((turn) => turn.selected).length;
+    const passed = should_trigger ? selected * 2 >= runs.length : selected * 2 < runs.length;
+    return { query, should_trigger, selected, runs: runs.length, passed };
+  }).filter((row) => row.runs > 0);
   const tally = (wanted) => {
     const kind = rows.filter((row) => row.should_trigger === wanted);
     return { queries: kind.length, passed: kind.filter((row) => row.passed).length };
   };
   return {
-    trigger_eval: {
-      package: subject.resolved_path,
-      package_digest: digest,
-      repeats: runs,
-      threshold: THRESHOLD,
-      queries: rows,
-      passed: rows.filter((row) => row.passed).length,
-      should_trigger: tally(true),
-      should_not_trigger: tally(false),
-    },
+    kind: "selection",
+    queries: rows,
+    passed: rows.filter((row) => row.passed).length,
+    should_trigger: tally(true),
+    should_not_trigger: tally(false),
   };
 }
 
@@ -72,10 +87,9 @@ async function evalQueries(ctx, packagePath) {
   return queries;
 }
 
-// For each turn this script started, in the order it started them, whether
-// a load in its run, or a run below it, bound `digest`.
-function selections(record, digest, started) {
-  const turns = childRuns(record, HOST, started);
+// For each child run, whether a load in it, or a run below it, bound
+// `digest`.
+function selections(record, digest, children) {
   const loads = record.events
     .filter(
       ({ event }) =>
@@ -85,5 +99,5 @@ function selections(record, digest, started) {
         event.loaded.package_digest === digest,
     )
     .map(({ stream }) => stream);
-  return turns.map((turn) => loads.some((load) => within(turn, load)));
+  return children.map((run) => loads.some((load) => within(run, load)));
 }

@@ -1,4 +1,4 @@
-import { childRuns, readRecord, within } from "./record.mjs";
+import { byHost, childRuns, readRecord, started, turnOf, within } from "./record.mjs";
 
 // A package's evals, run and judged. Each eval is worked by fresh turns of the
 // agent skill's write method, one child run each, under this run's authority,
@@ -37,34 +37,49 @@ export default async function evals(ctx, { subject, repeats }) {
   const record = await readRecord(ctx);
   const turns = childRuns(record, HOST, attempts.length);
   for (const [index, attempt] of attempts.entries()) {
+    attempt.run = turns[index];
     attempt.evidence = evidence(record.events, turns[index]);
-    attempt.outcome = await judge(ctx, judged, attempt);
+    attempt.decision = await judge(ctx, judged, attempt);
   }
-  const results = cases.map((kase) => ({
-    id: kase.entry.id,
-    prompt: kase.entry.prompt,
-    criteria_set: kase.criteria_set,
-    attempts: attempts
-      .filter((attempt) => attempt.kase === kase)
-      .map(({ outcome, evidence }) => ({
-        ...outcome,
-        calls: evidence.calls,
-        ...(evidence.receipt_id === undefined ? {} : { receipt_id: evidence.receipt_id }),
-      })),
-  }));
-  const count = (verdict) =>
-    results.flatMap((result) => result.attempts).filter((attempt) => attempt.verdict === verdict).length;
   return {
-    eval_results: {
-      package: packagePath,
-      package_digest: judged.revision,
+    evidence: {
+      schema: "runx.eval_evidence.v1",
+      package: judged,
+      ...started(record),
       repeats: runs,
-      evals: results,
-      met: count("met"),
-      not_met: count("not_met"),
-      inconclusive: count("inconclusive"),
-      refused: count("refused"),
+      hosts: byHost(attempts, ({ run }) => turnOf(record, run)).map(({ host, models, items }) => ({
+        ...(host === null ? {} : { host }),
+        models,
+        results: results(cases, items),
+      })),
     },
+  };
+}
+
+// One host's attempts at each eval, and how each verdict was decided.
+function results(cases, attempts) {
+  const evals = cases
+    .map((kase) => ({
+      id: kase.entry.id,
+      criteria_set: kase.criteria_set,
+      attempts: attempts
+        .filter((attempt) => attempt.kase === kase)
+        .map(({ decision, evidence }) => ({
+          decision: decision.decision,
+          ...(decision.evaluator === undefined ? {} : { evaluator: decision.evaluator }),
+          ...(evidence.receipt_id === undefined ? {} : { receipt_id: evidence.receipt_id }),
+        })),
+    }))
+    .filter((result) => result.attempts.length > 0);
+  const decisions = evals.flatMap((result) => result.attempts.map((attempt) => attempt.decision));
+  const count = (verdict) => decisions.filter((decision) => decision.verdict === verdict).length;
+  return {
+    kind: "evals",
+    evals,
+    met: count("met"),
+    not_met: count("not_met"),
+    inconclusive: count("inconclusive"),
+    refused: decisions.filter((decision) => decision.status === "refused").length,
   };
 }
 
@@ -122,7 +137,7 @@ async function judge(ctx, judged, { kase, settled, evidence }) {
       },
     }));
   } catch (rejected) {
-    return { verdict: "refused", reason: rejected.message };
+    return { decision: { status: "refused", reason: rejected.message } };
   }
   const read = await ctx.read(verdict);
   const { decision } = await ctx.tool("verdict.decide", {
@@ -131,11 +146,7 @@ async function judge(ctx, judged, { kase, settled, evidence }) {
     criteria_ref: kase.criteria_set.ref,
     criteria: kase.criteria,
   });
-  const decided = await ctx.read(decision);
-  if (decided.status === "refused") {
-    return { verdict: "refused", reason: decided.reason, evaluator: read.evaluator };
-  }
-  return { verdict: decided.verdict, unresolved: decided.unresolved, evaluator: read.evaluator };
+  return { decision: await ctx.read(decision), evaluator: read.evaluator };
 }
 
 async function readJson(ctx, path) {

@@ -171,9 +171,23 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
     model.finish()?;
     let output = output?;
     assert_eq!(output["status"], "sealed", "{output}");
-    let measured = &output["result"]["trigger_eval"];
-    assert_eq!(measured["package_digest"], digest.as_str(), "{output}");
-    assert_eq!(measured["repeats"], 3, "{measured}");
+    let evidence = &output["result"]["evidence"]["data"];
+    assert_eq!(evidence["schema"], "runx.eval_evidence.v1", "{output}");
+    assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
+    assert_eq!(evidence["repeats"], 3, "{evidence}");
+    assert_eq!(evidence["ran_on"], "local", "{evidence}");
+    // One host answered every turn, the managed agent through the scripted
+    // provider, so its numbers are the evidence's one entry.
+    let hosts = evidence["hosts"].as_array().ok_or("a host's numbers")?;
+    assert_eq!(hosts.len(), 1, "{evidence}");
+    assert_eq!(
+        hosts[0]["host"],
+        json!({"kind": "managed_agent", "provider": "scripted"}),
+        "{evidence}"
+    );
+    assert_eq!(hosts[0]["models"], json!(["fixture-model"]), "{evidence}");
+    let measured = &hosts[0]["results"];
+    assert_eq!(measured["kind"], "selection", "{measured}");
     let rows = measured["queries"].as_array().ok_or("a row per query")?;
     let row = |marker: &str| {
         rows.iter()
@@ -338,8 +352,14 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     model.finish()?;
     let output = output?;
     assert_eq!(output["status"], "sealed", "{output}");
-    let results = &output["result"]["eval_results"];
-    assert_eq!(results["package_digest"], digest.as_str(), "{output}");
+    let evidence = &output["result"]["evidence"]["data"];
+    assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
+    let hosts = evidence["hosts"].as_array().ok_or("a host's numbers")?;
+    assert_eq!(hosts.len(), 1, "{evidence}");
+    let results = &hosts[0]["results"];
+    assert_eq!(results["kind"], "evals", "{results}");
+    assert_eq!(results["met"], 2, "{results}");
+    assert_eq!(results["refused"], 2, "{results}");
     let attempt = |id: u64| -> TestResult<Value> {
         let eval = results["evals"]
             .as_array()
@@ -349,29 +369,28 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
             .ok_or_else(|| format!("eval {id} is run: {results}"))?;
         Ok(eval["attempts"][0].clone())
     };
-    assert_eq!(attempt(1)?["verdict"], "met", "{results}");
-    assert_eq!(attempt(2)?["verdict"], "not_met", "{results}");
+    assert_eq!(attempt(1)?["decision"]["verdict"], "met", "{results}");
+    assert_eq!(attempt(2)?["decision"]["verdict"], "not_met", "{results}");
     // An answer left out makes it inconclusive, whatever the whole it stated.
-    assert_eq!(attempt(3)?["verdict"], "inconclusive", "{results}");
     assert_eq!(
-        attempt(3)?["unresolved"],
-        json!(["expected_output"]),
+        attempt(3)?["decision"],
+        json!({"status": "decided", "verdict": "inconclusive", "unresolved": ["expected_output"]}),
         "{results}"
     );
     // A refused verdict answers nothing.
     for id in [4, 5] {
-        let refused = attempt(id)?;
-        assert_eq!(refused["verdict"], "refused", "{refused}");
-        assert!(refused.get("unresolved").is_none(), "{refused}");
+        let refused = &attempt(id)?["decision"];
+        assert_eq!(refused["status"], "refused", "{refused}");
+        assert!(refused.get("verdict").is_none(), "{refused}");
     }
     assert!(
-        attempt(4)?["reason"]
+        attempt(4)?["decision"]["reason"]
             .as_str()
             .is_some_and(|reason| reason.contains("skills/other")),
         "{results}"
     );
     assert!(
-        attempt(5)?["reason"]
+        attempt(5)?["decision"]["reason"]
             .as_str()
             .is_some_and(|reason| reason.contains("runx/other")),
         "{results}"
@@ -389,13 +408,25 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     // The write eval's attempt wrote nothing: the run's authority refuses
     // every write, at any depth.
     assert!(!written.exists(), "an eval writes nothing to the world");
+    let mut env = BTreeMap::from([("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned())]);
+    env.insert(
+        "RUNX_HOME".to_owned(),
+        root.join(".home").to_string_lossy().into_owned(),
+    );
+    let read = serde_json::to_value(runx_runtime::run_record::read_run(
+        &env, root, run_id, None,
+    )?)?;
     assert!(
-        attempt(6)?["calls"]
+        read["events"]
             .as_array()
             .into_iter()
             .flatten()
-            .any(|call| call["target"] == "fs.write" && call["outcome"] == "refused"),
-        "{results}"
+            .any(|record| {
+                record["event"]["kind"] == "call"
+                    && record["event"]["target"]["tool"] == "fs.write"
+                    && record["event"]["outcome"]["status"] == "refused"
+            }),
+        "{read}"
     );
     Ok(())
 }

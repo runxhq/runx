@@ -1,0 +1,46 @@
+{
+  "$id": "https://schemas.runx.ai/runx/eval-evidence/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hosts": {
+      "description": "What was measured, one entry per host.",
+      "items": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/HostEvidence"
+      },
+      "type": "array"
+    },
+    "implementation": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
+      "description": "What started the run that measured."
+    },
+    "package": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/Pinned",
+      "description": "The package measured, at the digest it was measured at."
+    },
+    "ran_on": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RanOn",
+      "description": "Where the run that measured ran, as it was started."
+    },
+    "repeats": {
+      "description": "How many times each query or eval was worked.",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalEvidenceSchema"
+    }
+  },
+  "required": [
+    "schema",
+    "package",
+    "ran_on",
+    "implementation",
+    "repeats",
+    "hosts"
+  ],
+  "title": "EvalEvidence",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.eval_evidence.v1"
+}
