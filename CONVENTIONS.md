@@ -54,7 +54,8 @@ Names follow these rules:
 - `state` is where something is in a lifecycle that moves; `status` is how a
   finished check or response came out; `outcome` is how a run or receipt
   ended: `completed`, `deferred`, `superseded`, `declined`, `blocked`,
-  `failed`, `killed` or `timed_out`.
+  `failed`, `killed` or `timed_out`. An agent's answer says how its act
+  ended in its `ending`, and why in its `ending_reason`, at its top level.
 - A field that holds a project artifact is `<thing>_artifact`; a list of them
   is `artifacts`.
 - A run is a run and an act is an act. `execution` names a boundary, a

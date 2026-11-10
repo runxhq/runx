@@ -227,6 +227,31 @@ fn an_agent_step_requires_only_what_a_turn_can_ask_for() -> Result<(), String> {
     Ok(())
 }
 
+/// An agent's answer holds runx's own fields beside the outputs its step
+/// declares, its ending among them, and no closure, so a step declares none
+/// of them; another step may.
+#[test]
+fn an_agent_step_declares_no_output_its_answer_holds_for_runx() -> Result<(), String> {
+    for name in runx_contracts::RESERVED_ANSWER_FIELDS
+        .into_iter()
+        .chain(["closure"])
+    {
+        let refused = method(&format!(
+            "      - id: judge\n        agent: judge\n        outputs:\n          {name}: {{type: string}}\n"
+        ))
+        .err()
+        .unwrap_or_default();
+        assert!(
+            refused.contains(&format!("outputs cannot declare {name}")),
+            "{name}: {refused}"
+        );
+    }
+    method(
+        "      - id: run\n        tool: {command: node, args: [run.mjs]}\n        outputs:\n          ending: {type: string}\n",
+    )?;
+    Ok(())
+}
+
 #[test]
 fn an_agent_step_names_the_kinds_of_context_its_host_supplies() -> Result<(), String> {
     let parsed = method(

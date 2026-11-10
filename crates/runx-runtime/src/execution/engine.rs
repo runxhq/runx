@@ -758,7 +758,7 @@ enum WorkflowTerminalOutcome {
     SealReceipt,
 }
 
-/// A step closure that stops the workflow as an outcome rather than a fault: an
+/// A step ending that stops the workflow as an outcome rather than a fault: an
 /// agent act that declined, deferred, blocked, or was superseded.
 pub(crate) const fn is_governed_step_closure(outcome: &RunOutcome) -> bool {
     matches!(
@@ -767,7 +767,7 @@ pub(crate) const fn is_governed_step_closure(outcome: &RunOutcome) -> bool {
     )
 }
 
-/// A workflow's public result. A workflow that a step's own governed closure
+/// A workflow's public result. A workflow that a step's own governed ending
 /// stopped returns that step's declared outputs; any other workflow returns its
 /// result producers' outputs.
 pub(crate) fn workflow_terminal_result(run: &WorkflowRun) -> Result<JsonValue, RuntimeError> {
@@ -886,8 +886,8 @@ fn sealing_stop(
     }))
 }
 
-/// The closure a governed stop seals: a policy block, an authority denial, a
-/// pending resolution, or a step's own closure with an outcome other than
+/// The ending a governed stop seals: a policy block, an authority denial, a
+/// pending resolution, or a step's own ending with an outcome other than
 /// `completed`. Any other error is a fault, not a stop.
 pub(crate) fn workflow_stop_ending(
     error: &RuntimeError,
@@ -1066,7 +1066,7 @@ where
                 Ok(execution.finish(workflow, receipt))
             }
             Err(error) if terminal_outcome == WorkflowTerminalOutcome::SealReceipt => {
-                let Some((step_id, closure)) = workflow_stop_ending(&error) else {
+                let Some((step_id, ending)) = workflow_stop_ending(&error) else {
                     return self.seal_failed_workflow_in_place(execution, workflow, error, host);
                 };
                 execution.read_recorded_receipts(self.options.run.store())?;
@@ -1074,7 +1074,7 @@ where
                     self.scope(&workflow.name),
                     &execution.runs,
                     &self.options.clock.now(),
-                    closure,
+                    ending,
                     self.options.signature_policy(),
                 )?;
                 execution.record_lifecycle(
@@ -1113,7 +1113,7 @@ where
         WorkflowExecution::from_record(workflow, record)
     }
 
-    /// Seal a workflow whose step faulted, in place: the same failed closure
+    /// Seal a workflow whose step faulted, in place: the same failed ending
     /// a stopped run seals from its record. A fault with no step to own it is
     /// returned unsealed.
     fn seal_failed_workflow_in_place(
@@ -1168,8 +1168,8 @@ where
     }
 
     /// Seal this runtime's run where `error` stopped it, as every run is
-    /// sealed, a child run as its parent: closed by a step's own governed
-    /// closure, blocked by a guard or an authority, or failed at the step
+    /// sealed, a child run as its parent: ended by a step's own governed
+    /// ending, blocked by a guard or an authority, or failed at the step
     /// that failed, over every step it ran. An error that leaves the run open
     /// comes back unsealed: a request only a host answers, a provider
     /// readback still pending, or a fault no step owns.
@@ -1191,24 +1191,24 @@ where
         };
         let (mut run, failure, refusal) = match stop {
             StopKind::Failed => {
-                let closure = crate::receipts::WorkflowEnding {
+                let ending = crate::receipts::WorkflowEnding {
                     outcome: RunOutcome::Failed,
                     reason,
                 };
-                let run = self.seal_failed_with_host(workflow, &step_id, error, closure, host)?;
+                let run = self.seal_failed_with_host(workflow, &step_id, error, ending, host)?;
                 (run, Some(projection), None)
             }
             StopKind::Blocked => {
-                let closure = crate::receipts::WorkflowEnding {
+                let ending = crate::receipts::WorkflowEnding {
                     outcome: RunOutcome::Blocked,
                     reason,
                 };
-                let run = self.seal_stopped_with_host(workflow, &step_id, closure, host)?;
+                let run = self.seal_stopped_with_host(workflow, &step_id, ending, host)?;
                 (run, None, Some(projection))
             }
             StopKind::Closed(outcome) => {
-                let closure = crate::receipts::WorkflowEnding { outcome, reason };
-                let run = self.seal_stopped_with_host(workflow, &step_id, closure, host)?;
+                let ending = crate::receipts::WorkflowEnding { outcome, reason };
+                let run = self.seal_stopped_with_host(workflow, &step_id, ending, host)?;
                 (run, None, carried)
             }
         };
@@ -1222,12 +1222,12 @@ where
     }
 
     /// Seal a recorded run that stopped at `step_id` short of completion:
-    /// blocked, deferred, or closed by a step's governed closure.
+    /// blocked, deferred, or ended by a step's governed ending.
     pub(crate) fn seal_stopped_with_host(
         &self,
         workflow: Workflow,
         step_id: &str,
-        closure: crate::receipts::WorkflowEnding,
+        ending: crate::receipts::WorkflowEnding,
         host: &mut dyn Host,
     ) -> Result<WorkflowRun, RuntimeError> {
         let mut execution = self.open_execution(&workflow)?;
@@ -1236,7 +1236,7 @@ where
             self.scope(&workflow.name),
             &execution.runs,
             &self.options.clock.now(),
-            closure,
+            ending,
             self.options.signature_policy(),
         )?;
         execution.record_lifecycle(
@@ -1253,12 +1253,12 @@ where
         workflow: Workflow,
         step_id: &str,
         error: RuntimeError,
-        mut closure: crate::receipts::WorkflowEnding,
+        mut ending: crate::receipts::WorkflowEnding,
         host: &mut dyn Host,
     ) -> Result<WorkflowRun, RuntimeError> {
-        if closure.outcome != RunOutcome::Failed {
+        if ending.outcome != RunOutcome::Failed {
             return Err(RuntimeError::ReceiptInvalid {
-                message: "a failed run requires a failed closure".to_owned(),
+                message: "a failed run requires a failed ending".to_owned(),
             });
         }
         let mut execution = self.open_execution(&workflow)?;
@@ -1266,9 +1266,9 @@ where
             // The step sealed its own failure as it ran: the run is sealed
             // failed over that receipt, not over an attempt it never made,
             // for the reason the step's seal names, as a step's governed
-            // closure keeps its own.
+            // ending keeps its own.
             if let Some(reason) = execution.sealed_reason(step_id) {
-                closure.reason = Some(reason);
+                ending.reason = Some(reason);
             }
             execution.fail_workflow_at(self, host, step_id, None)?;
         } else {
@@ -1289,7 +1289,7 @@ where
             self.scope(&workflow.name),
             &execution.runs,
             &self.options.clock.now(),
-            closure,
+            ending,
             self.options.signature_policy(),
         )?;
         execution.record_lifecycle(

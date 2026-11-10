@@ -331,8 +331,8 @@ pub struct TurnInvocation {
     pub allowance: TurnAllowance,
     /// What the turn needs from its agent harness, as its step's `requires`.
     /// An agent harness that meets one says so in its answer's
-    /// `closure.requirements`; one that can't ends the act failed with
-    /// `closure.unsupported_requirement`.
+    /// `requirements`; one that can't ends the act failed with
+    /// `unsupported_requirement`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requires: Vec<TurnRequirement>,
     /// The kinds of context the turn asks its host to supply, as its step's
@@ -341,6 +341,18 @@ pub struct TurnInvocation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_kinds: Vec<NonEmptyString>,
 }
+
+/// The fields of an agent's answer that are runx's own, beside the outputs
+/// its step declares: how the act ended (`ending`, else completed) and why,
+/// the model that answered, and the requirements its agent harness met or the
+/// one it couldn't. A step can't declare an output of the same name.
+pub const RESERVED_ANSWER_FIELDS: [&str; 5] = [
+    "ending",
+    "ending_reason",
+    "model",
+    "requirements",
+    "unsupported_requirement",
+];
 
 /// What a turn can need from the agent harness that works it.
 #[derive(

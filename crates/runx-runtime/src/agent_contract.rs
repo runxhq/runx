@@ -57,9 +57,11 @@ pub(crate) fn agent_output_contract_payload(payload: &JsonValue) -> JsonValue {
         return payload.clone();
     };
     let mut declared = fields.clone();
-    // `closure` is Runx control metadata consumed by the receipt outcome
-    // parser. It is validated by that protocol and is not a skill output.
-    declared.remove("closure");
+    // runx's own fields, its ending among them, are read by the outcome
+    // parser, which checks them; none is a skill output.
+    for field in runx_contracts::RESERVED_ANSWER_FIELDS {
+        declared.remove(field);
+    }
     JsonValue::Object(declared)
 }
 
@@ -160,36 +162,15 @@ mod tests {
     }
 
     #[test]
-    fn runx_closure_metadata_is_not_treated_as_a_declared_skill_output()
+    fn runx_s_own_answer_fields_are_not_declared_skill_outputs()
     -> Result<(), Box<dyn std::error::Error>> {
-        let answer = JsonValue::Object(
-            [
-                ("notify_plan".to_owned(), JsonValue::Object(BTreeMap::new())),
-                (
-                    "closure".to_owned(),
-                    JsonValue::Object(
-                        [
-                            (
-                                "outcome".to_owned(),
-                                JsonValue::String("completed".to_owned()),
-                            ),
-                            (
-                                "reason_code".to_owned(),
-                                JsonValue::String("completed".to_owned()),
-                            ),
-                            (
-                                "summary".to_owned(),
-                                JsonValue::String("Completed".to_owned()),
-                            ),
-                        ]
-                        .into_iter()
-                        .collect(),
-                    ),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        );
+        let answer: JsonValue = serde_json::from_value(serde_json::json!({
+            "notify_plan": {},
+            "ending": "completed",
+            "ending_reason": "planned",
+            "model": "claude-haiku-4-5",
+            "requirements": ["fresh_context"],
+        }))?;
 
         assert!(agent_contract_checks(&request()?, &answer).is_ok());
         Ok(())

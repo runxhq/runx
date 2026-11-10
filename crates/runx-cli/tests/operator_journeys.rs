@@ -562,9 +562,7 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
                             "intake_report": {
                                 "summary": format!("Operator chose {outcome}.")
                             },
-                            "closure": {
-                                "outcome": outcome
-                            }
+                            "ending": outcome
                         }
                     }
                 }),

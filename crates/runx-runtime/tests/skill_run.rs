@@ -280,9 +280,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
                 "intake_report": {
                     "summary": "Docs bug is bounded."
                 },
-                "closure": {
-                    "outcome": "declined"
-                }
+                "ending": "declined"
             }
         }
     });
@@ -371,9 +369,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
                         }
                     ]
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -437,9 +433,7 @@ fn native_skill_run_preserves_deferred_outcome() -> Result<(), Box<dyn std::erro
                 "intake_report": {
                     "summary": "Docs bug needs more context."
                 },
-                "closure": {
-                    "outcome": "deferred"
-                }
+                "ending": "deferred"
             }
         }
     });
@@ -485,9 +479,7 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
                 "intake_report": {
                     "summary": "Docs bug is bounded."
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -769,9 +761,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
                 "intake_report": {
                     "summary": "Docs bug is bounded."
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -816,9 +806,7 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
                 "intake_report": {
                     "summary": "Docs bug is bounded."
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -1027,9 +1015,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
                 "result": {
                     "summary": "Workflow fix authored."
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -1098,9 +1084,7 @@ fn native_workflow_transition_gate_allows_declared_agent_output()
         "answers": {
             "decide": {
                 "approved": true,
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -1225,9 +1209,7 @@ fn native_workflow_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std
         "answers": {
             "decide": {
                 "approved": true,
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -1311,9 +1293,7 @@ fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
                 "result": {
                     "summary": "Nested agent fix authored."
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -2279,9 +2259,7 @@ fn native_workflow_skill_run_resolves_agent_task_tool_output_context()
                 "fix_bundle": {
                     "message": "Workflow tool bug"
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -2353,9 +2331,7 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
                 "result": {
                     "accepted": true
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -2465,9 +2441,7 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
                         "message": "Workflow tool bug"
                     }
                 },
-                "closure": {
-                    "outcome": "completed"
-                }
+                "ending": "completed"
             }
         }
     });
@@ -4502,12 +4476,12 @@ fn native_workflow_when_skips_unselected_branch() -> Result<(), Box<dyn std::err
         })
     };
     let branched = answer(serde_json::json!({
-        "answers": { "decide": { "verdict": "go", "closure": { "outcome": "completed" } } }
+        "answers": { "decide": { "verdict": "go", "ending": "completed" } }
     }))?;
     let branched = object(&branched.output, "branched when workflow result")?;
     assert_eq!(string_field(branched, "status"), Some("needs_agent"));
     let sealed = answer(serde_json::json!({
-        "answers": { "branch_go": { "result": { "ok": true }, "closure": { "outcome": "completed" } } }
+        "answers": { "branch_go": { "result": { "ok": true }, "ending": "completed" } }
     }))?;
     let output = object(&sealed.output, "sealed when workflow result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));

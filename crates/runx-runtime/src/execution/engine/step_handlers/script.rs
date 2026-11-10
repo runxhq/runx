@@ -298,7 +298,7 @@ where
             skill_name: step.id.clone(),
             authority: authority.as_ref(),
             admission_refs,
-            closure: None,
+            ending: None,
             refusal: None,
         },
         RegularSkillStepOutput {

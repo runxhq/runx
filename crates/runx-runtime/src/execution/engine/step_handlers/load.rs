@@ -167,7 +167,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
-            closure: None,
+            ending: None,
         },
         runtime.options.signature_policy(),
     )?;

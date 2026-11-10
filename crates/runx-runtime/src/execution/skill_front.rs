@@ -783,7 +783,7 @@ fn seal_refusal(
     method: &SkillMethodDefinition,
     signature_config: &RuntimeReceiptSignatureConfig,
     output: &InvocationOutput,
-    closure: StepSealEnding,
+    ending: StepSealEnding,
 ) -> Result<runx_contracts::Receipt, SkillRunError> {
     Ok(seal_step(
         StepSeal {
@@ -798,7 +798,7 @@ fn seal_refusal(
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
-            closure: Some(closure),
+            ending: Some(ending),
         },
         signature_config.signature_policy(),
     )?)

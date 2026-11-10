@@ -1485,7 +1485,7 @@ methods:
                     admission_refs: Vec::new(),
                     child_receipts: &[],
                     descendant_receipts: &[],
-                    closure: Some(StepSealEnding {
+                    ending: Some(StepSealEnding {
                         outcome: RunOutcome::Completed,
                         reason: None,
                     }),

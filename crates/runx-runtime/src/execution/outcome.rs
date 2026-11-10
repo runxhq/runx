@@ -3,62 +3,52 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub(crate) enum OutcomeClaimError {
-    #[error("agent answer closure must be an object")]
-    EndingNotObject,
-    #[error("agent answer closure.outcome is required")]
-    MissingOutcome,
-    #[error("agent answer closure.outcome must be a string")]
-    OutcomeNotString,
-    #[error("agent answer closure.outcome {0:?} is not supported")]
-    UnsupportedOutcome(String),
+    #[error("agent answer ending must be a string")]
+    EndingNotString,
+    #[error("agent answer ending {0:?} is not supported")]
+    UnsupportedEnding(String),
     #[error(
-        "agent answer closure.outcome {0:?} is the runtime's to observe; an agent ends its act completed, deferred, superseded, declined, blocked or failed"
+        "agent answer ending {0:?} is the runtime's to observe; an agent ends its act completed, deferred, superseded, declined, blocked or failed"
     )]
     RuntimeObserved(String),
+    #[error("agent answer gives an ending_reason and no ending")]
+    ReasonWithoutEnding,
+    #[error(
+        "agent answer holds a closure: an answer says how its act ended in ending, and why in ending_reason, at its top level"
+    )]
+    Closure,
 }
 
-pub(crate) fn parse_agent_answer_outcome(
-    answer: &JsonValue,
-) -> Result<RunOutcome, OutcomeClaimError> {
-    let closure = answer
-        .as_object()
-        .and_then(|object| object.get("closure"))
-        .ok_or(OutcomeClaimError::MissingOutcome)?;
-    let closure = closure
-        .as_object()
-        .ok_or(OutcomeClaimError::EndingNotObject)?;
-    let outcome = closure
-        .get("outcome")
-        .ok_or(OutcomeClaimError::MissingOutcome)?;
-    let outcome = outcome
-        .as_str()
-        .ok_or(OutcomeClaimError::OutcomeNotString)?;
-    agent_outcome(outcome)
-}
-
+/// How an agent's answer says its act ended: its `ending`, or completed when
+/// it states none.
 pub(crate) fn agent_answer_outcome_or_completed(
     answer: &JsonValue,
 ) -> Result<RunOutcome, OutcomeClaimError> {
-    match answer.as_object() {
-        Some(object) if object.contains_key("closure") => parse_agent_answer_outcome(answer),
-        _ => Ok(RunOutcome::Completed),
+    let Some(answer) = answer.as_object() else {
+        return Ok(RunOutcome::Completed);
+    };
+    if answer.contains_key("closure") {
+        return Err(OutcomeClaimError::Closure);
+    }
+    match answer.get("ending") {
+        Some(JsonValue::String(ending)) => agent_outcome(ending),
+        Some(_) => Err(OutcomeClaimError::EndingNotString),
+        None if answer.contains_key("ending_reason") => Err(OutcomeClaimError::ReasonWithoutEnding),
+        None => Ok(RunOutcome::Completed),
     }
 }
 
 /// Whether an agent's answer meets its turn's requirements. An agent harness that
-/// meets one says so in `closure.requirements`; one that can't ends the act
-/// failed with `closure.unsupported_requirement` naming it. Any other ending
-/// that leaves a requirement unstated is refused, so a turn's requirement is
-/// never assumed met.
+/// meets one says so in the answer's `requirements`; one that can't ends the act
+/// failed with `unsupported_requirement` naming it. Any other ending that
+/// leaves a requirement unstated is refused, so a turn's requirement is never
+/// assumed met.
 pub(crate) fn check_turn_requirements(
     required: &[runx_contracts::TurnRequirement],
     answer: &JsonValue,
     outcome: RunOutcome,
 ) -> Result<(), String> {
-    let closure = answer
-        .as_object()
-        .and_then(|object| object.get("closure"))
-        .and_then(JsonValue::as_object);
+    let answer = answer.as_object();
     let named = |value: &JsonValue, field: &str| {
         value
             .as_str()
@@ -73,16 +63,16 @@ pub(crate) fn check_turn_requirements(
                 )
             })
     };
-    let stated = match closure.and_then(|closure| closure.get("requirements")) {
+    let stated = match answer.and_then(|answer| answer.get("requirements")) {
         None => Vec::new(),
         Some(JsonValue::Array(values)) => values
             .iter()
-            .map(|value| named(value, "closure.requirements"))
+            .map(|value| named(value, "requirements"))
             .collect::<Result<Vec<_>, _>>()?,
-        Some(_) => return Err("agent answer closure.requirements must be a list".to_owned()),
+        Some(_) => return Err("agent answer requirements must be a list".to_owned()),
     };
-    if let Some(value) = closure.and_then(|closure| closure.get("unsupported_requirement")) {
-        let unsupported = named(value, "closure.unsupported_requirement")?;
+    if let Some(value) = answer.and_then(|answer| answer.get("unsupported_requirement")) {
+        let unsupported = named(value, "unsupported_requirement")?;
         if !required.contains(&unsupported) {
             return Err(format!(
                 "agent answer says its agent harness can't meet {}, which the turn doesn't require",
@@ -106,7 +96,7 @@ pub(crate) fn check_turn_requirements(
         .find(|requirement| !stated.contains(requirement))
     {
         Some(missing) => Err(format!(
-            "the turn requires {}, and its answer doesn't say its agent harness met it: list it in closure.requirements, or end the act failed with closure.unsupported_requirement",
+            "the turn requires {}, and its answer doesn't say its agent harness met it: list it in requirements, or end the act failed with unsupported_requirement",
             missing.as_str()
         )),
         None => Ok(()),
@@ -119,28 +109,24 @@ pub(crate) fn failed_answer(
     reason: String,
     unsupported: Option<runx_contracts::TurnRequirement>,
 ) -> JsonValue {
-    let mut closure = runx_contracts::JsonObject::from([
-        ("outcome".to_owned(), JsonValue::String("failed".to_owned())),
-        ("reason".to_owned(), JsonValue::String(reason)),
+    let mut answer = runx_contracts::JsonObject::from([
+        ("ending".to_owned(), JsonValue::String("failed".to_owned())),
+        ("ending_reason".to_owned(), JsonValue::String(reason)),
     ]);
     if let Some(requirement) = unsupported {
-        closure.insert(
+        answer.insert(
             "unsupported_requirement".to_owned(),
             JsonValue::String(requirement.as_str().to_owned()),
         );
     }
-    JsonValue::Object(runx_contracts::JsonObject::from([(
-        "closure".to_owned(),
-        JsonValue::Object(closure),
-    )]))
+    JsonValue::Object(answer)
 }
 
-/// `answer`, saying its agent harness met `met`: in its closure's `requirements`,
-/// with the act completed when the answer states no closure of its own.
+/// `answer`, saying its agent harness met `met`, in its `requirements`.
 ///
 /// # Errors
 ///
-/// Returns an error when the answer isn't an object, or its closure isn't.
+/// Returns an error when the answer isn't an object.
 #[cfg(any(feature = "agent", feature = "mcp"))]
 pub(crate) fn with_met_requirements(
     answer: JsonValue,
@@ -160,45 +146,32 @@ pub(crate) fn with_met_requirements(
     )
 }
 
-/// `answer`, saying `model` answered it: in its closure's `model`, with the
-/// act completed when the answer states no closure of its own.
+/// `answer`, saying `model` answered it, in its `model`.
 ///
 /// # Errors
 ///
-/// Returns an error when the answer isn't an object, or its closure isn't.
+/// Returns an error when the answer isn't an object.
 #[cfg(feature = "agent")]
 pub(crate) fn with_stated_model(answer: JsonValue, model: &str) -> Result<JsonValue, String> {
     stating(answer, "model", JsonValue::String(model.to_owned()))
 }
 
-/// `answer` with `value` at its closure's `key`, the act completed when the
-/// answer states no closure of its own.
+/// `answer` with `value` at its `key`.
 #[cfg(any(feature = "agent", feature = "mcp"))]
 fn stating(answer: JsonValue, key: &str, value: JsonValue) -> Result<JsonValue, String> {
     let JsonValue::Object(mut answer) = answer else {
         return Err(format!("an answer that states its {key} is an object"));
     };
-    let closure = answer.entry("closure".to_owned()).or_insert_with(|| {
-        JsonValue::Object(runx_contracts::JsonObject::from([(
-            "outcome".to_owned(),
-            JsonValue::String("completed".to_owned()),
-        )]))
-    });
-    let JsonValue::Object(closure) = closure else {
-        return Err("agent answer closure must be an object".to_owned());
-    };
-    closure.insert(key.to_owned(), value);
+    answer.insert(key.to_owned(), value);
     Ok(JsonValue::Object(answer))
 }
 
-/// Whether an agent turn's answer states its agent harness met `requirement`, in
-/// its closure's `requirements`.
+/// Whether an agent turn's answer states its agent harness met `requirement`,
+/// in its `requirements`.
 pub(crate) fn states_met(answer: &JsonValue, requirement: runx_contracts::TurnRequirement) -> bool {
     answer
         .as_object()
-        .and_then(|answer| answer.get("closure"))
-        .and_then(JsonValue::as_object)
-        .and_then(|closure| closure.get("requirements"))
+        .and_then(|answer| answer.get("requirements"))
         .and_then(JsonValue::as_array)
         .is_some_and(|stated| {
             stated
@@ -210,19 +183,15 @@ pub(crate) fn states_met(answer: &JsonValue, requirement: runx_contracts::TurnRe
 /// The longest model name an answer may state.
 const MAX_MODEL: usize = 200;
 
-/// The model an agent turn's answer says answered it, in its closure's
-/// `model`: its agent harness or runx's driver states it, and a turn whose
-/// answer states none has no model of record.
+/// The model an agent turn's answer says answered it, in its `model`: its
+/// agent harness or runx's driver states it, and a turn whose answer states
+/// none has no model of record.
 ///
 /// # Errors
 ///
-/// Returns an error when the closure states a model that isn't a name.
+/// Returns an error when the answer states a model that isn't a name.
 pub(crate) fn stated_model(answer: &JsonValue) -> Result<Option<&str>, String> {
-    let stated = answer
-        .as_object()
-        .and_then(|answer| answer.get("closure"))
-        .and_then(JsonValue::as_object)
-        .and_then(|closure| closure.get("model"));
+    let stated = answer.as_object().and_then(|answer| answer.get("model"));
     match stated {
         None => Ok(None),
         Some(JsonValue::String(model))
@@ -233,23 +202,23 @@ pub(crate) fn stated_model(answer: &JsonValue) -> Result<Option<&str>, String> {
             Ok(Some(model.as_str()))
         }
         Some(_) => Err(format!(
-            "agent answer closure.model names the model that answered, in 1 to {MAX_MODEL} characters"
+            "agent answer model names the model that answered, in 1 to {MAX_MODEL} characters"
         )),
     }
 }
 
 /// How an agent says its act ended. A kill or a timeout is observed by the
 /// runtime that ran the act, never claimed by the agent's answer.
-fn agent_outcome(outcome: &str) -> Result<RunOutcome, OutcomeClaimError> {
-    match outcome {
+fn agent_outcome(ending: &str) -> Result<RunOutcome, OutcomeClaimError> {
+    match ending {
         "completed" => Ok(RunOutcome::Completed),
         "deferred" => Ok(RunOutcome::Deferred),
         "superseded" => Ok(RunOutcome::Superseded),
         "declined" => Ok(RunOutcome::Declined),
         "blocked" => Ok(RunOutcome::Blocked),
         "failed" => Ok(RunOutcome::Failed),
-        "killed" | "timed_out" => Err(OutcomeClaimError::RuntimeObserved(outcome.to_owned())),
-        other => Err(OutcomeClaimError::UnsupportedOutcome(other.to_owned())),
+        "killed" | "timed_out" => Err(OutcomeClaimError::RuntimeObserved(ending.to_owned())),
+        other => Err(OutcomeClaimError::UnsupportedEnding(other.to_owned())),
     }
 }
 
@@ -291,9 +260,33 @@ mod tests {
             serde_json::json!(7),
             serde_json::json!("a\nb"),
         ] {
-            let closure = serde_json::json!({"closure": {"outcome": "completed", "model": named}});
-            assert!(super::stated_model(&answer(closure)?).is_err());
+            let stated = serde_json::json!({"draft": "Hello.", "model": named});
+            assert!(super::stated_model(&answer(stated)?).is_err());
         }
+        Ok(())
+    }
+
+    /// An agent says how its act ended, and why, at its answer's top level,
+    /// beside the outputs its step declares; an answer holding a closure is
+    /// refused, since closure names a package's closure.
+    #[test]
+    fn an_answer_states_its_ending_and_why_at_its_top_level() -> Result<(), serde_json::Error> {
+        let answer = |text: &str| serde_json::from_str::<JsonValue>(text);
+        let declined = answer(
+            r#"{"verdict": "skip", "ending": "declined", "ending_reason": "no source to review"}"#,
+        )?;
+        assert_eq!(
+            agent_answer_outcome_or_completed(&declined),
+            Ok(RunOutcome::Declined)
+        );
+        assert_eq!(
+            failed_answer("no subagent".to_owned(), None),
+            answer(r#"{"ending": "failed", "ending_reason": "no subagent"}"#)?
+        );
+        assert_eq!(
+            agent_answer_outcome_or_completed(&answer(r#"{"closure": {"outcome": "completed"}}"#)?),
+            Err(OutcomeClaimError::Closure)
+        );
         Ok(())
     }
 
@@ -305,12 +298,12 @@ mod tests {
         };
         for claimed in ["killed", "timed_out"] {
             assert_eq!(
-                outcome(&format!(r#"{{"closure": {{"outcome": "{claimed}"}}}}"#))?,
+                outcome(&format!(r#"{{"ending": "{claimed}"}}"#))?,
                 Err(OutcomeClaimError::RuntimeObserved(claimed.to_owned()))
             );
         }
         assert_eq!(
-            outcome(r#"{"closure": {"outcome": "declined"}}"#)?,
+            outcome(r#"{"ending": "declined"}"#)?,
             Ok(RunOutcome::Declined)
         );
         assert_eq!(outcome(r#"{"answer": "done"}"#)?, Ok(RunOutcome::Completed));
@@ -347,8 +340,7 @@ mod tests {
             check_turn_requirements(&fresh, &not_required, RunOutcome::Failed)
                 .is_err_and(|reason| reason.contains("doesn't require"))
         );
-        let misnamed =
-            answer(r#"{"closure": {"outcome": "completed", "requirements": ["telepathy"]}}"#)?;
+        let misnamed = answer(r#"{"summary": "done", "requirements": ["telepathy"]}"#)?;
         assert!(
             check_turn_requirements(&fresh, &misnamed, RunOutcome::Completed)
                 .is_err_and(|reason| reason.contains("names no requirement"))

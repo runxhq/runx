@@ -150,10 +150,20 @@ pub fn validate_step(
     if let Some(outputs) = &outputs {
         runx_contracts::parse_output_contract(outputs)
             .map_err(|error| validation_error(format!("{field}.outputs is invalid: {error}")))?;
-        if matches!(kind, StepKind::Agent(_)) && outputs.contains_key("closure") {
-            return Err(validation_error(format!(
-                "{field}.outputs cannot declare closure: an agent's answer states how its act closed under that name."
-            )));
+        if matches!(kind, StepKind::Agent(_)) {
+            if let Some(name) = runx_contracts::RESERVED_ANSWER_FIELDS
+                .into_iter()
+                .find(|name| outputs.contains_key(*name))
+            {
+                return Err(validation_error(format!(
+                    "{field}.outputs cannot declare {name}: an agent's answer states runx's own {name} under that name."
+                )));
+            }
+            if outputs.contains_key("closure") {
+                return Err(validation_error(format!(
+                    "{field}.outputs cannot declare closure: an agent's answer holds none, and says how its act ended in ending."
+                )));
+            }
         }
     }
     let artifacts = match &kind {

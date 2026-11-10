@@ -43,7 +43,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "requires": {
-        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`.",
+        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the act failed with `unsupported_requirement`.",
         "items": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnRequirement"
         },

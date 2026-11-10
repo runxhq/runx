@@ -128,9 +128,9 @@ steps:
   `separate_reviewer` (a reviewer other than the one that produced what it
   judges). Each is named once, and any other name is refused.
 - The turn's invocation carries them to its host, and runx never assumes
-  one is met. The host's answer lists each requirement it met in
-  `closure.requirements`, or ends the act failed with
-  `closure.unsupported_requirement` naming the one it can't meet. A run whose
+  one is met. The host's answer lists each requirement it met in its
+  `requirements`, or ends the act failed with `unsupported_requirement`
+  naming the one it can't meet. A run whose
   answer leaves a requirement unstated seals failed, saying so. Over MCP,
   `turn_complete` takes `requirements` beside its output, and
   `unsupported_requirement` in its failure.

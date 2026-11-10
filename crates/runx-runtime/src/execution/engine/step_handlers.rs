@@ -160,7 +160,7 @@ struct RegularSkillSeal<'a, A> {
     admission_refs: Vec<Reference>,
     /// How the step closes when its output does not say: a skill step whose
     /// child stopped short closes as its child sealed.
-    closure: Option<StepSealEnding>,
+    ending: Option<StepSealEnding>,
     /// Why a guard or an authority refused the step's child run, when one
     /// did.
     refusal: Option<JsonObject>,
@@ -457,9 +457,9 @@ where
         },
     )?;
     // The step closes as its child sealed: a child that stopped short
-    // stops its step with the same closure, carrying every receipt it made.
+    // stops its step with the same ending, carrying every receipt it made.
     let child_seal = &run.receipt.seal;
-    let closure = (child_seal.outcome != RunOutcome::Completed).then_some(StepSealEnding {
+    let ending = (child_seal.outcome != RunOutcome::Completed).then_some(StepSealEnding {
         outcome: child_seal.outcome,
         reason: child_seal.reason,
     });
@@ -509,7 +509,7 @@ where
             skill_name,
             authority: request.authority.as_ref(),
             admission_refs,
-            closure,
+            ending,
             refusal,
         },
         RegularSkillStepOutput {
@@ -837,7 +837,7 @@ where
             admission_refs: context.admission_refs,
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
-            closure: context.closure,
+            ending: context.ending,
         },
         context.runtime.options.signature_policy(),
     )?;
@@ -1016,7 +1016,7 @@ where
             skill_name: step.id.clone(),
             authority: authority.as_ref(),
             admission_refs,
-            closure: None,
+            ending: None,
             refusal: None,
         },
         regular,
@@ -1071,7 +1071,7 @@ fn seal_turn_step<A>(
     let outcome = agent_answer_outcome_value(step, &response.payload)?;
     // The turn's receipt names each call the agent made, in order.
     let lineage = StepReceiptLineage::of_turn(&calls);
-    // The answer was verified against its output contract whatever closure it
+    // The answer was verified against its output contract whatever ending it
     // claims, so an act that declines or defers still returns its outputs. An
     // act that failed has no result.
     let projection = if outcome == RunOutcome::Failed {
@@ -1101,7 +1101,7 @@ fn seal_turn_step<A>(
             admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
-            closure: Some(StepSealEnding {
+            ending: Some(StepSealEnding {
                 outcome,
                 reason: None,
             }),
@@ -1494,7 +1494,7 @@ where
             admission_refs,
             child_receipts: &[],
             descendant_receipts: &[],
-            closure: None,
+            ending: None,
         },
         runtime.options.signature_policy(),
     )?;
@@ -1716,19 +1716,15 @@ fn agent_task_output(
     outcome: &RunOutcome,
 ) -> Result<InvocationOutput, RuntimeError> {
     let succeeded = *outcome == RunOutcome::Completed;
-    // A failure says why, in the closure's reason, and names a requirement
-    // its agent harness couldn't meet.
-    let closure = response
-        .payload
-        .as_object()
-        .and_then(|answer| answer.get("closure"))
-        .and_then(JsonValue::as_object);
-    let stated = closure
-        .and_then(|closure| closure.get("reason"))
+    // A failure says why, in its ending_reason, and names a requirement its
+    // agent harness couldn't meet.
+    let answer = response.payload.as_object();
+    let stated = answer
+        .and_then(|answer| answer.get("ending_reason"))
         .and_then(JsonValue::as_str)
         .filter(|reason| !reason.trim().is_empty());
-    let unsupported = closure
-        .and_then(|closure| closure.get("unsupported_requirement"))
+    let unsupported = answer
+        .and_then(|answer| answer.get("unsupported_requirement"))
         .and_then(JsonValue::as_str);
     let reason = match (unsupported, stated) {
         (Some(requirement), Some(stated)) => {
@@ -1856,7 +1852,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
-            closure: None,
+            ending: None,
         },
         runtime.options.signature_policy(),
     )?;
@@ -2013,7 +2009,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
-            closure: None,
+            ending: None,
         },
         runtime.options.signature_policy(),
     )?;
@@ -2167,7 +2163,7 @@ where
     A: SkillAdapter,
 {
     // A managed agent that stopped seals why it stopped.
-    let closure = match &error {
+    let ending = match &error {
         #[cfg(feature = "agent")]
         RuntimeError::ManagedAgentResolution { source, .. } => Some(StepSealEnding {
             outcome: RunOutcome::Failed,
@@ -2208,7 +2204,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
-            closure,
+            ending,
         },
         runtime.options.signature_policy(),
     )?;

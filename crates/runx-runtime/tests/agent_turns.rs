@@ -2281,7 +2281,7 @@ fn a_turns_requirement_reaches_its_host_and_is_never_assumed_met() -> TestResult
         TURN,
         input(serde_json::json!({
             "answer": "yes",
-            "closure": {"outcome": "completed", "requirements": ["fresh_context"]},
+            "ending": "completed", "requirements": ["fresh_context"],
         }))?,
     )?;
     let output = object(&sealed.output)?;

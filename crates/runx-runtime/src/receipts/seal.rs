@@ -60,7 +60,7 @@ struct StepReceiptSeal<'a> {
 }
 
 impl<'a> StepReceiptWithOutcome<'a> {
-    /// A step-receipt request whose closure is derived from the output (the
+    /// A step-receipt request whose ending is derived from the output (the
     /// process-exit default): `Completed`/`Failed` by exit status, with no
     /// reason. This is the single source of that derivation for the
     /// process-exit step receipts.
@@ -185,7 +185,7 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
 
 /// The single step-receipt seal. Every runtime step (regular skill, tool,
 /// approval, agent act, replay, error) seals through here, so the act,
-/// decision, and authority assembly lives in exactly one place. `closure` is
+/// decision, and authority assembly lives in exactly one place. `ending` is
 /// `None` for process-exit steps (the outcome is derived from the output)
 /// and `Some` for steps that carry their own outcome, e.g. an agent act
 /// that ends `Deferred` on a successful turn.
@@ -211,7 +211,7 @@ pub(crate) struct StepSeal<'a> {
     /// All receipts below `child_receipts`, supplied only to resolve and
     /// validate the complete tree. They are not direct children of this step.
     pub(crate) descendant_receipts: &'a [Receipt],
-    pub(crate) closure: Option<StepSealEnding>,
+    pub(crate) ending: Option<StepSealEnding>,
 }
 
 /// A step's own outcome, and the reason it ended that way when one
@@ -222,7 +222,7 @@ pub(crate) struct StepSealEnding {
 }
 
 impl StepSealEnding {
-    /// The process-exit default closure derived from the output: `Completed`/`Failed`
+    /// The process-exit default ending derived from the output: `Completed`/`Failed`
     /// by exit status, with no reason beyond the exit. The single source of
     /// this derivation.
     pub(crate) fn default_for(output: &InvocationOutput) -> Self {
@@ -249,10 +249,10 @@ pub(crate) fn seal_step(
         admission_refs,
         child_receipts,
         descendant_receipts,
-        closure,
+        ending,
     } = params;
     let StepSealEnding { outcome, reason } =
-        closure.unwrap_or_else(|| StepSealEnding::default_for(output));
+        ending.unwrap_or_else(|| StepSealEnding::default_for(output));
     step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithOutcome {
             scope,
@@ -380,7 +380,7 @@ pub(crate) fn workflow_receipt_with_ending(
     scope: RunScope<'_>,
     steps: &[StepRun],
     created_at: &str,
-    closure: WorkflowEnding,
+    ending: WorkflowEnding,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
@@ -398,7 +398,7 @@ pub(crate) fn workflow_receipt_with_ending(
         scope,
         child_refs,
         created_at,
-        &closure,
+        &ending,
     )?
     .seal(signature_policy)?;
 
@@ -420,9 +420,9 @@ fn build_workflow_receipt(
     scope: RunScope<'_>,
     children: Vec<Reference>,
     created_at: &str,
-    closure: &WorkflowEnding,
+    ending: &WorkflowEnding,
 ) -> Result<UnsealedReceipt, RuntimeError> {
-    let digest = outcome_digest(closure.outcome, &JsonObject::new(), &children)?;
+    let digest = outcome_digest(ending.outcome, &JsonObject::new(), &children)?;
     Ok(build_unsealed_receipt(BuildReceipt {
         issuer,
         scope,
@@ -433,8 +433,8 @@ fn build_workflow_receipt(
         decisions: Vec::new(),
         acts: Vec::new(),
         seal: Seal {
-            outcome: closure.outcome,
-            reason: closure.reason,
+            outcome: ending.outcome,
+            reason: ending.reason,
             criteria: Vec::new(),
         },
         children,

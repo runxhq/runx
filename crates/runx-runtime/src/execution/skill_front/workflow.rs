@@ -592,7 +592,7 @@ impl Driven<'_> {
     /// Seal the run where `error` stopped it. A run blocked by a guard or an
     /// authority returns what its steps produced, and the refusal's public
     /// projection beside it, outside the signed receipt; one a step's own
-    /// governed closure stopped returns that step's declared outputs.
+    /// governed ending stopped returns that step's declared outputs.
     fn seal_stopped(&self, error: RuntimeError) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let mut host = RunHost::new(ResolutionAnswers::default());

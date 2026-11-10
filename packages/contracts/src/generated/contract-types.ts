@@ -3679,7 +3679,7 @@ export type TurnInvocationContract = {
   readonly context_kinds?: readonly string[];
   readonly envelope: AgentContextEnvelopeContract;
   readonly id: string;
-  /** What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `closure.requirements`; one that can't ends the act failed with `closure.unsupported_requirement`. */
+  /** What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the act failed with `unsupported_requirement`. */
   readonly requires?: readonly TurnRequirementContract[];
   /** The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions. */
   readonly task: string;
