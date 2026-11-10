@@ -67,12 +67,20 @@ impl ManagedAgent {
 
     /// Work `turn` with the configured model; `host` answers what its calls
     /// ask. Returns the turn's answer when the model finishes, and `None` when
-    /// no model is configured or a call waits on a human.
+    /// no model is configured or a call waits on a human, before or while
+    /// the model works it.
     pub(crate) fn drive(
         &self,
         turn: &mut dyn Turn,
         host: &mut dyn Host,
     ) -> Result<Option<JsonValue>, RuntimeError> {
+        if turn
+            .calls()?
+            .iter()
+            .any(|call| matches!(call.outcome, TurnCallOutcome::Pending { .. }))
+        {
+            return Ok(None);
+        }
         let step_id = turn.step_id().to_owned();
         let request_id = turn.invocation().id.as_str().to_owned();
         let fail = |error: ManagedAgentError| {

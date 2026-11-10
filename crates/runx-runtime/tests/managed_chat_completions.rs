@@ -1626,3 +1626,96 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
     );
     Ok(())
 }
+
+/// A run the managed agent drives works every turn it opens on its first
+/// drive, those of calls a script runs at once included. The model answers
+/// none of the three turns until all three have asked it, so the run seals
+/// only when they're worked at once, up to the script's concurrency.
+#[test]
+fn a_driven_run_works_the_turns_its_script_opens_at_once_in_one_drive()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("judge-child"),
+        "---\nname: judge-child\ndescription: Judges one item.\n---\n# Judge child\n\n## Agent task: judge\n\nJudge the item, then finish with your verdict.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  judge:\n    inputs:\n      item: {type: string}\n    steps:\n      - id: judge\n        agent: judge\n        inputs: {item: $input.item}\n        outputs:\n          verdict: {type: string}\n",
+    )?;
+    let parent = temp.path().join("batch");
+    crate::support::write_test_skill_package(
+        &parent,
+        "---\nname: batch\ndescription: Judges three items at once.\n---\n# Batch\n\nJudge each.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  batch:\n    steps:\n      - id: batch\n        script: {module: batch.mjs}\n        calls:\n          skills: [../judge-child]\n        max_calls: 3\n        concurrency: 3\n        outputs:\n          verdicts: {type: array}\n",
+    )?;
+    fs::write(
+        parent.join("batch.mjs"),
+        "export default async function (ctx) {\n  const judged = await Promise.all([\"item-0\", \"item-1\", \"item-2\"].map((item) => ctx.skill(\"../judge-child\", { item })));\n  return { verdicts: judged.map((child) => child.verdict) };\n}\n",
+    )?;
+
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    // Every turn has asked before any is answered; each is answered with
+    // the item its act names.
+    let server = std::thread::spawn(move || -> io::Result<Vec<Value>> {
+        let mut asked = Vec::new();
+        for _ in 0..3 {
+            let (mut stream, _) = listener.accept()?;
+            let request = runx_runtime::scripted_model::read_chat_request(&mut stream)?;
+            asked.push((stream, request));
+        }
+        let mut requests = Vec::new();
+        for (mut stream, request) in asked {
+            let sent = request.to_string();
+            let item = ["item-0", "item-1", "item-2"]
+                .into_iter()
+                .find(|item| sent.contains(item))
+                .ok_or_else(|| io::Error::other("the act names no item"))?;
+            runx_runtime::scripted_model::write_chat_response(
+                &mut stream,
+                &runx_runtime::scripted_model::tool_call(
+                    "call-final",
+                    "turn_complete",
+                    &json!({"verdict": format!("judged {item}")}),
+                ),
+            )?;
+            requests.push(request);
+        }
+        Ok(requests)
+    });
+    let mut env = BTreeMap::from([(
+        "RUNX_HOME".to_owned(),
+        temp.path().join("home").to_string_lossy().into_owned(),
+    )]);
+    env.extend(runx_runtime::scripted_model::managed_agent_env(
+        &endpoint,
+        "fixture-model",
+    ));
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: parent,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    assert_eq!(
+        output["result"]["verdicts"],
+        json!(["judged item-0", "judged item-1", "judged item-2"]),
+        "{output}"
+    );
+    assert_eq!(finish_server(server)?.len(), 3);
+    Ok(())
+}

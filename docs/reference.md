@@ -411,7 +411,9 @@ prices are also refused under a money limit; missing price information is not
 zero. With no money limit, no dollar reservation is made, while scoped use
 limits, charge custody and applicable approval still hold. A run started with `--drive` is worked by the
 managed agent: `runx mcp --run` refuses it, and `--drive` cannot take
-over a run its host drives.
+over a run its host drives. The managed agent works every turn the run opens
+in the same drive, and the turns of calls a script runs at once are worked at
+once, up to the script's and the run's concurrency.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
 `--package-digest` and `--closure-digest`. Runx recomputes both at the

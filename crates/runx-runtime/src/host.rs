@@ -1,6 +1,9 @@
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use runx_contracts::{ExecutionEvent, ResolutionRequest, ResolutionResponse};
+use runx_contracts::{
+    ExecutionEvent, JsonValue, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+};
 
 use crate::RuntimeError;
 use crate::execution::engine::turn::Turn;
@@ -76,9 +79,15 @@ pub type DetachedAnswers =
 /// A host serving one call apart from the run's driver. What the call
 /// reports and logs is kept, and the driver hands it to its own host when it
 /// records the call. A call it serves that runs calls of its own, a child
-/// script's, serves each apart too, from the same answers.
+/// script's, serves each apart too, from the same answers. The managed
+/// agent a run consents to works the turns the call opens here, as it works
+/// the driver's, so turns opened at once are worked at once.
 pub struct DetachedHost {
     answers: Arc<Mutex<DetachedAnswers>>,
+    #[cfg(feature = "agent")]
+    managed: Option<Arc<crate::adapters::managed_agent::ManagedAgent>>,
+    /// The answers its managed agent gave the call's turns, by address.
+    given: BTreeMap<String, JsonValue>,
     reported: Vec<ExecutionEvent>,
     logged: Vec<String>,
 }
@@ -88,9 +97,22 @@ impl DetachedHost {
     pub fn new(answers: DetachedAnswers) -> Self {
         Self {
             answers: Arc::new(Mutex::new(answers)),
+            #[cfg(feature = "agent")]
+            managed: None,
+            given: BTreeMap::new(),
             reported: Vec::new(),
             logged: Vec::new(),
         }
+    }
+
+    /// This host with the managed agent its run consents to, which works
+    /// the turns of the call it serves.
+    #[cfg(feature = "agent")]
+    pub(crate) fn worked_by(
+        self,
+        managed: Option<Arc<crate::adapters::managed_agent::ManagedAgent>>,
+    ) -> Self {
+        Self { managed, ..self }
     }
 
     /// Hand what the call reported and logged to the driver's `host`.
@@ -115,6 +137,14 @@ impl Host for DetachedHost {
         &mut self,
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
+        if let ResolutionRequest::Turn { id, .. } = &request
+            && let Some(answer) = self.given.remove(id.as_str())
+        {
+            return Ok(Some(ResolutionResponse {
+                actor: ResolutionResponseActor::Agent,
+                payload: answer,
+            }));
+        }
         let mut answers = self
             .answers
             .lock()
@@ -131,13 +161,44 @@ impl Host for DetachedHost {
     }
 
     /// A call of the call this host serves runs apart from it on the same
-    /// answers, and what it reports comes back to this host.
+    /// answers and the same managed agent, and what it reports comes back to
+    /// this host.
     fn detached(&self) -> Option<DetachedHost> {
         Some(Self {
             answers: Arc::clone(&self.answers),
+            #[cfg(feature = "agent")]
+            managed: self.managed.clone(),
+            given: BTreeMap::new(),
             reported: Vec::new(),
             logged: Vec::new(),
         })
+    }
+
+    /// The managed agent, when the run consents to one, works a turn once
+    /// nothing in it waits on a human.
+    fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
+        #[cfg(feature = "agent")]
+        if let Some(managed) = self.managed.clone()
+            && let Some(output) = managed.drive(turn, self)?
+        {
+            self.given
+                .insert(turn.invocation().id.as_str().to_owned(), output);
+        }
+        #[cfg(not(feature = "agent"))]
+        let _ = turn;
+        Ok(())
+    }
+
+    /// Only a managed agent at a loopback endpoint is known to run here.
+    fn reads_local_only(&self) -> bool {
+        #[cfg(feature = "agent")]
+        {
+            self.managed.as_ref().is_some_and(|agent| agent.is_local())
+        }
+        #[cfg(not(feature = "agent"))]
+        {
+            false
+        }
     }
 }
 

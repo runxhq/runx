@@ -52,7 +52,7 @@ impl BoundRun {
         #[cfg(feature = "agent")]
         {
             host.managed = self.request.managed_agent.max_rounds().map(|max_rounds| {
-                std::rc::Rc::new(crate::adapters::managed_agent::ManagedAgent::new(
+                std::sync::Arc::new(crate::adapters::managed_agent::ManagedAgent::new(
                     self.workspace.skill_env_for_skill(&self.skill_dir),
                     self.skill_dir.clone(),
                     max_rounds,
@@ -736,7 +736,7 @@ pub(super) struct RunHost {
     /// `max_concurrency`, in every pass of the session.
     pool: Option<std::sync::Arc<crate::execution::engine::CallPool>>,
     #[cfg(feature = "agent")]
-    managed: Option<std::rc::Rc<crate::adapters::managed_agent::ManagedAgent>>,
+    managed: Option<std::sync::Arc<crate::adapters::managed_agent::ManagedAgent>>,
 }
 
 impl RunHost {
@@ -1038,14 +1038,18 @@ impl Host for RunHost {
         answer_from(&mut self.given, &self.answers, &request)
     }
 
-    /// A call apart from the driver is answered from the same answers.
-    /// Turns stay on the driver, since its managed agent works them.
+    /// A call apart from the driver is answered from the same answers, and
+    /// the managed agent works the turns it opens there, as it works the
+    /// driver's.
     fn detached(&self) -> Option<crate::host::DetachedHost> {
         let mut given = self.given.clone();
         let answers = self.answers.clone();
-        Some(crate::host::DetachedHost::new(Box::new(move |request| {
+        let detached = crate::host::DetachedHost::new(Box::new(move |request| {
             answer_from(&mut given, &answers, &request)
-        })))
+        }));
+        #[cfg(feature = "agent")]
+        let detached = detached.worked_by(self.managed.clone());
+        Some(detached)
     }
 
     fn log(&mut self, _message: String) -> Result<(), RuntimeError> {
@@ -1104,10 +1108,6 @@ impl Host for RunHost {
         }
         #[cfg(feature = "agent")]
         if let Some(managed) = self.managed.clone()
-            && turn
-                .calls()?
-                .iter()
-                .all(|call| !matches!(call.outcome, TurnCallOutcome::Pending { .. }))
             && let Some(output) = managed.drive(turn, self)?
         {
             self.given.insert(address, output);
