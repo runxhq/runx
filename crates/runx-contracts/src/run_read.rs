@@ -399,6 +399,10 @@ pub enum ReuseDecision {
 pub enum RecomputeReason {
     /// No source holds a result for what it asked.
     NoCandidate,
+    /// Its reuse identity couldn't be made, such as for a worker whose
+    /// sources this build doesn't know: it ran as a plain call and indexed
+    /// nothing, and an identical call won't hit either.
+    NoIdentity,
     /// Its source's record can't show all it did and saw.
     Ineligible,
     /// The run's authority doesn't allow a read its source made.

@@ -96,8 +96,8 @@ pub(crate) fn identity(
 
 /// What a call that asked to reuse a result is answered, given its
 /// `identity` or why it has none, and the identity its child is indexed
-/// under. A call whose identity can't be made has no source to find: it runs
-/// as a plain call would, and indexes nothing. A source that isn't eligible
+/// under. A call whose identity can't be made recomputes as no identity: it
+/// runs as a plain call would, and indexes nothing. A source that isn't eligible
 /// recomputes as ineligible, and one that is recomputes as not allowed until
 /// its reads are authorized for this run.
 pub(crate) fn decide(
@@ -108,7 +108,7 @@ pub(crate) fn decide(
     use runx_contracts::RecomputeReason;
     let recomputed = |reason| runx_contracts::ReuseDecision::Recomputed { reason };
     let Ok(identity) = identity else {
-        return Ok((recomputed(RecomputeReason::NoCandidate), None));
+        return Ok((recomputed(RecomputeReason::NoIdentity), None));
     };
     let reason = match head(store, &identity)? {
         None => RecomputeReason::NoCandidate,
@@ -367,7 +367,7 @@ mod tests {
         assert_eq!(
             decision,
             runx_contracts::ReuseDecision::Recomputed {
-                reason: runx_contracts::RecomputeReason::NoCandidate,
+                reason: runx_contracts::RecomputeReason::NoIdentity,
             }
         );
         assert_eq!(identity, None, "nothing is indexed for it");
