@@ -55,6 +55,8 @@ methods:
           provenance: $input.provenance
           source_snapshot: $steps.read.file_read_bundle
           validation_byte_budget: $input.validation_byte_budget
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1, optional: true}
   from-source:
     description: Adopt already captured upstream source without another acquisition; canonical skill-build owns validation and atomic application.
     inputs:
@@ -181,6 +183,8 @@ methods:
           target_dir: $input.target_dir
           package_name: $input.package_name
           project_context: $steps.context.adoption_context.project_context
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
 shared_inputs:
   objective:
     type: string
