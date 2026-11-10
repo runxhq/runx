@@ -102,6 +102,32 @@ impl ResolutionAnswers {
         });
     }
 
+    /// Whether an entry answers a request the run doesn't wait on now, by
+    /// its address.
+    pub(super) fn names_unwaited(&self, waiting: &[PendingRequest]) -> bool {
+        self.entries
+            .keys()
+            .any(|address| !waiting.iter().any(|request| request.id == *address))
+    }
+
+    /// Pass over each entry the run took already: one for a request it no
+    /// longer waits on that is exactly an answer `applied` holds for it, the
+    /// same request by its digest, the same value and the same lane. A host
+    /// recovering a lapsed attempt can't know whether the attempt's answers
+    /// reached the run, so sending them again applies nothing twice. A
+    /// different answer to a request answered already is still refused.
+    pub(super) fn pass_over_applied(&mut self, waiting: &[PendingRequest], applied: &[Answer]) {
+        self.entries.retain(|address, entry| {
+            waiting.iter().any(|request| request.id == *address)
+                || !applied.iter().any(|answer| {
+                    answer.request_id == *address
+                        && answer.request_digest == entry.digest
+                        && answer.value == entry.value
+                        && answer.human == entry.human
+                })
+        });
+    }
+
     /// Take `other`'s entries and its standing approvals: a later delivery's
     /// entry for an address replaces an earlier one's.
     pub(super) fn absorb(&mut self, other: Self) {

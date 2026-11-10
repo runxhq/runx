@@ -92,6 +92,10 @@ impl BoundRun {
             answers.absorb(std::mem::take(&mut host.answers));
             host.answers = answers;
         }
+        // A resend of answers the run took already takes nothing twice.
+        if host.answers.names_unwaited(&waiting) {
+            host.answers.pass_over_applied(&waiting, &log.applied()?);
+        }
         host.answers.check_waiting(log.run_id(), &waiting)?;
         let request_context = CallerContext {
             current: request.current_context.clone(),

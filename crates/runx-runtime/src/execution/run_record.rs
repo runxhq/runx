@@ -87,7 +87,7 @@ impl StreamEvent for RunEvent {
             Self::Suspended(_) => "suspended",
             Self::Call(_) => "call",
             Self::Clock(_) => "clock",
-            Self::Consumed(_) => "consumed",
+            Self::Consumed(_) => CONSUMED,
             Self::Sealed(_) => "sealed",
             Self::Answered(_) => ANSWERED,
             Self::Standing(_) => "standing",
@@ -97,6 +97,9 @@ impl StreamEvent for RunEvent {
 
 /// The event type of an answer a resume admitted.
 const ANSWERED: &str = "answered";
+
+/// The event type of the answers a step, call or claim consumed.
+const CONSUMED: &str = "consumed";
 
 /// The person's standing approvals, replacing the run's set for every later
 /// step.
@@ -674,6 +677,9 @@ pub(crate) struct RunRecord {
     /// The answers a resume admitted that no step, call or claim has used
     /// yet, in the order they were admitted.
     pub admitted: Vec<Answer>,
+    /// Every answer a resume admitted, used or not, in the order it was
+    /// admitted.
+    pub answered: Vec<Answer>,
     /// The standing approvals the person last set, which replace the set the
     /// run started with.
     pub standing: Option<Vec<StandingApproval>>,
@@ -1026,6 +1032,18 @@ impl RunLog {
             purchase: started.purchase,
             waiting: self.waiting()?,
         }))
+    }
+
+    /// What a sealed run started as: none for a run that hasn't sealed, or
+    /// that isn't a run of its own.
+    pub(crate) fn sealed_start(&self) -> Result<Option<Box<Started>>, RunRecordError> {
+        let Some(record) = self.load()? else {
+            return Ok(None);
+        };
+        match (record.sealed, record.origin) {
+            (Some(_), Origin::Run(started)) => Ok(Some(started)),
+            _ => Ok(None),
+        }
     }
 
     /// Everything the run waits on, at any depth, each request once: its
@@ -1561,6 +1579,30 @@ impl RunLog {
             })),
             Vec::new(),
         )
+    }
+
+    /// Every answer this run's tree has taken: each a resume admitted, used
+    /// or not, and each a step, call or claim consumed.
+    pub(crate) fn applied(&self) -> Result<Vec<Answer>, RunRecordError> {
+        let mut keys = self
+            .0
+            .store
+            .tree_keys_with::<RunEvent>(&self.0.run_id, ANSWERED)?;
+        keys.extend(
+            self.0
+                .store
+                .tree_keys_with::<RunEvent>(&self.0.run_id, CONSUMED)?,
+        );
+        keys.sort();
+        keys.dedup();
+        let mut applied = Vec::new();
+        for key in keys {
+            if let Some(record) = self.log_of(&key)?.load()? {
+                applied.extend(record.answered);
+                applied.extend(record.answers);
+            }
+        }
+        Ok(applied)
     }
 
     /// Every answer a resume admitted in this run's tree that no step, call
@@ -2170,6 +2212,7 @@ impl RunRecord {
             suspension: None,
             answers: Vec::new(),
             admitted: Vec::new(),
+            answered: Vec::new(),
             standing: None,
             retries: 0,
             sealed: None,
@@ -2271,14 +2314,16 @@ impl RunRecord {
                     admitted.request_id != answered.request_id
                         || admitted.request_digest != answered.request_digest
                 });
-                record.admitted.push(Answer {
+                let answer = Answer {
                     request_id: answered.request_id,
                     request_digest: answered.request_digest,
                     value: store.blob_json(&answered.value)?,
                     human: answered.human,
                     input_digest: None,
                     gate: None,
-                });
+                };
+                record.answered.push(answer.clone());
+                record.admitted.push(answer);
             }
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;

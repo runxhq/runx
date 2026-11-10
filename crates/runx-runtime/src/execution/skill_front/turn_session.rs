@@ -858,13 +858,33 @@ mod tests {
         ));
         drop(session);
 
-        // Delivered again, it answers nothing the run still waits on.
-        let again = resume(serde_json::json!({
+        // Delivered again, it's the answer the run took: accepted, and
+        // nothing applies twice.
+        resume(serde_json::json!({
             "approvals": {"answer/0": {"request_digest": ask.digest, "approved": true}}
+        }))?;
+        let session = LocalOrchestrator::default().open_turns(&TurnRequest {
+            run_id: run_id.clone(),
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+        })?;
+        assert!(matches!(
+            session.status("answer")?.calls.as_slice(),
+            [call] if matches!(call.outcome, TurnCallOutcome::Completed { .. })
+        ));
+        drop(session);
+
+        // A different answer to it answers nothing the run still waits on.
+        let declined = resume(serde_json::json!({
+            "approvals": {"answer/0": {"request_digest": ask.digest, "approved": false}}
         }))
         .err()
         .ok_or("the request is answered")?;
-        assert!(again.to_string().contains("names no request"), "{again}");
+        assert!(
+            declined.to_string().contains("names no request"),
+            "{declined}"
+        );
         Ok(())
     }
 

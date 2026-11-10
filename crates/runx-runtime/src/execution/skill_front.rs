@@ -101,10 +101,18 @@ pub(crate) fn deliver_answers(
         .map_err(crate::execution::run_record::RunRecordError::from)?;
     let run_id = crate::execution::run_record::validate_run_id(run_id)?;
     let log = crate::execution::run_record::RunLog::open(store, run_id)?;
-    resolution_answers::ResolutionAnswers::from_document(answers.clone())?
-        .check_waiting(run_id, &log.waiting()?)?;
-    crate::execution::run_record::inbox::deliver(log.store(), run_id, answers)
-        .map_err(crate::execution::run_record::RunRecordError::from)?;
+    let waiting = log.waiting()?;
+    let mut delivered = resolution_answers::ResolutionAnswers::from_document(answers.clone())?;
+    // A resend of answers the run took already takes nothing twice: one
+    // that brings nothing else is accepted with nothing delivered.
+    if delivered.names_unwaited(&waiting) {
+        delivered.pass_over_applied(&waiting, &log.applied()?);
+    }
+    delivered.check_waiting(run_id, &waiting)?;
+    if !delivered.is_empty() {
+        crate::execution::run_record::inbox::deliver(log.store(), run_id, answers)
+            .map_err(crate::execution::run_record::RunRecordError::from)?;
+    }
     Ok(RunResult::accepted(run_id))
 }
 
@@ -447,29 +455,15 @@ pub(crate) fn bind_paused_run(
         store,
         crate::execution::run_record::validate_run_id(run_id)?,
     )?;
-    let paused = log
-        .paused()?
-        .ok_or_else(|| invalid(format!("run {run_id} is not paused")))?;
-    for (label, pinned, recorded) in [
-        (
-            "package",
-            continuation.package_digest,
-            &paused.package_digest,
-        ),
-        (
-            "closure",
-            continuation.closure_digest,
-            &paused.closure_digest,
-        ),
-    ] {
-        if let Some(pinned) = pinned
-            && pinned != recorded
-        {
-            return Err(invalid(format!(
-                "the {label} digest {pinned} is not the one run {run_id} started under ({recorded})"
-            )));
-        }
-    }
+    let paused = match log.paused()? {
+        Some(paused) => paused,
+        None => return bind_sealed_run(continuation, log, effects),
+    };
+    check_pins(
+        &continuation,
+        &paused.package_digest,
+        &paused.closure_digest,
+    )?;
     bind_skill_run(
         &SkillRunRequest {
             current_context: Vec::new(),
@@ -494,6 +488,88 @@ pub(crate) fn bind_paused_run(
         effects,
         Some(&paused.package_digest),
         Some(&paused.closure_digest),
+    )
+}
+
+/// A continuation's pinned digests must be the ones its run started under.
+fn check_pins(
+    continuation: &Continuation<'_>,
+    package_digest: &str,
+    closure_digest: &str,
+) -> Result<(), SkillRunError> {
+    for (label, pinned, recorded) in [
+        ("package", continuation.package_digest, package_digest),
+        ("closure", continuation.closure_digest, closure_digest),
+    ] {
+        if let Some(pinned) = pinned
+            && pinned != recorded
+        {
+            return Err(invalid(format!(
+                "the {label} digest {pinned} is not the one run {} started under ({recorded})",
+                continuation.run_id
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Bind a resume of a run that isn't paused. A sealed run's resume that
+/// brings nothing new, no answer or only answers it took already, returns
+/// what it sealed, as starting it again by its id does; one that brings
+/// anything else is refused, since nothing waits for it. A run that is
+/// neither is not paused.
+fn bind_sealed_run(
+    continuation: Continuation<'_>,
+    log: crate::execution::run_record::RunLog,
+    effects: &RuntimeEffectRegistry,
+) -> Result<BoundRun, SkillRunError> {
+    let run_id = continuation.run_id;
+    let Some(sealed) = log.sealed_start()? else {
+        return Err(invalid(format!("run {run_id} is not paused")));
+    };
+    // A host attaching to a run, with nothing to answer, finds it paused or
+    // not at all.
+    let Some(answers) = continuation.answers else {
+        return Err(invalid(format!("run {run_id} is not paused")));
+    };
+    let mut brought = resolution_answers::ResolutionAnswers::from_document(answers.clone())?;
+    if brought.names_unwaited(&[]) {
+        brought.pass_over_applied(&[], &log.applied()?);
+    }
+    if !brought.is_empty() {
+        return Err(invalid(format!(
+            "run {run_id} sealed, so nothing it waits on takes these answers"
+        )));
+    }
+    check_pins(
+        &continuation,
+        &sealed.package_digest,
+        &sealed.closure_digest,
+    )?;
+    bind_skill_run(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: PathBuf::from(&sealed.skill_path),
+            receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
+            run_id: Some(run_id.to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: continuation.env.clone(),
+            cwd: continuation.cwd.to_path_buf(),
+            managed_agent: continuation.managed_agent,
+        },
+        &SkillRunOverrides {
+            method: Some(sealed.method),
+            purchase: sealed.purchase,
+            run_log: Some(log),
+            ..SkillRunOverrides::default()
+        },
+        effects,
+        Some(&sealed.package_digest),
+        Some(&sealed.closure_digest),
     )
 }
 

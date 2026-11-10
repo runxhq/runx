@@ -176,9 +176,15 @@ each entry is checked against the request it answers. Runx records every decisio
 the run before it takes the run further (`answered` in `runx history <run-id>
 --json`), so a decision admitted before a crash is used by the run's next
 driver, and a resume with no entries continues such a run. The same decision
-delivered again is recorded once, a different one replaces a decision no step
-has used yet, and one delivered after its request was answered names no
-request the run waits on, and is refused. An agent's answer is checked by the
+delivered again is recorded once, and a different one replaces a decision no
+step has used yet. An answer delivered after its request was answered is
+accepted as taken when it's exactly the answer the run took, the same request
+by its digest and the same value, and changes nothing, so a host recovering an
+attempt that may have reached the run can send its answers again; a different
+one names no request the run waits on, and is refused. A resume of a sealed run
+that brings no answer, or only answers it took, returns what it sealed, as
+starting it again by its id does; one that brings any other answer is refused,
+naming that it sealed. An agent's answer is checked by the
 step that uses it and recorded when used, so one its step refuses is never the
 run's.
 

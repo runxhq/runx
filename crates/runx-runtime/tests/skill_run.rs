@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use runx_contracts::JsonValue;
 use runx_receipts::ReceiptTreeConfig;
 use runx_runtime::{
-    LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, RunResult, SkillRunRequest,
+    LocalOrchestrator, LocalReceiptStore, ManagedAgentPolicy, RUNX_RECEIPT_DIR_ENV, ResumeRequest,
+    RunResult, SkillRunRequest,
 };
 use runx_runtime::{
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_KID_ENV,
@@ -5003,5 +5004,179 @@ fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn st
         "the second driver must not seal the run again"
     );
     assert_eq!(fs::read_to_string(&marker)?.lines().count(), 1);
+    Ok(())
+}
+
+/// A skill whose method asks the person twice, `first` then `second`, at
+/// `root/two-asks`, run under `run_id` until it waits on `first`.
+fn two_asks(root: &Path, run_id: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("two-asks");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: two-asks\ndescription: Asks twice.\n---\n# Two asks\n\nAsk, then ask again.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  ask:\n    steps:\n      - id: first\n        ask: {gate: first-approval, reason: Approve the first.}\n      - id: second\n        ask: {gate: second-approval, reason: Approve the second.}\n",
+    )?;
+    LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir.clone(),
+            receipt_dir: Some(root.join("receipts")),
+            run_id: Some(run_id.to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: BTreeMap::new(),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?;
+    Ok(skill_dir)
+}
+
+/// The one request run `run_id` waits on, as `(address, digest)`.
+fn waits_on(root: &Path, run_id: &str) -> Result<(String, String), Box<dyn std::error::Error>> {
+    let read = runx_runtime::run_record::read_run(&BTreeMap::new(), root, run_id, None)?;
+    let [request] = read.waiting.as_slice() else {
+        return Err(format!("the run waits on one request: {:?}", read.waiting).into());
+    };
+    Ok((
+        request.address.as_str().to_owned(),
+        request.request_digest.as_str().to_owned(),
+    ))
+}
+
+/// `runx resume` of run `run_id` with the person's `approvals`, each
+/// `(address, digest, approved)`.
+fn resume_approving(
+    root: &Path,
+    run_id: &str,
+    approvals: &[(&str, &str, bool)],
+) -> Result<RunResult, Box<dyn std::error::Error>> {
+    let approvals = approvals
+        .iter()
+        .map(|(address, digest, approved)| {
+            (
+                (*address).to_owned(),
+                serde_json::json!({"request_digest": digest, "approved": approved}),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let answers = serde_json::from_value(serde_json::json!({"approvals": approvals}))?;
+    Ok(LocalOrchestrator::default().resume(&ResumeRequest {
+        run_id: run_id.to_owned(),
+        answers,
+        receipt_dir: Some(root.join("receipts")),
+        env: BTreeMap::new(),
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+        package_digest: None,
+        closure_digest: None,
+    })?)
+}
+
+/// How many answers the run's record admitted to the request at `address`.
+fn answered(root: &Path, run_id: &str, address: &str) -> Result<usize, Box<dyn std::error::Error>> {
+    let read = runx_runtime::run_record::read_run(&BTreeMap::new(), root, run_id, None)?;
+    Ok(read
+        .events
+        .iter()
+        .filter(|record| {
+            matches!(&record.event, runx_contracts::RunEventFact::Answered { address: answered, .. } if answered.as_str() == address)
+        })
+        .count())
+}
+
+/// A host recovering a lapsed attempt can't know whether its answers
+/// reached the run, so it sends them again: an answer identical to the one
+/// the run took for that request, the same request and digest, is accepted
+/// as taken, and taken once. A different answer to that request is still
+/// refused.
+#[test]
+fn a_resend_of_an_answer_the_run_took_is_accepted_once_and_a_different_one_refused()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let run_id = "run_two_asks_resend";
+    two_asks(temp.path(), run_id)?;
+    let (first, digest) = waits_on(temp.path(), run_id)?;
+    let resumed = resume_approving(temp.path(), run_id, &[(&first, &digest, true)])?;
+    assert!(!resumed.succeeded(), "it waits on the second ask");
+    let (second, _) = waits_on(temp.path(), run_id)?;
+    assert_ne!(second, first);
+
+    let again = resume_approving(temp.path(), run_id, &[(&first, &digest, true)])?;
+    assert_eq!(
+        waits_on(temp.path(), run_id)?.0,
+        second,
+        "{:?}",
+        again.output
+    );
+    assert_eq!(answered(temp.path(), run_id, &first)?, 1, "taken once");
+
+    let different = resume_approving(temp.path(), run_id, &[(&first, &digest, false)])
+        .err()
+        .ok_or("a different answer to a request the run took is refused")?;
+    assert!(
+        different.to_string().contains("names no request"),
+        "{different}"
+    );
+    assert_eq!(answered(temp.path(), run_id, &first)?, 1);
+    Ok(())
+}
+
+/// A resume of a sealed run that brings nothing new, no answer or only
+/// answers it took already, returns what it sealed, as starting it again by
+/// its id does. One that brings an answer it never took is refused, naming
+/// that it sealed.
+#[test]
+fn a_resume_of_a_sealed_run_returns_its_seal_and_refuses_new_answers()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let run_id = "run_two_asks_sealed";
+    two_asks(temp.path(), run_id)?;
+    let (first, first_digest) = waits_on(temp.path(), run_id)?;
+    resume_approving(temp.path(), run_id, &[(&first, &first_digest, true)])?;
+    let (second, second_digest) = waits_on(temp.path(), run_id)?;
+    let sealed = resume_approving(temp.path(), run_id, &[(&second, &second_digest, true)])?;
+    assert_eq!(
+        sealed.status,
+        runx_runtime::RunStatus::Sealed,
+        "{:?}",
+        sealed.output
+    );
+    let receipt = serde_json::to_value(&sealed.output)?["receipt_id"].clone();
+
+    for (brought, approvals) in [
+        ("nothing", Vec::new()),
+        (
+            "the answers it took",
+            vec![(second.as_str(), second_digest.as_str(), true)],
+        ),
+    ] {
+        let again = resume_approving(temp.path(), run_id, &approvals)?;
+        assert_eq!(again.status, runx_runtime::RunStatus::Sealed, "{brought}");
+        assert_eq!(
+            serde_json::to_value(&again.output)?["receipt_id"],
+            receipt,
+            "{brought}"
+        );
+    }
+    let refused = resume_approving(temp.path(), run_id, &[(&second, &second_digest, false)])
+        .err()
+        .ok_or("a new answer to a sealed run is refused")?;
+    assert!(
+        refused
+            .to_string()
+            .contains(&format!("run {run_id} sealed")),
+        "{refused}"
+    );
     Ok(())
 }

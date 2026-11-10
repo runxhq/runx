@@ -1826,9 +1826,9 @@ fn resume_document(
 /// closing its session (the answer inbox): with the session open, a resume
 /// approving the turn's held write is accepted rather than refused for the
 /// run's live driver, and the session's next action applies it, so the
-/// write runs and the session goes on. The same approval delivered again
-/// names a request the run no longer waits on, and is refused as it's
-/// delivered.
+/// write runs and the session goes on. The same approval delivered again is
+/// accepted as the one the run took, and applies nothing twice; a different
+/// answer to it is refused as it's delivered.
 #[test]
 fn an_approval_reaches_a_run_mid_turn_without_closing_its_session() -> TestResult {
     let temp = tempdir()?;
@@ -1874,10 +1874,24 @@ fn an_approval_reaches_a_run_mid_turn_without_closing_its_session() -> TestResul
     assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
     assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
 
-    // The same approval again names a request the run no longer waits on.
-    let refused = resume_document(root, &run_id, approve)
+    // The same approval again is the one the run took: accepted, and
+    // nothing applies twice.
+    let mut declined = serde_json::to_value(&approve)?;
+    declined["approvals"]["answer/0/tool"]["approved"] = serde_json::Value::Bool(false);
+    let resent = resume_document(root, &run_id, approve)?;
+    assert_eq!(
+        text(object(&resent.output)?, "status"),
+        Some("accepted"),
+        "{:?}",
+        resent.output
+    );
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
+
+    // A different answer to it names a request the run no longer waits on.
+    let refused = resume_document(root, &run_id, serde_json::from_value(declined)?)
         .err()
-        .ok_or("a delivery naming no waiting request is refused")?;
+        .ok_or("a different answer to a request the run answered is refused")?;
     assert!(refused.to_string().contains("answer/0/tool"), "{refused}");
     Ok(())
 }
