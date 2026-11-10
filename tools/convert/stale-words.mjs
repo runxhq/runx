@@ -3,8 +3,8 @@
 // `runner` meaning a skill's method, which is `method` now, `harness` meaning
 // a scripted test or a run, which are `test` and `run`, and, in prose, `graph`
 // meaning a method's steps, which is `workflow`, "execution closure", which is
-// a package's closure, its one meaning, and every key the format contract
-// removes, as removed-keys.mjs reads them. It fails on any use of
+// a package's closure, its one meaning, "agent act", which is a turn, and
+// every key the format contract removes, as removed-keys.mjs reads them. It fails on any use of
 // a retired word outside what may keep it, which the rename reads
 // too: a name identifiers.tsv decides stays, such as `$RUNNER_OS`, and a bare
 // word one of words.mjs's stays keeps. History documents and signed data
@@ -31,6 +31,8 @@ const RETIRED = {
 };
 // "Execution closure" read as the old shape: a package's closure is its closure.
 const EXECUTION_CLOSURE = /(?<![A-Za-z])execution[ _-]?[Cc]losures?(?![a-z])|Execution[ _-]?[Cc]losures?(?![a-z])|(?<![A-Z])EXECUTION_CLOSURES?(?![A-Z])/g;
+// An agent's unit of work is its turn; an act is what a call is told to do.
+const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])/g;
 const SIGNED = /"signature"\s*:/;
 
 const table = new URL("./identifiers.tsv", import.meta.url);
@@ -72,7 +74,7 @@ function main([root, ...rest]) {
   }
   const list = rest.includes("--list");
   const names = decided("oss");
-  const found = { runner: 0, harness: 0, graph: 0, closure: 0, key: 0, path: 0 };
+  const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, key: 0, path: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
@@ -104,10 +106,12 @@ function main([root, ...rest]) {
           if (list) process.stdout.write(`${file}:${index + 1}\t${word}\t${token}\t${line.trim().slice(0, 160)}\n`);
         }
       }
-      for (const match of line.matchAll(EXECUTION_CLOSURE)) {
-        found.closure += 1;
-        byFile.set(file, (byFile.get(file) ?? 0) + 1);
-        if (list) process.stdout.write(`${file}:${index + 1}\tclosure\t${match[0]}\t${line.trim().slice(0, 160)}\n`);
+      for (const [word, pattern] of [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]]) {
+        for (const match of line.matchAll(pattern)) {
+          found[word] += 1;
+          byFile.set(file, (byFile.get(file) ?? 0) + 1);
+          if (list) process.stdout.write(`${file}:${index + 1}\t${word}\t${match[0]}\t${line.trim().slice(0, 160)}\n`);
+        }
       }
     });
   }
@@ -115,8 +119,8 @@ function main([root, ...rest]) {
     found.path += 1;
     if (list) process.stdout.write(`${stale.path}\tpath\t${stale.word}\t${stale.name}\n`);
   }
-  const total = found.runner + found.harness + found.graph + found.closure + found.key + found.path;
-  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.closure} of execution closure, which is closure, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
+  const total = found.runner + found.harness + found.graph + found.closure + found.turn + found.key + found.path;
+  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.closure} of execution closure, which is closure, ${found.turn} of agent act, which is a turn, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
   return total === 0 ? 0 : 1;
 }
 
