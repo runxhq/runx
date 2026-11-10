@@ -379,6 +379,16 @@ pub(crate) struct InspectedClosureBinding {
     pub(crate) projects: BTreeMap<String, PathBuf>,
 }
 
+/// Every method a run of `loaded`'s `method` reaches: each its closure
+/// binds, its child skills' included, with the package it runs from.
+pub(crate) fn reached_methods(
+    loaded: Arc<LoadedSkillPackage>,
+    method: &str,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<Vec<(Arc<LoadedSkillPackage>, String)>, SkillInspectionError> {
+    closure::inspect_method_closure_methods(loaded, method, env)
+}
+
 /// Whether a run of `method` reaches an agent turn that can make calls, child
 /// skills included. Such a turn is worked on an MCP connection; a turn that
 /// only answers is continued with `runx resume`.

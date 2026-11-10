@@ -384,7 +384,19 @@ pub(crate) fn safe_read(
     manifest: &runx_contracts::connector::ConnectorManifest,
     operation: &runx_contracts::connector::ConnectorOperation,
 ) -> bool {
-    let by_a_process = match &operation.implementation {
+    operation.access() == OperationAccess::Read
+        && !operation.is_metered()
+        && !run_by_a_process(manifest, operation)
+}
+
+/// Whether a process carries out `operation` of `manifest`: the connector's
+/// own, or the stdio server it starts. What it does rests on its author's
+/// promise, not on anything runx can see.
+pub(crate) fn run_by_a_process(
+    manifest: &runx_contracts::connector::ConnectorManifest,
+    operation: &runx_contracts::connector::ConnectorOperation,
+) -> bool {
+    match &operation.implementation {
         Some(Implementation::Process(_)) => true,
         Some(Implementation::Mcp(_)) => matches!(
             manifest
@@ -395,8 +407,7 @@ pub(crate) fn safe_read(
             Some(runx_contracts::connector::McpServer::Stdio { .. })
         ),
         _ => false,
-    };
-    operation.access() == OperationAccess::Read && !operation.is_metered() && !by_a_process
+    }
 }
 
 /// The operation an operation step calls, as its connector declares it.

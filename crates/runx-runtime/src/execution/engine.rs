@@ -43,6 +43,7 @@ mod receipt_budget;
 mod step_handlers;
 mod steps;
 pub mod turn;
+pub(crate) mod wall;
 
 pub(crate) use admission::declared_operations_refusal;
 pub(crate) use call_pool::CallPool;

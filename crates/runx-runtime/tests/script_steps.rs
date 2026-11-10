@@ -638,8 +638,11 @@ fn termination_never_reaches_a_scripts_catch() -> TestResult {
     Ok(())
 }
 
-/// Under `effects: none` a write is refused at admission at any depth: the
-/// script's own and one its child skill makes, and nothing is written.
+/// Under `effects: none` a write is refused at any depth before the run
+/// starts: the script's own listed write and its child skill's fixed one are
+/// both named, no step runs, no worker starts and nothing is written.
+/// Changed 11 November: before the run-start check, the script ran and each
+/// write was refused at admission as the script made it.
 #[test]
 fn effects_none_refuses_a_write_at_any_depth() -> TestResult {
     let temp = tempdir()?;
@@ -660,12 +663,25 @@ fn effects_none_refuses_a_write_at_any_depth() -> TestResult {
 }
 "#,
     )?;
-    let sealed = run(temp.path(), skill_dir)?;
-    let output = object(&sealed.output)?;
-    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
-    let result = object(output.get("result").ok_or("no result")?)?;
-    assert_eq!(text(result, "own"), Some("refused"), "{result:?}");
-    assert_ne!(text(result, "child"), Some("ran"), "{result:?}");
+    let refused = run(temp.path(), skill_dir)?;
+    let output = object(&refused.output)?;
+    assert_eq!(text(output, "outcome"), Some("blocked"), "{output:?}");
+    assert_eq!(text(output, "seal_reason"), Some("authority_denied"));
+    let reason = output
+        .get("refusal")
+        .and_then(|refusal| refusal.as_object())
+        .and_then(|refusal| text(refusal, "reason"))
+        .ok_or("the run names why it was refused")?;
+    assert_eq!(
+        reason,
+        "the run's effects are none, so it changes nothing: the fs.write tool, which changes the workspace, in step prepare; the fs.write tool, which changes the workspace, in writer-child#write's step write, are each refused before the run starts"
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        Vec::<(u32, &str)>::new(),
+        "the script never ran"
+    );
     assert!(!temp.path().join("own.txt").exists());
     assert!(!temp.path().join("child.txt").exists());
     assert!(!temp.path().join("writer-child/child.txt").exists());
@@ -685,7 +701,7 @@ fn a_childs_malformed_step_input_fails_the_call_not_the_run() -> TestResult {
     )?;
     let skill_dir = write_one_step(
         temp.path(),
-        "        effects: none\n        calls:\n          skills: [../bad-child]\n        max_calls: 1\n        outputs:\n          reason: {type: string}\n          message: {type: string}\n",
+        "        calls:\n          skills: [../bad-child]\n        max_calls: 1\n        outputs:\n          reason: {type: string}\n          message: {type: string}\n",
         r#"export default async function (ctx) {
   try {
     await ctx.skill("../bad-child", {});

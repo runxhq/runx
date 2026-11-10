@@ -184,6 +184,37 @@ struct Paused {
     run_id: String,
 }
 
+/// Start `skill_dir` with the question every test asks, however far it
+/// goes.
+fn begin(
+    root: &Path,
+    skill_dir: PathBuf,
+    managed_agent: ManagedAgentPolicy,
+) -> TestResult<RunResult> {
+    Ok(LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([(
+                "question".to_owned(),
+                JsonValue::String("what digests?".to_owned()),
+            )]),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent,
+        },
+        None,
+        None,
+        None,
+    )?)
+}
+
 impl Paused {
     /// Start `skill_dir` and stop where it first waits, at `turn`.
     fn start(root: &Path, skill_dir: PathBuf, turn: &str) -> TestResult<Self> {
@@ -196,33 +227,11 @@ impl Paused {
         turn: &str,
         managed_agent: ManagedAgentPolicy,
     ) -> TestResult<Self> {
-        let receipts = root.join("receipts");
-        let started = LocalOrchestrator::default().run_skill_with_binding(
-            &SkillRunRequest {
-                current_context: Vec::new(),
-                historical_context: Vec::new(),
-                run_authority: None,
-                act: None,
-                skill_path: skill_dir,
-                receipt_dir: Some(receipts.clone()),
-                run_id: None,
-                answers: None,
-                inputs: BTreeMap::from([(
-                    "question".to_owned(),
-                    JsonValue::String("what digests?".to_owned()),
-                )]),
-                env: env(root),
-                cwd: root.to_path_buf(),
-                managed_agent,
-            },
-            None,
-            None,
-            None,
-        )?;
+        let started = begin(root, skill_dir, managed_agent)?;
         assert_eq!(requests(&started)?, [turn]);
         Ok(Self {
             root: root.to_path_buf(),
-            receipts,
+            receipts: root.join("receipts"),
             run_id: text(object(&started.output)?, "run_id")
                 .ok_or("missing run_id")?
                 .to_owned(),
@@ -2850,7 +2859,6 @@ methods:
     steps:
       - id: answer
         agent: answer
-        effects: none
         calls:
           skills: [../bad-child]
         inputs: $input
@@ -2872,9 +2880,11 @@ methods:
 }
 
 /// A read-only turn can't write through a script, at any depth: the turn's
-/// `effects: none` reaches the script it calls and the child that script
-/// calls, so the script's own write and its child's are refused, and
-/// nothing is written.
+/// `effects: none` reaches the script it lists and the child that script
+/// lists, so a run whose script would write, or whose script's child would,
+/// is refused before it starts, and nothing is written. Changed 11 November:
+/// before the run-start check, the turn's run started and each write was
+/// refused as the script made it.
 #[test]
 fn a_read_only_turn_cant_write_through_a_script_at_any_depth() -> TestResult {
     let temp = tempdir()?;
@@ -2921,15 +2931,18 @@ methods:
           answer: {type: string}
 "#,
     )?;
-    let paused = Paused::start(root, skill_dir, TURN)?;
-    let turn = paused.open()?;
-    let called = turn.call(TURN, "skill__writer-script", None, JsonObject::new())?;
-    let TurnCallOutcome::Completed { output, .. } = &called.outcome else {
-        return Err(format!("the script ran and reported each write: {called:?}").into());
-    };
-    let output = serde_json::to_value(output)?;
-    assert_eq!(output["own"], "refused", "{output}");
-    assert_ne!(output["child"], "ran", "{output}");
+    let refused = begin(root, skill_dir, ManagedAgentPolicy::HostDriven)?;
+    let output = object(&refused.output)?;
+    assert_eq!(text(output, "outcome"), Some("blocked"), "{output:?}");
+    let reason = output
+        .get("refusal")
+        .and_then(JsonValue::as_object)
+        .and_then(|refusal| text(refusal, "reason"))
+        .ok_or("the run names why it was refused")?;
+    assert_eq!(
+        reason,
+        "the run's effects are none, so it changes nothing: the fs.write tool, which changes the workspace, in writer-child#write's step write; the fs.write tool, which changes the workspace, in writer-script#write's step write, are each refused before the run starts"
+    );
     for written in [
         "own.txt",
         "child.txt",
@@ -2938,6 +2951,49 @@ methods:
     ] {
         assert!(!root.join(written).exists(), "{written} was written");
     }
+    Ok(())
+}
+
+/// A read-only turn's own calls are its agent's choices, so its run starts
+/// with a write among them, and admission refuses the write as it's made,
+/// writing nothing.
+#[test]
+fn a_read_only_turns_own_write_is_refused_as_it_is_made() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let skill_dir = root.join("read-only-writer");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: read-only-writer\ndescription: Answers, offered a write.\n---\n# Read only writer\n\n## Agent task: answer\n\nAnswer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    inputs:
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        effects: none
+        calls:
+          tools: [fs.write]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    let paused = Paused::start(root, skill_dir, TURN)?;
+    let turn = paused.open()?;
+    let called = turn.call(
+        TURN,
+        "fs_write",
+        None,
+        input(serde_json::json!({"path": "written.txt", "contents": "written"}))?,
+    )?;
+    assert!(
+        matches!(&called.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("the run's effects are none, so it changes nothing")),
+        "{called:?}"
+    );
+    assert!(!root.join("written.txt").exists());
     Ok(())
 }
 

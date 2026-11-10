@@ -365,7 +365,7 @@ impl BoundRun {
             }
             None => std::borrow::Cow::Borrowed(&self.method.workflow),
         };
-        crate::implementation::start(runtime, &self.skill_dir, &own)
+        crate::implementation::start(runtime, &self.skill_dir, &own, false)
     }
 
     /// The workflow the run drives: the method's own, or for a purchase one step

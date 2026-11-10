@@ -772,7 +772,7 @@ where
     // A case starts as any run does: its scripts' declared operations
     // admitted, then its worker started if its method runs JavaScript. A case
     // refused as it starts runs nothing, and seals with the refusal.
-    let start = crate::implementation::start(&runtime, &target.skill_dir, &workflow)?;
+    let start = crate::implementation::start(&runtime, &target.skill_dir, &workflow, false)?;
     let mut host = FixtureHost::new(fixture);
     let workflow_run = match start.refusal {
         Some(refusal) => runtime.seal_stop(workflow, refusal, &mut host)?.run,

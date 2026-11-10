@@ -655,6 +655,10 @@ where
             &child_runtime,
             nested.skill_directory,
             &workflow,
+            crate::kernel::authority::step_effects(
+                runtime.options.run_authority.as_ref(),
+                nested.step,
+            ) == runx_contracts::Effects::None,
         )?)
     };
     let runtime_alone = crate::implementation::runtime_alone();

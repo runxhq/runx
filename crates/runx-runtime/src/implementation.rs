@@ -38,22 +38,36 @@ pub(crate) struct Start {
     pub(crate) refusal: Option<RuntimeError>,
 }
 
-/// How a run of `workflow` from `workflow_dir` starts on `runtime`: its own
-/// scripts' declared operations admitted first, as each call of them would
-/// be, then its worker started if it runs JavaScript. A run one of whose
-/// scripts can't be admitted is refused as it starts: it runs no step and no
-/// JavaScript, starts no worker and records none.
+/// How a run of `workflow` from `workflow_dir` starts on `runtime`: what
+/// its steps under `effects: none` are certain to change refused first, then
+/// its own scripts' declared operations admitted, as each call of them would
+/// be, then its worker started if it runs JavaScript. A run refused as it
+/// starts runs no step and no JavaScript, starts no worker and records none.
+///
+/// A child of a step already under `none` (`under_none`) isn't checked for
+/// what it would change: its run's start checked it with that step's
+/// closure, or it's the step's agent's choice, which admission decides.
 pub(crate) fn start<A>(
     runtime: &crate::Runtime<A>,
     workflow_dir: &std::path::Path,
     workflow: &Workflow,
+    under_none: bool,
 ) -> Result<Start, RuntimeError>
 where
     A: crate::SkillAdapter,
 {
-    if let Some(refusal) =
-        crate::execution::engine::declared_operations_refusal(runtime, workflow_dir, workflow)?
-    {
+    let changes = if under_none {
+        None
+    } else {
+        crate::execution::engine::wall::refusal(runtime, workflow_dir, workflow)?
+    };
+    let refusal = match changes {
+        Some(refusal) => Some(refusal),
+        None => {
+            crate::execution::engine::declared_operations_refusal(runtime, workflow_dir, workflow)?
+        }
+    };
+    if let Some(refusal) = refusal {
         return Ok(Start {
             implementation: runtime_alone(),
             refusal: Some(refusal),

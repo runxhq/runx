@@ -107,6 +107,16 @@ impl Workspace {
                 root.join("own-marker").display()
             ),
         )?;
+        let marks = root.join("skills/marks");
+        crate::support::write_test_skill_package(
+            &marks,
+            "---\nname: marks\ndescription: Marks the workspace from a script that changes nothing.\n---\n# Marks\n\nMark the path given.\n",
+            "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  mark:\n    inputs:\n      path: {type: string}\n    steps:\n      - id: mark\n        script: {module: mark.mjs}\n        inputs: {path: $input.path}\n        calls:\n          operations: [marker/marker.write]\n        max_calls: 1\n        effects: none\n        outputs:\n          wrote: {type: string}\n",
+        )?;
+        std::fs::write(
+            marks.join("mark.mjs"),
+            "export default async function (ctx, { path }) {\n  const made = await ctx.operation(\"marker/marker.write\", { path });\n  return { wrote: made.provider_operation.result.wrote };\n}\n",
+        )?;
         Ok(Self {
             root: root.to_path_buf(),
             home: home.map(Path::to_path_buf),
@@ -277,6 +287,34 @@ fn declined(call: &TurnCallResult) -> TestResult<String> {
 fn closures(gate: &runx_contracts::ApprovalGate) -> TestResult<Vec<String>> {
     let payload = serde_json::to_value(gate.payload.as_ref().ok_or("the gate's payload")?)?;
     Ok(serde_json::from_value(payload["closures"].clone())?)
+}
+
+/// A run of `skills/marks`, whose script under `effects: none` reads
+/// through the marker connector, as it ended or paused.
+fn mark_under_none(ws: &Workspace) -> TestResult<serde_json::Value> {
+    let ran = ws.orchestrator()?.run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: ws.root.join("skills/marks"),
+            receipt_dir: Some(ws.root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([(
+                "path".to_owned(),
+                runx_contracts::JsonValue::String(ws.marker().to_string_lossy().into_owned()),
+            )]),
+            env: ws.env(),
+            cwd: ws.root.clone(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        Some("mark"),
+        None,
+        None,
+    )?;
+    Ok(serde_json::to_value(&ran.output)?)
 }
 
 /// Where a home keeps the person's trust of `closure`.
@@ -601,5 +639,40 @@ fn trust_recorded_in_a_home_holds_for_the_same_closure_from_another_workspace() 
     let ran = call_marker(&turn, &second)?;
     assert!(completed(&ran), "{ran:?}");
     assert!(second.marker().exists());
+    Ok(())
+}
+
+/// Under `effects: none` a read a process carries out runs only from a
+/// connector that is verified or that a person trusted (D33): its `read` is
+/// its author's promise. Untrusted, the project's marker read refuses its
+/// run before it starts, and no process runs. Once the person trusts the
+/// marker connector, as a turn's load asks them, the same run starts and
+/// reads.
+#[test]
+fn a_process_read_under_none_runs_once_its_connector_is_trusted() -> TestResult {
+    let temp = tempdir()?;
+    let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
+    let refused = mark_under_none(&ws)?;
+    assert_eq!(refused["outcome"], "blocked", "{refused}");
+    assert_eq!(
+        refused["refusal"]["reason"],
+        "the run's effects are none, so it changes nothing: the marker/marker.write read, which a process carries out for a connector neither verified nor trusted, in step mark, is refused before the run starts",
+        "{refused}"
+    );
+    assert!(!ws.marker().exists(), "no process ran");
+
+    let run_id = ws.start()?;
+    let turn = ws.open(&run_id)?;
+    waits_on(
+        &load(&turn, serde_json::json!({"connector": "marker"}))?,
+        "trust",
+    )?;
+    drop(turn);
+    ws.answer(&run_id, "read/0/trust", true)?;
+
+    let sealed = mark_under_none(&ws)?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    assert_eq!(sealed["outcome"], "completed", "{sealed}");
+    assert_eq!(std::fs::read_to_string(ws.marker())?, "ran\n");
     Ok(())
 }

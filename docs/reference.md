@@ -680,6 +680,15 @@ the term its host grants on `private` decides it, as it decides every
 `private` call. Anything else on `private`, an `observed:` stream included, is
 refused under `none` like any other write.
 
+A run is also checked before it starts against what's certain to change
+something beneath each of its steps under `effects: none`: a fixed step that
+changes something, a script's own listed tools and operations, and the same in
+the closure of each method a step lists. A read a connector's process carries
+out passes only from a connector that is verified or that a person trusted,
+since its `read` is its author's promise. A run that reaches any of these is
+refused as it starts, naming each, and runs no step. An agent's calls and
+loads are its own choices, so the floor decides each one as it's made.
+
 A turn's own call never writes to `store`, at any `effects`: a stream is
 written by a package's deterministic step, and a turn's call to a `store`
 write is refused saying so.
