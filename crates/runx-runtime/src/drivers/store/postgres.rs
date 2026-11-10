@@ -55,7 +55,6 @@ CREATE TABLE store_keys (
   PRIMARY KEY (stream, key)
 );
 CREATE INDEX store_keys_recent ON store_keys (stream, committed_at DESC, key ASC);
-CREATE INDEX store_keys_type_recent ON store_keys (stream, type, committed_at DESC, key ASC);
 "#;
 
 const EVENT_COLUMNS: &str =
