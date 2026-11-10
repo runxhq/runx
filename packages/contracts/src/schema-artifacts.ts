@@ -14464,7 +14464,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "distribution_digest": {
-        "description": "The distribution digest: the package digest of the package `runx registry package` makes of this one, which every published, bundled or served copy carries and a load of one binds. A source directory's differs from its package digest once packaging adds what the package carries. None when the package doesn't package, as a publish would refuse it, or when the inspection was given no environment to package it in.",
+        "description": "The distribution digest: the package digest of the package `runx registry package` makes of this one, which every published, bundled or served copy carries and a load of one binds. A source directory's differs from its package digest once packaging adds what the package carries; a copy that already is a distribution states its own. None when the package doesn't package, as a publish would refuse it, or when the inspection was given no environment to package it in.",
         "type": "string"
       },
       "entry_provenance": {

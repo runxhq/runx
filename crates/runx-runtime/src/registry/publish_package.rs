@@ -256,7 +256,10 @@ fn refuse_undescribed_methods(
 
 /// The distribution digest of the package `loaded`: the package digest of
 /// the package `runx registry package` makes of it, which every copy runx
-/// distributes carries, published, bundled or served. A source directory's
+/// distributes carries, published, bundled or served. A copy that already is
+/// a distribution, carrying the descriptor packaging writes or the
+/// registry's signature, has its own package digest as its distribution
+/// digest, by definition, and is never packaged again. A source directory's
 /// own package digest differs once packaging adds what the package carries.
 /// None when it doesn't package, as a publish would refuse it.
 ///
@@ -268,6 +271,15 @@ pub fn distribution_digest(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Option<String>, RuntimeError> {
+    if loaded
+        .package
+        .source
+        .files
+        .contains_key(super::package_bundle::PACKAGE_BUNDLE_FILE)
+        || super::carries_signature(&loaded.package_root)
+    {
+        return Ok(Some(loaded.package.package_digest.clone()));
+    }
     match package_loaded(loaded, env, cwd).and_then(|parts| parts.package_digest()) {
         Ok(digest) => Ok(Some(digest)),
         Err(RegistryPublishPackageError::Invalid { .. }) => Ok(None),

@@ -428,13 +428,17 @@ fn a_package_published_from_its_directory_loads_with_the_digest_its_packaging_st
         return Err(format!("a skill loaded: {load:?}").into());
     };
     assert_eq!(package_digest.as_str(), packaged.package_digest()?);
+    let installed = project.root.join(".runx/added-skills/acme/echo/1.0.0");
     assert_eq!(
-        std::fs::read_to_string(
-            project
-                .root
-                .join(".runx/added-skills/acme/echo/1.0.0/references/notes.md")
-        )?,
+        std::fs::read_to_string(installed.join("references/notes.md"))?,
         "How echo says it.\n"
+    );
+    // The installed copy is a distribution: its distribution digest is its
+    // own package digest, the one the load bound.
+    let inspected = runx_runtime::inspect_skill_package(&installed, None, Some(&env))?;
+    assert_eq!(
+        inspected.distribution_digest.as_deref(),
+        Some(package_digest.as_str())
     );
     Ok(())
 }

@@ -621,6 +621,8 @@ methods:
     /// and the distribution digest of the package `runx registry package`
     /// makes of it, which differ once packaging adds what the package
     /// carries. Without an environment it packages nothing, so states none.
+    /// A copy of what packaging made is a distribution: its distribution
+    /// digest is its own package digest, the same one.
     #[test]
     fn a_source_directory_states_its_package_and_distribution_digests()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -643,21 +645,38 @@ methods:
             .package
             .package_digest;
         let subject = root.to_string_lossy();
-        let distribution = crate::registry::prepare_registry_publish_package(
+        let packaged = crate::registry::prepare_registry_publish_package(
             crate::registry::RegistryPublishPackageRequest {
                 subject: &subject,
                 env: &env,
                 cwd: &root,
             },
         )?
-        .into_parts()
-        .package_digest()?;
+        .into_parts();
+        let distribution = packaged.package_digest()?;
         assert_eq!(inspected.package_digest, package);
         assert_eq!(inspected.distribution_digest, Some(distribution.clone()));
         assert_ne!(package, distribution);
 
         let unpackaged = super::inspect_skill_package(&root, None, None)?;
         assert_eq!(unpackaged.distribution_digest, None);
+
+        let copy = temp.path().join("copy");
+        fs::create_dir_all(&copy)?;
+        fs::write(copy.join("SKILL.md"), &packaged.markdown)?;
+        if let Some(profile) = &packaged.profile_document {
+            fs::write(copy.join("run.yaml"), profile)?;
+        }
+        for file in &packaged.package_files {
+            let path = copy.join(&file.path);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, &file.content)?;
+        }
+        let distributed = super::inspect_skill_package(&copy, None, Some(&env))?;
+        assert_eq!(distributed.package_digest, distribution);
+        assert_eq!(distributed.distribution_digest, Some(distribution));
         Ok(())
     }
 

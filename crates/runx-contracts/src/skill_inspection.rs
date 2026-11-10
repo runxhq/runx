@@ -37,9 +37,9 @@ pub struct SkillInspection {
     /// registry package` makes of this one, which every published, bundled
     /// or served copy carries and a load of one binds. A source directory's
     /// differs from its package digest once packaging adds what the package
-    /// carries. None when the package doesn't package, as a publish would
-    /// refuse it, or when the inspection was given no environment to package
-    /// it in.
+    /// carries; a copy that already is a distribution states its own. None
+    /// when the package doesn't package, as a publish would refuse it, or
+    /// when the inspection was given no environment to package it in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub distribution_digest: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
