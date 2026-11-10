@@ -84,6 +84,8 @@ methods:
           account_id: $input.account_id
           dispute_id: $input.dispute_id
           evidence: $input.evidence
+        outputs:
+          prepared_response: {type: object, packet: runx/dispute-respond.response.v1}
       - id: prepare-auto
         when:
           value: $input.account_id
@@ -93,6 +95,8 @@ methods:
           account_id: $steps.account.provider_operation.result.account_id
           dispute_id: $input.dispute_id
           evidence: $input.evidence
+        outputs:
+          prepared_response: {type: object, packet: runx/dispute-respond.response.v1}
       - id: file-known
         when:
           value: $steps.prepare-known.prepared_response.decision
@@ -100,6 +104,8 @@ methods:
         skill: .#file
         inputs:
           prepared_response: $steps.prepare-known.prepared_response
+        outputs:
+          filing_result: {type: object, packet: runx/dispute-respond.filing.v1}
       - id: file-auto
         when:
           value: $steps.prepare-auto.prepared_response.decision
@@ -107,6 +113,8 @@ methods:
         skill: .#file
         inputs:
           prepared_response: $steps.prepare-auto.prepared_response
+        outputs:
+          filing_result: {type: object, packet: runx/dispute-respond.filing.v1}
   respond:
     description: Read the merchant case and original charge and prepare an unsent response. Holds with specific missing evidence; never files, concedes or refunds.
     inputs:
