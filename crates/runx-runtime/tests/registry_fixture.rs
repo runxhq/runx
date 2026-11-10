@@ -29,7 +29,10 @@ use runx_contracts::{
     RegistryManifestSigner, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind,
     RegistryTierStatement, TrustTier, sha256_prefixed,
 };
-use runx_runtime::registry::{RUNX_REGISTRY_KEYS_ENV, RegistryPackageFile};
+use runx_runtime::registry::{
+    HostedSkillPublishRequest, RUNX_REGISTRY_KEYS_ENV, RegistryPackageFile,
+    RegistryPublishPackageRequest, prepare_registry_publish_package,
+};
 use serde_json::{Value, json};
 
 type Error = Box<dyn std::error::Error>;
@@ -196,22 +199,41 @@ impl LoopbackRegistry {
         Ok(record)
     }
 
-    /// Publish the package in `directory` (its `SKILL.md`, its `run.yaml`
-    /// when it has one, and no other file) under `publisher` at `version`.
+    /// Publish the package in `directory` under `publisher` as `runx
+    /// registry publish` sends it: every file its packaging collects, at the
+    /// version its `run.yaml` states or one named by its content. `env` and
+    /// `cwd` are the publish's own.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the package does not package, or the version is
+    /// already published with other content.
     pub fn publish_directory(
         &self,
         directory: &Path,
         publisher: &str,
-        version: &str,
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
     ) -> Result<Value, Error> {
-        let markdown = std::fs::read_to_string(directory.join("SKILL.md"))?;
-        let profile = std::fs::read_to_string(directory.join("run.yaml")).ok();
-        self.publish(Publication::new(
-            publisher,
-            version,
-            &markdown,
-            profile.as_deref(),
-        ))
+        let subject = directory.to_string_lossy();
+        let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
+            subject: &subject,
+            env,
+            cwd,
+        })?;
+        let body = serde_json::to_value(HostedSkillPublishRequest {
+            markdown: package.markdown(),
+            profile_document: package.profile_document(),
+            version: package.version(),
+            publisher: Some(publisher),
+            package_files: package.package_files(),
+        })?;
+        match record_publish(&body, publisher, &self.state)? {
+            Ok((_, record)) => Ok(record),
+            Err((status, refused)) => {
+                Err(format!("publishing {subject} was refused, {status}: {refused}").into())
+            }
+        }
     }
 
     /// Address `skill_id` by the root name `root`.
@@ -369,15 +391,22 @@ enum Publish {
 /// manual and profile alone, so a version carrying files a newer runx reads
 /// still publishes, as the service would hold it.
 fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
-    let package =
-        runx_parser::validate_skill_package(runx_parser::SkillPackageSource::from_documents(
-            publication.markdown,
-            publication.profile.map(str::to_owned),
-        ))?;
-    let name = package.skill.name.clone();
-    let skill_id = format!("{}/{name}", publication.publisher);
     let mut files = publication.files.clone();
     files.sort_by(|left, right| left.path.cmp(&right.path));
+    // The package is what all its files make it: its manual, its profile and
+    // every file beside them.
+    let mut source = runx_parser::SkillPackageSource::from_documents(
+        publication.markdown,
+        publication.profile.map(str::to_owned),
+    );
+    for file in &files {
+        source
+            .files
+            .insert(file.path.clone(), file.content.as_bytes().to_vec());
+    }
+    let package = runx_parser::validate_skill_package(source)?;
+    let name = package.skill.name.clone();
+    let skill_id = format!("{}/{name}", publication.publisher);
     let content_digest = runx_runtime::registry::skill_content_digest(
         publication.markdown,
         publication.profile,

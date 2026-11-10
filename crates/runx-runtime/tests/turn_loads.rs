@@ -385,6 +385,60 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     Ok(())
 }
 
+/// A package published from its directory is served as `runx registry
+/// publish` packages it, every file of it, so a turn's load binds the digest
+/// that packaging states and holds the files beside its manual.
+#[test]
+fn a_package_published_from_its_directory_loads_with_the_digest_its_packaging_states() -> TestResult
+{
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let source = tempdir()?;
+    let package = source.path().join("echo");
+    crate::support::write_test_skill_package(
+        &package,
+        "---\nname: echo\ndescription: Says it, digested.\n---\n# echo\n\nSee references/notes.md.\n",
+        &format!("version: 1.0.0\nminimum_runx: 0.12.0\nmethods:\n  say:\n{DIGEST_METHOD}"),
+    )?;
+    std::fs::create_dir_all(package.join("references"))?;
+    std::fs::write(package.join("references/notes.md"), "How echo says it.\n")?;
+    let env = project.env()?;
+    project
+        .registry
+        .publish_directory(&package, "acme", &env, source.path())?;
+    let packaged = runx_runtime::registry::prepare_registry_publish_package(
+        runx_runtime::registry::RegistryPublishPackageRequest {
+            subject: &package.to_string_lossy(),
+            env: &env,
+            cwd: source.path(),
+        },
+    )?
+    .into_parts();
+
+    let run_id = project
+        .start(project.session(serde_json::json!([{"catalog": {"trust": "community"}}]))?)?;
+    let turn = project.open(&run_id)?;
+    let load = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/echo@1.0.0"}))?,
+    )?;
+    let LoadedPackage::Skill { package_digest, .. } = &loaded(&load)?.package else {
+        return Err(format!("a skill loaded: {load:?}").into());
+    };
+    assert_eq!(package_digest.as_str(), packaged.package_digest()?);
+    assert_eq!(
+        std::fs::read_to_string(
+            project
+                .root
+                .join(".runx/added-skills/acme/echo/1.0.0/references/notes.md")
+        )?,
+        "How echo says it.\n"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     let temp = tempdir()?;
