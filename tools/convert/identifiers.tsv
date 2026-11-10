@@ -576,13 +576,13 @@ oss	AgentAct	20	agent_act	Turn	the plan's name	crates/runx-contracts/src/host_pr
 oss	RegistryPublishHarnessReport	20	harness	RegistryPublishTestReport	the test sense	crates/runx-cli/src/registry/remote_publish.rs crates/runx-runtime/src/registry.rs
 oss	runner_manifest	20	runner	method_manifest		crates/runx-parser/src/runner.rs crates/runx-parser/src/yaml.rs
 oss	RuntimeHarnessHttpRequestBody	20	harness	RuntimeTestHttpRequestBody	the test sense	crates/runx-runtime/src/drivers/web.rs crates/runx-runtime/src/execution/harness/transport.rs
-oss	ToolRunner	20	runner	ToolRunner	another runner: stays	crates/runx-runtime/src/drivers/process.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
+oss	ToolRunner	20	runner	Tools	the tools a step gives a process implementation: runx's own, so not another runner	crates/runx-runtime/src/drivers/process.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	BoundClosure	19	closure	BoundClosure	a package's closure, or English: stays	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	graph_receipt	19	graph	workflow_receipt		crates/runx-receipts/src/tree/structural_tests.rs crates/runx-runtime/benches/graph_throughput.rs
 oss	HoldEvent	19	hold	HoldEvent	a run waiting: stays	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
 oss	OperationalPolicyRunnerRule	19	runner	OperationalPolicyRunnerRule	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
 oss	validateRunnerManifestYaml	19	runner	validateMethodManifestYaml		crates/runx-parser/src/eval.rs scripts/audit-core-skills.mjs
-oss	$RUNNER_TEMP	18	runner	$RUNNER_TEMP	another runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
+oss	$RUNNER_TEMP	18	runner	$RUNNER_TEMP	GitHub's runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	agent-act-invocation	18	agent_act	agent-act-invocation		crates/runx-contracts/src/schema_artifacts.rs crates/runx-contracts/tests/schema_wire_conformance/covered.rs
 oss	GraphClosure	18	closure,graph	WorkflowEnding	how a run ended	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	sequential-graph	18	graph	sequential-workflow		crates/runx-cli/tests/router.rs crates/runx-core/src/state_machine/types.rs
@@ -639,7 +639,6 @@ oss	HELD	11	hold	?	a bare word: code or prose, read in place	crates/runx-runtime
 oss	OperationHold	11	hold	OperationLease	the lease family	crates/runx-contracts/src/connector.rs crates/runx-runtime/src/execution/harness/provider_responses.rs
 oss	run_graph_with_host	11	graph	run_workflow_with_host		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs crates/runx-runtime/benches/graph_throughput/volume_paths/artifact_io.rs
 oss	selected_runner_name	11	runner	selected_method_name		crates/runx-runtime/src/execution/operator_context.rs crates/runx-runtime/src/execution/prepared_skill.rs
-oss	stage_runner	11	runner	stage_runner	another runner: stays	crates/runx-contracts/src/external_job.rs packages/contracts/src/generated/contract-types.ts
 oss	apply_sequential_graph_event_owned_indexed	10	graph	apply_sequential_workflow_event_owned_indexed		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
 oss	CaseClosureTarget	10	closure	CaseClosureTarget	a package's closure, or English: stays	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner/step_handlers/load.rs
 oss	ClosureAccumulator	10	closure	ClosureAccumulator	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
@@ -721,7 +720,7 @@ oss	run_package_harness	7	harness	run_package_test	the test sense	crates/runx-cl
 oss	run_package_harness_with_effects	7	harness	run_package_test_with_effects	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/package.rs
 oss	runner_input	7	runner	method_input		crates/runx-runtime/src/execution/graph.rs
 oss	runner-manifests	7	runner	method-manifests		crates/runx-parser/tests/parser_fixtures.rs fixtures/parser/runner-manifests/harness-basic.json
-oss	step_runner	7	runner	step_runner	another runner: stays	crates/runx-runtime/src/execution/runner/step_handlers.rs
+oss	step_runner	7	runner	step_method	the child method a skill step names	crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	test_graph_run	7	graph	test_workflow_run		crates/runx-runtime/src/execution/runner.rs
 oss	validate_graph_policy	7	graph	validate_workflow_policy		crates/runx-parser/src/graph/policy.rs crates/runx-parser/src/graph/validate.rs
 oss	validateHarnessFixtureYamlBatch	7	harness	validateTestFixtureYamlBatch	the test sense	scripts/lib/native-parser.mjs scripts/runtime-architecture/parser.mjs
@@ -775,7 +774,7 @@ oss	GraphStepFailed	5	graph	WorkflowStepFailed		crates/runx-contracts/src/receip
 oss	graphTypesPath	5	graph	workflowTypesPath		scripts/runtime-architecture/parser.mjs
 oss	HarnessContextOutput	5	harness	RunContextOutput	the run sense	crates/runx-runtime/src/tool_catalogs/native/data.rs
 oss	has_passing_graph_case	5	graph	has_passing_workflow_case		crates/runx-contracts/src/maturity.rs crates/runx-runtime/src/registry/types.rs
-oss	isRunnerKernelFixture	5	runner	isRunnerKernelFixture	the kernel fixture runner is machinery: stays	scripts/generate-kernel-parity-fixtures.ts tests/kernel-parity-fixtures.test.ts
+oss	isRunnerKernelFixture	5	runner	isEvaluationKernelFixture	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts tests/kernel-parity-fixtures.test.ts
 oss	load_harness_case	5	harness	load_test_case	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	materialize_publish_closure	5	closure	materialize_publish_closure	a package's closure, or English: stays	crates/runx-cli/src/registry.rs crates/runx-runtime/src/registry.rs
 oss	native_graph	5	graph	native_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
@@ -897,9 +896,9 @@ oss	expand_runner_node	3	runner	expand_method_node		crates/runx-runtime/src/exec
 oss	fail_graph	3	graph	fail_workflow		crates/runx-runtime/src/execution/runner/graph_engine.rs scripts/rust-kernel-eval.ts
 oss	fail_graph_at	3	graph	fail_workflow_at		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	fixture_selects_runner	3	runner	fixture_selects_method		crates/runx-runtime/src/skill_package.rs
-oss	fixture-runner	3	runner	fixture-runner	the kernel fixture runner is machinery: stays	fixtures/kernel/runner/runner-rejects-malformed-state.json scripts/generate-kernel-parity-fixtures.ts
+oss	fixture-runner	3	runner	fixture-evaluator	the kernel fixture evaluation (rename ruling 6)	fixtures/kernel/runner/runner-rejects-malformed-state.json scripts/generate-kernel-parity-fixtures.ts
 oss	generate-rust-harness-fixtures	3	harness	generate-rust-test-fixtures	the test sense	package.json
-oss	graph_engine	3	graph	workflow_engine		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/turn.rs
+oss	graph_engine	3	graph	steps	the act engine's workflow steps module, engine/steps.rs (rename ruling 1)	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/turn.rs
 oss	graph_receipt_id	3	graph	workflow_receipt_id		crates/runx-runtime/tests/parity/hello_graph.rs
 oss	graph_receipt_sealing	3	graph	workflow_receipt_sealing		crates/runx-runtime/benches/graph_throughput.rs scripts/runtime-throughput.mjs
 oss	graph_run_result_artifacts	3	graph	workflow_run_result_artifacts		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
@@ -942,7 +941,7 @@ oss	into_local_execution_closure	3	closure	into_local_execution_closure	a packag
 oss	invalid-unknown-runner	3	runner	invalid-unknown-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs fixtures/operational-policy/invalid-unknown-runner.json
 oss	is_governed_step_closure	3	closure	is_governed_step_closure	a package's closure, or English: stays	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	is_graph	3	graph	is_workflow		crates/runx-runtime/src/execution/harness/package.rs
-oss	isRunnerFixture	3	runner	isRunnerFixture	the kernel fixture runner is machinery: stays	scripts/generate-kernel-parity-fixtures.ts
+oss	isRunnerFixture	3	runner	isEvaluationFixture	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts
 oss	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_closure.rs
 oss	merge_local_execution_closure	3	closure	merge_local_execution_closure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	nested_graph_ref	3	graph	nested_workflow_ref		crates/runx-runtime/tests/skill_run.rs
@@ -984,7 +983,7 @@ oss	start_sequential_graph_step	3	graph	start_sequential_workflow_step		crates/r
 oss	startedGraph	3	graph	startedWorkflow		scripts/generate-kernel-parity-fixtures.ts
 oss	succeed_sequential_graph_step	3	graph	succeed_sequential_workflow_step		crates/runx-core/src/state_machine/sequential_graph/transition.rs
 oss	supplied_harness	3	harness	supplied_test	the test sense	crates/runx-runtime/bundled-skills.json skills/diagnose-skill-run/diagnose-skill-run.mjs
-oss	test_runner	3	runner	test_runner	another runner: stays	crates/runx-contracts/src/canonical_json.rs
+oss	test_runner	3	runner	test_runner	proptest's test_runner module: a test runner, outside runx: stays	crates/runx-contracts/src/canonical_json.rs
 oss	test-graph	3	graph	test-workflow		crates/runx-runtime/src/execution/runner.rs
 oss	validate_harness_fixtures	3	harness	validate_test_fixtures	the test sense	crates/runx-parser/src/package/validate.rs crates/runx-parser/src/package/validate/support.rs
 oss	validate_harness_support_files	3	harness	validate_test_support_files	the test sense	crates/runx-parser/src/package/validate.rs crates/runx-parser/src/package/validate/support.rs
@@ -1100,7 +1099,7 @@ oss	LoadedRunnerInputContract	2	runner	LoadedMethodInputContract		packages/contr
 oss	local_closure	2	closure	local_closure	a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
 oss	local_graph	2	graph	local_workflow		crates/runx-runtime/tests/receipt_signing.rs
 oss	local_harness	2	harness	local_test	the test sense	crates/runx-runtime/bundled-skills.json
-oss	local-pr-runner	2	runner	local-pr-runner	another runner: stays	fixtures/operational-policy/invalid-not-scafld-target.json
+oss	local-pr-runner	2	runner	local-pr-runner	the operational policy's runners, whose name awaits a ruling: stays	fixtures/operational-policy/invalid-not-scafld-target.json
 oss	managed-agent-graph-failure	2	graph	managed-agent-workflow-failure		crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	mcp-approval-graph	2	graph	mcp-approval-workflow		crates/runx-runtime/tests/mcp_server.rs
 oss	mismatched-audit-is-held	2	hold	mismatched-audit-is-held	English, or a skill's own word: stays	crates/runx-runtime/bundled-skills.json
@@ -1168,10 +1167,10 @@ oss	runner-contract	2	runner	method-contract		crates/runx-runtime/bundled-skills
 oss	runner-level	2	runner	method-level		crates/runx-runtime/bundled-skills.json
 oss	runner-local	2	runner	method-local		crates/runx-runtime/bundled-skills.json
 oss	runner-owned	2	runner	method-owned		crates/runx-runtime/bundled-skills.json
-oss	runner-rejects-malformed-state	2	runner	runner-rejects-malformed-state	the kernel fixture runner is machinery: stays	fixtures/kernel/runner/runner-rejects-malformed-state.json scripts/generate-kernel-parity-fixtures.ts
+oss	runner-rejects-malformed-state	2	runner	evaluation-rejects-malformed-state	the kernel fixture evaluation (rename ruling 6)	fixtures/kernel/runner/runner-rejects-malformed-state.json scripts/generate-kernel-parity-fixtures.ts
 oss	runner-specific	2	runner	method-specific		CONVENTIONS.md docs/skill-quality-standard.md
 oss	RunnerDeclaration	2	runner	MethodDeclaration		scripts/collect-packets.ts
-oss	runnerFixtureErrors	2	runner	runnerFixtureErrors	the kernel fixture runner is machinery: stays	scripts/generate-kernel-parity-fixtures.ts
+oss	runnerFixtureErrors	2	runner	evaluationFixtureErrors	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts
 oss	runnerIds	2	runner	runnerIds	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
 oss	RunnerInspectionEntryContract	2	runner	MethodInspectionEntryContract		packages/contracts/src/generated/contract-types.ts
 oss	RunnerManifest	2	runner	MethodManifest		scripts/collect-packets.ts
@@ -1200,7 +1199,7 @@ oss	standalone_harness_options	2	harness	standalone_test_options	the test sense	
 oss	SubSkillNamedRunnerMissing	2	runner	SubSkillNamedMethodMissing		crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	target_admits_runner	2	runner	target_admits_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	throughput_graph	2	graph	throughput_workflow		crates/runx-runtime/benches/graph_throughput.rs
-oss	tool_runner	2	runner	tool_runner	another runner: stays	crates/runx-runtime/src/adapters/mcp/server_skill.rs
+oss	tool_runner	2	runner	tool_method	the method a server's tool name carries	crates/runx-runtime/src/adapters/mcp/server_skill.rs
 oss	tool_source_closure	2	closure	tool_source_closure	a package's closure, or English: stays	crates/runx-runtime/src/tool_catalogs/build.rs
 oss	validate_graph_result_contracts	2	graph	validate_workflow_result_contracts		crates/runx-runtime/src/execution/operator_context.rs
 oss	validate_harness_caller	2	harness	validate_test_caller	the test sense	crates/runx-parser/src/skill/fixtures.rs
@@ -1243,7 +1242,7 @@ oss	write_multi_runner_skill_without_default	2	runner	write_multi_method_skill_w
 oss	write_nested_harness_parent	2	harness	write_nested_test_parent	the test sense	crates/runx-cli/tests/harness.rs
 oss	write_sequential_graph_smoke_harness	2	harness,graph	write_sequential_workflow_smoke_test	the test sense	crates/runx-cli/tests/native_no_ts.rs
 oss	write_skill_root_skill_with_runner_inputs	2	runner	write_skill_root_skill_with_method_inputs		crates/runx-cli/tests/export.rs
-oss	$RUNNER_OS	1	runner	$RUNNER_OS	another runner: stays	.github/actions/setup-runx/action.yml
+oss	$RUNNER_OS	1	runner	$RUNNER_OS	GitHub's runner: stays	.github/actions/setup-runx/action.yml
 oss	a_candidates_harness_reads_its_registry_children_from_the_operators_registry	1	harness	a_candidates_test_reads_its_registry_children_from_the_operators_registry	the test sense	crates/runx-runtime/tests/skill_run.rs
 oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_grant_refuses_a_connector_its_closure_carries_twice	a package's closure, or English: stays	crates/runx-cli/tests/registry.rs
 oss	a_changed_act_is_held_by_the_unsettled_attempt_of_another	1	hold	a_changed_act_is_held_by_the_unsettled_attempt_of_another	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
@@ -1469,7 +1468,7 @@ oss	local_registry_publish_records_the_harness_maturity	1	harness	local_registry
 oss	local_step_and_graph_receipts_use_real_ed25519	1	graph	local_step_and_workflow_receipts_use_real_ed25519		crates/runx-runtime/tests/receipt_signing.rs
 oss	loop-harness-refusal	1	harness	loop-test-refusal	the test sense	examples/loop-orchestration/tests/loop-turn-refuses-disallowed-tool.yaml
 oss	loop-harness-success	1	harness	loop-test-success	the test sense	examples/loop-orchestration/tests/loop-turn-continues.yaml
-oss	malformed-state-runner-error	1	runner	malformed-state-runner-error	the kernel fixture runner is machinery: stays	tests/kernel-parity-fixtures.test.ts
+oss	malformed-state-runner-error	1	runner	malformed-state-evaluation-error	the kernel fixture evaluation (rename ruling 6)	tests/kernel-parity-fixtures.test.ts
 oss	managed_agent_graph_failure_is_typed_sealed_and_visible_in_history	1	graph	managed_agent_workflow_failure_is_typed_sealed_and_visible_in_history		crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	marketplace_paid_and_free_runners_share_one_manifest	1	runner	marketplace_paid_and_free_methods_share_one_manifest		crates/runx-parser/tests/parser_marketplace.rs
 oss	marketplace_rejects_undeclared_runner_and_unknown_rail_fields	1	runner	marketplace_rejects_undeclared_method_and_unknown_rail_fields		crates/runx-parser/tests/parser_marketplace.rs
@@ -1596,7 +1595,7 @@ oss	runner-action	1	runner	runner-action	the operational policy's runners are ma
 oss	runner-harness	1	harness,runner	method-test	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	Runner-local	1	runner	Method-local		crates/runx-contracts/src/schema_artifacts.rs
 oss	Runner-output	1	runner	Method-output		crates/runx-runtime/src/output_contract.rs
-oss	runner-scope-grant-denies-widening	1	runner	runner-scope-grant-denies-widening	the kernel fixture runner is machinery: stays	tests/kernel-parity-fixtures.test.ts
+oss	runner-scope-grant-denies-widening	1	runner	evaluation-scope-grant-denies-widening	the kernel fixture evaluation (rename ruling 6)	tests/kernel-parity-fixtures.test.ts
 oss	runners_opt_into_connector_calls_without_changing_graph_operations	1	graph,runner	methods_opt_into_connector_calls_without_changing_workflow_operations		crates/runx-parser/tests/parser_turn_limits.rs
 oss	runtime_resolver_verifies_graph_receipt_with_children	1	graph	runtime_resolver_verifies_workflow_receipt_with_children		crates/runx-runtime/tests/receipt_tree.rs
 oss	runtime_tree_verifies_graph_receipt_with_children	1	graph	runtime_tree_verifies_workflow_receipt_with_children		crates/runx-runtime/tests/receipt_tree.rs
@@ -1687,3 +1686,5 @@ oss	TurnInvocationContract		decided	TurnViewContract	the plan's name (§4.2): to
 oss	write	0		write	stays: the agent's write method takes the word, and every other write keeps it	skills/agent/run.yaml
 oss	TurnTarget	93	decided	CallTarget	the ledger's call target, what any call names, a turn's or a script's (9 November): a wait is offered to no turn	crates/runx-contracts/src/host_protocol.rs crates/runx-runtime/src/execution/runner/turn.rs
 oss	TurnTargetContract		decided	CallTargetContract	its contract type	packages/contracts/src/generated/contract-types.ts
+oss	workflow_engine		decided	steps	the act engine's workflow steps module, engine/steps.rs, since execution/workflow.rs exists (rename ruling 1)	
+oss	steps		decided	steps	one name for the engine's steps module and a workflow's steps, which Rust's module and value namespaces keep apart	

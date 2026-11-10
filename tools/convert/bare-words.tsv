@@ -86,3 +86,23 @@ cloud	packages/api/src/openapi-runtime-schemas.ts	holds	leases	\brequired: \["st
 cloud	packages/api/src/runs/routes.ts	holds	leases	^\s*$	^: holds\.map\(	PurchaseClaimed's leases, the claim route's answer
 cloud	packages/api/src/payments/skills/run-routes.test.ts	holds	leases	^\s*$	^: \[\{	PurchaseClaimed's leases, in the claim the test expects
 ausca	Makefile	harness	test			both uses: the comment's "every harness case" is every test case, and the command is 0.12's runx test <package-dir> --json
+oss	*	runner	engine	\bexecution(::|/)$		the act engine's module, execution/engine (rename ruling 1)
+oss	*	runner	engine	\b(graph|workflow) $		the act engine a workflow runs through, graph's or workflow's runner as the rename reads either
+oss	crates/runx-runtime/src/execution.rs	runner	engine	\bmod $		the act engine's module
+oss	crates/runx-runtime/src/execution.rs	runner	engine	`$	^`	the act engine's module, as execution's doc names it
+oss	crates/runx-runtime/src/lib.rs	runner	engine	\buse $	^::	the act engine's module, re-exported
+oss	crates/runx-runtime/src/lib.rs	runner	engine	`$	^`	the act engine's module, as the crate's doc names it
+oss	crates/runx-runtime/src/execution/run_record.rs	runner	engine	\bsuper::$		the act engine's module
+oss	crates/runx-runtime/src/execution/runner/step_handlers.rs	runner	tools	\bkernel's $		the tools a step gives the kernel's process implementations, as ToolRunner is Tools
+oss	*	runner	replay	\btest(::|/)$		the test replay's module, execution/test/replay (rename ruling 2)
+oss	crates/runx-runtime/src/execution/test.rs	runner	replay	\b(mod|use) $		the test replay's module
+oss	crates/runx-runtime/src/execution/test/json_assertions.rs	runner	replay	\bsuper::$		the test replay's module
+oss	crates/runx-runtime/src/execution/test/package.rs	runner	replay	\bsuper::$		the test replay's module
+oss	tests/examples/hello-workflow.test.ts	runner	replay	\bnative test $		runx's own test replay, which runx test runs
+oss	scripts/generate-kernel-parity-fixtures.ts	runner	evaluation			the kernel fixture evaluation, its folder and its fixtures' prefix (rename ruling 6)
+oss	tests/kernel-parity-fixtures.test.ts	runner	evaluation			the kernel fixture evaluation, its folder and its fixtures' prefix
+oss	fixtures/kernel/README.md	runner	evaluation		^[/-]	the kernel fixture evaluation's folder and its fixtures' prefix
+oss	fixtures/kernel/README.md	Runner	Evaluation		^$	the kernel fixture evaluation's fixtures
+oss	fixtures/kernel/README.md	runner	evaluator	\bfixture $		the kernel fixture evaluator
+oss	fixtures/kernel/README.md	runners	evaluators	\bRust $		the kernel fixture evaluators
+oss	fixtures/kernel/README.md	Runners	Evaluators			the kernel fixture evaluators

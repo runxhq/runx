@@ -31,6 +31,11 @@ export const PROSE_ONLY = new Set(["graph"]);
  *   and the test fixtures' folder of workflow packages. A skill's own folder
  *   of stage packages is `workflow/` by a ruling made by hand with the
  *   refusals that name it, not by this table.
+ * - The act engine, by its own doc, and its workflow steps (engine/steps.rs,
+ *   by the table's workflow_engine row, since execution/workflow.rs exists).
+ * - The test replay, which loads fixtures, invokes adapters, asserts receipts
+ *   and seals workflow replay.
+ * - The kernel fixture evaluation, whose error is kernel.fixture.evaluation_failed.
  */
 export const MOVED_PATHS = [
   ["crates/runx-parser/src/graph.rs", "crates/runx-parser/src/workflow.rs"],
@@ -38,6 +43,10 @@ export const MOVED_PATHS = [
   ["crates/runx-runtime/src/execution/graph.rs", "crates/runx-runtime/src/execution/workflow.rs"],
   ["crates/runx-runtime/src/execution/skill_front/graph.rs", "crates/runx-runtime/src/execution/skill_front/workflow.rs"],
   ["fixtures/graphs/", "fixtures/workflows/"],
+  ["crates/runx-runtime/src/execution/runner.rs", "crates/runx-runtime/src/execution/engine.rs"],
+  ["crates/runx-runtime/src/execution/runner/", "crates/runx-runtime/src/execution/engine/"],
+  ["crates/runx-runtime/src/execution/test/runner.rs", "crates/runx-runtime/src/execution/test/replay.rs"],
+  ["fixtures/kernel/runner/", "fixtures/kernel/evaluation/"],
 ];
 
 /** Where MOVED_PATHS moves a path, or the path itself when no move holds it. */
@@ -274,23 +283,15 @@ export function renamedBare(token, after) {
 // holds in (all when it says none), the exact token when its case decides it,
 // and what must sit just before or just after the word on its line.
 export const STAYS = [
-  // runner: the machinery that executes runs (§4.2). The test runner's module
-  // is named at its path before and after the rename moves it, so the rename
-  // runs again over its own output.
-  { word: "runner", why: "the execution runner module", before: /(execution|harness|test)(::|\/)$/ },
-  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(execution\.rs|execution\/(harness|test)\.rs)$/, before: /\bmod $/ },
-  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(lib\.rs|execution\/run_record\.rs|execution\/(harness|test)\/)/, after: /^::/ },
-  { word: "runner", why: "the test runner's module", file: /^crates\/runx-runtime\/src\/execution\/(harness|test)\.rs$/, before: /\buse $/, after: /^::/ },
-  { word: "runner", why: "the execution runner module", file: /^crates\/runx-runtime\/src\/(execution|lib)\.rs$/, before: /`$/, after: /^`/ },
-  // The graph runner is the workflow runner once graph is renamed in prose, so
-  // the rename reads its own output the same.
-  { word: "runner", why: "the execution runner", before: /\b(graph|workflow|kernel['’]s) $/ },
+  // runner names nothing of runx's own: the act engine, the test replay and
+  // the kernel fixture evaluation are their own words (bare-words.tsv), and
+  // the operational policy's runners await a name of their own.
   { word: "runner", why: "the operational policy's runners", file: /^(crates\/runx-contracts\/src\/operational_policy(\.rs$|\/)|crates\/runx-contracts\/tests\/operational_policy\.rs$|crates\/runx-cli\/(src|tests)\/policy\.rs$|packages\/contracts\/src\/schemas\/operational-policy\.|fixtures\/operational-policy\/|skills\/policy-draft\/|tests\/policy-draft-validation\.test\.ts$)/ },
   { word: "runner", why: "the operational policy's runners, in a corpus or test that holds one policy among others", file: /^(crates\/runx-contracts\/tests\/schema_wire_conformance\/corpora\.rs|packages\/contracts\/src\/index\.test\.ts)$/, before: /^\s*"?$/, after: /^"?: \[\{/ },
-  { word: "runner", why: "the kernel fixture runner", file: /^(fixtures\/kernel\/|scripts\/generate-kernel-parity-fixtures\.ts$|tests\/kernel-parity-fixtures\.test\.ts$)/ },
   { word: "runner", why: "GitHub's runner", file: /^\.github\// },
   { word: "runner", why: "GitHub's runner", before: /(GitHub(['’]s)?|[Hh]osted|self-hosted|Actions|CI) $/ },
-  { word: "runner", why: "a test runner", before: /\btest $/i },
+  // A test runner: libtest's, Vitest's or node's. runx's own is its test replay.
+  { word: "runner", why: "a test runner", before: /(?<!\bnative )\btest $/i },
   { word: "runner", why: "the retired flag a test proves is refused", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /--$/ },
   // runner in Ausca: a shell variable, a GPU job runner, its sandbox's own
   // runner, and the buyer canary's driver beside GitHub's runner limit.
@@ -366,8 +367,6 @@ export function decisionsFor(rows, file, line, index, token) {
 // what the rename and the guard read them by. A history document keeps its
 // whole path as it keeps its text (HISTORY), release/notes/ among them.
 export const PATH_STAYS = [
-  { path: /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|(harness|test)\/runner\.rs$)/, why: "the execution runner module, and the test runner's" },
-  { path: /^fixtures\/kernel\/runner\//, why: "the kernel fixture runner's folder" },
   { path: /^\.github\//, why: "GitHub's runner" },
   { path: /^scripts\/check-rust-crate-graph\.mjs$/, why: "a dependency graph" },
   // Not renamed yet: the policy's runners await a name (the operational policy's stay above).

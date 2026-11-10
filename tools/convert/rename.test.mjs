@@ -138,26 +138,26 @@ test("the rename leaves a generated file to its generator", (t) => {
   assert.equal(read(root, "schemas/diagnosis.schema.json"), generated);
 });
 
-test("a bare runner or harness renames everywhere but where a stay keeps it, and the dry run lists each stay", (t) => {
+test("a bare runner or harness renames everywhere but where a stay keeps it or a row decides it, and the dry run lists each", (t) => {
   const root = tree(t, {
-    "crates/runx-runtime/src/execution.rs": "//! - `runner`: the graph engine.\npub mod runner;\npub mod harness;\n",
-    "crates/runx-runtime/src/execution/harness/runner.rs": "use crate::execution::runner::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n",
+    "crates/runx-runtime/src/execution.rs": "//! - `runner`: the workflow runner.\npub mod runner;\npub mod harness;\n",
+    "crates/runx-runtime/src/execution/harness/fixture.rs": "use crate::execution::runner::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n",
     "crates/runx-runtime/src/skill_package/inspection/runner.rs": "/// The runners a skill declares.\npub fn runners() {}\n",
     "crates/runx-contracts/src/operational_policy.rs": "pub struct Policy { pub runners: Vec<Runner> }\n",
     "docs/agents.md": "Run the harness first. The harness context travels with the run. An agent harness such as Codex keeps its own memory.\n",
   });
   const dry = run(RENAME, "apply", "oss", root, "--stays");
   assert.equal(dry.status, 0, dry.out);
-  assert.match(dry.out, /^stays\tcrates\/runx-runtime\/src\/execution\.rs:1\tthe execution runner module\t/m);
-  assert.match(dry.out, /^stays\tcrates\/runx-runtime\/src\/execution\.rs:2\tthe execution runner module\tpub mod runner;$/m);
-  assert.match(dry.out, /^stays\tcrates\/runx-runtime\/src\/execution\/harness\/runner\.rs:1\tthe execution runner module\t/m);
+  assert.match(dry.out, /^decided\tcrates\/runx-runtime\/src\/execution\.rs:1\tthe act engine's module, as execution's doc names it\trunner -> engine\t/m);
+  assert.match(dry.out, /^decided\tcrates\/runx-runtime\/src\/execution\.rs:2\tthe act engine's module\trunner -> engine\tpub mod runner;$/m);
+  assert.match(dry.out, /^decided\tcrates\/runx-runtime\/src\/execution\/harness\/fixture\.rs:1\tthe act engine's module, execution\/engine \(rename ruling 1\)\trunner -> engine\t/m);
   assert.match(dry.out, /^stays\tcrates\/runx-contracts\/src\/operational_policy\.rs:1\tthe operational policy's runners\t/m);
   assert.match(dry.out, /^stays\tdocs\/agents\.md:1\tan agent's host\t/m);
 
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "//! - `runner`: the workflow engine.\npub mod runner;\npub mod test;\n");
-  assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use crate::execution::runner::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.method.inputs }\n");
+  assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "//! - `engine`: the workflow engine.\npub mod engine;\npub mod test;\n");
+  assert.equal(read(root, "crates/runx-runtime/src/execution/test/fixture.rs"), "use crate::execution::engine::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.method.inputs }\n");
   assert.equal(read(root, "crates/runx-runtime/src/skill_package/inspection/method.rs"), "/// The methods a skill declares.\npub fn methods() {}\n");
   assert.equal(read(root, "crates/runx-contracts/src/operational_policy.rs"), "pub struct Policy { pub runners: Vec<Runner> }\n");
   assert.equal(read(root, "docs/agents.md"), "Run the test first. The run context travels with the run. An agent harness such as Codex keeps its own memory.\n");
@@ -299,19 +299,29 @@ test("a receipt's harness reference keeps its words: its type and its runx:harne
   assert.equal(read(root, "crates/runx-runtime/src/receipts/seal.rs"), seal.replace("The harness seals", "The test seals"));
 });
 
-test("the test runner's module keeps its word where the rename moves it, so a second run changes nothing", (t) => {
+test("the act engine and the test replay take their modules' names where the rename moves them, so a second run changes nothing", (t) => {
   const root = tree(t, {
-    "crates/runx-runtime/src/execution/harness.rs": "pub mod runner;\npub use runner::run_case;\n",
-    "crates/runx-runtime/src/execution/harness/runner.rs": "use super::runner::Case;\npub fn run_case() {}\n",
+    "crates/runx-runtime/src/execution.rs": "pub mod runner;\npub mod test;\n",
+    "crates/runx-runtime/src/execution/runner.rs": "mod workflow_engine;\nuse workflow_engine::Steps;\n",
+    "crates/runx-runtime/src/execution/runner/workflow_engine.rs": "pub struct Steps;\n",
+    "crates/runx-runtime/src/execution/test.rs": "pub mod runner;\npub use runner::run_case;\n",
+    "crates/runx-runtime/src/execution/test/runner.rs": "use crate::execution::runner::Steps;\npub fn run_case() {}\n",
+    "fixtures/kernel/runner/runner-rejects-malformed-state.json": '{ "name": "runner-rejects-malformed-state" }\n',
   });
-  const first = run(RENAME, "apply", "oss", root, "--write");
-  assert.equal(first.status, 0, first.out);
-  assert.equal(read(root, "crates/runx-runtime/src/execution/test.rs"), "pub mod runner;\npub use runner::run_case;\n");
-  assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use super::runner::Case;\npub fn run_case() {}\n");
-  const again = run(RENAME, "apply", "oss", root, "--write");
-  assert.equal(again.status, 0, again.out);
-  assert.match(again.out, /oss: 0 names in 0 files, 0 of them bare words, \d+ bare words kept, 0 paths moved/);
-  assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use super::runner::Case;\npub fn run_case() {}\n");
+  const replay = "use crate::execution::engine::Steps;\npub fn run_case() {}\n";
+  for (let pass = 0; pass < 2; pass += 1) {
+    const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+    assert.equal(status, 0, out);
+    assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "pub mod engine;\npub mod test;\n");
+    assert.equal(read(root, "crates/runx-runtime/src/execution/engine.rs"), "mod steps;\nuse steps::Steps;\n");
+    assert.equal(read(root, "crates/runx-runtime/src/execution/engine/steps.rs"), "pub struct Steps;\n");
+    assert.equal(read(root, "crates/runx-runtime/src/execution/test.rs"), "pub mod replay;\npub use replay::run_case;\n");
+    assert.equal(read(root, "crates/runx-runtime/src/execution/test/replay.rs"), replay);
+    assert.equal(read(root, "fixtures/kernel/evaluation/evaluation-rejects-malformed-state.json"), '{ "name": "evaluation-rejects-malformed-state" }\n');
+    assert.equal(existsSync(path.join(root, "crates/runx-runtime/src/execution/runner")), false);
+    assert.equal(existsSync(path.join(root, "fixtures/kernel/runner")), false);
+    if (pass === 1) assert.match(out, /oss: 0 names in 0 files, 0 of them bare words, \d+ bare words kept, 0 paths moved/);
+  }
 });
 
 test("Go's build decides a landing: another function's method is no collision for a local renamed to method", (t) => {
@@ -352,7 +362,7 @@ test("graph is a workflow in prose and in code, and the module it names moves; a
   const renamed = doc
     .replace("# Graphs", "# Workflows")
     .replace("into a graph. Graphs stay", "into a workflow. Workflows stay")
-    .replace("the graph runner", "the workflow runner");
+    .replace("the graph runner", "the workflow engine");
   for (let pass = 0; pass < 2; pass += 1) {
     const { status, out } = run(RENAME, "apply", "oss", root, "--write");
     assert.equal(status, 0, out);
