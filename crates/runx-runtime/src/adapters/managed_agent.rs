@@ -143,7 +143,12 @@ impl ManagedAgent {
                 ))
             })?;
         end.answer
-            .map(|answer| crate::execution::outcome::with_met_requirements(answer, &requires))
+            .map(|answer| {
+                // It states what it met, and the model that answered.
+                crate::execution::outcome::with_met_requirements(answer, &requires).and_then(
+                    |answer| crate::execution::outcome::with_stated_model(answer, &config.model),
+                )
+            })
             .transpose()
             .map_err(|message| fail(ManagedAgentError::sanitized(message)))
     }

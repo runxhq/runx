@@ -149,8 +149,34 @@ pub(crate) fn with_met_requirements(
     if met.is_empty() {
         return Ok(answer);
     }
+    stating(
+        answer,
+        "requirements",
+        JsonValue::Array(
+            met.iter()
+                .map(|requirement| JsonValue::String(requirement.as_str().to_owned()))
+                .collect(),
+        ),
+    )
+}
+
+/// `answer`, saying `model` answered it: in its closure's `model`, with the
+/// act completed when the answer states no closure of its own.
+///
+/// # Errors
+///
+/// Returns an error when the answer isn't an object, or its closure isn't.
+#[cfg(feature = "agent")]
+pub(crate) fn with_stated_model(answer: JsonValue, model: &str) -> Result<JsonValue, String> {
+    stating(answer, "model", JsonValue::String(model.to_owned()))
+}
+
+/// `answer` with `value` at its closure's `key`, the act completed when the
+/// answer states no closure of its own.
+#[cfg(any(feature = "agent", feature = "mcp"))]
+fn stating(answer: JsonValue, key: &str, value: JsonValue) -> Result<JsonValue, String> {
     let JsonValue::Object(mut answer) = answer else {
-        return Err("an answer that states its requirements is an object".to_owned());
+        return Err(format!("an answer that states its {key} is an object"));
     };
     let closure = answer.entry("closure".to_owned()).or_insert_with(|| {
         JsonValue::Object(runx_contracts::JsonObject::from([(
@@ -161,15 +187,39 @@ pub(crate) fn with_met_requirements(
     let JsonValue::Object(closure) = closure else {
         return Err("agent answer closure must be an object".to_owned());
     };
-    closure.insert(
-        "requirements".to_owned(),
-        JsonValue::Array(
-            met.iter()
-                .map(|requirement| JsonValue::String(requirement.as_str().to_owned()))
-                .collect(),
-        ),
-    );
+    closure.insert(key.to_owned(), value);
     Ok(JsonValue::Object(answer))
+}
+
+/// The longest model name an answer may state.
+const MAX_MODEL: usize = 200;
+
+/// The model an agent turn's answer says answered it, in its closure's
+/// `model`: its agent harness or runx's driver states it, and a turn whose
+/// answer states none has no model of record.
+///
+/// # Errors
+///
+/// Returns an error when the closure states a model that isn't a name.
+pub(crate) fn stated_model(answer: &JsonValue) -> Result<Option<&str>, String> {
+    let stated = answer
+        .as_object()
+        .and_then(|answer| answer.get("closure"))
+        .and_then(JsonValue::as_object)
+        .and_then(|closure| closure.get("model"));
+    match stated {
+        None => Ok(None),
+        Some(JsonValue::String(model))
+            if !model.trim().is_empty()
+                && model.chars().count() <= MAX_MODEL
+                && !model.chars().any(char::is_control) =>
+        {
+            Ok(Some(model.as_str()))
+        }
+        Some(_) => Err(format!(
+            "agent answer closure.model names the model that answered, in 1 to {MAX_MODEL} characters"
+        )),
+    }
 }
 
 /// How an agent says its act ended. A kill or a timeout is observed by the
@@ -199,6 +249,37 @@ mod tests {
         OutcomeClaimError, agent_answer_outcome_or_completed, check_turn_requirements,
         failed_answer,
     };
+
+    /// runx's driver states the model that answered a turn, and the model
+    /// an answer states is read back as it was stated; one that isn't a
+    /// name refuses the answer.
+    #[cfg(feature = "agent")]
+    #[test]
+    fn a_turns_answer_states_the_model_that_answered() -> Result<(), Box<dyn std::error::Error>> {
+        let answer = |value: serde_json::Value| serde_json::from_value::<JsonValue>(value);
+        let stated = super::with_stated_model(
+            answer(serde_json::json!({"draft": "Hello."}))?,
+            "claude-haiku-4-5",
+        )?;
+        assert_eq!(super::stated_model(&stated), Ok(Some("claude-haiku-4-5")));
+        assert_eq!(
+            agent_answer_outcome_or_completed(&stated),
+            Ok(RunOutcome::Completed)
+        );
+        assert_eq!(
+            super::stated_model(&answer(serde_json::json!({"draft": "Hello."}))?),
+            Ok(None)
+        );
+        for named in [
+            serde_json::json!(""),
+            serde_json::json!(7),
+            serde_json::json!("a\nb"),
+        ] {
+            let closure = serde_json::json!({"closure": {"outcome": "completed", "model": named}});
+            assert!(super::stated_model(&answer(closure)?).is_err());
+        }
+        Ok(())
+    }
 
     #[test]
     fn an_agent_cannot_claim_a_kill_or_a_timeout() -> Result<(), serde_json::Error> {

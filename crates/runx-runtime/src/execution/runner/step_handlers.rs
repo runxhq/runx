@@ -1735,6 +1735,12 @@ fn agent_answer_outcome_value(
                 step_id: step.id.clone(),
                 reason,
             })?;
+        crate::execution::outcome::stated_model(answer).map_err(|reason| {
+            RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason,
+            }
+        })?;
     }
     Ok(outcome)
 }
