@@ -165,22 +165,33 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
     ])))
 }
 
-/// The index of `entries` leads with the standing rules that apply, every
-/// one, and only them: the ended and the disabled rule never show.
+/// The index of `entries` leads with the rules' entry, which holds the
+/// standing rules that apply, every one, and only them: the ended and the
+/// disabled rule never show, and no other entry is a rule's.
 fn rules_lead(index: &serde_json::Value, entries: usize) -> Result<(), Box<dyn Error>> {
-    let purposes = index["entries"]
+    let groups = index["entries"]
         .as_array()
         .ok_or_else(|| format!("no entries in {index}"))?
         .iter()
-        .map(|entry| entry["labels"]["purpose"].as_str().unwrap_or_default())
+        .map(|group| {
+            (
+                group["labels"]["purpose"].as_str().unwrap_or_default(),
+                group["data"]["entries"].as_array().map_or(0, Vec::len),
+            )
+        })
         .collect::<Vec<_>>();
-    let rules = purposes
-        .iter()
-        .take_while(|purpose| **purpose == "mandate")
-        .count();
-    if rules != RULES_THAT_APPLY || purposes.iter().skip(rules).any(|p| *p == "mandate") {
+    let rules = match groups.first() {
+        Some(("mandate", rules)) => *rules,
+        _ => 0,
+    };
+    if rules != RULES_THAT_APPLY
+        || groups
+            .iter()
+            .skip(1)
+            .any(|(purpose, _)| *purpose == "mandate")
+    {
         return Err(std::io::Error::other(format!(
-            "the index of {entries} entries led with {rules} standing rules, not {RULES_THAT_APPLY}: {purposes:?}"
+            "the index of {entries} entries led with {rules} standing rules, not {RULES_THAT_APPLY}: {groups:?}"
         ))
         .into());
     }
@@ -191,11 +202,15 @@ fn count(value: u64) -> JsonValue {
     JsonValue::Number(JsonNumber::U64(value))
 }
 
+/// The entries an output shows: a search's each by its own, and an index's
+/// by each entry its groups' data holds.
 fn entries_of(output: &serde_json::Value) -> Result<u64, Box<dyn Error>> {
     Ok(output["entries"]
         .as_array()
         .ok_or_else(|| format!("no entries in {output}"))?
-        .len() as u64)
+        .iter()
+        .map(|entry| entry["data"]["entries"].as_array().map_or(1, Vec::len) as u64)
+        .sum())
 }
 
 /// A workspace holding a copy of `runx/memory`, with a home of its own.

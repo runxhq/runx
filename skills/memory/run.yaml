@@ -333,7 +333,7 @@ methods:
         outputs:
           handle: { type: string }
   index:
-    description: A bounded index of the entries the run may read, for a turn's context. The person's standing rules first, every one, oldest first, then facts, the person's words before observations, newest first or the ones that match the focus first. Each line is dated and shows its summary. Past its limit, summaries go from the bottom up before any fact's line goes, and a rule's line never goes. An entry whose end date has passed is left out.
+    description: A bounded index of the entries the run may read, for a turn's context, as one entry per stream and purpose, its lines under a header, memory:<stream>. Each line is <key>@<version> <date> <summary>, its key the shortest start of the entry's key, at least 8 characters, that no other line of its stream shares, which read takes with the header as a short handle. The person's standing rules first, every one, oldest first, then facts, the person's words before observations, newest first or the ones that match the focus first. Every line shows its summary, facts fill the room the rules leave whole and the first that doesn't fit ends them, and a rule's line never goes, only its summary, when the rules alone pass the limit. An entry whose end date has passed is left out.
     inputs:
       levels: {}
       max_characters: { type: integer, minimum: 256, maximum: 32768, default: 4096, optional: true, description: The most characters the index may hold. }
@@ -349,9 +349,9 @@ methods:
         max_calls: 64
         effects: none
         outputs:
-          entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values." }
+          entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values, one per stream and purpose: its header and lines as its summary, its entries whole as its data." }
           entries_omitted: { type: boolean, description: "Some entries didn't fit, and search and read reach them." }
-          over_budget: { type: boolean, description: "The standing rules alone pass max_characters, so the index holds more than it may: every rule shows, because a rule the turn can't see is one it can't follow." }
+          over_budget: { type: boolean, description: "The standing rules alone pass max_characters whole, so no fact shows and the rules' summaries go, newest first, until the index fits or none is left: every rule's line shows, because a rule the turn can't see is one it can't follow." }
   search:
     description: Ranked matches among the current entries of the streams the run may read. Reading history is explicit, with read.
     inputs:
@@ -369,22 +369,34 @@ methods:
         outputs:
           entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values, best match first." }
   read:
-    description: One entry by handle, at the version the handle names, whether or not it's still current.
+    description: One entry by handle, at the version the handle names, whether or not it's still current. A short handle, an index line's header and key, is resolved within its stream, and one whose key begins no entry's, or more than one, is refused with the full handles it could mean.
     inputs: { handle: {} }
     steps:
       - id: entry
         tool: { module: memory.mjs, export: parseHandle }
-        inputs: { handle: $input.handle }
+        inputs: { handle: $input.handle, short: true }
         outputs:
           stream: { type: string }
           key: { type: string }
           version: { type: integer }
           after_version: { type: integer }
+      - id: resolved
+        script: { module: memory.mjs, export: resolveHandle }
+        inputs: { entry: $steps.entry }
+        calls:
+          operations: [private/keys.list]
+        max_calls: 1
+        effects: none
+        outputs:
+          handle: { type: string }
+          stream: { type: string }
+          key: { type: string }
+          after_version: { type: integer }
       - id: read
         operation: private/events.read
-        inputs: { stream: $steps.entry.stream, key: $steps.entry.key, after_version: $steps.entry.after_version, limit: 1 }
+        inputs: { stream: $steps.resolved.stream, key: $steps.resolved.key, after_version: $steps.resolved.after_version, limit: 1 }
       - id: context
         tool: { module: memory.mjs, export: contextEntry }
-        inputs: { handle: $input.handle, read: $steps.read.provider_operation.result }
+        inputs: { handle: $steps.resolved.handle, read: $steps.read.provider_operation.result }
         outputs:
           entry: { type: object, packet: runx.context_entry.v1 }

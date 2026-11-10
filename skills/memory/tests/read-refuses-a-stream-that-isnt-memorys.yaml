@@ -2,5 +2,19 @@ name: read-refuses-a-stream-that-isnt-memorys
 method: read
 inputs:
   handle: "memory:notes:personal#key@1"
+setup:
+  # A term that reads memory, so what refuses the handle is the handle: it
+  # names a stream that isn't memory's. A read with no term stops before it
+  # reads, as every private call does.
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
 expect:
   status: failure

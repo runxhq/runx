@@ -45,7 +45,12 @@ out doesn't confirm a summary of it or the force it's given.
   summary only, never a confirmation's wording, a purpose or a source.
 - `read`: one entry by handle, at the version it names.
 
-An entry's handle is `memory:<stream>#<key>@<version>`.
+An entry's handle is `memory:<stream>#<key>@<version>`. A short handle is
+one whose key is only the start of the entry's, at least 8 hex characters, as
+an index line shows it. `read` takes one and resolves it within its stream: a
+start that begins no key, or more than one, is refused, naming the full
+handles it could mean, so `read` never guesses. Every other method and result
+names an entry by its full handle.
 
 ## A write is shown what it likely replaces
 
@@ -62,8 +67,15 @@ current unless the writer said it doesn't replace it.
 
 ## The index
 
-Each line is `<handle> <date> <summary>`, with its date and never a relative
-age, so the same memory reads the same from one day to the next. In order:
+The index is one context entry per stream and purpose. Its summary is a
+header, `memory:<stream>`, then a line per entry, `<key>@<version> <date>
+<summary>`, and its data is its entries whole. The key is the shortest start
+of the entry's key, at least 8 characters, that no other line of its stream
+shares, so the header and a line make the entry's short handle. The date is
+the fact's own and never a relative age, so the same memory reads the same
+from one day to the next. The person's standing rules, their other words and
+the observations each sit under a header of their own, labelled with their
+purpose. In order:
 
 1. **Standing rules:** the person's words kept as a `mandate` or a
    `procedure`, every one, whatever its age, oldest first.
@@ -72,13 +84,14 @@ age, so the same memory reads the same from one day to the next. In order:
    first and newest first among equals, and the rest follow newest first.
    Without one, newest first.
 
-An entry whose `valid_until` has passed, by the run's clock, is left out. Past
-its budget, `max_characters`, lines lose their summary from the bottom up: the
-lowest-ranked fact's first and the standing rules' last, the newest rule's
-before the oldest. A fact's line goes only once every summary has. A standing
-rule's line never goes: when the rules alone pass the budget, every one shows
-and `over_budget` says so. It says when it cut entries, and `search` and
-`read` reach them.
+An entry whose `valid_until` has passed, by the run's clock, is left out.
+Every line holds its summary, and headers count toward the budget,
+`max_characters`, with their lines. Facts fill the room the rules leave
+whole, in rank order, and the first that doesn't fit ends them. A standing
+rule's line never goes: when the rules alone pass the budget, no fact shows,
+the rules' summaries go, newest first, so the oldest rules keep the start of
+the request, and `over_budget` says so. It says when it cut entries, and
+`search` and `read` reach them.
 
 ## Reading it from another skill
 

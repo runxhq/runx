@@ -230,11 +230,35 @@ fn entries(value: &Value) -> TestResult<Vec<Value>> {
         .clone())
 }
 
+/// The handle of each entry a result shows: a search's or a write's entries
+/// each by its own, and an index's by each entry its groups' data holds.
 fn handles(entries: &[Value]) -> Vec<&str> {
     entries
         .iter()
-        .filter_map(|entry| entry["data"]["handle"].as_str())
+        .flat_map(|entry| match entry["data"]["entries"].as_array() {
+            Some(shown) => shown
+                .iter()
+                .filter_map(|shown| shown["handle"].as_str())
+                .collect::<Vec<_>>(),
+            None => entry["data"]["handle"].as_str().into_iter().collect(),
+        })
         .collect()
+}
+
+/// The start of `handle`'s key an index line shows when no other line of
+/// its stream starts alike: its first 8 characters, and its version.
+fn line_key(handle: &str) -> String {
+    let (_, key) = handle.split_once('#').unwrap_or_default();
+    let (key, version) = key.rsplit_once('@').unwrap_or_default();
+    format!("{}@{version}", &key[..8])
+}
+
+/// How many characters an index holds: its groups' headers and lines.
+fn characters(index: &[Value]) -> usize {
+    lines(index)
+        .iter()
+        .map(|summary| summary.chars().count())
+        .sum()
 }
 
 /// The person's words as they gave them, plain memory, shown by the line
@@ -263,7 +287,7 @@ fn unsaid(mut inputs: Value) -> Value {
     inputs
 }
 
-/// Each line of an index, as a turn reads it.
+/// Each group of an index as a turn reads it: its header and its lines.
 fn lines(entries: &[Value]) -> Vec<&str> {
     entries
         .iter()
@@ -293,9 +317,10 @@ fn gate_summary(read: &Value, gate: &str) -> TestResult<Value> {
     found.ok_or_else(|| format!("no gate {gate} in {read}").into())
 }
 
-/// An index line is its entry's handle, its date and the summary its writer
-/// wrote for recall, and a person's words rank above an observation, even one
-/// kept after them.
+/// The index is a group per stream and purpose under a header,
+/// `memory:<stream>`, and a line is the start of its entry's key, its
+/// version, its date and the summary its writer wrote for recall. A person's
+/// words rank above an observation, even one kept after them.
 #[test]
 fn the_index_puts_the_persons_words_first_each_line_dated() -> TestResult {
     let memory = Memory::new("runx-memory-index")?;
@@ -310,10 +335,13 @@ fn the_index_puts_the_persons_words_first_each_line_dated() -> TestResult {
     assert_eq!(handles(&index), [said.as_str(), observed.as_str()]);
     assert_eq!(
         index[0]["summary"],
-        format!("{said} 2026-11-08 How I take my tea")
+        format!(
+            "memory:said:personal\n{} 2026-11-08 How I take my tea",
+            line_key(&said)
+        )
     );
     assert_eq!(
-        index[0]["data"]["text"],
+        index[0]["data"]["entries"][0]["text"],
         "I take my tea black, no sugar, and never before nine in the morning."
     );
     assert_eq!(index[0]["labels"]["purpose"], "confirmed_memory");
@@ -385,8 +413,9 @@ fn a_disabled_entry_leaves_the_index_and_search() -> TestResult {
     Ok(())
 }
 
-/// Past its budget the index says it cut entries, lines lose their preview
-/// before any goes, and search still finds a cut entry.
+/// Past its budget the index says it cut entries, and every line it shows
+/// holds its summary, headers counted with them; search still finds a cut
+/// entry.
 #[test]
 fn a_cut_index_says_so_and_search_still_finds_what_it_cut() -> TestResult {
     let memory = Memory::new("runx-memory-budget")?;
@@ -404,16 +433,14 @@ fn a_cut_index_says_so_and_search_still_finds_what_it_cut() -> TestResult {
     assert!(omitted);
     assert!(!index.is_empty());
     assert!(!handles(&index).contains(&oldest.as_str()));
-    let total = index
-        .iter()
-        .map(|entry| {
-            entry["summary"]
-                .as_str()
-                .map_or(0, |line| line.chars().count())
-        })
-        .sum::<usize>()
-        + index.len().saturating_sub(1);
-    assert!(total <= 256, "{total}");
+    assert!(characters(&index) <= 256, "{index:?}");
+    assert!(
+        lines(&index)
+            .iter()
+            .flat_map(|group| group.lines().skip(1))
+            .all(|line| line.ends_with('.')),
+        "{index:?}"
+    );
     assert_eq!(handles(&memory.search("lighthouse")?), [oldest.as_str()]);
     Ok(())
 }
@@ -464,7 +491,7 @@ fn the_index_counts_every_row_it_visits_the_ones_it_passes_over_included() -> Te
         "memory.disable",
         json!({"handle": second, "reason": "No longer true."}),
     )?;
-    assert_eq!(memory.index(None)?.0.len(), 2);
+    assert_eq!(handles(&memory.index(None)?.0).len(), 2);
     let counted = memory.counted_index()?;
     assert_eq!(counted["store_key_rows_visited"], 3, "{counted}");
     assert_eq!(counted["store_key_rows_passed_over"], 1, "{counted}");
@@ -596,9 +623,11 @@ fn standing_rules_come_first_oldest_first_whatever_their_age() -> TestResult {
             observed.as_str()
         ]
     );
+    // Each purpose sits under a header of its own.
     assert_eq!(index[0]["labels"]["purpose"], "mandate");
     assert_eq!(index[1]["labels"]["purpose"], "procedure");
     assert_eq!(index[2]["labels"]["purpose"], "confirmed_memory");
+    assert_eq!(index[3]["labels"]["purpose"], "observation");
     for entry in &index[..3] {
         assert_eq!(entry["labels"]["trust"], "person_confirmed");
     }
@@ -624,21 +653,22 @@ fn standing_rules_come_first_oldest_first_whatever_their_age() -> TestResult {
     Ok(())
 }
 
-/// Past its budget, lines lose their summary from the bottom up, the
-/// lowest-ranked fact's first and the standing rules' last, and a fact's
-/// line goes only once every summary has. A standing rule's line never goes:
-/// when the rules alone pass the budget, every one shows, bare, and the index
-/// says so.
+/// Past its budget, facts stop whole in rank order: the first that doesn't
+/// fit ends them, and every line shown holds its summary. A standing rule's
+/// line never goes: when the rules alone pass the budget, their summaries go,
+/// newest first, every rule's line shows, and the index says so.
 #[test]
-fn a_budget_cuts_summaries_from_the_bottom_and_never_a_rule() -> TestResult {
+fn a_budget_stops_facts_whole_and_never_cuts_a_rules_line() -> TestResult {
     let memory = Memory::new("runx-memory-rule-budget")?;
-    let mut rules = Vec::new();
-    for (index, text) in ["Copy Sam on customer mail.", "Sign off as Kam."]
-        .into_iter()
-        .enumerate()
-    {
-        rules.push(memory.remember(said(text, &format!("Rule {index}"), "mandate"))?);
-    }
+    let summary = |index: usize| {
+        format!(
+            "Rule {index}, which the person gave as a mandate, and which every index shows first, whatever its age."
+        )
+    };
+    let rules = [
+        memory.remember(said("Copy Sam on customer mail.", &summary(0), "mandate"))?,
+        memory.remember(said("Sign off as Kam.", &summary(1), "mandate"))?,
+    ];
     let mut facts = Vec::new();
     for day in 1..=4 {
         facts.push(memory.observe(
@@ -646,61 +676,38 @@ fn a_budget_cuts_summaries_from_the_bottom_and_never_a_rule() -> TestResult {
             &format!("2026-11-0{day}"),
         )?);
     }
-    // Every line whole, then less room: the oldest fact's summary goes
-    // first, and the rules keep theirs.
+    // Every line whole, then one character less: the lowest-ranked fact,
+    // the oldest, goes whole, and every other line keeps its summary.
     let (whole, omitted, over) = memory.index_with(json!({}), Some(4096))?;
     assert!(!omitted && !over);
-    let full = lines(&whole)
-        .iter()
-        .map(|line| line.chars().count())
-        .sum::<usize>()
-        + whole.len()
-        - 1;
+    let full = characters(&whole);
     let (cut, omitted, over) = memory.index_with(json!({}), Some(full as u64 - 1))?;
-    assert!(!omitted && !over);
-    assert_eq!(handles(&cut), handles(&whole));
-    let oldest = facts[0].as_str();
-    let bare = |entry: &Value| {
-        entry["summary"]
-            .as_str()
-            .is_some_and(|line| line.ends_with(entry["data"]["date"].as_str().unwrap_or("none")))
-    };
-    for entry in &cut {
-        assert_eq!(
-            bare(entry),
-            entry["data"]["handle"] == oldest,
-            "only the lowest-ranked fact's summary goes first: {entry}"
-        );
-    }
-    // With room only for the rules' bare lines, every fact goes and the
-    // rules lose their summaries, but no rule's line goes.
-    let rule_lines = rules
-        .iter()
-        .map(|handle| handle.chars().count() + " 2026-11-08".len())
-        .sum::<usize>()
-        + rules.len()
-        - 1;
-    let (only_rules, omitted, over) =
-        memory.index_with(json!({}), Some(rule_lines.max(256) as u64))?;
-    assert!(omitted);
-    assert!(!over);
-    assert_eq!(handles(&only_rules), [rules[0].as_str(), rules[1].as_str()]);
-    // Rules past the budget: every one shows, and the index says so.
-    for index in 2..5 {
-        rules.push(memory.remember(said(
-            &format!("Standing rule number {index}."),
-            &format!("Rule {index}"),
-            "procedure",
-        ))?);
-    }
-    let (over_budget, omitted, over) = memory.index_with(json!({}), Some(256))?;
-    assert!(over, "the rules alone pass 256 characters");
-    assert!(omitted);
+    assert!(omitted && !over);
+    let mut kept = handles(&whole);
+    kept.retain(|handle| *handle != facts[0].as_str());
+    assert_eq!(handles(&cut), kept);
+    assert!(characters(&cut) < full);
+    // Room for the rules whole and nothing more: every fact goes.
+    let rules_alone = characters(&whole[..1]);
+    assert!(rules_alone >= 256, "{rules_alone}");
+    let (only_rules, omitted, over) = memory.index_with(json!({}), Some(rules_alone as u64))?;
+    assert!(omitted && !over);
+    assert_eq!(handles(&only_rules), rules.each_ref().map(String::as_str));
+    // A character less: the newest rule loses its summary, every rule's line
+    // shows, and the index says the rules alone passed the budget.
+    let (over_budget, omitted, over) =
+        memory.index_with(json!({}), Some(rules_alone as u64 - 1))?;
+    assert!(omitted && over);
+    assert_eq!(handles(&over_budget), rules.each_ref().map(String::as_str));
+    let shown = lines(&over_budget)[0].lines().collect::<Vec<_>>();
     assert_eq!(
-        handles(&over_budget),
-        rules.iter().map(String::as_str).collect::<Vec<_>>()
+        shown,
+        [
+            "memory:said:personal".to_owned(),
+            format!("{} 2026-11-08 {}", line_key(&rules[0]), summary(0)),
+            format!("{} 2026-11-08", line_key(&rules[1])),
+        ]
     );
-    assert!(over_budget.iter().all(bare), "{over_budget:?}");
     Ok(())
 }
 
@@ -727,7 +734,7 @@ fn an_entry_past_its_end_date_leaves_the_index_and_search_still_finds_it() -> Te
     }))?;
     let (index, _) = memory.index(None)?;
     assert_eq!(handles(&index), [later.as_str()]);
-    assert_eq!(index[0]["data"]["valid_until"], "2999-12-31");
+    assert_eq!(index[0]["data"]["entries"][0]["valid_until"], "2999-12-31");
     let mut found = handles(&memory.search("lighthouse")?)
         .into_iter()
         .map(str::to_owned)
@@ -889,7 +896,10 @@ fn words_that_supersede_an_entry_correct_it_at_the_corrections_gate() -> TestRes
     assert!(corrected.ends_with("@2"), "{corrected}");
     let (index, _) = memory.index(None)?;
     assert_eq!(handles(&index), [corrected]);
-    assert_eq!(index[0]["data"]["text"], "I take my tea with milk.");
+    assert_eq!(
+        index[0]["data"]["entries"][0]["text"],
+        "I take my tea with milk."
+    );
     Ok(())
 }
 

@@ -9,9 +9,16 @@ const SKILL = "runx/memory";
 const MAX_PAGE_KEYS = 100;
 /// The most current entries a write is shown that it likely replaces.
 const LIKELY_MATCHES = 5;
-/// The fewest characters a bare line, `<handle> <date>`, holds, so a page
-/// asks a stream for no more keys than the room left could show.
-const SHORTEST_LINE = 96;
+/// The fewest characters an index line holds, `<key>@<version> <date>`, so a
+/// page asks a stream for no more keys than the room left could show.
+const SHORTEST_LINE = 21;
+/// The fewest hex characters of an entry's key an index line shows.
+const SHORTEST_KEY = 8;
+/// A short handle's key: the start of an entry's key, as an index line shows
+/// it, which `read` resolves within its stream. An entry's own key is 64.
+const SHORT_KEY = /^[0-9a-f]{8,63}$/;
+/// The most full handles a short handle that could mean more than one names.
+const SHORT_MATCHES = 10;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /// The purposes that make the person's words a standing rule, which every
 /// index shows whatever its age.
@@ -150,8 +157,9 @@ function handleOf(stream, key, version) {
 
 /// `memory:<stream>#<key>@<version>`, the version the digits after the last
 /// `@`, refused unless it names one of memory's streams, of `kind` when one
-/// is given.
-function parsed(handle, kind) {
+/// is given. A short handle, whose key is only the start of an entry's, is
+/// refused unless `short` says the caller resolves it.
+function parsed(handle, kind, { short = false } = {}) {
   const match = /^memory:([^#]+)#([^#]+)@([0-9]+)$/u.exec(handle ?? "");
   if (!match) throw new Error(`${handle} is no memory handle: memory:<stream>#<key>@<version>`);
   const [, stream, key, digits] = match;
@@ -161,6 +169,9 @@ function parsed(handle, kind) {
   if (kind && found !== kind) throw new Error(`${handle} isn't a ${kind} entry`);
   if (!Number.isSafeInteger(version) || version < 1) {
     throw new Error(`${handle} names version ${digits}, and an entry's versions start at 1`);
+  }
+  if (!short && SHORT_KEY.test(key)) {
+    throw new Error(`${handle} is a short handle, which only read takes: read it for the entry's full handle`);
   }
   return { stream, key, version, kind: found };
 }
@@ -206,10 +217,32 @@ export async function likely(ctx, { entry, kind, text, supersedes, method }) {
 }
 
 /// The entry a handle names, at its version, and the version a read of that
-/// version reads after.
-export function parseHandle({ handle, kind }) {
-  const { stream, key, version } = parsed(handle, kind);
+/// version reads after. A short handle is refused unless `short` says the
+/// caller resolves it, as `read` does.
+export function parseHandle({ handle, kind, short = false }) {
+  const { stream, key, version } = parsed(handle, kind, { short });
   return { stream, key, version, after_version: version - 1 };
+}
+
+/// The entry `read` reads, by its full handle. A short handle's key is the
+/// start of an entry's, as an index line shows it, and the store resolves it
+/// within its stream (`keys.list`'s `prefix`): one that begins no key, or
+/// more than one, is refused, naming the full handles it could mean, so a
+/// read never guesses.
+export async function resolveHandle(ctx, { entry: { stream, key, version } }) {
+  const named = (full) => ({ handle: handleOf(stream, full, version), stream, key: full, after_version: version - 1 });
+  if (!SHORT_KEY.test(key)) return named(key);
+  const listed = resultOf(
+    await ctx.operation("private/keys.list", { stream, prefix: key, limit: SHORT_MATCHES }),
+  );
+  const keys = (listed?.keys ?? []).map((item) => item.key);
+  if (keys.length === 1) return named(keys[0]);
+  const handle = handleOf(stream, key, version);
+  if (keys.length === 0) throw new Error(`${handle} names no entry: no key on ${stream} begins ${key}`);
+  const more = listed?.next_cursor ? ", and more" : "";
+  throw new Error(
+    `${handle} could mean ${keys.map((full) => handleOf(stream, full, version)).join(", ")}${more}: read one by its full handle`,
+  );
 }
 
 /// What a purpose makes the person's words, as a gate says it.
@@ -290,40 +323,62 @@ function length(text) {
   return [...text].length;
 }
 
-/// A store event as the context entry a turn reads: a line for its index,
-/// the entry whole as its data, and the labels its kind gives it. The
-/// person's words read with their purpose, and a disabled version of them,
-/// which holds none, as what the person told you.
-function entryOf({ stream, key, event, method, summary }) {
+/// How many bytes `text` takes as UTF-8, counted by the engine rather than
+/// character by character, so it costs the same however many words an index
+/// shows: each `%XX` its URI encoding writes is one byte, and every other
+/// character it keeps is ASCII. JSON text holds no lone surrogate.
+function bytes(text) {
+  return encodeURIComponent(text).replace(/%[0-9A-F]{2}/g, "x").length;
+}
+
+/// What a store event says of its entry, whole: its handle, its words and
+/// line, its date and sources, the person's purpose for their words, and why
+/// a disabled one stopped applying. The person's words read with their
+/// purpose, and a disabled version of them, which holds none, as what the
+/// person told you.
+function dataOf({ stream, key, event }) {
   const kind = kindOf(stream);
-  const handle = handleOf(stream, key, event.version);
-  const text = event.data?.text ?? "";
   const data = {
-    handle,
+    handle: handleOf(stream, key, event.version),
     kind,
     version: event.version,
     type: event.type,
     date: event.data?.date ?? null,
-    text,
+    text: event.data?.text ?? "",
     summary: event.data?.summary ?? null,
     sources: event.data?.sources ?? [],
   };
-  const purpose =
-    kind === "observed"
-      ? "observation"
-      : event.type === "memory.disabled"
-        ? "confirmed_memory"
-        : event.data?.purpose;
-  if (kind === "said") data.purpose = purpose;
+  if (kind === "said") data.purpose = purposeOf({ stream, event });
   if (event.valid_until) data.valid_until = event.valid_until;
   if (event.type === "memory.disabled") data.reason = event.data?.reason ?? null;
+  return data;
+}
+
+/// The purpose a store event's entry reads to a turn with.
+function purposeOf({ stream, event }) {
+  if (kindOf(stream) === "observed") return "observation";
+  return event.type === "memory.disabled" ? "confirmed_memory" : event.data?.purpose;
+}
+
+/// Where an entry came from: its sources, or its handle when it names none.
+function sourcesOf(data) {
+  return data.sources.length > 0 ? data.sources : [data.handle];
+}
+
+/// A store event as the context entry a turn reads, named by its full
+/// handle: a line, `<handle> <date> <summary>`, the entry whole as its data,
+/// and the labels its kind gives it.
+function entryOf({ stream, key, event, method }) {
+  const kind = kindOf(stream);
+  const data = dataOf({ stream, key, event });
+  const { handle, text } = data;
   return {
     schema: SCHEMA,
     type: `memory.${kind}`,
-    summary: summary ?? line({ handle, date: data.date, summary: data.summary }),
+    summary: line({ handle, date: data.date, summary: data.summary }),
     data,
-    labels: { purpose, trust: KINDS[kind].trust, sharing: "configured_model" },
-    sources: data.sources.length > 0 ? data.sources : [handle],
+    labels: { purpose: purposeOf({ stream, event }), trust: KINDS[kind].trust, sharing: "configured_model" },
+    sources: sourcesOf(data),
     origin: {
       artifact_id: handle,
       step_id: null,
@@ -444,33 +499,144 @@ function today(ctx) {
   return new Date(ctx.now()).toISOString().slice(0, 10);
 }
 
-/// A bounded index for a turn. The person's standing rules first, every one,
-/// oldest first, read from the standing keys apart, so the facts' walk never
-/// visits one. Then facts, the person's other words before observations: with
-/// a focus, those its search matches first, best first and newest first among
-/// equals, and the rest newest first; without one, newest first. Each line is
-/// `<handle> <date> <summary>`. An entry whose end date has passed by the
-/// run's clock is passed over by the store, never read and dropped here.
+/// How many characters two keys start with alike.
+function sharedStart(left, right) {
+  let at = 0;
+  while (at < left.length && at < right.length && left[at] === right[at]) at += 1;
+  return at;
+}
+
+/// An index's lines under their headers: one group per stream and purpose,
+/// each line `<key>@<version> <date> <summary>`, and the characters the
+/// groups' summaries hold. A line's key is the shortest start of its entry's,
+/// at least [`SHORTEST_KEY`] characters, that no other line of its stream
+/// shares, so its header and the line make a short handle `read` resolves.
+class Lines {
+  constructor() {
+    // Each stream's lines in key order, so a key's longest shared start is
+    // with a neighbour, and weighing a line costs no walk of its stream.
+    Object.assign(this, { groups: [], used: 0, sorted: new Map() });
+  }
+
+  /// The line `item` shows, whole or without its summary.
+  static text({ key, event, keyLength, whole }) {
+    const head = `${key.slice(0, keyLength)}@${event.version} ${event.data?.date ?? "undated"}`;
+    return whole && event.data?.summary ? `${head} ${event.data.summary}` : head;
+  }
+
+  /// Where `key` goes among `stream`'s lines in key order, and the lines
+  /// either side of it: the only ones that can share its longest start, since
+  /// any other shares no more with it than with the neighbour between them.
+  neighbours(stream, key) {
+    const lines = this.sorted.get(stream) ?? [];
+    let low = 0;
+    let high = lines.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (lines[middle].key < key) low = middle + 1;
+      else high = middle;
+    }
+    return { at: low, peers: [lines[low - 1], lines[low]].filter(Boolean) };
+  }
+
+  /// What showing `item` whole adds: its line, its group's header when the
+  /// group is new, and what its neighbours' keys grow by to stay apart from
+  /// it. With the key it would show.
+  cost({ stream, purpose, key, event }) {
+    let keyLength = SHORTEST_KEY;
+    let grows = 0;
+    for (const peer of this.neighbours(stream, key).peers) {
+      const shared = sharedStart(key, peer.key);
+      keyLength = Math.max(keyLength, shared + 1);
+      grows += Math.max(0, shared + 1 - peer.keyLength);
+    }
+    const group = this.groups.find((candidate) => candidate.stream === stream && candidate.purpose === purpose);
+    const header = group ? 0 : length(`memory:${stream}`);
+    const line = length(Lines.text({ key, event, keyLength, whole: true }));
+    return { characters: header + 1 + line + grows, keyLength };
+  }
+
+  /// Show `item` whole, after the lines its group already shows, and return
+  /// its line.
+  add(item) {
+    const { characters, keyLength } = this.cost(item);
+    const { at, peers } = this.neighbours(item.stream, item.key);
+    for (const peer of peers) {
+      peer.keyLength = Math.max(peer.keyLength, sharedStart(item.key, peer.key) + 1);
+    }
+    let group = this.groups.find((candidate) => candidate.stream === item.stream && candidate.purpose === item.purpose);
+    if (!group) {
+      group = { stream: item.stream, purpose: item.purpose, items: [] };
+      this.groups.push(group);
+    }
+    const line = { ...item, keyLength, whole: true };
+    group.items.push(line);
+    if (!this.sorted.has(item.stream)) this.sorted.set(item.stream, []);
+    this.sorted.get(item.stream).splice(at, 0, line);
+    this.used += characters;
+    return line;
+  }
+
+  /// Take `item`'s summary from its line, as a rule loses it past the budget.
+  bare(item) {
+    if (!item.whole || !item.event.data?.summary) return;
+    this.used -= length(Lines.text(item)) - length(Lines.text({ ...item, whole: false }));
+    item.whole = false;
+  }
+
+  /// Each group as one context entry: its header and lines as its summary,
+  /// its entries whole as its data, labelled with its stream's trust and its
+  /// purpose.
+  entries() {
+    return this.groups.map(({ stream, purpose, items }) => {
+      const kind = kindOf(stream);
+      const header = `memory:${stream}`;
+      const data = { entries: items.map(({ key, event }) => dataOf({ stream, key, event })) };
+      const summary = [header, ...items.map(Lines.text)].join("\n");
+      return {
+        schema: SCHEMA,
+        type: `memory.${kind}`,
+        summary,
+        data,
+        labels: { purpose, trust: KINDS[kind].trust, sharing: "configured_model" },
+        sources: [...new Set(data.entries.flatMap(sourcesOf))],
+        origin: {
+          artifact_id: header,
+          step_id: null,
+          producer: { skill: SKILL, method: "index" },
+          created_at: items.map(({ event }) => event.committed_at).reduce((newest, at) => (at > newest ? at : newest)),
+          // What it says, as a single entry's digest is its words': each
+          // line names its entry's key and version.
+          digest: `sha256:${sha256(summary)}`,
+          size_bytes: bytes(JSON.stringify(data)),
+        },
+      };
+    });
+  }
+}
+
+/// A bounded index for a turn: one context entry per stream and purpose, its
+/// summary a header, `memory:<stream>`, and a line per entry (see [`Lines`]).
+/// The person's standing rules first, every one, oldest first, read from the
+/// standing keys apart, so the facts' walk never visits one. Then facts, the
+/// person's other words before observations: with a focus, those its search
+/// matches first, best first and newest first among equals, and the rest
+/// newest first; without one, newest first. An entry whose end date has
+/// passed by the run's clock is passed over by the store, never read and
+/// dropped here.
 ///
-/// The index fits its budget with every line bare first: every rule's line,
-/// and a fact's line while it fits, read page by page and no further than
-/// the last line that could fit. Then summaries go back from the top, while
-/// they fit, so they're lost from the bottom up: the lowest-ranked fact's
-/// first, a rule's last, the newest rule's before the oldest, which keeps the
-/// request's prefix. A rule's line never goes, and when the rules alone pass
-/// the budget the index says so. It says when it cut entries, which search
-/// and read reach, and counts nothing.
+/// Every line holds its summary. Facts fill the room the rules leave whole,
+/// in rank order, read page by page and no further than the last line that
+/// could fit, and the first that doesn't fit ends them. A rule's line never
+/// goes: when the rules alone pass the budget, no fact shows, the rules'
+/// summaries go, newest first, which keeps the request's prefix, and the index
+/// says so. It says when it cut entries, which search and read reach, and
+/// counts nothing.
 export async function index(ctx, { levels, max_characters = 4096, focus, workspace_id }) {
   const streams = streamsOf(levels, workspace_id);
   const valid_at = today(ctx);
   const budget = max_characters;
-  let used = 0;
-  const kept = [];
-  const add = (stream, key, event) => {
-    const bare = line({ handle: handleOf(stream, key, event.version), date: event.data?.date });
-    used += length(bare) + (kept.length > 0 ? 1 : 0);
-    kept.push({ stream, key, event, bare });
-  };
+  const shown = new Lines();
   const rules = [];
   for (const [order, stream] of streams.said.entries()) {
     const pages = new StreamPages(
@@ -490,20 +656,24 @@ export async function index(ctx, { levels, max_characters = 4096, focus, workspa
       (left.key < right.key ? -1 : left.key > right.key ? 1 : 0) ||
       left.order - right.order,
   );
-  for (const rule of rules) add(rule.stream, rule.key, rule.event);
-  const over_budget = used > budget;
+  const ruleLines = rules.map(({ stream, key, event }) =>
+    shown.add({ stream, key, event, purpose: purposeOf({ stream, event }) }),
+  );
+  // Facts get only the room the rules leave whole, so no fact takes the
+  // room a rule's summary needed.
+  const over_budget = shown.used > budget;
   let omitted = false;
-  const shown = new Set();
-  const room = () => budget - used - (kept.length > 0 ? 1 : 0);
-  // A fact's line while it fits; the first that doesn't ends the facts.
+  const seen = new Set();
+  const room = () => budget - shown.used;
+  // A fact's line whole while it fits; the first that doesn't ends the facts.
   const fact = (stream, key, event) => {
-    const bare = line({ handle: handleOf(stream, key, event.version), date: event.data?.date });
-    if (length(bare) > room()) {
+    const item = { stream, key, event, purpose: purposeOf({ stream, event }) };
+    if (shown.cost(item).characters > room()) {
       omitted = true;
       return false;
     }
-    add(stream, key, event);
-    shown.add(`${stream}#${key}`);
+    shown.add(item);
+    seen.add(`${stream}#${key}`);
     return true;
   };
   for (const kind of Object.keys(KINDS)) {
@@ -534,28 +704,13 @@ export async function index(ctx, { levels, max_characters = 4096, focus, workspa
     if (omitted) break;
     const pages = streams[kind].map((stream) => new StreamPages(ctx, stream, query, () => pageKeysFor(room())));
     await walk(pages, (stream, listed) =>
-      shown.has(`${stream}#${listed.key}`) ? true : fact(stream, listed.key, listed.last_event),
+      seen.has(`${stream}#${listed.key}`) ? true : fact(stream, listed.key, listed.last_event),
     );
     if (omitted) break;
   }
-  // Summaries back from the top while they fit; the first that doesn't ends
-  // them, so a line loses its summary only after every line below it has.
-  let summaries = true;
-  const entries = kept.map(({ stream, key, event, bare }) => {
-    let summary = bare;
-    if (summaries && event.data?.summary) {
-      const full = `${bare} ${event.data.summary}`;
-      const extra = length(full) - length(bare);
-      if (used + extra <= budget) {
-        used += extra;
-        summary = full;
-      } else {
-        summaries = false;
-      }
-    }
-    return entryOf({ stream, key, event, method: "index", summary });
-  });
-  return { entries, entries_omitted: omitted, over_budget };
+  // Rules past the budget lose their summaries newest first.
+  for (let at = ruleLines.length - 1; at >= 0 && shown.used > budget; at -= 1) shown.bare(ruleLines[at]);
+  return { entries: shown.entries(), entries_omitted: omitted, over_budget };
 }
 
 /// Ranked matches among the current entries of the streams the run may
