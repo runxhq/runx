@@ -14,10 +14,10 @@ use runx_contracts::connector::Digest;
 use runx_contracts::{
     ActForm, AuthorityBounds, AuthorityTerm, AuthorityVerb, Criterion, CriterionBinding,
     CriterionStatus, Decision, DecisionChoice, ExecutionBoundaryKind, ExecutionBoundaryObservation,
-    Intent, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority,
-    ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,
-    ReceiptSignature, Reference, ReferenceType, RunOutcome, Seal, SignatureAlgorithm, Subject,
-    SubjectKind, TermLegitimacy, canonical_stable_json,
+    Intent, JsonNumber, JsonObject, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt,
+    ReceiptAct, ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer,
+    ReceiptIssuerType, ReceiptSchema, ReceiptSignature, Reference, ReferenceType, RunOutcome, Seal,
+    SealFailure, SignatureAlgorithm, Subject, SubjectKind, TermLegitimacy, canonical_stable_json,
 };
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
@@ -144,6 +144,7 @@ fn base(id: &str, kind: SubjectKind, subject_id: &str) -> Receipt {
             outcome: RunOutcome::Completed,
             reason: None,
             criteria: Vec::new(),
+            failure: None,
         },
         lineage: Lineage::default(),
     }
@@ -292,5 +293,16 @@ fn abnormal_receipt() -> Receipt {
     })];
     receipt.seal.outcome = RunOutcome::Failed;
     receipt.seal.criteria = vec![outcome_binding(CriterionStatus::Failed)];
+    // Every failed step's receipt says why it failed, as a process step's
+    // diagnostics state it.
+    receipt.seal.failure = Some(SealFailure {
+        code: "process_failed".into(),
+        reason: "the echo tool exited with status 1".into(),
+        retryable: false,
+        fields: JsonObject::from([(
+            "exit_code".to_owned(),
+            JsonValue::Number(JsonNumber::I64(1)),
+        )]),
+    });
     receipt
 }

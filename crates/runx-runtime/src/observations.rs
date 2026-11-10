@@ -21,6 +21,9 @@ pub struct Observations {
     pub(crate) credentials: Vec<CredentialDeliveryObservation>,
     pub(crate) contract: ContractChecks,
     pub(crate) effect_verification_refs: Vec<Reference>,
+    /// The record of the failure the invocation met, when the failure states
+    /// one: its code, reason, whether a retry is offered and its own fields.
+    pub(crate) failure: Option<runx_contracts::JsonObject>,
 }
 
 impl Observations {

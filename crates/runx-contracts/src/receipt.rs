@@ -6,7 +6,8 @@
 //! it (authority), the choices made (`decisions[]`), what was done
 //! (`acts[]`), the outcome (seal), and workflow lineage. A receipt holds only
 //! what its issuer observed or was given, each value once, as typed facts:
-//! the runtime writes no prose. The acts (intent, the caller's reason, the
+//! the runtime writes no prose but a failed step's reason, which says why it
+//! failed. The acts (intent, the caller's reason, the
 //! checks bound to them) are inline; the bulky per-act execution I/O (the
 //! agent-context envelope) is referenced via `acts[].context_ref` and
 //! `artifact_refs`. Verification is computed at read time, never part of the
@@ -20,7 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::connector::Digest;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{
-    ActForm, AuthorityDerivation, AuthorityTerm, CriterionBinding, Decision, Intent, Reference,
+    ActForm, AuthorityDerivation, AuthorityTerm, CriterionBinding, Decision, Intent, JsonObject,
+    Reference,
 };
 
 /// Logical schema name for the governance receipt.
@@ -192,7 +194,30 @@ pub struct Seal {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<SealReason>,
     pub criteria: Vec<CriterionBinding>,
+    /// Why a failed step failed. Every failed step's receipt carries it, and
+    /// no other receipt does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<SealFailure>,
 }
+
+/// Why a step failed, as runx recorded the failure: its code, the reason,
+/// whether a retry is offered, and the failure's own structured fields, such
+/// as each field a provider's answer contradicts. A value from a field the
+/// call marks never to persist is recorded by its digest, and a presented
+/// credential never appears.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SealFailure {
+    pub code: NonEmptyString,
+    pub reason: NonEmptyString,
+    pub retryable: bool,
+    #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
+    pub fields: JsonObject,
+}
+
+// A failure is only ever read from JSON or recorded from a runtime error,
+// where no value is unequal to itself, so equality is total.
+impl Eq for SealFailure {}
 
 /// Why a receipt's subject ended as it did, beyond its outcome.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

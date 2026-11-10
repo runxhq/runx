@@ -244,6 +244,26 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
         [RunOutcome::Completed, RunOutcome::Failed],
         "the child's work and its failure are both in the tree"
     );
+    // Each failed step's receipt says why it failed, whatever kind of step
+    // it was, and verifies; the step that completed records no failure.
+    let fault = steps[1]
+        .seal
+        .failure
+        .as_ref()
+        .ok_or("the failed tool step's receipt carries its failure")?;
+    assert!(
+        fault.reason.as_str().contains("child failed after work"),
+        "{fault:?}"
+    );
+    assert!(!fault.retryable, "{fault:?}");
+    assert!(
+        invoke.seal.failure.is_some(),
+        "the parent's failed skill step carries its failure too"
+    );
+    assert_eq!(steps[0].seal.failure, None);
+    for receipt in [&steps[1], &invoke] {
+        assert!(runx_receipts::verify_receipt(receipt).valid, "{receipt:?}");
+    }
     Ok(())
 }
 

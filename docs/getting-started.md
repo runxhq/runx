@@ -58,7 +58,7 @@ runx verify <receipt-id> --json
 
 Its `receipt` shows what the receipt says: its status, authority, decisions,
 acts, the seal's criteria (and its reason, when the outcome alone does not say
-why), and local issuer verification, beside whether its tree verifies. It does
+why, and for a failed step its failure), and local issuer verification, beside whether its tree verifies. It does
 not reproduce the execution input or output body.
 
 ## Verify The Receipt

@@ -27,8 +27,13 @@ The act model lives in `crates/runx-contracts`:
   `blocked`, `failed`, `killed` or `timed_out`. When the outcome alone does
   not say why, the seal adds a **`SealReason`** from a closed vocabulary,
   such as `workflow_step_failed`, `authority_denied` or
-  `input_contract_invalid`. A receipt holds only what its issuer observed or
-  was given, each value once, as typed facts. Its wire form is exact: every
+  `input_contract_invalid`. A failed step's seal also carries its
+  **`SealFailure`**, and no other seal does: the failure's code, its reason,
+  whether a retry is offered, and its own fields, such as each field a
+  provider's answer contradicts, with what was expected and what it actually
+  is. A value from a field the call marks never to persist is recorded by its
+  digest, and a presented credential never appears. A receipt holds only what
+  its issuer observed or was given, each value once, as typed facts. Its wire form is exact: every
   array is written, an absent value is omitted rather than `null`, and
   readers refuse any other form, so every verifier hashes the same bytes. Its
   `id` is the digest of its body without the id.

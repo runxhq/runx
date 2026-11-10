@@ -190,7 +190,8 @@ pub use receipt::{
     Lineage, MAX_RECEIPT_TREE_DEPTH, MAX_RECEIPT_TREE_RECEIPTS, RECEIPT_CANONICALIZATION,
     RECEIPT_SCHEMA, RECEIPTS_PER_SKILL_CALL, Receipt, ReceiptAct, ReceiptAuthority,
     ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,
-    ReceiptSignature, RunOutcome, Seal, SealReason, SignatureAlgorithm, Subject, SubjectKind,
+    ReceiptSignature, RunOutcome, Seal, SealFailure, SealReason, SignatureAlgorithm, Subject,
+    SubjectKind,
 };
 pub use reference::{
     ActAddress, ExternalReferenceKind, ProofKind, Reference, ReferenceType, RunxPrincipalId,

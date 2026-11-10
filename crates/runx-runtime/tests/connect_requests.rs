@@ -246,7 +246,8 @@ operations:
 
 /// The provider records sale_1, and reading it back finds sale_2: an answer
 /// that contradicts the call fails its step with the failure's own record,
-/// as the call returns it, which the run returns.
+/// as the call returns it, which the run returns and the step's signed
+/// receipt carries.
 #[test]
 fn a_write_whose_readback_contradicts_it_fails_its_step_with_the_record() {
     let root = tempfile::tempdir().unwrap();
@@ -288,4 +289,18 @@ fn a_write_whose_readback_contradicts_it_fails_its_step_with_the_record() {
         serde_json::json!([{"field": "sale_id", "expected": "sale_1", "actual": "sale_2"}]),
         "{record:#}"
     );
+    let sealed = sell
+        .receipt
+        .seal
+        .failure
+        .as_ref()
+        .expect("the failed step's receipt carries its failure");
+    assert_eq!(sealed.code.as_str(), "provider_contradicted");
+    assert!(!sealed.retryable);
+    assert_eq!(
+        serde_json::to_value(&sealed.fields).unwrap()["mismatches"],
+        record["mismatches"],
+        "the receipt records the mismatch as the record does"
+    );
+    assert!(runx_receipts::verify_receipt(&sell.receipt).valid);
 }

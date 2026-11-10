@@ -1687,7 +1687,9 @@ where
         // A definite failure keeps its record, which the run returns as the
         // call returned it.
         Err(error) => {
-            failure = Some(error.public_failure_projection());
+            let record = error.public_failure_projection();
+            observations.failure = Some(record.clone());
+            failure = Some(record);
             crate::adapter_pipeline::AdapterProjection::from_started(started)
                 .failure(error.to_string(), observations)
         }
@@ -2183,11 +2185,10 @@ where
         }),
         _ => None,
     };
-    let output = InvocationOutput::runtime_failure(
-        JsonValue::Object(error.public_failure_projection()),
-        error.to_string(),
-        0,
-    );
+    let record = error.public_failure_projection();
+    let mut output =
+        InvocationOutput::runtime_failure(JsonValue::Object(record.clone()), error.to_string(), 0);
+    output.observations.failure = Some(record);
     // An agent step that fails still names the calls its turn completed.
     let calls = match &step.kind {
         StepKind::Agent(_) => runtime.options.run.calls(&step.id, attempt)?,

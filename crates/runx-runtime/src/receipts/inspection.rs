@@ -33,6 +33,9 @@ pub struct ReceiptInspection {
     /// The seal's criteria: how the step ended and the evidence of it,
     /// whether or not the step made a governed call.
     pub seal_criteria: Vec<ReceiptCriterionInspection>,
+    /// Why a failed step failed, as its seal records it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seal_failure: Option<runx_contracts::SealFailure>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +113,7 @@ pub fn project_receipt_inspection(
         lineage_uris: inspection_lineage_uris(receipt),
         seal_reason: receipt.seal.reason,
         seal_criteria: criterion_inspections(&receipt.seal.criteria),
+        seal_failure: receipt.seal.failure.clone(),
     }
 }
 

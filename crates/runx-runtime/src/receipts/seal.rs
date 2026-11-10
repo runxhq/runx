@@ -7,12 +7,13 @@ use crate::adapter::InvocationOutput;
 use crate::observations::{ContractChecks, Observations};
 use crate::{RuntimeError, StepRun};
 use runx_contracts::connector::Digest;
+use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
     ExecutionBoundaryObservation, JsonObject, JsonValue, Lineage, Receipt, ReceiptAct,
     ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptSchema,
-    Reference, ReferenceType, RunOutcome, Seal, SealReason, SignatureAlgorithm, Subject,
-    SubjectKind, canonical_stable_json,
+    Reference, ReferenceType, RunOutcome, Seal, SealFailure, SealReason, SignatureAlgorithm,
+    Subject, SubjectKind, canonical_stable_json,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -154,6 +155,7 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
         outcome,
         reason,
         criteria: seal_criteria,
+        failure: (outcome == RunOutcome::Failed).then(|| seal_failure(output)),
     };
     let mut receipt = build_unsealed_receipt(BuildReceipt {
         issuer: signature_policy.signer()?.issuer(),
@@ -181,6 +183,61 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
         )?;
     }
     Ok(receipt)
+}
+
+/// Why a failed step failed: the record the runtime kept of its failure, its
+/// code, reason, whether a retry is offered and its own fields, or where it
+/// kept none, what the step's diagnostics say. Each source has already
+/// recorded a never-persist value by its digest and removed a presented
+/// credential.
+fn seal_failure(output: &InvocationOutput) -> SealFailure {
+    const UNSTATED: &str = "the step failed with no diagnostic output";
+    let diagnosed = || output.failure_message().and_then(NonEmptyString::new);
+    let Some(record) = &output.observations.failure else {
+        let (code, fields) = match &output.diagnostics {
+            crate::adapter::InvocationDiagnostics::Process { exit_code, .. } => (
+                "process_failed",
+                exit_code
+                    .map(|code| {
+                        JsonObject::from([(
+                            "exit_code".to_owned(),
+                            JsonValue::Number(runx_contracts::JsonNumber::I64(i64::from(code))),
+                        )])
+                    })
+                    .unwrap_or_default(),
+            ),
+            crate::adapter::InvocationDiagnostics::Runtime { .. } => {
+                ("runtime_error", JsonObject::new())
+            }
+        };
+        return SealFailure {
+            code: code.into(),
+            reason: diagnosed().unwrap_or_else(|| UNSTATED.into()),
+            retryable: false,
+            fields,
+        };
+    };
+    let text = |name: &str| {
+        record
+            .get(name)
+            .and_then(JsonValue::as_str)
+            .and_then(NonEmptyString::new)
+    };
+    SealFailure {
+        code: text("code").unwrap_or_else(|| "runtime_error".into()),
+        reason: text("reason")
+            .or_else(|| text("message"))
+            .or_else(diagnosed)
+            .unwrap_or_else(|| UNSTATED.into()),
+        retryable: record.get("retryable") == Some(&JsonValue::Bool(true)),
+        fields: record
+            .iter()
+            .filter(|(name, _)| {
+                !matches!(name.as_str(), "code" | "reason" | "message" | "retryable")
+            })
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect(),
+    }
 }
 
 /// The single step-receipt seal. Every runtime step (regular skill, tool,
@@ -436,6 +493,7 @@ fn build_workflow_receipt(
             outcome: ending.outcome,
             reason: ending.reason,
             criteria: Vec::new(),
+            failure: None,
         },
         children,
         authority: SealAuthority::default(),

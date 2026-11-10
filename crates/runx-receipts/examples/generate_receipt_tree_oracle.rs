@@ -363,6 +363,7 @@ fn base(label: &str) -> Receipt {
             outcome: RunOutcome::Completed,
             reason: None,
             criteria: Vec::new(),
+            failure: None,
         },
         lineage: Lineage::default(),
     }
