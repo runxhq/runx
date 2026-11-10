@@ -38,6 +38,18 @@ pub(super) fn validate_skill(
     )?;
     let candidate_files = invocation.inputs.candidate_files.as_deref();
     let requested_path = requested_skill_path(invocation, candidate_files)?;
+    if candidate_files.is_none()
+        && names_registry_package(&repo_root, invocation.skill_directory, requested_path)
+    {
+        let skill_validation = crate::services::validate_registry_package(
+            &repo_root,
+            requested_path,
+            invocation.inputs.allow_execute_test,
+            invocation.env,
+            invocation.effects,
+        )?;
+        return Ok(ValidateOutput { skill_validation });
+    }
     let (validation_root, resolved_path) = if candidate_files.is_none() {
         resolve_skill_validation_target(&repo_root, invocation.skill_directory, requested_path)?
     } else {
@@ -52,6 +64,19 @@ pub(super) fn validate_skill(
         invocation.effects,
     )?;
     Ok(ValidateOutput { skill_validation })
+}
+
+/// Whether `requested` names a registry package rather than a path: a
+/// `<publisher>/<name>@<version>` reference, with or without `registry:`,
+/// that names nothing in the workspace or the owning skill's catalog, as a
+/// workspace copy shadows a bare reference everywhere.
+fn names_registry_package(workspace_root: &Path, skill_directory: &Path, requested: &str) -> bool {
+    let parsed = crate::registry::parse_registry_ref(requested);
+    parsed.version.is_some()
+        && crate::registry::split_skill_id(&parsed.skill_id).is_ok()
+        && !Path::new(requested).is_absolute()
+        && !workspace_root.join(requested).exists()
+        && !skill_directory.join(requested).exists()
 }
 
 fn requested_skill_path<'a>(

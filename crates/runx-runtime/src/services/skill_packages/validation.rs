@@ -172,8 +172,90 @@ pub(crate) fn validate_skill_package(
         .map(|files| InlineCandidateStage::prepare(&repo_root, files, env))
         .transpose()?;
     let candidate_path = resolve_candidate_path(&repo_root, requested_path, stage.as_ref())?;
-    let inspected = crate::inspect_skill_package(&candidate_path, None, Some(env));
-    let run_test = allow_execute_test || safe_test_execution(&candidate_path);
+    let resolved_path = if stage.is_some() {
+        "inline-candidate".to_owned()
+    } else {
+        display_repo_path(&repo_root, &candidate_path)
+    };
+    Ok(validate_package_at(
+        &repo_root,
+        &candidate_path,
+        requested_path,
+        &resolved_path,
+        allow_execute_test,
+        env,
+        effects,
+    ))
+}
+
+/// The released copy the registry reference `reference` names, read from
+/// the registry the run reaches into runx's cache and never into the
+/// workspace (N6), validated as a workspace package is. It resolves as the
+/// reference resolves everywhere, and is reported by its released identity,
+/// `<publisher>/<name>@<version>`.
+///
+/// # Errors
+///
+/// Returns why the reference doesn't resolve to a released copy.
+pub(crate) fn validate_registry_package(
+    repo_root: &Path,
+    reference: &str,
+    allow_execute_test: bool,
+    env: &BTreeMap<String, String>,
+    effects: &RuntimeEffectRegistry,
+) -> Result<SkillValidation, RuntimeError> {
+    let repo_root = canonical_directory(repo_root, "skill workspace")?;
+    let resolved = crate::registry::resolve::resolve_skill_ref_details(
+        Path::new(reference),
+        &repo_root,
+        crate::registry::resolve::SkillResolverOptions {
+            env,
+            registry: None,
+            expected_digest: None,
+            absent_pins: crate::registry::resolve::AbsentPins::Report,
+            holder: crate::registry::resolve::Holder::Cache,
+        },
+    )
+    .map_err(|error| invalid_skill_change(format!("resolving {reference}: {error}")))?;
+    let (Some(skill_id), Some(version)) = (&resolved.skill_id, &resolved.version) else {
+        return Err(invalid_skill_change(format!(
+            "{reference} names no released copy: a registry reference is <publisher>/<name>@<version>"
+        )));
+    };
+    let released = format!("{skill_id}@{version}");
+    let package = if resolved.runnable_path.ends_with("SKILL.md") {
+        resolved
+            .runnable_path
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| invalid_skill_change("SKILL.md has no package directory"))?
+    } else {
+        resolved.runnable_path.clone()
+    };
+    Ok(validate_package_at(
+        &repo_root,
+        &package,
+        reference,
+        &released,
+        allow_execute_test,
+        env,
+        effects,
+    ))
+}
+
+/// The package at `candidate`, validated for the workspace at `repo_root`:
+/// its inspection, and its test when that is safe or allowed.
+fn validate_package_at(
+    repo_root: &Path,
+    candidate: &Path,
+    requested_path: &str,
+    resolved_path: &str,
+    allow_execute_test: bool,
+    env: &BTreeMap<String, String>,
+    effects: &RuntimeEffectRegistry,
+) -> SkillValidation {
+    let inspected = crate::inspect_skill_package(candidate, None, Some(env));
+    let run_test = allow_execute_test || safe_test_execution(candidate);
     let inspected = inspected.and_then(|inspection| {
         serde_json::to_value(&inspection)
             .and_then(serde_json::from_value)
@@ -182,20 +264,8 @@ pub(crate) fn validate_skill_package(
                 source,
             })
     });
-    let resolved_path = if stage.is_some() {
-        "inline-candidate".to_owned()
-    } else {
-        display_repo_path(&repo_root, &candidate_path)
-    };
-
-    let result = validate_candidate(&repo_root, &candidate_path, env, effects, run_test, None);
-    Ok(validation_result_report(
-        requested_path,
-        &resolved_path,
-        inspected,
-        run_test,
-        result,
-    ))
+    let result = validate_candidate(repo_root, candidate, env, effects, run_test, None);
+    validation_result_report(requested_path, resolved_path, inspected, run_test, result)
 }
 
 fn validation_result_report(

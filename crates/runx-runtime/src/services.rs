@@ -18,7 +18,7 @@ pub(crate) use receipt_read::read_receipt_claim;
 pub(crate) use receipts::{ReceiptReadContext, ReceiptServices};
 pub(crate) use skill_packages::{
     apply_skill_change, bind_skill_change, inspect_skill_workspace, plan_skill_architecture,
-    skill_change_effect, validate_skill_package,
+    skill_change_effect, validate_registry_package, validate_skill_package,
 };
 pub use verified_receipts::VerifiedReceiptStore;
 pub(crate) use workspace_files::{

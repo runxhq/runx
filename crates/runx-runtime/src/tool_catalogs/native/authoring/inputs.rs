@@ -118,7 +118,7 @@ pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
     root_field(),
     field(
         "skill_path",
-        "Package path relative to the workspace or owning skill.",
+        "Package path relative to the workspace or owning skill, or a registry reference, <publisher>/<name>@<version>, read into runx's cache.",
     ),
     field(
         "candidate_files",

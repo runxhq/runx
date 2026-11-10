@@ -4911,6 +4911,79 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
     Ok(())
 }
 
+/// A registry reference names a released copy: validation reads it from the
+/// registry the run reaches into runx's cache, never into the workspace, and
+/// its inspection carries the copy's identity, one digest, with its eval
+/// queries and evals.
+#[test]
+fn a_registry_reference_validates_the_released_copy_without_adding_it_to_the_workspace()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let source = tempdir()?;
+    let registry = LoopbackRegistry::serve()?;
+    let candidate = source.path().join("candidate");
+    crate::support::write_test_skill_package(
+        &candidate,
+        "---\nname: candidate\ndescription: Digests a value.\n---\n# Candidate\n",
+        "version: 1.0.0\nminimum_runx: 0.12.0\nmethods:\n  digest:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+    )?;
+    fs::write(
+        candidate.join("eval_queries.json"),
+        r#"[{"query": "Digest this.", "should_trigger": true}]"#,
+    )?;
+    let env = registry_env(&registry, temp.path())?;
+    registry.publish_directory(&candidate, "acme", &env, source.path())?;
+    let validator = temp.path().join("validator");
+    crate::support::write_test_skill_package(
+        &validator,
+        "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
+        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          repo_root: .\n          skill_path: acme/candidate@1.0.0\n          allow_execute_test: false\n",
+    )?;
+    let mut env = env;
+    env.extend(path_env());
+    env.insert("RUNX_REGISTRY_URL".to_owned(), registry.url.clone());
+
+    let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: validator,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: Default::default(),
+    })?;
+
+    let output = serde_json::to_value(&result.output)?;
+    let validation = &output["result"]["skill_validation"];
+    assert_eq!(
+        validation["requested_path"], "acme/candidate@1.0.0",
+        "{output}"
+    );
+    assert_eq!(
+        validation["resolved_path"], "acme/candidate@1.0.0",
+        "{output}"
+    );
+    let inspect = &validation["inspect"];
+    assert!(inspect["package_digest"].is_string(), "{output}");
+    assert_eq!(
+        inspect["distribution_digest"], inspect["package_digest"],
+        "{output}"
+    );
+    assert_eq!(
+        inspect["eval_queries"],
+        serde_json::json!([{"query": "Digest this.", "should_trigger": true}]),
+        "{output}"
+    );
+    assert!(!temp.path().join(".runx/added-skills").exists());
+    assert!(!temp.path().join("acme").exists());
+    Ok(())
+}
+
 /// Two drivers of one run: the step that reaches the world runs once. The
 /// second driver loses the claim before it dispatches, or finds the claim and
 /// waits on its retry.
