@@ -7,7 +7,7 @@
 //! The root exports are a facade for CLI, SDK, and test consumers. Helper
 //! surfaces stay under their owning modules: test replay under `test`,
 //! receipt stores under `receipts`, adapter protocol under `adapter`, and
-//! runtime orchestration under `runner` or `orchestrator`.
+//! runtime orchestration under `engine` or `orchestrator`.
 
 pub mod adapter;
 mod adapter_pipeline;
@@ -106,11 +106,11 @@ pub mod probe_fixtures {
 }
 pub mod workspace_ids;
 
+pub use execution::engine;
+pub use execution::engine::CallCancel;
+pub use execution::engine::turn::Turn;
 pub use execution::orchestrator;
 pub use execution::run_record;
-pub use execution::runner;
-pub use execution::runner::CallCancel;
-pub use execution::runner::turn::Turn;
 pub use execution::skill_front;
 pub use execution::skill_front::TurnSession;
 pub use execution::test;
@@ -142,6 +142,9 @@ pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
 pub use effects::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
     EffectStepRequest, EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
+};
+pub use engine::{
+    RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun, WorkflowRun,
 };
 pub use error::RuntimeError;
 pub use host::{Host, NoopHost};
@@ -210,9 +213,6 @@ pub use receipts::{
     receipt_trust, receipt_verifier,
 };
 pub use run_record::{RunLog, RunRecordError, RunState};
-pub use runner::{
-    RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun, WorkflowRun,
-};
 pub use runx_core::kernel_eval;
 pub use runx_core::policy::{ScopeGrantPolicy, scope_grant_allows};
 pub use runx_parser::{

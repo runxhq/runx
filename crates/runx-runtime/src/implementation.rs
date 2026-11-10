@@ -52,7 +52,7 @@ where
     A: crate::SkillAdapter,
 {
     if let Some(refusal) =
-        crate::execution::runner::declared_operations_refusal(runtime, workflow_dir, workflow)?
+        crate::execution::engine::declared_operations_refusal(runtime, workflow_dir, workflow)?
     {
         return Ok(Start {
             implementation: runtime_alone(),

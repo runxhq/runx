@@ -20,9 +20,9 @@ use super::fixtures::{TestExpectedStatus, TestFixture, TestFixtureError, load_te
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter};
 use crate::effects::RuntimeEffectRegistry;
+use crate::execution::engine::{RunClock, Runtime, RuntimeOptions, StepRun, WorkflowRun};
 use crate::execution::output_projection::project_step_claim;
 use crate::execution::run_record::RunLog;
-use crate::execution::runner::{RunClock, Runtime, RuntimeOptions, StepRun, WorkflowRun};
 use crate::host::Host;
 use crate::http::TestExchanges;
 use crate::kernel::store::KernelStore;
@@ -76,9 +76,9 @@ impl TestOptions {
         let policy =
             |error| RuntimeError::effect_state("reading the host's resource policy", error);
         let max_concurrency =
-            crate::execution::runner::host_max_concurrency(&self.env).map_err(policy)?;
+            crate::execution::engine::host_max_concurrency(&self.env).map_err(policy)?;
         let max_receipts =
-            crate::execution::runner::host_max_receipts(&self.env).map_err(policy)?;
+            crate::execution::engine::host_max_receipts(&self.env).map_err(policy)?;
         let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&self.env, target))
             .map_err(|error| {
                 RuntimeError::effect_state("opening a test case kernel", error.to_string())
@@ -103,7 +103,7 @@ impl TestOptions {
             call_stops: std::sync::Arc::default(),
             packages: None,
             chain: Vec::new(),
-            reads: crate::execution::runner::RunReads::default(),
+            reads: crate::execution::engine::RunReads::default(),
             workspace: None,
             max_concurrency,
             max_receipts,
@@ -751,7 +751,7 @@ where
     overlay_test_env(&mut options, &target.env);
     let run_id = options
         .env
-        .entry(crate::execution::runner::RUNX_RUN_ID_ENV.to_owned())
+        .entry(crate::execution::engine::RUNX_RUN_ID_ENV.to_owned())
         .or_insert_with(|| test_run_id(&fixture.name))
         .clone();
     let workflow = bind_run_inputs(
@@ -957,7 +957,7 @@ impl Host for FixtureHost<'_> {
     /// A scripted turn makes its calls, then ends with its output.
     fn drive_turn(
         &mut self,
-        turn: &mut dyn crate::execution::runner::turn::Turn,
+        turn: &mut dyn crate::execution::engine::turn::Turn,
     ) -> Result<(), RuntimeError> {
         let fixture = self.fixture;
         let address = turn.invocation().id.as_str().to_owned();
@@ -977,14 +977,14 @@ fn replay_output_from_workflow(
     replayed_answers: JsonObject,
     unanswered: Vec<String>,
 ) -> TestReplayOutput {
-    let result = crate::execution::runner::workflow_terminal_result(&workflow_run).ok();
+    let result = crate::execution::engine::workflow_terminal_result(&workflow_run).ok();
     let skill_output = result.map(|result| {
         if workflow_run.progress.state == runx_core::state_machine::WorkflowState::Succeeded {
             InvocationOutput::runtime_success(result, 0)
         } else {
             InvocationOutput::runtime_failure(
                 result,
-                crate::execution::runner::workflow_failure(&workflow_run),
+                crate::execution::engine::workflow_failure(&workflow_run),
                 0,
             )
         }

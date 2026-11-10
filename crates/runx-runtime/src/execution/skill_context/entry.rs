@@ -52,7 +52,7 @@ pub(super) fn skill_context_entry(
             run_id: Some(non_empty(
                 input
                     .env
-                    .get(crate::execution::runner::RUNX_RUN_ID_ENV)
+                    .get(crate::execution::engine::RUNX_RUN_ID_ENV)
                     .map(String::as_str)
                     .unwrap_or(PENDING_RUN_ID),
             )?),

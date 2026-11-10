@@ -289,7 +289,7 @@ fn media_type(value: &str) -> Result<&str, Unperformed> {
 fn run_id<'a>(call: &'a AdmittedCall<'_>) -> Result<&'a str, Unperformed> {
     call.env
         .get(TRUSTED_RUN_ID_ENV)
-        .or_else(|| call.env.get(crate::execution::runner::RUNX_RUN_ID_ENV))
+        .or_else(|| call.env.get(crate::execution::engine::RUNX_RUN_ID_ENV))
         .map(String::as_str)
         .filter(|run_id| !run_id.trim().is_empty())
         .ok_or_else(|| not_sent("the call runs in no run".to_owned()))

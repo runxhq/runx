@@ -65,7 +65,7 @@ There are intentionally no standalone `context_projection` or
 `output_projection` microbenchmarks. The former implementations were local
 benchmark helpers, not runtime code, so optimizing them could not improve the
 product. `workflow_context_to_module` exercises both production context
-materialization and step-output projection through the real workflow runner.
+materialization and step-output projection through the real workflow engine.
 
 The module rows exercise the production Boa worker. `pure_module_cold_start`
 creates and retires a real worker session per measured invocation;

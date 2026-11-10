@@ -11,7 +11,7 @@ use runx_contracts::{JsonObject, JsonValue};
 
 use super::Principal;
 use crate::kernel::connectors::LoadedConnector;
-use crate::kernel::operation::ToolRunner;
+use crate::kernel::operation::Tools;
 
 /// Who the browser profile `parameters` name is signed in as, by its
 /// session tool run through `tools` with `operation: session`.
@@ -20,7 +20,7 @@ pub(crate) fn principal(
     parameters: &JsonObject,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    tools: &dyn ToolRunner,
+    tools: &dyn Tools,
 ) -> Result<Principal, String> {
     let Some(SessionAuth::HostBrowser { process }) = connector.manifest.auth.session.as_ref()
     else {
@@ -65,7 +65,7 @@ pub(crate) fn verify(
     instance: &runx_contracts::ConnectorInstance,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    tools: &dyn ToolRunner,
+    tools: &dyn Tools,
 ) -> Result<(), String> {
     let principal = principal(connector, &instance.parameters, env, cwd, tools)?;
     if principal.principal_uri(connector.manifest.name.as_str()) != instance.principal_uri.as_str()
@@ -111,7 +111,7 @@ mod tests {
     /// The session tool, answering `operation: session` with `answer`.
     struct Proof(&'static str);
 
-    impl ToolRunner for Proof {
+    impl Tools for Proof {
         fn run(
             &self,
             tool: &str,
@@ -157,7 +157,7 @@ mod tests {
         let parameters: JsonObject = serde_json::from_str(r#"{"account":"alpha"}"#)?;
         let network = NoNetwork::default();
         let alpha = Proof(r#"{"id":"stable-alpha","login":"alpha"}"#);
-        let confirm = |scopes: &[String], tools: &dyn ToolRunner| {
+        let confirm = |scopes: &[String], tools: &dyn Tools| {
             confirm_session_over(
                 &instances,
                 &connector,

@@ -13,7 +13,7 @@ const nativeRunx = process.env.RUNX_RUST_CLI_BIN
   : path.resolve("crates", "target", "debug", process.platform === "win32" ? "runx.exe" : "runx");
 
 describe("hello-workflow example", () => {
-  it("runs its two-step method through the native test runner", async () => {
+  it("runs its two-step method through the native test replay", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-hello-workflow-example-"));
     try {
       const { stdout, stderr } = await execFileAsync(

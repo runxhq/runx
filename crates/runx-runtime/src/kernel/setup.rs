@@ -18,7 +18,7 @@ use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_pr
 
 use super::connectors::LoadedConnector;
 use super::instances::{Instances, check_supported, granted_scopes, pinned, served_scopes};
-use super::operation::{ToolRunner, credentials, hosted::HostedClient};
+use super::operation::{Tools, credentials, hosted::HostedClient};
 use crate::services::WorkspaceEnv;
 
 /// Confirm the connector's local session as signed in now, and select it.
@@ -48,7 +48,7 @@ pub(crate) fn confirm_session(
 /// `tools`.
 pub(crate) struct AccountReaders<'a> {
     pub transport: &'a dyn crate::http::RuntimeHttpTransport,
-    pub tools: &'a dyn ToolRunner,
+    pub tools: &'a dyn Tools,
 }
 
 /// Setup's method for a connector's installed tool. Setup is outside any
@@ -57,7 +57,7 @@ pub(crate) struct SetupTools<'a> {
     pub env: &'a BTreeMap<String, String>,
 }
 
-impl ToolRunner for SetupTools<'_> {
+impl Tools for SetupTools<'_> {
     fn run(
         &self,
         tool: &str,

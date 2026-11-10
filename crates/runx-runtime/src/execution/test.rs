@@ -3,7 +3,7 @@ pub mod fixtures;
 mod json_assertions;
 mod package;
 mod provider_responses;
-pub mod runner;
+pub mod replay;
 mod transport;
 mod turns;
 
@@ -42,7 +42,7 @@ pub use fixtures::{
     ReceiptExpectation, TestExpectedStatus, TestFixture, TestFixtureCase, TestFixtureError,
     TestFixtureStepOracle, TestSetup, list_cases, load_test_fixture,
 };
-pub use runner::{
+pub use replay::{
     TestOptions, TestReplayError, TestReplayOutput, replay_test_fixture, run_test_fixture,
     run_test_fixture_with_adapter,
 };

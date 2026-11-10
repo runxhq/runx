@@ -1,7 +1,7 @@
 use runx_contracts::{JsonObject, JsonValue};
 
 use super::fixtures::TestJsonExpectation;
-use super::runner::TestReplayError;
+use super::replay::TestReplayError;
 
 pub(crate) fn assert_json_expectation(
     expectation: &TestJsonExpectation,

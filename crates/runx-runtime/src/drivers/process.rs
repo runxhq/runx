@@ -17,7 +17,7 @@ use runx_contracts::{JsonObject, JsonValue};
 
 use crate::credentials::CredentialDelivery;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
-use crate::kernel::operation::{AdmittedCall, ToolRunner};
+use crate::kernel::operation::{AdmittedCall, Tools};
 
 /// The native test's injected tool method. A result matches the exact
 /// admitted tool and arguments; a missing fixture never starts a host process.
@@ -25,7 +25,7 @@ pub(crate) struct StandIn<'a> {
     pub calls: &'a [runx_parser::test_fixture::TestProcessCallFixture],
 }
 
-impl ToolRunner for StandIn<'_> {
+impl Tools for StandIn<'_> {
     fn run(
         &self,
         tool: &str,
@@ -64,7 +64,7 @@ impl ToolRunner for StandIn<'_> {
 pub(crate) struct Process<'a> {
     pub result_from: runx_contracts::connector::ProcessResultSource,
     pub session_account: Option<&'a str>,
-    pub tools: &'a dyn ToolRunner,
+    pub tools: &'a dyn Tools,
     pub tool: &'a str,
     /// The installed manifest of the connector's tool.
     pub manifest: &'a Path,
@@ -212,7 +212,7 @@ mod tests {
         runs: RefCell<Vec<JsonObject>>,
     }
 
-    impl ToolRunner for Tool {
+    impl Tools for Tool {
         fn run(
             &self,
             _tool: &str,

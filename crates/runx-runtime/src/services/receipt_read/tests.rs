@@ -5,8 +5,8 @@ use runx_core::state_machine::StepAdmissionWitness;
 
 use super::read_receipt_claim;
 use crate::adapter::{EphemeralValue, InvocationOutput};
+use crate::execution::engine::StepRun;
 use crate::execution::run_record::RunLog;
-use crate::execution::runner::StepRun;
 use crate::kernel::store::{KERNEL_STORE_FILE, KernelStore};
 use crate::paths::{RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RunxPaths};
 use crate::receipts::store::LocalReceiptStore;

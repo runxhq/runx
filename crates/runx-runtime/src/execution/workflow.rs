@@ -93,7 +93,7 @@ pub(crate) struct StepSkillLoadOptions<'a> {
 
 impl<'a> StepSkillLoadOptions<'a> {
     /// How a run loads its child skills: from the packages it admitted.
-    pub(crate) fn of_run(options: &'a crate::execution::runner::RuntimeOptions) -> Self {
+    pub(crate) fn of_run(options: &'a crate::execution::engine::RuntimeOptions) -> Self {
         Self {
             env: &options.env,
             packages: options.packages.as_ref(),

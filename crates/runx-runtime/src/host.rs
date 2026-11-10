@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use runx_contracts::{ExecutionEvent, ResolutionRequest, ResolutionResponse};
 
 use crate::RuntimeError;
-use crate::execution::runner::turn::Turn;
+use crate::execution::engine::turn::Turn;
 
 pub trait Host {
     fn report(&mut self, event: ExecutionEvent) -> Result<(), RuntimeError>;

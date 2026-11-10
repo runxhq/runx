@@ -106,7 +106,7 @@ fn load_mcp_server_tool(
             str::to_owned,
         );
     // A server given one method offers it under the skill's own name.
-    let tool_runner = selected.filter(|_| execution.method.is_none());
+    let tool_method = selected.filter(|_| execution.method.is_none());
     let skill = loaded.package.skill.clone();
     let package_digest = loaded.package.package_digest.clone();
     let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
@@ -120,7 +120,7 @@ fn load_mcp_server_tool(
     .closure_digest
     .ok_or_else(|| mcp_method_error(&skill.name, "skill requires an execution-closure binding"))?;
     Ok(McpServerTool {
-        name: crate::export::skill_tool_name(&skill.name, tool_runner),
+        name: crate::export::skill_tool_name(&skill.name, tool_method),
         description,
         input_schema: skill_inputs_to_json_schema(&method)?,
         result: McpServerToolBehavior::Skill(Box::new(McpServerSkillExecution {

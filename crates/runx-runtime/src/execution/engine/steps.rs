@@ -1,6 +1,6 @@
-// The workflow engine owns state transitions and step commits, and records each
-// into the run's stream as it happens. Step behavior itself enters through
-// dispatch.
+// A workflow's steps: the engine's state transitions and step commits, each
+// recorded into the run's stream as it happens. Step behavior itself enters
+// through dispatch.
 use std::collections::BTreeMap;
 use std::path::Path;
 

@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
 use super::fixtures::TestFixture;
-use super::runner::{load_test_case, run_test_case_with_adapter};
+use super::replay::{load_test_case, run_test_case_with_adapter};
 use super::{TestExpectedStatus, TestOptions, TestReplayError};
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;

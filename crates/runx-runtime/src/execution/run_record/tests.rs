@@ -8,7 +8,7 @@ use runx_core::state_machine::StepAdmissionWitness;
 
 use super::*;
 use crate::adapter::InvocationOutput;
-use crate::execution::runner::StepRun;
+use crate::execution::engine::StepRun;
 use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, step_receipt, workflow_receipt};
 
 fn signature() -> RuntimeReceiptSignatureConfig {
@@ -854,7 +854,7 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
     let (_root, store) = store();
     let log = RunLog::open(Arc::clone(&store), "run_triage_9").unwrap();
     start(&log, &JsonObject::new());
-    let retry = crate::execution::runner::unsettled_retry(
+    let retry = crate::execution::engine::unsettled_retry(
         log.address("send/retry"),
         "step send",
         runx_contracts::RetryResend::Safe,

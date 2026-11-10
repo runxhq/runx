@@ -386,7 +386,7 @@ mod tests {
     fn max_concurrency_is_narrowed_to_the_hosts_ceiling_and_a_step_only_narrows_it()
     -> Result<(), serde_json::Error> {
         use super::{run_concurrency, step_concurrency};
-        use crate::execution::runner::DEFAULT_MAX_CONCURRENCY;
+        use crate::execution::engine::DEFAULT_MAX_CONCURRENCY;
         let read = |value: serde_json::Value| serde_json::from_value::<RunAuthority>(value);
         let host =
             |ceiling: u32| std::num::NonZeroU32::new(ceiling).unwrap_or(DEFAULT_MAX_CONCURRENCY);
@@ -424,7 +424,7 @@ mod tests {
     /// integer, and refuses anything else; absent, the conservative default.
     #[test]
     fn the_host_reads_its_ceiling_from_its_environment() {
-        use crate::execution::runner::{DEFAULT_MAX_CONCURRENCY, host_max_concurrency};
+        use crate::execution::engine::{DEFAULT_MAX_CONCURRENCY, host_max_concurrency};
         let env = |value: Option<&str>| {
             value
                 .map(|value| ("RUNX_MAX_CONCURRENCY".to_owned(), value.to_owned()))

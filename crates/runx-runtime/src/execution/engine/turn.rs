@@ -35,7 +35,7 @@ use super::super::workflow::{
 use super::step_handlers::{
     StepRunRequest, output_error, run_step_with_inputs, run_step_with_loaded_skill_inputs,
 };
-use super::workflow_engine::AnsweringHost;
+use super::steps::AnsweringHost;
 use super::{CallStop, CallWork, Runtime, StepRun};
 use crate::RuntimeError;
 use crate::adapter::SkillAdapter;

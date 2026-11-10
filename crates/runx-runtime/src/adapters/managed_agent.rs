@@ -22,7 +22,7 @@ use super::agent_openai_responses::OpenAiResponsesCaller;
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use crate::RuntimeError;
 use crate::config::{ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect};
-use crate::execution::runner::turn::{TURN_COMPLETE_TOOL, TURN_READ_TOOL, TURN_STATUS_TOOL, Turn};
+use crate::execution::engine::turn::{TURN_COMPLETE_TOOL, TURN_READ_TOOL, TURN_STATUS_TOOL, Turn};
 use crate::host::Host;
 use crate::http::ReqwestHttpTransport;
 

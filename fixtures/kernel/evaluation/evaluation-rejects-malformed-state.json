@@ -1,6 +1,6 @@
 {
   "$schema": "../schema/state-machine.schema.json",
-  "description": "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
+  "description": "Pins the fixture-evaluator ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
   "expected": {
     "code": "kernel.fixture.evaluation_failed",
     "kind": "error",
@@ -15,5 +15,5 @@
       }
     ]
   },
-  "name": "runner-rejects-malformed-state"
+  "name": "evaluation-rejects-malformed-state"
 }

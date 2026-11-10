@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectKernelFixtureFiles,
   evaluateKernelFixtureInput,
-  isRunnerKernelFixture,
+  isEvaluationKernelFixture,
   normalizeForFixture,
   readKernelFixture,
   validateKernelFixture,
@@ -21,7 +21,7 @@ describe("kernel parity fixtures", () => {
       const fixture = await readKernelFixture(fixtureFile);
       expect(fixture.name, fixtureFile).toBe(path.basename(fixtureFile, ".json"));
       const relativeFixturePath = path.relative(path.join(process.cwd(), "fixtures", "kernel"), fixtureFile);
-      expect(relativeFixturePath.startsWith(`runner${path.sep}`), fixture.name).toBe(isRunnerKernelFixture(fixture));
+      expect(relativeFixturePath.startsWith(`evaluation${path.sep}`), fixture.name).toBe(isEvaluationKernelFixture(fixture));
 
       const validation = await validateKernelFixture(fixture);
       expect(validation.errors, fixture.name).toEqual([]);
@@ -118,10 +118,10 @@ describe("kernel parity fixtures", () => {
     ]);
   });
 
-  it("requires runner ingestion fixtures to use the runner prefix", async () => {
+  it("requires evaluation fixtures to use the evaluation prefix", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "malformed-state-runner-error",
+      name: "malformed-state-evaluation-error",
       input: {
         kind: "policy.scopeGrantAllows",
         grantedScope: "repo:*",
@@ -135,13 +135,13 @@ describe("kernel parity fixtures", () => {
       },
     });
 
-    expect(validation.errors).toContain("fixture.name: runner ingestion fixtures must use the 'runner-' prefix");
+    expect(validation.errors).toContain("fixture.name: evaluation fixtures must use the 'evaluation-' prefix");
   });
 
-  it("reserves the runner prefix for fixture-runner ingestion errors", async () => {
+  it("reserves the evaluation prefix for fixture-evaluator ingestion errors", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "runner-scope-grant-denies-widening",
+      name: "evaluation-scope-grant-denies-widening",
       input: {
         kind: "policy.scopeGrantAllows",
         grantedScope: "checks:read",
@@ -155,7 +155,7 @@ describe("kernel parity fixtures", () => {
     });
 
     expect(validation.errors).toContain(
-      "fixture.name: only kernel.fixture.evaluation_failed error fixtures may use the 'runner-' prefix",
+      "fixture.name: only kernel.fixture.evaluation_failed error fixtures may use the 'evaluation-' prefix",
     );
   });
 

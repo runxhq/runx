@@ -26,7 +26,7 @@ use super::{
     AnswerEvent, CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, driven, input_digest,
     standing, standing_event, validate_run_id, waiting_requests,
 };
-use crate::execution::runner::StepOutcome;
+use crate::execution::engine::StepOutcome;
 use crate::kernel::store::{KernelStore, Recorded};
 use crate::paths::RunxPaths;
 

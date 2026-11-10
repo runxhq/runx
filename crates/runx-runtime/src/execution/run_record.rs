@@ -40,7 +40,7 @@ use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::runner::{StepOutcome, StepRun};
+use super::engine::{StepOutcome, StepRun};
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::custody::Settlement;
 use crate::kernel::store::{

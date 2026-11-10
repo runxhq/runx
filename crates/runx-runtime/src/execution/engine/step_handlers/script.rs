@@ -29,7 +29,7 @@ use super::{
 };
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter};
-use crate::execution::runner::StepRun;
+use crate::execution::engine::StepRun;
 use crate::host::Host;
 use crate::output_contract::method_contract_checks;
 

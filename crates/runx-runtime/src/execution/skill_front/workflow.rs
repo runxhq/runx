@@ -17,15 +17,15 @@ use runx_parser::{SkillMethodDefinition, Workflow};
 use crate::RuntimeError;
 #[cfg(test)]
 use crate::adapter::SkillInvocation;
+use crate::execution::engine::turn::{Admission, AdmittedCall, ExecutedCall, Turn, admit_tool};
+use crate::execution::engine::{
+    RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, WorkflowRun, sealed_workflow_run,
+    workflow_run_context, workflow_run_result, workflow_run_skill_output, workflow_run_trace,
+};
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
     CallerContext, Hold, Origin, PendingRequest, RunLog, RunRecord, StartRequest,
-};
-use crate::execution::runner::turn::{Admission, AdmittedCall, ExecutedCall, Turn, admit_tool};
-use crate::execution::runner::{
-    RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, WorkflowRun, sealed_workflow_run,
-    workflow_run_context, workflow_run_result, workflow_run_skill_output, workflow_run_trace,
 };
 use crate::execution::workflow::bind_run_inputs;
 use crate::host::Host;
@@ -245,7 +245,7 @@ impl BoundRun {
                 let request_value: ResolutionRequest = serde_json::to_value(&request.value)
                     .and_then(serde_json::from_value)
                     .map_err(|source| RuntimeError::json("reading a waited request", source))?;
-                if crate::execution::runner::floor::covers(&request_value, &approvals, &artifacts)?
+                if crate::execution::engine::floor::covers(&request_value, &approvals, &artifacts)?
                 {
                     host.answers.grant(&request.id, &request.digest);
                 }
@@ -412,7 +412,7 @@ impl BoundRun {
             current_context: context.current,
             historical_context: context.historical,
             run_authority,
-            clock: crate::execution::runner::RunClock::System,
+            clock: crate::execution::engine::RunClock::System,
             env,
             receipt_signature: self.receipts.signature_config().clone(),
             effects: self.effects.clone(),
@@ -421,7 +421,7 @@ impl BoundRun {
             call_stops: host.stops.clone().unwrap_or_default(),
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
-            reads: crate::execution::runner::RunReads::default(),
+            reads: crate::execution::engine::RunReads::default(),
             workspace: Some(self.workspace.paths().clone()),
             max_concurrency: self.max_concurrency,
             max_receipts: self.max_receipts,
@@ -596,7 +596,7 @@ impl Driven<'_> {
     fn seal_stopped(&self, error: RuntimeError) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let mut host = RunHost::new(ResolutionAnswers::default());
-        let crate::execution::runner::Stopped { run, result } =
+        let crate::execution::engine::Stopped { run, result } =
             self.runtime
                 .seal_stop(self.workflow.clone(), error, &mut host)?;
         let refusal = run.refusal.clone();
@@ -682,16 +682,16 @@ pub(super) struct RunHost {
     in_flight: std::collections::BTreeSet<(String, u32)>,
     /// The gate the run's calls take where they reach the world, when its
     /// session executes calls concurrently.
-    gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
+    gate: Option<std::sync::Arc<crate::execution::engine::EffectGate>>,
     /// The stops of the calls its session executes, through which the
     /// session's host cancels one.
-    stops: Option<std::sync::Arc<crate::execution::runner::CallStops>>,
+    stops: Option<std::sync::Arc<crate::execution::engine::CallStops>>,
     /// What its session's run has drawn of its receipt budget, which every
     /// pass of the session draws from.
-    receipts: Option<std::sync::Arc<crate::execution::runner::ReceiptTally>>,
+    receipts: Option<std::sync::Arc<crate::execution::engine::ReceiptTally>>,
     /// What its session's run has executing at once, within its
     /// `max_concurrency`, in every pass of the session.
-    pool: Option<std::sync::Arc<crate::execution::runner::CallPool>>,
+    pool: Option<std::sync::Arc<crate::execution::engine::CallPool>>,
     #[cfg(feature = "agent")]
     managed: Option<std::rc::Rc<crate::adapters::managed_agent::ManagedAgent>>,
 }
@@ -735,8 +735,8 @@ impl RunHost {
     /// and `in_flight` the calls executing apart from this pass.
     pub(super) fn in_session(
         mut self,
-        gate: std::sync::Arc<crate::execution::runner::EffectGate>,
-        stops: std::sync::Arc<crate::execution::runner::CallStops>,
+        gate: std::sync::Arc<crate::execution::engine::EffectGate>,
+        stops: std::sync::Arc<crate::execution::engine::CallStops>,
         shared: &super::turn_session::SessionShared,
         in_flight: std::collections::BTreeSet<(String, u32)>,
     ) -> Self {
@@ -1015,7 +1015,7 @@ fn is_due_wait(request: &PendingRequest) -> bool {
     let request = serde_json::to_value(&request.value).and_then(serde_json::from_value);
     match (
         request,
-        crate::execution::runner::RunClock::System.now_millis(),
+        crate::execution::engine::RunClock::System.now_millis(),
     ) {
         (Ok(ResolutionRequest::Wait { until, .. }), Some(now)) => now >= until,
         _ => false,
@@ -1118,11 +1118,11 @@ mod tests {
         };
 
         assert_eq!(
-            crate::execution::runner::failed_step_id(&workflow, &owned).as_deref(),
+            crate::execution::engine::failed_step_id(&workflow, &owned).as_deref(),
             Some("apply")
         );
         assert_eq!(
-            crate::execution::runner::failed_step_id(&workflow, &nested),
+            crate::execution::engine::failed_step_id(&workflow, &nested),
             None
         );
         Ok(())
@@ -1232,7 +1232,7 @@ methods:
             }
             let mut options = RuntimeOptions::new(env.clone(), signature.clone(), log.clone());
             options.clock =
-                crate::execution::runner::RunClock::Fixed("2026-07-24T00:00:00Z".to_owned());
+                crate::execution::engine::RunClock::Fixed("2026-07-24T00:00:00Z".to_owned());
             let runtime = Runtime::new(ExecutableAdapter, options);
             let error = ManagedAgentError::bounded_failure(
                 runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted,

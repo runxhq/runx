@@ -97,7 +97,7 @@ export function buildKernelParityFixtures(): readonly KernelFixture[] {
 
 export async function collectKernelFixtureFiles(root: string = fixtureRoot): Promise<readonly string[]> {
   const files: string[] = [];
-  for (const directoryName of ["policy", "runner", "state-machine"]) {
+  for (const directoryName of ["policy", "evaluation", "state-machine"]) {
     const directory = path.join(root, directoryName);
     let entries: readonly string[] = [];
     try {
@@ -134,7 +134,7 @@ export async function validateKernelFixture(fixture: KernelFixture): Promise<Val
   const errors = [
     ...schemaErrors(envelopeSchema, fixture, "fixture.schema.json"),
     ...schemaErrors(concreteSchema, fixture, schemaFile),
-    ...runnerFixtureErrors(fixture),
+    ...evaluationFixtureErrors(fixture),
   ];
   return {
     valid: errors.length === 0,
@@ -142,7 +142,7 @@ export async function validateKernelFixture(fixture: KernelFixture): Promise<Val
   };
 }
 
-export function isRunnerKernelFixture(fixture: KernelFixture): boolean {
+export function isEvaluationKernelFixture(fixture: KernelFixture): boolean {
   return fixture.expected.kind === "error" && fixture.expected.code === "kernel.fixture.evaluation_failed";
 }
 
@@ -152,13 +152,13 @@ function kernelFixtureSchemaFile(schemaRef: unknown): string | undefined {
     : undefined;
 }
 
-function runnerFixtureErrors(fixture: KernelFixture): readonly string[] {
-  const isRunnerFixture = isRunnerKernelFixture(fixture);
-  if (isRunnerFixture && !fixture.name.startsWith("runner-")) {
-    return [`fixture.name: runner ingestion fixtures must use the 'runner-' prefix`];
+function evaluationFixtureErrors(fixture: KernelFixture): readonly string[] {
+  const isEvaluationFixture = isEvaluationKernelFixture(fixture);
+  if (isEvaluationFixture && !fixture.name.startsWith("evaluation-")) {
+    return [`fixture.name: evaluation fixtures must use the 'evaluation-' prefix`];
   }
-  if (!isRunnerFixture && fixture.name.startsWith("runner-")) {
-    return [`fixture.name: only kernel.fixture.evaluation_failed error fixtures may use the 'runner-' prefix`];
+  if (!isEvaluationFixture && fixture.name.startsWith("evaluation-")) {
+    return [`fixture.name: only kernel.fixture.evaluation_failed error fixtures may use the 'evaluation-' prefix`];
   }
   return [];
 }
@@ -387,9 +387,9 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
     {
-      name: "runner-rejects-malformed-state",
+      name: "evaluation-rejects-malformed-state",
       description:
-        "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
+        "Pins the fixture-evaluator ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
       input: {
         kind: "state-machine.planSequentialWorkflowTransition",
         state: {},
@@ -405,8 +405,8 @@ function fixtureCases(): readonly KernelFixtureCase[] {
 }
 
 function fixtureDirectory(fixture: KernelFixture): string {
-  if (isRunnerKernelFixture(fixture)) {
-    return path.join(fixtureRoot, "runner");
+  if (isEvaluationKernelFixture(fixture)) {
+    return path.join(fixtureRoot, "evaluation");
   }
   return path.join(fixtureRoot, fixture.input.kind.startsWith("state-machine.") ? "state-machine" : "policy");
 }

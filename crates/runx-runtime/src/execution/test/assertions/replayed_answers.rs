@@ -1,6 +1,6 @@
 use runx_contracts::{JsonObject, JsonValue};
 
-use crate::execution::test::runner::{TestReplayError, TestReplayOutput};
+use crate::execution::test::replay::{TestReplayError, TestReplayOutput};
 
 pub(super) fn assert_host_answers_replayed(
     output: &TestReplayOutput,

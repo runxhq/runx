@@ -562,7 +562,7 @@ fn child_chain<A>(
         .map_or_else(String::new, |target| target.skill.clone());
     let signed = skill.registry.as_ref().map(|registry| &registry.signed);
     let refused =
-        |reason: String| crate::execution::runner::identity_refused(&skill.directory, &reason);
+        |reason: String| crate::execution::engine::identity_refused(&skill.directory, &reason);
     let Some(parent) = chain.last() else {
         // A step no package runs reaches a package that binds by itself.
         let identity = match signed {
@@ -874,7 +874,7 @@ where
         step_id: context.step.id.clone(),
         attempt: context.attempt,
         skill: context.skill_name,
-        method: step_runner(context.step),
+        method: step_method(context.step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
@@ -904,7 +904,7 @@ fn loaded_skill_or_load(
 }
 
 /// The child method a skill step names, if any.
-fn step_runner(step: &WorkflowStep) -> Option<String> {
+fn step_method(step: &WorkflowStep) -> Option<String> {
     step.skill().and_then(|target| target.method.clone())
 }
 
@@ -1113,7 +1113,7 @@ fn seal_turn_step<A>(
         step_id: step.id.clone(),
         attempt,
         skill: skill_name,
-        method: step_runner(step),
+        method: step_method(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -1527,7 +1527,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill,
-        method: step_runner(step),
+        method: step_method(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
@@ -1544,7 +1544,7 @@ where
     })
 }
 
-/// The step's runtime, as the kernel's runner for `process` implementations:
+/// The step's runtime, as the kernel's tools for `process` implementations:
 /// the installed copy of the tool the connector ships, with the operation's
 /// credential. It keeps what each run observed: where the process ran and
 /// the credential it received, whatever the run returned.
@@ -1556,7 +1556,7 @@ struct StepTools<'a, A> {
     observed: std::cell::RefCell<crate::observations::Observations>,
 }
 
-impl<A> crate::kernel::operation::ToolRunner for StepTools<'_, A>
+impl<A> crate::kernel::operation::Tools for StepTools<'_, A>
 where
     A: SkillAdapter,
 {
@@ -1865,7 +1865,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill: "ask".to_owned(),
-        method: step_runner(step),
+        method: step_method(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -2022,7 +2022,7 @@ where
         step_id: step.id.clone(),
         attempt,
         skill: "ask".to_owned(),
-        method: step_runner(step),
+        method: step_method(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
@@ -2220,7 +2220,7 @@ where
             .skill()
             .map_or(step.id.as_str(), |target| target.skill.as_str())
             .to_owned(),
-        method: step_runner(step),
+        method: step_method(step),
         contract: projection.outputs,
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),

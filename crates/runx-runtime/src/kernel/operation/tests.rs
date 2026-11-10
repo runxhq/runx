@@ -2505,7 +2505,7 @@ methods:
             root.path().join("receipts").to_string_lossy().into_owned(),
         ),
         (
-            crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+            crate::execution::engine::RUNX_RUN_ID_ENV.to_owned(),
             "run-1".to_owned(),
         ),
     ]);
@@ -2860,7 +2860,7 @@ fn allocation(value: serde_json::Value) -> JsonObject {
 fn an_artifact_is_stored_for_the_signed_in_account_and_read_back() {
     let mut fixture = Fixture::new(&[]);
     fixture.env.insert(
-        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        crate::execution::engine::RUNX_RUN_ID_ENV.to_owned(),
         "run-1".to_owned(),
     );
     let (admission, outcome, dispatched) = fixture
@@ -2923,7 +2923,7 @@ fn an_artifact_is_stored_for_the_signed_in_account_and_read_back() {
 fn public_storage_acts_as_the_runs_declared_actor() {
     let mut fixture = Fixture::new(&[]);
     fixture.env.insert(
-        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        crate::execution::engine::RUNX_RUN_ID_ENV.to_owned(),
         "run-actor".to_owned(),
     );
     let actor = Reference::with_uri(ReferenceType::Principal, PRINCIPAL_REF);
@@ -2965,7 +2965,7 @@ fn public_storage_acts_as_the_runs_declared_actor() {
 fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
     let mut fixture = Fixture::new(&[]);
     fixture.env.insert(
-        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        crate::execution::engine::RUNX_RUN_ID_ENV.to_owned(),
         "run-1".to_owned(),
     );
     *fixture.provider.artifact_owner.lock().unwrap() = Some("someone-else".to_owned());
@@ -3243,7 +3243,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
             .is_none()
     );
     struct Reader(RefCell<Vec<JsonObject>>);
-    impl ToolRunner for Reader {
+    impl Tools for Reader {
         fn run(
             &self,
             _: &str,

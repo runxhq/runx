@@ -29,7 +29,7 @@ contract is being stabilized. Supported keywords are `$id`, `$schema`,
 schema changes fail closed.
 
 The fixture envelope's `$schema` field is a local in-tree discriminator, not a
-public JSON Schema meta-schema URI. Runners must accept only the canonical
+public JSON Schema meta-schema URI. Evaluators must accept only the canonical
 relative refs under `fixtures/kernel/schema/` that the in-tree validator
 recognizes.
 
@@ -45,7 +45,7 @@ Optional fields whose TypeScript value is `undefined` are omitted from the
 serialized JSON. Rust serde fields for those values must use
 `skip_serializing_if = "Option::is_none"`.
 
-The Rust state-machine fixture runner lives in
+The Rust state-machine fixture evaluator lives in
 `crates/runx-core/tests/state_machine_fixtures.rs`. It dispatches by
 `input.kind`, deserializes into typed Rust structs/enums, serializes the result
 back to JSON, and compares that JSON to the TypeScript-generated `expected`
@@ -53,17 +53,17 @@ value. Public Rust payload fields use `runx_contracts::JsonValue` and
 deterministic `BTreeMap`-backed objects rather than public
 `serde_json::Value`.
 
-The Rust policy fixture runner lives in
+The Rust policy fixture evaluator lives in
 `crates/runx-core/tests/policy_fixtures.rs`.
 Current policy fixtures cover scope-grant matching, which the TypeScript
 contracts mirror; state-machine fixtures cover the sequential workflow.
 
-Fixtures under `runner/` pin fixture-runner ingestion behavior rather than a
+Fixtures under `evaluation/` pin fixture-evaluator ingestion behavior rather than a
 trusted-kernel decision. They exist to keep the cross-language fixture test
-fail-closed for malformed-but-schema-shaped inputs. Rust runners may reject
+fail-closed for malformed-but-schema-shaped inputs. Rust evaluators may reject
 those cases during typed deserialization, as long as the fixture test maps
-the rejection to the same `kernel.fixture.evaluation_failed` envelope. Runner
+the rejection to the same `kernel.fixture.evaluation_failed` envelope. Evaluation
 fixtures are identified by `expected.kind === "error"` and
 `expected.code === "kernel.fixture.evaluation_failed"`, must use the
-`runner-` filename prefix, and pin both the error `code` and the literal
+`evaluation-` filename prefix, and pin both the error `code` and the literal
 wrapper `message` (`"kernel fixture evaluation failed"`).

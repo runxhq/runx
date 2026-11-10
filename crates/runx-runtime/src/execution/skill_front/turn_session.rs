@@ -23,9 +23,9 @@ use runx_contracts::{JsonObject, ResolutionRequest, TurnCallResult, TurnStatus};
 use super::workflow::{RunHost, TurnAct, TurnActed, TurnAction};
 use super::{BoundRun, SkillRunError, invalid};
 use crate::RuntimeError;
+use crate::execution::engine::turn::Admission;
+use crate::execution::engine::{CallCancel, CallPool, CallStops, EffectGate, ReceiptTally};
 use crate::execution::orchestrator::RunResult;
-use crate::execution::runner::turn::Admission;
-use crate::execution::runner::{CallCancel, CallPool, CallStops, EffectGate, ReceiptTally};
 
 pub struct TurnSession {
     run: BoundRun,
@@ -246,8 +246,8 @@ impl TurnSession {
     fn execute(
         &self,
         turn: &str,
-        admitted: crate::execution::runner::turn::AdmittedCall,
-    ) -> Result<crate::execution::runner::turn::ExecutedCall, SkillRunError> {
+        admitted: crate::execution::engine::turn::AdmittedCall,
+    ) -> Result<crate::execution::engine::turn::ExecutedCall, SkillRunError> {
         let mut host = RunHost::acting(TurnAct {
             turn: turn.to_owned(),
             action: TurnAction::Execute(Box::new(admitted)),

@@ -1,5 +1,5 @@
 // Module rationale: RuntimeOptions, checkpoint resume, and
-// the public workflow runner surface are audited as one unit.
+// the public engine surface are audited as one unit.
 //! The act engine for runx: the single admit -> execute -> seal path every run
 //! takes. A standalone skill is a one-act plan and a workflow a multi-act plan;
 //! both run through this one engine.
@@ -41,15 +41,15 @@ pub(crate) mod floor;
 mod input_digest;
 mod receipt_budget;
 mod step_handlers;
+mod steps;
 pub mod turn;
-mod workflow_engine;
 
 pub(crate) use admission::declared_operations_refusal;
 pub(crate) use call_pool::CallPool;
 pub use call_stops::CallCancel;
 pub(crate) use call_stops::{CallStop, CallStops, CallWork};
 pub(crate) use receipt_budget::ReceiptTally;
-use workflow_engine::WorkflowExecution;
+use steps::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 

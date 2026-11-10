@@ -1,7 +1,7 @@
 // Module rationale: the skill front owns run preparation and the shared
 // sealed-output projection for every method.
 //! The skill front: compiles a skill-run request into a run of the method's
-//! workflow and seals it through the shared act engine (`execution::runner`),
+//! workflow and seals it through the shared act engine (`execution::engine`),
 //! which owns admit -> execute -> seal.
 
 use std::collections::BTreeMap;
@@ -512,9 +512,9 @@ fn bind_resolved(
     // The host's resource policy: a ceiling that is no positive integer
     // refuses the run before it starts.
     let max_concurrency =
-        crate::execution::runner::host_max_concurrency(workspace.env()).map_err(invalid)?;
+        crate::execution::engine::host_max_concurrency(workspace.env()).map_err(invalid)?;
     let max_receipts =
-        crate::execution::runner::host_max_receipts(workspace.env()).map_err(invalid)?;
+        crate::execution::engine::host_max_receipts(workspace.env()).map_err(invalid)?;
     let skill_env = workspace.skill_env_for_skill(skill_dir);
     if !trusted_prepared {
         super::operator_context::load_skill_operator_context_chain_from_package(

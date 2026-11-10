@@ -94,7 +94,7 @@ fn envelope(
     Ok(AgentContextEnvelope {
         run_id: request
             .env
-            .get(crate::execution::runner::RUNX_RUN_ID_ENV)
+            .get(crate::execution::engine::RUNX_RUN_ID_ENV)
             .and_then(|run_id| NonEmptyString::new(run_id.clone()))
             .unwrap_or_else(|| "rx_pending".into()),
         step_id: optional_non_empty(request.step_id.as_deref()),

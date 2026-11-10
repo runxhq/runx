@@ -247,7 +247,7 @@ impl AdmittedCall<'_> {
 /// installed copy of the manifest its connector ships, through the runtime's
 /// adapters. The step handler provides it; the kernel decides which tool and
 /// everything around the run.
-pub(crate) trait ToolRunner {
+pub(crate) trait Tools {
     fn run(
         &self,
         tool: &str,
@@ -262,7 +262,7 @@ pub(crate) trait ToolRunner {
 pub(crate) struct NoTools;
 
 #[cfg(test)]
-impl ToolRunner for NoTools {
+impl Tools for NoTools {
     fn run(
         &self,
         tool: &str,
@@ -1039,7 +1039,7 @@ pub(crate) fn execute(
     step_id: &str,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    tools: &dyn ToolRunner,
+    tools: &dyn Tools,
     dispatched: &mut Option<Dispatched>,
 ) -> Result<OperationOutcome, RuntimeError> {
     let admitted = &context.admitted;
@@ -1115,7 +1115,7 @@ pub(crate) fn execute(
     // A fixture's recorded process calls stand in for the step's tools, for
     // a browser session's account check and the call alike.
     let stand_in;
-    let tools: &dyn ToolRunner = match context.placements.process_calls.as_deref() {
+    let tools: &dyn Tools = match context.placements.process_calls.as_deref() {
         Some(calls) => {
             stand_in = crate::drivers::process::StandIn { calls };
             &stand_in
@@ -1291,7 +1291,7 @@ fn prepare(
     context: &OperationAdmission,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    tools: &dyn ToolRunner,
+    tools: &dyn Tools,
 ) -> Result<Session, String> {
     let admitted = &context.admitted;
     let instance = &admitted.instance;
@@ -1421,7 +1421,7 @@ fn signed_in(
 /// What a local process implementation runs with: the step's method and the
 /// installed copy of the connector's tool.
 struct Local<'a> {
-    tools: &'a dyn ToolRunner,
+    tools: &'a dyn Tools,
     tool: Option<&'a Path>,
 }
 

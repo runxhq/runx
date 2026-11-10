@@ -6,7 +6,7 @@ use runx_receipts::{
 
 use crate::execution::test::fixtures::{ReceiptExpectation, TestExpectedStatus};
 use crate::execution::test::json_assertions::assert_json_expectation;
-use crate::execution::test::runner::{TestReplayError, TestReplayOutput};
+use crate::execution::test::replay::{TestReplayError, TestReplayOutput};
 use crate::receipts::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
 
 mod replayed_answers;
