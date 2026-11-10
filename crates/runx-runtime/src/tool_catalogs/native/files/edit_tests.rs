@@ -101,6 +101,13 @@ fn an_agents_write_names_what_it_replaces_and_a_stale_one_is_refused() -> TestRe
         .err()
         .unwrap_or_default();
     assert!(created.contains("exists"), "{created}");
+    // An operator's write is bound the same: one that names nothing is a new
+    // file's, and never overwrites one blind. Changed 11 November: an
+    // operator's write named nothing and overwrote it.
+    let blind = write_with(serde_json::json!({}), Reach::Inputs)
+        .err()
+        .unwrap_or_default();
+    assert!(blind.contains("names no expected_digest"), "{blind}");
     assert_eq!(fs::read_to_string(root.join("notes.md"))?, "read\n");
 
     write_with(
@@ -108,8 +115,6 @@ fn an_agents_write_names_what_it_replaces_and_a_stale_one_is_refused() -> TestRe
         Reach::Workspace,
     )?;
     assert_eq!(fs::read_to_string(root.join("notes.md"))?, "next\n");
-    // An operator's write names nothing, as before.
-    write_with(serde_json::json!({}), Reach::Inputs)?;
 
     let fresh = invoke::<FileWriteInput, _>(
         root,

@@ -528,6 +528,12 @@ impl OperationAdmission {
         self.admitted.operation().access() == OperationAccess::Mutate
     }
 
+    /// Whether a process runx starts and waits on carries the call out: the
+    /// connector's own, or the stdio server it starts.
+    pub(crate) fn runs_a_process(&self) -> bool {
+        placement(self).1 == ExecutionBoundaryKind::TrustedHostProcess
+    }
+
     /// What the call's receipt records: the act its caller stated, the
     /// operation's declared description, the execution term it was admitted
     /// under, what it produced, and the context the run was prepared with.

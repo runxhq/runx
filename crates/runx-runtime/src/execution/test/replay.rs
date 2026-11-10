@@ -99,7 +99,6 @@ impl TestOptions {
             receipt_signature: self.receipt_signature,
             effects: self.effects,
             run,
-            effect_gate: None,
             call_stops: std::sync::Arc::default(),
             packages: None,
             chain: Vec::new(),

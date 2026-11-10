@@ -217,6 +217,39 @@ pub(crate) fn is_core_tool(tool: &str) -> bool {
     definition(tool).is_some()
 }
 
+/// The sources of the core tools that reach the workspace's files: its files
+/// and git history, skill authoring, commands, a CLI's help and the evidence
+/// read from its sources. The rest compute, or reach runx's own state, a
+/// detached process or a registry.
+const WORKSPACE_SOURCES: [&str; 7] = [
+    "runx-runtime/filesystem",
+    "runx-runtime/fs",
+    "runx-runtime/git",
+    "runx-runtime/authoring",
+    "runx-runtime/command",
+    "runx-runtime/cli",
+    "runx-runtime/evidence",
+];
+
+/// How a call of core tool `tool` takes the workspace's lock: shared to read
+/// the workspace, alone to change it or to run a command runx waits on, and
+/// not at all when it doesn't reach the workspace.
+pub(crate) fn workspace_lock_mode(tool: &str) -> Option<crate::workspace_lock::LockMode> {
+    let capability = definition(tool)?;
+    let definition = capability.definition();
+    if !WORKSPACE_SOURCES.contains(&definition.source) {
+        return None;
+    }
+    let runs_a_command = capability.execution_boundary()
+        == runx_contracts::ExecutionBoundaryKind::TrustedHostProcess
+        || definition.source == "runx-runtime/cli";
+    Some(if definition.effect.mutating() || runs_a_command {
+        crate::workspace_lock::LockMode::Alone
+    } else {
+        crate::workspace_lock::LockMode::Shared
+    })
+}
+
 /// Whether a call of core tool `tool` that may have run can run again
 /// unseen: it only reads, or it changes files in runx's own process, where
 /// every change is journaled and bound to what it replaces, so a resend

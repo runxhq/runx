@@ -8,9 +8,10 @@
 //! as long as it is open. A call is admitted and claimed in
 //! order under the driver, executes apart from it, concurrently with the
 //! session's other admitted calls, and is recorded under it again. Where a
-//! call reaches the world it takes the session's effect gate: a read shares
-//! it and a change holds it alone, inside a child run too, so effects never
-//! overlap and reads never wait on each other. A cancel acts on one call
+//! call may reach the workspace it takes the workspace's lock, as every run's
+//! steps do (`workspace_lock.rs`): a native read shares it, and a command, a
+//! process runx waits on or a native file change holds it alone, inside a
+//! child run too. A cancel acts on one call
 //! while it executes, through the stops the run's calls register at any
 //! depth, and waits for nothing. Completing or failing a turn's act waits
 //! only for that turn's own calls, so one lead's completion goes ahead with
@@ -28,7 +29,7 @@ use super::workflow::{RunHost, TurnAct, TurnActed, TurnAction};
 use super::{BoundRun, SkillRunError, invalid};
 use crate::RuntimeError;
 use crate::execution::engine::turn::Admission;
-use crate::execution::engine::{CallCancel, CallPool, CallStops, EffectGate, ReceiptTally};
+use crate::execution::engine::{CallCancel, CallPool, CallStops, ReceiptTally};
 use crate::execution::orchestrator::RunResult;
 
 /// What a turn of the run's own is taken as executing while its run goes on
@@ -45,7 +46,6 @@ pub struct TurnSession {
     in_flight: Mutex<BTreeSet<(String, u32)>>,
     /// Signalled whenever a call's execution ends.
     settled: Condvar,
-    gate: Arc<EffectGate>,
     /// Where each call the session's run executes is registered, at any
     /// depth, so its host can cancel it alone.
     stops: Arc<CallStops>,
@@ -79,7 +79,6 @@ impl TurnSession {
             driver: Mutex::new(()),
             in_flight: Mutex::new(BTreeSet::new()),
             settled: Condvar::new(),
-            gate: Arc::new(EffectGate::default()),
             stops: Arc::new(CallStops::default()),
             shared: SessionShared::default(),
         };
@@ -157,8 +156,8 @@ impl TurnSession {
     /// Make the call the turn at `turn` offers as `tool`; the run admits,
     /// executes and records it. A `call_id` pins the call: made again with
     /// it, the recorded call returns rather than running twice. Calls made
-    /// at once execute at once, each taking the session's effect gate where
-    /// it reaches the world.
+    /// at once execute at once, each taking the workspace's lock where it may
+    /// reach the workspace.
     pub fn call(
         &self,
         turn: &str,
@@ -266,12 +265,7 @@ impl TurnSession {
             turn: turn.to_owned(),
             action: TurnAction::Settle,
         })
-        .in_session(
-            Arc::clone(&self.gate),
-            Arc::clone(&self.stops),
-            &self.shared,
-            self.in_flight_now(),
-        );
+        .in_session(Arc::clone(&self.stops), &self.shared, self.in_flight_now());
         self.run.advance(&mut host)
     }
 
@@ -291,12 +285,7 @@ impl TurnSession {
             turn: turn.to_owned(),
             action: TurnAction::Continue { answer, apart },
         })
-        .in_session(
-            Arc::clone(&self.gate),
-            Arc::clone(&self.stops),
-            &self.shared,
-            in_flight,
-        );
+        .in_session(Arc::clone(&self.stops), &self.shared, in_flight);
         let result = self.run.advance(&mut host)?;
         match host.acted() {
             Some(_) => Ok(result),
@@ -333,12 +322,7 @@ impl TurnSession {
             turn: turn.to_owned(),
             action: TurnAction::Execute(Box::new(admitted)),
         })
-        .in_session(
-            Arc::clone(&self.gate),
-            Arc::clone(&self.stops),
-            &self.shared,
-            self.in_flight_now(),
-        );
+        .in_session(Arc::clone(&self.stops), &self.shared, self.in_flight_now());
         self.run.advance(&mut host)?;
         match host.acted() {
             Some(TurnActed::Executed(executed)) => Ok(*executed),
@@ -362,12 +346,7 @@ impl TurnSession {
             turn: turn.to_owned(),
             action,
         })
-        .in_session(
-            Arc::clone(&self.gate),
-            Arc::clone(&self.stops),
-            &self.shared,
-            self.in_flight_now(),
-        );
+        .in_session(Arc::clone(&self.stops), &self.shared, self.in_flight_now());
         let result = self.run.advance(&mut host)?;
         let acted = host
             .acted()
@@ -1183,10 +1162,14 @@ mod tests {
         }
         let (_run_id, session) = files_session(root)?;
 
-        // While the gate is held, no call reaches the world: every call made
-        // at once is admitted, claimed and executing, and none waits on
-        // another's execution to be admitted.
-        let held = session.gate.pass(false);
+        // While another holds the workspace's lock alone, no call reaches
+        // the workspace: every call made at once is admitted, claimed and
+        // executing, and none waits on another's execution to be admitted.
+        let held = crate::workspace_lock::WorkspaceLock::take(
+            &crate::paths::RunxPaths::resolve(&env(root), root),
+            &env(root),
+            crate::workspace_lock::LockMode::Alone,
+        )?;
         let mut calls = Vec::new();
         for index in 0..8 {
             let session = Arc::clone(&session);
@@ -1212,7 +1195,7 @@ mod tests {
                 )
             })
         };
-        // Each call is admitted and then held at the gate, or fails before
+        // Each call is admitted and then held at the lock, or fails before
         // it's admitted and ends, so this reads until all nine are in flight
         // or one has ended.
         while session.in_flight_now().len() < 9 {
@@ -1228,7 +1211,7 @@ mod tests {
         }
         assert!(
             !root.join("out.txt").exists(),
-            "nothing ran while the gate was held"
+            "nothing ran while the lock was held"
         );
         drop(held);
 

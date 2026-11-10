@@ -394,8 +394,8 @@ impl BoundRun {
     }
 
     /// The run's runtime for one pass: the skill's environment, the run's
-    /// identity, authority and prepared context, its log, the gate and stops
-    /// its host brings, and the JavaScript session it started.
+    /// identity, authority and prepared context, its log, the stops its host
+    /// brings, and the JavaScript session it started.
     fn runtime(
         &self,
         log: &RunLog,
@@ -425,7 +425,6 @@ impl BoundRun {
             receipt_signature: self.receipts.signature_config().clone(),
             effects: self.effects.clone(),
             run: log.clone(),
-            effect_gate: host.gate.clone(),
             call_stops: host.stops.clone().unwrap_or_default(),
             packages: Some(self.packages.clone()),
             chain: Vec::new(),
@@ -723,9 +722,6 @@ pub(super) struct RunHost {
     /// The calls a session executes apart from this pass, by turn and
     /// index: this pass never takes them further.
     in_flight: std::collections::BTreeSet<(String, u32)>,
-    /// The gate the run's calls take where they reach the world, when its
-    /// session executes calls concurrently.
-    gate: Option<std::sync::Arc<crate::execution::engine::EffectGate>>,
     /// The stops of the calls its session executes, through which the
     /// session's host cancels one.
     stops: Option<std::sync::Arc<crate::execution::engine::CallStops>>,
@@ -748,7 +744,6 @@ impl RunHost {
             records: false,
             acted: None,
             in_flight: std::collections::BTreeSet::new(),
-            gate: None,
             stops: None,
             receipts: None,
             pool: None,
@@ -771,19 +766,16 @@ impl RunHost {
         self.acted.take()
     }
 
-    /// Work the run as a session whose calls execute concurrently: `gate` is
-    /// what they take where they reach the world, `stops` where each is
-    /// registered while it executes so the session's host can cancel it,
-    /// `shared` the run's receipt tally and pool, which every pass draws from,
-    /// and `in_flight` the calls executing apart from this pass.
+    /// Work the run as a session whose calls execute concurrently: `stops`
+    /// where each is registered while it executes so the session's host can
+    /// cancel it, `shared` the run's receipt tally and pool, which every pass
+    /// draws from, and `in_flight` the calls executing apart from this pass.
     pub(super) fn in_session(
         mut self,
-        gate: std::sync::Arc<crate::execution::engine::EffectGate>,
         stops: std::sync::Arc<crate::execution::engine::CallStops>,
         shared: &super::turn_session::SessionShared,
         in_flight: std::collections::BTreeSet<(String, u32)>,
     ) -> Self {
-        self.gate = Some(gate);
         self.stops = Some(stops);
         self.receipts = Some(std::sync::Arc::clone(&shared.receipts));
         self.pool = Some(std::sync::Arc::clone(&shared.pool));

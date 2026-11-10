@@ -304,21 +304,21 @@ fn journal_of(report: &runx_contracts::JsonObject) -> Option<NonZeroU64> {
 }
 
 /// What a change names it was written against: the digest it replaces, or
-/// that the file is new.
+/// that the file is new. A change that names neither is a new file's, so it
+/// never overwrites one blind, at any reach.
 fn expectation(
     tool: &str,
     path: &str,
     expected_digest: Option<&Digest>,
     create: bool,
-) -> Result<Option<Expected>, RuntimeError> {
+) -> Result<Expected, RuntimeError> {
     match (expected_digest, create) {
         (Some(_), true) => Err(invalid_input(
             tool,
             format!("{path} names an expected_digest or create, not both"),
         )),
-        (Some(digest), false) => Ok(Some(Expected::Digest(digest.as_str().to_owned()))),
-        (None, true) => Ok(Some(Expected::Absent)),
-        (None, false) => Ok(None),
+        (Some(digest), false) => Ok(Expected::Digest(digest.as_str().to_owned())),
+        (None, _) => Ok(Expected::Absent),
     }
 }
 
@@ -330,15 +330,15 @@ fn write_bundle(inputs: &FileWriteInput) -> Result<TextBundle, RuntimeError> {
             contents: inputs.contents.clone(),
         }],
         deletes: Vec::new(),
-        expected: expectation(
-            WRITE_TOOL,
-            &inputs.path,
-            inputs.expected_digest.as_ref(),
-            inputs.create,
-        )?
-        .map(|expected| (inputs.path.clone(), expected))
-        .into_iter()
-        .collect(),
+        expected: std::collections::BTreeMap::from([(
+            inputs.path.clone(),
+            expectation(
+                WRITE_TOOL,
+                &inputs.path,
+                inputs.expected_digest.as_ref(),
+                inputs.create,
+            )?,
+        )]),
     })
 }
 
@@ -491,19 +491,28 @@ fn edit_effect(
 fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeError> {
     let mut expected = std::collections::BTreeMap::new();
     for write in &inputs.writes {
-        if let Some(expectation) = expectation(
-            APPLY_BUNDLE_TOOL,
-            write.path.as_str(),
-            write.expected_digest.as_ref(),
-            write.create,
-        )? {
-            expected.insert(write.path.as_str().to_owned(), expectation);
-        }
+        expected.insert(
+            write.path.as_str().to_owned(),
+            expectation(
+                APPLY_BUNDLE_TOOL,
+                write.path.as_str(),
+                write.expected_digest.as_ref(),
+                write.create,
+            )?,
+        );
     }
     let mut deletes = Vec::with_capacity(inputs.deletes.len());
     for delete in &inputs.deletes {
         match delete {
-            FileBundleDelete::Path(path) => deletes.push(path.as_str().to_owned()),
+            // A delete removes what it read, so it names its digest.
+            FileBundleDelete::Path(path) => {
+                return Err(invalid_input(
+                    APPLY_BUNDLE_TOOL,
+                    format!(
+                        "deleting {path} names no expected_digest: read it, then name the content_digest the read returned"
+                    ),
+                ));
+            }
             FileBundleDelete::Bound(bound) => {
                 expected.insert(
                     bound.path.as_str().to_owned(),

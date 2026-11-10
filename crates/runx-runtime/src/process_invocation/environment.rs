@@ -62,6 +62,14 @@ pub(super) fn child_base_env(
     if let Some(receipt_dir) = base_env.get(RUNX_RECEIPT_DIR_ENV) {
         env.insert(RUNX_RECEIPT_DIR_ENV.to_owned(), receipt_dir.clone());
     }
+    // A process run under the workspace's lock alone hands its token on, so
+    // a runx it starts joins the lock rather than wait on it.
+    if let Some(token) = base_env.get(crate::workspace_lock::RUNX_WORKSPACE_LOCK_TOKEN_ENV) {
+        env.insert(
+            crate::workspace_lock::RUNX_WORKSPACE_LOCK_TOKEN_ENV.to_owned(),
+            token.clone(),
+        );
+    }
     for key in [
         RUNX_RECEIPT_VERIFY_KID_ENV,
         RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,

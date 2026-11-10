@@ -275,12 +275,20 @@ A host pins its own `call_id` on a call, unique within the turn: a call made
 again with that id returns the recorded call rather than running twice, and one
 naming another tool or input is refused. Calls made at once run at once: each
 is admitted and claimed in order under the session, the run's one driver,
-executes apart from it, and is recorded under it again. Where a call reaches the
-world it takes the session's effect gate: a native tool that only reads, or an
-operation that reads, shares it; anything else, a tool runx runs as a process
-included, holds it alone, inside a child run too. So effects never overlap and
-reads never wait on each other, and the run's record, by `call_id`, is what a
-host reads back, whatever order the calls finished in. `turn_status`,
+executes apart from it, and is recorded under it again. Where a call may reach
+the workspace it takes the workspace's lock, as every step of every run on the
+workspace does, in this process or another: a native tool that only reads
+shares it, and so does a connector operation a process carries out that reads,
+its `read` its author's promise; a command, a tool runx runs as a process, a
+connector operation a process carries out that writes, and a native file change
+for its digest check and its write hold it alone, inside a child run too. Two runs' commands never overlap,
+and two runs' changes to one file can't both pass its check. A process runx
+runs under the lock alone gets a token in `RUNX_WORKSPACE_LOCK_TOKEN`, and runx
+started under it joins the lock only while that hold lasts, so it never waits
+on its own command; a process the command leaves running holds nothing, and
+takes the lock as any run does. A provider read or write, an agent call and a
+worker take nothing. The run's record, by `call_id`, is what a host reads back,
+whatever order the calls finished in. `turn_status`,
 `turn_read`, `turn_list` and `turn_complete` wait until no call is executing.
 `call_cancel {call}` cancels one call while it executes, a turn's or a
 script's, at any depth of the run, by its address: `<step>/<n>` in its run, as
@@ -635,12 +643,14 @@ replace_all?}]}` applied in order: each `old` occurs once, or at least once with
 `replace_all`, or the call is refused with why. Every change is bound to what it
 was written against: `fs.write` and each `fs.apply_bundle` write take the
 `expected_digest` a read returned (`content_digest`) for the file they replace,
-or `create: true` for a file that must not exist, and a delete may be `{path,
+or `create: true` for a file that must not exist, and a delete is `{path,
 expected_digest}`; `fs.edit` is bound to the content it read. A change whose
 file differs from what it names is refused, naming it, and each file is checked
-again immediately before its atomic rename. Within `reach: workspace` a change
-to a file that exists must name its digest, so an agent never replaces content
-it did not read.
+again immediately before its atomic rename, under the workspace's lock held
+alone. A change to a file that exists must name its digest, at any reach, so
+no change replaces or removes content its writer did not read: a blind
+overwrite or delete is refused. A write that names nothing is a new file's,
+which must not yet exist.
 
 Every change a run makes through these tools is journaled in the run's kernel
 state: before a bundle's first rename runx records what each file held and the

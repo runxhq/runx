@@ -8,7 +8,7 @@ mod script;
 mod verdict;
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::Instant;
 
@@ -56,6 +56,7 @@ use crate::observations::ContractChecks;
 use crate::output_contract::method_contract_checks;
 use crate::receipts::{RuntimeReceiptSignaturePolicy, StepSeal, StepSealEnding, seal_step};
 use crate::services::merge_inferred_tool_roots;
+use crate::workspace_lock::LockMode;
 
 struct RegularSkillStepOutput {
     output: InvocationOutput,
@@ -996,6 +997,17 @@ where
         }
     };
     let environment = step_environment(&executable);
+    // A process step can change anything and states no precondition, so it
+    // holds the workspace's lock alone, and a runx it starts joins it. A
+    // worker has no I/O, and takes nothing.
+    let lock = match matches!(executable, Executable::Process(_)) {
+        true => Some(
+            runtime
+                .options
+                .workspace_lock(workflow_dir, LockMode::Alone)?,
+        ),
+        false => None,
+    };
     let invocation = SkillInvocation {
         reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         historical_context: Vec::new(),
@@ -1010,13 +1022,14 @@ where
         current_context: Vec::new(),
         provenance,
         skill_directory: workflow_dir.to_path_buf(),
-        env: runtime.options.env.clone(),
+        env: lock.as_ref().map_or_else(
+            || runtime.options.env.clone(),
+            |lock| lock.environment(&runtime.options.env),
+        ),
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
-    // A worker or process step may change anything: it holds the gate alone.
-    let pass = runtime.options.effect_pass(false);
     let regular = invoke_regular_skill_step(runtime, step, invocation, None, authority.as_ref())?;
-    drop(pass);
+    drop(lock);
     seal_regular_skill_step(
         RegularSkillSeal {
             runtime,
@@ -1368,7 +1381,7 @@ where
         given,
     );
     // A catalog tool resolves before it runs.
-    crate::tool_catalogs::dispatch::inspect_catalog_tool(
+    let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
         tool,
         &runtime.options.env,
         workflow_dir,
@@ -1378,11 +1391,26 @@ where
         step_id: step.id.clone(),
         reason: format!("tool {tool} could not be resolved: {error}"),
     })?;
+    // A core tool that reads the workspace shares its lock, and one that
+    // changes it holds it alone, a file change for its digest check and its
+    // write. A tool runx runs as a process holds it alone for as long as it
+    // runs, with a runx it starts joining it. Any other takes nothing.
+    let mode = match crate::tool_catalogs::native::is_core_tool(tool) {
+        true => crate::tool_catalogs::native::workspace_lock_mode(tool),
+        false => (inspected.execution == "process").then_some(LockMode::Alone),
+    };
+    let lock = mode
+        .map(|mode| runtime.options.workspace_lock(workflow_dir, mode))
+        .transpose()?;
+    let env = lock.as_ref().map_or_else(
+        || runtime.options.env.clone(),
+        |lock| lock.environment(&runtime.options.env),
+    );
     let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
         tool: Cow::Borrowed(tool),
         inputs: Cow::Owned(inputs),
         resolved_inputs: Cow::Owned(JsonObject::new()),
-        env: &runtime.options.env,
+        env: &env,
         skill_directory: workflow_dir,
         credential_delivery: &crate::credentials::CredentialDelivery::none(),
         local_artifacts: &runtime.local_artifacts,
@@ -1399,17 +1427,13 @@ where
         &tool_request,
         &runtime.options.effects,
     )?;
-    // A native tool that only reads shares the gate; anything else, a tool
-    // runx runs as a process included, holds it alone.
-    let _pass = runtime
-        .options
-        .effect_pass(crate::tool_catalogs::native::only_reads(tool));
     let output = crate::tool_catalogs::dispatch::dispatch_tool(
         tool_request,
         &runtime.options.effects,
         &runtime.options.clock.now(),
         Instant::now(),
     )?;
+    drop(lock);
     seal_effect_step(
         EffectStepSeal {
             runtime,
@@ -1564,6 +1588,9 @@ where
 struct StepTools<'a, A> {
     runtime: &'a Runtime<A>,
     workflow_dir: &'a Path,
+    /// The run's environment, with the token of the workspace's lock when
+    /// the step holds it alone.
+    env: BTreeMap<String, String>,
     /// Where the step's tools may go.
     reach: runx_contracts::Reach,
     observed: std::cell::RefCell<crate::observations::Observations>,
@@ -1587,7 +1614,7 @@ where
                 tool: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
                 resolved_inputs: Cow::Owned(JsonObject::new()),
-                env: &self.runtime.options.env,
+                env: &self.env,
                 skill_directory: directory,
                 credential_delivery: delivery,
                 local_artifacts: &self.runtime.local_artifacts,
@@ -1644,23 +1671,45 @@ where
             step_id: step.id.clone(),
             reason: "the step's admission is not an operation admission".to_owned(),
         })?;
+    // A call a process carries out takes the workspace's lock: alone for a
+    // write, which can change anything and states no precondition, and
+    // shared for a read, whose `read` verb is its author's promise that it
+    // changes nothing, the promise `effects: none` runs it on (D33). Any
+    // other call orders itself at its provider, and takes nothing.
+    let lock = context
+        .runs_a_process()
+        .then(|| {
+            runtime.options.workspace_lock(
+                workflow_dir,
+                if context.mutation() {
+                    LockMode::Alone
+                } else {
+                    LockMode::Shared
+                },
+            )
+        })
+        .transpose()?;
     let tools = StepTools {
         runtime,
         workflow_dir,
+        env: lock.as_ref().map_or_else(
+            || runtime.options.env.clone(),
+            |lock| lock.environment(&runtime.options.env),
+        ),
         reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         observed: Default::default(),
     };
     let started = Instant::now();
     let mut dispatched = None;
-    let _pass = runtime.options.effect_pass(!context.mutation());
     let outcome = crate::kernel::operation::execute(
         context,
         &step.id,
-        &runtime.options.env,
+        &tools.env,
         workflow_dir,
         &tools,
         &mut dispatched,
     );
+    drop(lock);
     // What the invocation was handed holds for a failed call as for one that
     // succeeded; a call refused before invocation observed neither.
     let mut observations = tools.observed.take();

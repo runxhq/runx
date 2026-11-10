@@ -136,6 +136,9 @@ methods:
         })
     }));
 
+    // The child writes nested.txt as a new file, which never overwrites one
+    // blind, so the file goes before the child runs alone.
+    std::fs::remove_file(workspace.path().join("nested.txt"))?;
     let child_workflow = crate::support::run_yaml_workflow("child-policy-write", &child_run_yaml)?;
     runtime(workspace.path(), "run_nested_child")?.run_workflow_with_host(
         &child,

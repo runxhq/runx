@@ -38,4 +38,5 @@ mod typed_paths;
 mod verify;
 mod work_counts;
 mod workspace;
+mod workspace_lock;
 mod writes;

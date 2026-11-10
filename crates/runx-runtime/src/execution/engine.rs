@@ -253,9 +253,6 @@ pub struct RuntimeOptions {
     pub effects: RuntimeEffectRegistry,
     /// The run this runtime executes, and the stream it records into.
     pub run: RunLog,
-    /// The gate a session's calls take where they reach the world, when the
-    /// run is worked as a session whose calls run concurrently.
-    pub(crate) effect_gate: Option<std::sync::Arc<EffectGate>>,
     /// The stops of the calls the run and its child runs are executing, by
     /// address, through which their host cancels one: its session's, when
     /// it's worked as one.
@@ -354,44 +351,6 @@ pub fn host_max_receipts(env: &BTreeMap<String, String>) -> Result<usize, String
         })
 }
 
-/// The gate a session's calls take where they reach the world: a read shares
-/// it and a change holds it alone, including inside a child run, so effects
-/// never overlap and reads never wait on each other.
-#[derive(Debug, Default)]
-pub(crate) struct EffectGate(std::sync::RwLock<()>);
-
-/// A step's place in the effect gate, held while it reaches the world and
-/// given up when dropped.
-pub(crate) struct EffectPass<'a> {
-    _shared: Option<std::sync::RwLockReadGuard<'a, ()>>,
-    _alone: Option<std::sync::RwLockWriteGuard<'a, ()>>,
-}
-
-impl EffectGate {
-    /// Pass the gate: shared for a read, alone for anything that changes.
-    pub(crate) fn pass(&self, reads: bool) -> EffectPass<'_> {
-        if reads {
-            EffectPass {
-                _shared: Some(
-                    self.0
-                        .read()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner),
-                ),
-                _alone: None,
-            }
-        } else {
-            EffectPass {
-                _shared: None,
-                _alone: Some(
-                    self.0
-                        .write()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner),
-                ),
-            }
-        }
-    }
-}
-
 /// What a run reads once and holds for the rest of it: each package a runtime
 /// no binding made reads, the first time a step needs it, as a binding admits
 /// its packages before the run starts; and the chain each package's
@@ -445,10 +404,22 @@ impl RunReads {
 }
 
 impl RuntimeOptions {
-    /// Where a step that reaches the world passes the run's effect gate, if
-    /// the run has one.
-    pub(crate) fn effect_pass(&self, reads: bool) -> Option<EffectPass<'_>> {
-        self.effect_gate.as_deref().map(|gate| gate.pass(reads))
+    /// Take the workspace's lock, as `mode` says, for a step from
+    /// `workflow_dir` that may reach the workspace (`workspace_lock.rs`).
+    pub(crate) fn workspace_lock(
+        &self,
+        workflow_dir: &Path,
+        mode: crate::workspace_lock::LockMode,
+    ) -> Result<crate::workspace_lock::WorkspaceLock, RuntimeError> {
+        let resolved;
+        let paths = match &self.workspace {
+            Some(paths) => paths,
+            None => {
+                resolved = crate::paths::RunxPaths::resolve(&self.env, workflow_dir);
+                &resolved
+            }
+        };
+        crate::workspace_lock::WorkspaceLock::take(paths, &self.env, mode)
     }
 
     /// The package at `directory` the run executes: the one it admitted, or
@@ -552,7 +523,6 @@ impl RuntimeOptions {
             receipt_signature,
             effects: RuntimeEffectRegistry::default(),
             run,
-            effect_gate: None,
             call_stops: std::sync::Arc::default(),
             packages: None,
             chain: Vec::new(),

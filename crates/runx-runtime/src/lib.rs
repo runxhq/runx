@@ -57,6 +57,7 @@ pub mod secrets;
 mod services;
 mod skill_package;
 mod time;
+mod workspace_lock;
 pub use process::detached::{
     ProcessError, SUPERVISOR_FLAG, list_processes, read_process, stop_process, supervise_from_args,
 };

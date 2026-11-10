@@ -24,13 +24,15 @@ pub(super) struct AdmittedBundle {
 /// Each change is bound to what it was written against: a named digest is
 /// the content now there, and a file that must not exist does not. Within
 /// `reach: workspace` a change to a file that exists names the digest it
-/// read, so an agent never replaces content it did not see.
+/// read, so an agent never replaces content it did not see. A write whose
+/// file already holds exactly what it writes changes nothing, whatever it
+/// names, so a write sent again after it landed finds itself applied.
 fn admit_expected(
     operation: &str,
     named: &str,
-    relative: &str,
-    absolute: &Path,
+    (relative, absolute): (&str, &Path),
     expected: Option<&super::Expected>,
+    writes: Option<&str>,
     reach: Reach,
 ) -> Result<(), RuntimeError> {
     let current = match fs::read(absolute) {
@@ -43,6 +45,11 @@ fn admit_expected(
             ));
         }
     };
+    if let (Some(current), Some(contents)) = (&current, writes)
+        && *current == runx_contracts::sha256_prefixed(contents.as_bytes())
+    {
+        return Ok(());
+    }
     let refused = |message: String| Err(invalid_bundle(operation, message));
     match (expected, current) {
         (Some(super::Expected::Digest(digest)), Some(current)) if *digest == current => Ok(()),
@@ -51,7 +58,7 @@ fn admit_expected(
         )),
         (Some(super::Expected::Digest(_)), None) => refused(format!("{relative} no longer exists")),
         (Some(super::Expected::Absent), Some(_)) => refused(format!(
-            "{relative} exists; read it and name the digest it replaces"
+            "{relative} exists and this change names no expected_digest: read it, then name the content_digest the read returned"
         )),
         (Some(super::Expected::Absent), None) | (None, None) => Ok(()),
         (None, Some(_)) if reach == Reach::Workspace => refused(format!(
@@ -140,9 +147,9 @@ fn admit_writes(
         admit_expected(
             operation,
             &write.path,
-            &relative,
-            &absolute,
+            (&relative, &absolute),
             bundle.expected.get(&write.path),
+            Some(&write.contents),
             reach,
         )?;
         writes.push(AdmittedWrite {
@@ -169,9 +176,9 @@ fn admit_deletes(
         admit_expected(
             operation,
             delete,
-            &relative,
-            &absolute,
+            (&relative, &absolute),
             bundle.expected.get(delete),
+            None,
             reach,
         )?;
         deletes.push((relative, absolute));

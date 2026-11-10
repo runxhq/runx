@@ -321,33 +321,73 @@ fn two_calls_waiting_on_approval_at_once_are_both_listed_and_answered_apart() ->
     Ok(())
 }
 
-/// Three calls run at once under `concurrency: 3`: each call's child marks
-/// that it started, then waits until all three have, which it can only get
-/// past if all three run together.
+/// Three calls run at once under `concurrency: 3`: each call's child reads
+/// through a process that marks that it started, then waits until all three
+/// have, which it can only get past if all three run together. A process
+/// read shares the workspace's lock, its `read` its author's promise. Changed
+/// 11 November: each child ran a process step, which now holds the
+/// workspace's lock alone, so three can't meet.
 #[test]
 fn a_script_runs_its_calls_at_once_up_to_its_concurrency() -> TestResult {
     let temp = tempdir()?;
     let barrier = temp.path().join("started");
+    let tool = temp.path().join("connectors/meet/tools/meet/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(
+        temp.path().join("connectors/meet/connector.yaml"),
+        r#"schema: runx.connector.v1
+name: meet
+title: Meet
+description: Reads once three have started.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  meet.wait:
+    description: Mark a start, then read once three have started.
+    verb: read
+    scopes: [meet.read]
+    target:
+      template: "meet"
+    result_fields: [met]
+    implementation:
+      process:
+        tool: meet.wait
+"#,
+    )?;
+    std::fs::write(
+        tool.join("manifest.json"),
+        r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "meet.wait",
+  "version": "0.1.0",
+  "description": "Mark a start, then read once three have started.",
+  "process": {"command": "sh", "args": ["./wait.sh"]},
+  "inputs": {}
+}
+"#,
+    )?;
+    std::fs::write(
+        tool.join("wait.sh"),
+        format!(
+            "#!/bin/sh\nmkdir -p \"{dir}\" && : > \"{dir}/$$\" && until [ \"$(ls \"{dir}\" | wc -l)\" -ge 3 ]; do :; done; printf '{{\"met\":true}}\\n'\n",
+            dir = barrier.display()
+        ),
+    )?;
     let child = temp.path().join("barrier-child");
     crate::support::write_test_skill_package(
         &child,
         "---\nname: barrier-child\ndescription: Waits until three of it have started.\n---\n# Barrier child\n\nMeet the others.\n",
-        &format!(
-            r#"minimum_runx: 0.12.0
+        r#"minimum_runx: 0.12.0
 methods:
   meet:
     steps:
       - id: meet
-        tool:
-          command: sh
-          args:
-            - -c
-            - 'mkdir -p "{dir}" && : > "{dir}/$$" && until [ "$(ls "{dir}" | wc -l)" -ge 3 ]; do :; done; printf "{{\"met\":true}}\n"'
-        outputs:
-          met: {{type: boolean}}
+        operation: meet/meet.wait
+        inputs: {}
 "#,
-            dir = barrier.display()
-        ),
     )?;
     let skill_dir = temp.path().join("script-demo");
     crate::support::write_test_skill_package(
@@ -373,11 +413,16 @@ methods:
         skill_dir.join("prepare.mjs"),
         r#"export default async function (ctx) {
   const met = await Promise.all([0, 1, 2].map(() => ctx.skill("../barrier-child", {})));
-  return { met: met.map((child) => child.met) };
+  return { met: met.map((child) => Boolean(child)) };
 }
 "#,
     )?;
-    let sealed = run(temp.path(), skill_dir)?;
+    // Connector operations run on the kernel's local effects.
+    let orchestrator = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        env(temp.path()),
+    );
+    let sealed = run_on(orchestrator, temp.path(), skill_dir)?;
     let output = object(&sealed.output)?;
     assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
     let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
