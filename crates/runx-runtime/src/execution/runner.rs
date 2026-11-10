@@ -643,6 +643,12 @@ pub struct StepRun {
     /// carries the direct-child references; this collection supplies the
     /// referenced receipts without embedding child workflow output payloads.
     pub nested_receipts: Vec<Receipt>,
+    /// The receipts below this step that its run's record holds and this
+    /// process hasn't read, by digest: a step replayed from the record reads
+    /// them only when its run seals, so a resume reads what its run holds,
+    /// not every call its settled steps made.
+    #[doc(hidden)]
+    pub recorded_nested: Vec<String>,
     /// Why a guard or an authority refused the child run this step ran, when
     /// one did. Like the ephemeral overlay it lives only in the process that
     /// ran the step; its run returns it to its caller.
@@ -678,7 +684,19 @@ impl StepRun {
 
     /// The receipts this run adds to its tree: its own and each it carries.
     pub(crate) fn receipts(&self) -> usize {
-        1 + self.nested_receipts.len()
+        1 + self.nested_receipts.len() + self.recorded_nested.len()
+    }
+
+    /// Read the receipts below this step its run's record holds, as its run
+    /// seals.
+    pub(crate) fn read_recorded_nested(
+        &mut self,
+        store: &crate::kernel::store::KernelStore,
+    ) -> Result<(), crate::kernel::store::KernelStoreError> {
+        for digest in std::mem::take(&mut self.recorded_nested) {
+            self.nested_receipts.push(store.blob_json(&digest)?);
+        }
+        Ok(())
     }
 }
 
@@ -1000,6 +1018,7 @@ where
         );
         match execution.run(self, workflow_dir, &workflow, host) {
             Ok(()) => {
+                execution.read_recorded_receipts(self.options.run.store())?;
                 let receipt = workflow_receipt_with_ending(
                     self.scope(&workflow.name),
                     &execution.runs,
@@ -1017,6 +1036,7 @@ where
                 let Some((step_id, closure)) = workflow_stop_ending(&error) else {
                     return self.seal_failed_workflow_in_place(execution, workflow, error, host);
                 };
+                execution.read_recorded_receipts(self.options.run.store())?;
                 let receipt = workflow_receipt_with_ending(
                     self.scope(&workflow.name),
                     &execution.runs,
@@ -1096,6 +1116,7 @@ where
             )?)
         };
         execution.fail_workflow_at(self, host, &step_id, fault_run)?;
+        execution.read_recorded_receipts(self.options.run.store())?;
         let receipt = workflow_receipt_with_ending(
             self.scope(&workflow.name),
             &execution.runs,
@@ -1177,6 +1198,7 @@ where
         host: &mut dyn Host,
     ) -> Result<WorkflowRun, RuntimeError> {
         let mut execution = self.open_execution(&workflow)?;
+        execution.read_recorded_receipts(self.options.run.store())?;
         let receipt = workflow_receipt_with_ending(
             self.scope(&workflow.name),
             &execution.runs,
@@ -1229,6 +1251,7 @@ where
                 step_handlers::runtime_error_step_run(self, &workflow.name, step, attempt, error)?;
             execution.record_terminal_step_failure(self, host, step_id, failed_run)?;
         }
+        execution.read_recorded_receipts(self.options.run.store())?;
         let receipt = workflow_receipt_with_ending(
             self.scope(&workflow.name),
             &execution.runs,
@@ -2068,6 +2091,7 @@ mod tests {
             ephemeral_contract: EphemeralValue::default(),
             outcome: output.into(),
             nested_receipts: Vec::new(),
+            recorded_nested: Vec::new(),
             refusal: None,
             admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
             receipt,

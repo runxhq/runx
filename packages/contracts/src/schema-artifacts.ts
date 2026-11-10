@@ -13275,7 +13275,7 @@ export const runxSchemaArtifacts = {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunEventFact"
       },
       "stream": {
-        "description": "The stream: the run id, or `<run>/<path>` for a child run.",
+        "description": "The stream: the run id, `<run>/<path>` for a child run, or `<run>/<step>@<attempt>` for the calls of a step of the run.",
         "minLength": 1,
         "type": "string"
       },

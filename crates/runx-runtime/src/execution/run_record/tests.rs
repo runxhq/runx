@@ -90,6 +90,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
         receipt,
         nested_receipts: Vec::new(),
+        recorded_nested: Vec::new(),
         refusal: None,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
@@ -613,8 +614,9 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     );
     assert_eq!(waiting_ids(&store, "run_turn_1"), ["answer"]);
 
-    // A reader that has not seen the run's latest event is contended.
+    // A reader that has not seen a step's latest call is contended.
     let stale = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
+    assert_eq!(stale.calls("answer", 1).unwrap().len(), 2);
     log.record_call(&CallRecord {
         step_id: "answer",
         attempt: 1,
@@ -1257,10 +1259,10 @@ fn rows_read(measure: impl FnOnce()) -> u64 {
 }
 
 #[test]
-fn a_run_taken_whole_reads_each_call_once_and_nothing_it_settled() {
+fn a_run_taken_whole_reads_none_of_its_calls() {
     let test = concat!(
         module_path!(),
-        "::a_run_taken_whole_reads_each_call_once_and_nothing_it_settled"
+        "::a_run_taken_whole_reads_none_of_its_calls"
     );
     // The rows a new log reads to take whole a run whose turn made `calls`
     // calls.
@@ -1274,9 +1276,8 @@ fn a_run_taken_whole_reads_each_call_once_and_nothing_it_settled() {
     };
     let (small, large) = crate::work_counts::alone(test, || (whole(10), whole(1_000)));
     assert_eq!(
-        large - small,
-        990,
-        "a call's event is one row, and its input and result wait until its step reads them"
+        small, large,
+        "a step's calls are on its own stream, which only the step reads"
     );
 }
 

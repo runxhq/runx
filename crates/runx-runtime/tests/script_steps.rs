@@ -139,7 +139,7 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<(u32, &'static str)>
     Ok(read
         .events
         .into_iter()
-        .filter(|record| record.stream.as_str() == run_id)
+        .filter(|record| of_run(record.stream.as_str(), run_id))
         .filter_map(|record| match record.event {
             RunEventFact::Call { index, outcome, .. } => Some((
                 index,
@@ -649,7 +649,7 @@ fn clock_reads(root: &Path, run_id: &str) -> TestResult<Vec<(u32, i64)>> {
     Ok(read
         .events
         .into_iter()
-        .filter(|record| record.stream.as_str() == run_id)
+        .filter(|record| of_run(record.stream.as_str(), run_id))
         .filter_map(|record| match record.event {
             RunEventFact::Clock { index, millis, .. } => Some((index, millis)),
             _ => None,
@@ -712,7 +712,7 @@ fn waited(root: &Path, run_id: &str) -> TestResult<Vec<(u32, i64)>> {
     Ok(read
         .events
         .into_iter()
-        .filter(|record| record.stream.as_str() == run_id)
+        .filter(|record| of_run(record.stream.as_str(), run_id))
         .filter_map(|record| match record.event {
             RunEventFact::Call { index, outcome, .. } => match *outcome {
                 RunCallOutcome::Waited { at } => Some((index, at)),
@@ -854,7 +854,7 @@ fn call_outputs(root: &Path, run_id: &str, index: u32) -> TestResult<BTreeMap<St
     Ok(read
         .events
         .into_iter()
-        .filter(|record| record.stream.as_str() == run_id)
+        .filter(|record| of_run(record.stream.as_str(), run_id))
         .filter_map(|record| match record.event {
             RunEventFact::Call {
                 index: at, outcome, ..
@@ -1761,7 +1761,7 @@ fn a_skill_call_records_its_reuse_ask_once_and_runs() -> TestResult {
     let asked = |wanted: u32| {
         read.events
             .iter()
-            .filter(|record| record.stream.as_str() == run_id)
+            .filter(|record| of_run(record.stream.as_str(), run_id))
             .filter_map(|record| match &record.event {
                 RunEventFact::Call { index, reuse, .. } if *index == wanted => Some(reuse.clone()),
                 _ => None,
@@ -1785,4 +1785,10 @@ fn a_skill_call_records_its_reuse_ask_once_and_runs() -> TestResult {
         "a call that asks for nothing records nothing"
     );
     Ok(())
+}
+
+/// Whether `stream` is run `run_id`'s own or one of its steps' calls
+/// streams.
+fn of_run(stream: &str, run_id: &str) -> bool {
+    stream == run_id || runx_runtime::run_record::is_calls_stream_of(stream, run_id)
 }

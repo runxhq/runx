@@ -374,6 +374,7 @@ fn step_run(
         outcome: output.into(),
         receipt,
         nested_receipts: Vec::new(),
+        recorded_nested: Vec::new(),
         refusal: None,
         admission_witness,
         settlement: None,

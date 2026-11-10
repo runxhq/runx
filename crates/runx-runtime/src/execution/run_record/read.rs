@@ -64,7 +64,7 @@ pub fn read_run(
     let reached = page.last().map_or(after, |event| event.sequence);
     let events = page
         .into_iter()
-        .map(|event| project(&store, &event.key, event.recorded))
+        .filter_map(|event| project(&store, &event.key, event.recorded).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     // An admitted answer updates the run but leaves it where it waits.
     let updated_at = store
@@ -157,11 +157,13 @@ struct ReceiptId {
     id: String,
 }
 
+/// How a host reads one event of a run's tree; none for the answers a call
+/// used, which the run records beside the call that the read shows.
 fn project(
     store: &KernelStore,
     stream: &str,
     recorded: Recorded<RunEvent>,
-) -> Result<RunEventRecord, RunRecordError> {
+) -> Result<Option<RunEventRecord>, RunRecordError> {
     let step =
         |record: &str, receipt: &str| -> Result<(StepOutcome, NonEmptyString), RunRecordError> {
             let status: StepStatus = store.blob_json(record)?;
@@ -295,6 +297,7 @@ fn project(
         RunEvent::Standing(standing) => RunEventFact::Standing {
             approvals: standing.approvals,
         },
+        RunEvent::Consumed(_) => return Ok(None),
         RunEvent::Answered(answered) => RunEventFact::Answered {
             address: answered.request_id.into(),
             request_digest: answered.request_digest.into(),
@@ -306,12 +309,12 @@ fn project(
             },
         },
     };
-    Ok(RunEventRecord {
+    Ok(Some(RunEventRecord {
         stream: stream.into(),
         version: recorded.version,
         committed_at: recorded.committed_at.into(),
         event,
-    })
+    }))
 }
 
 /// A recorded reason, which is never empty on the wire.

@@ -2711,7 +2711,7 @@ export type RunEventRecordContract = {
   /** When the event committed, for display only: it orders nothing. */
   readonly committed_at: string;
   readonly event: RunEventFactContract;
-  /** The stream: the run id, or `<run>/<path>` for a child run. */
+  /** The stream: the run id, `<run>/<path>` for a child run, or `<run>/<step>@<attempt>` for the calls of a step of the run. */
   readonly stream: string;
   readonly version: number;
 };

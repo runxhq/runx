@@ -327,7 +327,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
             )));
         }
     }
-    let steps = record
+    let mut steps = record
         .facts
         .iter()
         .filter_map(|fact| match fact {
@@ -335,6 +335,11 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
             Replayed::Skipped(_) => None,
         })
         .collect::<Vec<_>>();
+    // The run seals now, so the receipts its steps hold by digest are read.
+    for step in &mut steps {
+        step.read_recorded_nested(log.store())
+            .map_err(crate::execution::run_record::RunRecordError::from)?;
+    }
     let receipt = crate::receipts::workflow_receipt_with_ending(
         RunScope {
             run_id,

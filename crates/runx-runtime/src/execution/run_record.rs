@@ -67,6 +67,7 @@ enum RunEvent {
     Suspended(Box<SuspendedEvent>),
     Call(Box<CallEvent>),
     Clock(Box<ClockEvent>),
+    Consumed(Box<ConsumedEvent>),
     Sealed(Box<SealedEvent>),
     Answered(Box<AnsweredEvent>),
     Standing(Box<StandingEvent>),
@@ -85,6 +86,7 @@ impl StreamEvent for RunEvent {
             Self::Suspended(_) => "suspended",
             Self::Call(_) => "call",
             Self::Clock(_) => "clock",
+            Self::Consumed(_) => "consumed",
             Self::Sealed(_) => "sealed",
             Self::Answered(_) => ANSWERED,
             Self::Standing(_) => "standing",
@@ -354,6 +356,18 @@ impl WaitingCallEvent {
     }
 }
 
+/// The answers call `index` of `step_id`'s `attempt` used, on its run's own
+/// stream, where the call itself is on its step's: what the run consumed,
+/// read without its calls.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConsumedEvent {
+    step_id: String,
+    attempt: u32,
+    index: u32,
+    answers: Vec<AnswerEvent>,
+}
+
 /// A script read the clock: what `ctx.now()` returned at its position in its
 /// step, so replay returns the same.
 #[derive(Debug, Serialize, Deserialize)]
@@ -423,7 +437,7 @@ enum CallOutcomeEvent {
 }
 
 /// An answer a step consumed, bound to the request it answered.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AnswerEvent {
     request_id: String,
@@ -735,8 +749,6 @@ struct RunLogInner {
     /// The act the run was started with, held once this log reads or records
     /// the run's start. A run's act never changes after it starts.
     act: OnceLock<Option<CallAct>>,
-    /// Where each turn's calls begin in the stream.
-    calls: Mutex<CallIndex>,
     /// What this log read of its run, so it reads again only what was
     /// committed since.
     kept: Mutex<Kept>,
@@ -750,45 +762,51 @@ struct Kept {
     steps: BTreeMap<(String, u32), KeptCalls>,
 }
 
-/// A step's calls, each as its latest event settled it, and its script's
-/// clock reads, by position, through `through`.
-#[derive(Clone)]
+/// A step's calls, each as its latest event settled it, the calls that
+/// still wait, and its script's clock reads, by position, as its own stream
+/// holds them through `through`.
+#[derive(Clone, Default)]
 struct KeptCalls {
     through: u64,
+    /// The stream's version as this log last wrote it, which a read takes up
+    /// from `through`.
+    written: u64,
     calls: Vec<RecordedCall>,
+    waiting: BTreeMap<u32, WaitingCallEvent>,
     clock: BTreeMap<u32, i64>,
     /// The place the step's next call event takes among its call events.
     order: u64,
 }
 
 impl KeptCalls {
-    fn through(through: u64) -> Self {
-        Self {
-            through,
-            calls: Vec::new(),
-            clock: BTreeMap::new(),
-            order: 0,
-        }
-    }
-
-    /// The step's calls after `events`, the stream's next.
+    /// The step's calls after `events`, its stream's next, which holds
+    /// nothing but its calls and its script's clock reads.
     fn apply(
         &mut self,
         store: &KernelStore,
+        stream: &str,
         events: Vec<Recorded<RunEvent>>,
-        step_id: &str,
-        attempt: u32,
     ) -> Result<(), RunRecordError> {
         for recorded in events {
             match recorded.event {
-                RunEvent::Call(call) if call.step_id == step_id && call.attempt == attempt => {
+                RunEvent::Call(call) => {
+                    match WaitingCallEvent::of(call.index, &call.outcome) {
+                        Some(waits) => self.waiting.insert(call.index, waits),
+                        None => self.waiting.remove(&call.index),
+                    };
                     settle_call(&mut self.calls, recorded_call(store, *call, self.order)?);
                     self.order += 1;
                 }
-                RunEvent::Clock(read) if read.step_id == step_id && read.attempt == attempt => {
+                RunEvent::Clock(read) => {
                     self.clock.insert(read.index, read.millis);
                 }
-                _ => {}
+                _ => {
+                    return Err(RunRecordError::Invalid {
+                        run_id: stream.to_owned(),
+                        reason: "a step's calls stream holds something other than its calls"
+                            .to_owned(),
+                    });
+                }
             }
             self.through = recorded.version;
         }
@@ -803,52 +821,20 @@ impl KeptCalls {
     }
 }
 
-/// The version of each step's first call or clock read, and the calls of
-/// each step that still wait, by index, by step and attempt, complete for the
-/// stream through `through`: a turn's or a script's calls are read from its
-/// first, never from the run's start, and what a step's calls wait on is
-/// written beside its hold or its turn's call without reading any of them.
-#[derive(Clone, Default)]
-struct CallIndex {
-    through: u64,
-    first: BTreeMap<(String, u32), u64>,
-    waiting: BTreeMap<(String, u32), BTreeMap<u32, WaitingCallEvent>>,
+/// The key of the stream that holds the calls of step `step_id`'s
+/// `attempt` in run `run_id`, beside the run's own stream and in its tree.
+/// No run id or step id holds an `@`, so it names no run.
+pub(crate) fn calls_key(run_id: &str, step_id: &str, attempt: u32) -> String {
+    format!("{run_id}/{step_id}@{attempt}")
 }
 
-impl CallIndex {
-    fn of<'a>(events: impl IntoIterator<Item = &'a Recorded<RunEvent>>) -> Self {
-        let mut index = Self::default();
-        for recorded in events {
-            index.note(recorded.version, &recorded.event);
-        }
-        index
-    }
-
-    /// `event`, at `version`, the next the stream holds.
-    fn note(&mut self, version: u64, event: &RunEvent) {
-        if let RunEvent::Call(call) = event {
-            let waiting = self
-                .waiting
-                .entry((call.step_id.clone(), call.attempt))
-                .or_default();
-            match WaitingCallEvent::of(call.index, &call.outcome) {
-                Some(waits) => waiting.insert(call.index, waits),
-                None => waiting.remove(&call.index),
-            };
-        }
-        let step = match event {
-            RunEvent::Call(call) => Some((&call.step_id, call.attempt)),
-            // A script may read the clock before it makes a call.
-            RunEvent::Clock(read) => Some((&read.step_id, read.attempt)),
-            _ => None,
-        };
-        if let Some((step_id, attempt)) = step {
-            self.first
-                .entry((step_id.clone(), attempt))
-                .or_insert(version);
-        }
-        self.through = version;
-    }
+/// Whether `stream` holds the calls of one of run `run_id`'s steps.
+#[must_use]
+pub fn is_calls_stream_of(stream: &str, run_id: &str) -> bool {
+    stream
+        .strip_prefix(run_id)
+        .and_then(|rest| rest.strip_prefix('/'))
+        .is_some_and(|step| !step.contains('/') && step.contains('@'))
 }
 
 impl std::fmt::Debug for RunLog {
@@ -874,7 +860,6 @@ impl RunLog {
             version: Mutex::new(version),
             strict: true,
             act: OnceLock::new(),
-            calls: Mutex::default(),
             kept: Mutex::default(),
         })))
     }
@@ -894,7 +879,6 @@ impl RunLog {
             version: Mutex::new(version),
             strict: false,
             act: self.0.act.clone(),
-            calls: Mutex::default(),
             kept: Mutex::new(kept),
         }))
     }
@@ -983,11 +967,7 @@ impl RunLog {
                 .store
                 .read_all_after::<RunEvent>(&self.0.run_id, *through)?;
             let mut held = self.version();
-            let mut index = self.call_index();
             for recorded in newer {
-                if index.through + 1 == recorded.version {
-                    index.note(recorded.version, &recorded.event);
-                }
                 record.apply(&self.0.store, &self.0.run_id, recorded.event)?;
                 *through = recorded.version;
             }
@@ -998,7 +978,6 @@ impl RunLog {
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
         let version = events.last().map_or(0, |event| event.version);
         *self.version() = version;
-        *self.call_index() = CallIndex::of(&events);
         let record = replay(
             &self.0.store,
             &self.0.run_id,
@@ -1034,13 +1013,6 @@ impl RunLog {
         let _first_kept = self.0.act.set(act.cloned());
     }
 
-    fn call_index(&self) -> std::sync::MutexGuard<'_, CallIndex> {
-        self.0
-            .calls
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
     fn kept(&self) -> std::sync::MutexGuard<'_, Kept> {
         self.0
             .kept
@@ -1066,62 +1038,51 @@ impl RunLog {
         step_id: &str,
         attempt: u32,
     ) -> Result<(Vec<RecordedCall>, BTreeMap<u32, i64>), RunRecordError> {
-        let step = (step_id.to_owned(), attempt);
-        let version = *self.version();
-        if self.0.strict && self.0.store.version::<RunEvent>(&self.0.run_id)? != version {
-            return Err(RunRecordError::Contended {
+        if self.0.strict {
+            let contended = || RunRecordError::Contended {
                 run_id: self.0.run_id.clone(),
-            });
-        }
-        // A step's calls this log read are read again only from where it read
-        // them to.
-        if let Some(calls) = self.kept().steps.get_mut(&step) {
-            let newer = self
-                .0
-                .store
-                .read_all_after::<RunEvent>(&self.0.run_id, calls.through)?;
-            calls.apply(&self.0.store, newer, step_id, attempt)?;
-            return Ok(calls.read());
-        }
-        // A driver's log knows where the step's calls begin, as long as no
-        // other writer has advanced the run since it last read it, so it reads
-        // them from there; settling a call costs the same at call 1,000 as at
-        // call 1.
-        let index = self.call_index().clone();
-        let read = if self.0.strict && index.through == version {
-            match index.first.get(&step) {
-                None => KeptCalls::through(version),
-                Some(&first) => {
-                    let events = self
-                        .0
-                        .store
-                        .read_all_after::<RunEvent>(&self.0.run_id, first - 1)?;
-                    let mut calls = KeptCalls::through(first - 1);
-                    calls.apply(&self.0.store, events, step_id, attempt)?;
-                    calls
-                }
+            };
+            if self.0.store.version::<RunEvent>(&self.0.run_id)? != *self.version() {
+                return Err(contended());
             }
-        } else {
-            // A log that only reads, or one that never read the run it writes,
-            // takes the run whole, and a driver's then knows where its calls
-            // begin.
-            crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
-            let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
-            if self.0.strict {
-                if events.last().map_or(0, |event| event.version) != version {
-                    return Err(RunRecordError::Contended {
-                        run_id: self.0.run_id.clone(),
-                    });
-                }
-                *self.call_index() = CallIndex::of(&events);
+            // Calls another writer made since this log read the step's.
+            let known = self
+                .kept()
+                .steps
+                .get(&(step_id.to_owned(), attempt))
+                .map(|calls| calls.through.max(calls.written));
+            if let Some(known) = known
+                && self
+                    .0
+                    .store
+                    .version::<RunEvent>(&calls_key(&self.0.run_id, step_id, attempt))?
+                    != known
+            {
+                return Err(contended());
             }
-            let mut calls = KeptCalls::through(0);
-            calls.apply(&self.0.store, events, step_id, attempt)?;
-            calls
-        };
-        let calls = read.read();
-        self.kept().steps.insert(step, read);
-        Ok(calls)
+        }
+        self.kept_calls(step_id, attempt, KeptCalls::read)
+    }
+
+    /// The calls of `step_id`'s `attempt` as its own stream holds them, given
+    /// to `read`: read whole the first time this log reads them, and then only
+    /// from where it read them to, so a step's calls are read once and the
+    /// run's own stream holds none of them.
+    fn kept_calls<R>(
+        &self,
+        step_id: &str,
+        attempt: u32,
+        read: impl FnOnce(&KeptCalls) -> R,
+    ) -> Result<R, RunRecordError> {
+        let key = calls_key(&self.0.run_id, step_id, attempt);
+        let mut kept = self.kept();
+        let calls = kept.steps.entry((step_id.to_owned(), attempt)).or_default();
+        let newer = self
+            .0
+            .store
+            .read_all_after::<RunEvent>(&key, calls.through)?;
+        calls.apply(&self.0.store, &key, newer)?;
+        Ok(read(calls))
     }
 
     /// Record what a script's `ctx.now()` read at position `index` of its
@@ -1133,7 +1094,8 @@ impl RunLog {
         index: u32,
         millis: i64,
     ) -> Result<(), RunRecordError> {
-        self.append(
+        self.append_call(
+            (step_id, attempt),
             RunEvent::Clock(Box::new(ClockEvent {
                 step_id: step_id.to_owned(),
                 attempt,
@@ -1141,6 +1103,8 @@ impl RunLog {
                 millis,
             })),
             Vec::new(),
+            None,
+            None,
         )
     }
 
@@ -1282,7 +1246,11 @@ impl RunLog {
             attempt: step.attempt,
             record: record.digest().to_owned(),
             receipt: receipt.digest().to_owned(),
-            nested: nested.iter().map(|blob| blob.digest().to_owned()).collect(),
+            nested: nested
+                .iter()
+                .map(|blob| blob.digest().to_owned())
+                .chain(step.recorded_nested.iter().cloned())
+                .collect(),
             answers: answers
                 .iter()
                 .zip(&values)
@@ -1512,7 +1480,11 @@ impl RunLog {
                 let outcome = CallOutcomeEvent::Completed {
                     record: record.digest().to_owned(),
                     receipt: receipt.digest().to_owned(),
-                    nested: nested.iter().map(|blob| blob.digest().to_owned()).collect(),
+                    nested: nested
+                        .iter()
+                        .map(|blob| blob.digest().to_owned())
+                        .chain(step.recorded_nested.iter().cloned())
+                        .collect(),
                     outputs: call.outputs.to_vec(),
                 };
                 blobs.extend([record, receipt]);
@@ -1598,39 +1570,33 @@ impl RunLog {
             waiting,
         };
         blobs.extend(values);
-        self.append_settling(RunEvent::Call(Box::new(event)), blobs, settlement)
+        // The answers a call used are the run's to know without reading its
+        // calls, so the run records them on its own stream with the call.
+        let consumed = (!event.answers.is_empty()).then(|| {
+            RunEvent::Consumed(Box::new(ConsumedEvent {
+                step_id: event.step_id.clone(),
+                attempt: event.attempt,
+                index: event.index,
+                answers: event.answers.clone(),
+            }))
+        });
+        self.append_call(
+            (call.step_id, call.attempt),
+            RunEvent::Call(Box::new(event)),
+            blobs,
+            consumed,
+            settlement,
+        )
     }
 
     /// The calls of the step at `step_id`'s `attempt` that still wait, by
-    /// index, as the stream stands: from this log's index of calls while it
-    /// is whole, and otherwise from the run read whole once, which leaves a
-    /// driver's index whole.
+    /// index, as its calls stream stands.
     fn waiting_calls(
         &self,
         step_id: &str,
         attempt: u32,
     ) -> Result<BTreeMap<u32, WaitingCallEvent>, RunRecordError> {
-        let step = (step_id.to_owned(), attempt);
-        let version = *self.version();
-        {
-            let index = self.call_index();
-            if index.through == version {
-                return Ok(index.waiting.get(&step).cloned().unwrap_or_default());
-            }
-        }
-        crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
-        let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
-        let read = CallIndex::of(&events);
-        let waiting = read.waiting.get(&step).cloned().unwrap_or_default();
-        if self.0.strict {
-            if read.through != version {
-                return Err(RunRecordError::Contended {
-                    run_id: self.0.run_id.clone(),
-                });
-            }
-            *self.call_index() = read;
-        }
-        Ok(waiting)
+        self.kept_calls(step_id, attempt, |calls| calls.waiting.clone())
     }
 
     pub(crate) fn record_sealed(
@@ -1717,12 +1683,73 @@ impl RunLog {
             Ok(versions) => {
                 let before = *version;
                 *version = versions.first().copied().unwrap_or(before + 1);
-                // What this log writes keeps its index of calls whole, as
-                // long as it was whole to where the write began.
-                let mut index = self.call_index();
-                if index.through == before {
-                    index.note(*version, &event);
+                Ok(())
+            }
+            Err(KernelStoreError::Conflict { .. }) => Err(RunRecordError::Contended {
+                run_id: self.0.run_id.clone(),
+            }),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// Record `event`, a call or a clock read of `step_id`'s `attempt`, on the
+    /// step's calls stream, with what the run records of it on its own
+    /// stream, and the effect it settled, in one transaction.
+    fn append_call(
+        &self,
+        (step_id, attempt): (&str, u32),
+        event: RunEvent,
+        blobs: Vec<Blob>,
+        run_event: Option<RunEvent>,
+        settlement: Option<&Settlement>,
+    ) -> Result<(), RunRecordError> {
+        let key = calls_key(&self.0.run_id, step_id, attempt);
+        let step = (step_id.to_owned(), attempt);
+        let known = self
+            .kept()
+            .steps
+            .get(&step)
+            .map(|calls| calls.through.max(calls.written));
+        let stream_version = match known {
+            Some(version) => version,
+            None => self.0.store.version::<RunEvent>(&key)?,
+        };
+        let expected = match stream_version {
+            0 => Expected::Absent,
+            version => Expected::Version(version),
+        };
+        let mut batch = vec![Append::kernel(key, expected, &event)?.with_blobs(blobs)];
+        if let Some(settlement) = settlement {
+            batch.extend(settlement.appends(&self.0.store).map_err(|error| {
+                RunRecordError::Invalid {
+                    run_id: self.0.run_id.clone(),
+                    reason: format!("settling the step's effect: {error}"),
                 }
+            })?);
+        }
+        let mut version = self.version();
+        if *version == 0 {
+            return Err(RunRecordError::Invalid {
+                run_id: self.0.run_id.clone(),
+                reason: "the run was not started".to_owned(),
+            });
+        }
+        let run_position = batch.len();
+        if let Some(run_event) = &run_event {
+            batch.push(Append::kernel(
+                self.0.run_id.clone(),
+                Expected::Version(*version),
+                run_event,
+            )?);
+        }
+        match self.0.store.append(batch) {
+            Ok(versions) => {
+                if run_event.is_some() {
+                    *version = versions.get(run_position).copied().unwrap_or(*version + 1);
+                }
+                drop(version);
+                let written = versions.first().copied().unwrap_or(stream_version + 1);
+                self.kept().steps.entry(step).or_default().written = written;
                 Ok(())
             }
             Err(KernelStoreError::Conflict { .. }) => Err(RunRecordError::Contended {
@@ -1742,7 +1769,6 @@ impl RunLog {
                     suspended.hold,
                     HoldEvent::Request { .. } | HoldEvent::Child { .. }
                 ),
-                Some(RunEvent::Call(call)) => call.turn.is_some(),
                 _ => false,
             },
         )
@@ -1871,7 +1897,6 @@ fn standing(latest: &RunEvent) -> (RunState, Option<RunOutcome>, Option<String>)
         }
         // A turn's call leaves its run paused at the turn; a script's call
         // is its step still running.
-        RunEvent::Call(call) if call.turn.is_some() => (RunState::Paused, None, None),
         _ => (RunState::Running, None, None),
     }
 }
@@ -1886,7 +1911,10 @@ fn standing_event(
     let Some(mut latest) = store.latest::<RunEvent>(key)? else {
         return Ok(None);
     };
-    while matches!(latest.event, RunEvent::Answered(_) | RunEvent::Standing(_)) {
+    while matches!(
+        latest.event,
+        RunEvent::Answered(_) | RunEvent::Standing(_) | RunEvent::Consumed(_)
+    ) {
         let earlier = match latest.version.checked_sub(2) {
             Some(after) => store
                 .read_after::<RunEvent>(key, after, 1)?
@@ -2029,9 +2057,11 @@ impl RunRecord {
             RunEvent::Step(step) => {
                 record.suspension = None;
                 record.consume(store, &step.answers)?;
-                record
-                    .facts
-                    .push(Replayed::Step(Box::new(step_run(store, *step)?)));
+                record.facts.push(Replayed::Step(Box::new(step_run(
+                    store,
+                    *step,
+                    Nested::AtTheSeal,
+                )?)));
             }
             RunEvent::Skipped(skipped) => {
                 record.suspension = None;
@@ -2085,7 +2115,10 @@ impl RunRecord {
                     hold,
                 });
             }
-            RunEvent::Call(call) => record.consume(store, &call.answers)?,
+            RunEvent::Consumed(consumed) => record.consume(store, &consumed.answers)?,
+            RunEvent::Call(_) | RunEvent::Clock(_) => {
+                return Err(invalid("a call is recorded on its step's calls stream"));
+            }
             // A new standing set leaves the run where it waits.
             RunEvent::Standing(standing) => record.standing = Some(standing.approvals),
             // An admitted answer leaves the run where it waits, and replaces
@@ -2103,8 +2136,6 @@ impl RunRecord {
                     input_digest: None,
                 });
             }
-            // A clock read is its step's alone, which the step reads back.
-            RunEvent::Clock(_) => {}
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;
                 record.sealed = Some(Sealed {
@@ -2174,6 +2205,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
                 nested: nested.clone(),
                 answers: Vec::new(),
             },
+            Nested::Read,
         )?)),
         CallOutcomeEvent::Refused { reason } => CallOutcome::Refused(reason.clone()),
         CallOutcomeEvent::Failed { reason } => CallOutcome::Failed(reason.clone()),
@@ -2237,8 +2269,32 @@ pub(crate) fn call_step_id(turn_step: &str, index: u32) -> String {
     format!("{turn_step}/{index}")
 }
 
-fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordError> {
+/// How a step's run reads the receipts below it.
+#[derive(Clone, Copy)]
+enum Nested {
+    /// Each one, as a call's run is read, with its step.
+    Read,
+    /// None until its run seals, as a replayed step's.
+    AtTheSeal,
+}
+
+fn step_run(
+    store: &KernelStore,
+    event: StepEvent,
+    nested: Nested,
+) -> Result<StepRun, RunRecordError> {
     let record: RecordedStep = store.blob_json(&event.record)?;
+    let (nested_receipts, recorded_nested) = match nested {
+        Nested::Read => (
+            event
+                .nested
+                .iter()
+                .map(|digest| store.blob_json(digest))
+                .collect::<Result<_, _>>()?,
+            Vec::new(),
+        ),
+        Nested::AtTheSeal => (Vec::new(), event.nested),
+    };
     Ok(StepRun {
         step_id: event.step_id,
         attempt: event.attempt,
@@ -2249,11 +2305,8 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
         ephemeral_contract: Default::default(),
         outcome: record.outcome,
         receipt: store.blob_json(&event.receipt)?,
-        nested_receipts: event
-            .nested
-            .iter()
-            .map(|digest| store.blob_json(digest))
-            .collect::<Result<_, _>>()?,
+        nested_receipts,
+        recorded_nested,
         refusal: None,
         admission_witness: record.admission_witness,
         settlement: None,
@@ -2333,26 +2386,10 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
         let Some(latest) = standing_event(store, &current)? else {
             return Ok(None);
         };
-        let suspended = match latest.event {
-            RunEvent::Suspended(suspended) => suspended,
-            // A turn's call leaves the run waiting on the turn it was made
-            // in.
-            RunEvent::Call(call) => {
-                let call = *call;
-                let Some(turn) = call.turn else {
-                    return Ok(None);
-                };
-                return Ok(Some(Held {
-                    request: PendingRequest {
-                        id: turn.request_id,
-                        value: store.blob_json(&turn.request)?,
-                        digest: turn.digest,
-                    },
-                    waiting: call.waiting,
-                }));
-            }
-            _ => return Ok(None),
+        let RunEvent::Suspended(suspended) = latest.event else {
+            return Ok(None);
         };
+        let suspended = *suspended;
         // A step waiting on a retry or a claim has made no call that waits.
         let (request_id, request, digest, waiting) = match suspended.hold {
             HoldEvent::Request {
@@ -2360,7 +2397,24 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
                 request,
                 digest,
                 waiting,
-            } => (request_id, request, digest, waiting),
+            } => {
+                // A turn's calls come after its hold, and its latest names
+                // what the turn waits on now; a script's name nothing, since
+                // its hold is recorded again after them.
+                let calls = calls_key(&current, &suspended.step_id, suspended.attempt);
+                let waiting = match store.latest::<RunEvent>(&calls)?.map(|latest| latest.event) {
+                    Some(RunEvent::Call(call))
+                        if call
+                            .turn
+                            .as_ref()
+                            .is_some_and(|turn| turn.request_id == request_id) =>
+                    {
+                        call.waiting
+                    }
+                    _ => waiting,
+                };
+                (request_id, request, digest, waiting)
+            }
             HoldEvent::Retry {
                 request_id,
                 request,
@@ -2623,7 +2677,6 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunListEntry>, R
     let (state, outcome, receipt_id) = standing(&latest.event);
     let pending_request_id = match latest.event {
         RunEvent::Suspended(_) => held(store, &head.key)?.map(|held| held.request.id),
-        RunEvent::Call(call) => call.turn.map(|turn| turn.request_id),
         _ => None,
     };
     Ok(Some(RunListEntry {

@@ -119,13 +119,21 @@ fn history(root: &Path) -> TestResult<serde_json::Value> {
     Ok(serde_json::from_slice(&read.stdout)?)
 }
 
-/// Each call event of `stream`, as `(index, status)`.
+/// Each call event of run `stream`'s steps, as `(index, status)`.
 fn calls(read: &serde_json::Value, stream: &str) -> Vec<(u64, String)> {
     read["events"]
         .as_array()
         .into_iter()
         .flatten()
-        .filter(|record| record["stream"] == stream && record["event"]["kind"] == "call")
+        .filter(|record| {
+            // A step's calls are on its own stream, `<run>/<step>@<attempt>`.
+            record["stream"]
+                .as_str()
+                .and_then(|calls| calls.strip_prefix(stream))
+                .and_then(|calls| calls.strip_prefix('/'))
+                .is_some_and(|step| !step.contains('/') && step.contains('@'))
+                && record["event"]["kind"] == "call"
+        })
         .map(|record| {
             (
                 record["event"]["index"].as_u64().unwrap_or(u64::MAX),

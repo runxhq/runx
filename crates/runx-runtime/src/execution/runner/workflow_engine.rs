@@ -178,6 +178,19 @@ impl WorkflowExecution {
         self.workflow_index.apply_event(&mut self.progress, event);
     }
 
+    /// Read the receipts the steps replayed from its record hold by digest,
+    /// as the run seals: a resume that doesn't seal reads none of them.
+    pub(super) fn read_recorded_receipts(
+        &mut self,
+        store: &crate::kernel::store::KernelStore,
+    ) -> Result<(), RuntimeError> {
+        for run in &mut self.runs {
+            run.read_recorded_nested(store)
+                .map_err(crate::execution::run_record::RunRecordError::from)?;
+        }
+        Ok(())
+    }
+
     /// Rebuild a run's execution state from its record, applying each
     /// recorded fact as the engine applied it.
     pub(super) fn from_record(

@@ -185,14 +185,14 @@ fn input(value: serde_json::Value) -> TestResult<JsonObject> {
     Ok(serde_json::from_value(value)?)
 }
 
-/// Each call event of stream `stream` of run `run_id`, as `(index, outcome,
-/// cancelled)`.
+/// Each call event of run `stream`'s steps, in run `run_id`'s tree, as
+/// `(index, outcome, cancelled)`.
 fn calls(root: &Path, run_id: &str, stream: &str) -> TestResult<Vec<(u32, &'static str, bool)>> {
     let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
     Ok(read
         .events
         .into_iter()
-        .filter(|record| record.stream.as_str() == stream)
+        .filter(|record| of_run(record.stream.as_str(), stream))
         .filter_map(|record| match record.event {
             RunEventFact::Call {
                 index,
@@ -621,4 +621,10 @@ fn a_cancelled_skill_call_whose_child_only_read_settles_cancelled() -> TestResul
         [(0, "child", false), (0, "cancelled", true)]
     );
     Ok(())
+}
+
+/// Whether `stream` is run `run_id`'s own or one of its steps' calls
+/// streams.
+fn of_run(stream: &str, run_id: &str) -> bool {
+    stream == run_id || runx_runtime::run_record::is_calls_stream_of(stream, run_id)
 }

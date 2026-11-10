@@ -86,6 +86,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         outcome: output.into(),
         receipt: receipt.clone(),
         nested_receipts: Vec::new(),
+        recorded_nested: Vec::new(),
         refusal: None,
         admission_witness: StepAdmissionWitness::local_runtime("read", receipt.id.as_str()),
         settlement: None,

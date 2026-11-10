@@ -174,7 +174,11 @@ fn recorded_edits(
         )
         .map_err(|error| refused(error.to_string()))?;
         for record in page.events {
-            if record.stream.as_str() != inputs.run_id {
+            // A run's calls are on its steps' calls streams.
+            if !crate::execution::run_record::is_calls_stream_of(
+                record.stream.as_str(),
+                &inputs.run_id,
+            ) {
                 continue;
             }
             let RunEventFact::Call {

@@ -108,7 +108,8 @@ pub struct WaitedRequest {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.run_event.v1")]
 pub struct RunEventRecord {
-    /// The stream: the run id, or `<run>/<path>` for a child run.
+    /// The stream: the run id, `<run>/<path>` for a child run, or
+    /// `<run>/<step>@<attempt>` for the calls of a step of the run.
     pub stream: NonEmptyString,
     pub version: u64,
     /// When the event committed, for display only: it orders nothing.
