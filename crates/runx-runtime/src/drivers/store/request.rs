@@ -76,6 +76,9 @@ pub(super) struct ListKeys<'a> {
     pub stream: &'a str,
     pub types: Vec<&'a str>,
     pub selection: Selection<'a>,
+    /// On `private`, only the keys this begins, in key order: 8 to 63
+    /// lowercase hex characters, a short handle's key.
+    pub prefix: Option<&'a str>,
     pub limit: usize,
     pub cursor: Option<&'a str>,
 }
@@ -91,8 +94,8 @@ pub(super) struct SearchKeys<'a> {
 
 impl Request<'_> {
     /// Whether the call names what only `private` keeps: a standing event,
-    /// an end date, what a search matches, or a selection by either of the
-    /// first two.
+    /// an end date, what a search matches, a selection by either of the
+    /// first two, or a listing by a key's start.
     pub(super) fn is_private(&self) -> bool {
         let selects = |selection: &Selection<'_>| {
             selection.standing.is_some() || selection.valid_at.is_some()
@@ -101,7 +104,7 @@ impl Request<'_> {
             Self::Append(append) => {
                 append.standing || append.valid_until.is_some() || append.searchable.is_some()
             }
-            Self::List(list) => selects(&list.selection),
+            Self::List(list) => selects(&list.selection) || list.prefix.is_some(),
             Self::Search(search) => selects(&search.selection),
             Self::Read(_) | Self::Inspect(_) => false,
         }
@@ -157,6 +160,8 @@ pub(super) struct ListInput {
     standing: Option<bool>,
     #[serde(default)]
     valid_at: Option<String>,
+    #[serde(default)]
+    prefix: Option<String>,
     #[serde(default)]
     cursor: Option<String>,
     #[serde(default = "list_limit")]
@@ -291,6 +296,7 @@ impl Input {
                     standing: input.standing,
                     valid_at: date("valid_at", input.valid_at.as_deref())?,
                 },
+                prefix: prefix(input.prefix.as_deref())?,
                 limit: bounded_limit(input.limit, 100)?,
                 cursor: input.cursor.as_deref(),
             }),
@@ -346,6 +352,25 @@ fn key<'a>(
         stream: full_stream(rendered, named, package)?,
         key,
     })
+}
+
+/// A listing's `prefix`: 8 to 63 lowercase hex characters, the start of a
+/// key named by its digest, as a short handle names it. It never reads a
+/// stream whole, and never names a whole digest.
+fn prefix(value: Option<&str>) -> Result<Option<&str>, StoreError> {
+    match value {
+        Some(prefix)
+            if !(8..=63).contains(&prefix.len())
+                || !prefix
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) =>
+        {
+            Err(StoreError::invalid(
+                "prefix is 8 to 63 lowercase hex characters, the start of a key",
+            ))
+        }
+        value => Ok(value),
+    }
 }
 
 fn types(values: &[String]) -> Result<Vec<&str>, StoreError> {

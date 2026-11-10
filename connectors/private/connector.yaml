@@ -88,7 +88,7 @@ operations:
     implementation:
       store: {}
   keys.list:
-    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types, only the standing keys or only the others, and only those still valid at a date.
+    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types, only the standing keys or only the others, only those still valid at a date, and only those a prefix begins, which reads them in key order.
     verb: read
     scopes: [store.read]
     credentials: [password]
@@ -106,6 +106,7 @@ operations:
           items: {type: string, minLength: 1, maxLength: 128}
         standing: {type: boolean, description: "Only the standing keys, or only the others, read by an index of their own. Without it, every key."}
         valid_at: {type: string, format: date, description: "Pass over a key whose newest event's valid_until is before this date."}
+        prefix: {type: string, pattern: "^[0-9a-f]{8,63}$", description: "Only the keys this begins, in key order, read as a range of the keys table's own primary key: a short handle's key, 8 to 63 lowercase hex characters."}
         cursor: {type: string, minLength: 1, maxLength: 1024}
         limit: {type: integer, minimum: 1, maximum: 100, default: 50}
         package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}

@@ -300,24 +300,36 @@ impl Backend for Sqlite {
         Ok((events, has_more))
     }
 
-    /// A page of a stream's keys, newest commit first. The listing steps an
-    /// index row by row, the recency index or, when it names `standing`,
-    /// the standing index, and keeps the types it was asked for and the keys
-    /// still valid at its date itself, so every row it visits is a row it
-    /// steps and counts, the ones it passes over included, and it stops once
-    /// it holds the page and one more.
+    /// A page of a stream's keys, newest commit first, or in key order the
+    /// keys a prefix begins. The listing steps an index row by row: the
+    /// recency index or, when it names `standing`, the standing index, or for
+    /// a prefix a range of the keys table's own primary key. It keeps the
+    /// types it was asked for, the keys still valid at its date and, under a
+    /// prefix, the standing it names itself, so every row it visits is a row
+    /// it steps and counts, the ones it passes over included, and it stops
+    /// once it holds the page and one more.
     fn keys(&mut self, request: &ListKeys<'_>) -> Result<(Vec<Listed>, bool), StoreError> {
         let cursor = model::decode_cursor(request.cursor)?;
-        let sql = keys_query(request.selection.standing.is_some(), cursor.is_some());
         let mut values = vec![SqlValue::Text(request.stream.to_owned())];
-        if let Some(standing) = request.selection.standing {
-            values.push(SqlValue::Integer(i64::from(standing)));
-        }
-        if let Some(cursor) = cursor {
-            values.push(SqlValue::Text(cursor.committed_at.clone()));
-            values.push(SqlValue::Text(cursor.committed_at));
-            values.push(SqlValue::Text(cursor.key));
-        }
+        let sql = if let Some(prefix) = request.prefix {
+            values.push(SqlValue::Text(prefix.to_owned()));
+            values.push(SqlValue::Text(past(prefix)));
+            if let Some(cursor) = cursor {
+                values.push(SqlValue::Text(cursor.key));
+            }
+            prefix_query(values.len() > 3)
+        } else {
+            if let Some(standing) = request.selection.standing {
+                values.push(SqlValue::Integer(i64::from(standing)));
+            }
+            let after_cursor = cursor.is_some();
+            if let Some(cursor) = cursor {
+                values.push(SqlValue::Text(cursor.committed_at.clone()));
+                values.push(SqlValue::Text(cursor.committed_at));
+                values.push(SqlValue::Text(cursor.key));
+            }
+            keys_query(request.selection.standing.is_some(), after_cursor)
+        };
         let mut statement = self
             .connection
             .prepare(&sql)
@@ -337,6 +349,10 @@ impl Backend for Sqlite {
             let last = record_at(row, 1).map_err(|error| database("reading keys", &error))?;
             if (!request.types.is_empty() && !request.types.contains(&last.event_type.as_str()))
                 || request.selection.ended(last.valid_until.as_deref())
+                || request
+                    .selection
+                    .standing
+                    .is_some_and(|standing| standing != last.standing)
             {
                 crate::work_counts::count(crate::work_counts::Work::StoreKeyRowPassedOver);
                 continue;
@@ -616,6 +632,31 @@ pub(super) fn keys_query(by_standing: bool, after_cursor: bool) -> String {
     }
     sql.push_str(" ORDER BY committed_at DESC, key ASC");
     sql
+}
+
+/// The query a page of the keys a prefix begins steps, in key order, as a
+/// range on the keys table's primary key, after a cursor's key when it has
+/// one. Like [`keys_query`], it filters nothing else and limits nothing.
+pub(super) fn prefix_query(after_cursor: bool) -> String {
+    let mut sql = format!(
+        "SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = ? AND key >= ? AND key < ?"
+    );
+    if after_cursor {
+        sql.push_str(" AND key > ?");
+    }
+    sql.push_str(" ORDER BY key ASC");
+    sql
+}
+
+/// The least text past every key `prefix` begins: the prefix with its last
+/// byte's successor, since keys order bytewise. A prefix is hex, so the
+/// successor is ASCII too.
+fn past(prefix: &str) -> String {
+    let mut past = prefix.as_bytes().to_vec();
+    if let Some(last) = past.last_mut() {
+        *last = last.saturating_add(1);
+    }
+    String::from_utf8_lossy(&past).into_owned()
 }
 
 /// The event whose [`EVENT_COLUMNS`] start at `offset`.

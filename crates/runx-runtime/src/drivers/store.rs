@@ -455,7 +455,7 @@ impl Store<'_> {
             input.request(self.call.target, self.call.idempotency_key, writer.as_ref())?;
         if Kind::of(self.call.connector) != Kind::Private && request.is_private() {
             return Err(StoreError::invalid(
-                "standing, valid_until, valid_at and searchable are private's: a store event is never standing, dated or searchable",
+                "standing, valid_until, valid_at, searchable and prefix are private's: a store event is never standing, dated or searchable, and a store's keys are never listed by their start",
             ));
         }
         let mut backend = open(self.call)?;

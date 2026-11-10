@@ -102,7 +102,7 @@ connector opens the other's file.
 | `events.append` | Append one event, its `type` declared beside its `data`, when its key is at `expected_version` |
 | `events.read` | Read one page of a key's events in version order: the latest page, or the page after `after_version` |
 | `key.inspect` | Read a key's version, its newest event whole, and the digest that chains its events |
-| `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type, and on `private` by `standing` and `valid_at` |
+| `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type, and on `private` by `standing`, `valid_at` and `prefix` |
 | `keys.search` | On `private` only, rank one stream's keys by a full-text match against the fields each key's newest event names `searchable`, by type, `standing` and `valid_at` too |
 
 An append is keyed by the idempotency key the kernel derives from the call's
@@ -145,6 +145,11 @@ digest covers each when it says it:
   search given `valid_at`, a date, passes over a key whose newest event ended
   before it. A listing counts it as passed over, as it does a type it wasn't
   asked for, so nothing ended reaches the caller.
+
+A listing on `private` may name `prefix`, 8 to 63 lowercase hex characters,
+and reads only the keys it begins, in key order, as a range of the keys
+table's own primary key, so it never walks the stream. Memory resolves a
+short handle this way.
 
 An append may also name `searchable`, 1 to 16 distinct fields its `data`
 holds, which a search matches the key by. An event that says none of the

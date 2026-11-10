@@ -594,8 +594,9 @@ fn store_and_private_never_open_each_others_file() {
 
 /// A key listing walks an index in the order it returns its keys: no scan,
 /// and no sort, so the rows it visits are the rows it steps. A listing of
-/// every key walks the recency index, and a listing of the standing keys or
-/// of the others walks the standing index, so neither visits the other's.
+/// every key walks the recency index, a listing of the standing keys or of
+/// the others walks the standing index, so neither visits the other's, and a
+/// listing by a prefix walks a range of the keys table's primary key.
 #[test]
 fn a_key_listing_walks_its_index_with_no_scan_and_no_sort() {
     let root = tempfile::tempdir().unwrap();
@@ -606,38 +607,46 @@ fn a_key_listing_walks_its_index_with_no_scan_and_no_sort() {
     assert_eq!(kept.text("status"), "committed");
     let file = crate::paths::RunxPaths::resolve(&private.env, root.path()).private_store();
     let connection = rusqlite::Connection::open(file).unwrap();
+    let walks = |sql: String, values: usize, index: &str, case: String| {
+        let mut statement = connection
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap();
+        let values = vec![rusqlite::types::Value::Text("x".to_owned()); values];
+        let plan = statement
+            .query_map(rusqlite::params_from_iter(values.iter()), |row| {
+                row.get::<_, String>(3)
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(
+            plan.iter().any(|step| step.contains(index))
+                && plan
+                    .iter()
+                    .all(|step| !step.starts_with("SCAN") && !step.contains("TEMP B-TREE")),
+            "{case}: {plan:?}"
+        );
+    };
     for (standing, index) in [
-        (None, "store_keys_recent"),
-        (Some(true), "store_keys_standing_recent"),
-        (Some(false), "store_keys_standing_recent"),
+        (false, "store_keys_recent"),
+        (true, "store_keys_standing_recent"),
     ] {
         for after_cursor in [false, true] {
-            let sql = super::sqlite::keys_query(standing.is_some(), after_cursor);
-            let mut statement = connection
-                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
-                .unwrap();
-            let mut values = vec![rusqlite::types::Value::Text("x".to_owned())];
-            if let Some(standing) = standing {
-                values.push(rusqlite::types::Value::Integer(i64::from(standing)));
-            }
-            if after_cursor {
-                values.extend(vec![rusqlite::types::Value::Text("x".to_owned()); 3]);
-            }
-            let plan = statement
-                .query_map(rusqlite::params_from_iter(values.iter()), |row| {
-                    row.get::<_, String>(3)
-                })
-                .unwrap()
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap();
-            assert!(
-                plan.iter().any(|step| step.contains(index))
-                    && plan
-                        .iter()
-                        .all(|step| !step.starts_with("SCAN") && !step.contains("TEMP B-TREE")),
-                "standing {standing:?}, after a cursor {after_cursor}: {plan:?}"
+            walks(
+                super::sqlite::keys_query(standing, after_cursor),
+                1 + usize::from(standing) + if after_cursor { 3 } else { 0 },
+                index,
+                format!("standing {standing}, after a cursor {after_cursor}"),
             );
         }
+    }
+    for after_cursor in [false, true] {
+        walks(
+            super::sqlite::prefix_query(after_cursor),
+            3 + usize::from(after_cursor),
+            "sqlite_autoindex_store_keys_1",
+            format!("a prefix, after a cursor {after_cursor}"),
+        );
     }
 }
 
@@ -1003,6 +1012,61 @@ fn a_listing_and_a_search_valid_at_a_date_pass_over_what_ended_before_it() {
     );
 }
 
+/// A listing that names a prefix reads only the keys it begins, in key
+/// order, page by page, and keeps the standing, types and end date the call
+/// names as any listing does. A prefix is 8 to 63 lowercase hex characters,
+/// so it names a short handle's key and never reads a stream whole.
+#[test]
+fn a_prefix_lists_only_the_keys_it_begins_in_key_order() {
+    let root = tempfile::tempdir().unwrap();
+    for (second, key, standing) in [
+        (1, "0aaaaaaa10", false),
+        (2, "0aaaaaaa0f", true),
+        (3, "0aaaaaab00", false),
+        (4, "1aaaaaaa00", false),
+    ] {
+        keep_at(root.path(), key, 0, "Tea, black.", standing, None, second);
+    }
+    let private = Test::private(root.path());
+    let list = |extra: serde_json::Value| {
+        let mut call = serde_json::json!({"stream": "items"});
+        call.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        private.call("keys.list", call)
+    };
+    let keys = |extra: serde_json::Value| list(extra).unwrap().keys("keys");
+    assert_eq!(
+        keys(serde_json::json!({"prefix": "0aaaaaaa"})),
+        vec!["0aaaaaaa0f", "0aaaaaaa10"]
+    );
+    assert_eq!(
+        keys(serde_json::json!({"prefix": "0aaaaaab"})),
+        vec!["0aaaaaab00"]
+    );
+    assert!(keys(serde_json::json!({"prefix": "0aaaaaac"})).is_empty());
+    assert_eq!(
+        keys(serde_json::json!({"prefix": "0aaaaaaa", "standing": false})),
+        vec!["0aaaaaaa10"]
+    );
+    let first = list(serde_json::json!({"prefix": "0aaaaaaa", "limit": 1})).unwrap();
+    assert_eq!(first.keys("keys"), vec!["0aaaaaaa0f"]);
+    let cursor = first.text("next_cursor").to_owned();
+    let second =
+        list(serde_json::json!({"prefix": "0aaaaaaa", "limit": 1, "cursor": cursor})).unwrap();
+    assert_eq!(second.keys("keys"), vec!["0aaaaaaa10"]);
+    assert_eq!(second.field("next_cursor"), &JsonValue::Null);
+    for prefix in [
+        "0aaaaaa".to_owned(),
+        "0".repeat(64),
+        "0AAAAAAA".to_owned(),
+        "0aaaaaag".to_owned(),
+    ] {
+        let refused = list(serde_json::json!({"prefix": prefix})).err().unwrap();
+        assert!(refused.contains("prefix"), "{prefix}: {refused}");
+    }
+}
+
 /// Standing keys, end dates and what a search matches are `private`'s:
 /// `store` refuses an append or a listing that names them, and keeps
 /// nothing.
@@ -1023,6 +1087,7 @@ fn store_refuses_standing_end_dates_and_searchable_fields() {
     for extra in [
         serde_json::json!({"standing": true}),
         serde_json::json!({"valid_at": "2026-06-01"}),
+        serde_json::json!({"prefix": "0aaaaaaa"}),
     ] {
         let mut call = serde_json::json!({"stream": "items"});
         call.as_object_mut()

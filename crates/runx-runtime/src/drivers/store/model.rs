@@ -449,7 +449,8 @@ pub(super) fn inspected_result(
     sealed(result)
 }
 
-/// The answer to one page of a stream's keys, newest commit first.
+/// The answer to one page of a stream's keys, newest commit first, or in key
+/// order under a prefix.
 pub(super) fn listed_result(
     backend: &str,
     stream: &str,
