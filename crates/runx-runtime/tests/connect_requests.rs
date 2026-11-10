@@ -106,7 +106,7 @@ fn run(
     )
 }
 
-/// Run one case of the sales skill over `connector`, whose Connect holds
+/// Run one case of the sales skill over `connector`, whose Connect has
 /// the case's grant and answers with `providers`.
 fn run_case(
     root: &Path,
@@ -285,7 +285,7 @@ fn a_write_whose_readback_contradicts_it_fails_its_step_with_the_record() {
     assert_eq!(record["retryable"], false, "{record:#}");
     assert_eq!(
         record["mismatches"],
-        serde_json::json!([{"field": "sale_id", "asked": "sale_1", "held": "sale_2"}]),
+        serde_json::json!([{"field": "sale_id", "expected": "sale_1", "actual": "sale_2"}]),
         "{record:#}"
     );
 }

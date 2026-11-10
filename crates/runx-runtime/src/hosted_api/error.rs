@@ -140,18 +140,18 @@ pub struct HostedApiErrorPayload {
     /// conflict.
     #[serde(default)]
     pub request_digest: Option<String>,
-    /// The digest of the request that holds the key, when a single one does.
+    /// The digest of the request the key is bound to, when a single one is.
     #[serde(default)]
-    pub held_request_digest: Option<String>,
+    pub existing_request_digest: Option<String>,
 }
 
-/// An idempotency key the API holds for another request: this request's
-/// digest as the API claims it, and the holding request's, when a single
-/// request holds the key.
+/// An idempotency key the API has bound to another request: this request's
+/// digest as the API claims it, and the existing request's, when the key is
+/// bound to a single one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyConflict {
     pub request_digest: runx_contracts::Digest,
-    pub held_request_digest: Option<runx_contracts::Digest>,
+    pub existing_request_digest: Option<runx_contracts::Digest>,
 }
 
 impl HostedApiOperationError {
@@ -168,8 +168,8 @@ impl HostedApiOperationError {
             .map(|request_digest| {
                 Box::new(KeyConflict {
                     request_digest,
-                    held_request_digest: payload
-                        .held_request_digest
+                    existing_request_digest: payload
+                        .existing_request_digest
                         .and_then(runx_contracts::Digest::new),
                 })
             });
@@ -206,7 +206,7 @@ struct FlatErrorEnvelope {
     #[serde(default)]
     request_digest: Option<String>,
     #[serde(default)]
-    held_request_digest: Option<String>,
+    existing_request_digest: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -229,7 +229,7 @@ pub fn parse_hosted_api_error(body: &str) -> Option<HostedApiErrorPayload> {
                     hint: envelope.hint,
                     retry_after_seconds: envelope.retry_after_seconds,
                     request_digest: envelope.request_digest,
-                    held_request_digest: envelope.held_request_digest,
+                    existing_request_digest: envelope.existing_request_digest,
                 })
         })
         .or_else(|| {
@@ -242,7 +242,7 @@ pub fn parse_hosted_api_error(body: &str) -> Option<HostedApiErrorPayload> {
                         hint: None,
                         retry_after_seconds: None,
                         request_digest: None,
-                        held_request_digest: None,
+                        existing_request_digest: None,
                     },
                     PlainError::Payload(payload) => payload,
                 })

@@ -38,13 +38,13 @@ impl std::fmt::Display for Recorded {
 }
 
 /// A field a provider's answer states with another value than the call
-/// asked: what was asked of it, and what the provider holds there, or none
-/// where it says no single value is held.
+/// expected: what was expected of it, and what it actually is, or none where
+/// the provider says it has no single value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mismatch {
     pub field: String,
-    pub asked: Recorded,
-    pub held: Option<Recorded>,
+    pub expected: Recorded,
+    pub actual: Option<Recorded>,
 }
 
 impl Mismatch {
@@ -53,8 +53,8 @@ impl Mismatch {
     /// value is recorded by its digest.
     pub(crate) fn new(
         field: impl Into<String>,
-        asked: JsonValue,
-        held: Option<JsonValue>,
+        expected: JsonValue,
+        actual: Option<JsonValue>,
         withheld: &[Vec<String>],
     ) -> Result<Self, String> {
         let field = field.into();
@@ -71,17 +71,17 @@ impl Mismatch {
                 .map_err(|_| format!("the value at {field} cannot be digested")),
         };
         Ok(Self {
-            asked: recorded(asked)?,
-            held: held.map(recorded).transpose()?,
+            expected: recorded(expected)?,
+            actual: actual.map(recorded).transpose()?,
             field,
         })
     }
 }
 
-/// A provider's answer that contradicts what the call asked, in every field
-/// it contradicts: a write's own answer, or a read that checks it. The
-/// outcome is definite: the provider holds what it states, so the call
-/// settles failed, naming what it holds for a person to clean up, and no
+/// A provider's answer that contradicts what the call expected, in every
+/// field it contradicts: a write's own answer, or a read that checks it. The
+/// outcome is definite: the provider has what it states, so the call
+/// settles failed, naming what it has for a person to clean up, and no
 /// retry is offered.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Contradiction {
@@ -89,22 +89,22 @@ pub struct Contradiction {
 }
 
 impl std::fmt::Display for Contradiction {
-    /// Each field, what the provider holds there and what was asked.
+    /// Each field, what it actually is and what was expected.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (index, mismatch) in self.mismatches.iter().enumerate() {
             if index > 0 {
                 formatter.write_str("; ")?;
             }
-            match &mismatch.held {
-                Some(held) => write!(
+            match &mismatch.actual {
+                Some(actual) => write!(
                     formatter,
-                    "{} holds {held} where {} was asked",
-                    mismatch.field, mismatch.asked
+                    "{} is {actual} where {} was expected",
+                    mismatch.field, mismatch.expected
                 )?,
                 None => write!(
                     formatter,
-                    "{} holds no single value where {} was asked",
-                    mismatch.field, mismatch.asked
+                    "{} has no single value where {} was expected",
+                    mismatch.field, mismatch.expected
                 )?,
             }
         }
@@ -133,8 +133,8 @@ impl Contradiction {
                 .into_iter()
                 .map(|mismatch| Mismatch {
                     field: secret.scrub_text(mismatch.field),
-                    asked: scrubbed(mismatch.asked),
-                    held: mismatch.held.map(scrubbed),
+                    expected: scrubbed(mismatch.expected),
+                    actual: mismatch.actual.map(scrubbed),
                 })
                 .collect(),
         }
@@ -152,8 +152,8 @@ impl Contradiction {
                         JsonValue::String(mismatch.field.clone()),
                     )]);
                     for (name, recorded) in [
-                        ("asked", Some(&mismatch.asked)),
-                        ("held", mismatch.held.as_ref()),
+                        ("expected", Some(&mismatch.expected)),
+                        ("actual", mismatch.actual.as_ref()),
                     ]
                     .into_iter()
                     .filter_map(|(name, recorded)| Some((name, recorded?)))
@@ -348,14 +348,15 @@ pub enum RuntimeError {
         provider_code: String,
         http_status: u16,
         reason: String,
-        /// What the provider states its idempotency key holds against the
-        /// call, when it refused the key as another request's and said so.
+        /// What the provider states its idempotency key is bound to, against
+        /// the call, when it refused the key as another request's and said
+        /// so.
         conflict: Option<Box<Contradiction>>,
     },
     /// The provider's answer, a write's own or a read that checks it,
-    /// contradicts what the call asked: a definite outcome, whatever the
-    /// provider applied. It names each field, what was asked and what the
-    /// provider holds, for a person to clean up, and offers no retry.
+    /// contradicts what the call expected: a definite outcome, whatever the
+    /// provider applied. It names each field, what was expected and what it
+    /// actually is, for a person to clean up, and offers no retry.
     #[error(
         "provider answer contradicts the call for plan {plan_digest} with idempotency key {idempotency_key}: {contradiction}"
     )]

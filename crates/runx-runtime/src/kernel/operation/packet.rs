@@ -78,11 +78,11 @@ impl Readback {
         ]
         .into_iter()
         // The packet's own fields, never a result's, so none is withheld.
-        .filter_map(|(field, asked, held)| match (asked, held) {
-            (Some(asked), Some(held)) if asked != held => Some(Mismatch::new(
+        .filter_map(|(field, expected, actual)| match (expected, actual) {
+            (Some(expected), Some(actual)) if expected != actual => Some(Mismatch::new(
                 field,
-                JsonValue::String(asked.to_owned()),
-                Some(JsonValue::String(held.to_owned())),
+                JsonValue::String(expected.to_owned()),
+                Some(JsonValue::String(actual.to_owned())),
                 &[],
             )),
             _ => None,
@@ -123,10 +123,10 @@ impl Readback {
                     "the provider result must be an object to verify or project it".to_owned(),
                 );
             };
-            for (field, asked) in expected_result.into_iter().flatten() {
-                let held = result.get(field);
-                if held != Some(asked) {
-                    return Err(unequal(field, asked, held, &shape.ephemeral)?);
+            for (field, expected) in expected_result.into_iter().flatten() {
+                let actual = result.get(field);
+                if actual != Some(expected) {
+                    return Err(unequal(field, expected, actual, &shape.ephemeral)?);
                 }
             }
             if projected {
@@ -177,20 +177,20 @@ impl Readback {
 }
 
 /// Why a result field fails the value the call requires of it, naming what
-/// the result holds there, a value from a path the call marks never to
+/// the result has there, a value from a path the call marks never to
 /// persist by its digest.
 fn unequal(
     field: &str,
-    asked: &JsonValue,
-    held: Option<&JsonValue>,
+    expected: &JsonValue,
+    actual: Option<&JsonValue>,
     withheld: &[Vec<String>],
 ) -> Result<String, String> {
-    let held = held.cloned().unwrap_or(JsonValue::Null);
-    let mismatch = Mismatch::new(field, asked.clone(), Some(held.clone()), withheld)?;
-    Ok(match held {
+    let actual = actual.cloned().unwrap_or(JsonValue::Null);
+    let mismatch = Mismatch::new(field, expected.clone(), Some(actual.clone()), withheld)?;
+    Ok(match actual {
         JsonValue::Null => format!(
-            "the result states no value at {field}, where {} was asked",
-            mismatch.asked
+            "the result states no value at {field}, where {} was expected",
+            mismatch.expected
         ),
         _ => format!(
             "the result contradicts the call: {}",
@@ -313,12 +313,14 @@ mod tests {
     }
 
     #[test]
-    fn an_unequal_result_field_names_what_it_holds_by_the_rule_for_values() {
+    fn an_unequal_result_field_names_its_actual_value_by_the_rule_for_values() {
         let json = |value: serde_json::Value| {
             serde_json::from_value::<JsonValue>(value).unwrap_or(JsonValue::Null)
         };
         let answered = |status: &str| Readback {
-            result: json(serde_json::json!({"status": status, "token": {"value": "held-secret"}})),
+            result: json(
+                serde_json::json!({"status": status, "token": {"value": "actual-secret"}}),
+            ),
             ..readback()
         };
         let shape = ResultShape {
@@ -349,20 +351,20 @@ mod tests {
         };
         assert_eq!(
             refused("pending", "status", serde_json::json!("succeeded")),
-            r#"the result contradicts the call: status holds "pending" where "succeeded" was asked"#
+            r#"the result contradicts the call: status is "pending" where "succeeded" was expected"#
         );
         assert_eq!(
             refused("pending", "missing", serde_json::json!("x")),
-            r#"the result states no value at missing, where "x" was asked"#
+            r#"the result states no value at missing, where "x" was expected"#
         );
         let withheld = refused(
             "succeeded",
             "token",
-            serde_json::json!({"value": "asked-secret"}),
+            serde_json::json!({"value": "expected-secret"}),
         );
         assert!(
             withheld.starts_with(
-                "the result contradicts the call: token holds a value with digest sha256:"
+                "the result contradicts the call: token is a value with digest sha256:"
             ),
             "{withheld}"
         );

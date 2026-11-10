@@ -361,7 +361,7 @@ struct Rejection {
     status: u16,
     code: String,
     reason: String,
-    /// What Connect states the call's key holds against it.
+    /// What Connect states the call's key is bound to, against the call.
     conflict: Option<crate::error::Contradiction>,
 }
 
@@ -369,8 +369,8 @@ struct Rejection {
 /// another request, or that the call was admitted under another contract. An
 /// in-flight claim or gateway failure may already have reached the provider,
 /// so it stays unknown. Where Connect states this request's digest, the
-/// refusal names it as asked, with the holding request's as held when a
-/// single request holds the key.
+/// refusal names it as expected, with the existing request's as actual when
+/// the key is bound to a single one.
 fn rejection(error: &ProviderOperationError) -> Option<Rejection> {
     match error {
         ProviderOperationError::HostedApi(HostedApiOperationError::Api {
@@ -409,8 +409,9 @@ fn rejection(error: &ProviderOperationError) -> Option<Rejection> {
     }
 }
 
-/// The request whose key another holds: this request's digest as asked, and
-/// the holder's as held, or none where no single request holds the key.
+/// The request whose key is bound to another: this request's digest as
+/// expected, and the existing request's as actual, or none where the key is
+/// bound to no single request.
 /// Connect's claim digests are never a result's, so neither is withheld.
 fn key_conflict(conflict: &crate::hosted_api::KeyConflict) -> crate::error::Contradiction {
     let digest = |digest: &runx_contracts::Digest| {
@@ -419,8 +420,8 @@ fn key_conflict(conflict: &crate::hosted_api::KeyConflict) -> crate::error::Cont
     crate::error::Contradiction {
         mismatches: vec![crate::error::Mismatch {
             field: "request_digest".to_owned(),
-            asked: digest(&conflict.request_digest),
-            held: conflict.held_request_digest.as_ref().map(digest),
+            expected: digest(&conflict.request_digest),
+            actual: conflict.existing_request_digest.as_ref().map(digest),
         }],
     }
 }
@@ -477,7 +478,7 @@ mod tests {
         assert!(rejection(&ProviderOperationError::InvalidOperation).is_none());
     }
 
-    /// Connect's 409 for a key another request holds, as it answers it.
+    /// Connect's 409 for a key bound to another request, as it answers it.
     fn key_conflict_answer(body: &str) -> Option<Rejection> {
         let payload = crate::hosted_api::parse_hosted_api_error(body)?;
         rejection(&ProviderOperationError::HostedApi(
@@ -486,10 +487,10 @@ mod tests {
     }
 
     #[test]
-    fn a_key_another_request_holds_names_both_requests_when_connect_states_them() {
-        const ASKED: &str =
+    fn a_key_bound_to_another_request_names_both_requests_when_connect_states_them() {
+        const EXPECTED: &str =
             "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-        const HELD: &str =
+        const EXISTING: &str =
             "sha256:2222222222222222222222222222222222222222222222222222222222222222";
         let used = "Provider mutation idempotency key was already used for a different request.";
         let refused = |body: String| key_conflict_answer(&body).unwrap_or_default();
@@ -509,30 +510,32 @@ mod tests {
         let json = |value: serde_json::Value| serde_json::from_value::<JsonValue>(value).ok();
 
         let both = refused(format!(
-            r#"{{"error": "{used}", "code": "idempotency_conflict", "request_digest": "{ASKED}", "held_request_digest": "{HELD}"}}"#
+            r#"{{"error": "{used}", "code": "idempotency_conflict", "request_digest": "{EXPECTED}", "existing_request_digest": "{EXISTING}"}}"#
         ));
         assert_eq!(both.code, "idempotency_conflict");
         assert_eq!(
             both.reason,
-            format!(r#"{used} request_digest holds "{HELD}" where "{ASKED}" was asked"#)
+            format!(r#"{used} request_digest is "{EXISTING}" where "{EXPECTED}" was expected"#)
         );
         assert_eq!(
             record(&both),
-            json(serde_json::json!([{"field": "request_digest", "asked": ASKED, "held": HELD}]))
+            json(
+                serde_json::json!([{"field": "request_digest", "expected": EXPECTED, "actual": EXISTING}])
+            )
         );
 
         // An account's reconciliation merged differing requests under the
-        // key, so no single one holds it.
+        // key, so it is bound to no single one.
         let merged = refused(format!(
-            r#"{{"error": "{used}", "code": "idempotency_conflict", "request_digest": "{ASKED}"}}"#
+            r#"{{"error": "{used}", "code": "idempotency_conflict", "request_digest": "{EXPECTED}"}}"#
         ));
         assert_eq!(
             merged.reason,
-            format!(r#"{used} request_digest holds no single value where "{ASKED}" was asked"#)
+            format!(r#"{used} request_digest has no single value where "{EXPECTED}" was expected"#)
         );
         assert_eq!(
             record(&merged),
-            json(serde_json::json!([{"field": "request_digest", "asked": ASKED}]))
+            json(serde_json::json!([{"field": "request_digest", "expected": EXPECTED}]))
         );
 
         // A mutation sent with no key names neither.

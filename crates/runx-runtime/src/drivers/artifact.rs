@@ -138,7 +138,7 @@ impl Artifact<'_> {
         let operation = answer.operation.clone();
         let artifact = self.artifact(answer)?;
         // Another operation, account, key or bytes is runx stating it did
-        // other than the call asked, and the same call gets the same answer.
+        // other than the call expected, and the same call gets the same answer.
         let size = |size: u64| JsonValue::Number(JsonNumber::U64(size));
         let mismatches = [
             ("operation", text(ALLOCATE), text(&operation)),
@@ -165,20 +165,20 @@ impl Artifact<'_> {
             ),
         ]
         .into_iter()
-        .filter(|(_, asked, held)| asked != held)
-        .map(|(field, asked, held)| {
-            Mismatch::new(field, asked, Some(held), self.call.withheld)
+        .filter(|(_, expected, actual)| expected != actual)
+        .map(|(field, expected, actual)| {
+            Mismatch::new(field, expected, Some(actual), self.call.withheld)
                 .map_err(|reason| malformed(&reason))
         })
         .collect::<Result<Vec<_>, _>>()?;
         if !mismatches.is_empty() {
             return Err(Unperformed::Contradicted(Contradiction { mismatches }));
         }
-        held(&artifact, Some(principal_uri))
+        stored(&artifact, Some(principal_uri))
     }
 
-    /// What runx holds under `reference`, and the account it states it
-    /// holds it for, which the kernel compares with the allocation's.
+    /// What runx stores under `reference`, and the account it states it
+    /// stores it for, which the kernel compares with the allocation's.
     fn inspect(&self, reference: &str) -> Result<JsonObject, Unconfirmed> {
         let answer = self.send(
             INSPECT,
@@ -195,7 +195,7 @@ impl Artifact<'_> {
             }));
         }
         let principal_uri = answer.principal_uri.clone();
-        held(&self.artifact(answer)?, principal_uri.as_deref()).map_err(Unconfirmed::from)
+        stored(&self.artifact(answer)?, principal_uri.as_deref()).map_err(Unconfirmed::from)
     }
 
     fn send(
@@ -270,19 +270,19 @@ impl Driver for Artifact<'_> {
     }
 }
 
-/// The call's result: the artifact, and the account runx states it holds it
+/// The call's result: the artifact, and the account runx states it stores it
 /// for.
-fn held(
+fn stored(
     artifact: &ArtifactDescriptor,
     principal_uri: Option<&str>,
 ) -> Result<JsonObject, Unperformed> {
     let artifact = JsonValue::from_serialize(artifact)
         .map_err(|_| malformed("the artifact cannot be stated"))?;
-    let mut held = JsonObject::from([("artifact".to_owned(), artifact)]);
+    let mut stored = JsonObject::from([("artifact".to_owned(), artifact)]);
     if let Some(principal_uri) = principal_uri {
-        held.insert("principal_uri".to_owned(), text(principal_uri));
+        stored.insert("principal_uri".to_owned(), text(principal_uri));
     }
-    Ok(held)
+    Ok(stored)
 }
 
 /// The bytes the call stores: exactly one of a JSON value or canonical

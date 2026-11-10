@@ -6,9 +6,9 @@
 //! in custody before anything is read back, every confirming read must match
 //! the acknowledged write, a write that may have reached the provider is
 //! never reported as refused, and a write's evidence is its confirming reads,
-//! never its own answer. An answer that contradicts what was asked, a
+//! never its own answer. An answer that contradicts what was expected, a
 //! write's own or a confirming read's, settles the call failed, naming what
-//! the provider holds; a read that doesn't answer, or states no value where
+//! the provider has; a read that doesn't answer, or states no value where
 //! the call is compared, leaves the outcome unknown. A write the provider
 //! cannot read back declares no readbacks: its evidence is its recorded
 //! acknowledgement, which the receipt seals as evidence of the effect, never
@@ -65,7 +65,7 @@ pub(crate) enum Unperformed {
     /// The request may have reached the provider, and nothing shows that it
     /// did not act.
     MaybeSent { code: &'static str, reason: String },
-    /// The provider answered that it did other than the call asked: other
+    /// The provider answered that it did other than the call expected: other
     /// bytes, another key or another principal. It may have acted, and the
     /// same call gets the same answer.
     Contradicted(Contradiction),
@@ -86,7 +86,7 @@ impl Unperformed {
 /// Why a checking read didn't confirm the call.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Unconfirmed {
-    /// It answered, and contradicts what was asked.
+    /// It answered, and contradicts what was expected.
     Contradicted(Contradiction),
     /// It didn't answer what was asked: a timeout, a lost connection, a
     /// provider error, or an answer that states nothing where the call is
@@ -662,7 +662,7 @@ fn acknowledgement(write_result: JsonValue) -> Acknowledgement {
 /// was approved with and, for a repeated write, the item it was sent for. A
 /// field it states with another value contradicts the call, whatever else
 /// can't be compared.
-/// `withheld` holds the result paths the call marks never to persist.
+/// `withheld` is the result paths the call marks never to persist.
 fn verify(
     matches: &[ReadbackMatch],
     arguments: &JsonValue,
@@ -741,39 +741,44 @@ fn compare(
         }
     };
     let path = binding.observed.as_str();
-    let held =
-        held_at(observed, path).ok_or_else(|| format!("the readback states nothing at {path}"))?;
-    if holds(&held, path, expected) {
+    let actual = stated_at(observed, path)
+        .ok_or_else(|| format!("the readback states nothing at {path}"))?;
+    if is_expected(&actual, path, expected) {
         return Ok(());
     }
-    if held == JsonValue::Null {
+    if actual == JsonValue::Null {
         return Err(format!("the readback states no value at {path}").into());
     }
     Err(Unconfirmed::Contradicted(Contradiction {
-        mismatches: vec![Mismatch::new(path, expected.clone(), Some(held), withheld)?],
+        mismatches: vec![Mismatch::new(
+            path,
+            expected.clone(),
+            Some(actual),
+            withheld,
+        )?],
     }))
 }
 
 /// What a read states at an observed path. A `*` segment maps over an
 /// array, and a path that passes through null is null, as a cleared field
 /// reads back.
-fn held_at(observed: &JsonValue, path: &str) -> Option<JsonValue> {
+fn stated_at(observed: &JsonValue, path: &str) -> Option<JsonValue> {
     project(observed, &path.split('.').collect::<Vec<_>>())
 }
 
 /// Whether what a read states at `path` is `expected`. The values a `*`
 /// segment gathers compare with `expected` as a set, as a provider returns
 /// labels as objects in its own order.
-fn holds(held: &JsonValue, path: &str, expected: &JsonValue) -> bool {
+fn is_expected(actual: &JsonValue, path: &str, expected: &JsonValue) -> bool {
     if path.split('.').any(|segment| segment == "*") {
-        return match (held, expected) {
-            (JsonValue::Array(held), JsonValue::Array(expected)) => {
-                as_set(held) == as_set(expected)
+        return match (actual, expected) {
+            (JsonValue::Array(actual), JsonValue::Array(expected)) => {
+                as_set(actual) == as_set(expected)
             }
             _ => false,
         };
     }
-    held == expected
+    actual == expected
 }
 
 fn project(value: &JsonValue, segments: &[&str]) -> Option<JsonValue> {
@@ -840,7 +845,7 @@ mod tests {
     use crate::error::Recorded;
 
     fn observed_matches(observed: &JsonValue, path: &str, expected: &JsonValue) -> bool {
-        held_at(observed, path).is_some_and(|held| holds(&held, path, expected))
+        stated_at(observed, path).is_some_and(|actual| is_expected(&actual, path, expected))
     }
 
     #[test]
@@ -1271,8 +1276,8 @@ mod tests {
             &JsonValue::Null,
             &withheld,
             None,
-            &secret("asked-secret"),
-            &secret("held-secret"),
+            &secret("expected-secret"),
+            &secret("actual-secret"),
         ) {
             Err(Unconfirmed::Contradicted(contradiction)) => Some(contradiction),
             _ => None,
@@ -1282,13 +1287,13 @@ mod tests {
             contradiction.mismatches,
             [Mismatch {
                 field: "token.value".to_owned(),
-                asked: Recorded::Digest(digest("asked-secret")),
-                held: Some(Recorded::Digest(digest("held-secret"))),
+                expected: Recorded::Digest(digest("expected-secret")),
+                actual: Some(Recorded::Digest(digest("actual-secret"))),
             }]
         );
         let reason = contradiction.reason();
         assert!(!reason.contains("secret\""), "{reason}");
-        assert!(reason.contains(&digest("held-secret")), "{reason}");
+        assert!(reason.contains(&digest("actual-secret")), "{reason}");
     }
 
     #[test]
@@ -1375,18 +1380,18 @@ mod tests {
             Err(Failure::Contradicted(contradiction)) => Some(contradiction),
             _ => None,
         }
-        .expect("a readback holding another id contradicts the write");
+        .expect("a readback stating another id contradicts the write");
         assert_eq!(
             contradiction.mismatches,
             [Mismatch {
                 field: "id".to_owned(),
-                asked: Recorded::Value(JsonValue::String("m-1".to_owned())),
-                held: Some(Recorded::Value(JsonValue::String("m-2".to_owned()))),
+                expected: Recorded::Value(JsonValue::String("m-1".to_owned())),
+                actual: Some(Recorded::Value(JsonValue::String("m-2".to_owned()))),
             }]
         );
         assert_eq!(
             contradiction.to_string(),
-            r#"id holds "m-2" where "m-1" was asked"#
+            r#"id is "m-2" where "m-1" was expected"#
         );
     }
 

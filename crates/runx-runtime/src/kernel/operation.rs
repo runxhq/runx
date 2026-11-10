@@ -1033,8 +1033,9 @@ pub(crate) enum Failure {
         reason: String,
         /// The implementation proves this attempt did not execute.
         release: bool,
-        /// What the provider states its idempotency key holds against the
-        /// call, when it refused the key as another request's and said so.
+        /// What the provider states its idempotency key is bound to, against
+        /// the call, when it refused the key as another request's and said
+        /// so.
         conflict: Option<crate::error::Contradiction>,
     },
     /// The call may have executed.
@@ -1042,7 +1043,8 @@ pub(crate) enum Failure {
     /// The write was acknowledged and its readback did not complete.
     ReadbackPending(String),
     /// The provider's answer, a write's own or a checking read's,
-    /// contradicts what was asked: definite, and the call may have executed.
+    /// contradicts what was expected: definite, and the call may have
+    /// executed.
     Contradicted(crate::error::Contradiction),
 }
 
@@ -1286,7 +1288,7 @@ pub(crate) fn execute(
             }
             Err(read_failure(context, step_id, reason))
         }
-        // The provider holds what it states, so the attempt settles, keeping
+        // The provider has what it states, so the attempt settles, keeping
         // what it may have used or charged, even when it recovers an earlier
         // one, and no retry is offered.
         Err(Failure::Contradicted(contradiction)) => {

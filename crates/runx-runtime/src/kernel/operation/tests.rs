@@ -1994,7 +1994,7 @@ fn a_readback_naming_another_provider_settles_failed_and_names_it() {
         .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
         .expect_err("contradicted");
     assert!(
-        error.contains(r#"provider holds "fixture/forge" where "fixture/chat" was asked"#),
+        error.contains(r#"provider is "fixture/forge" where "fixture/chat" was expected"#),
         "{error}"
     );
     assert!(!error.contains("unknown"), "{error}");
@@ -2993,7 +2993,7 @@ fn an_artifact_stored_for_another_principal_settles_failed_and_names_it() {
         .expect_err("contradicted");
     assert!(
         error.contains(&format!(
-            r#"principal_uri holds "runx:principal:someone-else" where "{PRINCIPAL_REF}" was asked"#
+            r#"principal_uri is "runx:principal:someone-else" where "{PRINCIPAL_REF}" was expected"#
         )),
         "{error}"
     );
@@ -3032,7 +3032,7 @@ fn an_artifact_read_back_for_another_principal_settles_failed_and_names_it() {
         .expect_err("contradicted");
     assert!(
         error.contains(&format!(
-            r#"principal_uri holds "runx:principal:someone-else" where "{PRINCIPAL_REF}" was asked"#
+            r#"principal_uri is "runx:principal:someone-else" where "{PRINCIPAL_REF}" was expected"#
         )),
         "{error}"
     );
