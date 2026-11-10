@@ -614,10 +614,12 @@ where
     // A child that sealed runs nothing again. Any other starts as any run
     // does, decided from its own method: its scripts' declared operations
     // admitted, and its worker, if it has one, started on the session it
-    // shares with its parent.
+    // shares with its parent. Its own receipt is counted against its root's
+    // tree before it starts.
     let start = if recorded.is_some_and(|record| record.sealed.is_some()) {
         None
     } else {
+        runtime.options.take_receipts(&nested.step.id, 1)?;
         Some(crate::implementation::start(
             &child_runtime,
             nested.skill_directory,
@@ -638,7 +640,14 @@ where
         created_at: &runtime.options.clock.now(),
     })?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
-        return super::sealed_workflow_run(workflow, record);
+        // What a child sealed before its parent step was recorded is its
+        // root's tree's already.
+        let sealed = super::sealed_workflow_run(workflow, record)?;
+        runtime
+            .options
+            .receipts
+            .count(1 + sealed.steps.iter().map(StepRun::receipts).sum::<usize>());
+        return Ok(sealed);
     }
     let ran = match start.and_then(|start| start.refusal) {
         Some(refusal) => Err(refusal),

@@ -210,6 +210,8 @@ pub enum SealReason {
     AuthorityDenied,
     /// A call would spend more than is left of the run's money limit.
     CostLimitExceeded,
+    /// A step or call would take the run's receipt tree past its bound.
+    ReceiptBudgetExceeded,
     /// The workflow waits on a step's request its host has not yet answered.
     ResolutionPending,
     /// The managed agent's provider request failed.
@@ -240,6 +242,7 @@ impl SealReason {
             Self::WorkflowBlocked => "workflow_blocked",
             Self::AuthorityDenied => "authority_denied",
             Self::CostLimitExceeded => "cost_limit_exceeded",
+            Self::ReceiptBudgetExceeded => "receipt_budget_exceeded",
             Self::ResolutionPending => "resolution_pending",
             Self::ManagedAgentProviderFailed => "managed_agent_provider_failed",
             Self::ManagedAgentResolutionFailed => "managed_agent_resolution_failed",

@@ -404,8 +404,13 @@ impl WorkflowExecution {
         }
         let plan = StepExecutionPlan { step_id, attempt };
         let step = self.find_step(workflow, plan.step_id)?;
+        // The step's receipt is counted against the run's tree before
+        // anything of the step runs. A step a governed stop ends seals none,
+        // and gives it back.
+        runtime.options.take_receipts(step_id, 1)?;
+        let ran = self.runs.len();
         let loaded_skill = self.cached_step_skill(runtime, workflow_dir, step);
-        self.run_loaded_step(
+        let result = self.run_loaded_step(
             StepExecutionContext {
                 runtime,
                 workflow_dir,
@@ -415,7 +420,14 @@ impl WorkflowExecution {
                 plan,
             },
             loaded_skill,
-        )
+        );
+        if let Err(error) = &result
+            && self.runs.len() == ran
+            && !super::step_may_seal(workflow, error)
+        {
+            runtime.options.receipts.give_back(1);
+        }
+        result
     }
 
     fn run_loaded_step<A>(

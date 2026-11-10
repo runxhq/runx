@@ -392,6 +392,92 @@ methods:
     Ok(())
 }
 
+/// A run's receipt tree is a budget its calls draw from as they're admitted,
+/// as `max_calls` is. A skill call adds `RECEIPTS_PER_SKILL_CALL` receipts:
+/// its own, its child run's, and that run's one step. The call that would
+/// take the tree past its bound is refused before it runs, naming the
+/// bound, and the run seals with every call before it.
+#[test]
+fn a_call_past_the_runs_receipt_budget_is_refused_and_the_calls_before_it_seal() -> TestResult {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("digest-child"),
+        "---\nname: digest-child\ndescription: Digests a value.\n---\n# Digest child\n\nDigest it.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  digest:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.value
+          encoding: utf8_text
+"#,
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          skills: [../digest-child]\n        max_calls: 3\n        outputs:\n          sealed: {type: array}\n          refused: {type: string}\n",
+        r#"export default async function (ctx) {
+  const sealed = [];
+  for (const value of ["first", "second", "third"]) {
+    try {
+      await ctx.skill("../digest-child", { value });
+      sealed.push(value);
+    } catch (rejected) {
+      return { sealed, refused: rejected.message };
+    }
+  }
+  return { sealed, refused: "" };
+}
+"#,
+    )?;
+    let workflow = crate::support::method_workflow(&skill_dir, "prepare")?;
+    let mut options =
+        crate::support::signed_runtime_options(crate::support::run_in(temp.path(), "run_budget")?)?;
+    options.env.extend(env(temp.path()));
+    // The root, its script step, and two skill calls.
+    let budget = 2 + 2 * runx_contracts::RECEIPTS_PER_SKILL_CALL;
+    options.max_receipts = budget;
+    let runtime = runx_runtime::Runtime::new(
+        runx_runtime::adapters::javascript::JavaScriptAdapter::default(),
+        options,
+    );
+
+    let run = runtime.run_workflow_with_host(&skill_dir, workflow, &mut runx_runtime::NoopHost)?;
+
+    assert_eq!(
+        run.receipt.seal.outcome,
+        runx_contracts::RunOutcome::Completed
+    );
+    let step = run.steps.first().ok_or("the script step ran")?;
+    assert_eq!(
+        step.contract.get("sealed"),
+        Some(&JsonValue::Array(vec![
+            JsonValue::String("first".to_owned()),
+            JsonValue::String("second".to_owned()),
+        ]))
+    );
+    assert_eq!(
+        step.contract.get("refused").and_then(JsonValue::as_str),
+        Some(
+            format!("it would take the run's receipt tree past its bound of {budget} receipts")
+                .as_str()
+        )
+    );
+    // The step's receipt names the two calls that sealed, and the tree is
+    // the budget exactly.
+    assert_eq!(step.receipt.lineage.children.len(), 2);
+    let receipts = 1 + run
+        .steps
+        .iter()
+        .map(|step| 1 + step.nested_receipts.len())
+        .sum::<usize>();
+    assert_eq!(receipts, budget);
+    Ok(())
+}
+
 /// A script package of one step, `prepare`, whose run.yaml step is `step`
 /// and whose module is `script`.
 fn write_one_step(root: &Path, step: &str, script: &str) -> TestResult<PathBuf> {

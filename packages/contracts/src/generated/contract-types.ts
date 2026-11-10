@@ -2884,7 +2884,7 @@ export type SealContract = {
 };
 
 /** Why a receipt's subject ended as it did, beyond its outcome. */
-export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "cost_limit_exceeded" | "resolution_pending" | "managed_agent_provider_failed" | "managed_agent_resolution_failed" | "managed_agent_empty_turn_budget_exhausted" | "managed_agent_tool_execution_failed" | "managed_agent_round_budget_exhausted" | "host_closed" | "cancelled";
+export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "managed_agent_provider_failed" | "managed_agent_resolution_failed" | "managed_agent_empty_turn_budget_exhausted" | "managed_agent_tool_execution_failed" | "managed_agent_round_budget_exhausted" | "host_closed" | "cancelled";
 
 /** A local session: authority the person already holds on this machine. */
 export type SessionAuthContract = {

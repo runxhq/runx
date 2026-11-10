@@ -424,6 +424,8 @@ impl BoundRun {
             reads: crate::execution::runner::RunReads::default(),
             workspace: Some(self.workspace.paths().clone()),
             max_concurrency: self.max_concurrency,
+            max_receipts: runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
+            receipts: std::sync::Arc::default(),
         };
         let local_artifacts = crate::services::LocalArtifactService::for_run(
             &options.run.store().project_dir(),

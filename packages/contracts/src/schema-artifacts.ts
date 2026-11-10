@@ -8668,6 +8668,7 @@ export const runxSchemaArtifacts = {
           "workflow_blocked",
           "authority_denied",
           "cost_limit_exceeded",
+          "receipt_budget_exceeded",
           "resolution_pending",
           "managed_agent_provider_failed",
           "managed_agent_resolution_failed",

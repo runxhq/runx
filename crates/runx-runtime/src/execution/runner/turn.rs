@@ -7,8 +7,8 @@
 //! child skill as a child run of its own, whose turns are open turns too. The
 //! turn ends when the host answers the act.
 
-use std::cell::{Cell, OnceCell};
-use std::collections::BTreeMap;
+use std::cell::{Cell, OnceCell, RefCell};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
@@ -367,6 +367,9 @@ where
                 RuntimeError::AuthorityDenied { reason, .. }
                 | RuntimeError::CostLimitExceeded { reason, .. },
             ) => Ran::Settled(CallOutcome::Refused(reason)),
+            Err(RuntimeError::ReceiptBudgetExceeded { bound, .. }) => Ran::Settled(
+                CallOutcome::Refused(crate::error::receipt_budget_reason(bound)),
+            ),
             // The act may have reached its provider: its custody holds it, and
             // the call stays claimed until a retry with the same input
             // reconciles it.
@@ -444,6 +447,9 @@ pub(super) struct CallLedger<'a, A> {
     record: OnceCell<StepRecord>,
     /// The place the step's next call event takes, once known.
     events: Cell<Option<u64>>,
+    /// The calls whose receipt this drive counted against the run's tree
+    /// and that haven't sealed it yet, by index.
+    counted: RefCell<BTreeSet<u32>>,
 }
 
 /// What a run records of one step: its calls, in order, and its script's
@@ -571,6 +577,12 @@ pub(super) fn past_inline_bound(
     Ok(u64::try_from(bytes.len()).unwrap_or(u64::MAX) > bound)
 }
 
+/// Whether a call naming `target` seals a receipt once it completes: a
+/// script's wait and read are its ledger's own, and seal none.
+fn seals_a_receipt(target: &CallTarget) -> bool {
+    !matches!(target, CallTarget::Wait { .. } | CallTarget::Read { .. })
+}
+
 /// A script's wait at position `index`, as its ledger records it.
 fn waiting(index: u32, until: i64) -> Made {
     script_call(index, CallTarget::Wait { until })
@@ -620,6 +632,7 @@ where
                 turn: Some(pending_request(request)?),
                 record: OnceCell::new(),
                 events: Cell::new(None),
+                counted: RefCell::default(),
             },
             invocation,
         })
@@ -642,6 +655,7 @@ where
             turn: None,
             record: OnceCell::new(),
             events: Cell::new(None),
+            counted: RefCell::default(),
         }
     }
 
@@ -709,6 +723,23 @@ where
             .options
             .run
             .step_calls(self.scope.step_id, self.scope.attempt)?;
+        // What the record holds is the run's tree's already: each completed
+        // call's receipts, and the one each open call seals later.
+        let mut counted = self.counted.borrow_mut();
+        let mut receipts = 0;
+        for call in &calls {
+            match &call.outcome {
+                CallOutcome::Completed(run) => receipts += run.receipts(),
+                CallOutcome::Pending(_) | CallOutcome::Child(_) | CallOutcome::Claimed(_)
+                    if seals_a_receipt(&call.target) =>
+                {
+                    receipts += 1;
+                    counted.insert(call.index);
+                }
+                _ => {}
+            }
+        }
+        self.scope.runtime.options.receipts.count(receipts);
         Ok(self.record.get_or_init(|| StepRecord { calls, clock }))
     }
 
@@ -1076,6 +1107,20 @@ where
                 return settled(self, made, CallOutcome::Refused(reason), &answers);
             }
         };
+        // The call's receipt is counted against the run's tree as it's
+        // admitted, as its max_calls is: past the bound it is refused before
+        // it runs. One the record holds open was counted as it was read.
+        self.step_record()?;
+        if !self.counted.borrow().contains(&made.index) {
+            let options = &self.scope.runtime.options;
+            let bound = options.receipt_bound();
+            if !options.receipts.take(1, bound) {
+                let answers = host.answers.clone();
+                let refused = CallOutcome::Refused(crate::error::receipt_budget_reason(bound));
+                return settled(self, made, refused, &answers);
+            }
+            self.counted.borrow_mut().insert(made.index);
+        }
         let admitted = match super::floor::hold(
             self.scope.runtime,
             self.scope.workflow_dir,
@@ -1361,6 +1406,20 @@ where
         // bound, which its record keeps, so replay gives the same references.
         let inline_bound = (self.turn.is_none() && matches!(outcome, CallOutcome::Completed(_)))
             .then_some(SCRIPT_INLINE_BYTES);
+        // A completed call's receipt is its tree's, and an open call keeps
+        // its count until it seals; any other end seals none and gives the
+        // count back.
+        match &outcome {
+            CallOutcome::Pending(_) | CallOutcome::Child(_) | CallOutcome::Claimed(_) => {}
+            CallOutcome::Completed(_) => {
+                self.counted.borrow_mut().remove(&made.index);
+            }
+            _ => {
+                if self.counted.borrow_mut().remove(&made.index) {
+                    self.scope.runtime.options.receipts.give_back(1);
+                }
+            }
+        }
         let outputs = match &outcome {
             CallOutcome::Completed(run) => self.output_artifacts(made, run, inline_bound)?,
             _ => Vec::new(),

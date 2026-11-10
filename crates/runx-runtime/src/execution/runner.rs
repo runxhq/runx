@@ -37,6 +37,7 @@ mod bounded;
 mod call_stops;
 mod dispatch;
 pub(crate) mod floor;
+mod receipt_budget;
 mod step_handlers;
 pub mod turn;
 mod workflow_engine;
@@ -248,6 +249,15 @@ pub struct RuntimeOptions {
     /// once, which an authority's `max_concurrency` is narrowed to and which
     /// applies when it states none. A child run runs under its parent's.
     pub max_concurrency: crate::MaxConcurrency,
+    /// The host's receipt budget: the most receipts a run's tree may hold,
+    /// its root's included, which each step and call the run admits draws
+    /// from, at every depth. It is at most the bound every verifier holds a
+    /// tree to, [`runx_contracts::MAX_RECEIPT_TREE_RECEIPTS`], its default.
+    /// A child run draws from its root's.
+    pub max_receipts: usize,
+    /// What the root run's tree has drawn of its receipt budget, shared by
+    /// its child runs.
+    pub(crate) receipts: std::sync::Arc<receipt_budget::ReceiptTally>,
 }
 
 /// Where the CLI host reads its concurrency ceiling, a positive integer.
@@ -490,12 +500,36 @@ impl RuntimeOptions {
             reads: RunReads::default(),
             workspace: None,
             max_concurrency: DEFAULT_MAX_CONCURRENCY,
+            max_receipts: runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
+            receipts: std::sync::Arc::default(),
         }
     }
 
     #[must_use]
     pub fn signature_policy(&self) -> RuntimeReceiptSignaturePolicy<'_> {
         self.receipt_signature.signature_policy()
+    }
+
+    /// The most receipts the run's tree may hold: the host's budget, within
+    /// the bound every verifier holds a tree to.
+    pub(crate) fn receipt_bound(&self) -> usize {
+        self.max_receipts
+            .min(runx_contracts::MAX_RECEIPT_TREE_RECEIPTS)
+    }
+
+    /// Take `receipts` of the run's receipt budget for what `step_id` will
+    /// seal, refused before it runs when they would take the tree past its
+    /// bound.
+    pub(crate) fn take_receipts(&self, step_id: &str, receipts: usize) -> Result<(), RuntimeError> {
+        let bound = self.receipt_bound();
+        if self.receipts.take(receipts, bound) {
+            Ok(())
+        } else {
+            Err(RuntimeError::ReceiptBudgetExceeded {
+                step_id: step_id.to_owned(),
+                bound,
+            })
+        }
     }
 }
 
@@ -584,6 +618,11 @@ impl StepRun {
     pub(crate) fn output(&self, name: &str) -> Option<&JsonValue> {
         crate::output_contract::output_value(&self.contract, &self.artifact_outputs, name)
     }
+
+    /// The receipts this run adds to its tree: its own and each it carries.
+    pub(crate) fn receipts(&self) -> usize {
+        1 + self.nested_receipts.len()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -669,6 +708,17 @@ pub(crate) struct Stopped {
     pub(crate) result: JsonValue,
 }
 
+/// Whether a step `error` stopped may still seal a receipt for it: a step
+/// that failed seals its failure, and one that waits seals later. A step a
+/// governed stop ended, a refusal or a block, seals none, as the run seals
+/// without it.
+pub(super) fn step_may_seal(workflow: &Workflow, error: &RuntimeError) -> bool {
+    !matches!(
+        sealing_stop(workflow, error),
+        Ok(Some((_, _, StopKind::Blocked | StopKind::Closed(_))))
+    )
+}
+
 /// How a run that stopped short closes.
 enum StopKind {
     Blocked,
@@ -712,6 +762,11 @@ fn sealing_stop(
             Some(SealReason::CostLimitExceeded),
             StopKind::Blocked,
         ),
+        RuntimeError::ReceiptBudgetExceeded { step_id, .. } => (
+            step_id.clone(),
+            Some(SealReason::ReceiptBudgetExceeded),
+            StopKind::Blocked,
+        ),
         #[cfg(feature = "agent")]
         RuntimeError::ManagedAgentResolution {
             step_id, source, ..
@@ -749,6 +804,11 @@ pub(crate) fn workflow_stop_ending(
             step_id,
             RunOutcome::Blocked,
             Some(SealReason::CostLimitExceeded),
+        ),
+        RuntimeError::ReceiptBudgetExceeded { step_id, .. } => (
+            step_id,
+            RunOutcome::Blocked,
+            Some(SealReason::ReceiptBudgetExceeded),
         ),
         RuntimeError::ResolutionPending { step_id, .. } => (
             step_id,
@@ -875,6 +935,10 @@ where
         terminal_outcome: WorkflowTerminalOutcome,
     ) -> Result<WorkflowRun, RuntimeError> {
         let mut execution = self.open_execution(&workflow)?;
+        // What the run's record holds is its tree's already.
+        self.options
+            .receipts
+            .count(execution.runs.iter().map(StepRun::receipts).sum());
         match execution.run(self, workflow_dir, &workflow, host) {
             Ok(()) => {
                 let receipt = workflow_receipt_with_ending(
@@ -1129,8 +1193,9 @@ impl<A: Clone> Runtime<A> {
     pub fn for_run(&self, run: RunLog) -> Self {
         let mut options = self.options.as_ref().clone();
         options.run = run;
-        // A new run reads its packages afresh.
+        // A new run reads its packages afresh, and has a tree of its own.
         options.reads = RunReads::default();
+        options.receipts = std::sync::Arc::default();
         Self {
             configured_adapter: self.configured_adapter.clone(),
             javascript: self.javascript.clone(),

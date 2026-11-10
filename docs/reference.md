@@ -1191,6 +1191,11 @@ only the path it is on. A receipt two parents commit is refused, and two
 different signed bodies under the same receipt ID are ambiguous and fail
 verification.
 
+A run holds its tree to that bound as a budget, as a script holds its calls to
+`max_calls`: each step and call counts its receipt as it is admitted, at every
+depth, and one that would take the tree past the bound is refused before it
+runs (`receipt_budget_exceeded`), so a run that did its work always seals.
+
 Native `receipt.prove` and `receipt.query` expose redacted metadata and tree
 verification. `receipt.read` additionally requires `receipt.claim.read` and
 returns an exact retained declared output from the current workspace, after

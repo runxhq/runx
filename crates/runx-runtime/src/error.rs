@@ -89,6 +89,10 @@ pub enum RuntimeError {
     /// nothing was sent.
     #[error("workflow step '{step_id}' exceeds the run's money limit: {reason}")]
     CostLimitExceeded { step_id: String, reason: String },
+    /// A step or call would take the root run's receipt tree past its
+    /// bound; nothing ran.
+    #[error("workflow step '{step_id}' is refused: {}", receipt_budget_reason(*bound))]
+    ReceiptBudgetExceeded { step_id: String, bound: usize },
     #[error("workflow step '{step_id}' failed planning: {reason}")]
     WorkflowPlanningFailed { step_id: String, reason: String },
     #[cfg(feature = "agent")]
@@ -192,6 +196,12 @@ pub enum RuntimeError {
     ReceiptInvalid { message: String },
 }
 
+/// Why a step or call is refused at the run's receipt budget: it names the
+/// bound.
+pub(crate) fn receipt_budget_reason(bound: usize) -> String {
+    format!("it would take the run's receipt tree past its bound of {bound} receipts")
+}
+
 impl RuntimeError {
     pub(crate) fn io(context: impl Into<String>, source: std::io::Error) -> Self {
         Self::Io {
@@ -221,6 +231,7 @@ impl RuntimeError {
         match source {
             source @ (Self::AuthorityDenied { .. }
             | Self::CostLimitExceeded { .. }
+            | Self::ReceiptBudgetExceeded { .. }
             | Self::WorkflowBlocked { .. }
             | Self::Cancelled { .. }
             | Self::ResolutionPending { .. }
@@ -264,6 +275,7 @@ impl RuntimeError {
             | Self::ContextEdgeUnresolved(_)
             | Self::AuthorityDenied { .. }
             | Self::CostLimitExceeded { .. }
+            | Self::ReceiptBudgetExceeded { .. }
             | Self::UnsupportedAdapter { .. }
             | Self::UnsupportedExecutable { .. }
             | Self::UnsupportedMethodSelection { .. }
@@ -385,6 +397,24 @@ impl RuntimeError {
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
+            Self::ReceiptBudgetExceeded { step_id, bound } => {
+                projection.insert(
+                    "code".to_owned(),
+                    JsonValue::String("receipt_budget_exceeded".to_owned()),
+                );
+                projection.insert("step_id".to_owned(), JsonValue::String(step_id.clone()));
+                projection.insert("retryable".to_owned(), JsonValue::Bool(false));
+                projection.insert(
+                    "bound".to_owned(),
+                    JsonValue::Number(runx_contracts::JsonNumber::U64(
+                        u64::try_from(*bound).unwrap_or(u64::MAX),
+                    )),
+                );
+                projection.insert(
+                    "reason".to_owned(),
+                    JsonValue::String(receipt_budget_reason(*bound)),
+                );
+            }
             Self::ProviderReadbackPending {
                 step_id,
                 reason,
@@ -432,6 +462,7 @@ impl RuntimeError {
             | Self::StepClosed { step_id, .. }
             | Self::AuthorityDenied { step_id, .. }
             | Self::CostLimitExceeded { step_id, .. }
+            | Self::ReceiptBudgetExceeded { step_id, .. }
             | Self::WorkflowPlanningFailed { step_id, .. }
             | Self::ProviderReadbackPending { step_id, .. } => Some(step_id),
             Self::InputContract { step_id, .. } => step_id.as_deref(),
@@ -489,6 +520,10 @@ impl RuntimeError {
             Self::CostLimitExceeded { reason, .. } => Self::CostLimitExceeded {
                 step_id: step_id.to_owned(),
                 reason,
+            },
+            Self::ReceiptBudgetExceeded { bound, .. } => Self::ReceiptBudgetExceeded {
+                step_id: step_id.to_owned(),
+                bound,
             },
             Self::ProviderReadbackPending { reason, resend, .. } => Self::ProviderReadbackPending {
                 step_id: step_id.to_owned(),
