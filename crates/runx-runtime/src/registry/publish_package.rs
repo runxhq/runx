@@ -254,11 +254,34 @@ fn refuse_undescribed_methods(
     )))
 }
 
-fn prepare_loaded_package(
+/// The distribution digest of the package `loaded`: the package digest of
+/// the package `runx registry package` makes of it, which every copy runx
+/// distributes carries, published, bundled or served. A source directory's
+/// own package digest differs once packaging adds what the package carries.
+/// None when it doesn't package, as a publish would refuse it.
+///
+/// # Errors
+///
+/// Returns why packaging failed other than by refusing the package.
+pub fn distribution_digest(
     loaded: &LoadedSkillPackage,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {
+) -> Result<Option<String>, RuntimeError> {
+    match package_loaded(loaded, env, cwd).and_then(|parts| parts.package_digest()) {
+        Ok(digest) => Ok(Some(digest)),
+        Err(RegistryPublishPackageError::Invalid { .. }) => Ok(None),
+        Err(RegistryPublishPackageError::Runtime(error)) => Err(error),
+    }
+}
+
+/// The package `loaded` as it distributes: its manual, its profile and every
+/// file packaging carries beside them, refused as a publish refuses it.
+fn package_loaded(
+    loaded: &LoadedSkillPackage,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<RegistryPublishPackageParts, RegistryPublishPackageError> {
     let local_closure = crate::skill_package::inspect_loaded_local_closure(loaded, env)
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
     refuse_signatures(loaded, &local_closure)?;
@@ -280,12 +303,31 @@ fn prepare_loaded_package(
         connectors,
     )
     .map_err(RegistryPublishPackageError::invalid)?;
+    Ok(RegistryPublishPackageParts {
+        markdown: loaded.package.manual_markdown.clone(),
+        profile_document,
+        package_files,
+        metadata,
+    })
+}
+
+fn prepare_loaded_package(
+    loaded: &LoadedSkillPackage,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {
+    let RegistryPublishPackageParts {
+        markdown,
+        profile_document,
+        package_files,
+        metadata,
+    } = package_loaded(loaded, env, cwd)?;
     let test = test::stage_publish_test(loaded, profile_document.as_deref(), &package_files)?;
     Ok(RegistryPublishPackage {
         version: loaded
             .manifest()
             .and_then(|manifest| manifest.version.clone()),
-        markdown: loaded.package.manual_markdown.clone(),
+        markdown,
         profile_document,
         package_files,
         metadata,

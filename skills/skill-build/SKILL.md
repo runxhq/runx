@@ -62,12 +62,14 @@ rules.
 
 A validated local write is not a published skill. For a shared or public
 package, the validated `run.yaml` identity and the exact `target_dir` and
-`package_digest` in `apply_result` form the publication candidate. When the
+`distribution_digest` in `apply_result` form the publication candidate: the
+digest every published copy of the package carries. An `apply_result` with no
+`distribution_digest` doesn't package, and isn't a candidate. When the
 operator's objective includes shipping or registry availability, continue that
 exact candidate through the repository's canonical registry operator: publish
 under the intended existing publisher/name, then independently read back the same
-version and digest. Do not call the work shipped while that sync is pending or
-unverified. Publication remains a separate authenticated act so Skill Build
+version and distribution digest. Do not call the work shipped while that sync is
+pending or unverified. Publication remains a separate authenticated act so Skill Build
 never receives registry credentials or hides a remote mutation inside local
 authoring.
 

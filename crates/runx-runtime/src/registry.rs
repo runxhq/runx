@@ -55,8 +55,9 @@ pub use publish_closure::{
 };
 pub use publish_package::{
     RegistryConnectorPackage, RegistryPublishPackage, RegistryPublishPackageError,
-    RegistryPublishPackageParts, RegistryPublishPackageRequest, prepare_registry_connector_package,
-    prepare_registry_publish_package, unheld_publish_registry_refs,
+    RegistryPublishPackageParts, RegistryPublishPackageRequest, distribution_digest,
+    prepare_registry_connector_package, prepare_registry_publish_package,
+    unheld_publish_registry_refs,
 };
 pub(crate) use refs::split_skill_id;
 pub use refs::{ParsedRegistryRef, parse_registry_ref, safe_skill_package_parts};

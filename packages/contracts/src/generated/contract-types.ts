@@ -3081,8 +3081,10 @@ export type SkillApplyResultContract = {
   readonly changed_paths: readonly string[];
   readonly decision: SkillChangeDecisionContract;
   readonly deleted_paths: readonly string[];
-  /** The execution package digest of the applied package, not the registry's digest of its published package files. */
-  readonly package_digest: string;
+  /** Its distribution digest: the package digest of the package `runx registry package` makes of it, which every published, bundled or served copy carries, and which a publish reads back; none when it doesn't package, as a publish would refuse it. */
+  readonly distribution_digest?: string;
+  /** The package digest of the package standing at the target, as `runx skill inspect` reports it; none when no package stands there. */
+  readonly package_digest?: string;
   readonly plan_digest: string;
   readonly residual_risks: readonly string[];
   readonly schema: SkillApplyResultSchemaContract;

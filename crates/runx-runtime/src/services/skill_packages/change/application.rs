@@ -88,7 +88,7 @@ struct SkillApplicationRecord {
     base_digest: String,
     plan_digest: String,
     bundle_digest: String,
-    package_digest: String,
+    snapshot_digest: String,
 }
 
 pub(super) struct AdmittedSkillChange {
@@ -229,7 +229,7 @@ pub(super) fn recorded_application_matches(
     paths: &RunxPaths,
     target_dir: &str,
     change: &SkillChangeBundle,
-    package_digest: &str,
+    snapshot_digest: &str,
 ) -> Result<bool, RuntimeError> {
     let path = paths
         .authoring_applications()
@@ -255,10 +255,11 @@ pub(super) fn recorded_application_matches(
         && record.base_digest == change.base_digest.as_str()
         && record.plan_digest == change.plan_digest.as_str()
         && record.bundle_digest == change_bundle_digest(change)?
-        && record.package_digest == package_digest)
+        && record.snapshot_digest == snapshot_digest)
 }
 
-/// Record that `change` applied to `target_dir` yields `package_digest`. It is
+/// Record that `change` applied to `target_dir` yields the package snapshot
+/// `snapshot_digest`. It is
 /// written before the package: a crash in between leaves the target at its
 /// base digest, so the change applies again; once both land, a repeat of the
 /// change finds the target already applied.
@@ -266,7 +267,7 @@ pub(super) fn record_application(
     paths: &RunxPaths,
     target_dir: &str,
     change: &SkillChangeBundle,
-    package_digest: &str,
+    snapshot_digest: &str,
 ) -> Result<(), RuntimeError> {
     let record = SkillApplicationRecord {
         schema: APPLICATION_RECORD_SCHEMA.to_owned(),
@@ -274,7 +275,7 @@ pub(super) fn record_application(
         base_digest: change.base_digest.as_str().to_owned(),
         plan_digest: change.plan_digest.as_str().to_owned(),
         bundle_digest: change_bundle_digest(change)?,
-        package_digest: package_digest.to_owned(),
+        snapshot_digest: snapshot_digest.to_owned(),
     };
     let contents = serde_json::to_string_pretty(&record)
         .map_err(|source| RuntimeError::json("serializing skill application record", source))?;
@@ -326,7 +327,7 @@ fn change_bundle_digest(change: &SkillChangeBundle) -> Result<String, RuntimeErr
 pub(super) fn no_change_result(
     target_dir: &str,
     change: &SkillChangeBundle,
-    package_digest: String,
+    standing: super::PackageDigests,
 ) -> SkillApplyResult {
     SkillApplyResult {
         schema: SkillApplyResultSchema::V1,
@@ -339,7 +340,8 @@ pub(super) fn no_change_result(
         },
         base_digest: change.base_digest.clone(),
         plan_digest: change.plan_digest.clone(),
-        package_digest: package_digest.into(),
+        package_digest: standing.package,
+        distribution_digest: standing.distribution,
         changed_paths: Vec::new(),
         deleted_paths: Vec::new(),
         validation: None,

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     Digest, JsonValue, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
     SkillArchitectureDecision, SkillArchitecturePlan, SkillArchitecturePlanSchema,
@@ -116,18 +117,15 @@ pub(crate) fn apply_skill_change(
         &secret_prefixes,
     )?;
     if change.decision != SkillChangeDecision::Write {
-        return Ok(no_change_result(
-            &target.relative,
-            change,
-            target.before.digest.into_string(),
-        ));
+        let standing = PackageDigests::standing(&target, env)?;
+        return Ok(no_change_result(&target.relative, change, standing));
     }
     if let Some(result) = reapplied_result(&target, change, env, effects)? {
         return Ok(result);
     }
     let candidate = validate_candidate_stage(&target, change, &admitted, env, effects)?;
     let journal = crate::filesystem::Journal::of_run(env, repo_root)?;
-    let result = commit_candidate(&target, change, admitted, &candidate, journal.as_ref())?;
+    let result = commit_candidate(&target, change, admitted, &candidate, journal.as_ref(), env)?;
     drop(candidate);
     Ok(result)
 }
@@ -163,6 +161,52 @@ pub(crate) fn skill_change_effect(
         _ => crate::filesystem::TextBundle::default(),
     };
     crate::filesystem::text_bundle_effect("runx.skill.apply", repo_root, &bundle, reach)
+}
+
+/// A package's digests as an apply result states them.
+pub(super) struct PackageDigests {
+    pub(super) package: Option<NonEmptyString>,
+    pub(super) distribution: Option<NonEmptyString>,
+}
+
+impl PackageDigests {
+    /// The package an apply wrote, or found already written: it validated,
+    /// so it loads.
+    fn applied(target: &ApplyTarget, env: &BTreeMap<String, String>) -> Result<Self, RuntimeError> {
+        let loaded = crate::load_validated_skill_package(&target.path)
+            .map_err(|error| invalid_skill_change(error.to_string()))?;
+        Self::of(&loaded, target, env)
+    }
+
+    /// The package standing at the target of a change that writes nothing:
+    /// none when no valid package stands there, as before a package is
+    /// created or while one is broken.
+    fn standing(
+        target: &ApplyTarget,
+        env: &BTreeMap<String, String>,
+    ) -> Result<Self, RuntimeError> {
+        match crate::load_validated_skill_package(&target.path) {
+            Ok(loaded) => Self::of(&loaded, target, env),
+            Err(_) => Ok(Self {
+                package: None,
+                distribution: None,
+            }),
+        }
+    }
+
+    /// `loaded`'s package digest, and its distribution digest unless it
+    /// doesn't package, as a publish would refuse it.
+    fn of(
+        loaded: &crate::LoadedSkillPackage,
+        target: &ApplyTarget,
+        env: &BTreeMap<String, String>,
+    ) -> Result<Self, RuntimeError> {
+        Ok(Self {
+            package: Some(loaded.package.package_digest.as_str().into()),
+            distribution: crate::registry::distribution_digest(loaded, env, &target.repo_root)?
+                .map(Into::into),
+        })
+    }
 }
 
 struct ApplyTarget {
@@ -223,13 +267,17 @@ fn reapplied_result(
         env,
         effects,
     )?;
-    Ok(Some(unchanged_write_result(target, change, validation)))
+    let applied = PackageDigests::applied(target, env)?;
+    Ok(Some(unchanged_write_result(
+        target, change, validation, applied,
+    )))
 }
 
 fn unchanged_write_result(
     target: &ApplyTarget,
     change: &SkillChangeBundle,
     validation: SkillValidationResult,
+    applied: PackageDigests,
 ) -> SkillApplyResult {
     SkillApplyResult {
         schema: SkillApplyResultSchema::V1,
@@ -238,7 +286,8 @@ fn unchanged_write_result(
         verdict: SkillApplyVerdict::Unchanged,
         base_digest: change.base_digest.clone(),
         plan_digest: change.plan_digest.clone(),
-        package_digest: target.before.digest.as_str().into(),
+        package_digest: applied.package,
+        distribution_digest: applied.distribution,
         changed_paths: Vec::new(),
         deleted_paths: Vec::new(),
         validation: Some(validation),
@@ -303,6 +352,7 @@ fn commit_candidate(
     admitted: AdmittedSkillChange,
     candidate: &ValidatedCandidate,
     journal: Option<&crate::filesystem::Journal>,
+    env: &BTreeMap<String, String>,
 ) -> Result<SkillApplyResult, RuntimeError> {
     let _lock = SkillApplicationLock::acquire(&target.paths, &target.relative)?;
     ensure_target_unchanged(&target.path, &candidate.stage.base_digest)?;
@@ -314,22 +364,22 @@ fn commit_candidate(
     )?;
     // The repository root was bounded when the tool resolved it; the paths
     // here are the skill package's own, admitted by `admit_skill_change`.
-    let (_, applied) = apply_text_bundle_verified(
+    apply_text_bundle_verified(
         "runx.skill.apply",
         &target.repo_root,
         &admitted.bundle,
         runx_contracts::Reach::Inputs,
         journal,
         || {
-            let applied = package_snapshot(&target.path)?;
-            if applied.digest != candidate.snapshot.digest {
+            if package_snapshot(&target.path)?.digest != candidate.snapshot.digest {
                 return Err(invalid_skill_change(
-                    "applied package digest does not match the validated candidate",
+                    "applied package snapshot does not match the validated candidate",
                 ));
             }
-            Ok(applied)
+            Ok(())
         },
     )?;
+    let applied = PackageDigests::applied(target, env)?;
     Ok(SkillApplyResult {
         schema: SkillApplyResultSchema::V1,
         target_dir: target.relative.clone().into(),
@@ -337,7 +387,8 @@ fn commit_candidate(
         verdict: SkillApplyVerdict::ValidatedAndApplied,
         base_digest: change.base_digest.clone(),
         plan_digest: change.plan_digest.clone(),
-        package_digest: applied.digest.into_string().into(),
+        package_digest: applied.package,
+        distribution_digest: applied.distribution,
         changed_paths: change
             .writes
             .iter()

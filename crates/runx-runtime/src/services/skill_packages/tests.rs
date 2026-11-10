@@ -278,6 +278,10 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
 
     assert_eq!(report.verdict, SkillApplyVerdict::Unchanged);
     assert!(!temp.path().join("skills/demo").exists());
+    // No package stands at the target, so the result states no package's
+    // digests.
+    assert_eq!(report.package_digest, None);
+    assert_eq!(report.distribution_digest, None);
     Ok(())
 }
 
@@ -561,6 +565,74 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     )?;
     assert_eq!(retry.verdict, SkillApplyVerdict::Unchanged);
     assert!(!target.join("obsolete.txt").exists());
+    Ok(())
+}
+
+/// An applied package's result states the package digest `runx skill
+/// inspect` reports for what it wrote and the distribution digest of the
+/// package `runx registry package` makes of it, and applying it again states
+/// the same.
+#[test]
+fn skill_authoring_apply_states_the_package_and_distribution_digests_of_what_it_wrote()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempfile::tempdir()?;
+    let target = temp.path().join("skills/demo");
+    fs::create_dir_all(&target)?;
+    fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
+    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
+    fs::write(target.join("obsolete.txt"), "old path\n")?;
+    let base = package_snapshot(&target)?.digest;
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        architecture(SkillArchitectureChoice::ExtendExisting, &["obsolete.txt"]),
+        &[],
+        &["obsolete.txt"],
+    );
+    let env = BTreeMap::new();
+    let apply = || {
+        apply_skill_change(
+            temp.path(),
+            "skills/demo",
+            "improve",
+            &bundle,
+            &env,
+            &RuntimeEffectRegistry::default(),
+        )
+    };
+
+    let applied = apply()?;
+    assert_eq!(applied.verdict, SkillApplyVerdict::ValidatedAndApplied);
+    let inspected = crate::inspect_skill_package(&target, None, None)?;
+    let subject = target.to_string_lossy();
+    let packaged = crate::registry::prepare_registry_publish_package(
+        crate::registry::RegistryPublishPackageRequest {
+            subject: &subject,
+            env: &env,
+            cwd: temp.path(),
+        },
+    )?
+    .into_parts()
+    .package_digest()?;
+    assert_eq!(
+        applied
+            .package_digest
+            .as_ref()
+            .map(|digest| digest.as_str()),
+        Some(inspected.package_digest.as_str())
+    );
+    assert_eq!(
+        applied
+            .distribution_digest
+            .as_ref()
+            .map(|digest| digest.as_str()),
+        Some(packaged.as_str())
+    );
+
+    let again = apply()?;
+    assert_eq!(again.verdict, SkillApplyVerdict::Unchanged);
+    assert_eq!(again.package_digest, applied.package_digest);
+    assert_eq!(again.distribution_digest, applied.distribution_digest);
     Ok(())
 }
 

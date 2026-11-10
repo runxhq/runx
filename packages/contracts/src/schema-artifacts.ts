@@ -14050,8 +14050,13 @@ export const runxSchemaArtifacts = {
         },
         "type": "array"
       },
+      "distribution_digest": {
+        "description": "Its distribution digest: the package digest of the package `runx registry package` makes of it, which every published, bundled or served copy carries, and which a publish reads back; none when it doesn't package, as a publish would refuse it.",
+        "minLength": 1,
+        "type": "string"
+      },
       "package_digest": {
-        "description": "The execution package digest of the applied package, not the registry's digest of its published package files.",
+        "description": "The package digest of the package standing at the target, as `runx skill inspect` reports it; none when no package stands there.",
         "minLength": 1,
         "type": "string"
       },
@@ -14087,7 +14092,6 @@ export const runxSchemaArtifacts = {
       "verdict",
       "base_digest",
       "plan_digest",
-      "package_digest",
       "changed_paths",
       "deleted_paths",
       "residual_risks"
