@@ -168,7 +168,7 @@ function validateShim(name, inspection, source) {
   // Inspection with no method named selects the default.
   const defaultMethod = inspection.method?.name;
   const method = inspection.method_inspections?.find((entry) => entry.method?.name === defaultMethod);
-  const closureDigest = method?.closure?.closure_digest;
+  const closureDigest = method?.closure?.digest;
   if (!defaultMethod || !isDigest(closureDigest)) {
     fail(`${name}: inspected default method has no exact closure`);
   } else if (!contents.includes(`--closure-digest ${closureDigest}`)) {

@@ -68,7 +68,7 @@ describe("native invocation and decoding", () => {
     const closure = (connectorBindings?: unknown) => ({
       schema: "runx.skill.inspect.v1", status: "ok", name: "agent-inbox", package_digest: `sha256:${"c".repeat(64)}`,
       closure: {
-        closure_digest: `sha256:${"d".repeat(64)}`, fully_bound: true,
+        digest: `sha256:${"d".repeat(64)}`, fully_bound: true,
         package_bindings: [{ skill: "agent-inbox", method: "create", package_digest: `sha256:${"c".repeat(64)}`, source_kind: "source_root", source_path: "/skill", source_files: ["SKILL.md"] }],
         ...(connectorBindings === undefined ? {} : { connector_bindings: connectorBindings }),
       },

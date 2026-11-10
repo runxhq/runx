@@ -427,7 +427,7 @@ pub(crate) fn inspect_loaded_closure_binding(
             problem: "omitted binding state",
         })?;
     let digest = closure
-        .get("closure_digest")
+        .get("digest")
         .and_then(JsonValue::as_str)
         .filter(|value| !value.trim().is_empty())
         .map(str::to_owned)
@@ -645,7 +645,7 @@ methods:
         );
         assert!(
             closure
-                .get("closure_digest")
+                .get("digest")
                 .and_then(JsonValue::as_str)
                 .is_some_and(|value| value.starts_with("sha256:"))
         );
@@ -877,8 +877,8 @@ operations:
         )
         .expect("changed child manual");
         assert_ne!(
-            closure(&root)?.get("closure_digest"),
-            first.get("closure_digest"),
+            closure(&root)?.get("digest"),
+            first.get("digest"),
             "changing the child the turn may call changes the closure"
         );
         Ok(())

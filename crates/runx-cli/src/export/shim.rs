@@ -255,7 +255,7 @@ fn render_method_index(
     runx_bin: &str,
 ) -> String {
     let mut output = String::from(
-        "## Other methods\n\nSelect a non-default method only when the source manual calls for it. Inspect it for its input_schema and closure.closure_digest. Replace the `#method` and closure digest in both invocation and continuation commands; keep the package digest. Never resume another method with the default method's closure digest.\n\n",
+        "## Other methods\n\nSelect a non-default method only when the source manual calls for it. Inspect it for its input_schema and closure.digest. Replace the `#method` and closure digest in both invocation and continuation commands; keep the package digest. Never resume another method with the default method's closure digest.\n\n",
     );
     for method in methods {
         let name = method.name.as_deref().unwrap_or("default");

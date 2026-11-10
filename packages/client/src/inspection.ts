@@ -63,7 +63,7 @@ export function closureFromInspection(
     ? inspection.closure
     : undefined;
   const closureDigest = closure
-    ? textOrUndefined(closure.closure_digest)
+    ? textOrUndefined(closure.digest)
     : undefined;
   if (!closureDigest || closure?.fully_bound !== true) {
     throw new Error(

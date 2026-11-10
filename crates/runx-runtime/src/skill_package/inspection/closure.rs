@@ -107,7 +107,7 @@ pub(crate) struct LocalClosure {
 
 #[derive(Serialize)]
 struct Closure {
-    closure_digest: String,
+    digest: String,
     runx_version: String,
     fully_bound: bool,
     summary: String,
@@ -1148,7 +1148,7 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
         .into_iter()
         .collect::<Vec<_>>();
     let output = Closure {
-        closure_digest: closure_digest(
+        digest: closure_digest(
             &package_bindings,
             &connector_bindings,
             &unresolved_skill_edges,
