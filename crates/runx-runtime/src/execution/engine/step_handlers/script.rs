@@ -95,6 +95,18 @@ where
     // call never stops the others: the step holds only once none can go
     // further. A wait this drive reaches at or after its `until` settles.
     let mut waiting = further_open_calls(&mut ledger, host, now()?)?;
+    // A pass that executes apart from the driver goes on only in the child
+    // run its act is in: the script itself goes no further, and the step
+    // stands as its record has it.
+    if host.executes() {
+        let Some((position, requests)) = waiting.into_iter().next() else {
+            return Err(RuntimeError::EngineInvariant {
+                context: "executing apart from the driver",
+                message: format!("script step {} has no call open", step.id),
+            });
+        };
+        return Err(waiting_on(&step.id, position, requests));
+    }
     let mut settled = settlements(&ledger, ledger.recorded()?)?;
     settled.extend(clock_reads(ledger.clock()?));
     let (mut live, mut passed) =
@@ -465,7 +477,24 @@ where
         .map(|call| (call.index, call.target.clone(), call.outcome.clone()))
         .collect::<Vec<_>>();
     let mut waiting = Vec::new();
+    let step = ledger.step_address();
     for (index, target, outcome) in open {
+        // A call executing apart from this pass is its own.
+        if host.executing(&step, index) {
+            continue;
+        }
+        // A pass that executes apart from the driver takes further only the
+        // call its act is under, and reports each as its record has it.
+        if host.executes() {
+            let standing = ledger.standing(index)?;
+            if host.leads_to(&ledger.address_of(index)) {
+                ledger.further(host, index)?;
+            }
+            if let TurnCallOutcome::Pending { waiting: requests } = standing.outcome {
+                waiting.push((index, requests));
+            }
+            continue;
+        }
         match (target, outcome) {
             // A wait settles once the run is driven at or after its until,
             // at the time this drive reads; before then it waits as it did.

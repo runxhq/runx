@@ -487,7 +487,7 @@ impl BoundRun {
             .clone()
             .ok_or_else(|| invalid("the run has no seal"))?;
         let workflow = self.workflow(&record.inputs, record.act.as_ref(), log.run_id())?;
-        let run = sealed_workflow_run(workflow, record)?;
+        let run = sealed_workflow_run(workflow, record, log.store())?;
         write_workflow_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
         let result = match sealed.terminal_result {
             Some(result) => result,
@@ -642,17 +642,18 @@ pub(super) enum TurnAction {
     },
     /// Execute an admitted call, recording nothing.
     Execute(Box<AdmittedCall>),
+    /// Answer the act and go on from it as far as its run goes, `apart` from
+    /// the driver for a turn in a child run, which then records nothing
+    /// above that run: a completion's or a failure's continuation.
+    Continue {
+        answer: JsonValue,
+        apart: bool,
+    },
+    /// Take further the calls whose child runs held the act, under the
+    /// driver: a continuation's conclusion.
+    Settle,
     /// Record what an executed call came to.
     Conclude(Box<ExecutedCall>),
-    /// Answer the act; the run continues.
-    Complete(JsonObject),
-    /// End the act as failed, saying why: its step fails, and a skill call
-    /// that started this run settles failed with the reason. It names the
-    /// requirement its agent harness couldn't meet, when that's why.
-    Fail {
-        reason: String,
-        unsupported: Option<runx_contracts::TurnRequirement>,
-    },
 }
 
 /// What an action on a turn did.
@@ -752,9 +753,30 @@ impl RunHost {
     /// Whether this pass executes a call apart from the session's driver: it
     /// writes nothing of the run's own, so it reads the run as it finds it.
     pub(super) fn executes(&self) -> bool {
+        self.act.as_ref().is_some_and(|act| {
+            matches!(
+                act.action,
+                TurnAction::Execute(_) | TurnAction::Continue { apart: true, .. }
+            )
+        })
+    }
+
+    /// Whether this pass goes only where its act is: one that executes, or
+    /// one that concludes a continuation.
+    fn goes_to_act(&self) -> bool {
+        self.executes()
+            || self
+                .act
+                .as_ref()
+                .is_some_and(|act| matches!(act.action, TurnAction::Settle))
+    }
+
+    /// Whether the call at `call` leads to this host's act: its child run is
+    /// the run that holds the act's turn, or holds that run.
+    fn leads_to_call(&self, call: &str) -> bool {
         self.act
             .as_ref()
-            .is_some_and(|act| matches!(act.action, TurnAction::Execute(_)))
+            .is_some_and(|act| holds(&child_path(call), run_path(&act.turn)))
     }
 
     /// Whether this pass may roll back a change a crash left half-applied:
@@ -778,9 +800,14 @@ impl RunHost {
         !self.manages() && self.answers.is_empty() && self.act.is_none()
     }
 
-    /// An action on a turn needs that turn open.
+    /// An action on a turn needs that turn open, but for concluding its
+    /// continuation, once its act was answered.
     fn check_turn(&self, run_id: &str, waiting: &[PendingRequest]) -> Result<(), SkillRunError> {
-        let Some(act) = &self.act else {
+        let Some(act) = self
+            .act
+            .as_ref()
+            .filter(|act| !matches!(act.action, TurnAction::Settle))
+        else {
             return Ok(());
         };
         if waiting
@@ -822,10 +849,14 @@ impl RunHost {
         let address = turn.invocation().id.as_str().to_owned();
         let mut reached = Vec::new();
         for call in turn.calls()? {
+            let leads = |host: &Self| {
+                host.leads_to_act(&waiting_of(&call.outcome))
+                    || host.leads_to_call(&format!("{address}/{}", call.index))
+            };
             if let TurnCallOutcome::Pending { waiting } = &call.outcome
                 && !self.in_flight.contains(&(address.clone(), call.index))
-                && if self.executes() {
-                    self.leads_to_act(waiting)
+                && if self.goes_to_act() {
+                    leads(self)
                 } else {
                     self.reaches(waiting)?
                 }
@@ -871,6 +902,50 @@ impl RunHost {
         }
         Ok(false)
     }
+}
+
+/// What a call waits on, as its outcome says: nothing once it settled.
+fn waiting_of(outcome: &TurnCallOutcome) -> Vec<ResolutionRequest> {
+    match outcome {
+        TurnCallOutcome::Pending { waiting } => waiting.clone(),
+        _ => Vec::new(),
+    }
+}
+
+/// The path, below the root, of the run that raises the request at
+/// `address`: empty at the root.
+pub(super) fn run_path(address: &str) -> &str {
+    address.split_once('#').map_or("", |(path, _)| path)
+}
+
+/// The path, below the root, of the child run the call at `call`, an
+/// address in the run, starts.
+fn child_path(call: &str) -> String {
+    match call.split_once('#') {
+        Some((path, local)) => format!("{path}/{local}"),
+        None => call.to_owned(),
+    }
+}
+
+/// Whether the run at `path` is the run at `held` or holds it.
+fn holds(path: &str, held: &str) -> bool {
+    !path.is_empty()
+        && (held == path
+            || held
+                .strip_prefix(path)
+                .is_some_and(|rest| rest.starts_with('/')))
+}
+
+/// The call that starts the run holding the turn at `turn`, as the step at
+/// whose position it is and its index: none for a turn of the root run.
+pub(super) fn leading_call(turn: &str) -> Option<(String, u32)> {
+    let path = run_path(turn);
+    let (parent, index) = path.rsplit_once('/')?;
+    let index = index.parse().ok()?;
+    Some(match parent.rsplit_once('/') {
+        Some((above, step)) => (format!("{above}#{step}"), index),
+        None => (parent.to_owned(), index),
+    })
 }
 
 /// The answer `given` or `answers` hold for `request`, by its address.
@@ -944,6 +1019,18 @@ impl Host for RunHost {
         self.records
     }
 
+    fn executes(&self) -> bool {
+        RunHost::executes(self)
+    }
+
+    fn leads_to(&self, call: &str) -> bool {
+        !self.goes_to_act() || self.leads_to_call(call)
+    }
+
+    fn executing(&self, step: &str, index: u32) -> bool {
+        self.in_flight.contains(&(step.to_owned(), index))
+    }
+
     /// The calls this host brings something for go further first. Then the
     /// host does what it came to do on this turn, works it from a test
     /// script, or its managed agent works it once nothing in it waits on a
@@ -970,20 +1057,11 @@ impl Host for RunHost {
                 TurnAction::Conclude(executed) => {
                     TurnActed::Call(Box::new(turn.conclude(*executed)?))
                 }
-                TurnAction::Complete(output) => {
-                    self.given.insert(address, JsonValue::Object(output));
+                TurnAction::Continue { answer, .. } => {
+                    self.given.insert(address, answer);
                     TurnActed::Completed
                 }
-                TurnAction::Fail {
-                    reason,
-                    unsupported,
-                } => {
-                    self.given.insert(
-                        address,
-                        crate::execution::outcome::failed_answer(reason, unsupported),
-                    );
-                    TurnActed::Completed
-                }
+                TurnAction::Settle => TurnActed::Completed,
             });
             return Ok(());
         }

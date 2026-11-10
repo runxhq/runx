@@ -725,6 +725,77 @@ fn a_leads_completion_goes_ahead_with_a_siblings_call_still_running() -> TestRes
     turn_complete(&session)
 }
 
+/// A completion doesn't hold the driver while its run goes on (D36): the
+/// lead's continuation, a read held by a named pipe after its turn, runs
+/// apart from the driver, so the root turn makes and records another call
+/// meanwhile. Were the continuation to hold the driver, that call could
+/// never be admitted, and the test would never release the pipe.
+#[test]
+fn a_completions_continuation_runs_apart_from_the_driver() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    crate::support::write_test_skill_package(
+        &root.join("lead"),
+        "---\nname: lead\ndescription: Drafts for one lead, then reads.\n---\n# Lead\n\n## Agent task: draft\n\nDraft it.\n",
+        &format!(
+            r#"minimum_runx: 0.12.0
+methods:
+  draft:
+    steps:
+      - id: draft
+        agent: draft
+        outputs:
+          draft: {{type: string}}
+      - id: read
+        operation: gate/gate.wait
+        inputs: {{started: "{on}", release: "{off}"}}
+"#,
+            on = on.display(),
+            off = off.display(),
+        ),
+    )?;
+    let skill = asker(
+        root,
+        "          skills: [../lead]\n          tools: [data.digest]\n",
+    )?;
+    let (run_id, session) = open(root, skill)?;
+    session.call(TURN, "skill__lead", None, JsonObject::new())?;
+    let draft = turn_named(&session, "draft")?;
+    let completing = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let output = input(serde_json::json!({"draft": "hello"}))?;
+        move || session.complete(&draft, output)
+    });
+    started(&on)?;
+
+    let digest = session.call(
+        TURN,
+        "data_digest",
+        None,
+        input(serde_json::json!({"value": "meanwhile", "encoding": "utf8_text"}))?,
+    )?;
+    assert!(
+        matches!(digest.outcome, TurnCallOutcome::Completed { .. }),
+        "{digest:?}"
+    );
+
+    release(&off)?;
+    completing.join().map_err(|_| "the completion panicked")??;
+    let recorded = calls(root, &run_id, &run_id)?;
+    assert_eq!(
+        recorded.last(),
+        Some(&(0, "completed", false)),
+        "the lead's call is concluded once its run went on: {recorded:?}"
+    );
+    turn_complete(&session)
+}
+
 /// Stopping a run stops its script's calls in flight and never reaches the
 /// script's catch: the script waits on a read whose process the stop ends,
 /// the drive returns stopped, and the run stays open where it stood.

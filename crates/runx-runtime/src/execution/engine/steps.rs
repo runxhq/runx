@@ -142,6 +142,18 @@ impl Host for AnsweringHost<'_> {
         self.host.records()
     }
 
+    fn executes(&self) -> bool {
+        self.host.executes()
+    }
+
+    fn leads_to(&self, call: &str) -> bool {
+        self.host.leads_to(call)
+    }
+
+    fn executing(&self, step: &str, index: u32) -> bool {
+        self.host.executing(step, index)
+    }
+
     fn reads_local_only(&self) -> bool {
         self.host.reads_local_only()
     }
@@ -615,8 +627,12 @@ impl WorkflowExecution {
                         }
                         _ => false,
                     };
+                // A pass that executes apart from the driver records no hold
+                // of a step it resumed: the driver's next pass records what
+                // that step then waits on.
+                let resumed_apart = context.host.executes() && resumed_hold.is_some();
                 match &child {
-                    _ if still_waiting => {}
+                    _ if still_waiting || resumed_apart => {}
                     Some(child) => {
                         log.record_child_hold(context.plan.step_id, context.plan.attempt, child)?;
                     }

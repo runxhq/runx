@@ -20,7 +20,7 @@
 use std::collections::BTreeSet;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-use runx_contracts::{JsonObject, ResolutionRequest, TurnCallResult, TurnStatus};
+use runx_contracts::{JsonObject, JsonValue, ResolutionRequest, TurnCallResult, TurnStatus};
 
 use super::workflow::{RunHost, TurnAct, TurnActed, TurnAction};
 use super::{BoundRun, SkillRunError, invalid};
@@ -28,6 +28,11 @@ use crate::RuntimeError;
 use crate::execution::engine::turn::Admission;
 use crate::execution::engine::{CallCancel, CallPool, CallStops, EffectGate, ReceiptTally};
 use crate::execution::orchestrator::RunResult;
+
+/// What a turn of the run's own is taken as executing while its run goes on
+/// from its act's answer, in place of a call's index: the turn makes no
+/// further call, and every action that waits for quiet waits for it.
+const COMPLETING: u32 = u32::MAX;
 
 pub struct TurnSession {
     run: BoundRun,
@@ -161,6 +166,14 @@ impl TurnSession {
     ) -> Result<TurnCallResult, SkillRunError> {
         let admitted = {
             let driver = self.lock(&self.driver);
+            if self
+                .lock(&self.in_flight)
+                .contains(&(turn.to_owned(), COMPLETING))
+            {
+                return Err(invalid(format!(
+                    "the act of turn {turn} is being answered; it makes no further call"
+                )));
+            }
             let action = TurnAction::Admit {
                 tool: tool.to_owned(),
                 call_id: call_id.map(str::to_owned),
@@ -199,8 +212,7 @@ impl TurnSession {
     /// Answer the act of the turn at `turn` with `output`; the run continues
     /// as far as it goes.
     pub fn complete(&self, turn: &str, output: JsonObject) -> Result<RunResult, SkillRunError> {
-        let driver = self.quiet_at(turn);
-        Ok(self.pass(&driver, turn, TurnAction::Complete(output))?.1)
+        self.finish(turn, JsonValue::Object(output))
     }
 
     /// End the act of the turn at `turn` as failed, saying why, and naming
@@ -215,17 +227,82 @@ impl TurnSession {
         if reason.trim().is_empty() {
             return Err(invalid("a failed act says why"));
         }
-        let driver = self.quiet_at(turn);
-        Ok(self
-            .pass(
-                &driver,
-                turn,
-                TurnAction::Fail {
-                    reason: reason.to_owned(),
-                    unsupported,
-                },
-            )?
-            .1)
+        self.finish(
+            turn,
+            crate::execution::outcome::failed_answer(reason.to_owned(), unsupported),
+        )
+    }
+
+    /// End the act of the turn at `turn` with `answer`, in the phases a call
+    /// takes (D36). Under the driver, once the turn's own calls are quiet,
+    /// the run's continuation from the act is taken as executing at the
+    /// call whose child run holds the turn, so no other pass takes that call
+    /// further meanwhile. Apart from the driver, the run goes on from the
+    /// answer as far as it goes, recording nothing above that child run, so
+    /// a sibling's calls are admitted and recorded while it does. Under the
+    /// driver again, the calls above it record what it came to. A turn of
+    /// the run's own has no call above it: its run goes on apart from the
+    /// driver, and there is nothing left to record.
+    fn finish(&self, turn: &str, answer: JsonValue) -> Result<RunResult, SkillRunError> {
+        let leading = super::workflow::leading_call(turn);
+        let executing = leading
+            .clone()
+            .unwrap_or_else(|| (turn.to_owned(), COMPLETING));
+        {
+            let _driver = self.quiet_at(turn);
+            self.lock(&self.in_flight).insert(executing.clone());
+        }
+        let continued = self.continue_from(turn, answer, leading.is_some(), &executing);
+        self.lock(&self.in_flight).remove(&executing);
+        self.settled.notify_all();
+        let continued = continued?;
+        if leading.is_none() {
+            return Ok(continued);
+        }
+        let _driver = self.lock(&self.driver);
+        let mut host = RunHost::acting(TurnAct {
+            turn: turn.to_owned(),
+            action: TurnAction::Settle,
+        })
+        .in_session(
+            Arc::clone(&self.gate),
+            Arc::clone(&self.stops),
+            &self.shared,
+            self.in_flight_now(),
+        );
+        self.run.advance(&mut host)
+    }
+
+    /// Go on from the act of the turn at `turn` with `answer`, apart from
+    /// the driver: `apart` for a turn in a child run, whose pass records
+    /// nothing above that run.
+    fn continue_from(
+        &self,
+        turn: &str,
+        answer: JsonValue,
+        apart: bool,
+        executing: &(String, u32),
+    ) -> Result<RunResult, SkillRunError> {
+        let mut in_flight = self.in_flight_now();
+        in_flight.remove(executing);
+        let mut host = RunHost::acting(TurnAct {
+            turn: turn.to_owned(),
+            action: TurnAction::Continue { answer, apart },
+        })
+        .in_session(
+            Arc::clone(&self.gate),
+            Arc::clone(&self.stops),
+            &self.shared,
+            in_flight,
+        );
+        let result = self.run.advance(&mut host)?;
+        match host.acted() {
+            Some(_) => Ok(result),
+            None => Err(invalid(format!(
+                "run {} did not reach turn {turn}",
+                self.run_id()
+            ))),
+        }
     }
 
     /// Cancel the call at `address`, `<step>/<n>` in its run, a turn's or a

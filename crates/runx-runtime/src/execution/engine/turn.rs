@@ -750,6 +750,29 @@ where
         })
     }
 
+    /// How call `index` stands as the run records it, taken no further.
+    pub(super) fn standing(&self, index: u32) -> Result<TurnCallResult, RuntimeError> {
+        let call = self
+            .recorded()?
+            .iter()
+            .find(|call| call.index == index)
+            .cloned()
+            .ok_or_else(|| RuntimeError::ContinuationRejected {
+                reason: format!("step {} has no call {index}", self.scope.step_id),
+            })?;
+        self.result(&Made::of(&call), &call.outcome, &call.outputs)
+    }
+
+    /// The address of the step whose calls this ledger holds, in its run.
+    pub(super) fn step_address(&self) -> String {
+        self.scope.runtime.options.run.address(self.scope.step_id)
+    }
+
+    /// The address of call `index` of this ledger's step, in its run.
+    pub(super) fn address_of(&self, index: u32) -> String {
+        self.call_address(index)
+    }
+
     /// The step's calls as the run records them, in order.
     pub(super) fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
         Ok(&self.step_record()?.calls)
@@ -1431,6 +1454,7 @@ where
         if !host.records() {
             self.admits(made.index)?;
         }
+        let executes = host.executes();
         let step = self
             .call_step(made.index, &made.target, &made.input)
             .map_err(|reason| RuntimeError::EngineInvariant {
@@ -1464,6 +1488,12 @@ where
         } else {
             ran
         };
+        // A pass that executes apart from the driver goes on in the child and
+        // records nothing here: the call stands as its record has it until
+        // the driver concludes it.
+        if executes {
+            return self.result(&made, &call.outcome, &call.outputs);
+        }
         let answers = answering.answers;
         self.concluded(made, call.outcome, ran, &answers, cancelled)
     }

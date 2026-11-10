@@ -1339,9 +1339,13 @@ impl<A> Runtime<A> {
 }
 
 /// The run a sealed record holds: its recorded steps and its workflow receipt.
+/// A run that sealed, rebuilt from its record, with the receipts its steps
+/// hold by digest read: whoever takes it, a parent's call sealing its step
+/// over it or a host given its seal again, reads it whole.
 pub(crate) fn sealed_workflow_run(
     workflow: Workflow,
     record: RunRecord,
+    store: &crate::kernel::store::KernelStore,
 ) -> Result<WorkflowRun, RuntimeError> {
     let sealed = record
         .sealed
@@ -1351,6 +1355,7 @@ pub(crate) fn sealed_workflow_run(
             message: "the run has no seal".to_owned(),
         })?;
     let mut execution = WorkflowExecution::from_record(&workflow, &record)?;
+    execution.read_recorded_receipts(store)?;
     execution.seal_state(sealed.outcome);
     Ok(execution.finish(workflow, sealed.receipt))
 }

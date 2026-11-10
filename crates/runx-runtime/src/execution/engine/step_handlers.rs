@@ -671,7 +671,7 @@ where
         created_at: &runtime.options.clock.now(),
     })?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
-        return super::sealed_workflow_run(workflow, record);
+        return super::sealed_workflow_run(workflow, record, log.store());
     }
     let ran = match start.and_then(|start| start.refusal) {
         Some(refusal) => Err(refusal),

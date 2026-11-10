@@ -38,6 +38,28 @@ pub trait Host {
         false
     }
 
+    /// Whether this pass carries work on apart from the run's driver: it
+    /// records nothing of a ledger's, a call's settlement or a step's hold,
+    /// only what the child runs it goes on in write of their own.
+    fn executes(&self) -> bool {
+        false
+    }
+
+    /// Whether the call at `call`, an address in the run, is on this pass's
+    /// way: every call is, but for a pass that executes or concludes one act,
+    /// which goes only through the calls whose child runs hold it.
+    fn leads_to(&self, call: &str) -> bool {
+        let _ = call;
+        true
+    }
+
+    /// Whether call `index` of the step at `step`, an address in the run,
+    /// executes apart from this pass, which never takes it further.
+    fn executing(&self, step: &str, index: u32) -> bool {
+        let _ = (step, index);
+        false
+    }
+
     /// A host for one call that runs apart from the run's driver, on a
     /// thread of its own: it answers what this host would, by address, and
     /// keeps what the call reports for the driver to take back. `None` when
