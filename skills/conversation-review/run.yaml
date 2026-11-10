@@ -190,3 +190,76 @@ methods:
           conversation_packet: $steps.review.conversation_packet
         tool: {module: conversation-review.mjs, export: finishWork}
         outputs: {work_result: {type: object, packet: runx.work_outcome.v1}}
+  batch:
+    description: Review each conversation of a batch on its own, collecting every conversation's review packet, or its failure with the reason. Sends nothing.
+    inputs:
+      conversations:
+        type: array
+        description: The conversations, each exactly as review takes it. One conversation's failure is that conversation's outcome. At most three for now, the most that fit the script worker's 4 MiB input bound at the review schema's largest; once the worker takes a script's inputs by reference, the limit rises to what max_calls and the receipt budget allow.
+        minItems: 1
+        maxItems: 3
+        items:
+          type: object
+          description: One conversation's review inputs, which review validates. Its source_locator names its outcome.
+          required: [source_locator]
+          additionalProperties: true
+          properties:
+            source_locator: {type: string, minLength: 1, maxLength: 1000, pattern: \S}
+    result_from: [batch]
+    examples:
+      - conversations:
+          - source_locator: slack://acme/C0123/1730000000.000200
+            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            thread_locator: slack://acme/C0123/1730000000.000100
+            title: Export job keeps timing out
+            body: Is there a way to run the export overnight? It keeps timing out for us.
+            thread:
+              source_locator: slack://acme/C0123/1730000000.000200
+              source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              thread_locator: slack://acme/C0123/1730000000.000100
+              coverage_incomplete: false
+              messages:
+                - text: Is there a way to run the export overnight? It keeps timing out for us.
+            source_complete: true
+          - source_locator: nitrosend://acme/42/7
+            source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            thread_locator: nitrosend://acme/42
+            title: A quick call
+            body: Could we find time to talk next week?
+            thread:
+              source_locator: nitrosend://acme/42/7
+              source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+              thread_locator: nitrosend://acme/42
+              coverage_incomplete: false
+              messages:
+                - text: Could we find time to talk next week?
+            source_complete: true
+    steps:
+      - id: batch
+        script: {module: batch.mjs}
+        inputs:
+          conversations: $input.conversations
+        calls:
+          skills: [.#review]
+        max_calls: 3
+        concurrency: 3
+        effects: none
+        outputs:
+          outcomes:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [source_locator, status]
+              properties:
+                source_locator: {type: string, minLength: 1, maxLength: 1000}
+                status: {enum: [fulfilled, rejected]}
+                conversation_packet: {type: object, additionalProperties: true}
+                rejection:
+                  type: object
+                  additionalProperties: false
+                  required: [reason, code, message]
+                  properties:
+                    reason: {type: string}
+                    code: {type: string}
+                    message: {type: string}

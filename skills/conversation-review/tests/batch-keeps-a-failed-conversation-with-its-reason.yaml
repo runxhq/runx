@@ -1,0 +1,54 @@
+name: batch-keeps-a-failed-conversation-with-its-reason
+method: batch
+inputs:
+  conversations:
+    - source_locator: nitrosend://example/1/2
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      thread_locator: nitrosend://example/1
+      title: A quick call
+      body: Could we find time to talk next week?
+      thread:
+        source_locator: nitrosend://example/1/2
+        source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        thread_locator: nitrosend://example/1
+        coverage_incomplete: false
+        messages: [{text: "Could we find time to talk next week?"}]
+      source_complete: true
+    - source_locator: slack://example/channel/2
+      source_digest: not-a-digest
+      thread_locator: slack://example/channel/1
+      title: Broken test
+      body: Please fix the failing parser test in the repository.
+      thread:
+        source_locator: slack://example/channel/2
+        source_digest: not-a-digest
+        thread_locator: slack://example/channel/1
+        coverage_incomplete: false
+        messages: [{text: Please fix the failing parser test in the repository.}]
+      source_complete: true
+host:
+  answers:
+    batch/0#judge:
+      draft:
+        kind: reply
+        summary: A call was requested.
+        reason: The sender asked for a scheduling response.
+        draft_message: Happy to talk. I will check my availability and get back to you with times.
+        request_quote: ""
+expect:
+  status: sealed
+  steps: [batch]
+  output:
+    subset:
+      outcomes:
+        - source_locator: nitrosend://example/1/2
+          status: fulfilled
+          conversation_packet:
+            status: reply
+            delivery_status: not_sent
+        - source_locator: slack://example/channel/2
+          status: rejected
+          rejection:
+            reason: failed
+            code: failed
+  receipt: {schema: runx.receipt.v1}

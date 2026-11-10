@@ -1,6 +1,6 @@
 ---
 name: conversation-review
-description: Review one grounded provider-neutral conversation, prepare an unsent reply or follow-up, and identify genuine coding requests for a separate engineering intake.
+description: Review one grounded provider-neutral conversation, or each conversation of a batch, prepare an unsent reply or follow-up, and identify genuine coding requests for a separate engineering intake.
 ---
 
 # Conversation Review
@@ -40,6 +40,17 @@ message/quote fields are unused for that decision kind; a reply still needs
 real draft text, coding needs a verbatim request, and a follow-up needs its
 concrete task. A held result explains the missing evidence. A sealed review proves only the
 decision, not a downstream action.
+
+`batch` reviews each conversation of a batch through `review`, side by side
+and each on its own, and collects every conversation's outcome in the order
+given: its review packet, or its failure with the reason, named by the
+conversation's `source_locator`. One conversation's failure never stops the
+others or drops from the result. The batch runs under `effects: none` and
+sends nothing. It takes at most three conversations for now, the most that fit
+the script worker's 4 MiB input bound when every field is at the review
+schema's largest. That is the worker's limit, not the batch's design: once the
+worker takes a script's inputs by reference, the limit rises to what
+`max_calls` and the run's receipt budget allow.
 
 ## Procedure
 

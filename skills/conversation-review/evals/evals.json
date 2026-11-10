@@ -6,6 +6,12 @@
       "prompt": "Review this grounded email conversation and prepare the next response.",
       "expected_output": "Produce an unsent reply without opening an engineering intake or work plan.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Review each of these grounded conversations and prepare the next response for each.",
+      "expected_output": "Return one outcome per conversation in the order given: its unsent review packet, or its failure with the reason, with no conversation dropped and nothing sent.",
+      "files": []
     }
   ]
 }

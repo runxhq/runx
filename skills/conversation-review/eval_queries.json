@@ -18,5 +18,6 @@
   {"query": "This thread looks truncated. Review it and tell me what's missing before you'd draft anything.", "should_trigger": true},
   {"query": "Review the conversation in this source packet and propose its reply on the routes we configured.", "should_trigger": true},
   {"query": "Did anyone in this email exchange ask us to build something? If so, flag it for engineering intake.", "should_trigger": true},
-  {"query": "Draft my reply to this thread with the vendor, keeping to what the messages actually say.", "should_trigger": true}
+  {"query": "Draft my reply to this thread with the vendor, keeping to what the messages actually say.", "should_trigger": true},
+  {"query": "Go through these three customer threads and prepare what each one needs next, a reply, a follow-up or a coding handoff. Don't send anything.", "should_trigger": true}
 ]
