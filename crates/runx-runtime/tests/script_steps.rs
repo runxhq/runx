@@ -1227,6 +1227,37 @@ methods:
     Ok(())
 }
 
+/// A read of an inline value is no call: the worker gives the value back,
+/// the run records nothing, and it draws nothing from `max_calls`. Five reads
+/// and one call fit a `max_calls` of 1, and the call takes position 0.
+#[test]
+fn a_read_of_an_inline_value_is_no_call() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          tools: [data.digest]\n        max_calls: 1\n        outputs:\n          read: {type: string}\n",
+        r#"export default async function (ctx, { value }) {
+  let read = value;
+  for (let time = 0; time < 5; time += 1) read = await ctx.read(read);
+  await ctx.tool("data.digest", { value: read, encoding: "utf8_text" });
+  return { read };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(text(result, "read"), Some("hello"));
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [(0, "executing"), (0, "completed")],
+        "the reads took no position"
+    );
+    Ok(())
+}
+
 /// A reference a script's output holds at any depth is the content of the
 /// artifact it names: a call's result past the inline bound, nested in an
 /// array of objects, comes back as the text, never as its descriptor. One

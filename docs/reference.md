@@ -198,8 +198,12 @@ reference, so a batch of any size reaches the script as a list it walks.
 `ctx.read(value)` gives a reference's content, as it does for a reference a
 call's result held, and gives any other value back as it is, so a script reads
 its items the same way whatever their size: `for (const item of items) { const
-lead = await ctx.read(item); ... }`. A reference can also go straight into a
-call's input, where the callee is given its content. A script's output may hold
+lead = await ctx.read(item); ... }`. A read of a reference is a call: the run
+records it, and it draws from the step's `max_calls`, which bounds everything a
+script does. A read of an inline value is no call: the worker gives it back,
+the run records nothing, and it draws nothing from `max_calls`. A reference
+can also go straight into a call's input, where the callee is given its
+content, with no read. A script's output may hold
 references at any depth, each given back as the content it names; one that
 names no artifact a call of the step returned, or no input of the step, fails
 the step, naming where the output holds it. A replay starts the script with its
