@@ -3,5 +3,18 @@ method: search
 inputs:
   levels: [{level: personal}]
   query: tea
+setup:
+  # A scheduled turn's read term (D40): the person's words, and no
+  # observation, so the observed streams are passed over.
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read]
+              targets: ["runx/memory/said:*", "project:memory/said:*"]
+              packages: [runx/memory, project:memory]
 expect:
   status: sealed

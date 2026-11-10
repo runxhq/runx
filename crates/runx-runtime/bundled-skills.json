@@ -1607,7 +1607,7 @@
           },
           {
             "path": "tests/index-passes-over-streams-it-isnt-given.yaml",
-            "content": "name: index-passes-over-streams-it-isnt-given\nmethod: index\ninputs:\n  levels: [{level: personal}]\nexpect:\n  status: sealed\n  step_outputs:\n    index:\n      subset:\n        entries_omitted: false\n"
+            "content": "name: index-passes-over-streams-it-isnt-given\nmethod: index\ninputs:\n  levels: [{level: personal}]\nsetup:\n  # A scheduled turn's read term (D40): the person's words, and no\n  # observation, so the observed streams are passed over.\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read]\n              targets: [\"runx/memory/said:*\", \"project:memory/said:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: sealed\n  step_outputs:\n    index:\n      subset:\n        entries_omitted: false\n"
           },
           {
             "path": "tests/observe-keeps-an-observation.yaml",
@@ -1627,7 +1627,7 @@
           },
           {
             "path": "tests/search-passes-over-streams-it-isnt-given.yaml",
-            "content": "name: search-passes-over-streams-it-isnt-given\nmethod: search\ninputs:\n  levels: [{level: personal}]\n  query: tea\nexpect:\n  status: sealed\n"
+            "content": "name: search-passes-over-streams-it-isnt-given\nmethod: search\ninputs:\n  levels: [{level: personal}]\n  query: tea\nsetup:\n  # A scheduled turn's read term (D40): the person's words, and no\n  # observation, so the observed streams are passed over.\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read]\n              targets: [\"runx/memory/said:*\", \"project:memory/said:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: sealed\n"
           }
         ],
         "metadata": {
