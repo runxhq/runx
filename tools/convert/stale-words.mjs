@@ -32,7 +32,8 @@ const RETIRED = {
 // "Execution closure" read as the old shape: a package's closure is its closure.
 const EXECUTION_CLOSURE = /(?<![A-Za-z])execution[ _-]?[Cc]losures?(?![a-z])|Execution[ _-]?[Cc]losures?(?![a-z])|(?<![A-Z])EXECUTION_CLOSURES?(?![A-Z])/g;
 // An agent's unit of work is its turn; an act is what a call is told to do.
-const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])/g;
+// A count of acts beside an agent, as a summary prints it, is a count of turns.
+const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])|(?<![A-Za-z])[Aa]gent: (?:\{\}|\d+) act(?:s|\(s\))?(?![a-z])/g;
 const SIGNED = /"signature"\s*:/;
 
 const table = new URL("./identifiers.tsv", import.meta.url);

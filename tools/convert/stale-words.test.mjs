@@ -138,19 +138,23 @@ test("the guard fails on execution closure in any form, and passes a closure and
   );
 });
 
-test("the guard fails on agent act, which is a turn, and passes a call's act and an agent's actor", (t) => {
+test("the guard fails on agent act, which is a turn, and a count of acts beside an agent, and passes a call's act and an agent's actor", (t) => {
   const root = tree(t, {
     "docs/turns.md": "Agent acts yield needs_agent. The run waits on an agent act.\nA call's act says what it is told to do; an agent actor approves.\n",
     "crates/runx-runtime/src/prepared.rs": "pub managed_agent_acts: usize,\n",
+    "crates/runx-cli/src/summary.rs": 'let line = format!("Managed agent: {} act(s)", turns);\n',
+    "docs/summary.md": "The summary reads Managed agent: 2 acts, and a call's act.\n",
   });
   const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
-    "crates/runx-runtime/src/prepared.rs:1\tturn\tagent_acts\tpub managed_agent_acts: usize,\n" +
+    'crates/runx-cli/src/summary.rs:1\tturn\tagent: {} act(s)\tlet line = format!("Managed agent: {} act(s)", turns);\n' +
+      "crates/runx-runtime/src/prepared.rs:1\tturn\tagent_acts\tpub managed_agent_acts: usize,\n" +
+      "docs/summary.md:1\tturn\tagent: 2 acts\tThe summary reads Managed agent: 2 acts, and a call's act.\n" +
       "docs/turns.md:1\tturn\tAgent acts\tAgent acts yield needs_agent. The run waits on an agent act.\n" +
       "docs/turns.md:1\tturn\tagent act\tAgent acts yield needs_agent. The run waits on an agent act.\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 3 of agent act, which is a turn, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 5 of agent act, which is a turn, 0 of a key the format removes and 0 paths holding a retired word, in 4 files\n",
   );
 });
 
