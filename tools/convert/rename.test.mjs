@@ -288,6 +288,20 @@ test("a bare word an applied migration stores is refused until its row names the
   assert.equal(read(renamed, "packages/db/migrations/0001_runs.sql"), migration);
 });
 
+test("a name an applied migration only mentions in a comment stores nothing, and one it writes as a value is stored", (t) => {
+  const migration = "-- binds the package and execution-closure digest\ncreate table runs (id text primary key);\n";
+  const code = 'export const flag = "--execution-closure-digest";\n';
+  const root = tree(t, { "db/migrations/0001_runs.sql": migration, "src/flag.ts": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "db/migrations/0001_runs.sql"), migration);
+  assert.equal(read(root, "src/flag.ts"), 'export const flag = "--closure-digest";\n');
+  const valued = tree(t, { "db/migrations/0001_runs.sql": "insert into flags (name) values ('execution-closure-digest');\n", "src/flag.ts": code });
+  const refused = run(RENAME, "apply", "oss", valued, "--write");
+  assert.equal(refused.status, 1, refused.out);
+  assert.match(refused.out, /^  execution-closure-digest   \(db\/migrations\/0001_runs\.sql\)$/m);
+});
+
 test("a source whose name holds the letters of lock is renamed, and a lockfile is its package manager's", (t) => {
   const lockfile = "packages:\n  harness: {}\n";
   const root = tree(t, { "skills/github/tests/mixed-push-blocked.yaml": "# The harness refuses a mixed push.\nname: mixed-push-blocked\n", "pnpm-lock.yaml": lockfile });

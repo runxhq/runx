@@ -238,9 +238,17 @@ const PINNED = {
   ],
 };
 
+// A SQL comment, or a string value, which a comment's markers inside don't end.
+const SQL_COMMENTS_AND_VALUES = /--[^\n]*|\/\*[\s\S]*?\*\/|('(?:[^']|'')*')/g;
+
+/** A SQL text with its comments blanked, or its string values too. */
+function sqlWithout(text, values) {
+  return text.replace(SQL_COMMENTS_AND_VALUES, (match, value) => (value !== undefined && !values ? value : " "));
+}
+
 /** The names a SQL text gives, its comments and string values aside. */
 function sqlNames(text) {
-  const code = text.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'/g, " ");
+  const code = sqlWithout(text, true);
   return new Set(code.match(TOKEN) ?? []);
 }
 
@@ -413,9 +421,13 @@ function apply(repo, root, write, list, showStays) {
     }
   }
   const notes = new Map(rows.map((row) => [row.identifier, row.note]));
+  // A migration stores what its SQL names or writes as a value, never what a
+  // comment mentions.
   const stored = new Map();
   for (const file of workingFiles(root).filter((file) => HISTORY.test(file) && SOURCE.test(file))) {
-    for (const name of new Set(readFileSync(path.join(root, file), "utf8").match(TOKEN) ?? [])) {
+    const text = readFileSync(path.join(root, file), "utf8");
+    const written = file.endsWith(".sql") ? sqlWithout(text, false) : text;
+    for (const name of new Set(written.match(TOKEN) ?? [])) {
       if (renames.has(name) && !notes.get(name).startsWith("stored")) stored.set(name, file);
     }
   }
