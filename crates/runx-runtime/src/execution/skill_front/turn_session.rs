@@ -12,7 +12,9 @@
 //! it and a change holds it alone, inside a child run too, so effects never
 //! overlap and reads never wait on each other. A cancel acts on one call
 //! while it executes, through the stops the run's calls register at any
-//! depth, and waits for nothing. Every other action waits until no call is
+//! depth, and waits for nothing. Completing or failing a turn's act waits
+//! only for that turn's own calls, so one lead's completion goes ahead with
+//! a sibling still running (D36). Every other action waits until no call is
 //! executing, so it reads the run as its calls left it.
 
 use std::collections::BTreeSet;
@@ -197,7 +199,7 @@ impl TurnSession {
     /// Answer the act of the turn at `turn` with `output`; the run continues
     /// as far as it goes.
     pub fn complete(&self, turn: &str, output: JsonObject) -> Result<RunResult, SkillRunError> {
-        let driver = self.quiet();
+        let driver = self.quiet_at(turn);
         Ok(self.pass(&driver, turn, TurnAction::Complete(output))?.1)
     }
 
@@ -213,7 +215,7 @@ impl TurnSession {
         if reason.trim().is_empty() {
             return Err(invalid("a failed act says why"));
         }
-        let driver = self.quiet();
+        let driver = self.quiet_at(turn);
         Ok(self
             .pass(
                 &driver,
@@ -292,6 +294,21 @@ impl TurnSession {
             .acted()
             .ok_or_else(|| invalid(format!("run {} did not reach turn {turn}", self.run_id())))?;
         Ok((acted, result))
+    }
+
+    /// The driver, once no call of the turn at `turn` is executing: a turn
+    /// still waits for its own calls, and never for another turn's, so one
+    /// lead's completion goes ahead with a sibling still running (D36).
+    fn quiet_at(&self, turn: &str) -> MutexGuard<'_, ()> {
+        let mut in_flight = self.lock(&self.in_flight);
+        while in_flight.iter().any(|(of, _)| of == turn) {
+            in_flight = self
+                .settled
+                .wait(in_flight)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        drop(in_flight);
+        self.lock(&self.driver)
     }
 
     /// The driver, once no call is executing.

@@ -625,6 +625,106 @@ fn a_cancelled_skill_call_whose_child_only_read_settles_cancelled() -> TestResul
     Ok(())
 }
 
+/// A skill at `root/lead` whose agent step, `draft`, answers with a draft.
+fn lead(root: &Path) -> TestResult {
+    crate::support::write_test_skill_package(
+        &root.join("lead"),
+        "---\nname: lead\ndescription: Drafts for one lead.\n---\n# Lead\n\n## Agent task: draft\n\nDraft it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  draft:\n    steps:\n      - id: draft\n        agent: draft\n        outputs:\n          draft: {type: string}\n",
+    )?;
+    Ok(())
+}
+
+/// The address of the turn the run waits on whose id ends `name`.
+fn turn_named(session: &TurnSession, name: &str) -> TestResult<String> {
+    session
+        .waiting()?
+        .into_iter()
+        .find_map(|request| match request {
+            runx_contracts::ResolutionRequest::Turn { id, .. } if id.as_str().ends_with(name) => {
+                Some(id.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .ok_or_else(|| format!("no open turn {name}").into())
+}
+
+/// One lead's completion goes ahead with a sibling's call still running
+/// (D36): the lead's turn is answered and its run seals while the sibling's
+/// read is in flight, held by a named pipe the test opens only after the
+/// completion has returned. Were the completion to wait on every call in
+/// flight, it could never return.
+#[test]
+fn a_leads_completion_goes_ahead_with_a_siblings_call_still_running() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    lead(root)?;
+    let skill = asker(
+        root,
+        "          skills: [../lead]\n          operations: [gate/gate.wait]\n",
+    )?;
+    let (run_id, session) = open(root, skill)?;
+    let drafting = session.call(TURN, "skill__lead", None, JsonObject::new())?;
+    assert!(
+        matches!(drafting.outcome, TurnCallOutcome::Pending { .. }),
+        "{drafting:?}"
+    );
+    let draft = turn_named(&session, "draft")?;
+    let wait = session
+        .status(TURN)?
+        .tools
+        .into_iter()
+        .find(|tool| tool.name.as_str().contains("gate"))
+        .ok_or("the turn offers the gate's read")?
+        .name;
+    let reading = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let call = input(serde_json::json!({"input": {
+            "started": on.to_string_lossy(),
+            "release": off.to_string_lossy(),
+        }}))?;
+        move || session.call(TURN, wait.as_str(), None, call)
+    });
+    started(&on)?;
+
+    session.complete(&draft, input(serde_json::json!({"draft": "hello"}))?)?;
+    // Read from the record, which waits on nothing: the lead's call settled
+    // while its sibling still ran.
+    assert_eq!(
+        calls(root, &run_id, &run_id)?,
+        [
+            (0, "child", false),
+            (1, "claimed", false),
+            (0, "completed", false)
+        ]
+    );
+
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let opened = std::fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32)
+            .open(&off);
+        if opened.is_err() {
+            let read = reading.join().map_err(|_| "the read panicked")?;
+            return Err(format!("the sibling's read ended before its release: {read:?}").into());
+        }
+    }
+    release(&off)?;
+    let read = reading.join().map_err(|_| "the read panicked")??;
+    assert!(
+        matches!(read.outcome, TurnCallOutcome::Completed { .. }),
+        "{read:?}"
+    );
+    turn_complete(&session)
+}
+
 /// Stopping a run stops its script's calls in flight and never reaches the
 /// script's catch: the script waits on a read whose process the stop ends,
 /// the drive returns stopped, and the run stays open where it stood.
