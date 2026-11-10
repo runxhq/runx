@@ -22,7 +22,6 @@ test("the guard fails on runner as a method and harness as a test, and passes th
   const root = tree(t, {
     "crates/runx-runtime/src/skill.rs": "fn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n",
     "skills/demo/SKILL.md": "Run the harness before you publish.\n",
-    "crates/runx-contracts/src/operational_policy.rs": "pub struct Policy { pub runners: Vec<String> }\n",
     "crates/runx-cli/tests/router.rs": 'assert!(refused("--runner"));\n',
     "scripts/ci.sh": "echo $RUNNER_OS\n",
     "docs/release/notes/0.10.md": "The harness ran every case.\n",

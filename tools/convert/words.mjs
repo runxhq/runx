@@ -285,11 +285,9 @@ export function renamedBare(token, after) {
 // holds in (all when it says none), the exact token when its case decides it,
 // and what must sit just before or just after the word on its line.
 export const STAYS = [
-  // runner names nothing of runx's own: the act engine, the test replay and
-  // the kernel fixture evaluation are their own words (bare-words.tsv), and
-  // the operational policy's runners await a name of their own.
-  { word: "runner", why: "the operational policy's runners", file: /^(crates\/runx-contracts\/src\/operational_policy(\.rs$|\/)|crates\/runx-contracts\/tests\/operational_policy\.rs$|crates\/runx-cli\/(src|tests)\/policy\.rs$|packages\/contracts\/src\/schemas\/operational-policy\.|fixtures\/operational-policy\/|skills\/policy-draft\/|tests\/policy-draft-validation\.test\.ts$)/ },
-  { word: "runner", why: "the operational policy's runners, in a corpus or test that holds one policy among others", file: /^(crates\/runx-contracts\/tests\/schema_wire_conformance\/corpora\.rs|packages\/contracts\/src\/index\.test\.ts)$/, before: /^\s*"?$/, after: /^"?: \[\{/ },
+  // runner names nothing of runx's own: the act engine, the test replay, the
+  // kernel fixture evaluation and the operational policy's automations are
+  // their own words (bare-words.tsv).
   { word: "runner", why: "GitHub's runner", file: /^\.github\// },
   { word: "runner", why: "GitHub's runner", before: /(GitHub(['’]s)?|[Hh]osted|self-hosted|Actions|CI) $/ },
   // A test runner: libtest's, Vitest's or node's. runx's own is its test replay.
@@ -320,10 +318,6 @@ export const STAYS = [
   { word: "graph", why: "Microsoft Graph, a product's name", token: "Graph", before: /\b(Microsoft|through) $/ },
   // runner: Rails' runner command, which runs a script in the app.
   { word: "runner", why: "Rails' runner command", before: /\brails $/i },
-  // runner: a consumer's own runx operational policy, whose runners are
-  // machinery as OSS's are, and the code that reads it.
-  { word: "runner", why: "the operational policy's runners, in a consumer's own policy", file: /^(config\/runx-frantic-policy\.json|\.runx\/runx-issue-flow\.json)$/ },
-  { word: "runner", why: "the operational policy's runners, as the code reading a consumer's policy names them", file: /^scripts\/runx-issue-flow\.test\.mjs$/ },
   // harness: a product's own production check, which its dogfood target
   // verifies (Nitrosend's Makefile help), not a runx test.
   { word: "harness", why: "a product's own production check harness, which a dogfood target verifies", file: /^Makefile$/, before: /\bproduction $/ },
@@ -343,14 +337,16 @@ export function stayFor(file, line, index, token) {
 
 /**
  * The rows of bare-words.tsv that decide this occurrence: each names one
- * exact token in one file, or in every file when its file is `*`, at every
- * site or only where its `before` and `after` match, as a stay's do. More
- * than one is a conflict for the caller to refuse.
+ * exact token in one file, in every file under a folder its file names with a
+ * trailing slash, or in every file when its file is `*`, at every site or only
+ * where its `before` and `after` match, as a stay's do. More than one is a
+ * conflict for the caller to refuse.
  */
 export function decisionsFor(rows, file, line, index, token) {
   const before = line.slice(0, index);
   const after = line.slice(index + token.length);
-  return rows.filter((row) => (row.file === file || row.file === "*") && row.word === token && (!row.before || row.before.test(before)) && (!row.after || row.after.test(after)));
+  const holds = (row) => row.file === file || row.file === "*" || (row.file.endsWith("/") && file.startsWith(row.file));
+  return rows.filter((row) => holds(row) && row.word === token && (!row.before || row.before.test(before)) && (!row.after || row.after.test(after)));
 }
 
 // The paths that keep a retired word, each for a meaning outside runx, and
@@ -359,8 +355,6 @@ export function decisionsFor(rows, file, line, index, token) {
 export const PATH_STAYS = [
   { path: /^\.github\//, why: "GitHub's runner" },
   { path: /^scripts\/check-rust-crate-graph\.mjs$/, why: "a dependency graph" },
-  // Not renamed yet: the policy's runners await a name (the operational policy's stay above).
-  { path: /^fixtures\/operational-policy\/invalid-(no-available|unknown)-runner\.json$/, why: "the operational policy's runners" },
 ];
 
 /** The stay that keeps a path's retired word, if one does. */

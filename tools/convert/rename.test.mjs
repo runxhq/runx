@@ -151,7 +151,7 @@ test("a bare runner or harness renames everywhere but where a stay keeps it or a
   assert.match(dry.out, /^decided\tcrates\/runx-runtime\/src\/execution\.rs:1\tthe act engine's module, as execution's doc names it\trunner -> engine\t/m);
   assert.match(dry.out, /^decided\tcrates\/runx-runtime\/src\/execution\.rs:2\tthe act engine's module\trunner -> engine\tpub mod runner;$/m);
   assert.match(dry.out, /^decided\tcrates\/runx-runtime\/src\/execution\/harness\/fixture\.rs:1\tthe act engine's module, execution\/engine \(rename ruling 1\)\trunner -> engine\t/m);
-  assert.match(dry.out, /^stays\tcrates\/runx-contracts\/src\/operational_policy\.rs:1\tthe operational policy's runners\t/m);
+  assert.match(dry.out, /^decided\tcrates\/runx-contracts\/src\/operational_policy\.rs:1\tthe operational policy's automations \(rename ruling 12\)\trunners -> automations\t/m);
   assert.match(dry.out, /^stays\tdocs\/agents\.md:1\tan agent's host\t/m);
 
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
@@ -159,7 +159,7 @@ test("a bare runner or harness renames everywhere but where a stay keeps it or a
   assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "//! - `engine`: the workflow engine.\npub mod engine;\npub mod test;\n");
   assert.equal(read(root, "crates/runx-runtime/src/execution/test/fixture.rs"), "use crate::execution::engine::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.method.inputs }\n");
   assert.equal(read(root, "crates/runx-runtime/src/skill_package/inspection/method.rs"), "/// The methods a skill declares.\npub fn methods() {}\n");
-  assert.equal(read(root, "crates/runx-contracts/src/operational_policy.rs"), "pub struct Policy { pub runners: Vec<Runner> }\n");
+  assert.equal(read(root, "crates/runx-contracts/src/operational_policy.rs"), "pub struct Policy { pub automations: Vec<Automation> }\n");
   assert.equal(read(root, "docs/agents.md"), "Run the test first. The run context travels with the run. An agent harness such as Codex keeps its own memory.\n");
 });
 
@@ -253,6 +253,14 @@ test("a row decides one exact token in its file, at every site or only where its
   assert.deepEqual(decided("src/contract.ts", "harness"), ["registry", "test"]);
   assert.deepEqual(decided("src/contract.ts", "Harness"), []);
   assert.deepEqual(decided("src/other.ts", "harness"), []);
+});
+
+test("a row naming a folder decides a word in every file under it, and in no other", () => {
+  const rows = [{ file: "skills/policy-draft/", word: "runners", becomes: "automations" }];
+  const decided = (file) => decisionsFor(rows, file, "runners: []", 0, "runners").map((row) => row.becomes);
+  assert.deepEqual(decided("skills/policy-draft/tests/tighten.yaml"), ["automations"]);
+  assert.deepEqual(decided("skills/policy-draft-other/run.yaml"), []);
+  assert.deepEqual(decided("skills/policy-draft"), []);
 });
 
 test("a row in every file decides a word only where its context matches, as a flag's spelling", () => {
@@ -569,21 +577,22 @@ test("Ausca's catalog keys are pinned, so retained history decodes, while the co
   assert.equal(read(root, "internal/catalogcompiler/compiler_test.go"), auscaPins["internal/catalogcompiler/compiler_test.go"]);
 });
 
-test("a consumer's other senses keep their words: JSON-LD's @graph, Microsoft Graph, Rails' runner and its own runx policy's runners", (t) => {
+test("a consumer's other senses keep their words: JSON-LD's @graph, Microsoft Graph and Rails' runner, and its own runx policy names its automations", (t) => {
   const kept = {
     "src/review.test.mjs": 'const html = `<script type="application/ld+json">{"@graph": [{"@type": "Person"}]}</script>`;\n',
     "docs/mail.md": "Microsoft accepted the test reply through Graph. Microsoft Graph sends it.\n",
     "Makefile": 'reset:\n\tbundle exec rails runner "$(CMD)"\n\t@echo "  make reset  # Run Rails runner"\n',
-    "config/runx-frantic-policy.json": '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a", "runner_ids": ["a"]}]}\n',
   };
-  const root = tree(t, { ...kept, "docs/flow.md": "The graph runs each step.\n" });
+  const policy = '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a", "runner_ids": ["a"]}]}\n';
+  const root = tree(t, { ...kept, "config/runx-frantic-policy.json": policy, "docs/flow.md": "The graph runs each step.\n" });
   const { status, out } = run(RENAME, "apply", "frantic", root, "--write");
   assert.equal(status, 0, out);
   for (const [file, text] of Object.entries(kept)) assert.equal(read(root, file), text, file);
+  assert.equal(read(root, "config/runx-frantic-policy.json"), '{"schema": "runx.operational_policy.v1", "automations": [{"automation_id": "a", "automation_ids": ["a"]}]}\n');
   assert.equal(read(root, "docs/flow.md"), "The workflow runs each step.\n");
 });
 
-test("nitrosend renames only where runx's words live, and its own product keeps its vocabulary", (t) => {
+test("nitrosend renames only where runx's words live, its policy's automations among them, and its own product keeps its vocabulary", (t) => {
   const root = tree(t, {
     "skills/support/notes.md": "The harness runs first.\n",
     ".runx/runx-issue-flow.json": '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a"}]}\n',
@@ -595,8 +604,8 @@ test("nitrosend renames only where runx's words live, and its own product keeps 
   const { status, out } = run(RENAME, "apply", "nitrosend", root, "--write");
   assert.equal(status, 0, out);
   assert.equal(read(root, "skills/support/notes.md"), "The test runs first.\n");
-  assert.equal(read(root, ".runx/runx-issue-flow.json"), '{"schema": "runx.operational_policy.v1", "runners": [{"runner_id": "a"}]}\n');
-  assert.equal(read(root, "scripts/runx-issue-flow.test.mjs"), "const sentryRunner = policy.runners[0];\nassert.ok(sentryRunner, \"sentry outcome runner is declared\");\n");
+  assert.equal(read(root, ".runx/runx-issue-flow.json"), '{"schema": "runx.operational_policy.v1", "automations": [{"automation_id": "a"}]}\n');
+  assert.equal(read(root, "scripts/runx-issue-flow.test.mjs"), "const sentryAutomation = policy.automations[0];\nassert.ok(sentryAutomation, \"sentry outcome automation is declared\");\n");
   assert.equal(read(root, "skills/nitrosend/mcp-authoring-quality/README.md"), "The live runner drives each trial, and the harness detects a claim.\n");
   assert.equal(read(root, "dogfood/audit/runner.mjs"), "// the runner uses Expect\n");
   assert.equal(read(root, "frontend/flow.md"), "An interactive node graph, and the email builder's regression harness.\n");

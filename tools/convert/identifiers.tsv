@@ -358,8 +358,8 @@ cloud	registryClosureFor	0	closure	registryClosureFor	a package's closure, or En
 cloud	RegistryHarnessState	0	harness	RegistryTestState	the test sense	
 cloud	run_summaries_execution_closure_binding_required	0	closure	run_summaries_execution_closure_binding_required	a package's closure, or English: stays	
 cloud	RunHold	0	hold	RunHold	a run waiting: stays	
-cloud	runner_id	0	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	
-cloud	runner_ids	0	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	
+cloud	runner_id	0	runner	automation_id	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+cloud	runner_ids	0	runner	automation_ids	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
 cloud	RunnerInspection	0	runner	MethodInspection		
 cloud	RunnerInspectionEntry	0	runner	MethodInspectionEntry		
 cloud	runs_execution_closure_binding_required	0	closure	runs_execution_closure_binding_required	a package's closure, or English: stays	
@@ -482,8 +482,8 @@ frantic	next_runner	1	runner	next_method		runx/skills/frantic-broadcast/SKILL.md
 frantic	operator-runner	1	runner	operator-method		apps/api/src/internal-read-routes.test.ts
 frantic	plausible-graph	1	graph	plausible-workflow		runx/skills/frantic-operator/references/archive/bounty-board-v0-live.md
 frantic	Runner	1	runner	?	a bare word: code or prose, read in place	packages/db/src/signup.test.ts
-frantic	runner_id	1	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	config/runx-frantic-policy.json
-frantic	runner_ids	1	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	config/runx-frantic-policy.json
+frantic	runner_id	1	runner	automation_id	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	config/runx-frantic-policy.json
+frantic	runner_ids	1	runner	automation_ids	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	config/runx-frantic-policy.json
 frantic	runner-driven	1	runner	runner-driven	Frantic's seed playbook runner: stays	packages/seed/src/runner.ts
 frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/verifier/src/checks/runx-skill.test.ts
 frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
@@ -493,11 +493,11 @@ nitrosend	harness-nitrosend-token	17	harness	test-nitrosend-token	the test sense
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
 nitrosend	holds	7	hold	holds	English: stays	AGENTS.md artifacts/aws-marketplace/submission-packet.md
 nitrosend	runners	7	runner	?	a bare word: code or prose, read in place	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
-nitrosend	sentryRunner	7	runner	sentryRunner	the operational policy's runner, as the code reading Nitrosend's policy names it: stays	scripts/runx-issue-flow.test.mjs
+nitrosend	sentryRunner	7	runner	sentryAutomation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	scripts/runx-issue-flow.test.mjs
 nitrosend	agent_act_closed	3	agent_act	turn_closed		skills/nitrosend/issue-intake/X.yaml skills/nitrosend/team-slack/X.yaml
 nitrosend	api-runner	3	runner	api-runner	the Make target that runs Rails's runner (make api-runner CMD='puts 1'): stays	Makefile
-nitrosend	runner_id	3	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
-nitrosend	runner_ids	3	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	.runx/runx-issue-flow.json
+nitrosend	runner_id	3	runner	automation_id	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
+nitrosend	runner_ids	3	runner	automation_ids	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	.runx/runx-issue-flow.json
 nitrosend	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	scripts/scafld-verify.sh
 nitrosend	Graph	2	graph	Graph	Microsoft Graph, and the flow editor's graph utilities: stays	CONVENTIONS.md artifacts/releases/outreach-sending-2026-10-19.md
 nitrosend	hold	2	hold	hold	English: stays	AGENTS.md artifacts/aws-marketplace/submission-packet.md
@@ -515,7 +515,7 @@ oss	closure	463	closure	?	a bare word: code or prose, read in place	crates/runx-
 oss	held	445	hold	?	a bare word: code or prose, read in place	crates/runx-contracts-derive/src/lib.rs crates/runx-contracts/examples/runx-purchase-fixtures.rs
 oss	hold	246	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml crates/runx-cli/src/connector.rs
 oss	graph_dir	160	graph	workflow_dir		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs crates/runx-runtime/src/effects/mod.rs
-oss	runner_id	132	runner	runner_id	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy.rs crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	runner_id	132	runner	automation_id	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy.rs crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	GraphStep	116	graph	WorkflowStep	the plan's name	crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/step.rs
 oss	execution_closure_digest	105	closure	closure_digest	closure is the one name for a package's closure (rename ruling 3)	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/resume.rs
 oss	graph_name	90	graph	workflow_name		crates/runx-cli/src/history.rs crates/runx-cli/src/verify.rs
@@ -524,7 +524,7 @@ oss	SkillRunnerManifest	84	runner	SkillMethodManifest		crates/runx-parser/src/li
 oss	HarnessReplayError	82	harness	TestReplayError	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/assertions.rs
 oss	HarnessFixtureError	81	harness	TestFixtureError	the test sense	crates/runx-parser/src/eval.rs crates/runx-parser/src/harness_fixture.rs
 oss	ExecutionGraph	80	graph	Workflow	the plan's name: the parser's workflow definition	crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/types.rs
-oss	runner_ids	74	runner	runner_ids	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-cli/src/policy.rs crates/runx-contracts/src/operational_policy.rs
+oss	runner_ids	74	runner	automation_ids	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-cli/src/policy.rs crates/runx-contracts/src/operational_policy.rs
 oss	Graph	69	graph	?	a bare word: code or prose, read in place	crates/runx-cli/src/list.rs crates/runx-cli/tests/local_credential.rs
 oss	holding	68	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/doctor.rs
 oss	SequentialGraph	64	graph	SequentialWorkflow	the core state machine's run of a workflow, a different type from the parser's definition (ExecutionGraph, which becomes Workflow), so they can't share a name	crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
@@ -580,7 +580,7 @@ oss	ToolRunner	20	runner	Tools	the tools a step gives a process implementation: 
 oss	BoundClosure	19	closure	BoundClosure	a package's closure, closure's one meaning	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	graph_receipt	19	graph	workflow_receipt		crates/runx-receipts/src/tree/structural_tests.rs crates/runx-runtime/benches/graph_throughput.rs
 oss	HoldEvent	19	hold	HoldEvent	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
-oss	OperationalPolicyRunnerRule	19	runner	OperationalPolicyRunnerRule	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
+oss	OperationalPolicyRunnerRule	19	runner	OperationalPolicyAutomationRule	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
 oss	validateRunnerManifestYaml	19	runner	validateMethodManifestYaml		crates/runx-parser/src/eval.rs scripts/audit-core-skills.mjs
 oss	$RUNNER_TEMP	18	runner	$RUNNER_TEMP	GitHub's runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	agent-act-invocation	18	agent_act	turn-invocation	the turn invocation's schema file, as its $id names it (vocabulary §4.2, turn)	crates/runx-contracts/src/schema_artifacts.rs crates/runx-contracts/tests/schema_wire_conformance/covered.rs
@@ -596,7 +596,7 @@ oss	default_runner	16	runner	default_method		crates/runx-parser/src/package.rs c
 oss	harness_fixtures	16	harness	test_fixtures	the test sense	crates/runx-parser/src/package.rs crates/runx-parser/src/package/validate.rs
 oss	HarnessExchanges	16	harness	TestExchanges	the test sense	crates/runx-runtime/src/drivers/web.rs crates/runx-runtime/src/execution/harness/provider_responses.rs
 oss	hello-graph	16	graph	hello-workflow		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/tests/governance_witness.rs
-oss	OperationalPolicyRunnerState	16	runner	OperationalPolicyRunnerState	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
+oss	OperationalPolicyRunnerState	16	runner	OperationalPolicyAutomationState	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
 oss	PackageHarnessReport	16	harness	PackageTestReport	the test sense	crates/runx-cli/src/main.rs crates/runx-runtime/src/execution/harness.rs
 oss	requested_runner	16	runner	requested_method		crates/runx-runtime/src/execution/graph.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	Runner	16	runner	?	a bare word: code or prose, read in place	crates/runx-cli/src/skill/operator_context.rs crates/runx-cli/tests/skill.rs
@@ -624,7 +624,7 @@ oss	planSequentialGraphTransition	13	graph	planSequentialWorkflowTransition		cra
 oss	run_harness	13	harness	run_test	the test sense	crates/runx-cli/src/registry.rs crates/runx-runtime/src/execution/orchestrator.rs
 oss	RunHold	13	hold	RunHold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/run_read.rs
 oss	transition_sequential_graph	13	graph	transition_sequential_workflow		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/state_machine.rs
-oss	available_runner_count	12	runner	available_runner_count	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-cli/src/policy.rs crates/runx-contracts/src/operational_policy.rs
+oss	available_runner_count	12	runner	available_automation_count	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-cli/src/policy.rs crates/runx-contracts/src/operational_policy.rs
 oss	build_agent_act_invocation	12	agent_act	build_turn_invocation		crates/runx-runtime/src/agent_invocation.rs crates/runx-runtime/src/agent_invocation/tests.rs
 oss	graph-stage	12	graph	workflow-stage		crates/runx-cli/tests/list.rs crates/runx-parser/src/skill/catalog.rs
 oss	PackageHarnessEnvironment	12	harness	PackageTestEnvironment	the test sense	crates/runx-runtime/src/execution/harness/package.rs
@@ -680,12 +680,12 @@ oss	HarnessPlan	8	harness	TestPlan	the test sense	crates/runx-cli/src/main.rs cr
 oss	hold-content	8	hold	hold-content	English, or a skill's own word: stays	skills/message-send/run.yaml skills/message-send/tests/post-delivery-plan-drift.yaml
 oss	LoadedRunner	8	runner	LoadedMethod		crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	materialize_complete_runner_inputs	8	runner	materialize_complete_method_inputs		crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/skill_front.rs
-oss	OperationalPolicyRunnerReadback	8	runner	OperationalPolicyRunnerReadback	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
+oss	OperationalPolicyRunnerReadback	8	runner	OperationalPolicyAutomationReadback	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
 oss	PublishClosureError	8	closure	PublishClosureError	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	RunnerHarnessCase	8	harness,runner	MethodTestCase	the test sense	crates/runx-parser/src/lib.rs crates/runx-parser/src/skill.rs
 oss	RunnerHarnessManifest	8	harness,runner	MethodTestManifest	the test sense	crates/runx-parser/src/lib.rs crates/runx-parser/src/runner.rs
-oss	runnerId	8	runner	runnerId	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
-oss	unknown_runner	8	runner	unknown_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
+oss	runnerId	8	runner	automationId	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/schemas/operational-policy.ts
+oss	unknown_runner	8	runner	unknown_automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
 oss	agent-session	7	agent_session	agent	the plan's name	crates/runx-runtime/bundled-skills.json scripts/classify-ci-changes.test.mjs
 oss	allow_execute_harness	7	harness	allow_execute_test	the test sense	crates/runx-runtime/bundled-skills.json crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	approval-graph	7	graph	approval-workflow		crates/runx-cli/tests/skill.rs
@@ -745,14 +745,14 @@ oss	materialize_present_runner_inputs	6	runner	materialize_present_method_inputs
 oss	mcp_runner_error	6	runner	mcp_method_error		crates/runx-runtime/src/adapters/mcp/server_skill.rs
 oss	multi-runner	6	runner	multi-method		crates/runx-cli/tests/skill.rs crates/runx-runtime/bundled-skills.json
 oss	RawRunnerManifestIr	6	runner	RawMethodManifestIr		crates/runx-parser/src/lib.rs crates/runx-parser/src/runner.rs
-oss	runner_index	6	runner	runner_index	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	runner_index	6	runner	automation_index	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	runner_inputs_from_text	6	runner	method_inputs_from_text		crates/runx-cli/src/skill/inputs.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	runner_with	6	runner	method_with		crates/runx-parser/tests/parser_step_kinds.rs
 oss	runnerInspection	6	runner	methodInspection		scripts/audit-core-skills.mjs
 oss	runnerProvider	6	runner	methodProvider		fixtures/contracts/host-protocol/inspect-host-state-completed.json fixtures/contracts/host-protocol/inspect-host-state-denied.json
 oss	RunnerWalkTarget	6	runner	MethodWalkTarget		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	runx-harness-fixture-oracles	6	harness	runx-test-fixture-oracles	the test sense	crates/runx-runtime/examples/runx-harness-fixture-oracles.rs scripts/generate-rust-harness-fixtures.ts
-oss	target_action_without_runner	6	runner	target_action_without_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-cli/tests/policy.rs crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	target_action_without_runner	6	runner	target_action_without_automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-cli/tests/policy.rs crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	validate_graph_document	6	graph	validate_workflow_document		crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/validate.rs
 oss	AgentActInvocationContract	5	agent_act	TurnInvocationContract		packages/contracts/src/generated/contract-types.ts packages/contracts/src/schemas/agent-act.ts
 oss	agentActInvocationSchema	5	agent_act	turnInvocationSchema		packages/contracts/src/index.test.ts packages/contracts/src/index.ts
@@ -842,7 +842,7 @@ oss	inline-graph-timeout	4	graph	inline-workflow-timeout		crates/runx-cli/tests/
 oss	inspect_runner	4	runner	inspect_method		crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/runner.rs
 oss	install_registry_closure	4	closure	install_registry_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	invalid_harness_http_url	4	harness	invalid_test_http_url	the test sense	crates/runx-parser/src/harness_fixture.rs
-oss	invalid-no-available-runner	4	runner	invalid-no-available-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-cli/tests/policy.rs crates/runx-contracts/tests/operational_policy.rs
+oss	invalid-no-available-runner	4	runner	invalid-no-available-automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-cli/tests/policy.rs crates/runx-contracts/tests/operational_policy.rs
 oss	LangGraph	4	graph	LangGraph	another graph: stays	docs/loop-orchestration.md docs/orchestrator-integrations.md
 oss	materialize_nested_runner_inputs	4	runner	materialize_nested_method_inputs		crates/runx-runtime/src/execution/runner/step_handlers.rs crates/runx-runtime/src/input_contract.rs
 oss	missing-runner	4	runner	missing-method		crates/runx-cli/tests/skill.rs fixtures/operational-policy/invalid-unknown-runner.json
@@ -858,7 +858,7 @@ oss	record_child_hold	4	hold	record_child_hold	hold's one meaning, a run waiting
 oss	resolution-agent-act-request	4	agent_act	resolution-turn-request	the host protocol fixture of a turn's resolution request	crates/runx-contracts/tests/host_protocol_fixtures.rs crates/runx-contracts/tests/schema_validation.rs
 oss	run_harness_case_with_adapter	4	harness	run_test_case_with_adapter	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	runner_makes_calls	4	runner	method_makes_calls		crates/runx-runtime/src/adapters/mcp/server_skill.rs crates/runx-runtime/src/export.rs
-oss	runnerIndex	4	runner	runnerIndex	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
+oss	runnerIndex	4	runner	automationIndex	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/schemas/operational-policy.ts
 oss	runnerNames	4	runner	methodNames		packages/contracts/src/catalog-presentation.test.ts packages/contracts/src/catalog-presentation.ts
 oss	runnersWithoutPurpose	4	runner	methodsWithoutPurpose		scripts/check-skill-version-drift.mjs
 oss	runtimeHarnessFixturePath	4	harness	runtimeTestFixturePath	the test sense	scripts/runtime-architecture/parser.mjs
@@ -868,7 +868,7 @@ oss	sequential_graph_state	4	graph	sequential_workflow_state		crates/runx-core/t
 oss	suspended_hold	4	hold	suspended_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	tier_held	4	hold	tier_held	English, or a skill's own word: stays	crates/runx-runtime/tests/registry_fixture.rs crates/runx-runtime/tests/turn_loads.rs
 oss	TransitionSequentialGraph	4	graph	TransitionSequentialWorkflow		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/kernel_eval/input.rs
-oss	validate_admitted_runner	4	runner	validate_admitted_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
+oss	validate_admitted_runner	4	runner	validate_admitted_automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
 oss	validate_harness_manifest	4	harness	validate_test_manifest	the test sense	crates/runx-parser/src/runner.rs crates/runx-parser/src/skill.rs
 oss	validate_runner_definition	4	runner	validate_method_definition		crates/runx-parser/src/runner.rs crates/runx-parser/src/skill.rs
 oss	walk_runner	4	runner	walk_method		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
@@ -938,7 +938,7 @@ oss	inspect_runner_execution_closure	3	closure,runner	inspect_method_closure	a p
 oss	inspected_runner	3	runner	inspected_method		crates/runx-runtime/src/skill_package/inspection.rs
 oss	InspectedExecutionClosureBinding	3	closure	InspectedClosureBinding	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
 oss	into_local_execution_closure	3	closure	into_local_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	invalid-unknown-runner	3	runner	invalid-unknown-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs fixtures/operational-policy/invalid-unknown-runner.json
+oss	invalid-unknown-runner	3	runner	invalid-unknown-automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/tests/operational_policy.rs fixtures/operational-policy/invalid-unknown-runner.json
 oss	is_governed_step_closure	3	closure	is_governed_step_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	is_graph	3	graph	is_workflow		crates/runx-runtime/src/execution/harness/package.rs
 oss	isRunnerFixture	3	runner	isEvaluationFixture	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts
@@ -947,7 +947,7 @@ oss	merge_local_execution_closure	3	closure	merge_local_closure	closure is the o
 oss	nested_graph_ref	3	graph	nested_workflow_ref		crates/runx-runtime/tests/skill_run.rs
 oss	nested_runner	3	runner	nested_method		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	NestedGraph	3	graph	NestedWorkflow		crates/runx-runtime/src/execution/runner/step_handlers.rs
-oss	OperationalPolicyRunnerStateContract	3	runner	OperationalPolicyRunnerStateContract	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/generated/contract-types.ts
+oss	OperationalPolicyRunnerStateContract	3	runner	OperationalPolicyAutomationStateContract	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/generated/contract-types.ts
 oss	package_harness_report_hint	3	harness	package_test_report_hint	the test sense	crates/runx-cli/src/main.rs
 oss	parse_harness_caller	3	harness	parse_test_caller	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/skill/fixtures.rs
 oss	parse_harness_expectation	3	harness	parse_test_expectation	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/harness_fixture/tests.rs
@@ -961,14 +961,14 @@ oss	replay_harness_case	3	harness	replay_test_case	the test sense	crates/runx-ru
 oss	replay_output_from_graph	3	graph	replay_output_from_workflow		crates/runx-runtime/src/execution/harness/runner.rs
 oss	resumed_hold	3	hold	resumed_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	run_provider_graph	3	graph	run_provider_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
-oss	runner_action_not_allowed	3	runner	runner_action_not_allowed	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
+oss	runner_action_not_allowed	3	runner	automation_action_not_allowed	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
 oss	runner_contract_checks	3	runner	method_contract_checks		crates/runx-runtime/src/execution/runner/step_handlers.rs crates/runx-runtime/src/output_contract.rs
 oss	runner_definition	3	runner	method_definition		crates/runx-parser/src/skill.rs
 oss	runner_has_sealed_standalone_journey	3	runner	method_has_sealed_standalone_journey		crates/runx-runtime/src/adapters/mcp/server_skill.rs crates/runx-runtime/src/export.rs
 oss	runner_limits	3	runner	method_limits		crates/runx-parser/src/runner.rs
-oss	runner_not_allowed_for_target	3	runner	runner_not_allowed_for_target	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
+oss	runner_not_allowed_for_target	3	runner	automation_not_allowed_for_target	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
 oss	runner_provider	3	runner	method_provider		crates/runx-contracts/src/host_protocol.rs packages/sdk-python/runx/host_protocol.py
-oss	runner_unavailable	3	runner	runner_unavailable	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.test.ts
+oss	runner_unavailable	3	runner	automation_unavailable	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.test.ts
 oss	runnerArgs	3	runner	methodArgs		packages/client/src/index.ts
 oss	RunnerInspectionContract	3	runner	MethodInspectionContract		packages/contracts/src/generated/contract-types.ts
 oss	RunnerManifestFixture	3	runner	MethodManifestFixture		crates/runx-parser/tests/parser_fixtures.rs
@@ -1022,8 +1022,8 @@ oss	ClosureDigestMismatch	2	closure	ClosureDigestMismatch	a package's closure, c
 oss	ClosureMissing	2	closure	ClosureMissing	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs
 oss	ClosureNotFullyBound	2	closure	ClosureNotFullyBound	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
 oss	ClosureNotObject	2	closure	EndingNotObject	how a run ended	crates/runx-runtime/src/execution/outcome.rs
-oss	collect_runner_findings	2	runner	collect_runner_findings	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
-oss	collect_runner_target_findings	2	runner	collect_runner_target_findings	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	collect_runner_findings	2	runner	collect_automation_findings	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	collect_runner_target_findings	2	runner	collect_automation_target_findings	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	ConflictingRunnerManifest	2	runner	ConflictingMethodManifest		crates/runx-runtime/src/registry/install.rs
 oss	CONTEXT_GRAPH	2	graph	CONTEXT_WORKFLOW		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	CONTEXT_PRODUCER_RUNNER	2	runner	CONTEXT_PRODUCER_METHOD		crates/runx-runtime/src/execution/skill_context/entry.rs
@@ -1036,7 +1036,7 @@ oss	execute_nested_graph	2	graph	execute_nested_workflow		crates/runx-runtime/sr
 oss	ExecutionClosure	2	closure	Closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	expand_graph_step	2	graph	expand_workflow_step		crates/runx-runtime/src/execution/operator_context.rs
 oss	expand_graph_steps	2	graph	expand_workflow_steps		crates/runx-runtime/src/execution/operator_context.rs
-oss	explicit-runner	2	runner	explicit-runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
+oss	explicit-runner	2	runner	explicit-automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
 oss	export_runners	2	runner	export_methods		crates/runx-runtime/src/export.rs
 oss	failed_package_harness_report	2	harness	failed_package_test_report	the test sense	crates/runx-cli/src/main.rs
 oss	failedOnceGraph	2	graph	failedOnceWorkflow		scripts/generate-kernel-parity-fixtures.ts
@@ -1089,8 +1089,8 @@ oss	inline_harness_report_snapshot	2	harness	inline_test_report_snapshot	the tes
 oss	inspect_root_runner	2	runner	inspect_root_method		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	install_candidate_closure	2	closure	install_candidate_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	INVALID_HARNESS_STATUS_PROFILE	2	harness	INVALID_TEST_STATUS_PROFILE	the test sense	crates/runx-runtime/src/doctor.rs
-oss	INVALID_NO_AVAILABLE_RUNNER	2	runner	INVALID_NO_AVAILABLE_RUNNER	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
-oss	INVALID_UNKNOWN_RUNNER	2	runner	INVALID_UNKNOWN_RUNNER	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
+oss	INVALID_NO_AVAILABLE_RUNNER	2	runner	INVALID_NO_AVAILABLE_AUTOMATION	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/tests/operational_policy.rs
+oss	INVALID_UNKNOWN_RUNNER	2	runner	INVALID_UNKNOWN_AUTOMATION	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/tests/operational_policy.rs
 oss	is_agent_act	2	agent_act	is_turn		crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	is_declared_harness_executable	2	harness	is_declared_test_executable	the test sense	crates/runx-runtime/src/execution/harness/package.rs
 oss	is_graph_complete	2	graph	is_workflow_complete		crates/runx-core/src/state_machine/sequential_graph/transition.rs
@@ -1099,7 +1099,7 @@ oss	LoadedRunnerInputContract	2	runner	LoadedMethodInputContract		packages/contr
 oss	local_closure	2	closure	local_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_package.rs
 oss	local_graph	2	graph	local_workflow		crates/runx-runtime/tests/receipt_signing.rs
 oss	local_harness	2	harness	local_test	the test sense	crates/runx-runtime/bundled-skills.json
-oss	local-pr-runner	2	runner	local-pr-runner	the operational policy's runners, whose name awaits a ruling: stays	fixtures/operational-policy/invalid-not-scafld-target.json
+oss	local-pr-runner	2	runner	local-pr-automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	fixtures/operational-policy/invalid-not-scafld-target.json
 oss	managed-agent-graph-failure	2	graph	managed-agent-workflow-failure		crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	mcp-approval-graph	2	graph	mcp-approval-workflow		crates/runx-runtime/tests/mcp_server.rs
 oss	mismatched-audit-is-held	2	hold	mismatched-audit-is-held	English, or a skill's own word: stays	crates/runx-runtime/bundled-skills.json
@@ -1108,9 +1108,9 @@ oss	native_harness_plan	2	harness	native_test_plan	the test sense	crates/runx-cl
 oss	NeedsConsequentialHarnessApproval	2	harness	NeedsConsequentialTestApproval	the test sense	crates/runx-contracts/src/skill_authoring.rs crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	nested_graph_id	2	graph	nested_workflow_id		crates/runx-runtime/tests/skill_run.rs
 oss	not-the-closure	2	closure	not-the-closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
-oss	OperationalPolicyRunnerReadbackContract	2	runner	OperationalPolicyRunnerReadbackContract	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/generated/contract-types.ts
-oss	OperationalPolicyRunnerRuleContract	2	runner	OperationalPolicyRunnerRuleContract	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/generated/contract-types.ts
-oss	operationalPolicyRunnerStates	2	runner	operationalPolicyRunnerStates	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/index.ts packages/contracts/src/schemas/operational-policy.ts
+oss	OperationalPolicyRunnerReadbackContract	2	runner	OperationalPolicyAutomationReadbackContract	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/generated/contract-types.ts
+oss	OperationalPolicyRunnerRuleContract	2	runner	OperationalPolicyAutomationRuleContract	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/generated/contract-types.ts
+oss	operationalPolicyRunnerStates	2	runner	operationalPolicyAutomationStates	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/index.ts packages/contracts/src/schemas/operational-policy.ts
 oss	OperationHoldContract	2	hold	OperationLeaseContract	the lease family	packages/contracts/src/generated/contract-types.ts
 oss	package_runner_case	2	runner	package_method_case		crates/runx-parser/src/skill/catalog.rs
 oss	package-harness	2	harness	package-test	the test sense	crates/runx-runtime/src/execution/harness/package.rs
@@ -1156,13 +1156,13 @@ oss	runner_metadata	2	runner	method_metadata		crates/runx-runtime/src/registry/l
 oss	runner_metadata_trust_signal	2	runner	method_metadata_trust_signal		crates/runx-runtime/src/registry/local/trust.rs
 oss	runner_metadata_value	2	runner	method_metadata_value		crates/runx-runtime/src/registry/local/trust.rs
 oss	runner_offers	2	runner	method_offers		crates/runx-runtime/src/registry/local/build.rs
-oss	runner_readback	2	runner	runner_readback	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
-oss	runner_ready_for_action	2	runner	runner_ready_for_action	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
-oss	runner_required	2	runner	runner_required	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
+oss	runner_readback	2	runner	automation_readback	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	runner_ready_for_action	2	runner	automation_ready_for_action	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	runner_required	2	runner	automation_required	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
 oss	runner_requirements	2	runner	method_requirements		crates/runx-runtime/src/skill_package/inspection.rs
-oss	runner_scafld_mismatch	2	runner	runner_scafld_mismatch	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
-oss	runner_target_mismatch	2	runner	runner_target_mismatch	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
-oss	runner_target_not_allowed	2	runner	runner_target_not_allowed	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
+oss	runner_scafld_mismatch	2	runner	automation_scafld_mismatch	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
+oss	runner_target_mismatch	2	runner	automation_target_mismatch	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
+oss	runner_target_not_allowed	2	runner	automation_target_not_allowed	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs packages/contracts/src/schemas/operational-policy.ts
 oss	runner-contract	2	runner	method-contract		crates/runx-runtime/bundled-skills.json
 oss	runner-level	2	runner	method-level		crates/runx-runtime/bundled-skills.json
 oss	runner-local	2	runner	method-local		crates/runx-runtime/bundled-skills.json
@@ -1171,7 +1171,7 @@ oss	runner-rejects-malformed-state	2	runner	evaluation-rejects-malformed-state	t
 oss	runner-specific	2	runner	method-specific		CONVENTIONS.md docs/skill-quality-standard.md
 oss	RunnerDeclaration	2	runner	MethodDeclaration		scripts/collect-packets.ts
 oss	runnerFixtureErrors	2	runner	evaluationFixtureErrors	the kernel fixture evaluation (rename ruling 6)	scripts/generate-kernel-parity-fixtures.ts
-oss	runnerIds	2	runner	runnerIds	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
+oss	runnerIds	2	runner	automationIds	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/schemas/operational-policy.ts
 oss	RunnerInspectionEntryContract	2	runner	MethodInspectionEntryContract		packages/contracts/src/generated/contract-types.ts
 oss	RunnerManifest	2	runner	MethodManifest		scripts/collect-packets.ts
 oss	RunnerManifestExpected	2	runner	MethodManifestExpected		crates/runx-parser/tests/parser_fixtures.rs
@@ -1185,8 +1185,8 @@ oss	seal_agent_act_step	2	agent_act	seal_turn_step		crates/runx-runtime/src/exec
 oss	seal_failed_graph_in_place	2	graph	seal_failed_workflow_in_place		crates/runx-runtime/src/execution/runner.rs
 oss	seed_harness_instances	2	harness	seed_test_instances	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
 oss	seed_harness_receipts	2	harness	seed_test_receipts	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
-oss	select_request_runner	2	runner	select_request_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
-oss	selectRequestRunner	2	runner	selectRequestRunner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
+oss	select_request_runner	2	runner	select_request_automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	selectRequestRunner	2	runner	selectRequestAutomation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	packages/contracts/src/schemas/operational-policy.ts
 oss	sequential_graph	2	graph	sequential_workflow		crates/runx-core/src/state_machine.rs
 oss	sequential_graph_event	2	graph	sequential_workflow_event		crates/runx-core/tests/state_machine_proptest.rs
 oss	sequential-graph-smoke	2	graph	sequential-workflow-smoke		crates/runx-cli/tests/native_no_ts.rs
@@ -1197,7 +1197,7 @@ oss	skipped_harness	2	harness	skipped_test	the test sense	crates/runx-runtime/sr
 oss	stage_publish_harness	2	harness	stage_publish_test	the test sense	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/registry/publish_package/harness.rs
 oss	standalone_harness_options	2	harness	standalone_test_options	the test sense	crates/runx-runtime/src/execution/orchestrator.rs
 oss	SubSkillNamedRunnerMissing	2	runner	SubSkillNamedMethodMissing		crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	target_admits_runner	2	runner	target_admits_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	target_admits_runner	2	runner	target_admits_automation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	throughput_graph	2	graph	throughput_workflow		crates/runx-runtime/benches/graph_throughput.rs
 oss	tool_runner	2	runner	tool_method	the method a server's tool name carries	crates/runx-runtime/src/adapters/mcp/server_skill.rs
 oss	tool_source_closure	2	closure	tool_source_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/tool_catalogs/build.rs
@@ -1209,7 +1209,7 @@ oss	validate_harness_http_response	2	harness	validate_test_http_response	the tes
 oss	validate_harness_provider_responses	2	harness	validate_test_provider_responses	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	validate_harness_runners	2	harness,runner	validate_test_methods	the test sense	crates/runx-parser/src/runner.rs
 oss	validate_holds	2	hold	validate_leases	the lease family	crates/runx-parser/src/connector.rs
-oss	validate_runners	2	runner	validate_runners	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs
+oss	validate_runners	2	runner	validate_automations	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/src/operational_policy/evaluate.rs
 oss	validate_skill_runner_inputs	2	runner	validate_skill_method_inputs		crates/runx-runtime/src/lib.rs crates/runx-runtime/src/skill_package.rs
 oss	validateAgentActInvocationContract	2	agent_act	validateTurnInvocationContract		packages/contracts/src/index.ts packages/contracts/src/schemas/agent-act.ts
 oss	ValidateGraph	2	graph	ValidateWorkflow		crates/runx-runtime/src/error.rs
@@ -1349,7 +1349,7 @@ oss	execution_closure_projects_transitive_environment_requirements	1	closure	clo
 oss	execution_closure_uses_validated_names_and_transitive_native_tools	1	closure	closure_uses_validated_names_and_transitive_native_tools	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
 oss	execution-closure-bound	1	closure	closure-bound	closure is the one name for a package's closure (rename ruling 3)	docs/agent-skills.md
 oss	explicit_harness_workspace_owns_disposable_run_state	1	harness	explicit_test_workspace_owns_disposable_run_state	the test sense	crates/runx-runtime/src/execution/harness/package.rs
-oss	explicit_runner_with_unallowed_action_is_returned_then_denied_by_validation	1	runner	explicit_runner_with_unallowed_action_is_returned_then_denied_by_validation	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
+oss	explicit_runner_with_unallowed_action_is_returned_then_denied_by_validation	1	runner	explicit_automation_with_unallowed_action_is_returned_then_denied_by_validation	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/tests/operational_policy.rs
 oss	exports_default_runner_inputs_when_skill_frontmatter_has_none	1	runner	exports_default_method_inputs_when_skill_frontmatter_has_none		crates/runx-cli/tests/export.rs
 oss	extract-composes-in-graph	1	graph	extract-composes-in-workflow		skills/extract/tests/composes-in-workflow.yaml
 oss	facts-to-qualified-fit-with-contact-hold	1	hold	facts-to-qualified-fit-with-contact-hold	English, or a skill's own word: stays	skills/lead-enrichment/tests/qualify.yaml
@@ -1559,7 +1559,7 @@ oss	prior-art-composes-in-graph	1	graph	prior-art-composes-in-workflow		skills/p
 oss	privacy-request-review-composes-in-graph	1	graph	privacy-request-review-composes-in-workflow		skills/privacy-request-review/tests/composes-in-workflow.yaml
 oss	procurement-policy-check-composes-in-graph	1	graph	procurement-policy-check-composes-in-workflow		skills/procurement-policy-check/tests/composes-in-workflow.yaml
 oss	product-analytics-composes-in-graph	1	graph	product-analytics-composes-in-workflow		skills/product-analytics/tests/composes-in-workflow.yaml
-oss	provider_policy_denies_unknown_target_before_runner_selection	1	runner	provider_policy_denies_unknown_target_before_runner_selection	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
+oss	provider_policy_denies_unknown_target_before_runner_selection	1	runner	provider_policy_denies_unknown_target_before_automation_selection	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/tests/operational_policy.rs
 oss	publish_admin_sends_publisher_and_harness_and_no_upsert	1	harness	publish_admin_sends_publisher_and_test_and_no_upsert	the test sense	crates/runx-runtime/src/registry/publish/tests.rs
 oss	publish_harness_preserves_local_sibling_execution_closure	1	harness,closure	publish_test_preserves_local_sibling_closure	the test sense; a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
 oss	publish_test_preserves_local_sibling_execution_closure	1	closure	publish_test_preserves_local_sibling_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs
@@ -1591,7 +1591,7 @@ oss	runner_inputs_reject_definition_overrides_and_invalid_nested_examples	1	runn
 oss	runner_manifest_fixtures_match_expected	1	runner	method_manifest_fixtures_match_expected		crates/runx-parser/tests/parser_fixtures.rs
 oss	runner_operations_cannot_widen_or_misstate_the_package_ceiling	1	runner	method_operations_cannot_widen_or_misstate_the_package_ceiling		crates/runx-parser/tests/parser_turn_limits.rs
 oss	runner_requested_name	1	runner	method_requested_name		crates/runx-cli/src/skill/operator_context.rs
-oss	runner-action	1	runner	runner-action	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
+oss	runner-action	1	runner	automation-action	the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	crates/runx-contracts/tests/operational_policy.rs
 oss	runner-harness	1	harness,runner	method-test	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	Runner-local	1	runner	Method-local		crates/runx-contracts/src/schema_artifacts.rs
 oss	Runner-output	1	runner	Method-output		crates/runx-runtime/src/output_contract.rs
@@ -1718,3 +1718,44 @@ oss	closureFromInspection		decided	closureFromInspection	a package's closure, cl
 oss	an_agent_step_declares_no_output_its_answer_holds_for_runx	1	hold	an_agent_step_declares_no_output_its_answer_holds_for_runx	English: an answer holds its fields	crates/runx-parser/tests/parser_step_kinds.rs
 oss	turn-invocation		decided	turn-invocation	a renamed name lands here: the turn invocation	
 oss	resolution-turn-request		decided	resolution-turn-request	a renamed name lands here: the turn invocation	
+oss	automation_id		decided	automation_id	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_ids		decided	automation_ids	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	OperationalPolicyAutomationRule		decided	OperationalPolicyAutomationRule	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	OperationalPolicyAutomationState		decided	OperationalPolicyAutomationState	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	available_automation_count		decided	available_automation_count	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	OperationalPolicyAutomationReadback		decided	OperationalPolicyAutomationReadback	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automationId		decided	automationId	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	unknown_automation		decided	unknown_automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_index		decided	automation_index	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	target_action_without_automation		decided	target_action_without_automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	invalid-no-available-automation		decided	invalid-no-available-automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automationIndex		decided	automationIndex	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	validate_admitted_automation		decided	validate_admitted_automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	invalid-unknown-automation		decided	invalid-unknown-automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	OperationalPolicyAutomationStateContract		decided	OperationalPolicyAutomationStateContract	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_action_not_allowed		decided	automation_action_not_allowed	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_not_allowed_for_target		decided	automation_not_allowed_for_target	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_unavailable		decided	automation_unavailable	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	collect_automation_findings		decided	collect_automation_findings	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	collect_automation_target_findings		decided	collect_automation_target_findings	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	explicit-automation		decided	explicit-automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	INVALID_NO_AVAILABLE_AUTOMATION		decided	INVALID_NO_AVAILABLE_AUTOMATION	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	INVALID_UNKNOWN_AUTOMATION		decided	INVALID_UNKNOWN_AUTOMATION	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	local-pr-automation		decided	local-pr-automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	OperationalPolicyAutomationReadbackContract		decided	OperationalPolicyAutomationReadbackContract	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	OperationalPolicyAutomationRuleContract		decided	OperationalPolicyAutomationRuleContract	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	operationalPolicyAutomationStates		decided	operationalPolicyAutomationStates	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_readback		decided	automation_readback	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_ready_for_action		decided	automation_ready_for_action	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_required		decided	automation_required	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_scafld_mismatch		decided	automation_scafld_mismatch	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_target_mismatch		decided	automation_target_mismatch	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation_target_not_allowed		decided	automation_target_not_allowed	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automationIds		decided	automationIds	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	select_request_automation		decided	select_request_automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	selectRequestAutomation		decided	selectRequestAutomation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	target_admits_automation		decided	target_admits_automation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	validate_automations		decided	validate_automations	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	explicit_automation_with_unallowed_action_is_returned_then_denied_by_validation		decided	explicit_automation_with_unallowed_action_is_returned_then_denied_by_validation	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	provider_policy_denies_unknown_target_before_automation_selection		decided	provider_policy_denies_unknown_target_before_automation_selection	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
+oss	automation-action		decided	automation-action	a renamed name lands here: the operational policy's automations: what works a request on a target, a local machine, runx, GitHub Actions or a Sentry dispatch (rename ruling 12)	
