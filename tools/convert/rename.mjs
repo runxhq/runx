@@ -23,7 +23,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, MOVED_PATHS, PROSE_ONLY, SOURCE, STAYING_PATHS, bareWord, decisionsFor, fencedBlocks, proseSites, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, PROSE_ONLY, SOURCE, bareWord, decisionsFor, fencedBlocks, movedPath, pathStayFor, proseSites, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -596,16 +596,19 @@ function apply(repo, root, write, list, showStays) {
     return 1;
   }
   // A name that's also a file or folder moves with it: a bench, a module and
-  // its file, a test. Each segment of a path, a folder or a file's stem, is
-  // renamed when the table renames that exact name. A renamed folder moves
-  // whole, its run.yaml and vendored files included, so no package is split.
-  // A file keeps its own name only where the name isn't ours to change, and a
-  // history document keeps its whole path as it keeps its text.
+  // its file, a test. A path words.mjs's MOVED_PATHS names moves first, to
+  // the name its module or document gives it. Then each segment of a path, a
+  // folder or a file's stem, is renamed when the table renames that exact
+  // name, and a bare word as anywhere else, but where a path stay keeps it. A
+  // prose-only word moves only where MOVED_PATHS moves it. A renamed folder
+  // moves whole, its run.yaml and vendored files included, so no package is
+  // split. A file keeps its own name only where the name isn't ours to
+  // change, and a history document keeps its whole path as it keeps its text.
   const moves = new Map();
   const stranded = [];
   for (const file of workingFiles(root)) {
     if (HISTORY_DOCS.test(file)) continue;
-    const parts = file.split("/");
+    const parts = movedPath(file).split("/");
     const keepsName = KEEPS_NAME.test(file);
     const renamed = parts.map((part, index) => {
       const last = index === parts.length - 1;
@@ -614,7 +617,7 @@ function apply(repo, root, write, list, showStays) {
       const stem = dot > 0 ? part.slice(0, dot) : part;
       let to = renames.get(stem);
       const upTo = parts.slice(0, index + 1).join("/") + (last ? "" : "/");
-      const moving = PROSE_ONLY.has(bareWord(stem)) ? MOVED_PATHS.test(upTo) : !STAYING_PATHS.test(upTo);
+      const moving = !PROSE_ONLY.has(bareWord(stem)) && !pathStayFor(upTo);
       if (to === undefined && bareWord(stem) !== undefined && moving) to = renamedBare(stem, "");
       return to === undefined ? part : to + (dot > 0 ? part.slice(dot) : "");
     });

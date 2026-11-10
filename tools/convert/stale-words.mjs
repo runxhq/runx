@@ -8,7 +8,9 @@
 // too: a name identifiers.tsv decides stays, such as `$RUNNER_OS`, and a bare
 // word one of words.mjs's stays keeps. History documents and signed data
 // can't truthfully change (§4.6), so they aren't read, and generated files
-// are as clean as the sources their generators read.
+// are as clean as the sources their generators read. A path is read too: each
+// file and folder whose own name holds a retired word fails, but where a path
+// stay in words.mjs keeps it, as history documents keep theirs.
 //
 //   node tools/convert/stale-words.mjs <root> [--list]
 
@@ -16,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, bareWord, fencedBlocks, proseSites, stayFor, stringLiterals } from "./words.mjs";
+import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, bareWord, fencedBlocks, pathStayFor, proseSites, retiredInPath, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records and vendored copies.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -35,9 +37,29 @@ function decided(repo) {
   return new Map(rows.filter((row) => row[0] === repo).map((row) => [row[1], row[4]]));
 }
 
-function files(root) {
+function tracked(root) {
   const listed = execFileSync("git", ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8", maxBuffer: 1 << 28 });
-  return listed.split("\n").filter((file) => file && !NOT_OURS.test(file) && SOURCE.test(file) && !file.includes("node_modules/") && !HISTORY.test(file) && !GENERATED.test(file) && existsSync(path.join(root, file)));
+  return listed.split("\n").filter((file) => file && !file.includes("node_modules/") && existsSync(path.join(root, file)));
+}
+
+function files(root) {
+  return tracked(root).filter((file) => !NOT_OURS.test(file) && SOURCE.test(file) && !HISTORY.test(file) && !GENERATED.test(file));
+}
+
+/** Each file and folder whose own name holds a retired word, in order, with no path stay. */
+function stalePaths(root) {
+  const paths = new Set();
+  for (const file of tracked(root)) {
+    const parts = file.split("/");
+    parts.forEach((_, index) => paths.add(parts.slice(0, index + 1).join("/") + (index < parts.length - 1 ? "/" : "")));
+  }
+  return [...paths]
+    .sort()
+    .filter((one) => !/(^|\/)vendor\/./.test(one))
+    .flatMap((one) => {
+      const retired = retiredInPath(one);
+      return retired && !pathStayFor(one) ? [{ path: one, ...retired }] : [];
+    });
 }
 
 function main([root, ...rest]) {
@@ -47,7 +69,7 @@ function main([root, ...rest]) {
   }
   const list = rest.includes("--list");
   const names = decided("oss");
-  const found = { runner: 0, harness: 0, graph: 0, key: 0 };
+  const found = { runner: 0, harness: 0, graph: 0, key: 0, path: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
@@ -81,8 +103,12 @@ function main([root, ...rest]) {
       }
     });
   }
-  const total = found.runner + found.harness + found.graph + found.key;
-  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose and ${found.key} of a key the format removes, in ${byFile.size} files\n`);
+  for (const stale of stalePaths(root)) {
+    found.path += 1;
+    if (list) process.stdout.write(`${stale.path}\tpath\t${stale.word}\t${stale.name}\n`);
+  }
+  const total = found.runner + found.harness + found.graph + found.key + found.path;
+  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
   return total === 0 ? 0 : 1;
 }
 

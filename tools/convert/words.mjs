@@ -21,12 +21,33 @@ export const WORDS = {
 export const PROSE_ONLY = new Set(["graph"]);
 
 /**
- * The paths the graph's rename moves: the parser's workflow module, the
- * runtime's two workflow files, and the test fixtures' folder of workflow
- * packages. A skill's own folder of stage packages is `workflow/` by a
- * ruling made by hand with the refusals that name it, not by this table.
+ * The paths the rename moves whole, each to the name its own module, document
+ * or folder gives it. A folder ends in a slash and moves with everything under
+ * it; a file moves alone. The rest of a moved path is then renamed segment by
+ * segment, as any path is, so a file the table renames takes its new name in
+ * its new folder.
+ *
+ * - graph's: the parser's workflow module, the runtime's two workflow files
+ *   and the test fixtures' folder of workflow packages. A skill's own folder
+ *   of stage packages is `workflow/` by a ruling made by hand with the
+ *   refusals that name it, not by this table.
  */
-export const MOVED_PATHS = /^(crates\/runx-parser\/src\/graph(\.rs$|\/)|crates\/runx-runtime\/src\/execution\/(skill_front\/)?graph\.rs$|fixtures\/graphs\/)/;
+export const MOVED_PATHS = [
+  ["crates/runx-parser/src/graph.rs", "crates/runx-parser/src/workflow.rs"],
+  ["crates/runx-parser/src/graph/", "crates/runx-parser/src/workflow/"],
+  ["crates/runx-runtime/src/execution/graph.rs", "crates/runx-runtime/src/execution/workflow.rs"],
+  ["crates/runx-runtime/src/execution/skill_front/graph.rs", "crates/runx-runtime/src/execution/skill_front/workflow.rs"],
+  ["fixtures/graphs/", "fixtures/workflows/"],
+];
+
+/** Where MOVED_PATHS moves a path, or the path itself when no move holds it. */
+export function movedPath(file) {
+  const move = MOVED_PATHS.find(([from]) => (from.endsWith("/") ? file.startsWith(from) : file === from));
+  return move ? move[1] + file.slice(move[0].length) : file;
+}
+
+// A prose-only word in a reference to one of graph's moved paths renames with
+// the path, though a path is otherwise code a prose-only word keeps.
 const MOVED_REFERENCE = /runx-parser\/src\/graph|src\/graph\/|execution\/graph\.rs|skill_front\/graph\.rs|fixtures\/graphs/;
 
 /** Whether the token at `at` is part of a path naming one of the moved paths. */
@@ -341,9 +362,35 @@ export function decisionsFor(rows, file, line, index, token) {
   return rows.filter((row) => (row.file === file || row.file === "*") && row.word === token && (!row.before || row.before.test(before)) && (!row.after || row.after.test(after)));
 }
 
-// A file's own name keeps the word where its folder does: the engine's
-// module, the test runner, and the kernel fixture runner's folder.
-export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|(harness|test)\/runner\.rs$)|^fixtures\/kernel\/runner\//;
+// The paths that keep a retired word, each for a meaning outside runx, and
+// what the rename and the guard read them by. A history document keeps its
+// whole path as it keeps its text (HISTORY), release/notes/ among them.
+export const PATH_STAYS = [
+  { path: /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|(harness|test)\/runner\.rs$)/, why: "the execution runner module, and the test runner's" },
+  { path: /^fixtures\/kernel\/runner\//, why: "the kernel fixture runner's folder" },
+  { path: /^\.github\//, why: "GitHub's runner" },
+  { path: /^scripts\/check-rust-crate-graph\.mjs$/, why: "a dependency graph" },
+  // Not renamed yet: the policy's runners await a name (the operational policy's stay above).
+  { path: /^fixtures\/operational-policy\/invalid-(no-available|unknown)-runner\.json$/, why: "the operational policy's runners" },
+];
+
+/** The stay that keeps a path's retired word, if one does. */
+export function pathStayFor(file) {
+  return HISTORY.test(file) ? { why: "history" } : PATH_STAYS.find((stay) => stay.path.test(file));
+}
+
+/**
+ * The retired word a path's own name holds, the last component of a file or
+ * a folder, split on `.`, `-` and `_`: its word and the component.
+ */
+export function retiredInPath(file) {
+  const name = file.replace(/\/$/, "").split("/").at(-1);
+  for (const piece of name.split(/[._-]+/)) {
+    const word = bareWord(piece.toLowerCase());
+    if (word !== undefined) return { word, name };
+  }
+  return undefined;
+}
 
 // Files a generator writes, regenerated after a rename and never edited.
 // Cloud's two API schema modules are scripts/generate-public-schemas.ts's, and
