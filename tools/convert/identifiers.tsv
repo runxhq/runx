@@ -557,7 +557,7 @@ oss	Harness	32	harness	?	a bare word: code or prose, read in place	crates/runx-c
 oss	harness-spine	32	harness	run-spine	the run sense	crates/runx-contracts/tests/harness_spine_fixtures.rs crates/runx-contracts/tests/schema_validation.rs
 oss	held_by_effects	32	hold	held_by_effects	English, or a skill's own word: stays	crates/runx-runtime/src/effects/mod.rs crates/runx-runtime/src/effects/types.rs
 oss	SequentialGraphPlan	31	graph	SequentialWorkflowPlan		crates/runx-core/src/serde_conventions.rs crates/runx-core/src/state_machine.rs
-oss	Hold	30	hold	?	a bare word: code or prose, read in place	crates/runx-contracts/src/connector.rs crates/runx-runtime/src/execution/run_record.rs
+oss	Hold	30	hold	Hold	hold's one meaning, a run waiting on an unknown outcome (D34): run_record's Hold, the current word	crates/runx-contracts/src/connector.rs crates/runx-runtime/src/execution/run_record.rs
 oss	SequentialGraphStepIndex	29	graph	SequentialWorkflowStepIndex		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
 oss	HarnessOptions	28	harness	TestOptions	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/package.rs
 oss	next_harness_checks	28	harness	next_test_checks	the test sense	crates/runx-runtime/bundled-skills.json dist/packets/runx/diagnose-skill-run/diagnosis.v1.schema.json
@@ -579,7 +579,7 @@ oss	RuntimeHarnessHttpRequestBody	20	harness	RuntimeTestHttpRequestBody	the test
 oss	ToolRunner	20	runner	Tools	the tools a step gives a process implementation: runx's own, so not another runner	crates/runx-runtime/src/drivers/process.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	BoundClosure	19	closure	BoundClosure	a package's closure, closure's one meaning	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	graph_receipt	19	graph	workflow_receipt		crates/runx-receipts/src/tree/structural_tests.rs crates/runx-runtime/benches/graph_throughput.rs
-oss	HoldEvent	19	hold	HoldEvent	a run waiting: stays	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
+oss	HoldEvent	19	hold	HoldEvent	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
 oss	OperationalPolicyRunnerRule	19	runner	OperationalPolicyRunnerRule	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
 oss	validateRunnerManifestYaml	19	runner	validateMethodManifestYaml		crates/runx-parser/src/eval.rs scripts/audit-core-skills.mjs
 oss	$RUNNER_TEMP	18	runner	$RUNNER_TEMP	GitHub's runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
@@ -622,7 +622,7 @@ oss	harness_verified	13	harness	test_verified	the test sense	bindings/nilstate/i
 oss	HoldAction	13	hold	LeaseAction	the lease family	crates/runx-contracts/src/connector.rs crates/runx-parser/src/connector.rs
 oss	planSequentialGraphTransition	13	graph	planSequentialWorkflowTransition		crates/runx-core/src/kernel_eval/input.rs crates/runx-core/tests/kernel_eval.rs
 oss	run_harness	13	harness	run_test	the test sense	crates/runx-cli/src/registry.rs crates/runx-runtime/src/execution/orchestrator.rs
-oss	RunHold	13	hold	RunHold	a run waiting: stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/run_read.rs
+oss	RunHold	13	hold	RunHold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/run_read.rs
 oss	transition_sequential_graph	13	graph	transition_sequential_workflow		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/state_machine.rs
 oss	available_runner_count	12	runner	available_runner_count	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-cli/src/policy.rs crates/runx-contracts/src/operational_policy.rs
 oss	build_agent_act_invocation	12	agent_act	build_turn_invocation		crates/runx-runtime/src/agent_invocation.rs crates/runx-runtime/src/agent_invocation/tests.rs
@@ -789,7 +789,7 @@ oss	replay_harness_fixture	5	harness	replay_test_fixture	the test sense	crates/r
 oss	resolve_runner	5	runner	resolve_method		crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-runtime/src/execution/prepared_skill.rs
 oss	run_graph	5	graph	run_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	run_graph_with_host_outcome	5	graph	run_workflow_with_host_outcome		crates/runx-runtime/src/execution/runner.rs
-oss	run_held_1	5	hold	run_held_1	a run waiting: stays	crates/runx-runtime/src/execution/run_record/tests.rs
+oss	run_held_1	5	hold	run_held_1	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	RunHarness	5	harness	RunTest	the test sense	crates/runx-cli/src/main.rs crates/runx-cli/src/router.rs
 oss	SkillOperatorContextRunner	5	runner	SkillOperatorContextMethod		crates/runx-runtime/src/execution/operator_context.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	validate_harness_http_url	5	harness	validate_test_http_url	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/harness_fixture/tests.rs
@@ -849,12 +849,12 @@ oss	missing-runner	4	runner	missing-method		crates/runx-cli/tests/skill.rs fixtu
 oss	NativeHarnessOutput	4	harness	NativeTestOutput	the test sense	packages/client/src/index.ts packages/client/src/types.ts
 oss	needs_consequential_harness_approval	4	harness	needs_consequential_test_approval	the test sense	crates/runx-runtime/src/services/skill_packages/validation.rs packages/contracts/src/generated/contract-types.ts
 oss	nested_graph_receipt	4	graph	nested_workflow_receipt		crates/runx-runtime/tests/skill_run.rs
-oss	NotHeld	4	hold	NotHeld	a run waiting: stays	crates/runx-runtime/src/registry/resolve/skill.rs
+oss	NotHeld	4	hold	NotHeld	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/registry/resolve/skill.rs
 oss	PlanSequentialGraphTransition	4	graph	PlanSequentialWorkflowTransition		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/kernel_eval/input.rs
 oss	policy_write_graph	4	graph	policy_write_workflow		crates/runx-runtime/tests/policy_approval.rs
 oss	RawHarnessExpectation	4	harness	RawTestExpectation	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	receipt-query-composes-in-graph	4	graph	receipt-query-composes-in-workflow		crates/runx-runtime/bundled-skills.json
-oss	record_child_hold	4	hold	record_child_hold	a run waiting: stays	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/tests.rs
+oss	record_child_hold	4	hold	record_child_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/tests.rs
 oss	resolution-agent-act-request	4	agent_act	resolution-agent-act-request		crates/runx-contracts/tests/host_protocol_fixtures.rs crates/runx-contracts/tests/schema_validation.rs
 oss	run_harness_case_with_adapter	4	harness	run_test_case_with_adapter	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	runner_makes_calls	4	runner	method_makes_calls		crates/runx-runtime/src/adapters/mcp/server_skill.rs crates/runx-runtime/src/export.rs
@@ -865,7 +865,7 @@ oss	runtimeHarnessFixturePath	4	harness	runtimeTestFixturePath	the test sense	sc
 oss	sealed_graph_run	4	graph	sealed_workflow_run		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	selectedRunner	4	runner	selectedMethod		fixtures/contracts/host-protocol/inspect-host-state-needs-agent.json fixtures/sdk-rust/host-protocol/inspect-host-state-needs-agent.json
 oss	sequential_graph_state	4	graph	sequential_workflow_state		crates/runx-core/tests/state_machine_proptest.rs
-oss	suspended_hold	4	hold	suspended_hold	a run waiting: stays	crates/runx-runtime/src/execution/runner/graph_engine.rs
+oss	suspended_hold	4	hold	suspended_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	tier_held	4	hold	tier_held	English, or a skill's own word: stays	crates/runx-runtime/tests/registry_fixture.rs crates/runx-runtime/tests/turn_loads.rs
 oss	TransitionSequentialGraph	4	graph	TransitionSequentialWorkflow		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/kernel_eval/input.rs
 oss	validate_admitted_runner	4	runner	validate_admitted_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
@@ -959,7 +959,7 @@ oss	readHarnessSpineFixture	3	harness	readRunSpineFixture	the run sense	packages
 oss	readiness_harness	3	harness	readiness_test	the test sense	crates/runx-cli/tests/export.rs
 oss	replay_harness_case	3	harness	replay_test_case	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
 oss	replay_output_from_graph	3	graph	replay_output_from_workflow		crates/runx-runtime/src/execution/harness/runner.rs
-oss	resumed_hold	3	hold	resumed_hold	a run waiting: stays	crates/runx-runtime/src/execution/runner/graph_engine.rs
+oss	resumed_hold	3	hold	resumed_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	run_provider_graph	3	graph	run_provider_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	runner_action_not_allowed	3	runner	runner_action_not_allowed	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
 oss	runner_contract_checks	3	runner	method_contract_checks		crates/runx-runtime/src/execution/runner/step_handlers.rs crates/runx-runtime/src/output_contract.rs
@@ -1146,7 +1146,7 @@ oss	run_nested_graph_skill_step	2	graph	run_nested_workflow_skill_step		crates/r
 oss	run_publish_harness	2	harness	run_publish_test	the test sense	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/registry/publish_package/harness.rs
 oss	run_skill_with_runner	2	runner	run_skill_with_method		crates/runx-cli/tests/skill.rs crates/runx-runtime/src/execution/orchestrator.rs
 oss	run_standalone_harness	2	harness	run_standalone_test	the test sense	crates/runx-cli/src/main.rs
-oss	RunHoldContract	2	hold	RunHoldContract	a run waiting: stays	packages/contracts/src/generated/contract-types.ts
+oss	RunHoldContract	2	hold	RunHoldContract	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	packages/contracts/src/generated/contract-types.ts
 oss	runner_context	2	runner	method_context		crates/runx-runtime/src/execution/operator_context.rs
 oss	RUNNER_FIELDS	2	runner	METHOD_FIELDS		crates/runx-parser/src/skill/runner_definition.rs
 oss	runner_graph	2	graph,runner	method_workflow		crates/runx-parser/src/skill/runner_definition.rs
@@ -1246,7 +1246,7 @@ oss	$RUNNER_OS	1	runner	$RUNNER_OS	GitHub's runner: stays	.github/actions/setup-
 oss	a_candidates_harness_reads_its_registry_children_from_the_operators_registry	1	harness	a_candidates_test_reads_its_registry_children_from_the_operators_registry	the test sense	crates/runx-runtime/tests/skill_run.rs
 oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_grant_refuses_a_connector_its_closure_carries_twice	a package's closure, closure's one meaning	crates/runx-cli/tests/registry.rs
 oss	a_changed_act_is_held_by_the_unsettled_attempt_of_another	1	hold	a_changed_act_is_held_by_the_unsettled_attempt_of_another	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
-oss	a_child_run_holds_the_request_its_parent_step_waits_on	1	hold	a_child_run_holds_the_request_its_parent_step_waits_on	a run waiting: stays	crates/runx-runtime/src/execution/run_record/tests.rs
+oss	a_child_run_holds_the_request_its_parent_step_waits_on	1	hold	a_child_run_holds_the_request_its_parent_step_waits_on	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	a_child_skill_runs_the_runner_its_parent_admitted	1	runner	a_child_skill_runs_the_method_its_parent_admitted		crates/runx-runtime/tests/execution_integrity.rs
 oss	a_closure_digest_leaves_runx_version_out	1	closure	a_closure_digest_leaves_runx_version_out	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	a_composed_runner_returns_its_steps_not_runner_outputs	1	runner	a_composed_method_returns_its_steps_not_method_outputs		crates/runx-parser/tests/parser_turn_limits.rs
@@ -1257,7 +1257,7 @@ oss	a_graph_case_binds_the_grant_its_composed_skill_calls	1	graph	a_workflow_cas
 oss	a_graph_fetches_its_registry_steps_before_it_runs	1	graph	a_workflow_fetches_its_registry_steps_before_it_runs		crates/runx-cli/tests/skill.rs
 oss	a_graph_outside_a_skill_allows_nothing	1	graph	a_workflow_outside_a_skill_allows_nothing		crates/runx-parser/tests/parser_turn_limits.rs
 oss	a_harness_case_works_a_turn_call_by_call	1	harness	a_test_case_works_a_turn_call_by_call	the test sense	crates/runx-runtime/tests/agent_turns.rs
-oss	a_held_lock_reads_as_driven_and_refuses_a_second_driver	1	hold	a_held_lock_reads_as_driven_and_refuses_a_second_driver	a run waiting: stays	crates/runx-runtime/src/execution/run_record/driver.rs
+oss	a_held_lock_reads_as_driven_and_refuses_a_second_driver	1	hold	a_held_lock_reads_as_driven_and_refuses_a_second_driver	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/driver.rs
 oss	a_held_value_never_reaches_the_call_s_result	1	hold	a_leased_value_never_reaches_the_call_s_result	the lease family	crates/runx-parser/src/connector/tests.rs
 oss	a_held_write_that_may_consume_credits_waits_once_on_a_gate_naming_both_reasons	1	hold	a_held_write_that_may_consume_credits_waits_once_on_a_gate_naming_both_reasons	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	a_hosted_credential_is_seeded_from_one_secret_holding_every_field	1	hold	a_hosted_credential_is_seeded_from_one_secret_holding_every_field	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/connector_setup/tests.rs
@@ -1285,7 +1285,7 @@ oss	a_runner_offer_carries_its_terms_price_and_what_it_acts_on	1	runner	a_method
 oss	a_runner_result_defaults_to_its_last_step	1	runner	a_method_result_defaults_to_its_last_step		crates/runx-parser/tests/parser_step_kinds.rs
 oss	a_runner_takes_only_runner_fields	1	runner	a_method_takes_only_method_fields		crates/runx-parser/tests/parser_step_kinds.rs
 oss	a_runner_without_steps_is_one_agent_turn	1	runner	a_method_without_steps_is_one_agent_turn		crates/runx-parser/tests/parser_turn_limits.rs
-oss	a_sealed_run_holds_its_receipt_and_waits_on_nothing	1	hold	a_sealed_run_holds_its_receipt_and_waits_on_nothing	a run waiting: stays	crates/runx-runtime/src/execution/run_record/tests.rs
+oss	a_sealed_run_holds_its_receipt_and_waits_on_nothing	1	hold	a_sealed_run_holds_its_receipt_and_waits_on_nothing	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	a_secret_held_by_a_manager_is_read_there_on_every_call	1	hold	a_secret_held_by_a_manager_is_read_there_on_every_call	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/credentials.rs
 oss	a_skill_of_several_runners_is_read_without_trust_and_binds_the_runner_named	1	runner	a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named		crates/runx-runtime/tests/turn_loads.rs
 oss	a_skill_whose_harness_grants_a_plugin_connector_publishes	1	harness	a_skill_whose_test_grants_a_plugin_connector_publishes	the test sense	crates/runx-cli/tests/registry.rs
@@ -1715,3 +1715,4 @@ oss	merge_local_closure		decided	merge_local_closure	a package's closure, closur
 oss	bound_continuation_rechecks_closure_without_reapproval		decided	bound_continuation_rechecks_closure_without_reapproval	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
 oss	inspect_method_closure		decided	inspect_method_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
 oss	closureFromInspection		decided	closureFromInspection	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
+oss	an_agent_step_declares_no_output_its_answer_holds_for_runx	1	hold	an_agent_step_declares_no_output_its_answer_holds_for_runx	English: an answer holds its fields	crates/runx-parser/tests/parser_step_kinds.rs

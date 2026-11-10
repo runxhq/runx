@@ -107,7 +107,7 @@ function sense(word, token) {
   if (word === "closure") return ENDING.test(token) ? ["rename", "how a run ended"] : ["stays", "a package's closure, closure's one meaning"];
   if (word === "hold") {
     if (LEASE.test(token)) return ["rename", "the lease family"];
-    return RUN_HOLD.test(token) ? ["stays", "a run waiting: stays"] : ["stays", "English, or a skill's own word: stays"];
+    return RUN_HOLD.test(token) ? ["stays", "hold's one meaning, a run waiting on an unknown outcome (D34): the current word"] : ["stays", "English, or a skill's own word: stays"];
   }
   return ["rename", ""];
 }
