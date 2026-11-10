@@ -68,6 +68,8 @@ methods:
           deliverable: deep research brief
           operator_context: $input.operator_context
           target_entities: $input.target_entities
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
 
       - id: draft-brief
         when:
@@ -80,6 +82,8 @@ methods:
           channel: $input.channel
           voice_guide: Lead with the decision, distinguish verified evidence from inference, and preserve open questions.
           evidence_pack: $steps.research-topic.research_packet
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
 
   local-files:
     description: Produce the brief from bounded local files, read through runx's filesystem.
@@ -152,6 +156,8 @@ methods:
           deliverable: deep research brief
           operator_context: $input.operator_context
           target_entities: $input.target_entities
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
 
       - id: draft-brief
         when: {value: $steps.research-topic.research_packet.decision, equals: ready}
@@ -162,6 +168,8 @@ methods:
           channel: $input.channel
           voice_guide: Lead with the decision, distinguish verified evidence from inference, and preserve open questions.
           evidence_pack: $steps.research-topic.research_packet
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
   ecosystem:
     description: Produce an ecosystem brief, checking first that every source is fresh against an explicit evaluation time.
     inputs:
@@ -213,6 +221,8 @@ methods:
           operator_context: $input.operator_context
           target_entities: $input.target_entities
           source_packets: $steps.freshness.freshness_report.source_packets
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
 
       - id: draft-brief
         when:
@@ -225,6 +235,8 @@ methods:
           channel: $input.channel
           voice_guide: Lead with what changed and its operational implication; distinguish verified change, inference, uncertainty, and recommended posture.
           evidence_pack: $steps.research-topic.research_packet
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
 
   brief:
     description: Answer a bounded decision question and produce a source-bound memo, acquiring only missing evidence.
@@ -290,6 +302,8 @@ methods:
           paths: $input.paths
           urls: $input.urls
           source_packets: $input.source_packets
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
       - id: draft-brief
         when: {value: $steps.research-topic.research_packet.decision, equals: ready}
         skill: .#from-research
@@ -298,6 +312,8 @@ methods:
           audience: $input.audience
           channel: $input.channel
           research_packet: $steps.research-topic.research_packet
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
 
   from-research:
     description: Write the decision memo from a completed research packet, without another acquisition or synthesis pass.
@@ -332,3 +348,5 @@ methods:
           channel: $input.channel
           voice_guide: Lead with the decision, distinguish evidence from inference, and preserve alternatives and open questions.
           evidence_pack: $input.research_packet
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
