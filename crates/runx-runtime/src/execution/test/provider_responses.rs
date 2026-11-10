@@ -224,7 +224,7 @@ impl TestTransport {
             ("result".to_owned(), result),
             (
                 "readback_uri".to_owned(),
-                JsonValue::String(format!("runx:harness:provider-readback:{identity}")),
+                JsonValue::String(format!("runx:test:provider-readback:{identity}")),
             ),
         ]);
         if let Some(idempotency_key) = idempotency_key {
@@ -710,7 +710,7 @@ impl TestTransport {
             ),
             (
                 "readback_uri".to_owned(),
-                JsonValue::String(format!("runx:harness:artifact-readback:{reference}")),
+                JsonValue::String(format!("runx:test:artifact-readback:{reference}")),
             ),
             (
                 "access".to_owned(),

@@ -25,9 +25,9 @@ fn reference_runx_builds_canonical_scheme_uri() {
 
 #[test]
 fn reference_with_uri_preserves_explicit_uri() {
-    let reference = Reference::with_uri(ReferenceType::Harness, "runx:harness:custom-id");
-    assert_eq!(reference.uri, "runx:harness:custom-id");
-    assert_eq!(reference.reference_type, ReferenceType::Harness);
+    let reference = Reference::with_uri(ReferenceType::Host, "runx:host:custom-id");
+    assert_eq!(reference.uri, "runx:host:custom-id");
+    assert_eq!(reference.reference_type, ReferenceType::Host);
     assert!(reference.provider.is_none());
     assert!(reference.proof_kind.is_none());
 }

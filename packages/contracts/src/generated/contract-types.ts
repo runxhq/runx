@@ -2478,7 +2478,7 @@ export type ReferenceDeclarationContract = {
 };
 
 /** What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind. */
-export type ReferenceTypeContract = "thread" | "comment" | "event" | "tracking_item" | "change_request" | "repository" | "signal" | "run" | "act" | "receipt" | "artifact" | "verification" | "harness" | "host" | "surface" | "target" | "skill_binding" | "principal" | "scope_admission" | "grant" | "mandate" | "credential" | "webhook_delivery" | "redaction_policy" | "external_url" | "connector_instance" | "connector_operation";
+export type ReferenceTypeContract = "thread" | "comment" | "event" | "tracking_item" | "change_request" | "repository" | "signal" | "run" | "act" | "receipt" | "artifact" | "verification" | "host" | "surface" | "target" | "skill_binding" | "principal" | "scope_admission" | "grant" | "mandate" | "credential" | "webhook_delivery" | "redaction_policy" | "external_url" | "connector_instance" | "connector_operation";
 
 /** What `registry.inspect` reports: a skill's inspection (`runx.skill.inspect.v1`), or a connector's. */
 export type RegistryInspectionContract = SkillInspectionContract | ConnectorInspectionContract;

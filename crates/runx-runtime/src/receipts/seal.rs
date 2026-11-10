@@ -390,7 +390,7 @@ pub(crate) fn workflow_receipt_with_ending(
         .map(|index| child_receipt_reference(&steps[*index].receipt))
         .collect::<Vec<_>>();
 
-    // A receipt graph is a DAG: the parent commits each active child's exact
+    // A receipt tree links downward: the parent commits each active child's exact
     // id and signed-body digest. Children stay immutable and reusable instead
     // of acquiring one post-hoc parent link.
     let receipt = build_workflow_receipt(
@@ -1258,8 +1258,8 @@ mod tests {
             response_id: Some("credential_delivery_response_1".into()),
             status: CredentialDeliveryObservationStatus::Delivered,
             run_ref: Reference::with_uri(
-                ReferenceType::Harness,
-                "runx:harness:local-credential-provision",
+                ReferenceType::Host,
+                "runx:host:local-credential-provision",
             ),
             host_ref: Some(Reference::with_uri(
                 ReferenceType::Host,

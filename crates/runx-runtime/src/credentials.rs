@@ -502,8 +502,8 @@ pub(crate) fn build_local_provision_observation(
         response_id: None,
         status: CredentialDeliveryObservationStatus::Delivered,
         run_ref: Reference::with_uri(
-            ReferenceType::Harness,
-            "runx:harness:local-credential-provision",
+            ReferenceType::Host,
+            "runx:host:local-credential-provision",
         ),
         host_ref: Some(Reference::with_uri(
             ReferenceType::Host,

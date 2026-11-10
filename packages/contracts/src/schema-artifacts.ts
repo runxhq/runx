@@ -7604,7 +7604,6 @@ export const runxSchemaArtifacts = {
           "receipt",
           "artifact",
           "verification",
-          "harness",
           "host",
           "surface",
           "target",
