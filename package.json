@@ -33,7 +33,7 @@
     "registry-taxonomy:check": "node scripts/generate-registry-taxonomy.mjs --check",
     "bundled-skills:generate": "node scripts/generate-bundled-skills.mjs",
     "bundled-skills:check": "node scripts/generate-bundled-skills.mjs --check",
-    "core-skills:audit": "node scripts/audit-core-skills.mjs --check --json --core-only",
+    "core-skills:audit": "node scripts/audit-core-skills.mjs --check --json",
     "codex-export:check": "node scripts/check-codex-export.mjs",
     "core-skills:composes:generate": "node scripts/audit-core-skills.mjs --write-composes",
     "catalog:check": "node scripts/check-skill-version-drift.mjs && node scripts/check-skill-version-drift.mjs --self-test && node scripts/test-sweep.mjs --self-test && pnpm capabilities:snapshot:check",
