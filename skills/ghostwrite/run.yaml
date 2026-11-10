@@ -77,6 +77,8 @@ methods:
         skill: .#verify
         inputs:
           evidence_context: $steps.admit.evidence_context
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
       - id: author
         when:
           value: $steps.admit.evidence_context.decision
@@ -195,6 +197,8 @@ methods:
         inputs:
           evidence_context: $steps.admit.evidence_context
           content_draft: $steps.author.content_draft
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
   admit:
     description: Admit the evidence packet, and any voice or taste context, that a draft may use, by digest. For a skill that composes its own writing turn.
     inputs:
