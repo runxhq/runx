@@ -98,6 +98,13 @@ impl Host for AnsweringHost<'_> {
                 reason: format!("{request_id} is not the request the run waited on"),
             });
         }
+        // What a turn asked, as reuse compares it (D32).
+        let input_digest = match &request {
+            runx_contracts::ResolutionRequest::Turn { invocation, .. } => {
+                runx_contracts::input_digest::turn_input_digest(invocation).ok()
+            }
+            _ => None,
+        };
         let response = self.host.resolve(request)?;
         if let Some(response) = &response {
             self.answers.push(Answer {
@@ -105,6 +112,7 @@ impl Host for AnsweringHost<'_> {
                 request_digest,
                 value: response.payload.clone(),
                 human: response.actor == runx_contracts::ResolutionResponseActor::Human,
+                input_digest,
             });
         }
         Ok(response)
@@ -1214,6 +1222,86 @@ pub(super) fn when_skipped_steps(
 #[allow(clippy::expect_used)]
 mod tests {
     use std::collections::BTreeSet;
+
+    use runx_contracts::{
+        ExecutionEvent, JsonValue, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    };
+
+    use super::AnsweringHost;
+    use crate::{Host, RuntimeError};
+
+    /// An agent that answers every turn alike.
+    struct Agent;
+
+    impl Host for Agent {
+        fn report(&mut self, _event: ExecutionEvent) -> Result<(), RuntimeError> {
+            Ok(())
+        }
+
+        fn resolve(
+            &mut self,
+            _request: ResolutionRequest,
+        ) -> Result<Option<ResolutionResponse>, RuntimeError> {
+            Ok(Some(ResolutionResponse {
+                actor: ResolutionResponseActor::Agent,
+                payload: JsonValue::Object(runx_contracts::JsonObject::new()),
+            }))
+        }
+
+        fn log(&mut self, _message: String) -> Result<(), RuntimeError> {
+            Ok(())
+        }
+    }
+
+    /// A turn of run `run` at `address`, asked with `offer`.
+    fn turn(run: &str, address: &str, offer: &str) -> ResolutionRequest {
+        serde_json::from_value(serde_json::json!({
+            "kind": "turn",
+            "id": address,
+            "invocation": {
+                "id": address,
+                "task": "draft",
+                "allowance": {},
+                "envelope": {
+                    "run_id": run,
+                    "step_id": "draft",
+                    "skill": "cold-outreach",
+                    "instructions": "Write it.",
+                    "instructions_digest": "sha256:1",
+                    "inputs": {"offer": offer},
+                    "requirements": {"execution_boundary": {"kind": "remote_provider"}},
+                    "current_context": [],
+                    "historical_context": [],
+                    "provenance": [],
+                    "trust_boundary": "test",
+                },
+            },
+        }))
+        .expect("a turn request")
+    }
+
+    /// A turn's answer is kept with what the turn asked: the same request
+    /// from another run, at another address, asked the same, and another
+    /// offer asked something else.
+    #[test]
+    fn a_turns_answer_keeps_what_the_turn_asked() {
+        let mut agent = Agent;
+        let mut host = AnsweringHost::new(&mut agent, None);
+        for request in [
+            turn("run-a", "prepare/3#draft", "A review."),
+            turn("run-b", "prepare/7#draft", "A review."),
+            turn("run-a", "prepare/3#draft", "A call."),
+        ] {
+            host.resolve(request).expect("answered");
+        }
+        let asked = host
+            .answers
+            .iter()
+            .map(|answer| answer.input_digest.clone().expect("a turn's input digest"))
+            .collect::<Vec<_>>();
+        assert_eq!(asked[0], asked[1]);
+        assert_ne!(asked[0], asked[2]);
+    }
 
     use super::{replay_planning_cursor, when_skipped_steps};
     use runx_core::state_machine::{

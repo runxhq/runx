@@ -427,6 +427,9 @@ struct AnswerEvent {
     /// Blob: the answer.
     value: String,
     human: bool,
+    /// The turn's `input_digest`, when the answer is an agent turn's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    input_digest: Option<String>,
 }
 
 /// A person's decision a resume admitted, in the stream of the run that
@@ -472,6 +475,9 @@ pub(crate) struct Answer {
     pub request_digest: String,
     pub value: JsonValue,
     pub human: bool,
+    /// An agent turn's `input_digest`: what the turn asked, beside the
+    /// address and run its request names.
+    pub input_digest: Option<String>,
 }
 
 /// Where a suspended run waits.
@@ -646,6 +652,7 @@ impl RunRecord {
                 request_digest: answer.request_digest.clone(),
                 value: store.blob_json(&answer.value)?,
                 human: answer.human,
+                input_digest: answer.input_digest.clone(),
             });
         }
         Ok(())
@@ -661,14 +668,20 @@ fn answer_events(answers: &[Answer]) -> Result<(Vec<AnswerEvent>, Vec<Blob>), Ru
     let events = answers
         .iter()
         .zip(&values)
-        .map(|(answer, value)| AnswerEvent {
-            request_id: answer.request_id.clone(),
-            request_digest: answer.request_digest.clone(),
-            value: value.digest().to_owned(),
-            human: answer.human,
-        })
+        .map(|(answer, value)| answer_event(answer, value))
         .collect();
     Ok((events, values))
+}
+
+/// How `answer` is recorded, its value held in `value`.
+fn answer_event(answer: &Answer, value: &Blob) -> AnswerEvent {
+    AnswerEvent {
+        request_id: answer.request_id.clone(),
+        request_digest: answer.request_digest.clone(),
+        value: value.digest().to_owned(),
+        human: answer.human,
+        input_digest: answer.input_digest.clone(),
+    }
 }
 
 #[derive(Debug, Error)]
@@ -1149,12 +1162,7 @@ impl RunLog {
             answers: answers
                 .iter()
                 .zip(&values)
-                .map(|(answer, value)| AnswerEvent {
-                    request_id: answer.request_id.clone(),
-                    request_digest: answer.request_digest.clone(),
-                    value: value.digest().to_owned(),
-                    human: answer.human,
-                })
+                .map(|(answer, value)| answer_event(answer, value))
                 .collect(),
         };
         let mut blobs = vec![record, receipt];
@@ -1457,12 +1465,7 @@ impl RunLog {
                 .answers
                 .iter()
                 .zip(&values)
-                .map(|(answer, value)| AnswerEvent {
-                    request_id: answer.request_id.clone(),
-                    request_digest: answer.request_digest.clone(),
-                    value: value.digest().to_owned(),
-                    human: answer.human,
-                })
+                .map(|(answer, value)| answer_event(answer, value))
                 .collect(),
             cancelled: call.cancelled,
             inline_bound: call.inline_bound,
@@ -1954,6 +1957,7 @@ fn replay(
                     request_digest: answered.request_digest,
                     value: store.blob_json(&answered.value)?,
                     human: answered.human,
+                    input_digest: None,
                 });
             }
             // A clock read is its step's alone, which the step reads back.

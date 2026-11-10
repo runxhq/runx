@@ -187,6 +187,7 @@ fn a_run_replays_its_steps_suspension_and_answers() {
             request_digest: request.digest.clone(),
             value: JsonValue::Bool(true),
             human: true,
+            input_digest: Some("sha256:asked".to_owned()),
         }],
     )
     .unwrap();
@@ -195,6 +196,10 @@ fn a_run_replays_its_steps_suspension_and_answers() {
     assert_eq!(record.answers.len(), 1);
     assert!(record.answers[0].human);
     assert_eq!(record.answers[0].request_digest, request.digest);
+    assert_eq!(
+        record.answers[0].input_digest.as_deref(),
+        Some("sha256:asked")
+    );
     assert!(waiting_ids(&store, "run_triage_1").is_empty());
 }
 
@@ -876,6 +881,7 @@ fn an_admitted_answer_waits_in_the_record_until_a_step_uses_it() {
         request_digest: digest.clone(),
         value: JsonValue::Bool(true),
         human: true,
+        input_digest: None,
     };
     log.record_answer(&answer).unwrap();
 

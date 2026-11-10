@@ -222,6 +222,7 @@ impl ResolutionAnswers {
                 request_digest: entry.digest.clone(),
                 value: entry.value.clone(),
                 human: entry.human,
+                input_digest: None,
             })
             .collect()
     }
@@ -591,6 +592,7 @@ mod tests {
                 [("approved".to_owned(), runx_contracts::JsonValue::Bool(true))].into(),
             ),
             human: true,
+            input_digest: None,
         };
         let mut empty = ResolutionAnswers::default();
         empty.join_recorded(vec![recorded()]);
