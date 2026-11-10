@@ -65,6 +65,8 @@ methods:
         inputs:
           objective: $input.objective
           issue_evidence: $steps.bind-issue-evidence.issue_evidence
+        outputs:
+          issue_to_pr_result: {type: object, packet: runx/github-issue-to-pr.result.v1}
   from-evidence:
     description: Implement from already selected issue evidence without another GitHub issue read.
     inputs:
@@ -78,6 +80,8 @@ methods:
         inputs:
           objective: $input.objective
           issue_evidence: $input.issue_evidence
+        outputs:
+          issue_to_pr_result: {type: object, packet: runx/github-issue-to-pr.result.v1}
   host:
     description: Use normal host development tools under actual repository instructions, then pass the completed report through the shared native candidate/delivery path.
     inputs:
@@ -98,6 +102,8 @@ methods:
         inputs:
           issue_evidence: $input.issue_evidence
           host_result: $steps.host-work.host_result
+        outputs:
+          issue_to_pr_result: {type: object, packet: runx/github-issue-to-pr.result.v1}
   verify:
     description: Verify current checkout root, branch, clean tree and exact HEAD; verify scafld finalization only when the repository requires it. Never publishes.
     inputs:
@@ -384,6 +390,8 @@ methods:
           host_result: $input.host_result
           issue_evidence: $input.issue_evidence
           publication_mode: publish
+        outputs:
+          issue_to_pr_result: {type: object, packet: runx/github-issue-to-pr.result.v1}
   finalize-local:
     description: Verify and return the prepared change locally, regardless of a ready publication proposal. Never touches GitHub.
     inputs:
@@ -398,3 +406,5 @@ methods:
           host_result: $input.host_result
           issue_evidence: $input.issue_evidence
           publication_mode: hold
+        outputs:
+          issue_to_pr_result: {type: object, packet: runx/github-issue-to-pr.result.v1}
