@@ -31,8 +31,9 @@ expect:
     finalize:
       subset:
         attention_packet:
-          decision: ready
-          work_proposals:
-            - {source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12'}
-          validation: {status: pass}
+          data:
+            decision: ready
+            work_proposals:
+              - {source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12'}
+            validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

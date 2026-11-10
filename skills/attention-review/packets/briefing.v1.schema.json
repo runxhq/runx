@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/attention-review/briefing/v1.json",
+  "x-runx-packet-id": "runx/attention-review.briefing.v1",
+  "additionalProperties": false,
+  "properties": {
+    "brief": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "held",
+        "ready",
+        "idle"
+      ]
+    },
+    "delivery_status": {
+      "const": "not_sent"
+    },
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "priority": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "string"
+          },
+          "source_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "source_id": {
+            "maxLength": 300,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "source_kind": {
+            "enum": [
+              "mail",
+              "chat",
+              "task",
+              "other"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "source_kind",
+          "priority",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "type": "array"
+    },
+    "next_check_minutes": {
+      "maximum": 1440,
+      "minimum": 1,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "recommended_action_ids": {
+      "items": {
+        "maxLength": 100,
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "type": "array"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "omitted_unconfigured_actions": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "omitted_unconfigured_work": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "findings",
+        "omitted_unconfigured_actions",
+        "omitted_unconfigured_work"
+      ],
+      "type": "object"
+    },
+    "work_proposals": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "due_at_unix_seconds": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "route_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "source_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "source_id": {
+            "maxLength": 300,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "target_locator": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "route_id",
+          "target_locator",
+          "inputs",
+          "due_at_unix_seconds",
+          "source_digest"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "type": "array"
+    }
+  },
+  "required": [
+    "decision",
+    "items",
+    "recommended_action_ids",
+    "work_proposals",
+    "brief",
+    "next_check_minutes",
+    "delivery_status",
+    "validation"
+  ],
+  "type": "object"
+}

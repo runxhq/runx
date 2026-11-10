@@ -2,6 +2,10 @@
   "schema": "runx.packet.lock.v1",
   "packets": [
     {
+      "id": "runx/attention-review.briefing.v1",
+      "digest": "sha256:1f29ea90923c65ccc481911fe350b96988da861f647faa1f86cfebd8807a7109"
+    },
+    {
       "id": "runx/brand-voice.context.v1",
       "digest": "sha256:9934bfa51b4ab7dee6a3f3bc9b9fdbf3afccc2af2f378ae0a3857449ffdf55f1"
     },
