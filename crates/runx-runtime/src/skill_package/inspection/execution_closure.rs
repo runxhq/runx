@@ -599,6 +599,11 @@ impl<'a> ExecutionClosureInspector<'a> {
             },
             &mut walk,
         )?;
+        closure.declared_artifact = self
+            .root
+            .manifest()
+            .and_then(|manifest| manifest.methods.get(method_name))
+            .is_some_and(|method| result_declares_artifact(&method.workflow));
         Ok(closure)
     }
 
@@ -634,6 +639,14 @@ impl<'a> ExecutionClosureInspector<'a> {
                 &mut walk,
             )?;
         }
+        // A fixture package's closure declares an artifact when any method's
+        // result does.
+        closure.declared_artifact = loaded.manifest().is_some_and(|manifest| {
+            manifest
+                .methods
+                .values()
+                .any(|method| result_declares_artifact(&method.workflow))
+        });
         Ok(closure)
     }
 
@@ -840,7 +853,6 @@ impl<'a> ExecutionClosureInspector<'a> {
                 }
                 StepKind::Agent(agent) => {
                     walk.closure.agent_acts = walk.closure.agent_acts.saturating_add(1);
-                    walk.closure.declared_artifact |= step.artifacts.is_some();
                     // The turn may call whatever its allowance names, so the
                     // closure holds it; its child skills are walked below.
                     for tool in &agent.allowance.tools {
@@ -1250,6 +1262,23 @@ fn normalize_relative_path(path: PathBuf) -> Option<String> {
     Some(normalized.join("/"))
 }
 
+/// Whether a method's result is a declared artifact: the step its
+/// `result_from` names, or its last step, declares a packet or `result_as`,
+/// whatever kind of step it is.
+fn result_declares_artifact(workflow: &runx_parser::Workflow) -> bool {
+    match workflow.result_from.as_slice() {
+        [] => workflow
+            .steps
+            .last()
+            .is_some_and(|step| step.artifacts.is_some()),
+        named => workflow
+            .steps
+            .iter()
+            .filter(|step| named.contains(&step.id))
+            .any(|step| step.artifacts.is_some()),
+    }
+}
+
 fn execution_summary(components: &[String], agent_acts: usize, declared_artifact: bool) -> String {
     let agent_summary = match (agent_acts, declared_artifact) {
         (0, _) => None,
@@ -1295,6 +1324,47 @@ mod tests {
             execution_closure_digest(&packages, &connectors, &[]),
             "sha256:35d3a1537190dcd745b59333128a84b045510f7b112e69e3c6694e6c723597ad"
         );
+        Ok(())
+    }
+
+    /// The summary of the closure of `directory`'s default method.
+    fn default_summary(directory: &Path) -> Result<String, Box<dyn std::error::Error>> {
+        let loaded = Arc::new(crate::load_validated_skill_package(directory)?);
+        let method = loaded
+            .manifest()
+            .and_then(|manifest| manifest.default_method())
+            .map(|method| method.name.clone())
+            .ok_or("a default method")?;
+        let (closure, ..) = inspect_method_execution_closure(loaded, &method, &BTreeMap::new())?;
+        Ok(closure
+            .as_object()
+            .and_then(|closure| closure.get("summary"))
+            .and_then(JsonValue::as_str)
+            .ok_or("a summary")?
+            .to_owned())
+    }
+
+    /// A method's result is what declares its artifact, wherever it sits:
+    /// brand-voice's agent drafts and its `finalize` tool step declares the
+    /// voice packet, and a method whose last step declares nothing has none.
+    #[test]
+    fn a_methods_result_is_what_declares_its_artifact() -> Result<(), Box<dyn std::error::Error>> {
+        let voice = default_summary(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/brand-voice"),
+        )?;
+        assert!(voice.ends_with("-> declared artifact"), "{voice}");
+
+        let plain = tempfile::tempdir()?;
+        std::fs::write(
+            plain.path().join("SKILL.md"),
+            "---\nname: plain\ndescription: Drafts, then digests the draft.\n---\n# Plain\n\n## Agent task: draft\n\nDraft it.\n",
+        )?;
+        std::fs::write(
+            plain.path().join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  draft:\n    steps:\n      - id: draft\n        agent: draft\n        outputs:\n          draft: {type: object}\n      - id: digest\n        tool: data.digest\n        inputs: {value: $steps.draft.draft}\n",
+        )?;
+        let plain = default_summary(plain.path())?;
+        assert!(!plain.contains("declared artifact"), "{plain}");
         Ok(())
     }
 }
