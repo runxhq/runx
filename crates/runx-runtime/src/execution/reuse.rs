@@ -436,7 +436,7 @@ mod tests {
         assert!(answer_allowed(&answer(
             false,
             None,
-            serde_json::json!({"closure": {"outcome": "completed", "model": "fixture-model", "requirements": ["fresh_context"]}}),
+            serde_json::json!({"ending": "completed", "model": "fixture-model", "requirements": ["fresh_context"]}),
         )));
     }
 }
