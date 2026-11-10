@@ -136,6 +136,8 @@ methods:
           repo_root: $input.repo_root
           mode: build
           change_bundle: $steps.bind.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
   improve:
     description: Turn one receipt or test failure into a bounded update of a package, validated before it is written.
     inputs:
