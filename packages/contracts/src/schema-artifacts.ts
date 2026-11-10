@@ -3480,6 +3480,15 @@ export const runxSchemaArtifacts = {
         "title": "EvalAttempts",
         "type": "object"
       },
+      "EvalEvidenceKind": {
+        "description": "Which of a package's evals a run measured: its selection, from `eval_queries.json`, or its evals, from `evals/evals.json`.",
+        "enum": [
+          "selection",
+          "evals"
+        ],
+        "title": "EvalEvidenceKind",
+        "type": "string"
+      },
       "EvalEvidenceSchema": {
         "enum": [
           "runx.eval_evidence.v1"
@@ -4970,6 +4979,75 @@ export const runxSchemaArtifacts = {
         ],
         "title": "MatchedReceipt",
         "type": "object"
+      },
+      "MaturityBasis": {
+        "additionalProperties": false,
+        "description": "What a tier rests on: the version's tests.",
+        "properties": {
+          "tests": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TestBasis"
+          }
+        },
+        "required": [
+          "tests"
+        ],
+        "title": "MaturityBasis",
+        "type": "object"
+      },
+      "MaturityEval": {
+        "additionalProperties": false,
+        "description": "One host's numbers from one run's eval evidence.",
+        "properties": {
+          "host": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnHost",
+            "description": "The host that answered its turns; none when they record none."
+          },
+          "kind": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalEvidenceKind"
+          },
+          "models": {
+            "description": "The models its turns stated.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "passed": {
+            "description": "The queries that passed, or the attempts whose verdict was met.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "receipt_id": {
+            "description": "The receipt of the run that measured, which binds its evidence.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "total": {
+            "description": "The queries measured, or the attempts made.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "receipt_id",
+          "kind",
+          "models",
+          "passed",
+          "total"
+        ],
+        "title": "MaturityEval",
+        "type": "object"
+      },
+      "MaturityTier": {
+        "description": "How ready a skill is. `Alpha` is the floor for any published skill.",
+        "enum": [
+          "alpha",
+          "beta",
+          "stable"
+        ],
+        "title": "MaturityTier",
+        "type": "string"
       },
       "McpImplementation": {
         "additionalProperties": false,
@@ -10756,6 +10834,53 @@ export const runxSchemaArtifacts = {
         "title": "TerminalSize",
         "type": "object"
       },
+      "TestBasis": {
+        "additionalProperties": false,
+        "description": "The tests the tier was computed from, as they were run.",
+        "properties": {
+          "cases": {
+            "description": "The declared cases.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "passed": {
+            "description": "Whether every declared case passed.",
+            "type": "boolean"
+          },
+          "ran_by": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TestedBy",
+            "description": "Who ran them."
+          },
+          "runx_version": {
+            "description": "The runx that ran them.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "workflow_cases": {
+            "description": "The cases that run the skill inside a workflow.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "workflow_cases",
+          "passed",
+          "ran_by",
+          "runx_version"
+        ],
+        "title": "TestBasis",
+        "type": "object"
+      },
+      "TestedBy": {
+        "description": "Who ran a version's tests.",
+        "enum": [
+          "registry",
+          "publisher"
+        ],
+        "title": "TestedBy",
+        "type": "string"
+      },
       "ToolCommandInputMode": {
         "enum": [
           "args",
@@ -12181,6 +12306,35 @@ export const runxSchemaArtifacts = {
     "title": "RunxListReport",
     "type": "object",
     "x-runx-schema": "runx.list.v1"
+  } as JsonSchema,
+  "maturity.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/maturity/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "How ready a skill is, what its tier rests on, and the eval evidence shown beside it.",
+    "properties": {
+      "basis": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MaturityBasis"
+      },
+      "evals": {
+        "description": "The eval evidence of the version, by the receipt of each run that measured it, one entry per host. Never required.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MaturityEval"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "tier": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MaturityTier"
+      }
+    },
+    "required": [
+      "tier",
+      "basis"
+    ],
+    "title": "Maturity",
+    "type": "object",
+    "x-runx-schema": "runx.maturity.v1"
   } as JsonSchema,
   "offer-version-binding.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",

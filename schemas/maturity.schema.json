@@ -1,0 +1,29 @@
+{
+  "$id": "https://schemas.runx.ai/runx/maturity/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "How ready a skill is, what its tier rests on, and the eval evidence shown beside it.",
+  "properties": {
+    "basis": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MaturityBasis"
+    },
+    "evals": {
+      "description": "The eval evidence of the version, by the receipt of each run that measured it, one entry per host. Never required.",
+      "items": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MaturityEval"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "tier": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MaturityTier"
+    }
+  },
+  "required": [
+    "tier",
+    "basis"
+  ],
+  "title": "Maturity",
+  "type": "object",
+  "x-runx-schema": "runx.maturity.v1"
+}

@@ -937,6 +937,9 @@ export type EvalEvidenceContract = {
   readonly schema: EvalEvidenceSchemaContract;
 };
 
+/** Which of a package's evals a run measured: its selection, from `eval_queries.json`, or its evals, from `evals/evals.json`. */
+export type EvalEvidenceKindContract = "selection" | "evals";
+
 export type EvalEvidenceSchemaContract = "runx.eval_evidence.v1";
 
 export type EvalResultsContract = {
@@ -1491,6 +1494,37 @@ export type MatchedReceiptContract = {
   readonly subject_uri: string;
   readonly verification_status: string;
 };
+
+/** How ready a skill is, what its tier rests on, and the eval evidence shown beside it. */
+export type MaturityContract = {
+  readonly basis: MaturityBasisContract;
+  /** The eval evidence of the version, by the receipt of each run that measured it, one entry per host. Never required. */
+  readonly evals?: readonly MaturityEvalContract[];
+  readonly tier: MaturityTierContract;
+};
+
+/** What a tier rests on: the version's tests. */
+export type MaturityBasisContract = {
+  readonly tests: TestBasisContract;
+};
+
+/** One host's numbers from one run's eval evidence. */
+export type MaturityEvalContract = {
+  /** The host that answered its turns; none when they record none. */
+  readonly host?: TurnHostContract;
+  readonly kind: EvalEvidenceKindContract;
+  /** The models its turns stated. */
+  readonly models: readonly string[];
+  /** The queries that passed, or the attempts whose verdict was met. */
+  readonly passed: number;
+  /** The receipt of the run that measured, which binds its evidence. */
+  readonly receipt_id: string;
+  /** The queries measured, or the attempts made. */
+  readonly total: number;
+};
+
+/** How ready a skill is. `Alpha` is the floor for any published skill. */
+export type MaturityTierContract = "alpha" | "beta" | "stable";
 
 /** A tool on the connector's MCP server. The tool is pinned by its served definition; the manifest's verb, not the tool's annotations, is enforced. */
 export type McpImplementationContract = {
@@ -3655,6 +3689,23 @@ export type TerminalSizeContract = {
   readonly cols: number;
   readonly rows: number;
 };
+
+/** The tests the tier was computed from, as they were run. */
+export type TestBasisContract = {
+  /** The declared cases. */
+  readonly cases: number;
+  /** Whether every declared case passed. */
+  readonly passed: boolean;
+  /** Who ran them. */
+  readonly ran_by: TestedByContract;
+  /** The runx that ran them. */
+  readonly runx_version: string;
+  /** The cases that run the skill inside a workflow. */
+  readonly workflow_cases: number;
+};
+
+/** Who ran a version's tests. */
+export type TestedByContract = "registry" | "publisher";
 
 export type ToolCommandInputModeContract = "args" | "stdin" | "none";
 

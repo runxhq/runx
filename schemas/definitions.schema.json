@@ -2218,6 +2218,15 @@
       "title": "EvalAttempts",
       "type": "object"
     },
+    "EvalEvidenceKind": {
+      "description": "Which of a package's evals a run measured: its selection, from `eval_queries.json`, or its evals, from `evals/evals.json`.",
+      "enum": [
+        "selection",
+        "evals"
+      ],
+      "title": "EvalEvidenceKind",
+      "type": "string"
+    },
     "EvalEvidenceSchema": {
       "enum": [
         "runx.eval_evidence.v1"
@@ -3708,6 +3717,75 @@
       ],
       "title": "MatchedReceipt",
       "type": "object"
+    },
+    "MaturityBasis": {
+      "additionalProperties": false,
+      "description": "What a tier rests on: the version's tests.",
+      "properties": {
+        "tests": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TestBasis"
+        }
+      },
+      "required": [
+        "tests"
+      ],
+      "title": "MaturityBasis",
+      "type": "object"
+    },
+    "MaturityEval": {
+      "additionalProperties": false,
+      "description": "One host's numbers from one run's eval evidence.",
+      "properties": {
+        "host": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnHost",
+          "description": "The host that answered its turns; none when they record none."
+        },
+        "kind": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalEvidenceKind"
+        },
+        "models": {
+          "description": "The models its turns stated.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "passed": {
+          "description": "The queries that passed, or the attempts whose verdict was met.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "receipt_id": {
+          "description": "The receipt of the run that measured, which binds its evidence.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "total": {
+          "description": "The queries measured, or the attempts made.",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "kind",
+        "models",
+        "passed",
+        "total"
+      ],
+      "title": "MaturityEval",
+      "type": "object"
+    },
+    "MaturityTier": {
+      "description": "How ready a skill is. `Alpha` is the floor for any published skill.",
+      "enum": [
+        "alpha",
+        "beta",
+        "stable"
+      ],
+      "title": "MaturityTier",
+      "type": "string"
     },
     "McpImplementation": {
       "additionalProperties": false,
@@ -9493,6 +9571,53 @@
       ],
       "title": "TerminalSize",
       "type": "object"
+    },
+    "TestBasis": {
+      "additionalProperties": false,
+      "description": "The tests the tier was computed from, as they were run.",
+      "properties": {
+        "cases": {
+          "description": "The declared cases.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "passed": {
+          "description": "Whether every declared case passed.",
+          "type": "boolean"
+        },
+        "ran_by": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TestedBy",
+          "description": "Who ran them."
+        },
+        "runx_version": {
+          "description": "The runx that ran them.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "workflow_cases": {
+          "description": "The cases that run the skill inside a workflow.",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cases",
+        "workflow_cases",
+        "passed",
+        "ran_by",
+        "runx_version"
+      ],
+      "title": "TestBasis",
+      "type": "object"
+    },
+    "TestedBy": {
+      "description": "Who ran a version's tests.",
+      "enum": [
+        "registry",
+        "publisher"
+      ],
+      "title": "TestedBy",
+      "type": "string"
     },
     "ToolCommandInputMode": {
       "enum": [
