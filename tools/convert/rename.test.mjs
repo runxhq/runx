@@ -528,21 +528,20 @@ test("Ausca's GPU job runner, its sandbox's and GitHub's runner limit stay, and 
 });
 
 // Cloud's pins, which every Cloud tree holds: the lease cipher's label, the
-// receipt words a test keeps, and spec.md's canonical governed call receipt.
-const cloudSpec = "# Runx spec\n\nThe harness context names a run.\n\n```json\n{\n  \"schema\": \"runx.receipt.v1\",\n  \"id\": \"sha256:5659e76269eb6d8d43c09b3de141d448c6d0be2a94b48ee671eedc3db681c8a5\",\n  \"subject\": { \"uri\": \"runx:run:test-stated#post\", \"runner\": \"default\" },\n  \"verification\": [\n    { \"uri\": \"runx:harness:provider-readback:sha256:da07e2036fc936095ab8f3a\" }\n  ]\n}\n```\n";
+// receipt words a test keeps, and the retired schemas' entries.
 const cloudPin = {
   "packages/api/src/payments/leases-postgres.ts": 'export const label = "purchase-holdings";\n',
   "packages/api/src/receipts/notary-projection.test.ts": 'export const subject = { ref_type: "harness" };\nexport const ref = { type: "harness", uri: "runx:harness:poisoned-secret-locator" };\n',
-  "spec/spec.md": cloudSpec,
   "scripts/site-release.ts":
     'export const retired = {\n  "https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." },\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": {},\n};\n',
 };
 
-test("a pinned block in Markdown comes out byte-exact, while the rest of its file renames", (t) => {
-  const root = tree(t, cloudPin);
+test("Cloud's spec renames as prose, and its canonical receipts, which OSS's generator writes with no old word, come out as they went in", (t) => {
+  const receipt = "```json\n{\n  \"schema\": \"runx.receipt.v1\",\n  \"id\": \"sha256:049049f070900849313f27d86e44f722cf9e27da29bee934902a4ba7488cdbdc\",\n  \"subject\": { \"kind\": \"step\", \"ref\": { \"type\": \"run\", \"uri\": \"runx:run:test-stated#post\" } },\n  \"verification\": [\n    { \"uri\": \"runx:test:provider-readback:sha256:da07e2036fc936095ab8f3a\" }\n  ]\n}\n```\n";
+  const root = tree(t, { ...cloudPin, "spec/spec.md": `# Runx spec\n\nThe harness context names a run.\n\n${receipt}` });
   const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "spec/spec.md"), cloudSpec.replace("The harness context names a run.", "The run context names a run."));
+  assert.equal(read(root, "spec/spec.md"), `# Runx spec\n\nThe run context names a run.\n\n${receipt}`);
   assert.equal(read(root, "packages/api/src/receipts/notary-projection.test.ts"), cloudPin["packages/api/src/receipts/notary-projection.test.ts"]);
 });
 
@@ -554,13 +553,6 @@ test("a pinned literal keeps its bytes, its phrases among them, and lands on not
   assert.equal(status, 0, out);
   assert.equal(read(root, "packages/api/src/payments/leases-postgres.ts"), leases);
   assert.equal(read(root, "scripts/site-release.ts"), release);
-});
-
-test("a block pin that names no fenced block refuses", (t) => {
-  const root = tree(t, { ...cloudPin, "spec/spec.md": cloudSpec.replace(/^\`\`\`(json)?$/gm, "") });
-  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
-  assert.equal(status, 1, out);
-  assert.match(out, /^refused cloud: the pinned block holding "id": "sha256:5659e762[0-9a-f]+" is no fenced block in spec\/spec\.md/m);
 });
 
 test("a row of bare-words.tsv names what a bare word becomes at its site, so Cloud's client.harness is client.tests", (t) => {

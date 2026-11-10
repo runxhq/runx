@@ -23,7 +23,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SOURCE, bareWord, decisionsFor, fencedBlocks, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SOURCE, bareWord, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -210,10 +210,7 @@ const HISTORY = /(^|\/)(migrations|drizzle)\//;
 const KEEPS_NAME = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 // Literals whose exact bytes stored data depends on, in files a token rename
 // would otherwise change them in. Each is masked while its file is renamed,
-// and a pin that isn't found refuses. A `block` pin names a fenced code block
-// in Markdown by a literal it holds, such as a content-addressed document's
-// id: every byte between its fences is masked, so it comes out byte-exact, and
-// a pin that names no block, or more than one, refuses.
+// and a pin that isn't found refuses.
 const PINNED = {
   ausca: [
     { file: "internal/adapters/catalog/release.go", literal: 'json:"runner"', why: "Ausca's catalog revision key: retained history decodes under it (§4.6)" },
@@ -239,10 +236,6 @@ const PINNED = {
       literal: '"https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." }',
       why: "a retired schema's URL and its record of what replaced it, which name the old schema as published",
     },
-    // spec.md's canonical receipts are OSS's fixtures/contracts/canonical-receipts, made by its
-    // generator. Only the governed call's carries an old word, its runx:harness: readback, so it
-    // alone is pinned, by its own id: the id and digest cover every byte.
-    { file: "spec/spec.md", block: '"id": "sha256:5659e76269eb6d8d43c09b3de141d448c6d0be2a94b48ee671eedc3db681c8a5"', why: "the canonical governed call receipt, whose id and digest cover its bytes, its runx:harness: readback among them (§4.6)" },
   ],
 };
 
@@ -260,13 +253,9 @@ function sqlNames(text) {
   return new Set(code.match(TOKEN) ?? []);
 }
 
-/** The spans a file's pins mask: each literal's every occurrence, and each pinned block. */
+/** The spans a file's pins mask: each literal's every occurrence. */
 function pinnedSpans(pins, text) {
-  return pins.flatMap((pin) =>
-    pin.block !== undefined
-      ? fencedBlocks(text).filter(([from, to]) => text.slice(from, to).includes(pin.block))
-      : [...text.matchAll(new RegExp(escape(pin.literal), "g"))].map((m) => [m.index, m.index + pin.literal.length]),
-  );
+  return pins.flatMap((pin) => [...text.matchAll(new RegExp(escape(pin.literal), "g"))].map((m) => [m.index, m.index + pin.literal.length]));
 }
 
 // The files the tree holds now, tracked or not, minus what git ignores: the
@@ -417,13 +406,7 @@ function apply(repo, root, write, list, showStays) {
   const pins = PINNED[repo] ?? [];
   for (const pin of pins) {
     const text = readSource(root, pin.file)?.text ?? "";
-    if (pin.block !== undefined) {
-      const blocks = pinnedSpans([pin], text).length;
-      if (blocks !== 1) {
-        process.stdout.write(`refused ${repo}: the pinned block holding ${pin.block} is ${blocks === 0 ? "no fenced block" : `${blocks} fenced blocks`} in ${pin.file} (${pin.why}); find where it went and pin it there\n`);
-        return 1;
-      }
-    } else if (!text.includes(pin.literal)) {
+    if (!text.includes(pin.literal)) {
       process.stdout.write(`refused ${repo}: the pinned ${pin.literal} isn't in ${pin.file} (${pin.why}); find where it went and pin it there\n`);
       return 1;
     }
