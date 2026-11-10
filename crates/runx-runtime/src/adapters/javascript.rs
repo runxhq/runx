@@ -5,7 +5,9 @@ mod supervisor;
 use std::sync::Arc;
 use std::time::Instant;
 
-use runx_contracts::javascript_worker::MAX_WORKER_POOL_SIZE;
+use runx_contracts::javascript_worker::{
+    MAX_WORKER_POOL_SIZE, ScriptCallOutcome, ScriptEnding, ScriptInputReference, ScriptSettlement,
+};
 use runx_contracts::{JsonObject, JsonValue};
 
 use self::bundle::validated_module;
@@ -77,6 +79,34 @@ impl LiveScript<'_> {
         );
         script_passed(self.script.settle(settled, now)?)
     }
+}
+
+/// The most of a record's settlements one frame of a replay holds, in bytes
+/// of their JSON: a settlement past it, a large read, takes a frame alone.
+pub(crate) const REPLAY_FRAME_BYTES: usize = 2 * 1024 * 1024;
+
+/// `settled` in the frames a replay delivers it in, in order.
+fn replay_frames(
+    settled: Vec<ScriptSettlement>,
+) -> Result<Vec<Vec<ScriptSettlement>>, RuntimeError> {
+    let mut frames = Vec::new();
+    let mut frame = Vec::new();
+    let mut bytes = 0_usize;
+    for settlement in settled {
+        let size = serde_json::to_vec(&settlement)
+            .map_err(|source| RuntimeError::json("measuring a script's settlement", source))?
+            .len();
+        if !frame.is_empty() && bytes.saturating_add(size) > REPLAY_FRAME_BYTES {
+            frames.push(std::mem::take(&mut frame));
+            bytes = 0;
+        }
+        bytes = bytes.saturating_add(size);
+        frame.push(settlement);
+    }
+    if !frame.is_empty() {
+        frames.push(frame);
+    }
+    Ok(frames)
 }
 
 fn script_passed(result: supervisor::WorkerInvocationResult) -> Result<ScriptPassed, RuntimeError> {
@@ -187,13 +217,21 @@ impl JavaScriptAdapter {
     /// in the order they settled; a `ctx.now()` past the record reads `now`.
     /// The script comes back live, to take each further settlement where it
     /// stands rather than from the beginning.
+    ///
+    /// The pass starts with the script's inputs, those given by reference in
+    /// place, and what its record read of the clock. The record's other
+    /// settlements follow in further frames, in the order they settled, at
+    /// most [`REPLAY_FRAME_BYTES`] of them a frame and a larger one alone,
+    /// while the script waits on them: no frame holds more than a bounded
+    /// share of the record, however long it is.
     pub(crate) fn start_script(
         &self,
         prepared: &PreparedScript,
-        inputs: &JsonObject,
-        settled: Vec<runx_contracts::javascript_worker::ScriptSettlement>,
+        given: (&JsonObject, Vec<ScriptInputReference>),
+        settled: Vec<ScriptSettlement>,
         now: i64,
     ) -> Result<(LiveScript<'_>, ScriptPassed), RuntimeError> {
+        let (inputs, references) = given;
         let inputs = serde_json::to_value(inputs)
             .map_err(|source| RuntimeError::json("serializing a script's inputs", source))?;
         crate::work_counts::count(crate::work_counts::Work::ScriptPass);
@@ -201,19 +239,46 @@ impl JavaScriptAdapter {
             crate::work_counts::Work::ScriptSettlementDelivered,
             settled.len(),
         );
-        let (script, result) = self
-            .supervisor
-            .start_script(supervisor::ScriptPassInvocation {
-                entry_module: prepared.entry_module.clone(),
-                export_name: prepared.export_name.clone(),
-                modules: prepared.modules.clone(),
-                inputs,
-                worker_path: prepared.worker_path.clone(),
-                limits: prepared.limits,
-                settled,
-                now,
-            })?;
-        Ok((LiveScript { script }, script_passed(result)?))
+        let (clock, settled): (Vec<_>, Vec<_>) = settled
+            .into_iter()
+            .partition(|settlement| matches!(settlement.outcome, ScriptCallOutcome::Now { .. }));
+        let (mut script, result) =
+            self.supervisor
+                .start_script(supervisor::ScriptPassInvocation {
+                    entry_module: prepared.entry_module.clone(),
+                    export_name: prepared.export_name.clone(),
+                    modules: prepared.modules.clone(),
+                    inputs,
+                    references,
+                    worker_path: prepared.worker_path.clone(),
+                    limits: prepared.limits,
+                    settled: clock,
+                    now,
+                })?;
+        let mut passed = script_passed(result)?;
+        let mut frames = replay_frames(settled)?.into_iter();
+        while passed.ending == ScriptEnding::Waiting {
+            let Some(frame) = frames.next() else {
+                break;
+            };
+            let more = script_passed(script.settle(frame, now)?)?;
+            passed.calls.extend(more.calls);
+            passed.ending = more.ending;
+        }
+        // A script that ended with settlements left is given none of them,
+        // as the worker would have been: one for a call it never made means
+        // the replay went another way.
+        if matches!(
+            passed.ending,
+            ScriptEnding::Returned { .. } | ScriptEnding::Threw { .. }
+        ) && let Some(position) = frames
+            .flatten()
+            .map(|settlement| settlement.position)
+            .find(|position| !passed.calls.iter().any(|call| call.position == *position))
+        {
+            passed.ending = ScriptEnding::Diverged { position };
+        }
+        Ok((LiveScript { script }, passed))
     }
 
     /// Run `request` from `package`, the validated package its run admitted.

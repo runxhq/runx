@@ -191,6 +191,22 @@ returns, and a resume before then settles nothing and reports the same wait
 again. A run waiting only on waits lists every one, so a host can wake it at
 the earliest `until`.
 
+A script is given its inputs inline up to 64 KiB each, in canonical JSON. An
+input past that reaches it as a reference to the artifact that holds it, one of
+the run's, and an array input past it arrives item by item, each item a
+reference, so a batch of any size reaches the script as a list it walks.
+`ctx.read(value)` gives a reference's content, as it does for a reference a
+call's result held, and gives any other value back as it is, so a script reads
+its items the same way whatever their size: `for (const item of items) { const
+lead = await ctx.read(item); ... }`. A reference can also go straight into a
+call's input, where the callee is given its content. A script's output may hold
+references at any depth, each given back as the content it names; one that
+names no artifact a call of the step returned, or no input of the step, fails
+the step, naming where the output holds it. A replay starts the script with its
+inputs and the clock its record read, and gives it the rest of its record in
+the frames that follow, at most 2 MiB a frame and a larger read alone, so a
+record of any length replays.
+
 Only entries under `approvals` carry host-attested human approval provenance.
 The local CLI cannot authenticate a person from JSON: by placing a decision
 there, the host asserts that a human approved the exact pending gate. An agent

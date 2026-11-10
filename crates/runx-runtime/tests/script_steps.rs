@@ -1112,6 +1112,142 @@ fn a_reference_given_to_a_call_or_returned_is_its_artifact_and_a_made_up_one_is_
     Ok(())
 }
 
+/// An array input past the inline bound reaches a script item by item, each
+/// a reference: `ctx.read` gives an item's content, a call given an item is
+/// given its content, and `ctx.read` of an inline input gives it back as it
+/// is, so a script reads its inputs the same way at any size.
+#[test]
+fn an_array_input_past_the_inline_bound_reaches_a_script_item_by_item_by_reference() -> TestResult {
+    let temp = tempdir()?;
+    write_sink(temp.path())?;
+    let skill_dir = temp.path().join("script-items");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: script-items\ndescription: Measures a batch item by item.\n---\n# Script items\n\nMeasure them.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  prepare:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: make
+        tool: {module: make.mjs, export: make}
+        outputs:
+          items: {type: array}
+      - id: prepare
+        script: {module: prepare.mjs}
+        inputs:
+          items: $steps.make.items
+          note: $input.value
+        calls:
+          skills: [../sink]
+        max_calls: 2
+        outputs:
+          given: {type: array}
+          first: {type: number}
+          second: {type: number}
+          note: {type: string}
+"#,
+    )?;
+    std::fs::write(
+        skill_dir.join("make.mjs"),
+        "export function make() { return { items: [\"a\".repeat(40000), \"b\".repeat(40000)] }; }\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("prepare.mjs"),
+        r#"export default async function (ctx, { items, note }) {
+  const measured = await ctx.skill("../sink", { text: items[0] });
+  const second = await ctx.read(items[1]);
+  return {
+    given: items.map((item) => typeof item === "object" && item.schema),
+    first: measured.length,
+    second: second.length,
+    note: await ctx.read(note),
+  };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = serde_json::to_value(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        result["given"],
+        serde_json::json!(["runx.artifact.v1", "runx.artifact.v1"]),
+        "each item is a reference: {result}"
+    );
+    assert_eq!(result["first"], 40_000, "{result}");
+    assert_eq!(result["second"], 40_000, "{result}");
+    assert_eq!(result["note"], "hello", "{result}");
+    Ok(())
+}
+
+/// A reference a script's output holds at any depth is the content of the
+/// artifact it names: a call's result past the inline bound, nested in an
+/// array of objects, comes back as the text, never as its descriptor. One
+/// that names no artifact a call of the step returned fails the step, naming
+/// where the output holds it.
+#[test]
+fn a_reference_nested_in_a_scripts_output_is_its_content_and_a_made_up_one_fails_the_step()
+-> TestResult {
+    let temp = tempdir()?;
+    write_big(temp.path(), 100_000)?;
+    let step = "        calls:\n          skills: [../big]\n        max_calls: 1\n        outputs:\n          outcomes: {type: array}\n";
+    let skill_dir = write_one_step(
+        temp.path(),
+        step,
+        r#"export default async function (ctx) {
+  const made = await ctx.skill("../big", {});
+  return { outcomes: [{ lead: "ada", review: { text: made.text } }] };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = serde_json::to_value(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        result["outcomes"][0]["review"]["text"]
+            .as_str()
+            .map(str::len),
+        Some(100_000),
+        "the nested reference is the field's value: {}",
+        result["outcomes"][0]["review"]
+    );
+
+    let made_up = tempdir()?;
+    let skill_dir = write_one_step(
+        made_up.path(),
+        "        max_calls: 1\n        outputs:\n          outcomes: {type: array}\n",
+        r#"export default async function () {
+  const digest = "sha256:" + "a".repeat(64);
+  const review = {
+    schema: "runx.artifact.v1",
+    ref: "runx:project-artifact:" + digest,
+    digest,
+    size_bytes: 3,
+    media_type: "application/json",
+    path: "/nowhere.json",
+    labels: { sharing: "configured_model" },
+  };
+  return { outcomes: [{ lead: "ada", review }] };
+}
+"#,
+    )?;
+    let failed = run(made_up.path(), skill_dir)?;
+    let output = object(&failed.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    let rendered = serde_json::to_string(output)?;
+    assert!(
+        rendered.contains(&format!(
+            "output outcomes[0].review: sha256:{} names no artifact a call of the step returned",
+            "a".repeat(64)
+        )),
+        "{rendered}"
+    );
+    Ok(())
+}
+
 /// A child skill, `sink`, that measures the text it's given in JavaScript.
 fn write_sink(root: &Path) -> TestResult {
     let sink = root.join("sink");

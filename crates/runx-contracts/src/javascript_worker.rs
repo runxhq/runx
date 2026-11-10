@@ -135,8 +135,15 @@ pub struct ScriptPassRequest {
     pub export_name: String,
     pub modules: BTreeMap<String, String>,
     pub inputs: serde_json::Value,
+    /// Each input the script is given by reference, in place of its value:
+    /// a field past the kernel's inline bound, or each item of an array
+    /// field past it. `ctx.read` reads it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<ScriptInputReference>,
     pub limits: InvocationLimits,
-    /// What the script's calls settled to, in the order they settled.
+    /// What the script's calls settled to, in the order they settled: a
+    /// replay's first, then the rest in `Settle` requests, so no frame holds
+    /// more than a bounded share of its record.
     pub settled: Vec<ScriptSettlement>,
     /// What a `ctx.now()` the record doesn't hold yet reads: milliseconds
     /// since the epoch.
@@ -193,6 +200,17 @@ pub enum ScriptCallOutcome {
 #[serde(deny_unknown_fields)]
 pub struct ScriptReference {
     pub field: String,
+    pub artifact: crate::Artifact,
+}
+
+/// An input the script is given by reference: the field `field`, or its
+/// item `item` when the field is an array, as the artifact that holds it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptInputReference {
+    pub field: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<u32>,
     pub artifact: crate::Artifact,
 }
 

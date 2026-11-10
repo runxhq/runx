@@ -29,7 +29,7 @@ use super::{
 };
 use crate::protocol::{
     InvocationLimits, ReuseAsk, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding,
-    ScriptReference, ScriptSettlement, WorkerFailureCode,
+    ScriptInputReference, ScriptReference, ScriptSettlement, WorkerFailureCode,
 };
 
 /// What a script's `ctx` sees of the clock: nothing but `ctx.now()`, which
@@ -95,6 +95,7 @@ pub(crate) struct ScriptPass<'a> {
     pub(crate) export_name: &'a str,
     pub(crate) modules: &'a BTreeMap<String, String>,
     pub(crate) inputs: serde_json::Value,
+    pub(crate) references: &'a [ScriptInputReference],
     pub(crate) limits: InvocationLimits,
     pub(crate) settled: &'a [ScriptSettlement],
     pub(crate) now: i64,
@@ -184,8 +185,7 @@ pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Pass
         references: Vec::new(),
     }));
     let ctx = script_context(&ledger, &mut context)?;
-    let input = JsValue::from_json(&request.inputs, &mut context)
-        .map_err(|error| engine_failure("materializing JavaScript input", error))?;
+    let input = given(&request.inputs, request.references, &ledger, &mut context)?;
 
     jobs.renew();
     let returned = match callable.call(&JsValue::undefined(), &[ctx, input], &mut context) {
@@ -375,32 +375,79 @@ fn resolved(
         )
     })?;
     for reference in references {
-        let descriptor = serde_json::to_value(&reference.artifact).map_err(|error| {
-            EngineError::new(WorkerFailureCode::InvalidRequest, error.to_string())
-        })?;
-        let held = JsValue::from_json(&descriptor, context).map_err(materialized)?;
-        let held = held.as_object().ok_or_else(|| {
-            EngineError::new(
-                WorkerFailureCode::InvalidRequest,
-                "a reference is an artifact's descriptor",
-            )
-        })?;
-        held.set_integrity_level(IntegrityLevel::Frozen, context)
-            .map_err(|error| engine_failure("freezing a reference", error))?;
+        let held = issue(&reference.artifact, ledger, context)?;
         object
-            .set(
-                js_string!(reference.field.as_str()),
-                held.clone(),
-                true,
-                context,
-            )
+            .set(js_string!(reference.field.as_str()), held, true, context)
             .map_err(materialized)?;
-        ledger.borrow_mut().references.push(Issued {
-            object: held.clone(),
-            digest: reference.artifact.digest.to_string(),
-        });
     }
     Ok(result)
+}
+
+/// The script's inputs as it holds them: each the kernel gave by reference,
+/// a field or an item of an array field, is a frozen reference object in
+/// place of its value.
+fn given(
+    inputs: &serde_json::Value,
+    references: &[ScriptInputReference],
+    ledger: &Shared,
+    context: &mut Context,
+) -> Result<JsValue, EngineError> {
+    let materialized = |error| engine_failure("materializing JavaScript input", error);
+    let input = JsValue::from_json(inputs, context).map_err(materialized)?;
+    if references.is_empty() {
+        return Ok(input);
+    }
+    let object = input.as_object().ok_or_else(|| {
+        EngineError::new(
+            WorkerFailureCode::InvalidRequest,
+            "inputs given by reference are an object's fields",
+        )
+    })?;
+    for reference in references {
+        let held = issue(&reference.artifact, ledger, context)?;
+        let field = js_string!(reference.field.as_str());
+        match reference.item {
+            None => object.set(field, held, true, context),
+            Some(item) => object
+                .get(field, context)
+                .and_then(|items| {
+                    items.as_object().ok_or_else(|| {
+                        JsNativeError::typ()
+                            .with_message("an input given item by item is an array")
+                            .into()
+                    })
+                })
+                .and_then(|items| items.set(item, held, true, context)),
+        }
+        .map_err(materialized)?;
+    }
+    Ok(input)
+}
+
+/// A frozen reference object for `artifact`, which only `ctx.read` reads:
+/// the object is its brand, which a script can't make.
+fn issue(
+    artifact: &runx_contracts::Artifact,
+    ledger: &Shared,
+    context: &mut Context,
+) -> Result<JsObject, EngineError> {
+    let descriptor = serde_json::to_value(artifact)
+        .map_err(|error| EngineError::new(WorkerFailureCode::InvalidRequest, error.to_string()))?;
+    let held = JsValue::from_json(&descriptor, context)
+        .map_err(|error| engine_failure("materializing a reference", error))?;
+    let held = held.as_object().ok_or_else(|| {
+        EngineError::new(
+            WorkerFailureCode::InvalidRequest,
+            "a reference is an artifact's descriptor",
+        )
+    })?;
+    held.set_integrity_level(IntegrityLevel::Frozen, context)
+        .map_err(|error| engine_failure("freezing a reference", error))?;
+    ledger.borrow_mut().references.push(Issued {
+        object: held.clone(),
+        digest: artifact.digest.to_string(),
+    });
+    Ok(held)
 }
 
 fn take_calls(ledger: &Shared) -> Vec<ScriptCall> {

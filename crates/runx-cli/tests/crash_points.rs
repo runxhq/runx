@@ -1282,3 +1282,118 @@ fn a_kill_just_past_a_provider_jobs_start_recovers_with_one_start() -> TestResul
     assert_eq!(started, 1, "the run recorded one start");
     Ok(())
 }
+
+/// A script that reads each item of its batch by reference and digests it.
+const BATCH_BY_REFERENCE: &str = r#"export default async function (ctx, { items }) {
+  const digests = [];
+  for (const item of items) {
+    const { text } = await ctx.read(item);
+    const made = await ctx.tool("data.digest", { value: text, encoding: "utf8_text" });
+    digests.push(made.digest_result.digest);
+  }
+  return { digests };
+}
+"#;
+
+/// How many items the large batch holds, and how long each one's text is:
+/// 12 MiB in all.
+const LARGE_BATCH: (usize, usize) = (48, 256 * 1024);
+
+/// `batch-input` runs [`BATCH_BY_REFERENCE`] over its `items`, and `root`
+/// holds `items.json`, a batch of [`LARGE_BATCH`] far past the worker's 4 MiB
+/// input bound.
+fn write_large_batch(root: &Path) -> TestResult<PathBuf> {
+    let skill = root.join("batch-input");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: batch-input\ndescription: Digests each item of a batch.\n---\n# Batch input\n\nDigest each.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  digest:
+    inputs:
+      items: {type: array}
+    steps:
+      - id: prepare
+        script: {module: batch.mjs}
+        inputs:
+          items: $input.items
+        calls:
+          tools: [data.digest]
+        max_calls: 100
+        outputs:
+          digests: {type: array}
+"#,
+    )?;
+    fs::write(skill.join("batch.mjs"), BATCH_BY_REFERENCE)?;
+    let (items, length) = LARGE_BATCH;
+    let items = (0..items)
+        .map(|item| serde_json::json!({"text": format!("{item:04}{}", "a".repeat(length))}))
+        .collect::<Vec<_>>();
+    fs::write(
+        root.join("items.json"),
+        serde_json::to_vec(&serde_json::json!({"items": items}))?,
+    )?;
+    Ok(skill)
+}
+
+/// Run `batch-input` over `root`'s `items.json` under the pinned run id,
+/// crashing at `crash` when given.
+fn run_large_batch(root: &Path, skill: &Path, crash: Option<&str>) -> TestResult<Output> {
+    let mut command = unsigned_runx_command_at(root);
+    command.args([
+        "skill",
+        skill.to_str().ok_or("non-utf8 skill dir")?,
+        "--inputs",
+        "items.json",
+        "--run-id",
+        RUN_ID,
+        "--receipt-dir",
+        root.join("receipts")
+            .to_str()
+            .ok_or("non-utf8 receipt dir")?,
+        "--json",
+    ]);
+    if let Some(crash) = crash {
+        command.env("RUNX_CRASH_AT", crash);
+    }
+    Ok(command.output()?)
+}
+
+/// A batch far past the worker's 4 MiB input bound reaches a script item by
+/// item, each by reference, which the script reads with `ctx.read`. Killed
+/// after reading 42 items, 10.5 MiB, past the worker's 10 MiB frame, the run
+/// recovers by replaying what it read, each read's content in the frames
+/// that follow the start, never all of it in one, and goes on to seal with
+/// what an uncrashed run returns.
+#[test]
+fn a_batch_past_the_input_bound_reaches_a_script_by_reference_and_replays_after_a_kill()
+-> TestResult {
+    let reference = crate::support::temp_root("large-batch-live");
+    let skill = write_large_batch(&reference)?;
+    let uncrashed = status(&run_large_batch(&reference, &skill, None)?)?;
+    assert_eq!(uncrashed["status"], "sealed", "{uncrashed}");
+    let digests = result_of(&uncrashed)?["digests"].clone();
+    assert_eq!(
+        digests.as_array().map(Vec::len),
+        Some(LARGE_BATCH.0),
+        "{uncrashed}"
+    );
+
+    // Killed as the 42nd item's digest is about to be admitted: item k is
+    // read at position 2k and digested at 2k + 1.
+    let root = crate::support::temp_root("large-batch-killed");
+    let skill = write_large_batch(&root)?;
+    crashed(&run_large_batch(
+        &root,
+        &skill,
+        Some("before_admission@prepare/83"),
+    )?);
+    let recovered = status(&run_large_batch(&root, &skill, None)?)?;
+    assert_eq!(recovered["status"], "sealed", "{recovered}");
+    assert_eq!(result_of(&recovered)?["digests"], digests);
+    Ok(())
+}

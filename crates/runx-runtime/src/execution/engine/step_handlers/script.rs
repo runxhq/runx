@@ -109,10 +109,13 @@ where
     }
     let mut settled = settlements(&ledger, ledger.recorded()?)?;
     settled.extend(clock_reads(ledger.clock()?));
+    // An input past the inline bound reaches the script by reference, an
+    // array's item by item.
+    let (given, references) = ledger.give(&inputs)?;
     let (mut live, mut passed) =
         runtime
             .javascript
-            .start_script(&prepared, &inputs, settled, now()?)?;
+            .start_script(&prepared, (&given, references), settled, now()?)?;
     // Every call the script has made, in position order, and how many of
     // them are calls rather than reads of the clock.
     let mut made = Vec::new();
@@ -544,45 +547,73 @@ fn at(recorded: &[RecordedCall], position: u32) -> Option<&RecordedCall> {
         .and_then(|found| recorded.get(found))
 }
 
-/// The script's output, each field it returns a reference in taking the
-/// content of the artifact a call of the step returned it. A reference no
-/// call of the step returned fails the step, naming it.
+/// The script's output, each reference it holds, at any depth, taking the
+/// content of the artifact it names: one a call of the step returned, or one
+/// of the step's inputs its script was given. A reference that names neither
+/// fails the step, naming where the output holds it.
 fn referenced<A>(
     ledger: &CallLedger<'_, A>,
-    output: serde_json::Value,
+    mut output: serde_json::Value,
 ) -> Result<Result<serde_json::Value, String>, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let serde_json::Value::Object(mut fields) = output else {
-        return Ok(Ok(output));
-    };
-    for (field, value) in &mut fields {
-        let Some(digest) = value
-            .as_object()
-            .filter(|held| {
-                held.get("schema").and_then(serde_json::Value::as_str)
-                    == Some(runx_contracts::ARTIFACT_SCHEMA)
-            })
-            .and_then(|held| held.get("digest"))
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned)
-        else {
-            continue;
-        };
-        match ledger.returned(&digest)? {
+    Ok(resolve_references(ledger, &mut output, "output")?.map(|()| output))
+}
+
+/// Replace each reference `value` holds, `at` naming where, with its
+/// content, or say which names no reference of the step.
+fn resolve_references<A>(
+    ledger: &CallLedger<'_, A>,
+    value: &mut serde_json::Value,
+    at: &str,
+) -> Result<Result<(), String>, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let reference = value
+        .as_object()
+        .filter(|held| {
+            held.get("schema").and_then(serde_json::Value::as_str)
+                == Some(runx_contracts::ARTIFACT_SCHEMA)
+        })
+        .and_then(|held| held.get("digest"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    if let Some(digest) = reference {
+        return match ledger.returned(&digest)? {
             Some((_, content)) => {
                 *value = serde_json::to_value(content)
                     .map_err(|source| RuntimeError::json("reading a returned reference", source))?;
+                Ok(Ok(()))
             }
-            None => {
-                return Ok(Err(format!(
-                    "output {field}: {digest} names no artifact a call of the step returned"
-                )));
+            None => Ok(Err(format!(
+                "{at}: {digest} names no artifact a call of the step returned"
+            ))),
+        };
+    }
+    match value {
+        serde_json::Value::Object(fields) => {
+            for (field, held) in fields {
+                let at = match at {
+                    "output" => format!("output {field}"),
+                    _ => format!("{at}.{field}"),
+                };
+                if let Err(refused) = resolve_references(ledger, held, &at)? {
+                    return Ok(Err(refused));
+                }
             }
         }
+        serde_json::Value::Array(items) => {
+            for (index, held) in items.iter_mut().enumerate() {
+                if let Err(refused) = resolve_references(ledger, held, &format!("{at}[{index}]"))? {
+                    return Ok(Err(refused));
+                }
+            }
+        }
+        _ => {}
     }
-    Ok(Ok(serde_json::Value::Object(fields)))
+    Ok(Ok(()))
 }
 
 /// What the script read of the clock, by position, as its replay takes it.

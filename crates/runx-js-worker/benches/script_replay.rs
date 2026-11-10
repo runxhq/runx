@@ -77,6 +77,7 @@ impl Worker {
             export_name: "default".to_owned(),
             modules: BTreeMap::from([("main.mjs".to_owned(), script(calls))]),
             inputs: serde_json::json!({}),
+            references: Vec::new(),
             limits: InvocationLimits {
                 cpu_milliseconds: runx_contracts::javascript_worker::MAX_CPU_MILLISECONDS,
                 ..InvocationLimits::default()

@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
+use runx_contracts::javascript_worker::ScriptInputReference;
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, CallTarget, InputDefinition,
@@ -457,6 +458,9 @@ pub(super) struct CallLedger<'a, A> {
     record: OnceCell<StepRecord>,
     /// The place the step's next call event takes, once known.
     events: Cell<Option<u64>>,
+    /// Each input a script is given by reference, as the artifact that
+    /// holds it, which the script reads as it reads a call's references.
+    given: Vec<Artifact>,
 }
 
 /// What a run records of one step: its calls, in order, and its script's
@@ -643,6 +647,7 @@ where
                 turn: Some(pending_request(request)?),
                 record: OnceCell::new(),
                 events: Cell::new(None),
+                given: Vec::new(),
             },
             invocation,
         })
@@ -665,7 +670,75 @@ where
             turn: None,
             record: OnceCell::new(),
             events: Cell::new(None),
+            given: Vec::new(),
         }
+    }
+
+    /// The step's `inputs` as its script is given them: a field past the
+    /// inline bound by reference, and an array field past it item by item,
+    /// each item by reference, every one an artifact of the run by its
+    /// content, so each pass and each recovery gives the same references.
+    /// The rest is inline. The script reads a reference with `ctx.read`.
+    pub(super) fn give(
+        &mut self,
+        inputs: &JsonObject,
+    ) -> Result<(JsonObject, Vec<ScriptInputReference>), RuntimeError> {
+        let options = &self.scope.runtime.options;
+        let artifacts =
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
+        let persist = |label: String, value: &JsonValue| {
+            crate::services::persist_json_artifact(
+                &artifacts,
+                options.run.run_id(),
+                "inputs",
+                &label,
+                value,
+                ArtifactLabels::CONFIGURED_MODEL,
+            )
+            .map_err(|message| RuntimeError::effect_state("persisting a script's input", message))
+        };
+        let mut given = JsonObject::new();
+        let mut references = Vec::new();
+        for (field, value) in inputs {
+            if !past_inline_bound(value, Some(SCRIPT_INLINE_BYTES))? {
+                given.insert(field.clone(), value.clone());
+                continue;
+            }
+            let label = format!("{}-{field}", self.scope.step_id);
+            match value {
+                JsonValue::Array(items) => {
+                    given.insert(
+                        field.clone(),
+                        JsonValue::Array(vec![JsonValue::Null; items.len()]),
+                    );
+                    for (item, value) in items.iter().enumerate() {
+                        references.push(ScriptInputReference {
+                            field: field.clone(),
+                            item: Some(u32::try_from(item).map_err(|_| {
+                                RuntimeError::effect_state(
+                                    "giving a script its input",
+                                    format!("input {field} holds more items than a script reads"),
+                                )
+                            })?),
+                            artifact: persist(format!("{label}-{item}"), value)?,
+                        });
+                    }
+                }
+                _ => {
+                    given.insert(field.clone(), JsonValue::Null);
+                    references.push(ScriptInputReference {
+                        field: field.clone(),
+                        item: None,
+                        artifact: persist(label, value)?,
+                    });
+                }
+            }
+        }
+        self.given = references
+            .iter()
+            .map(|reference| reference.artifact.clone())
+            .collect();
+        Ok((given, references))
     }
 
     /// Take call `index` further under `host`, which now brings something for
@@ -842,12 +915,7 @@ where
     /// too large past the bound, and refused when no call of the step
     /// returned it. Its outcome is the read's settlement.
     pub(super) fn read(&mut self, index: u32, digest: &str) -> Result<(), RuntimeError> {
-        let held = self
-            .recorded()?
-            .iter()
-            .flat_map(|call| &call.outputs)
-            .find(|part| part.artifact.digest.as_str() == digest)
-            .map(|part| part.artifact.clone());
+        let held = self.reference_of(digest)?;
         let bound =
             u64::try_from(runx_contracts::javascript_worker::MAX_INPUT_BYTES).unwrap_or(u64::MAX);
         let outcome = match held {
@@ -868,20 +936,27 @@ where
             .map(drop)
     }
 
-    /// The artifact a reference a call of the step returned names, by
-    /// `digest`, and that artifact's content; none for a digest no call of
-    /// the step returned.
+    /// The artifact a reference of the step names, by `digest`: one a call
+    /// of the step returned, or one of the step's inputs its script was
+    /// given; none for any other digest.
+    fn reference_of(&self, digest: &str) -> Result<Option<Artifact>, RuntimeError> {
+        Ok(self
+            .recorded()?
+            .iter()
+            .flat_map(|call| call.outputs.iter().map(|part| &part.artifact))
+            .chain(&self.given)
+            .find(|artifact| artifact.digest.as_str() == digest)
+            .cloned())
+    }
+
+    /// The artifact a reference of the step names, by `digest`, and that
+    /// artifact's content; none for a digest that names no reference of the
+    /// step.
     pub(super) fn returned(
         &self,
         digest: &str,
     ) -> Result<Option<(Artifact, JsonValue)>, RuntimeError> {
-        let Some(artifact) = self
-            .recorded()?
-            .iter()
-            .flat_map(|call| &call.outputs)
-            .find(|part| part.artifact.digest.as_str() == digest)
-            .map(|part| part.artifact.clone())
-        else {
+        let Some(artifact) = self.reference_of(digest)? else {
             return Ok(None);
         };
         let content = self.content(&artifact)?;
@@ -2039,7 +2114,8 @@ where
     /// The content of the artifact the reference given as input `name`
     /// names, read from the project's artifact store, and how the call's
     /// receipt names it: the artifact a call of the turn or script recorded,
-    /// when one did. A script gives only those.
+    /// when one did. A script gives only those, or one of its own inputs it
+    /// was given by reference.
     fn referenced(&self, name: &str, value: &JsonValue) -> Result<(JsonValue, Fed), String> {
         let named = value
             .clone()
@@ -2062,7 +2138,11 @@ where
                 ))
             })
         });
-        if self.turn.is_none() && produced.is_none() {
+        let input = self
+            .given
+            .iter()
+            .find(|artifact| artifact.digest == named.digest);
+        if self.turn.is_none() && produced.is_none() && input.is_none() {
             return Err(format!(
                 "input {name}: {} names no artifact a call of step {} returned",
                 named.digest, self.scope.step_id
@@ -2071,7 +2151,7 @@ where
         let options = &self.scope.runtime.options;
         let artifacts =
             crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
-        let reference = produced.map_or(&named, |(_, _, _, artifact)| artifact);
+        let reference = produced.map_or(input.unwrap_or(&named), |(_, _, _, artifact)| artifact);
         let content = crate::services::read_json_artifact(&artifacts, reference)
             .map_err(|error| format!("input {name}: {error}"))?;
         let given = Fed {
