@@ -89,6 +89,7 @@ impl Placements {
             code: "transport_unavailable".to_owned(),
             reason: error.to_string(),
             release: true,
+            conflict: None,
         })
     }
 }
@@ -1032,6 +1033,9 @@ pub(crate) enum Failure {
         reason: String,
         /// The implementation proves this attempt did not execute.
         release: bool,
+        /// What the provider states its idempotency key holds against the
+        /// call, when it refused the key as another request's and said so.
+        conflict: Option<crate::error::Contradiction>,
     },
     /// The call may have executed.
     Unknown(String),
@@ -1130,6 +1134,7 @@ pub(crate) fn execute(
             provider_code: "preflight_failed".to_owned(),
             http_status: 0,
             reason,
+            conflict: None,
         },
         false => failed(context, reason),
     };
@@ -1233,6 +1238,7 @@ pub(crate) fn execute(
             code,
             reason,
             release,
+            conflict,
         }) => {
             if let Some(custody) = &context.admitted.custody {
                 if context.admitted.pending.is_some() {
@@ -1275,6 +1281,7 @@ pub(crate) fn execute(
                     provider_code: code,
                     http_status: status,
                     reason,
+                    conflict: conflict.map(Box::new),
                 });
             }
             Err(read_failure(context, step_id, reason))
@@ -1502,6 +1509,7 @@ fn dispatch(
                 code: "operation_unsupported".to_owned(),
                 reason: "the local placement does not implement this operation".to_owned(),
                 release: true,
+                conflict: None,
             })?,
     };
     let arguments = JsonValue::Object(context.call.inputs.clone());
@@ -1611,6 +1619,7 @@ fn dispatch(
                         code: "transport_unavailable".to_owned(),
                         reason: error.to_string(),
                         release: true,
+                        conflict: None,
                     })?;
                     &live
                 }
@@ -1701,11 +1710,13 @@ fn dispatch(
                 code,
                 reason,
                 release,
+                conflict,
             } => Failure::Rejected {
                 status,
                 code,
                 reason: secret.scrub_text(reason),
                 release,
+                conflict: conflict.map(|conflict| conflict.scrub(secret)),
             },
             Failure::Unknown(reason) => Failure::Unknown(secret.scrub_text(reason)),
             Failure::ReadbackPending(reason) => Failure::ReadbackPending(secret.scrub_text(reason)),
@@ -1877,6 +1888,7 @@ fn mcp(
         code: "operation_unsupported".to_owned(),
         reason: reason.to_owned(),
         release: true,
+        conflict: None,
     };
     let Some(server) = context
         .admitted
@@ -2118,6 +2130,7 @@ fn rejected(code: &str, reason: String) -> Failure {
         code: code.to_owned(),
         reason,
         release: true,
+        conflict: None,
     }
 }
 

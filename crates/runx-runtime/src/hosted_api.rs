@@ -20,7 +20,8 @@ pub use environment::{
     load_local_public_api_token, store_authenticated_hosted_environment,
 };
 pub use error::{
-    HostedApiError, HostedApiErrorPayload, HostedApiOperationError, parse_hosted_api_error,
+    HostedApiError, HostedApiErrorPayload, HostedApiOperationError, KeyConflict,
+    parse_hosted_api_error,
 };
 pub use login::{
     HostedLoginCompleteResponse, HostedLoginStartResponse, HostedProviderTokenLoginResponse,

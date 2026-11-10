@@ -298,6 +298,7 @@ fn notarize_error_explains_receipt_scope_mismatch() {
         detail: "Missing required scope: receipts:write.".to_owned(),
         hint: None,
         retry_after_seconds: None,
+        conflict: None,
     })
     .to_string();
 

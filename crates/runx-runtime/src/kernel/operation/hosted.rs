@@ -250,11 +250,17 @@ impl HostedClient {
             request,
         )
         .map_err(|error| match rejection(&error) {
-            Some((status, code, reason)) => Failure::Rejected {
+            Some(Rejection {
+                status,
+                code,
+                reason,
+                conflict,
+            }) => Failure::Rejected {
                 status,
                 release: refused_before_execution(&code),
                 code,
                 reason,
+                conflict,
             },
             None => Failure::Unknown(error.to_string()),
         })
@@ -349,16 +355,29 @@ fn beyond_exact_integers(value: &JsonValue) -> bool {
     }
 }
 
+/// Connect's definite refusal of a call.
+#[derive(Debug, Default, PartialEq)]
+struct Rejection {
+    status: u16,
+    code: String,
+    reason: String,
+    /// What Connect states the call's key holds against it.
+    conflict: Option<crate::error::Contradiction>,
+}
+
 /// A conflict is a definite refusal only when Connect says the key belongs to
 /// another request, or that the call was admitted under another contract. An
 /// in-flight claim or gateway failure may already have reached the provider,
-/// so it stays unknown.
-fn rejection(error: &ProviderOperationError) -> Option<(u16, String, String)> {
+/// so it stays unknown. Where Connect states this request's digest, the
+/// refusal names it as asked, with the holding request's as held when a
+/// single request holds the key.
+fn rejection(error: &ProviderOperationError) -> Option<Rejection> {
     match error {
         ProviderOperationError::HostedApi(HostedApiOperationError::Api {
             status,
             code,
             detail,
+            conflict,
             ..
         }) if matches!(*status, 400 | 404)
             || (*status == 403
@@ -372,9 +391,37 @@ fn rejection(error: &ProviderOperationError) -> Option<(u16, String, String)> {
                     "idempotency_conflict" | "operation_contract_mismatch"
                 )) =>
         {
-            Some((*status, code.clone(), detail.clone()))
+            let conflict = conflict
+                .as_deref()
+                .filter(|_| code == "idempotency_conflict")
+                .map(key_conflict);
+            Some(Rejection {
+                status: *status,
+                code: code.clone(),
+                reason: match &conflict {
+                    Some(conflict) => format!("{detail} {conflict}"),
+                    None => detail.clone(),
+                },
+                conflict,
+            })
         }
         _ => None,
+    }
+}
+
+/// The request whose key another holds: this request's digest as asked, and
+/// the holder's as held, or none where no single request holds the key.
+/// Connect's claim digests are never a result's, so neither is withheld.
+fn key_conflict(conflict: &crate::hosted_api::KeyConflict) -> crate::error::Contradiction {
+    let digest = |digest: &runx_contracts::Digest| {
+        crate::error::Recorded::Value(JsonValue::String(digest.as_str().to_owned()))
+    };
+    crate::error::Contradiction {
+        mismatches: vec![crate::error::Mismatch {
+            field: "request_digest".to_owned(),
+            asked: digest(&conflict.request_digest),
+            held: conflict.held_request_digest.as_ref().map(digest),
+        }],
     }
 }
 
@@ -407,17 +454,17 @@ mod tests {
             detail: "AWS rejected the request (BadRequestException): languageCode".to_owned(),
             hint: None,
             retry_after_seconds: None,
+            conflict: None,
         })
     }
 
     #[test]
     fn definite_refusals_are_rejections_and_unknown_outcomes_are_not() {
         for status in [400, 404] {
-            let (http_status, code, reason) =
-                rejection(&api_error(status, "invalid_input")).unwrap_or_default();
-            assert_eq!(http_status, status);
-            assert_eq!(code, "invalid_input");
-            assert!(reason.contains("languageCode"));
+            let refused = rejection(&api_error(status, "invalid_input")).unwrap_or_default();
+            assert_eq!(refused.status, status);
+            assert_eq!(refused.code, "invalid_input");
+            assert!(refused.reason.contains("languageCode"));
         }
         for status in [409, 429, 500, 502, 503] {
             assert!(rejection(&api_error(status, "invalid_input")).is_none());
@@ -428,6 +475,79 @@ mod tests {
         assert!(rejection(&api_error(409, "idempotency_in_flight")).is_none());
         assert!(rejection(&api_error(403, "binding_unavailable")).is_some());
         assert!(rejection(&ProviderOperationError::InvalidOperation).is_none());
+    }
+
+    /// Connect's 409 for a key another request holds, as it answers it.
+    fn key_conflict_answer(body: &str) -> Option<Rejection> {
+        let payload = crate::hosted_api::parse_hosted_api_error(body)?;
+        rejection(&ProviderOperationError::HostedApi(
+            HostedApiOperationError::api("provider operation", 409, payload),
+        ))
+    }
+
+    #[test]
+    fn a_key_another_request_holds_names_both_requests_when_connect_states_them() {
+        const ASKED: &str =
+            "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+        const HELD: &str =
+            "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+        let used = "Provider mutation idempotency key was already used for a different request.";
+        let refused = |body: String| key_conflict_answer(&body).unwrap_or_default();
+        let record = |rejection: &Rejection| {
+            crate::RuntimeError::ProviderEffectRejected {
+                plan_digest: "sha256:plan".to_owned(),
+                idempotency_key: "runx:key".to_owned(),
+                provider_code: rejection.code.clone(),
+                http_status: rejection.status,
+                reason: rejection.reason.clone(),
+                conflict: rejection.conflict.clone().map(Box::new),
+            }
+            .public_failure_projection()
+            .get("mismatches")
+            .cloned()
+        };
+        let json = |value: serde_json::Value| serde_json::from_value::<JsonValue>(value).ok();
+
+        let both = refused(format!(
+            r#"{{"error": "{used}", "code": "idempotency_conflict", "request_digest": "{ASKED}", "held_request_digest": "{HELD}"}}"#
+        ));
+        assert_eq!(both.code, "idempotency_conflict");
+        assert_eq!(
+            both.reason,
+            format!(r#"{used} request_digest holds "{HELD}" where "{ASKED}" was asked"#)
+        );
+        assert_eq!(
+            record(&both),
+            json(serde_json::json!([{"field": "request_digest", "asked": ASKED, "held": HELD}]))
+        );
+
+        // An account's reconciliation merged differing requests under the
+        // key, so no single one holds it.
+        let merged = refused(format!(
+            r#"{{"error": "{used}", "code": "idempotency_conflict", "request_digest": "{ASKED}"}}"#
+        ));
+        assert_eq!(
+            merged.reason,
+            format!(r#"{used} request_digest holds no single value where "{ASKED}" was asked"#)
+        );
+        assert_eq!(
+            record(&merged),
+            json(serde_json::json!([{"field": "request_digest", "asked": ASKED}]))
+        );
+
+        // A mutation sent with no key names neither.
+        let keyless = refused(
+            r#"{"error": "Provider mutation 'channel.post' requires an idempotency key.", "code": "idempotency_conflict"}"#
+                .to_owned(),
+        );
+        assert_eq!(keyless.conflict, None);
+        assert_eq!(
+            keyless.reason,
+            "Provider mutation 'channel.post' requires an idempotency key."
+        );
+        assert_eq!(record(&keyless), None);
+        // Still a definite refusal that keeps its spend.
+        assert!(!refused_before_execution(&both.code));
     }
 
     #[test]

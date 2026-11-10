@@ -47,6 +47,9 @@ pub enum HostedApiOperationError {
         detail: String,
         hint: Option<String>,
         retry_after_seconds: Option<u32>,
+        /// The conflict the API states, when it refuses an idempotency key
+        /// as another request's and says which requests.
+        conflict: Option<Box<KeyConflict>>,
     },
     #[error("runx API {operation} returned HTTP {status}: {detail}")]
     HttpStatus {
@@ -133,6 +136,53 @@ pub struct HostedApiErrorPayload {
     pub hint: Option<String>,
     #[serde(default)]
     pub retry_after_seconds: Option<u32>,
+    /// This request's digest as the API claims it, for an idempotency
+    /// conflict.
+    #[serde(default)]
+    pub request_digest: Option<String>,
+    /// The digest of the request that holds the key, when a single one does.
+    #[serde(default)]
+    pub held_request_digest: Option<String>,
+}
+
+/// An idempotency key the API holds for another request: this request's
+/// digest as the API claims it, and the holding request's, when a single
+/// request holds the key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KeyConflict {
+    pub request_digest: runx_contracts::Digest,
+    pub held_request_digest: Option<runx_contracts::Digest>,
+}
+
+impl HostedApiOperationError {
+    /// The API's refusal of `operation` with `status`, as `payload` states
+    /// it.
+    pub(crate) fn api(
+        operation: &'static str,
+        status: u16,
+        payload: HostedApiErrorPayload,
+    ) -> Self {
+        let conflict = payload
+            .request_digest
+            .and_then(runx_contracts::Digest::new)
+            .map(|request_digest| {
+                Box::new(KeyConflict {
+                    request_digest,
+                    held_request_digest: payload
+                        .held_request_digest
+                        .and_then(runx_contracts::Digest::new),
+                })
+            });
+        Self::Api {
+            operation,
+            status,
+            code: payload.code,
+            detail: payload.detail,
+            hint: payload.hint,
+            retry_after_seconds: payload.retry_after_seconds,
+            conflict,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -153,6 +203,10 @@ struct FlatErrorEnvelope {
     hint: Option<String>,
     #[serde(default)]
     retry_after_seconds: Option<u32>,
+    #[serde(default)]
+    request_digest: Option<String>,
+    #[serde(default)]
+    held_request_digest: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -174,6 +228,8 @@ pub fn parse_hosted_api_error(body: &str) -> Option<HostedApiErrorPayload> {
                     detail: envelope.error,
                     hint: envelope.hint,
                     retry_after_seconds: envelope.retry_after_seconds,
+                    request_digest: envelope.request_digest,
+                    held_request_digest: envelope.held_request_digest,
                 })
         })
         .or_else(|| {
@@ -185,6 +241,8 @@ pub fn parse_hosted_api_error(body: &str) -> Option<HostedApiErrorPayload> {
                         detail,
                         hint: None,
                         retry_after_seconds: None,
+                        request_digest: None,
+                        held_request_digest: None,
                     },
                     PlainError::Payload(payload) => payload,
                 })

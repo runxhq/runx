@@ -117,14 +117,11 @@ fn send_json_with<T: DeserializeOwned>(
     }?;
     if !(200..=299).contains(&response.status) {
         if let Some(error) = parse_hosted_api_error(&response.body) {
-            return Err(HostedApiOperationError::Api {
+            return Err(HostedApiOperationError::api(
                 operation,
-                status: response.status,
-                code: error.code,
-                detail: error.detail,
-                hint: error.hint,
-                retry_after_seconds: error.retry_after_seconds,
-            });
+                response.status,
+                error,
+            ));
         }
         return Err(HostedApiOperationError::HttpStatus {
             operation,

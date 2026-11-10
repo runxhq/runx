@@ -167,7 +167,7 @@ impl Artifact<'_> {
         .into_iter()
         .filter(|(_, asked, held)| asked != held)
         .map(|(field, asked, held)| {
-            Mismatch::new(field, asked, held, self.call.withheld)
+            Mismatch::new(field, asked, Some(held), self.call.withheld)
                 .map_err(|reason| malformed(&reason))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -189,7 +189,7 @@ impl Artifact<'_> {
                 mismatches: vec![Mismatch::new(
                     "operation",
                     text(INSPECT),
-                    text(&answer.operation),
+                    Some(text(&answer.operation)),
                     self.call.withheld,
                 )?],
             }));

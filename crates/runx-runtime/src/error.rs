@@ -38,12 +38,13 @@ impl std::fmt::Display for Recorded {
 }
 
 /// A field a provider's answer states with another value than the call
-/// asked: what was asked of it, and what the provider holds there.
+/// asked: what was asked of it, and what the provider holds there, or none
+/// where it says no single value is held.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mismatch {
     pub field: String,
     pub asked: Recorded,
-    pub held: Recorded,
+    pub held: Option<Recorded>,
 }
 
 impl Mismatch {
@@ -53,7 +54,7 @@ impl Mismatch {
     pub(crate) fn new(
         field: impl Into<String>,
         asked: JsonValue,
-        held: JsonValue,
+        held: Option<JsonValue>,
         withheld: &[Vec<String>],
     ) -> Result<Self, String> {
         let field = field.into();
@@ -71,7 +72,7 @@ impl Mismatch {
         };
         Ok(Self {
             asked: recorded(asked)?,
-            held: recorded(held)?,
+            held: held.map(recorded).transpose()?,
             field,
         })
     }
@@ -94,11 +95,18 @@ impl std::fmt::Display for Contradiction {
             if index > 0 {
                 formatter.write_str("; ")?;
             }
-            write!(
-                formatter,
-                "{} holds {} where {} was asked",
-                mismatch.field, mismatch.held, mismatch.asked
-            )?;
+            match &mismatch.held {
+                Some(held) => write!(
+                    formatter,
+                    "{} holds {held} where {} was asked",
+                    mismatch.field, mismatch.asked
+                )?,
+                None => write!(
+                    formatter,
+                    "{} holds no single value where {} was asked",
+                    mismatch.field, mismatch.asked
+                )?,
+            }
         }
         Ok(())
     }
@@ -126,7 +134,7 @@ impl Contradiction {
                 .map(|mismatch| Mismatch {
                     field: secret.scrub_text(mismatch.field),
                     asked: scrubbed(mismatch.asked),
-                    held: scrubbed(mismatch.held),
+                    held: mismatch.held.map(scrubbed),
                 })
                 .collect(),
         }
@@ -143,7 +151,13 @@ impl Contradiction {
                         "field".to_owned(),
                         JsonValue::String(mismatch.field.clone()),
                     )]);
-                    for (name, recorded) in [("asked", &mismatch.asked), ("held", &mismatch.held)] {
+                    for (name, recorded) in [
+                        ("asked", Some(&mismatch.asked)),
+                        ("held", mismatch.held.as_ref()),
+                    ]
+                    .into_iter()
+                    .filter_map(|(name, recorded)| Some((name, recorded?)))
+                    {
                         match recorded {
                             Recorded::Value(value) => {
                                 record.insert(name.to_owned(), value.clone());
@@ -334,6 +348,9 @@ pub enum RuntimeError {
         provider_code: String,
         http_status: u16,
         reason: String,
+        /// What the provider states its idempotency key holds against the
+        /// call, when it refused the key as another request's and said so.
+        conflict: Option<Box<Contradiction>>,
     },
     /// The provider's answer, a write's own or a read that checks it,
     /// contradicts what the call asked: a definite outcome, whatever the
@@ -531,6 +548,7 @@ impl RuntimeError {
                 provider_code,
                 http_status,
                 reason,
+                conflict,
                 ..
             } => {
                 projection.insert(
@@ -547,6 +565,9 @@ impl RuntimeError {
                 );
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
+                if let Some(conflict) = conflict {
+                    projection.insert("mismatches".to_owned(), conflict.record());
+                }
             }
             Self::StepFailedRecorded { record, .. } => {
                 projection = record.clone();

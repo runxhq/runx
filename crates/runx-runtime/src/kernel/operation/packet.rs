@@ -82,7 +82,7 @@ impl Readback {
             (Some(asked), Some(held)) if asked != held => Some(Mismatch::new(
                 field,
                 JsonValue::String(asked.to_owned()),
-                JsonValue::String(held.to_owned()),
+                Some(JsonValue::String(held.to_owned())),
                 &[],
             )),
             _ => None,
@@ -186,7 +186,7 @@ fn unequal(
     withheld: &[Vec<String>],
 ) -> Result<String, String> {
     let held = held.cloned().unwrap_or(JsonValue::Null);
-    let mismatch = Mismatch::new(field, asked.clone(), held.clone(), withheld)?;
+    let mismatch = Mismatch::new(field, asked.clone(), Some(held.clone()), withheld)?;
     Ok(match held {
         JsonValue::Null => format!(
             "the result states no value at {field}, where {} was asked",

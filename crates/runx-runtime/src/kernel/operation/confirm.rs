@@ -372,6 +372,7 @@ fn once(
                     code: code.to_owned(),
                     reason,
                     release: !recovery.may_charge || checks.preconditions.is_empty(),
+                    conflict: None,
                 },
                 Unperformed::Halted {
                     reason,
@@ -388,12 +389,14 @@ fn once(
                     code: code.to_owned(),
                     reason,
                     release: !partial && !recovery.may_charge,
+                    conflict: None,
                 },
                 Unperformed::Refused { code, reason, .. } => Failure::Rejected {
                     status: 0,
                     code: code.to_owned(),
                     reason,
                     release: !recovery.may_charge,
+                    conflict: None,
                 },
                 Unperformed::MaybeSent { reason, .. } if mutation || recovery.may_charge => {
                     Failure::Unknown(reason)
@@ -403,6 +406,7 @@ fn once(
                     code: code.to_owned(),
                     reason,
                     release: false,
+                    conflict: None,
                 },
                 Unperformed::Contradicted(contradiction) => Failure::Contradicted(contradiction),
             })?;
@@ -610,6 +614,7 @@ fn preconditions(
                 // A timed-out read may still have been charged, and a failed
                 // check does not say otherwise, so a priced call keeps its spend.
                 release: !may_charge,
+                conflict: None,
             })?;
     }
     Ok(())
@@ -745,7 +750,7 @@ fn compare(
         return Err(format!("the readback states no value at {path}").into());
     }
     Err(Unconfirmed::Contradicted(Contradiction {
-        mismatches: vec![Mismatch::new(path, expected.clone(), held, withheld)?],
+        mismatches: vec![Mismatch::new(path, expected.clone(), Some(held), withheld)?],
     }))
 }
 
@@ -816,6 +821,7 @@ fn rejected(code: &str, reason: String) -> Failure {
         code: code.to_owned(),
         reason,
         release: true,
+        conflict: None,
     }
 }
 
@@ -1277,7 +1283,7 @@ mod tests {
             [Mismatch {
                 field: "token.value".to_owned(),
                 asked: Recorded::Digest(digest("asked-secret")),
-                held: Recorded::Digest(digest("held-secret")),
+                held: Some(Recorded::Digest(digest("held-secret"))),
             }]
         );
         let reason = contradiction.reason();
@@ -1375,7 +1381,7 @@ mod tests {
             [Mismatch {
                 field: "id".to_owned(),
                 asked: Recorded::Value(JsonValue::String("m-1".to_owned())),
-                held: Recorded::Value(JsonValue::String("m-2".to_owned())),
+                held: Some(Recorded::Value(JsonValue::String("m-2".to_owned()))),
             }]
         );
         assert_eq!(
