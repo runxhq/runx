@@ -7,10 +7,11 @@
 //! script's tool calls, or its skill calls, each a child run, and then a gate
 //! the run holds on for a person; or a host-driven turn whose first call
 //! waits on a person and whose other calls the host makes through its turn
-//! session. With the run held, a read from the cursor that reached its end finds nothing new,
-//! and a resume answers what it waits on and takes it to where it holds
-//! again. A resume binds the run from its record, which is its recovery, so
-//! the reads of each stream's events it makes are counted too.
+//! session. With the run held, a read from the cursor that reached its end
+//! finds nothing new, and a resume answers what it waits on and takes it to
+//! where it holds again. A resume binds the run from its record, which is its
+//! recovery, so the times it reads each stream from its start are counted
+//! too.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -121,7 +122,7 @@ struct LongRun {
     read: Counted,
     /// The resume, from where the run held to where it holds again.
     resume: Counted,
-    /// The most times the resume read any one event of each stream.
+    /// How many times the resume read each stream from its start.
     stream_reads: BTreeMap<String, u64>,
     /// At a turn, the last of its calls, made after all the others.
     last_turn_call: Option<Counted>,
@@ -190,10 +191,15 @@ impl LongRun {
             ),
             (
                 "resume_streams_read".to_owned(),
-                count(self.stream_reads.len() as u64),
+                JsonValue::Object(
+                    self.stream_reads
+                        .iter()
+                        .map(|(stream, most)| (stream.clone(), count(*most)))
+                        .collect(),
+                ),
             ),
             (
-                "resume_most_reads_of_one_stream".to_owned(),
+                "resume_most_reads_of_one_stream_from_its_start".to_owned(),
                 count(most_reads_of_one_stream),
             ),
         ]))

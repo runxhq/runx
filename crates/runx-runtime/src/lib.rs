@@ -87,8 +87,8 @@ pub mod probe_fixtures {
             .map_err(|error| error.to_string())
     }
 
-    /// What `measure` returned, and, by `<kind> <key>`, the most times it
-    /// read any one of that kernel stream's events: what "recovery reads each
+    /// What `measure` returned, and, by `<kind> <key>`, how many times it
+    /// read that kernel stream from its start: what "recovery reads each
     /// stream once" is counted in.
     pub fn stream_reads<T>(
         measure: impl FnOnce() -> T,
