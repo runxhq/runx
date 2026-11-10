@@ -46,10 +46,14 @@ function nativeFailure(result: ProcessResult): { message: string; code?: string 
 export async function decodeSkill(result: ProcessResult, config: { projectDir: string; receiptDir: string; maxArtifactBytes: number }): Promise<SkillRunOutput> {
   try {
     const compact = validateSkillOutputContract(parseJson(result, [0, 1, 2]));
-    if (compact.status !== "failure" && (compact.schema !== "runx.skill_run.v1" || !compact.outcome)) throw new Error("Native run omitted schema or outcome.");
+    // A resume a running driver took into its run's inbox names the run and
+    // nothing it came to: the driver applies the answers between its actions.
+    if (compact.status === "accepted" && (compact.schema !== "runx.skill_run.v1" || !compact.run_id)) throw new Error("Accepted native output omitted its run.");
+    if (!["failure", "accepted"].includes(compact.status) && (compact.schema !== "runx.skill_run.v1" || !compact.outcome)) throw new Error("Native run omitted schema or outcome.");
     if (compact.status === "sealed" && !compact.receipt_id) throw new Error("Sealed native output omitted its receipt.");
     const expectedExit = compact.status === "sealed"
       ? (compact.outcome === "completed" ? 0 : compact.outcome === "deferred" ? 2 : 1)
+      : compact.status === "accepted" ? 0
       : ["needs_agent", "needs_approval", "payment_required"].includes(compact.status) ? 2 : 1;
     if (result.exitCode !== expectedExit) throw new Error("Native exit code disagrees with its execution outcome.");
     let budget = config.maxArtifactBytes;

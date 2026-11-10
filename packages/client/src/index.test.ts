@@ -292,6 +292,15 @@ describe("native invocation and decoding", () => {
     expect(inspect!.args).not.toContain("create");
     expect(JSON.parse(inspect!.args[inspect!.args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
   });
+  it("decodes a resume a running driver accepted into its run's inbox, on exit 0", async () => {
+    const { config, receiptDir } = await setup();
+    const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 };
+    const accepted = { schema: "runx.skill_run.v1", status: "accepted", run_id: "run_test" };
+    const result = { exitCode: 0, stdout: JSON.stringify(accepted), stderr: "" };
+    await expect(decodeSkill(result, settings)).resolves.toMatchObject({ status: "accepted", run_id: "run_test", requests: [] });
+    await expect(decodeSkill({ ...result, exitCode: 1 }, settings)).rejects.toThrow("exit code disagrees");
+    await expect(decodeSkill({ ...result, stdout: JSON.stringify({ schema: "runx.skill_run.v1", status: "accepted" }) }, settings)).rejects.toThrow("omitted its run");
+  });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();
     const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { seal_reason: "workflow_step_failed" })), stderr: "" };
