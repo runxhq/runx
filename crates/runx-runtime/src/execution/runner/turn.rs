@@ -476,6 +476,9 @@ struct Made {
     /// What it asked of reuse and what it was answered, which its first
     /// record keeps, once.
     reuse: Option<runx_contracts::RunCallReuse>,
+    /// The reuse identity its child is indexed under when it completes, which
+    /// each of its records keeps.
+    reuse_identity: Option<String>,
 }
 
 impl Made {
@@ -488,6 +491,7 @@ impl Made {
             standing: call.standing.clone(),
             cancelled: call.cancelled,
             reuse: None,
+            reuse_identity: call.reuse_identity.clone(),
         }
     }
 }
@@ -592,6 +596,7 @@ fn script_call(index: u32, target: CallTarget) -> Made {
         standing: None,
         cancelled: false,
         reuse: None,
+        reuse_identity: None,
     }
 }
 
@@ -997,6 +1002,7 @@ where
                 standing: None,
                 cancelled: false,
                 reuse,
+                reuse_identity: None,
             },
         )
     }
@@ -1052,6 +1058,56 @@ where
             .options
             .run
             .address(&call_step_id(self.scope.step_id, index))
+    }
+
+    /// What a skill call that asked to reuse a result is answered, and the
+    /// identity its child is indexed under. Until a source's eligibility is
+    /// checked, a call that finds one recomputes as ineligible.
+    fn reuse_candidate(
+        &self,
+        call: &CallStep,
+        target: &CallTarget,
+    ) -> Result<(runx_contracts::ReuseDecision, String), RuntimeError> {
+        use runx_contracts::{RecomputeReason, ReuseDecision};
+        let options = &self.scope.runtime.options;
+        let skill = match target {
+            CallTarget::Skill {
+                bound: Some(bound), ..
+            } => self.scope.bound_skill(&call.step, bound)?,
+            CallTarget::Skill { .. } => load_step_skill(
+                self.scope.workflow_dir,
+                &call.step,
+                StepSkillLoadOptions::of_run(options),
+            )?,
+            _ => {
+                return Err(RuntimeError::EngineInvariant {
+                    context: "looking for a reuse source",
+                    message: "only a skill call asks to reuse a result".to_owned(),
+                });
+            }
+        };
+        let recomputed = |reason| ReuseDecision::Recomputed { reason };
+        let identity = crate::execution::reuse::identity(
+            &skill,
+            &call.step.inputs,
+            call.act.as_ref(),
+            &options.env,
+        )
+        .map_err(|message| RuntimeError::EngineInvariant {
+            context: "looking for a reuse source",
+            message,
+        })?;
+        let found =
+            crate::execution::reuse::head(options.run.store(), &identity).map_err(|error| {
+                RuntimeError::effect_state("reading the reuse index", error.to_string())
+            })?;
+        Ok((
+            recomputed(match found {
+                None => RecomputeReason::NoCandidate,
+                Some(_) => RecomputeReason::Ineligible,
+            }),
+            identity,
+        ))
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is
@@ -1120,9 +1176,25 @@ where
                 return settled(self, made, CallOutcome::Failed(error.to_string()), &answers);
             }
         };
-        let made = Made {
+        let mut made = Made {
             standing: admitted.standing().cloned(),
             ..made
+        };
+        // A skill call that asks to reuse a result looks for its source now,
+        // so its claim records what it was answered (reuse, D32).
+        let made = match made.reuse.take() {
+            Some(asked) if matches!(made.target, CallTarget::Skill { .. }) => {
+                let (decision, identity) = self.reuse_candidate(&call, &made.target)?;
+                Made {
+                    reuse: Some(runx_contracts::RunCallReuse { decision, ..asked }),
+                    reuse_identity: Some(identity),
+                    ..made
+                }
+            }
+            asked => Made {
+                reuse: asked,
+                ..made
+            },
         };
         let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
         let held_by_effects = admitted == super::floor::Admitted::Held;
@@ -1403,6 +1475,25 @@ where
             CallOutcome::Completed(run) => self.output_artifacts(made, run, inline_bound)?,
             _ => Vec::new(),
         };
+        // A call that asked to reuse a result and ran its child makes that
+        // child its identity's newest source.
+        if let (CallOutcome::Completed(run), Some(identity)) = (&outcome, &made.reuse_identity) {
+            let options = &self.scope.runtime.options;
+            crate::execution::reuse::index(
+                options.run.store(),
+                identity,
+                crate::execution::reuse::Source {
+                    run_id: options
+                        .run
+                        .child_id(&call_step_id(self.scope.step_id, made.index)),
+                    receipt_id: run.receipt.id.as_str().to_owned(),
+                    sealed_at: options.clock.now(),
+                },
+            )
+            .map_err(|error| {
+                RuntimeError::effect_state("indexing a reuse source", error.to_string())
+            })?;
+        }
         self.scope.runtime.options.run.record_call(&CallRecord {
             step_id: self.scope.step_id,
             attempt: self.scope.attempt,
@@ -1418,6 +1509,7 @@ where
             cancelled: made.cancelled,
             inline_bound,
             reuse: made.reuse.as_ref(),
+            reuse_identity: made.reuse_identity.as_deref(),
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.
@@ -1437,11 +1529,10 @@ where
             order,
             cancelled: made.cancelled,
             inline_bound,
+            reuse: made.reuse.clone(),
+            reuse_identity: made.reuse_identity.clone(),
         };
-        match calls.iter_mut().find(|known| known.index == call.index) {
-            Some(known) => *known = call,
-            None => calls.push(call),
-        }
+        crate::execution::run_record::settle_call(calls, call);
         Ok(outputs)
     }
 
@@ -2307,6 +2398,7 @@ where
             standing: None,
             cancelled: false,
             reuse: None,
+            reuse_identity: None,
         };
         self.ledger
             .admit_made(&mut AnsweringHost::new(host, None), made)

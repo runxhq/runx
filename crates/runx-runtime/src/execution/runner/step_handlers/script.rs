@@ -726,8 +726,8 @@ fn outstanding(calls: &[ScriptCall], recorded: &[RecordedCall]) -> Option<u32> {
         .map(|call| call.position)
 }
 
-/// What a skill call asked of reuse, and what it was answered. No source is
-/// indexed yet, so a call that asks finds no candidate, runs, and says so.
+/// What a skill call asks of reuse. Its ledger answers it as it admits the
+/// call, in place of this answer of no candidate.
 fn reuse(target: &ScriptCallTarget) -> Option<runx_contracts::RunCallReuse> {
     let ScriptCallTarget::Skill {
         reuse: Some(ask), ..

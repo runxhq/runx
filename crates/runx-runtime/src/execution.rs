@@ -12,6 +12,7 @@ pub mod orchestrator;
 pub(crate) mod outcome;
 pub(crate) mod output_projection;
 pub(crate) mod prepared_skill;
+pub(crate) mod reuse;
 pub mod run_record;
 pub mod runner;
 pub(crate) mod skill_context;

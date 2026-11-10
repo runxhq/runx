@@ -91,6 +91,17 @@ fn worker(
     javascript.worker_digest(env).map(Some)
 }
 
+/// The implementation a run of `workflow` would record, decided without
+/// starting anything: this runtime, and the worker its sources were built
+/// beside when the run runs JavaScript. None when it runs JavaScript and
+/// this build doesn't know that worker's sources.
+pub(crate) fn expected(workflow: &Workflow) -> Option<RunImplementation> {
+    if !runs_javascript(workflow) {
+        return Some(runtime_alone());
+    }
+    expected_worker().map(|worker| implementation(Some(worker.into())))
+}
+
 /// This runtime alone: the implementation of a run that runs no JavaScript
 /// now.
 pub(crate) fn runtime_alone() -> RunImplementation {

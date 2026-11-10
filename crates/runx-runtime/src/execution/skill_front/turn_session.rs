@@ -567,6 +567,7 @@ mod tests {
             cancelled: false,
             inline_bound: None,
             reuse: None,
+            reuse_identity: None,
         })?;
         Ok((run_id, log))
     }

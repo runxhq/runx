@@ -296,6 +296,11 @@ struct CallEvent {
     /// recovery reads the same choice and never decides again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     reuse: Option<runx_contracts::RunCallReuse>,
+    /// The reuse identity of a call that asked, on each of its events, so the
+    /// child it runs is indexed under it when it settles, after a resume too.
+    /// Never in the run's read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reuse_identity: Option<String>,
     /// A turn's call leaves its run paused at the turn: the turn's calls that
     /// still wait once it is recorded, itself among them while it waits, in
     /// order, so what the turn waits on is read from its latest call alone.
@@ -548,6 +553,10 @@ pub(crate) struct RecordedCall {
     pub cancelled: bool,
     /// The most a field of its result held inline when it reached a script.
     pub inline_bound: Option<u64>,
+    /// What it asked of reuse and what it was answered, from its first event.
+    pub reuse: Option<runx_contracts::RunCallReuse>,
+    /// The reuse identity its child is indexed under, when it asked.
+    pub reuse_identity: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -597,6 +606,8 @@ pub(crate) struct CallRecord<'a> {
     pub inline_bound: Option<u64>,
     /// What it asked of reuse and what it was answered.
     pub reuse: Option<&'a runx_contracts::RunCallReuse>,
+    /// The reuse identity its child is indexed under, when it asked.
+    pub reuse_identity: Option<&'a str>,
 }
 
 /// How a run began.
@@ -1689,6 +1700,7 @@ impl RunLog {
             cancelled: call.cancelled,
             inline_bound: call.inline_bound,
             reuse: call.reuse.cloned(),
+            reuse_identity: call.reuse_identity.map(str::to_owned),
             waiting,
         };
         blobs.extend(values);
@@ -2271,13 +2283,21 @@ impl RunRecord {
 }
 
 /// A later event for a call's index settles the call.
-fn settle_call(calls: &mut Vec<RecordedCall>, recorded: RecordedCall) {
+/// Take `recorded` as its call's latest event among `calls`.
+pub(crate) fn settle_call(calls: &mut Vec<RecordedCall>, recorded: RecordedCall) {
     match calls.iter_mut().find(|known| {
         known.step_id == recorded.step_id
             && known.attempt == recorded.attempt
             && known.index == recorded.index
     }) {
-        Some(known) => *known = recorded,
+        // What it asked of reuse is on its first event alone.
+        Some(known) => {
+            let reuse = known.reuse.take();
+            *known = RecordedCall {
+                reuse: recorded.reuse.clone().or(reuse),
+                ..recorded
+            };
+        }
         None => calls.push(recorded),
     }
 }
@@ -2303,6 +2323,8 @@ fn recorded_call(
         },
         cancelled: call.cancelled,
         inline_bound: call.inline_bound,
+        reuse: call.reuse,
+        reuse_identity: call.reuse_identity,
     })
 }
 

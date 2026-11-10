@@ -1792,3 +1792,115 @@ fn a_skill_call_records_its_reuse_ask_once_and_runs() -> TestResult {
 fn of_run(stream: &str, run_id: &str) -> bool {
     stream == run_id || runx_runtime::run_record::is_calls_stream_of(stream, run_id)
 }
+
+/// What each call at the root of `run_id` was answered of reuse, by index.
+fn reuse_decisions(
+    root: &Path,
+    run_id: &str,
+) -> TestResult<BTreeMap<u32, runx_contracts::ReuseDecision>> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    Ok(read
+        .events
+        .into_iter()
+        .filter(|record| of_run(record.stream.as_str(), run_id))
+        .filter_map(|record| match record.event {
+            RunEventFact::Call {
+                index,
+                reuse: Some(reuse),
+                ..
+            } => Some((index, reuse.decision)),
+            _ => None,
+        })
+        .collect())
+}
+
+fn recomputed(reason: runx_contracts::RecomputeReason) -> runx_contracts::ReuseDecision {
+    runx_contracts::ReuseDecision::Recomputed { reason }
+}
+
+/// A package, `digest-child`, whose one method digests a value.
+fn write_digest_child(root: &Path) -> TestResult {
+    crate::support::write_test_skill_package(
+        &root.join("digest-child"),
+        "---\nname: digest-child\ndescription: Digests a value.\n---\n# Digest child\n\nDigest it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  digest:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: $input.value, encoding: utf8_text}\n",
+    )?;
+    Ok(())
+}
+
+/// A call that asks to reuse a result makes the child it runs the newest
+/// source of what it asked, which a later call asking the same finds. A
+/// plain call indexes nothing, so the call after it that asks finds no
+/// candidate (reuse, D1).
+#[test]
+fn a_call_that_asks_indexes_its_child_and_a_plain_call_does_not() -> TestResult {
+    use runx_contracts::RecomputeReason::{Ineligible, NoCandidate};
+    let temp = tempdir()?;
+    write_digest_child(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../digest-child]\n        max_calls: 2\n        outputs:\n          done: {type: boolean}\n",
+        r#"export default async function (ctx, { value }) {
+  await ctx.skill("../digest-child", { value });
+  await ctx.skill("../digest-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  return { done: true };
+}
+"#,
+    )?;
+    let first = run(temp.path(), skill_dir.clone())?;
+    let first_id = text(object(&first.output)?, "run_id").ok_or("missing run_id")?;
+    assert_eq!(
+        reuse_decisions(temp.path(), first_id)?,
+        BTreeMap::from([(1, recomputed(NoCandidate))])
+    );
+    // The child the asking call ran is the source a later asking call finds,
+    // and recomputes until its eligibility is checked.
+    let second = run(temp.path(), skill_dir)?;
+    let second_id = text(object(&second.output)?, "run_id").ok_or("missing run_id")?;
+    assert_eq!(
+        reuse_decisions(temp.path(), second_id)?,
+        BTreeMap::from([(1, recomputed(Ineligible))])
+    );
+    Ok(())
+}
+
+/// A child that settles after a resume is indexed as one that ran straight
+/// through is: its call's identity is on its record, so the driver that
+/// settles it needn't be the one that started it.
+#[test]
+fn a_child_that_settles_after_a_resume_is_indexed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Ineligible, NoCandidate};
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  const confirmed = await ctx.skill("../confirm-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  return { confirmed: Object.keys(confirmed) };
+}
+"#,
+        "          confirmed: {type: array}\n",
+    )?;
+    let started = run(temp.path(), skill_dir.clone())?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let waiting = requests(&started)?;
+    assert_eq!(waiting, ["prepare/0#confirm"]);
+    let sealed = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {waiting[0].as_str(): true}}),
+    )?;
+    assert_eq!(text(object(&sealed.output)?, "status"), Some("sealed"));
+    assert_eq!(
+        reuse_decisions(temp.path(), &run_id)?,
+        BTreeMap::from([(0, recomputed(NoCandidate))])
+    );
+    let again = run(temp.path(), skill_dir)?;
+    let again_id = text(object(&again.output)?, "run_id").ok_or("missing run_id")?;
+    assert_eq!(
+        reuse_decisions(temp.path(), again_id)?,
+        BTreeMap::from([(0, recomputed(Ineligible))])
+    );
+    Ok(())
+}
