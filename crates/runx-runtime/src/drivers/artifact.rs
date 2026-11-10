@@ -26,10 +26,11 @@ use runx_contracts::{
 };
 use serde::Deserialize;
 
+use crate::error::{Contradiction, Mismatch};
 use crate::hosted_api::HostedApiOperationError;
 use crate::http::RuntimeHttpError;
 use crate::kernel::operation::AdmittedCall;
-use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
+use crate::kernel::operation::confirm::{Check, Driver, Observed, Unconfirmed, Unperformed};
 use crate::kernel::operation::hosted::HostedSession;
 
 const ALLOCATE: &str = "artifact.allocate";
@@ -126,6 +127,15 @@ impl Artifact<'_> {
                 ("media_type".to_owned(), text(media_type)),
             ]),
         )?;
+        if answer.operation != ALLOCATE {
+            return Err(malformed("runx answered for another artifact operation"));
+        }
+        let principal_uri = self.session.principal_uri.as_str();
+        if answer.principal_uri.as_deref() != Some(principal_uri) {
+            return Err(malformed(
+                "runx acted for another principal than the signed-in account",
+            ));
+        }
         if answer.idempotency_key.as_deref() != Some(key) {
             return Err(malformed("runx stored the artifact under another key"));
         }
@@ -136,30 +146,27 @@ impl Artifact<'_> {
         {
             return Err(malformed("runx holds other bytes than the call stored"));
         }
-        self.held(&artifact)
+        held(&artifact, Some(principal_uri))
     }
 
-    /// What runx holds under `reference`.
-    fn inspect(&self, reference: &str) -> Result<JsonObject, Unperformed> {
+    /// What runx holds under `reference`, and the account it states it
+    /// holds it for, which the kernel compares with the allocation's.
+    fn inspect(&self, reference: &str) -> Result<JsonObject, Unconfirmed> {
         let answer = self.send(
             INSPECT,
             JsonObject::from([("ref".to_owned(), text(reference))]),
         )?;
-        self.held(&self.artifact(answer)?)
-    }
-
-    /// The call's result: the artifact, and the signed-in account `send`
-    /// checked runx holds it for.
-    fn held(&self, artifact: &ArtifactDescriptor) -> Result<JsonObject, Unperformed> {
-        let artifact = JsonValue::from_serialize(artifact)
-            .map_err(|_| malformed("the artifact cannot be stated"))?;
-        Ok(JsonObject::from([
-            ("artifact".to_owned(), artifact),
-            (
-                "principal_uri".to_owned(),
-                text(&self.session.principal_uri),
-            ),
-        ]))
+        if answer.operation != INSPECT {
+            return Err(Unconfirmed::Contradicted(Contradiction {
+                mismatches: vec![Mismatch {
+                    field: "operation".to_owned(),
+                    asked: text(INSPECT),
+                    held: text(&answer.operation),
+                }],
+            }));
+        }
+        let principal_uri = answer.principal_uri.clone();
+        held(&self.artifact(answer)?, principal_uri.as_deref()).map_err(Unconfirmed::from)
     }
 
     fn send(
@@ -178,19 +185,13 @@ impl Artifact<'_> {
             .session
             .send(operation, "/v1/artifact-operations", body)
             .map_err(unperformed)?;
-        if answer.status != "success" || answer.operation != operation {
-            return Err(malformed("runx answered for another artifact operation"));
-        }
-        if answer.principal_uri.as_deref() != Some(self.session.principal_uri.as_str()) {
-            return Err(malformed(
-                "runx acted for another principal than the signed-in account",
-            ));
+        if answer.status != "success" {
+            return Err(malformed("runx did not answer the artifact operation"));
         }
         Ok(answer)
     }
 
-    /// The artifact an answer states, which `send` has checked is held for
-    /// the signed-in principal.
+    /// The artifact an answer states.
     fn artifact(&self, answer: ProviderOperationPacket) -> Result<ArtifactDescriptor, Unperformed> {
         let hosted = answer
             .result
@@ -220,15 +221,13 @@ impl Driver for Artifact<'_> {
         self.allocate().map(observed)
     }
 
-    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed> {
         match check {
             Check::Readback { .. } => {
                 let reference = reference(write).ok_or("the acknowledgement names no artifact")?;
-                self.inspect(reference)
-                    .map(observed)
-                    .map_err(Unperformed::reason)
+                self.inspect(reference).map(observed)
             }
-            Check::Precondition(_) => Err("an artifact call has no precondition".to_owned()),
+            Check::Precondition(_) => Err("an artifact call has no precondition".into()),
         }
     }
 
@@ -240,6 +239,21 @@ impl Driver for Artifact<'_> {
         let reference = reference(write).map(str::to_owned);
         Ok((write.clone(), reference))
     }
+}
+
+/// The call's result: the artifact, and the account runx states it holds it
+/// for.
+fn held(
+    artifact: &ArtifactDescriptor,
+    principal_uri: Option<&str>,
+) -> Result<JsonObject, Unperformed> {
+    let artifact = JsonValue::from_serialize(artifact)
+        .map_err(|_| malformed("the artifact cannot be stated"))?;
+    let mut held = JsonObject::from([("artifact".to_owned(), artifact)]);
+    if let Some(principal_uri) = principal_uri {
+        held.insert("principal_uri".to_owned(), text(principal_uri));
+    }
+    Ok(held)
 }
 
 /// The bytes the call stores: exactly one of a JSON value or canonical

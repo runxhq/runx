@@ -16,7 +16,7 @@ use runx_contracts::connector::stable_digest;
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::credentials::CredentialDelivery;
-use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
+use crate::kernel::operation::confirm::{Check, Driver, Observed, Unconfirmed, Unperformed};
 use crate::kernel::operation::{AdmittedCall, Tools};
 
 /// The native test's injected tool method. A result matches the exact
@@ -88,18 +88,15 @@ impl Driver for Process<'_> {
         })
     }
 
-    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed> {
         let Check::Readback {
             readback: 0,
             item: None,
         } = check
         else {
-            return Err(format!("the implementation declares no {check:?}"));
+            return Err(format!("the implementation declares no {check:?}").into());
         };
-        observed(
-            self.run("readback", Some(write))
-                .map_err(Unperformed::reason)?,
-        )
+        observed(self.run("readback", Some(write))?).map_err(Unconfirmed::from)
     }
 
     fn result(

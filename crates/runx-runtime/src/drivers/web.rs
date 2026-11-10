@@ -21,7 +21,7 @@ use crate::http::{
     RuntimeHttpTransport,
 };
 use crate::kernel::operation::AdmittedCall;
-use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
+use crate::kernel::operation::confirm::{Check, Driver, Observed, Unconfirmed, Unperformed};
 
 mod extract;
 mod policy;
@@ -96,8 +96,8 @@ impl Driver for Web<'_> {
         fetch(self.transport, self.call.env, self.call.arguments)
     }
 
-    fn check(&self, check: Check, _write: &JsonValue) -> Result<Observed, String> {
-        Err(format!("a web read has no {check:?}"))
+    fn check(&self, check: Check, _write: &JsonValue) -> Result<Observed, Unconfirmed> {
+        Err(format!("a web read has no {check:?}").into())
     }
 
     fn result(

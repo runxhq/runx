@@ -21,7 +21,9 @@ use crate::http::{
     HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
 use crate::kernel::operation::AdmittedCall;
-use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed, at_path};
+use crate::kernel::operation::confirm::{
+    Check, Driver, Observed, Unconfirmed, Unperformed, at_path,
+};
 use crate::kernel::operation::hosted::Gateway;
 
 pub(crate) mod auth;
@@ -215,7 +217,7 @@ impl Driver for Http<'_> {
         Ok(Observed { value, evidence })
     }
 
-    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed> {
         let (readback, responses, item) = match check {
             Check::Precondition(index) => (self.spec.preconditions.get(index), None, None),
             Check::Readback { readback, item } => (
@@ -244,12 +246,26 @@ impl Driver for Http<'_> {
                 responses.as_ref(),
                 None,
             )
-            .map_err(Unperformed::reason)?;
+            .map_err(Unconfirmed::from)?;
         let value = match readback.expected_status {
-            Some(_) => JsonValue::Object(JsonObject::from([(
-                STATUS_FIELD.to_owned(),
-                JsonValue::Number(JsonNumber::from(u64::from(response.status))),
-            )])),
+            // A status the provider answers with is compared; one that says
+            // it didn't answer the read leaves it unanswered.
+            Some(_) => {
+                if let Some(halted) = halted(&response, self.spec.rate_limit.as_ref()) {
+                    return Err(halted.into());
+                }
+                if response.status == 408 || response.status >= 500 {
+                    return Err(format!(
+                        "the provider did not answer the read (HTTP {})",
+                        response.status
+                    )
+                    .into());
+                }
+                JsonValue::Object(JsonObject::from([(
+                    STATUS_FIELD.to_owned(),
+                    JsonValue::Number(JsonNumber::from(u64::from(response.status))),
+                )]))
+            }
             None => decode(
                 &response,
                 readback.decode.as_deref().unwrap_or(&self.spec.decode),
@@ -1067,13 +1083,15 @@ mod tests {
                 ..
             })
         ));
-        let read = driver.check(
-            Check::Readback {
-                readback: 0,
-                item: Some(0),
-            },
-            &applied.value,
-        )?;
+        let read = driver
+            .check(
+                Check::Readback {
+                    readback: 0,
+                    item: Some(0),
+                },
+                &applied.value,
+            )
+            .map_err(Unconfirmed::reason)?;
         assert_eq!(
             at_path(&read.value, "title"),
             Some(&JsonValue::String("first".to_owned()))

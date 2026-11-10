@@ -1014,6 +1014,9 @@ impl Dispatched {
     }
 }
 
+/// The code custody settles a contradicted attempt with.
+const CONTRADICTED: &str = "readback_contradicted";
+
 /// How a placement failed.
 #[derive(Debug)]
 pub(crate) enum Failure {
@@ -1030,6 +1033,20 @@ pub(crate) enum Failure {
     Unknown(String),
     /// The write was acknowledged and its readback did not complete.
     ReadbackPending(String),
+    /// A checking read answered and contradicts what was asked: definite,
+    /// and the call may have executed.
+    Contradicted(crate::error::Contradiction),
+}
+
+impl Failure {
+    fn reason(self) -> String {
+        match self {
+            Self::Rejected { reason, .. }
+            | Self::Unknown(reason)
+            | Self::ReadbackPending(reason) => reason,
+            Self::Contradicted(contradiction) => contradiction.reason(),
+        }
+    }
 }
 
 /// Execute a prepared operation step. `dispatched` records the invocation
@@ -1185,7 +1202,7 @@ pub(crate) fn execute(
                 mutation: context.mutation(),
                 idempotency_key: provider_key.as_deref(),
             })
-            .map_err(Failure::Unknown)?;
+            .map_err(|unconfirmed| unconfirmed.failure(Failure::Unknown))?;
         let produced = effects(context, &readback.result).map_err(Failure::Unknown)?;
         Ok((readback, produced))
     });
@@ -1257,6 +1274,39 @@ pub(crate) fn execute(
                 });
             }
             Err(read_failure(context, step_id, reason))
+        }
+        // The provider holds what it states, so the attempt settles, keeping
+        // what it may have used or charged, even when it recovers an earlier
+        // one, and no retry is offered.
+        Err(Failure::Contradicted(contradiction)) => {
+            if let Some(custody) = &context.admitted.custody {
+                let spend = admitted
+                    .spend
+                    .as_ref()
+                    .map(|spending| {
+                        spend::settle(custody.store(), &spending.run_id, &spending.spend_key)
+                    })
+                    .transpose()
+                    .map_err(|error| {
+                        RuntimeError::effect_state("recording the contradiction", error.to_string())
+                    })?
+                    .flatten();
+                custody
+                    .rejected(
+                        CONTRADICTED.to_owned(),
+                        &admitted.usage_covers,
+                        false,
+                        spend,
+                    )
+                    .map_err(|error| {
+                        RuntimeError::effect_state("recording the contradiction", error.to_string())
+                    })?;
+            }
+            Err(RuntimeError::ProviderReadbackContradicted {
+                plan_digest: intent_digest,
+                idempotency_key: provider_key.unwrap_or_default(),
+                contradiction,
+            })
         }
         Err(Failure::Unknown(reason) | Failure::ReadbackPending(reason))
             if context.admitted.custody.is_some() =>
@@ -1377,15 +1427,10 @@ fn signed_in(
     let (principal_uri, login) = match cached {
         Some(principal_uri) => (principal_uri, None),
         None => {
-            let transport =
-                context
-                    .placements
-                    .declared_hosts(env)
-                    .map_err(|failure| match failure {
-                        Failure::Rejected { reason, .. }
-                        | Failure::Unknown(reason)
-                        | Failure::ReadbackPending(reason) => reason,
-                    })?;
+            let transport = context
+                .placements
+                .declared_hosts(env)
+                .map_err(Failure::reason)?;
             let principal = session.principal(&token, transport.as_ref())?;
             let principal_uri = principal.principal_uri(manifest.name.as_str());
             context
@@ -1644,16 +1689,26 @@ fn dispatch(
             confirm::run(&driver, &call, &checks, recovery, &mut record)
         }
     };
-    outcome.map_err(|mut failure| {
-        if let Some(secret) = &secret {
-            let reason = match &mut failure {
-                Failure::Rejected { reason, .. }
-                | Failure::Unknown(reason)
-                | Failure::ReadbackPending(reason) => reason,
-            };
-            *reason = secret.scrub_text(std::mem::take(reason));
-        }
-        failure
+    outcome.map_err(|failure| match &secret {
+        Some(secret) => match failure {
+            Failure::Rejected {
+                status,
+                code,
+                reason,
+                release,
+            } => Failure::Rejected {
+                status,
+                code,
+                reason: secret.scrub_text(reason),
+                release,
+            },
+            Failure::Unknown(reason) => Failure::Unknown(secret.scrub_text(reason)),
+            Failure::ReadbackPending(reason) => Failure::ReadbackPending(secret.scrub_text(reason)),
+            Failure::Contradicted(contradiction) => {
+                Failure::Contradicted(contradiction.scrub(secret))
+            }
+        },
+        None => failure,
     })
 }
 

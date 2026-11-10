@@ -17,6 +17,72 @@ pub struct ContextEdgeUnresolvedError {
     available_keys: Vec<String>,
 }
 
+/// A field a checking read states with another value than the call asked:
+/// what was asked of it, and what the provider holds there.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Mismatch {
+    pub field: String,
+    pub asked: JsonValue,
+    pub held: JsonValue,
+}
+
+/// A checking read that answered and contradicts what the call asked, in
+/// every field it contradicts. The outcome is definite: the provider holds
+/// what it states, so the call settles failed, naming what it holds for a
+/// person to clean up, and no retry is offered.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Contradiction {
+    pub mismatches: Vec<Mismatch>,
+}
+
+impl std::fmt::Display for Contradiction {
+    /// Each field, what the provider holds there and what was asked.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let shown = |value: &JsonValue| {
+            runx_contracts::canonical_stable_json(value)
+                .unwrap_or_else(|_| "an unprintable value".to_owned())
+        };
+        for (index, mismatch) in self.mismatches.iter().enumerate() {
+            if index > 0 {
+                formatter.write_str("; ")?;
+            }
+            write!(
+                formatter,
+                "{} holds {} where {} was asked",
+                mismatch.field,
+                shown(&mismatch.held),
+                shown(&mismatch.asked)
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl Contradiction {
+    pub(crate) fn reason(&self) -> String {
+        format!("the read contradicts the call: {self}")
+    }
+
+    /// The contradiction with a presented credential removed from what it
+    /// names.
+    pub(crate) fn scrub(
+        self,
+        secret: &crate::kernel::operation::credentials::CredentialSecret,
+    ) -> Self {
+        Self {
+            mismatches: self
+                .mismatches
+                .into_iter()
+                .map(|mismatch| Mismatch {
+                    field: secret.scrub_text(mismatch.field),
+                    asked: secret.scrub(mismatch.asked),
+                    held: secret.scrub(mismatch.held),
+                })
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum RuntimeError {
     #[error("runtime I/O failed while {context}: {source}")]
@@ -180,6 +246,18 @@ pub enum RuntimeError {
         http_status: u16,
         reason: String,
     },
+    /// A checking read answered and contradicts what the call asked: a
+    /// definite outcome, whatever the provider applied. It names each field,
+    /// what was asked and what the provider holds, for a person to clean up,
+    /// and offers no retry.
+    #[error(
+        "provider read-back contradicts the call for plan {plan_digest} with idempotency key {idempotency_key}: {contradiction}"
+    )]
+    ProviderReadbackContradicted {
+        plan_digest: String,
+        idempotency_key: String,
+        contradiction: Contradiction,
+    },
     #[error("skill '{skill_name}' failed: {message}")]
     SkillFailed { skill_name: String, message: String },
     #[cfg(feature = "agent")]
@@ -291,6 +369,7 @@ impl RuntimeError {
             | Self::JavaScriptWorker { .. }
             | Self::CredentialDelivery(_)
             | Self::ProviderEffectRejected { .. }
+            | Self::ProviderReadbackContradicted { .. }
             | Self::SkillFailed { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
@@ -378,6 +457,32 @@ impl RuntimeError {
                 );
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
+            }
+            Self::ProviderReadbackContradicted { contradiction, .. } => {
+                projection.insert(
+                    "code".to_owned(),
+                    JsonValue::String("provider_readback_contradicted".to_owned()),
+                );
+                projection.insert("retryable".to_owned(), JsonValue::Bool(false));
+                projection.insert(
+                    "mismatches".to_owned(),
+                    JsonValue::Array(
+                        contradiction
+                            .mismatches
+                            .iter()
+                            .map(|mismatch| {
+                                JsonValue::Object(JsonObject::from([
+                                    (
+                                        "field".to_owned(),
+                                        JsonValue::String(mismatch.field.clone()),
+                                    ),
+                                    ("asked".to_owned(), mismatch.asked.clone()),
+                                    ("held".to_owned(), mismatch.held.clone()),
+                                ]))
+                            })
+                            .collect(),
+                    ),
+                );
             }
             Self::AuthorityDenied {
                 verb,

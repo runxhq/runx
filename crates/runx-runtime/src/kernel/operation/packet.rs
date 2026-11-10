@@ -9,6 +9,8 @@ use runx_contracts::{JsonObject, JsonValue, ProviderOperationPacket};
 use serde::{Deserialize, Serialize};
 
 use super::call::ResultShape;
+use super::confirm::Unconfirmed;
+use crate::error::{Contradiction, Mismatch};
 
 /// A placement's evidence for one call.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -55,24 +57,48 @@ pub(crate) struct Seal<'a> {
 }
 
 impl Readback {
-    /// Check the readback against the admitted call.
-    pub(crate) fn verify(&self, expected: &Expected<'_>) -> Result<(), String> {
-        if self.provider != expected.connector {
-            return Err(format!("the readback names provider {:?}", self.provider));
-        }
-        if self.operation != expected.operation || self.target != expected.target {
-            return Err("the readback does not match the admitted operation and target".to_owned());
+    /// Check the readback against the admitted call. A provider, operation,
+    /// target or key it states other than the call's contradicts the call;
+    /// one it leaves out doesn't answer it.
+    pub(crate) fn verify(&self, expected: &Expected<'_>) -> Result<(), Unconfirmed> {
+        let key = expected.idempotency_key;
+        let mismatches = [
+            (
+                "provider",
+                Some(expected.connector),
+                Some(self.provider.as_str()),
+            ),
+            (
+                "operation",
+                Some(expected.operation),
+                Some(self.operation.as_str()),
+            ),
+            ("target", Some(expected.target), Some(self.target.as_str())),
+            ("idempotency_key", key, self.idempotency_key.as_deref()),
+        ]
+        .into_iter()
+        .filter_map(|(field, asked, held)| match (asked, held) {
+            (Some(asked), Some(held)) if asked != held => Some(Mismatch {
+                field: field.to_owned(),
+                asked: JsonValue::String(asked.to_owned()),
+                held: JsonValue::String(held.to_owned()),
+            }),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+        if !mismatches.is_empty() {
+            return Err(Unconfirmed::Contradicted(Contradiction { mismatches }));
         }
         if self.readback_uri.trim().is_empty() {
-            return Err("the readback carries no evidence reference".to_owned());
+            return Err("the readback carries no evidence reference".into());
         }
-        if let Some(key) = expected.idempotency_key {
+        if key.is_some() {
             if expected.mutation && self.operation_id.as_deref().is_none_or(str::is_empty) {
-                return Err("the mutation was not acknowledged with an operation id".to_owned());
+                return Err("the mutation was not acknowledged with an operation id".into());
             }
-            if self.idempotency_key.as_deref() != Some(key) {
+            if self.idempotency_key.is_none() {
                 return Err(
-                    "the acknowledgement does not carry the admitted idempotency key".to_owned(),
+                    "the acknowledgement does not carry the admitted idempotency key".into(),
                 );
             }
         }

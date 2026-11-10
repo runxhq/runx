@@ -92,6 +92,9 @@ struct Provider {
     /// The principal the artifact space states it stored for, when not the
     /// authenticated one.
     artifact_owner: Arc<Mutex<Option<String>>>,
+    /// The principal the artifact space states reading an artifact back,
+    /// when not the one it stored for.
+    inspected_owner: Arc<Mutex<Option<String>>>,
     /// What the artifact space holds, by reference.
     artifacts: Arc<Mutex<BTreeMap<String, serde_json::Value>>>,
 }
@@ -104,6 +107,7 @@ impl Provider {
             grants: Arc::new(Mutex::new(Vec::new())),
             principal: Arc::new(Mutex::new(PRINCIPAL_ID.to_owned())),
             artifact_owner: Arc::new(Mutex::new(None)),
+            inspected_owner: Arc::new(Mutex::new(None)),
             artifacts: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
@@ -143,11 +147,12 @@ impl Provider {
                 (reference, result)
             }
         };
-        let owner = self
-            .artifact_owner
-            .lock()
-            .unwrap()
-            .clone()
+        let inspected = match operation {
+            "artifact.allocate" => None,
+            _ => self.inspected_owner.lock().unwrap().clone(),
+        };
+        let owner = inspected
+            .or_else(|| self.artifact_owner.lock().unwrap().clone())
             .unwrap_or_else(|| self.principal.lock().unwrap().clone());
         let mut packet = serde_json::json!({
             "schema": "runx.provider.operation.v1",
@@ -1982,13 +1987,23 @@ fn a_partial_read_keeps_its_possible_charge_even_when_the_later_request_is_refus
 }
 
 #[test]
-fn a_readback_naming_another_provider_is_an_unknown_outcome() {
+fn a_readback_naming_another_provider_settles_failed_and_names_it() {
     let fixture = Fixture::new(&["channel.post"]);
     fixture.provider.answer(Answer::WrongProvider);
     let error = fixture
         .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
-        .expect_err("unknown");
-    assert!(error.contains("names provider"), "{error}");
+        .expect_err("contradicted");
+    assert!(
+        error.contains(r#"provider holds "fixture/forge" where "fixture/chat" was asked"#),
+        "{error}"
+    );
+    assert!(!error.contains("unknown"), "{error}");
+    // Settled: nothing is held for a retry, so the next attempt starts fresh.
+    fixture.provider.answer(Answer::Succeed);
+    fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect("starts fresh");
+    assert_eq!(fixture.provider.calls(), 2);
 }
 
 #[test]
@@ -2977,6 +2992,30 @@ fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
         )
         .expect_err("held");
     assert!(error.contains("another principal"), "{error}");
+}
+
+#[test]
+fn an_artifact_read_back_for_another_principal_settles_failed_and_names_it() {
+    let mut fixture = Fixture::new(&[]);
+    fixture.env.insert(
+        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        "run-1".to_owned(),
+    );
+    *fixture.provider.inspected_owner.lock().unwrap() = Some("someone-else".to_owned());
+    let error = fixture
+        .run(
+            "allocate",
+            &allocation(serde_json::json!({"answer": 42})),
+            None,
+        )
+        .expect_err("contradicted");
+    assert!(
+        error.contains(&format!(
+            r#"principal_uri holds "runx:principal:someone-else" where "{PRINCIPAL_REF}" was asked"#
+        )),
+        "{error}"
+    );
+    assert!(!error.contains("unknown"), "{error}");
 }
 
 #[test]

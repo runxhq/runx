@@ -6,9 +6,12 @@
 //! in custody before anything is read back, every confirming read must match
 //! the acknowledged write, a write that may have reached the provider is
 //! never reported as refused, and a write's evidence is its confirming reads,
-//! never its own answer. A write the provider cannot read back declares no
-//! readbacks: its evidence is its recorded acknowledgement, which the receipt
-//! seals as evidence of the effect, never as its finality.
+//! never its own answer. A confirming read that answers and contradicts what
+//! was asked settles the call failed, naming what the provider holds; one
+//! that doesn't answer leaves the outcome unknown. A write the provider
+//! cannot read back declares no readbacks: its evidence is its recorded
+//! acknowledgement, which the receipt seals as evidence of the effect, never
+//! as its finality.
 //!
 //! A repeated write is one approved call over an exact list of items. Each
 //! item's outcome is recorded as it lands, a refused item does not stop the
@@ -24,6 +27,7 @@ use runx_contracts::{JsonObject, JsonValue, canonical_stable_json, sha256_prefix
 use super::credentials::CredentialSecret;
 use super::packet::Readback;
 use super::{AdmittedCall, Failure};
+use crate::error::{Contradiction, Mismatch};
 use crate::kernel::custody::Acknowledgement;
 
 /// What a driver saw performing a request: the decoded value and the digest
@@ -72,6 +76,52 @@ impl Unperformed {
     }
 }
 
+/// Why a checking read didn't confirm the call.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Unconfirmed {
+    /// It answered, and contradicts what was asked.
+    Contradicted(Contradiction),
+    /// It didn't answer what was asked: a timeout, a lost connection, a
+    /// provider error, or an answer that states nothing where the call is
+    /// compared. The outcome stays unknown.
+    Unanswered(String),
+}
+
+impl From<String> for Unconfirmed {
+    fn from(reason: String) -> Self {
+        Self::Unanswered(reason)
+    }
+}
+
+impl From<&str> for Unconfirmed {
+    fn from(reason: &str) -> Self {
+        Self::Unanswered(reason.to_owned())
+    }
+}
+
+impl From<Unperformed> for Unconfirmed {
+    fn from(unperformed: Unperformed) -> Self {
+        Self::Unanswered(unperformed.reason())
+    }
+}
+
+impl Unconfirmed {
+    /// The call's failure: settled for a contradiction, else `unanswered`.
+    pub(crate) fn failure(self, unanswered: impl FnOnce(String) -> Failure) -> Failure {
+        match self {
+            Self::Contradicted(contradiction) => Failure::Contradicted(contradiction),
+            Self::Unanswered(reason) => unanswered(reason),
+        }
+    }
+
+    pub(crate) fn reason(self) -> String {
+        match self {
+            Self::Contradicted(contradiction) => contradiction.reason(),
+            Self::Unanswered(reason) => reason,
+        }
+    }
+}
+
 /// One of the reads the kernel checks around a call.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Check {
@@ -114,8 +164,9 @@ pub(crate) trait Driver {
     fn perform(&self, item: Option<usize>) -> Result<Observed, Unperformed>;
 
     /// One checking read. A readback sees the acknowledged `write`; a
-    /// precondition sees null.
-    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String>;
+    /// precondition sees null. A read that answers with what contradicts the
+    /// call in what the driver itself compares reports it as contradicted.
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed>;
 
     /// The operation's result and the provider's id for it, from the
     /// acknowledgement and what confirmed it.
@@ -198,11 +249,17 @@ impl Driver for Custody<'_> {
             })
     }
 
-    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed> {
         self.driver
             .check(check, write)
             .map(|observed| self.observed(observed))
-            .map_err(|reason| self.text(reason))
+            .map_err(|unconfirmed| match (unconfirmed, self.credential) {
+                (Unconfirmed::Contradicted(contradiction), Some(secret)) => {
+                    Unconfirmed::Contradicted(contradiction.scrub(secret))
+                }
+                (Unconfirmed::Unanswered(reason), _) => Unconfirmed::Unanswered(self.text(reason)),
+                (contradicted, None) => contradicted,
+            })
     }
 
     fn result(
@@ -353,9 +410,10 @@ fn once(
                 },
                 &write,
             )
-            .map_err(Failure::ReadbackPending)?;
-        verify(matches, call.arguments, None, &write, &observed.value)
-            .map_err(Failure::ReadbackPending)?;
+            .and_then(|observed| {
+                verify(matches, call.arguments, None, &write, &observed.value).map(|()| observed)
+            })
+            .map_err(|unconfirmed| unconfirmed.failure(Failure::ReadbackPending))?;
         evidence.extend(observed.evidence);
         confirmed.push(observed.value);
     }
@@ -480,15 +538,17 @@ fn repeated(
                     },
                     applied,
                 )
-                .map_err(Failure::ReadbackPending)?;
-            verify(
-                matches,
-                call.arguments,
-                items.get(index),
-                applied,
-                &observed.value,
-            )
-            .map_err(Failure::ReadbackPending)?;
+                .and_then(|observed| {
+                    verify(
+                        matches,
+                        call.arguments,
+                        items.get(index),
+                        applied,
+                        &observed.value,
+                    )
+                    .map(|()| observed)
+                })
+                .map_err(|unconfirmed| unconfirmed.failure(Failure::ReadbackPending))?;
             evidence.extend(observed.evidence);
             confirmed.push(observed.value);
         }
@@ -514,10 +574,10 @@ fn preconditions(
                     &observed.value,
                 )
             })
-            .map_err(|reason| Failure::Rejected {
+            .map_err(|unconfirmed| Failure::Rejected {
                 status: 0,
                 code: "precondition_failed".to_owned(),
-                reason,
+                reason: unconfirmed.reason(),
                 // A timed-out read may still have been charged, and a failed
                 // check does not say otherwise, so a priced call keeps its spend.
                 release: !may_charge,
@@ -565,73 +625,115 @@ fn acknowledgement(write_result: JsonValue) -> Acknowledgement {
 }
 
 /// A confirming read matches the acknowledged write, the arguments the call
-/// was approved with and, for a repeated write, the item it was sent for.
+/// was approved with and, for a repeated write, the item it was sent for. A
+/// field it states with another value contradicts the call, whatever else
+/// can't be compared.
 fn verify(
     matches: &[ReadbackMatch],
     arguments: &JsonValue,
     item: Option<&JsonValue>,
     write: &JsonValue,
     observed: &JsonValue,
-) -> Result<(), String> {
+) -> Result<(), Unconfirmed> {
     let responses = std::cell::OnceCell::new();
+    let mut mismatches = Vec::new();
+    let mut unanswered = None;
     for binding in matches {
-        let calculated;
-        let expected = match &binding.expected {
-            ReadbackExpected::Acknowledgement { path } => at_path(write, path)
-                .filter(|value| !matches!(value, JsonValue::Null))
-                .ok_or("the acknowledgement identity is missing")?,
-            ReadbackExpected::Argument { path } => match at_path(arguments, path) {
-                Some(value) => value,
-                None => continue,
-            },
-            ReadbackExpected::Item { path } => {
-                let item = item.ok_or("an item match needs a repeated write")?;
-                match at_path(item, path) {
-                    Some(value) => value,
-                    None => continue,
-                }
+        match compare(binding, &responses, arguments, item, write, observed) {
+            Ok(()) => {}
+            Err(Unconfirmed::Contradicted(contradiction)) => {
+                mismatches.extend(contradiction.mismatches);
             }
-            ReadbackExpected::Literal { value } => value,
-            ReadbackExpected::Template { value } => {
-                let responses = responses.get_or_init(|| {
-                    std::collections::BTreeMap::from([(
-                        "write".to_owned(),
-                        JsonObject::from([("json".to_owned(), write.clone())]),
-                    )])
-                });
-                calculated = value
-                    .render(&runx_contracts::connector::TemplateInputs {
-                        arguments: Some(arguments),
-                        responses: Some(responses),
-                        ..runx_contracts::connector::TemplateInputs::default()
-                    })
-                    .map_err(|_| "the readback's expected terms cannot be resolved")?;
-                &calculated
+            Err(Unconfirmed::Unanswered(reason)) => {
+                unanswered.get_or_insert(reason);
             }
-        };
-        if !observed_matches(observed, &binding.observed, expected) {
-            return Err("the readback does not match the acknowledged write".to_owned());
         }
+    }
+    match (mismatches.is_empty(), unanswered) {
+        (false, _) => Err(Unconfirmed::Contradicted(Contradiction { mismatches })),
+        (true, Some(reason)) => Err(Unconfirmed::Unanswered(reason)),
+        (true, None) => Ok(()),
+    }
+}
+
+/// One match of a confirming read.
+fn compare(
+    binding: &ReadbackMatch,
+    responses: &std::cell::OnceCell<std::collections::BTreeMap<String, JsonObject>>,
+    arguments: &JsonValue,
+    item: Option<&JsonValue>,
+    write: &JsonValue,
+    observed: &JsonValue,
+) -> Result<(), Unconfirmed> {
+    let calculated;
+    let expected = match &binding.expected {
+        ReadbackExpected::Acknowledgement { path } => at_path(write, path)
+            .filter(|value| !matches!(value, JsonValue::Null))
+            .ok_or("the acknowledgement identity is missing")?,
+        ReadbackExpected::Argument { path } => match at_path(arguments, path) {
+            Some(value) => value,
+            None => return Ok(()),
+        },
+        ReadbackExpected::Item { path } => {
+            let item = item.ok_or("an item match needs a repeated write")?;
+            match at_path(item, path) {
+                Some(value) => value,
+                None => return Ok(()),
+            }
+        }
+        ReadbackExpected::Literal { value } => value,
+        ReadbackExpected::Template { value } => {
+            let responses = responses.get_or_init(|| {
+                std::collections::BTreeMap::from([(
+                    "write".to_owned(),
+                    JsonObject::from([("json".to_owned(), write.clone())]),
+                )])
+            });
+            calculated = value
+                .render(&runx_contracts::connector::TemplateInputs {
+                    arguments: Some(arguments),
+                    responses: Some(responses),
+                    ..runx_contracts::connector::TemplateInputs::default()
+                })
+                .map_err(|_| "the readback's expected terms cannot be resolved")?;
+            &calculated
+        }
+    };
+    let path = binding.observed.as_str();
+    let held =
+        held_at(observed, path).ok_or_else(|| format!("the readback states nothing at {path}"))?;
+    if !holds(&held, path, expected) {
+        return Err(Unconfirmed::Contradicted(Contradiction {
+            mismatches: vec![Mismatch {
+                field: path.to_owned(),
+                asked: expected.clone(),
+                held,
+            }],
+        }));
     }
     Ok(())
 }
 
-/// Whether the value at an observed path is `expected`. A `*` segment maps
-/// over an array, and the values it gathers compare with `expected` as a set,
-/// as a provider returns labels as objects in its own order. A path that
-/// passes through null is null, as a cleared field reads back.
-fn observed_matches(observed: &JsonValue, path: &str, expected: &JsonValue) -> bool {
-    let segments = path.split('.').collect::<Vec<_>>();
-    match project(observed, &segments) {
-        Some(found) if segments.contains(&"*") => match (found, expected) {
-            (JsonValue::Array(found), JsonValue::Array(expected)) => {
-                as_set(&found) == as_set(expected)
+/// What a read states at an observed path. A `*` segment maps over an
+/// array, and a path that passes through null is null, as a cleared field
+/// reads back.
+fn held_at(observed: &JsonValue, path: &str) -> Option<JsonValue> {
+    project(observed, &path.split('.').collect::<Vec<_>>())
+}
+
+/// Whether what a read states at `path` is `expected`. The values a `*`
+/// segment gathers compare with `expected` as a set, as a provider returns
+/// labels as objects in its own order.
+fn holds(held: &JsonValue, path: &str, expected: &JsonValue) -> bool {
+    if path.split('.').any(|segment| segment == "*") {
+        return match (held, expected) {
+            (JsonValue::Array(held), JsonValue::Array(expected)) => {
+                as_set(held) == as_set(expected)
             }
             _ => false,
-        },
-        Some(found) => &found == expected,
-        None => false,
+        };
     }
+    held == expected
 }
 
 fn project(value: &JsonValue, segments: &[&str]) -> Option<JsonValue> {
@@ -694,6 +796,10 @@ mod tests {
 
     use super::super::Sealed;
     use super::*;
+
+    fn observed_matches(observed: &JsonValue, path: &str, expected: &JsonValue) -> bool {
+        held_at(observed, path).is_some_and(|held| holds(&held, path, expected))
+    }
 
     #[test]
     fn structured_relationships_bind_the_original_resource_independently_of_link_order() {
@@ -762,7 +868,7 @@ mod tests {
             (self.answer)()
         }
 
-        fn check(&self, _check: Check, _write: &JsonValue) -> Result<Observed, String> {
+        fn check(&self, _check: Check, _write: &JsonValue) -> Result<Observed, Unconfirmed> {
             Ok(Observed {
                 value: self.observed.clone(),
                 evidence: vec!["sha256:read".to_owned()],
@@ -1036,15 +1142,28 @@ mod tests {
             )
             .is_ok()
         );
-        assert!(
+        assert!(matches!(
             verify(
                 &[title("title")],
                 &arguments,
                 None,
                 &JsonValue::Null,
                 &observed("other")
-            )
-            .is_err()
+            ),
+            Err(Unconfirmed::Contradicted(_))
+        ));
+        assert!(
+            matches!(
+                verify(
+                    &[title("title")],
+                    &arguments,
+                    None,
+                    &JsonValue::Null,
+                    &JsonValue::Object(JsonObject::new())
+                ),
+                Err(Unconfirmed::Unanswered(_))
+            ),
+            "a read that states nothing at the field doesn't answer it"
         );
         assert!(
             verify(
@@ -1138,7 +1257,23 @@ mod tests {
             )
         });
         assert_eq!(recorded.borrow().as_slice(), &[id("m-1")]);
-        assert!(matches!(outcome, Err(Failure::ReadbackPending(_))));
+        let contradiction = match outcome {
+            Err(Failure::Contradicted(contradiction)) => Some(contradiction),
+            _ => None,
+        }
+        .expect("a readback holding another id contradicts the write");
+        assert_eq!(
+            contradiction.mismatches,
+            [Mismatch {
+                field: "id".to_owned(),
+                asked: JsonValue::String("m-1".to_owned()),
+                held: JsonValue::String("m-2".to_owned()),
+            }]
+        );
+        assert_eq!(
+            contradiction.to_string(),
+            r#"id holds "m-2" where "m-1" was asked"#
+        );
     }
 
     /// Items `a`, `b` and `c`, where the provider refuses `b`, or rate limits
@@ -1179,7 +1314,7 @@ mod tests {
             }
         }
 
-        fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+        fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed> {
             assert!(matches!(check, Check::Readback { item: Some(_), .. }));
             Ok(Observed {
                 value: write.clone(),

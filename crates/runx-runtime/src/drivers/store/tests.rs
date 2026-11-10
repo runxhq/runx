@@ -8,7 +8,7 @@ use runx_contracts::{JsonObject, JsonValue};
 use super::Store;
 use crate::identity::ChainLink;
 use crate::kernel::operation::AdmittedCall;
-use crate::kernel::operation::confirm::{Check, Driver};
+use crate::kernel::operation::confirm::{Check, Driver, Unconfirmed};
 
 /// The package the scenario's calls are made from.
 const OWNER: &str = "project:board";
@@ -110,6 +110,7 @@ impl Test {
                         &observed.value,
                     )
                     .map(|observed| observed.value)
+                    .map_err(Unconfirmed::reason)
             })
             .transpose()?;
         let (result, operation_id) = driver.result(&observed.value, &[])?;

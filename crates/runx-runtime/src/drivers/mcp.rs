@@ -34,7 +34,7 @@ use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 use crate::credentials::SecretTaint;
 use crate::http::{ReqwestHttpTransport, RuntimeHttpHeader};
 use crate::kernel::operation::AdmittedCall;
-use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
+use crate::kernel::operation::confirm::{Check, Driver, Observed, Unconfirmed, Unperformed};
 use stdio::{StdioServerProcess, start_stdio_server};
 
 /// Open sessions, one per server, credential and headers; in the test,
@@ -497,7 +497,7 @@ impl Driver for Mcp<'_> {
             .call(self.spec.tool.as_str(), &arguments, self.call.mutation())
     }
 
-    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
+    fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed> {
         let (
             Check::Readback {
                 readback: 0,
@@ -506,7 +506,7 @@ impl Driver for Mcp<'_> {
             Some(readback),
         ) = (check, &self.spec.readback)
         else {
-            return Err(format!("the implementation declares no {check:?}"));
+            return Err(format!("the implementation declares no {check:?}").into());
         };
         let responses = BTreeMap::from([(
             "write".to_owned(),
@@ -521,7 +521,7 @@ impl Driver for Mcp<'_> {
             .map_err(|error| error.to_string())?;
         self.session
             .call(readback.tool.as_str(), &arguments, false)
-            .map_err(Unperformed::reason)
+            .map_err(Unconfirmed::from)
     }
 
     fn result(

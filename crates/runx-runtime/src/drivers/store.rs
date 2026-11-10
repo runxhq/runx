@@ -39,7 +39,7 @@ use runx_contracts::connector::{ReadbackExpected, ReadbackMatch};
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 
 use crate::kernel::operation::AdmittedCall;
-use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
+use crate::kernel::operation::confirm::{Check, Driver, Observed, Unconfirmed, Unperformed};
 
 mod model;
 #[cfg(feature = "store")]
@@ -525,13 +525,13 @@ impl Driver for Store<'_> {
             .map_err(StoreError::unperformed)
     }
 
-    fn check(&self, check: Check, _write: &JsonValue) -> Result<Observed, String> {
+    fn check(&self, check: Check, _write: &JsonValue) -> Result<Observed, Unconfirmed> {
         match check {
             Check::Readback { .. } => self
                 .landed()
                 .map(observed)
-                .map_err(|error| error.to_string()),
-            Check::Precondition(_) => Err("a store call has no precondition".to_owned()),
+                .map_err(|error| error.to_string().into()),
+            Check::Precondition(_) => Err("a store call has no precondition".into()),
         }
     }
 
