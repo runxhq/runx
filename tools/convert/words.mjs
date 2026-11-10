@@ -258,20 +258,62 @@ export function markdownCode(text) {
 // closure is its closure, and an agent's unit of work is its turn, where an
 // act stays what a call is told to do. A phrase is never code, so it renames
 // wherever it's written, but in a Markdown code span, which quotes code.
-const PHRASE = /\b([Aa])n (execution closure|agent act)(?![a-z])|\b([Ee])xecution closure|\b([Aa])gent act(s?)(?![a-z])/g;
+const EXECUTION_CLOSURE = /\b([Aa])n execution closure(?![a-z])|\b([Ee])xecution closure/g;
+const AGENT_ACT = /(?<![A-Za-z])([Aa])gent act('s|s)?(?![A-Za-z])/g;
+
+// "Agent act" is a turn only where act is the noun. "An agent acts" is an
+// agent who acts, so a phrase renames only where the word before it settles
+// which: a determiner of one before "agent act", unless a verb such as let
+// makes act a verb again; a possessive; and before "agent acts", a
+// preposition, a determiner of more than one, a count or a sentence's start.
+// Anything else, such as "the agent acts", stays as written.
+const ONE = new Set(["a", "an", "the", "each", "every", "this", "that", "one", "any", "another", "no", "its", "their", "his", "her", "our", "your", "my", "whose", "which", "what", "1"]);
+const MAKES_ACT_A_VERB = new Set(["let", "lets", "letting", "make", "makes", "made", "making", "help", "helps", "helped", "helping", "have", "has", "had", "watch", "watches", "watched", "see", "sees", "saw"]);
+const MORE = new Set(["these", "those", "all", "many", "some", "several", "few", "both", "other", "such", "more", "most", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]);
+const BEFORE_A_NOUN = new Set(["for", "of", "with", "by", "in", "into", "to", "from", "between", "across", "about", "on", "over", "through", "per", "among", "without", "under", "after", "before", "during", "via", "than"]);
+
+/** Where `at` starts a turn in place of an agent act, and what replaces it there; none where act may be a verb. */
+function agentActTurn(text, at, agent, ending) {
+  const before = text.slice(Math.max(0, at - 160), at);
+  const words = before.match(/(?:(\S+)\s+)?(\S+)(\s+)$/);
+  const previous = words?.[2] ?? "";
+  const word = previous.toLowerCase();
+  const turn = `${agent === "A" ? "T" : "t"}urn`;
+  if (ending === "'s") return { from: at, to: `${turn}'s` };
+  if (ending === "s") {
+    const opens = !words ? /(^|\n)\s*$/.test(before) && agent === "A" : /[.!?:]$|^(-|\*|\+|>|#+)$/.test(previous) && agent === "A";
+    const counted = /^\d+$/.test(word) || /^\$?\{[^}]*\}$/.test(previous);
+    return BEFORE_A_NOUN.has(word) || MORE.has(word) || counted || opens ? { from: at, to: `${turn}s` } : undefined;
+  }
+  if (!words || !ONE.has(word) || MAKES_ACT_A_VERB.has((words[1] ?? "").toLowerCase())) return undefined;
+  // An article before a turn is a, as the article before a consonant.
+  if (word === "a" || word === "an") return { from: at - previous.length - words[3].length, to: `${previous[0]} turn` };
+  return { from: at, to: turn };
+}
 
 /** `text` with its retired phrases renamed outside `kept`, and how many were. */
 export function renamePhrases(file, text, kept) {
   const spans = [...(file.endsWith(".md") ? markdownCode(text) : []), ...kept];
-  let count = 0;
-  const out = text.replace(PHRASE, (match, article, phrase, closure, agent, plural, at) => {
-    if (spans.some(([from, to]) => at >= from && at < to)) return match;
-    count += 1;
-    if (article) return phrase === "agent act" ? `${article === "A" ? "A" : "a"} turn` : `${article} closure`;
-    if (closure) return closure === "E" ? "Closure" : "closure";
-    return `${agent === "A" ? "T" : "t"}urn${plural}`;
-  });
-  return { text: out, count };
+  const outside = (at) => !spans.some(([from, to]) => at >= from && at < to);
+  const edits = [];
+  for (const match of text.matchAll(EXECUTION_CLOSURE)) {
+    if (!outside(match.index)) continue;
+    const [phrase, article, closure] = match;
+    edits.push({ from: match.index, end: match.index + phrase.length, to: article ? `${article} closure` : closure === "E" ? "Closure" : "closure" });
+  }
+  for (const match of text.matchAll(AGENT_ACT)) {
+    if (!outside(match.index)) continue;
+    const turn = agentActTurn(text, match.index, match[1], match[2]);
+    if (turn) edits.push({ from: turn.from, end: match.index + match[0].length, to: turn.to });
+  }
+  edits.sort((left, right) => left.from - right.from);
+  let out = "";
+  let at = 0;
+  for (const edit of edits) {
+    out += text.slice(at, edit.from) + edit.to;
+    at = edit.end;
+  }
+  return { text: out + text.slice(at), count: edits.length };
 }
 
 // A bare form of a retired word, in any case, and the word it is.

@@ -34,6 +34,9 @@ const EXECUTION_CLOSURE = /(?<![A-Za-z])execution[ _-]?[Cc]losures?(?![a-z])|Exe
 // An agent's unit of work is its turn; an act is what a call is told to do.
 // A count of acts beside an agent, as a summary prints it, is a count of turns.
 const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])|(?<![A-Za-z])[Aa]gent: (?:\{\}|\d+) act(?:s|\(s\))?(?![a-z])/g;
+// "An agent acts" is an agent who acts: after a determiner of one, acts is
+// the verb, which the rename leaves as written.
+const AGENT_WHO_ACTS = /\b(?:an?|each|every|this|that|one|another|no)\s+agent acts$/i;
 const SIGNED = /"signature"\s*:/;
 
 const table = new URL("./identifiers.tsv", import.meta.url);
@@ -109,6 +112,7 @@ function main([root, ...rest]) {
       }
       for (const [word, pattern] of [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]]) {
         for (const match of line.matchAll(pattern)) {
+          if (word === "turn" && AGENT_WHO_ACTS.test(line.slice(0, match.index + match[0].length))) continue;
           found[word] += 1;
           byFile.set(file, (byFile.get(file) ?? 0) + 1);
           if (list) process.stdout.write(`${file}:${index + 1}\t${word}\t${match[0]}\t${line.trim().slice(0, 160)}\n`);

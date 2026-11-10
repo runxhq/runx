@@ -300,13 +300,23 @@ test("execution closure in prose, a comment or a string is a closure, with its c
   }
 });
 
-test("agent act in prose is a turn, with its case, article and plural, and an agent's actor and a code span keep theirs", (t) => {
-  const doc = "An agent act loads its manual. Agent acts yield needs_agent, and native runx loads the chain for agent acts. An agent actor approves; `agent act` is quoted.\n";
+test("agent act in prose is a turn where act is the noun, with its case, article and plural, and an agent who acts, an agent's actor and a code span keep theirs", (t) => {
+  const doc =
+    "An agent act loads its manual. Agent acts yield needs_agent, and native runx loads the chain for agent acts. " +
+    "An agent acts only inside its turn, and the agent acts when asked. " +
+    "Each agent act seals, the agent act's record holds 1 agent act, these agent acts settle, and we let the agent act. " +
+    "An agent actor approves; `agent act` is quoted.\n";
   const root = tree(t, { "docs/turns.md": doc });
   for (let pass = 0; pass < 2; pass += 1) {
     const { status, out } = run(RENAME, "apply", "oss", root, "--write");
     assert.equal(status, 0, out);
-    assert.equal(read(root, "docs/turns.md"), "A turn loads its manual. Turns yield needs_agent, and native runx loads the chain for turns. An agent actor approves; `agent act` is quoted.\n");
+    assert.equal(
+      read(root, "docs/turns.md"),
+      "A turn loads its manual. Turns yield needs_agent, and native runx loads the chain for turns. " +
+        "An agent acts only inside its turn, and the agent acts when asked. " +
+        "Each turn seals, the turn's record holds 1 turn, these turns settle, and we let the agent act. " +
+        "An agent actor approves; `agent act` is quoted.\n",
+    );
   }
 });
 

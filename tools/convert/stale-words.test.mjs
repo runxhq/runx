@@ -138,9 +138,9 @@ test("the guard fails on execution closure in any form, and passes a closure and
   );
 });
 
-test("the guard fails on agent act, which is a turn, and a count of acts beside an agent, and passes a call's act and an agent's actor", (t) => {
+test("the guard fails on agent act, which is a turn, and a count of acts beside an agent, and passes a call's act, an agent's actor and an agent who acts", (t) => {
   const root = tree(t, {
-    "docs/turns.md": "Agent acts yield needs_agent. The run waits on an agent act.\nA call's act says what it is told to do; an agent actor approves.\n",
+    "docs/turns.md": "Agent acts yield needs_agent. The run waits on an agent act.\nA call's act says what it is told to do; an agent actor approves.\nAn agent acts only inside its turn, and each agent acts once.\n",
     "crates/runx-runtime/src/prepared.rs": "pub managed_agent_acts: usize,\n",
     "crates/runx-cli/src/summary.rs": 'let line = format!("Managed agent: {} act(s)", turns);\n',
     "docs/summary.md": "The summary reads Managed agent: 2 acts, and a call's act.\n",
