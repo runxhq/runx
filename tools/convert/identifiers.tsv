@@ -934,7 +934,7 @@ oss	inspect_local_execution_closure	3	closure	inspect_local_closure	closure is t
 oss	inspect_method_closure_methods	3	closure	inspect_method_closure_methods	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	inspect_method_execution_closure	3	closure	inspect_method_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	inspect_runner_closure_runners	3	closure,runner	inspect_method_closure_methods	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
-oss	inspect_runner_execution_closure	3	closure,runner	inspect_method_execution_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	inspect_runner_execution_closure	3	closure,runner	inspect_method_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	inspected_runner	3	runner	inspected_method		crates/runx-runtime/src/skill_package/inspection.rs
 oss	InspectedExecutionClosureBinding	3	closure	InspectedClosureBinding	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
 oss	into_local_execution_closure	3	closure	into_local_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
@@ -1561,7 +1561,7 @@ oss	procurement-policy-check-composes-in-graph	1	graph	procurement-policy-check-
 oss	product-analytics-composes-in-graph	1	graph	product-analytics-composes-in-workflow		skills/product-analytics/tests/composes-in-workflow.yaml
 oss	provider_policy_denies_unknown_target_before_runner_selection	1	runner	provider_policy_denies_unknown_target_before_runner_selection	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/tests/operational_policy.rs
 oss	publish_admin_sends_publisher_and_harness_and_no_upsert	1	harness	publish_admin_sends_publisher_and_test_and_no_upsert	the test sense	crates/runx-runtime/src/registry/publish/tests.rs
-oss	publish_harness_preserves_local_sibling_execution_closure	1	harness,closure	publish_test_preserves_local_sibling_execution_closure	the test sense; a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
+oss	publish_harness_preserves_local_sibling_execution_closure	1	harness,closure	publish_test_preserves_local_sibling_closure	the test sense; a package's closure, or English: stays	crates/runx-runtime/src/registry/publish_package.rs
 oss	publish_test_preserves_local_sibling_execution_closure	1	closure	publish_test_preserves_local_sibling_closure	closure is the one name for a package's closure (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs
 oss	publish-harness	1	harness	publish-test	the test sense	crates/runx-runtime/src/execution/harness/package.rs
 oss	read-graph	1	graph	read-workflow		crates/runx-cli/tests/operator_journeys.rs
