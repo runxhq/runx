@@ -3,6 +3,8 @@ method: remember
 inputs:
   level: personal
   text: I write in Australian English.
+  summary: I write in Australian English.
+  purpose: confirmed_memory
   date: 2026-11-08
   sources: [conversation]
 host:

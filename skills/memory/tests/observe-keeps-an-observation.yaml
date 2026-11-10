@@ -3,6 +3,7 @@ method: observe
 inputs:
   level: personal
   text: The build runs on Node 26.
+  summary: The build's Node version
   date: 2026-11-09
   sources: [package.json]
 setup:

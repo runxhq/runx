@@ -10,6 +10,10 @@
 # entry's key is the digest of its kind, level and content, so the same words
 # name one entry. A correction and a superseding observation are their entry's
 # next version, so the store's current entries are memory's current entries.
+# A said entry's purpose decides whether it stands as a rule, which its event
+# says as `standing`, beside its type, where private lists it apart; any
+# entry's `valid_until` is its event's own too, so the store passes over what
+# has ended (memory.md, 10 November).
 # An operation step's result is read as $steps.<id>.provider_operation.result.
 # An output that's a contract names its packet. memory.mjs is a worker with no
 # I/O. Only this package writes its streams, and the workspace id comes from
@@ -56,6 +60,21 @@ shared_inputs:
     minLength: 1
     maxLength: 4000
     description: The words, exactly.
+  summary:
+    type: string
+    minLength: 1
+    maxLength: 120
+    pattern: "^[^\r\n]+$"
+    description: The line the index shows for the entry, written for recall, a cue to read it, on one line of at most 120 characters.
+  purpose:
+    type: string
+    enum: [mandate, procedure, confirmed_memory]
+    description: What the person's words are to a turn. A mandate or a procedure stands as a rule, in every index whatever its age. confirmed_memory is something they told you.
+  valid_until:
+    type: string
+    format: date
+    optional: true
+    description: The last date the entry is true. Once it has passed, the index leaves it out, and history, search and read keep it.
   date:
     type: string
     format: date
@@ -73,10 +92,10 @@ shared_inputs:
     description: One entry at one version, memory:<stream>#<key>@<version>.
 methods:
   remember:
-    description: Keep the person's exact words, once they're confirmed as theirs. Nothing is recorded without the confirmation.
-    inputs: { level: {}, project: {}, brand: {}, text: {}, date: {}, sources: {} }
+    description: Keep the person's exact words, with the line the index shows for them and their purpose, once the person confirms them. Nothing is recorded without the confirmation.
+    inputs: { level: {}, project: {}, brand: {}, text: {}, summary: {}, purpose: {}, date: {}, valid_until: {}, sources: {} }
     examples:
-      - { level: personal, text: I write in Australian English., date: 2026-11-08, sources: [conversation] }
+      - { level: personal, text: I write in Australian English., summary: I write in Australian English., purpose: confirmed_memory, date: 2026-11-08, sources: [conversation] }
     steps:
       - id: entry
         tool: { module: memory.mjs, export: newEntry }
@@ -90,13 +109,14 @@ methods:
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
         tool: { module: memory.mjs, export: change }
-        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.remembered, data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: CONF } }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.remembered, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: CONF }, valid_until: $input.valid_until }
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
+          standing: { type: boolean }
       - id: confirm
         ask: { gate: memory.remember, reason: $steps.change.reason, type: person_words }
-        inputs: { quote: $input.text, sources: $input.sources, stream: $steps.entry.stream }
+        inputs: { quote: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources, stream: $steps.entry.stream }
       - id: append
         operation: private/events.append
         guard:
@@ -106,7 +126,9 @@ methods:
           key: $steps.entry.key
           expected_version: $steps.current.provider_operation.result.version
           type: memory.remembered
-          data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+          data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+          standing: $steps.change.standing
+          valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
       - id: readback
         operation: private/key.inspect
@@ -118,8 +140,8 @@ methods:
         outputs:
           handle: { type: string }
   correct:
-    description: Replace the person's words with corrected words, as the entry's next version. Its earlier words stay in its history.
-    inputs: { handle: {}, text: {}, date: {}, sources: {} }
+    description: Replace the person's words with corrected words, with their line and purpose, as the entry's next version. Its earlier words stay in its history.
+    inputs: { handle: {}, text: {}, summary: {}, purpose: {}, date: {}, valid_until: {}, sources: {} }
     steps:
       - id: entry
         tool: { module: memory.mjs, export: parseHandle }
@@ -134,13 +156,14 @@ methods:
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
         tool: { module: memory.mjs, export: change }
-        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.corrected, data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: CONF } }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.corrected, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: CONF }, valid_until: $input.valid_until }
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
+          standing: { type: boolean }
       - id: confirm
         ask: { gate: memory.correct, reason: $steps.change.reason }
-        inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, text: $input.text, date: $input.date, sources: $input.sources }
+        inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources }
       - id: append
         operation: private/events.append
         guard:
@@ -150,7 +173,9 @@ methods:
           key: $steps.entry.key
           expected_version: $steps.current.provider_operation.result.version
           type: memory.corrected
-          data: { text: $input.text, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+          data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
+          standing: $steps.change.standing
+          valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
       - id: readback
         operation: private/key.inspect
@@ -208,13 +233,15 @@ methods:
         outputs:
           handle: { type: string }
   observe:
-    description: Keep what an agent found, with its date and sources. Naming the observation it supersedes makes this that entry's next version, and the one it replaces stays in the entry's history. Never promoted into an instruction or a confirmed memory.
+    description: Keep what an agent found, with its date, sources and the line the index shows for it. Naming the observation it supersedes makes this that entry's next version, and the one it replaces stays in the entry's history. Never promoted into an instruction or a confirmed memory.
     inputs: 
       level: {}
       project: {}
       brand: {}
       text: {}
+      summary: {}
       date: {}
+      valid_until: {}
       sources: {}
       supersedes: { type: string, pattern: "^memory:observed:[^#]+#[^#]+@[0-9]+$", maxLength: 512, optional: true, description: "The observation this one replaces, at its current version." }
     steps:
@@ -230,7 +257,7 @@ methods:
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
         tool: { module: memory.mjs, export: change }
-        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.observed, data: { text: $input.text, date: $input.date, sources: $input.sources } }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.observed, data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }, valid_until: $input.valid_until }
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
@@ -241,7 +268,8 @@ methods:
           key: $steps.entry.key
           expected_version: $steps.current.provider_operation.result.version
           type: memory.observed
-          data: { text: $input.text, date: $input.date, sources: $input.sources }
+          data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }
+          valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
       - id: readback
         operation: private/key.inspect
@@ -253,23 +281,25 @@ methods:
         outputs:
           handle: { type: string }
   index:
-    description: A bounded index of the entries the run may read, for a turn's context. The person's words first, then observations, newest first within each, each line capped and dated. Past its limit, lines lose their preview before any entry goes.
+    description: A bounded index of the entries the run may read, for a turn's context. The person's standing rules first, every one, oldest first, then facts, the person's words before observations, newest first or the ones that match the focus first. Each line is dated and shows its summary. Past its limit, summaries go from the bottom up before any fact's line goes, and a rule's line never goes. An entry whose end date has passed is left out.
     inputs:
       levels: {}
       max_characters: { type: integer, minimum: 256, maximum: 32768, default: 4096, optional: true, description: The most characters the index may hold. }
+      focus: { type: string, minLength: 1, maxLength: 512, optional: true, description: "What the turn is about to do. The facts that match it come first, ranked by search, and the rest follow newest first." }
     examples:
       - { levels: [{ level: personal }] }
     steps:
       - id: index
         script: { module: memory.mjs, export: index }
-        inputs: { levels: $input.levels, max_characters: $input.max_characters, workspace_id: $run.workspace_id }
+        inputs: { levels: $input.levels, max_characters: $input.max_characters, focus: $input.focus, workspace_id: $run.workspace_id }
         calls:
-          operations: [private/keys.list]
+          operations: [private/keys.list, private/keys.search]
         max_calls: 64
         effects: none
         outputs:
           entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values." }
           entries_omitted: { type: boolean, description: "Some entries didn't fit, and search and read reach them." }
+          over_budget: { type: boolean, description: "The standing rules alone pass max_characters, so the index holds more than it may: every rule shows, because a rule the turn can't see is one it can't follow." }
   search:
     description: Ranked matches among the current entries of the streams the run may read. Reading history is explicit, with read.
     inputs:

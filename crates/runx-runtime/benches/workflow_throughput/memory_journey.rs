@@ -191,9 +191,9 @@ impl Memory {
                     writer_package: PACKAGE.to_owned(),
                 });
             };
-            let fact =
-                serde_json::json!({"text": text, "date": "2026-01-01", "sources": ["probe"]});
+            let fact = serde_json::json!({"text": text, "summary": text, "date": "2026-01-01", "sources": ["probe"]});
             let confirmed = |mut fact: serde_json::Value| {
+                fact["purpose"] = serde_json::json!("confirmed_memory");
                 fact["confirmation"] = serde_json::json!({"approved": true});
                 fact
             };
@@ -202,6 +202,7 @@ impl Memory {
                 if distance % 10 == 3 {
                     let mut corrected = fact.clone();
                     corrected["text"] = serde_json::json!(format!("Entry {index}, corrected."));
+                    corrected["summary"] = corrected["text"].clone();
                     event("memory.corrected", confirmed(corrected), 1);
                 }
             } else {
@@ -210,15 +211,14 @@ impl Memory {
                     let mut superseding = fact.clone();
                     superseding["text"] =
                         serde_json::json!(format!("Entry {index}, observed again."));
+                    superseding["summary"] = superseding["text"].clone();
                     event("memory.observed", superseding, 1);
                 }
             }
             if distance % 20 == 7 {
-                event(
-                    "memory.disabled",
-                    confirmed(serde_json::json!({"reason": "The probe disables a twentieth."})),
-                    2,
-                );
+                let mut disabled = serde_json::json!({"reason": "The probe disables a twentieth."});
+                disabled["confirmation"] = serde_json::json!({"approved": true});
+                event("memory.disabled", disabled, 2);
             }
         }
         runx_runtime::probe_fixtures::lay_down_private_history(&self.env, &history)?;

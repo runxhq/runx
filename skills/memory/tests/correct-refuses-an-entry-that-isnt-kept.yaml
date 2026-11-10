@@ -3,6 +3,8 @@ method: correct
 inputs:
   handle: "memory:said:personal#0000000000000000000000000000000000000000000000000000000000000000@1"
   text: I write in British English.
+  summary: I write in British English.
+  purpose: confirmed_memory
   date: 2026-11-09
   sources: [conversation]
 setup:

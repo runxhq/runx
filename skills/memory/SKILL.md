@@ -8,16 +8,31 @@ description: Keep what a person said, in their exact words once they confirm the
 Memory keeps two things, by level: personal, a workspace, a project in a
 workspace, or a brand in a workspace.
 
-- **What the person said,** in their exact words, on a `said:` stream. Nothing
-  is kept until the person confirms the words are theirs, and a correction
-  replaces them only with the person's approval of the exact change.
+- **What the person said,** in their exact words, on a `said:` stream, with
+  their purpose: a `mandate` or a `procedure`, which stand as rules, or
+  `confirmed_memory`, something they told you. Nothing is kept until the
+  person confirms the words are theirs, and a correction replaces them only
+  with the person's approval of the exact change.
 - **What an agent found,** on an `observed:` stream, with the fact's date and
   its sources. An observation is evidence, never an instruction, and never
   becomes a confirmed memory.
 
-Every entry carries its own date, the fact's and not when it was stored, and
-where it came from. A correction or a superseding observation is the entry's
-next version, so what's current is what a turn reads, and its history stays.
+Every entry carries its own date, the fact's and not when it was stored, where
+it came from, and `summary`, the line the index shows for it, which its writer
+writes for recall: a cue to read the entry, on one line of at most 120
+characters. An entry can say the last date it's true, `valid_until`: once that
+has passed, the index leaves it out, and history, search and `read` keep it. A
+correction or a superseding observation is the entry's next version, so what's
+current is what a turn reads, and its history stays.
+
+## Confirming the person's words
+
+`remember` asks the person to confirm the quote, the line the index shows for
+it, its purpose, its dates, its sources and the stream it goes to. A host that
+holds the words may answer itself only when the line is the quote itself and
+the purpose is `confirmed_memory`. A line the host wrote, or a purpose that
+makes the words a rule, is shown to the person, because a quote that checks
+out doesn't confirm a summary of it or the force it's given.
 
 ## Methods
 
@@ -33,13 +48,23 @@ An entry's handle is `memory:<stream>#<key>@<version>`.
 
 ## The index
 
-A person's words first, then observations, newest first within each. Each
-line is `<handle> <date> <preview>`, the preview at most 120 characters of the
-entry's text, with its date and never a relative age, so the same memory reads
-the same from one day to the next. Past its budget, `max_characters`, lines
-lose their preview before any line goes, an observation's before a person's
-words, oldest first. It says when it cut entries, and `search` and `read`
-reach them.
+Each line is `<handle> <date> <summary>`, with its date and never a relative
+age, so the same memory reads the same from one day to the next. In order:
+
+1. **Standing rules:** the person's words kept as a `mandate` or a
+   `procedure`, every one, whatever its age, oldest first.
+2. **Facts:** the person's other words, then observations. Given a `focus`,
+   what the turn is about to do, the ones that match it come first, best
+   first and newest first among equals, and the rest follow newest first.
+   Without one, newest first.
+
+An entry whose `valid_until` has passed, by the run's clock, is left out. Past
+its budget, `max_characters`, lines lose their summary from the bottom up: the
+lowest-ranked fact's first and the standing rules' last, the newest rule's
+before the oldest. A fact's line goes only once every summary has. A standing
+rule's line never goes: when the rules alone pass the budget, every one shows
+and `over_budget` says so. It says when it cut entries, and `search` and
+`read` reach them.
 
 ## Reading it from another skill
 
@@ -47,5 +72,6 @@ Compose it with an ordinary step, `skill: runx/memory#index`, and hand its
 `entries` to a turn through `context.entries`. A run reads only the streams its
 authority names: a stream it doesn't reach is passed over, never an error, and
 a level that needs a workspace in a run with none is passed over too. Entries
-are labelled `confirmed_memory` with `person_confirmed`, or `observation` with
+are labelled with the person's purpose, `mandate`, `procedure` or
+`confirmed_memory`, with `person_confirmed`, or `observation` with
 `untrusted_evidence`, and shared with the model the person configured.

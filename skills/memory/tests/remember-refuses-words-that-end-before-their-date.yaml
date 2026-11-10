@@ -1,0 +1,23 @@
+name: remember-refuses-words-that-end-before-their-date
+method: remember
+inputs:
+  level: personal
+  text: I'm away until Friday.
+  summary: Away until Friday
+  purpose: confirmed_memory
+  date: 2026-11-08
+  valid_until: 2026-11-01
+  sources: [conversation]
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: failure

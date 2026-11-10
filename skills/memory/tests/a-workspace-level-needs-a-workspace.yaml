@@ -3,6 +3,8 @@ method: remember
 inputs:
   level: workspace
   text: This workspace ships on Fridays.
+  summary: This workspace ships on Fridays.
+  purpose: confirmed_memory
   date: 2026-11-08
   sources: [conversation]
 setup:

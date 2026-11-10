@@ -5,20 +5,22 @@
 
 const SCHEMA = "runx.context_entry.v1";
 const SKILL = "runx/memory";
-/// A line's preview holds at most this many characters of the entry's text.
-const PREVIEW_CHARACTERS = 120;
-/// The most keys one page of an index read asks a stream for.
+/// The most keys one page of a listing or a search asks a stream for.
 const MAX_PAGE_KEYS = 100;
+/// The fewest characters a bare line, `<handle> <date>`, holds, so a page
+/// asks a stream for no more keys than the room left could show.
+const SHORTEST_LINE = 96;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/// The purposes that make the person's words a standing rule, which every
+/// index shows whatever its age.
+const STANDING = new Set(["mandate", "procedure"]);
 const KINDS = {
   said: {
     types: ["memory.remembered", "memory.corrected"],
-    purpose: "confirmed_memory",
     trust: "person_confirmed",
   },
   observed: {
     types: ["memory.observed"],
-    purpose: "observation",
     trust: "untrusted_evidence",
   },
 };
@@ -185,21 +187,35 @@ export function parseHandle({ handle, kind }) {
   return { stream, key, version, after_version: version - 1 };
 }
 
+/// What a purpose makes the person's words, as a gate says it.
+const PURPOSES = {
+  mandate: "a mandate, a rule every index shows",
+  procedure: "a procedure, a rule every index shows",
+  confirmed_memory: "something they told you",
+};
+
+/// When the content was true, and where it came from, as a gate says it.
+function dated({ date, valid_until, sources }) {
+  return `${date}${valid_until ? `, until ${valid_until}` : ""}, from ${sources.join(", ")}`;
+}
+
 const DESCRIBED = {
   "memory.remembered": ({ stream, data }) =>
-    `Keep these exact words on ${stream}: "${data.text}" (${data.date}, from ${data.sources.join(", ")}).`,
+    `Keep these exact words on ${stream}, as ${PURPOSES[data.purpose]}: "${data.text}" (${dated(data)}). The index shows them as: ${data.summary}`,
   "memory.corrected": ({ handle, data }) =>
-    `Replace ${handle} with these exact words: "${data.text}" (${data.date}, from ${data.sources.join(", ")}).`,
+    `Replace ${handle} with these exact words, as ${PURPOSES[data.purpose]}: "${data.text}" (${dated(data)}). The index shows them as: ${data.summary}`,
   "memory.disabled": ({ handle, data }) => `Stop ${handle} applying, because: ${data.reason}`,
   "memory.observed": ({ stream, handle, data }) =>
-    `${handle ? `Supersede ${handle} with` : `Keep on ${stream}`} this observation: "${data.text}" (${data.date}, from ${data.sources.join(", ")}).`,
+    `${handle ? `Supersede ${handle} with` : `Keep on ${stream}`} this observation: "${data.text}" (${dated(data)}). The index shows it as: ${data.summary}`,
 };
 
 /// Decide one write: refused unless the entry is where the write expects it,
 /// and named by what a gate shows and the idempotency key the append carries.
-/// Both cover the event's type, the version it follows and its content,
-/// never the confirmation the gate has yet to give.
-export function change({ entry, current, type, data }) {
+/// Both cover the event's type, the version it follows and its content, its
+/// end date and whether it stands as a rule among it, never the confirmation
+/// the gate has yet to give. The person's words stand as a rule when their
+/// purpose is a mandate or a procedure, which the append says as `standing`.
+export function change({ entry, current, type, data, valid_until }) {
   const describe = DESCRIBED[type];
   if (!describe) throw new Error(`${type} is no memory event`);
   const at = current?.version ?? 0;
@@ -221,10 +237,18 @@ export function change({ entry, current, type, data }) {
   if (type === "memory.observed" && entry.version > 0 && last !== "memory.observed") {
     throw new Error(`${handle} isn't an observation, so an observation can't supersede it`);
   }
+  if (valid_until !== undefined && data.date !== undefined && valid_until < data.date) {
+    throw new Error(`it ends on ${valid_until}, before its own date, ${data.date}`);
+  }
+  const standing = STANDING.has(data.purpose);
   const content = Object.fromEntries(Object.entries(data).filter(([field]) => field !== "confirmation"));
+  if (valid_until !== undefined) content.valid_until = valid_until;
+  if (standing) content.standing = true;
   return {
     reason: describe({ stream: entry.stream, handle, data: content }),
     idempotency_key: `memory:${sha256(JSON.stringify([type, entry.stream, entry.key, at, content]))}`,
+    // Only the person's words have a purpose, which decides it.
+    ...(data.purpose === undefined ? {} : { standing }),
   };
 }
 
@@ -237,22 +261,16 @@ export function entryHandle({ entry, appended, readback }) {
   return { handle: handleOf(entry.stream, entry.key, version) };
 }
 
-function preview(text) {
-  const characters = [...text];
-  return characters.length <= PREVIEW_CHARACTERS
-    ? text
-    : `${characters.slice(0, PREVIEW_CHARACTERS - 1).join("")}…`;
-}
-
 function length(text) {
   return [...text].length;
 }
 
 /// A store event as the context entry a turn reads: a line for its index,
-/// the entry whole as its data, and the labels its kind gives it.
+/// the entry whole as its data, and the labels its kind gives it. The
+/// person's words read with their purpose, and a disabled version of them,
+/// which holds none, as what the person told you.
 function entryOf({ stream, key, event, method, summary }) {
   const kind = kindOf(stream);
-  const labels = KINDS[kind];
   const handle = handleOf(stream, key, event.version);
   const text = event.data?.text ?? "";
   const data = {
@@ -262,15 +280,24 @@ function entryOf({ stream, key, event, method, summary }) {
     type: event.type,
     date: event.data?.date ?? null,
     text,
+    summary: event.data?.summary ?? null,
     sources: event.data?.sources ?? [],
   };
+  const purpose =
+    kind === "observed"
+      ? "observation"
+      : event.type === "memory.disabled"
+        ? "confirmed_memory"
+        : event.data?.purpose;
+  if (kind === "said") data.purpose = purpose;
+  if (event.valid_until) data.valid_until = event.valid_until;
   if (event.type === "memory.disabled") data.reason = event.data?.reason ?? null;
   return {
     schema: SCHEMA,
     type: `memory.${kind}`,
-    summary: summary ?? line({ handle, date: data.date, text }),
+    summary: summary ?? line({ handle, date: data.date, summary: data.summary }),
     data,
-    labels: { purpose: labels.purpose, trust: labels.trust, sharing: "configured_model" },
+    labels: { purpose, trust: KINDS[kind].trust, sharing: "configured_model" },
     sources: data.sources.length > 0 ? data.sources : [handle],
     origin: {
       artifact_id: handle,
@@ -283,9 +310,10 @@ function entryOf({ stream, key, event, method, summary }) {
   };
 }
 
-function line({ handle, date, text, bare = false }) {
+/// An index line: `<handle> <date>`, and its summary after when it has one.
+function line({ handle, date, summary }) {
   const head = `${handle} ${date ?? "undated"}`;
-  return bare || !text ? head : `${head} ${preview(text)}`;
+  return summary ? `${head} ${summary}` : head;
 }
 
 /// The entry a read of one version returned, whether or not it's current.
@@ -322,10 +350,17 @@ function refused(error) {
   return error?.code === "refused";
 }
 
-/// One stream read newest first, a page at a time, as the index asks.
+/// How many keys a page asks a stream for, with `room` characters left.
+function pageKeysFor(room) {
+  return Math.max(1, Math.min(MAX_PAGE_KEYS, Math.ceil(room / SHORTEST_LINE)));
+}
+
+/// One stream's keys, newest commit first, a page at a time, as `query`
+/// selects them, each page `pageKeys()` keys. A stream the run's authority
+/// doesn't reach reads as empty.
 class StreamPages {
-  constructor(ctx, kind, stream, pageKeys) {
-    Object.assign(this, { ctx, kind, stream, pageKeys, keys: [], cursor: undefined, done: false });
+  constructor(ctx, stream, query, pageKeys) {
+    Object.assign(this, { ctx, stream, query, pageKeys, keys: [], cursor: undefined, done: false });
   }
 
   async head() {
@@ -334,8 +369,8 @@ class StreamPages {
         const page = resultOf(
           await this.ctx.operation("private/keys.list", {
             stream: this.stream,
-            types: KINDS[this.kind].types,
-            limit: this.pageKeys,
+            ...this.query,
+            limit: this.pageKeys(),
             ...(this.cursor ? { cursor: this.cursor } : {}),
           }),
         );
@@ -354,10 +389,6 @@ class StreamPages {
   take() {
     return this.keys.shift();
   }
-
-  async exhausted() {
-    return (await this.head()) === undefined;
-  }
 }
 
 /// The newer of two keys, as each stream lists them: newest commit first,
@@ -368,69 +399,143 @@ function newer(left, right) {
   return left.key < right.key;
 }
 
-/// A bounded index for a turn. The person's words first, then observations,
-/// newest first within each, each line `<handle> <date> <preview>` with its
-/// preview capped. It reads each stream newest first, page by page, and
-/// stops at the last line its budget could hold with every preview gone; past
-/// its budget, lines lose their preview before any line goes, an
-/// observation's before a person's words, oldest first. It says when it cut
-/// entries, which search and read reach, and counts nothing.
-export async function index(ctx, { levels, max_characters = 4096, workspace_id }) {
+/// Every key of `pages` newest first, merged across their streams, each
+/// handed to `take` until it says stop.
+async function walk(pages, take) {
+  for (;;) {
+    let from;
+    for (const candidate of pages) {
+      const head = await candidate.head();
+      if (head && (!from || newer(head, await from.head()))) from = candidate;
+    }
+    if (!from) return;
+    const head = from.take();
+    if (!(await take(from.stream, head))) return;
+  }
+}
+
+/// The date `ctx.now()` reads, `YYYY-MM-DD`, in UTC.
+function today(ctx) {
+  return new Date(ctx.now()).toISOString().slice(0, 10);
+}
+
+/// A bounded index for a turn. The person's standing rules first, every one,
+/// oldest first, read from the standing keys apart, so the facts' walk never
+/// visits one. Then facts, the person's other words before observations: with
+/// a focus, those its search matches first, best first and newest first among
+/// equals, and the rest newest first; without one, newest first. Each line is
+/// `<handle> <date> <summary>`. An entry whose end date has passed by the
+/// run's clock is passed over by the store, never read and dropped here.
+///
+/// The index fits its budget with every line bare first: every rule's line,
+/// and a fact's line while it fits, read page by page and no further than
+/// the last line that could fit. Then summaries go back from the top, while
+/// they fit, so they're lost from the bottom up: the lowest-ranked fact's
+/// first, a rule's last, the newest rule's before the oldest, which keeps the
+/// request's prefix. A rule's line never goes, and when the rules alone pass
+/// the budget the index says so. It says when it cut entries, which search
+/// and read reach, and counts nothing.
+export async function index(ctx, { levels, max_characters = 4096, focus, workspace_id }) {
   const streams = streamsOf(levels, workspace_id);
+  const valid_at = today(ctx);
   const budget = max_characters;
-  const shortest = 96;
-  const pageKeys = Math.max(1, Math.min(MAX_PAGE_KEYS, Math.ceil(budget / shortest)));
-  const kept = [];
   let used = 0;
+  const kept = [];
+  const add = (stream, key, event) => {
+    const bare = line({ handle: handleOf(stream, key, event.version), date: event.data?.date });
+    used += length(bare) + (kept.length > 0 ? 1 : 0);
+    kept.push({ stream, key, event, bare });
+  };
+  const rules = [];
+  for (const [order, stream] of streams.said.entries()) {
+    const pages = new StreamPages(
+      ctx,
+      stream,
+      { types: KINDS.said.types, standing: true, valid_at },
+      () => MAX_PAGE_KEYS,
+    );
+    await walk([pages], (_, listed) => {
+      rules.push({ stream, order, key: listed.key, event: listed.last_event });
+      return true;
+    });
+  }
+  rules.sort(
+    (left, right) =>
+      (left.event.committed_at < right.event.committed_at ? -1 : left.event.committed_at > right.event.committed_at ? 1 : 0) ||
+      (left.key < right.key ? -1 : left.key > right.key ? 1 : 0) ||
+      left.order - right.order,
+  );
+  for (const rule of rules) add(rule.stream, rule.key, rule.event);
+  const over_budget = used > budget;
   let omitted = false;
+  const shown = new Set();
+  const room = () => budget - used - (kept.length > 0 ? 1 : 0);
+  // A fact's line while it fits; the first that doesn't ends the facts.
+  const fact = (stream, key, event) => {
+    const bare = line({ handle: handleOf(stream, key, event.version), date: event.data?.date });
+    if (length(bare) > room()) {
+      omitted = true;
+      return false;
+    }
+    add(stream, key, event);
+    shown.add(`${stream}#${key}`);
+    return true;
+  };
   for (const kind of Object.keys(KINDS)) {
-    const pages = streams[kind].map((stream) => new StreamPages(ctx, kind, stream, pageKeys));
-    while (!omitted) {
-      let from;
-      for (const candidate of pages) {
-        const head = await candidate.head();
-        if (head && (!from || newer(head, await from.head()))) from = candidate;
+    const query = { types: KINDS[kind].types, standing: false, valid_at };
+    if (focus) {
+      const matched = [];
+      for (const [order, stream] of streams[kind].entries()) {
+        try {
+          const page = resultOf(
+            await ctx.operation("private/keys.search", { stream, query: focus, ...query, limit: pageKeysFor(room()) }),
+          );
+          for (const match of page?.matches ?? []) matched.push({ stream, order, ...match });
+        } catch (error) {
+          if (!refused(error)) throw error;
+        }
       }
-      if (!from) break;
-      const head = await from.head();
-      const handle = handleOf(from.stream, head.key, head.last_event.version);
-      const bare = line({ handle, date: head.last_event.data?.date });
-      const cost = length(bare) + (kept.length > 0 ? 1 : 0);
-      if (used + cost > budget) {
-        omitted = true;
-        break;
+      matched.sort(
+        (left, right) =>
+          right.score - left.score ||
+          (left.last_event.committed_at > right.last_event.committed_at ? -1 : left.last_event.committed_at < right.last_event.committed_at ? 1 : 0) ||
+          (left.key < right.key ? -1 : left.key > right.key ? 1 : 0) ||
+          left.order - right.order,
+      );
+      for (const match of matched) {
+        if (!fact(match.stream, match.key, match.last_event)) break;
       }
-      used += cost;
-      kept.push({ stream: from.stream, key: head.key, event: head.last_event, bare });
-      from.take();
     }
     if (omitted) break;
+    const pages = streams[kind].map((stream) => new StreamPages(ctx, stream, query, () => pageKeysFor(room())));
+    await walk(pages, (stream, listed) =>
+      shown.has(`${stream}#${listed.key}`) ? true : fact(stream, listed.key, listed.last_event),
+    );
+    if (omitted) break;
   }
-  // Previews go to the person's words before observations, newest first,
-  // while the budget holds them; the first that doesn't fit ends them, so a
-  // line loses its preview only after every line ranked below it has.
-  let previews = true;
+  // Summaries back from the top while they fit; the first that doesn't ends
+  // them, so a line loses its summary only after every line below it has.
+  let summaries = true;
   const entries = kept.map(({ stream, key, event, bare }) => {
-    const text = event.data?.text ?? "";
     let summary = bare;
-    if (previews && text) {
-      const full = `${bare} ${preview(text)}`;
+    if (summaries && event.data?.summary) {
+      const full = `${bare} ${event.data.summary}`;
       const extra = length(full) - length(bare);
       if (used + extra <= budget) {
         used += extra;
         summary = full;
       } else {
-        previews = false;
+        summaries = false;
       }
     }
     return entryOf({ stream, key, event, method: "index", summary });
   });
-  return { entries, entries_omitted: omitted };
+  return { entries, entries_omitted: omitted, over_budget };
 }
 
 /// Ranked matches among the current entries of the streams the run may
 /// read: one search of each stream, merged by score, a person's words before
-/// an observation, then by key.
+/// an observation, then newest first, then by key.
 export async function search(ctx, { levels, query, limit = 10, workspace_id }) {
   const streams = streamsOf(levels, workspace_id);
   const found = [];
@@ -456,6 +561,11 @@ export async function search(ctx, { levels, query, limit = 10, workspace_id }) {
     (left, right) =>
       right.score - left.score ||
       rank[left.kind] - rank[right.kind] ||
+      (left.last_event.committed_at > right.last_event.committed_at
+        ? -1
+        : left.last_event.committed_at < right.last_event.committed_at
+          ? 1
+          : 0) ||
       (left.key < right.key ? -1 : left.key > right.key ? 1 : 0) ||
       (left.stream < right.stream ? -1 : left.stream > right.stream ? 1 : 0),
   );

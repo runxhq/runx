@@ -1,0 +1,26 @@
+name: index-with-a-focus-passes-over-streams-it-isnt-given
+method: index
+inputs:
+  levels: [{level: personal}]
+  focus: draft the weekly digest
+setup:
+  # A scheduled turn's read term (D40): the person's words, and no
+  # observation, so the observed streams are passed over, searched or
+  # listed.
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read]
+              targets: ["runx/memory/said:*", "project:memory/said:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: sealed
+  step_outputs:
+    index:
+      subset:
+        entries_omitted: false
+        over_budget: false

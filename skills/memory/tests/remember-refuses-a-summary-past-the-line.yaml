@@ -1,0 +1,22 @@
+name: remember-refuses-a-summary-past-the-line
+method: remember
+inputs:
+  level: personal
+  text: I write in Australian English, with the spellings the Macquarie Dictionary gives, in every document and every message.
+  summary: I write in Australian English, with the spellings the Macquarie Dictionary gives, in every document and every message, always.
+  purpose: confirmed_memory
+  date: 2026-11-08
+  sources: [conversation]
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: failure
