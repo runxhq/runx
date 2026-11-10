@@ -216,6 +216,18 @@ where
         ask_reason,
         given,
     } = request;
+    // What the step was given, as reuse compares it (D32).
+    let input_digest = super::input_digest::of(
+        step,
+        &super::input_digest::Given {
+            inputs: &inputs,
+            act: child_act.as_ref(),
+            context: &context_entries,
+            ask_reason: ask_reason.as_deref(),
+        },
+        &runtime.options.env,
+        workflow_dir,
+    );
     // An operation call is admitted against the packages it calls from.
     let chain = if step.operation().is_some() {
         runtime.options.chain_at(workflow_dir)?
@@ -271,6 +283,7 @@ where
             .local_artifacts
             .labels_of(&JsonValue::Object(run.contract.clone())),
     ]);
+    run.input_digest = input_digest;
     Ok(run)
 }
 
@@ -855,6 +868,7 @@ where
         admission_witness,
         settlement,
         labels: read,
+        input_digest: None,
     })
 }
 
@@ -1083,6 +1097,7 @@ fn seal_turn_step<A>(
         admission_witness,
         settlement: None,
         labels: read,
+        input_digest: None,
     })
 }
 
@@ -1490,6 +1505,7 @@ where
         admission_witness,
         settlement,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     })
 }
 
@@ -1813,6 +1829,7 @@ where
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     })
 }
 
@@ -1967,6 +1984,7 @@ where
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     })
 }
 
@@ -2162,6 +2180,7 @@ where
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     })
 }
 

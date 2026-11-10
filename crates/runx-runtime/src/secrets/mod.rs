@@ -184,6 +184,20 @@ pub(crate) fn prove(paths: &RunxPaths, message: &[u8]) -> Result<String, SealedE
     sealed::prove(paths, message)
 }
 
+/// A fingerprint of `message` for `purpose`, keyed by this runx home: two
+/// runs given the same value fingerprint it the same, and the record never
+/// holds the value. None when the home isn't one the operator owns, since a
+/// home the project supplied would supply its key too, or its key can't be
+/// read: what can't be fingerprinted is never taken as the same.
+pub(crate) fn fingerprint(paths: &RunxPaths, purpose: &str, message: &[u8]) -> Option<String> {
+    if paths.home_fell_back() {
+        return None;
+    }
+    let mut labelled = format!("{purpose}:").into_bytes();
+    labelled.extend_from_slice(message);
+    sealed::prove(paths, &labelled).ok()
+}
+
 /// Record `record` as the secret `name`, and drop the file a stored value it
 /// replaces was sealed in.
 fn replace(

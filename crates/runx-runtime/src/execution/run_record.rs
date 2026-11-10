@@ -200,6 +200,9 @@ struct RecordedStep {
     /// Where what the step made may be shared, as it ran: a resumed run reads
     /// it here and never derives it again from what holds now.
     labels: runx_contracts::ArtifactLabels,
+    /// What the step was given, as one digest, when it could be made.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    input_digest: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1125,6 +1128,7 @@ impl RunLog {
             outcome: step.outcome.clone(),
             admission_witness: step.admission_witness.clone(),
             labels: step.labels,
+            input_digest: step.input_digest.clone(),
         })?;
         let receipt = Blob::json(&step.receipt)?;
         let nested = step
@@ -1364,6 +1368,7 @@ impl RunLog {
                     outcome: step.outcome.clone(),
                     admission_witness: step.admission_witness.clone(),
                     labels: step.labels,
+                    input_digest: step.input_digest.clone(),
                 })?;
                 let receipt = Blob::json(&step.receipt)?;
                 let nested = step
@@ -2133,6 +2138,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
         admission_witness: record.admission_witness,
         settlement: None,
         labels: record.labels,
+        input_digest: record.input_digest,
     })
 }
 

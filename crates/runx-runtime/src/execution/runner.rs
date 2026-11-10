@@ -38,6 +38,7 @@ mod call_pool;
 mod call_stops;
 mod dispatch;
 pub(crate) mod floor;
+mod input_digest;
 mod receipt_budget;
 mod step_handlers;
 pub mod turn;
@@ -626,6 +627,11 @@ pub struct StepRun {
     /// handler states what it read beyond its inputs, such as its calls'
     /// results; the runtime adds what the step was given and what it made.
     pub labels: runx_contracts::ArtifactLabels,
+    /// What the step was given, as one digest
+    /// (`runx_contracts::input_digest`): none when what it was given can't
+    /// all be digested, such as an environment it declares with no runx home
+    /// the operator owns to fingerprint it with.
+    pub input_digest: Option<String>,
 }
 
 impl StepRun {
@@ -2031,6 +2037,7 @@ mod tests {
             receipt,
             settlement: None,
             labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+            input_digest: None,
         })
     }
 

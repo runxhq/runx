@@ -378,6 +378,7 @@ fn step_run(
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     })
 }
 

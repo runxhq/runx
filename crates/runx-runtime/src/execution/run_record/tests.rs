@@ -93,6 +93,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         refusal: None,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     }
 }
 

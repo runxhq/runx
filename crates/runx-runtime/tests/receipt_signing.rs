@@ -307,6 +307,7 @@ fn step_run(step_id: &str, receipt: Receipt) -> StepRun {
         nested_receipts: Vec::new(),
         refusal: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     }
 }
 
@@ -356,6 +357,7 @@ fn production_step_run(
         admission_witness: StepAdmissionWitness::local_runtime(step_id, "receipt"),
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        input_digest: None,
     })
 }
 
