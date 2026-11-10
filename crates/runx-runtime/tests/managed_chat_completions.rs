@@ -84,8 +84,8 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
         serve_responses(
             listener,
             [
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"fixture_read","arguments":"{\"value\":\"proof\"}"},"extra_content":{"google":{"thought_signature":"sig-1"}}}]}}]}),
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"final-1","type":"function","function":{"name":"runx_final_result","arguments":"{\"status\":\"done\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"fixture_read","arguments":"{\"value\":\"proof\"}"},"extra_content":{"google":{"thought_signature":"sig-1"}}}]}}],"usage":{"prompt_tokens":900,"completion_tokens":30,"total_tokens":930}}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"final-1","type":"function","function":{"name":"runx_final_result","arguments":"{\"status\":\"done\"}"}}]}}],"usage":{"prompt_tokens":960,"completion_tokens":12,"total_tokens":972}}),
             ],
         )
     });
@@ -135,6 +135,11 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
             .and_then(JsonValue::as_str),
         Some("done")
     );
+    // The chat completions dialect reads each call's usage, and the loop
+    // sums it.
+    assert_eq!(result.telemetry.model_calls, Some(2));
+    assert_eq!(result.telemetry.input_tokens, Some(1_860));
+    assert_eq!(result.telemetry.output_tokens, Some(42));
     let requests = finish_server(server)?;
     assert_eq!(requests.len(), 2);
     assert_eq!(requests[0]["tools"][0]["function"]["name"], "fixture_read");
@@ -544,8 +549,8 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
         serve_responses(
             listener,
             [
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-load","type":"function","function":{"name":"load","arguments":"{\"skill\":\"skills/child\"}"}}]}}]}),
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-load","type":"function","function":{"name":"load","arguments":"{\"skill\":\"skills/child\"}"}}]}}],"usage":{"prompt_tokens":1400,"completion_tokens":20}}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}],"usage":{"prompt_tokens":1700,"completion_tokens":9}}),
             ],
         )
     });
@@ -611,6 +616,12 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
         .find(|event| event["kind"] == "step" && event["step_id"] == "work")
         .ok_or_else(|| format!("the turn's step is recorded: {read}"))?;
     assert_eq!(step["model"], "fixture-model", "{step}");
+    // What the turn used of its model, as its answer stated it.
+    assert_eq!(
+        step["usage"],
+        json!({"model_calls": 2, "input_tokens": 3100, "output_tokens": 29}),
+        "{step}"
+    );
     assert_eq!(
         step["host"],
         json!({"kind": "managed_agent", "provider": "scripted"}),

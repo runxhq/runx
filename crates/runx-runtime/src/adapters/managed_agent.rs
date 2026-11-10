@@ -153,11 +153,17 @@ impl ManagedAgent {
         end.answer
             .map(|answer| {
                 // It states what it always meets, a fresh context, the
-                // model that answered, and itself as the host, through its
-                // provider.
+                // model that answered, what its calls to it used, and itself
+                // as the host, through its provider.
                 crate::execution::outcome::with_met_requirements(answer, &MANAGED_AGENT_MEETS)
                     .and_then(|answer| {
                         crate::execution::outcome::with_stated_model(answer, &config.model)
+                    })
+                    .and_then(|answer| {
+                        crate::execution::outcome::with_stated_usage(
+                            answer,
+                            &turn_usage(&end.telemetry)?,
+                        )
                     })
                     .and_then(|answer| {
                         crate::execution::outcome::with_stated_host(
@@ -171,6 +177,20 @@ impl ManagedAgent {
             .transpose()
             .map_err(|message| fail(ManagedAgentError::sanitized(message)))
     }
+}
+
+/// What the pass that answered used of its model, as its loop counted it.
+fn turn_usage(
+    telemetry: &super::agent::AgentExecutionTelemetry,
+) -> Result<runx_contracts::TurnUsage, String> {
+    Ok(runx_contracts::TurnUsage {
+        model_calls: telemetry
+            .model_calls
+            .and_then(std::num::NonZeroU64::new)
+            .ok_or("an answered pass counts the model call that answered it")?,
+        input_tokens: telemetry.input_tokens,
+        output_tokens: telemetry.output_tokens,
+    })
 }
 
 /// What runx's managed agent meets of a turn's requirements: it starts each

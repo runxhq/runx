@@ -151,6 +151,10 @@ pub enum RunEventFact {
         /// the turn stated none, and on every other step.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         model: Option<NonEmptyString>,
+        /// What an agent step's turn used of its model, as its answer states
+        /// it. Absent when the answer states none, and on every other step.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        usage: Option<crate::TurnUsage>,
         /// The host that gave an agent step's turn its answer, as the answer
         /// records it. Absent when the answer records none, and on every
         /// other step.

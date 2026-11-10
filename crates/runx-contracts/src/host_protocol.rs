@@ -344,17 +344,59 @@ pub struct TurnInvocation {
 
 /// The fields of an agent's answer that are runx's own, beside the outputs
 /// its step declares: how the turn ended (`ending`, else completed) and why,
-/// the model that answered and the host that gave the answer, and the
-/// requirements its agent harness met or the one it couldn't. A step can't
-/// declare an output of the same name.
-pub const RESERVED_ANSWER_FIELDS: [&str; 6] = [
+/// the model that answered, what its calls to that model used, the host that
+/// gave the answer, and the requirements its agent harness met or the one it
+/// couldn't. A step can't declare an output of the same name.
+pub const RESERVED_ANSWER_FIELDS: [&str; 7] = [
     "ending",
     "ending_reason",
     "model",
+    "usage",
     "host",
     "requirements",
     "unsupported_requirement",
 ];
+
+/// What a turn's answer cost in calls to its model, as the driver that asked
+/// the model counted them: every call, a reply it asked for again included.
+/// The token counts are the sums the provider reported, both or neither: a
+/// call that reported none leaves both out, because a sum missing a call
+/// would read as the whole. runx's managed agent counts the pass that
+/// answered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(try_from = "UncheckedTurnUsage", deny_unknown_fields)]
+pub struct TurnUsage {
+    pub model_calls: std::num::NonZeroU64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UncheckedTurnUsage {
+    model_calls: std::num::NonZeroU64,
+    #[serde(default)]
+    input_tokens: Option<u64>,
+    #[serde(default)]
+    output_tokens: Option<u64>,
+}
+
+impl TryFrom<UncheckedTurnUsage> for TurnUsage {
+    type Error = &'static str;
+
+    fn try_from(unchecked: UncheckedTurnUsage) -> Result<Self, Self::Error> {
+        if unchecked.input_tokens.is_some() != unchecked.output_tokens.is_some() {
+            return Err("a turn's usage states both its input and output tokens, or neither");
+        }
+        Ok(Self {
+            model_calls: unchecked.model_calls,
+            input_tokens: unchecked.input_tokens,
+            output_tokens: unchecked.output_tokens,
+        })
+    }
+}
 
 /// What a turn can need from the agent harness that works it.
 #[derive(

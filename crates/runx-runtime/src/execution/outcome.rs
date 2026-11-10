@@ -156,6 +156,20 @@ pub(crate) fn with_stated_model(answer: JsonValue, model: &str) -> Result<JsonVa
     stating(answer, "model", JsonValue::String(model.to_owned()))
 }
 
+/// `answer`, saying what its calls to the model used, in its `usage`.
+///
+/// # Errors
+///
+/// Returns an error when the answer isn't an object.
+#[cfg(feature = "agent")]
+pub(crate) fn with_stated_usage(
+    answer: JsonValue,
+    usage: &runx_contracts::TurnUsage,
+) -> Result<JsonValue, String> {
+    let usage = JsonValue::from_serialize(usage).map_err(|error| error.to_string())?;
+    stating(answer, "usage", usage)
+}
+
 /// `answer`, recording the host that gave it in its `host`.
 ///
 /// # Errors
@@ -208,6 +222,27 @@ pub(crate) fn stated_host(answer: &JsonValue) -> Result<Option<runx_contracts::T
             host.clone()
                 .deserialize_into::<runx_contracts::TurnHost>()
                 .map_err(|error| format!("agent answer host names no host: {error}"))
+        })
+        .transpose()
+}
+
+/// What an agent turn's answer says its calls to the model used, in its
+/// `usage`; none when it states none.
+///
+/// # Errors
+///
+/// Returns an error when the answer's usage isn't a turn's usage.
+pub(crate) fn stated_usage(
+    answer: &JsonValue,
+) -> Result<Option<runx_contracts::TurnUsage>, String> {
+    answer
+        .as_object()
+        .and_then(|answer| answer.get("usage"))
+        .map(|usage| {
+            usage
+                .clone()
+                .deserialize_into::<runx_contracts::TurnUsage>()
+                .map_err(|error| format!("agent answer usage is not a turn's usage: {error}"))
         })
         .transpose()
 }
@@ -294,6 +329,52 @@ mod tests {
         ] {
             let stated = serde_json::json!({"draft": "Hello.", "model": named});
             assert!(super::stated_model(&answer(stated)?).is_err());
+        }
+        Ok(())
+    }
+
+    /// runx's driver states what its calls to the model used, and the usage
+    /// an answer states is read back as stated; one that counts no call,
+    /// gives one token count without the other, or holds anything else
+    /// refuses the answer.
+    #[cfg(feature = "agent")]
+    #[test]
+    fn a_turns_answer_states_its_usage_and_a_malformed_one_is_refused()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let answer = |value: serde_json::Value| serde_json::from_value::<JsonValue>(value);
+        let usage = runx_contracts::TurnUsage {
+            model_calls: std::num::NonZeroU64::new(3).ok_or("three calls")?,
+            input_tokens: Some(1_200),
+            output_tokens: Some(40),
+        };
+        let stated =
+            super::with_stated_usage(answer(serde_json::json!({"draft": "Hello."}))?, &usage)?;
+        assert_eq!(super::stated_usage(&stated), Ok(Some(usage)));
+        assert_eq!(
+            serde_json::to_value(&stated)?["usage"],
+            serde_json::json!({"model_calls": 3, "input_tokens": 1200, "output_tokens": 40})
+        );
+        let unreported = answer(serde_json::json!({"usage": {"model_calls": 2}}))?;
+        assert!(super::stated_usage(&unreported).is_ok_and(|usage| {
+            usage.is_some_and(|usage| usage.input_tokens.is_none() && usage.output_tokens.is_none())
+        }));
+        assert_eq!(
+            super::stated_usage(&answer(serde_json::json!({"draft": "Hello."}))?),
+            Ok(None)
+        );
+        for malformed in [
+            serde_json::json!({"model_calls": 0}),
+            serde_json::json!({"model_calls": 2, "input_tokens": 10}),
+            serde_json::json!({"model_calls": 2, "output_tokens": 10}),
+            serde_json::json!({"model_calls": 2, "cost": 1}),
+            serde_json::json!({"input_tokens": 10, "output_tokens": 1}),
+            serde_json::json!("lots"),
+        ] {
+            let stated = serde_json::json!({"draft": "Hello.", "usage": malformed});
+            assert!(
+                super::stated_usage(&answer(stated)?).is_err(),
+                "{malformed} is refused"
+            );
         }
         Ok(())
     }

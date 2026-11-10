@@ -6,6 +6,10 @@ use runx_contracts::{JsonNumber, JsonObject, JsonValue, SealReason};
 pub struct AgentExecutionTelemetry {
     pub rounds: Option<u64>,
     pub model_calls: Option<u64>,
+    /// The tokens its model calls read and wrote, as the provider reported
+    /// them; absent when any call reported none.
+    pub input_tokens: Option<u64>,
+    pub output_tokens: Option<u64>,
     pub tool_calls: Option<u64>,
     pub tools: Option<Vec<String>>,
     pub tool_executions: Option<Vec<AgentToolExecutionTrace>>,
@@ -26,6 +30,14 @@ impl AgentExecutionTelemetry {
                 "model_calls".to_owned(),
                 JsonValue::Number(JsonNumber::U64(model_calls)),
             );
+        }
+        for (key, tokens) in [
+            ("input_tokens", self.input_tokens),
+            ("output_tokens", self.output_tokens),
+        ] {
+            if let Some(tokens) = tokens {
+                projection.insert(key.to_owned(), JsonValue::Number(JsonNumber::U64(tokens)));
+            }
         }
         if let Some(tool_calls) = self.tool_calls {
             projection.insert(

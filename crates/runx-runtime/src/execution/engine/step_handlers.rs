@@ -1849,6 +1849,12 @@ fn agent_answer_outcome_value(
                 reason,
             }
         })?;
+        crate::execution::outcome::stated_usage(answer).map_err(|reason| {
+            RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason,
+            }
+        })?;
         crate::execution::outcome::stated_host(answer).map_err(|reason| {
             RuntimeError::StepFailed {
                 step_id: step.id.clone(),

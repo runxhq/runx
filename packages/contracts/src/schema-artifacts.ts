@@ -8259,6 +8259,10 @@ export const runxSchemaArtifacts = {
               },
               "succeeded": {
                 "type": "boolean"
+              },
+              "usage": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnUsage",
+                "description": "What an agent step's turn used of its model, as its answer states it. Absent when the answer states none, and on every other step."
               }
             },
             "required": [
@@ -11126,6 +11130,29 @@ export const runxSchemaArtifacts = {
           "input_schema"
         ],
         "title": "TurnTool",
+        "type": "object"
+      },
+      "TurnUsage": {
+        "additionalProperties": false,
+        "description": "What a turn's answer cost in calls to its model, as the driver that asked the model counted them: every call, a reply it asked for again included. The token counts are the sums the provider reported, both or neither: a call that reported none leaves both out, because a sum missing a call would read as the whole. runx's managed agent counts the pass that answered.",
+        "properties": {
+          "input_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "model_calls": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "output_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_calls"
+        ],
+        "title": "TurnUsage",
         "type": "object"
       },
       "TurnView": {

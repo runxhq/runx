@@ -5,8 +5,8 @@ use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
 use super::agent_loop::{
-    AgentToolUse, AgentTurn, ModelCaller, UNRECOGNIZED_MODEL_TOOL, provider_failed,
-    provider_refused,
+    AgentToolUse, AgentTurn, CallUsage, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
+    provider_failed, provider_refused,
 };
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
@@ -85,12 +85,15 @@ impl<T> ChatCompletionsCaller<T> {
         })).collect()
     }
 
-    fn parse_tool_uses(
-        tools: &AgentToolNameMap,
-        body: &str,
-    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    fn parse_reply(tools: &AgentToolNameMap, body: &str) -> Result<ModelReply, RuntimeError> {
         let response: WireValue = serde_json::from_str(body)
             .map_err(|error| RuntimeError::json("parsing openai-compatible response", error))?;
+        let usage = response.get("usage").and_then(|usage| {
+            Some(CallUsage {
+                input_tokens: usage.get("prompt_tokens")?.as_u64()?,
+                output_tokens: usage.get("completion_tokens")?.as_u64()?,
+            })
+        });
         let choices = response
             .get("choices")
             .and_then(WireValue::as_array)
@@ -105,7 +108,10 @@ impl<T> ChatCompletionsCaller<T> {
             .and_then(WireValue::as_object)
             .ok_or_else(|| provider_failed("openai-compatible response has no message"))?;
         let Some(calls) = message.get("tool_calls").filter(|value| !value.is_null()) else {
-            return Ok(Vec::new());
+            return Ok(ModelReply {
+                tool_uses: Vec::new(),
+                usage,
+            });
         };
         let calls = calls
             .as_array()
@@ -146,16 +152,19 @@ impl<T> ChatCompletionsCaller<T> {
                 replay: call.get("extra_content").cloned(),
             });
         }
-        Ok(uses)
+        Ok(ModelReply {
+            tool_uses: uses,
+            usage,
+        })
     }
 }
 
 impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
-    fn next_tool_uses(
+    fn reply(
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
-    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    ) -> Result<ModelReply, RuntimeError> {
         let body = json!({
             "model":self.model,
             "messages":self.messages_json(transcript),
@@ -193,6 +202,6 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
                 self.api_key.as_ref().map(SecretString::expose),
             ));
         }
-        Self::parse_tool_uses(tools, &response.body)
+        Self::parse_reply(tools, &response.body)
     }
 }

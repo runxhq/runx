@@ -14,8 +14,8 @@ use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
 use super::agent_loop::{
-    AgentToolUse, AgentTurn, ModelCaller, UNRECOGNIZED_MODEL_TOOL, provider_failed,
-    provider_refused,
+    AgentToolUse, AgentTurn, CallUsage, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
+    provider_failed, provider_refused,
 };
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
@@ -132,11 +132,34 @@ fn message_json(turn: &AgentTurn) -> WireValue {
     }
 }
 
-fn parse_tool_uses(body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
+/// What a response says its call used. Its input is every token the model
+/// read: those it was sent fresh, those written to the prompt cache and those
+/// read from it, which the response counts apart.
+fn usage(value: &WireValue) -> Option<CallUsage> {
+    let usage = value.get("usage")?;
+    let count = |field: &str| usage.get(field)?.as_u64();
+    // A response that used no cache may leave its cache counts out.
+    let cached = |field: &str| match usage.get(field) {
+        None | Some(WireValue::Null) => Some(0),
+        Some(tokens) => tokens.as_u64(),
+    };
+    Some(CallUsage {
+        input_tokens: count("input_tokens")?
+            .saturating_add(cached("cache_creation_input_tokens")?)
+            .saturating_add(cached("cache_read_input_tokens")?),
+        output_tokens: count("output_tokens")?,
+    })
+}
+
+fn parse_reply(body: &str) -> Result<ModelReply, RuntimeError> {
     let value: WireValue = serde_json::from_str(body)
         .map_err(|source| RuntimeError::json("parsing anthropic response", source))?;
+    let usage = usage(&value);
     let Some(content) = value.get("content").and_then(WireValue::as_array) else {
-        return Ok(Vec::new());
+        return Ok(ModelReply {
+            tool_uses: Vec::new(),
+            usage,
+        });
     };
     let mut uses = Vec::new();
     for block in content {
@@ -158,15 +181,18 @@ fn parse_tool_uses(body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
             replay: None,
         });
     }
-    Ok(uses)
+    Ok(ModelReply {
+        tool_uses: uses,
+        usage,
+    })
 }
 
 impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
-    fn next_tool_uses(
+    fn reply(
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
-    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    ) -> Result<ModelReply, RuntimeError> {
         let request_body = json!({
             "model": self.model,
             "max_tokens": MAX_TOKENS,
@@ -195,11 +221,11 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
                 Some(self.api_key.expose()),
             ));
         }
-        let mut uses = parse_tool_uses(&response.body)?;
-        for use_ in &mut uses {
+        let mut reply = parse_reply(&response.body)?;
+        for use_ in &mut reply.tool_uses {
             use_.name = real_tool_name(tools, &use_.name);
         }
-        Ok(uses)
+        Ok(reply)
     }
 }
 
@@ -256,10 +282,13 @@ mod tests {
     }
 
     fn go(stub: &StubTransport) -> Result<Vec<AgentToolUse>, RuntimeError> {
-        caller(stub).next_tool_uses(
-            &tools("pay").map_err(|message| RuntimeError::effect_state("test tools", message))?,
-            &[AgentTurn::User("go".to_owned())],
-        )
+        caller(stub)
+            .reply(
+                &tools("pay")
+                    .map_err(|message| RuntimeError::effect_state("test tools", message))?,
+                &[AgentTurn::User("go".to_owned())],
+            )
+            .map(|reply| reply.tool_uses)
     }
 
     #[test]
@@ -271,7 +300,8 @@ mod tests {
             requests: RefCell::new(Vec::new()),
         };
         let result = caller(&stub)
-            .next_tool_uses(&tools("pay")?, &[AgentTurn::User("buy a quota".to_owned())]);
+            .reply(&tools("pay")?, &[AgentTurn::User("buy a quota".to_owned())])
+            .map(|reply| reply.tool_uses);
         assert!(
             matches!(
                 &result,
@@ -298,6 +328,41 @@ mod tests {
         Ok(())
     }
 
+    /// A reply's usage is every input token the model read, from the cache
+    /// included, and the output it wrote; a reply that reports none has none.
+    #[test]
+    fn a_reply_reports_its_usage_with_cached_input_counted() -> Result<(), String> {
+        let usage = |body: &str| {
+            let stub = StubTransport {
+                body: body.to_owned(),
+                status: 200,
+                requests: RefCell::new(Vec::new()),
+            };
+            caller(&stub)
+                .reply(&tools("pay")?, &[AgentTurn::User("go".to_owned())])
+                .map(|reply| reply.usage)
+                .map_err(|error| error.to_string())
+        };
+        assert_eq!(
+            usage(
+                r#"{"content":[],"usage":{"input_tokens":20,"cache_creation_input_tokens":1000,"cache_read_input_tokens":3000,"output_tokens":50}}"#
+            )?,
+            Some(CallUsage {
+                input_tokens: 4020,
+                output_tokens: 50
+            })
+        );
+        assert_eq!(
+            usage(r#"{"content":[],"usage":{"input_tokens":20,"output_tokens":5}}"#)?,
+            Some(CallUsage {
+                input_tokens: 20,
+                output_tokens: 5
+            })
+        );
+        assert_eq!(usage(r#"{"content":[]}"#)?, None);
+        Ok(())
+    }
+
     #[test]
     fn namespaced_tool_ref_is_flattened_on_the_wire_and_restored_on_the_way_in()
     -> Result<(), String> {
@@ -308,8 +373,9 @@ mod tests {
             requests: RefCell::new(Vec::new()),
         };
         let uses = caller(&stub)
-            .next_tool_uses(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])
-            .map_err(|error| format!("call should succeed: {error}"))?;
+            .reply(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])
+            .map_err(|error| format!("call should succeed: {error}"))?
+            .tool_uses;
         // The model's flattened call maps back to the dotted runx tool name.
         assert_eq!(uses.len(), 1);
         assert_eq!(uses[0].name, "acme.post");
@@ -335,7 +401,8 @@ mod tests {
             requests: RefCell::new(Vec::new()),
         };
         let uses = caller(&stub)
-            .next_tool_uses(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])?;
+            .reply(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])?
+            .tool_uses;
 
         assert_eq!(uses[0].name, UNRECOGNIZED_MODEL_TOOL);
         assert!(!uses[0].name.contains(SENSITIVE_MARKER));

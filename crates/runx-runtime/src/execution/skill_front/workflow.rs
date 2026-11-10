@@ -1357,6 +1357,8 @@ methods:
                 AgentExecutionTelemetry {
                     rounds: Some(3),
                     model_calls: Some(4),
+                    input_tokens: None,
+                    output_tokens: None,
                     tool_calls: Some(3),
                     tools: Some(vec!["data.read".to_owned()]),
                     tool_executions: Some(vec![AgentToolExecutionTrace {

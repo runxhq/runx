@@ -123,15 +123,33 @@ pub enum AgentTurn {
     ToolResults(Vec<AgentToolResult>),
 }
 
+/// What one call to the model reported it used, in the provider's own
+/// counts: every input token it read, from a cache included, and every token
+/// it wrote.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CallUsage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+/// The model's reply to one call: its tool-use requests, named as the
+/// offered tools name them, and what the call used when the provider
+/// reported it.
+#[derive(Clone, Debug)]
+pub struct ModelReply {
+    pub tool_uses: Vec<AgentToolUse>,
+    pub usage: Option<CallUsage>,
+}
+
 /// Per-turn provider call. Given the tools offered now and the transcript so
-/// far, return the model's next tool-use requests, named as `tools` names
-/// them. The loop passes the catalog through and never inspects it.
+/// far, return the model's reply. The loop passes the catalog through and
+/// never inspects it.
 pub trait ModelCaller {
-    fn next_tool_uses(
+    fn reply(
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
-    ) -> Result<Vec<AgentToolUse>, RuntimeError>;
+    ) -> Result<ModelReply, RuntimeError>;
 }
 
 /// The most of a provider failure the loop reports.
@@ -254,27 +272,35 @@ enum TurnStop {
 /// Ask the model for the next tool uses, tolerating a transient empty turn by
 /// resampling up to `max_resamples` extra times. Returns the first non-empty
 /// turn, or fails closed if every attempt is empty. A provider error from the
-/// model call is surfaced immediately and never retried.
+/// model call is surfaced immediately and never retried. Every call counts in
+/// `model_calls`, and its usage joins `usage`, which a call that reports none
+/// leaves at none.
 fn next_tool_uses_resilient<M>(
     model: &M,
     tools: &AgentToolNameMap,
     transcript: &[AgentTurn],
     max_resamples: u32,
     model_calls: &mut u32,
+    usage: &mut Option<CallUsage>,
 ) -> Result<Vec<AgentToolUse>, TurnStop>
 where
     M: ModelCaller + ?Sized,
 {
     for _ in 0..=max_resamples {
         *model_calls = model_calls.saturating_add(1);
-        let uses = model.next_tool_uses(tools, transcript).map_err(|error| {
+        let reply = model.reply(tools, transcript).map_err(|error| {
+            *usage = None;
             TurnStop::Provider(match error {
                 RuntimeError::ModelProvider { detail } => Some(detail),
                 _ => None,
             })
         })?;
-        if !uses.is_empty() {
-            return Ok(uses);
+        *usage = usage.zip(reply.usage).map(|(sum, call)| CallUsage {
+            input_tokens: sum.input_tokens.saturating_add(call.input_tokens),
+            output_tokens: sum.output_tokens.saturating_add(call.output_tokens),
+        });
+        if !reply.tool_uses.is_empty() {
+            return Ok(reply.tool_uses);
         }
     }
     Err(TurnStop::EmptyTurns)
@@ -284,6 +310,7 @@ where
 fn telemetry(
     rounds: u32,
     model_calls: u32,
+    usage: Option<CallUsage>,
     tool_calls: u32,
     tools: Vec<String>,
     tool_executions: Vec<AgentToolExecutionTrace>,
@@ -291,6 +318,8 @@ fn telemetry(
     AgentExecutionTelemetry {
         rounds: Some(u64::from(rounds)),
         model_calls: Some(u64::from(model_calls)),
+        input_tokens: usage.map(|usage| usage.input_tokens),
+        output_tokens: usage.map(|usage| usage.output_tokens),
         tool_calls: Some(u64::from(tool_calls)),
         tools: Some(tools),
         tool_executions: Some(tool_executions),
@@ -315,6 +344,8 @@ where
 {
     let mut transcript = vec![AgentTurn::User(prompt)];
     let mut model_calls: u32 = 0;
+    // What the pass's model calls used, until one reports nothing.
+    let mut usage = Some(CallUsage::default());
     let mut tool_calls: u32 = 0;
     let mut tools: Vec<String> = Vec::new();
     let mut tool_executions: Vec<AgentToolExecutionTrace> = Vec::new();
@@ -327,6 +358,7 @@ where
             &transcript,
             config.max_empty_turn_resamples,
             &mut model_calls,
+            &mut usage,
         ) {
             Ok(uses) => uses,
             Err(TurnStop::Provider(detail)) => {
@@ -336,7 +368,14 @@ where
                         || "Managed agent provider request failed.".to_owned(),
                         |detail| format!("Managed agent provider request failed: {detail}"),
                     ),
-                    telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                    telemetry(
+                        round,
+                        model_calls,
+                        usage,
+                        tool_calls,
+                        tools,
+                        tool_executions,
+                    ),
                 ));
             }
             Err(TurnStop::EmptyTurns) => {
@@ -346,7 +385,14 @@ where
                         "Managed agent returned no tool use after {} attempts.",
                         config.max_empty_turn_resamples + 1
                     ),
-                    telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                    telemetry(
+                        round,
+                        model_calls,
+                        usage,
+                        tool_calls,
+                        tools,
+                        tool_executions,
+                    ),
                 ));
             }
         };
@@ -366,7 +412,14 @@ where
             return Err(AgentLoopFailure::new(
                 AgentLoopFailureReason::ToolExecutionFailed,
                 "Managed agent emitted an invalid tool-call batch.",
-                telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                telemetry(
+                    round,
+                    model_calls,
+                    usage,
+                    tool_calls,
+                    tools,
+                    tool_executions,
+                ),
             ));
         }
         // Admit the entire model batch before executing any tool. A late
@@ -395,7 +448,14 @@ where
             return Err(AgentLoopFailure::new(
                 AgentLoopFailureReason::ToolExecutionFailed,
                 "Managed agent tool execution failed.",
-                telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                telemetry(
+                    round,
+                    model_calls,
+                    usage,
+                    tool_calls,
+                    tools,
+                    tool_executions,
+                ),
             ));
         }
         let admitted_names = admitted_names.into_iter().flatten();
@@ -425,7 +485,14 @@ where
                 }
                 return Ok(AgentLoopEnd {
                     answer: Some(use_.input.clone()),
-                    telemetry: telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                    telemetry: telemetry(
+                        round,
+                        model_calls,
+                        usage,
+                        tool_calls,
+                        tools,
+                        tool_executions,
+                    ),
                 });
             }
 
@@ -456,6 +523,7 @@ where
                         telemetry: telemetry(
                             round,
                             model_calls,
+                            usage,
                             tool_calls,
                             tools,
                             tool_executions,
@@ -472,7 +540,14 @@ where
                     return Err(AgentLoopFailure::new(
                         AgentLoopFailureReason::ToolExecutionFailed,
                         "Managed agent tool execution failed.",
-                        telemetry(round, model_calls, tool_calls, tools, tool_executions),
+                        telemetry(
+                            round,
+                            model_calls,
+                            usage,
+                            tool_calls,
+                            tools,
+                            tool_executions,
+                        ),
                     ));
                 }
             };
@@ -501,6 +576,7 @@ where
         telemetry(
             config.max_rounds,
             model_calls,
+            usage,
             tool_calls,
             tools,
             tool_executions,
@@ -598,15 +674,23 @@ mod tests {
         )]))
     }
 
+    /// A reply that reports no usage, as a fake's replies are.
+    fn unmetered(tool_uses: Vec<AgentToolUse>) -> ModelReply {
+        ModelReply {
+            tool_uses,
+            usage: None,
+        }
+    }
+
     struct OneBatch(Vec<AgentToolUse>);
 
     impl ModelCaller for OneBatch {
-        fn next_tool_uses(
+        fn reply(
             &self,
             _tools: &AgentToolNameMap,
             _transcript: &[AgentTurn],
-        ) -> Result<Vec<AgentToolUse>, RuntimeError> {
-            Ok(self.0.clone())
+        ) -> Result<ModelReply, RuntimeError> {
+            Ok(unmetered(self.0.clone()))
         }
     }
 
@@ -707,30 +791,30 @@ mod tests {
 
     struct ScriptedModel;
     impl ModelCaller for ScriptedModel {
-        fn next_tool_uses(
+        fn reply(
             &self,
             _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
-        ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+        ) -> Result<ModelReply, RuntimeError> {
             // Round 1 has only the user prompt -> call a tool. Once tool results
             // are in the transcript -> finalize.
             let executed = transcript
                 .iter()
                 .any(|turn| matches!(turn, AgentTurn::ToolResults(_)));
             if executed {
-                Ok(vec![AgentToolUse {
+                Ok(unmetered(vec![AgentToolUse {
                     id: "f".to_owned(),
                     name: FINAL.to_owned(),
                     input: done_payload(),
                     replay: None,
-                }])
+                }]))
             } else {
-                Ok(vec![AgentToolUse {
+                Ok(unmetered(vec![AgentToolUse {
                     id: "t1".to_owned(),
                     name: "pay".to_owned(),
                     input: JsonValue::Object(Default::default()),
                     replay: None,
-                }])
+                }]))
             }
         }
     }
@@ -807,11 +891,11 @@ mod tests {
             saw_contract_error: std::cell::Cell<bool>,
         }
         impl ModelCaller for BareThenWrapped {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+            ) -> Result<ModelReply, RuntimeError> {
                 let call = self.calls.get();
                 self.calls.set(call + 1);
                 if call > 0 {
@@ -834,12 +918,12 @@ mod tests {
                         architecture,
                     )]))
                 };
-                Ok(vec![AgentToolUse {
+                Ok(unmetered(vec![AgentToolUse {
                     id: format!("final-{call}"),
                     name: FINAL.to_owned(),
                     input,
                     replay: None,
-                }])
+                }]))
             }
         }
 
@@ -893,17 +977,17 @@ mod tests {
     fn loop_fails_closed_on_max_rounds() {
         struct NeverFinal;
         impl ModelCaller for NeverFinal {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
-                Ok(vec![AgentToolUse {
+            ) -> Result<ModelReply, RuntimeError> {
+                Ok(unmetered(vec![AgentToolUse {
                     id: format!("x{}", _transcript.len()),
                     name: "noop".to_owned(),
                     input: JsonValue::Object(Default::default()),
                     replay: None,
-                }])
+                }]))
             }
         }
         let config = AgentLoopConfig {
@@ -935,12 +1019,12 @@ mod tests {
         // test); only sustained silence reaches this error.
         struct Silent;
         impl ModelCaller for Silent {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
-                Ok(Vec::new())
+            ) -> Result<ModelReply, RuntimeError> {
+                Ok(unmetered(Vec::new()))
             }
         }
         let config = AgentLoopConfig {
@@ -974,32 +1058,32 @@ mod tests {
             empties: std::cell::Cell<u32>,
         }
         impl ModelCaller for EmptyOnceThenScripted {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+            ) -> Result<ModelReply, RuntimeError> {
                 if self.empties.get() == 0 {
                     self.empties.set(1);
-                    return Ok(Vec::new());
+                    return Ok(unmetered(Vec::new()));
                 }
                 let executed = transcript
                     .iter()
                     .any(|turn| matches!(turn, AgentTurn::ToolResults(_)));
                 if executed {
-                    Ok(vec![AgentToolUse {
+                    Ok(unmetered(vec![AgentToolUse {
                         id: "f".to_owned(),
                         name: FINAL.to_owned(),
                         input: done_payload(),
                         replay: None,
-                    }])
+                    }]))
                 } else {
-                    Ok(vec![AgentToolUse {
+                    Ok(unmetered(vec![AgentToolUse {
                         id: "t1".to_owned(),
                         name: "pay".to_owned(),
                         input: JsonValue::Object(Default::default()),
                         replay: None,
-                    }])
+                    }]))
                 }
             }
         }
@@ -1028,6 +1112,132 @@ mod tests {
             ),
             "a transient empty turn should be resampled and recovered, finalizing normally; got: {result:?}"
         );
+    }
+
+    /// A model that gives `replies` in order, one per call.
+    struct Replies(std::cell::RefCell<std::collections::VecDeque<ModelReply>>);
+
+    impl Replies {
+        fn new(replies: impl IntoIterator<Item = ModelReply>) -> Self {
+            Self(std::cell::RefCell::new(replies.into_iter().collect()))
+        }
+    }
+
+    impl ModelCaller for Replies {
+        fn reply(
+            &self,
+            _tools: &AgentToolNameMap,
+            _transcript: &[AgentTurn],
+        ) -> Result<ModelReply, RuntimeError> {
+            self.0
+                .borrow_mut()
+                .pop_front()
+                .ok_or_else(|| provider_failed("the model has no reply left"))
+        }
+    }
+
+    fn pay(id: &str) -> AgentToolUse {
+        AgentToolUse {
+            id: id.to_owned(),
+            name: "pay".to_owned(),
+            input: JsonValue::Object(Default::default()),
+            replay: None,
+        }
+    }
+
+    fn finish() -> AgentToolUse {
+        AgentToolUse {
+            id: "f".to_owned(),
+            name: FINAL.to_owned(),
+            input: done_payload(),
+            replay: None,
+        }
+    }
+
+    fn metered(tool_uses: Vec<AgentToolUse>, input_tokens: u64, output_tokens: u64) -> ModelReply {
+        ModelReply {
+            tool_uses,
+            usage: Some(CallUsage {
+                input_tokens,
+                output_tokens,
+            }),
+        }
+    }
+
+    /// The loop sums what every model call reported, a prose reply it asked
+    /// for again included, and a pass that fails carries the sums it reached
+    /// in what its receipt shows.
+    #[test]
+    fn the_loop_sums_every_calls_usage_a_resampled_prose_reply_included() -> Result<(), String> {
+        let config = AgentLoopConfig {
+            max_rounds: 8,
+            max_empty_turn_resamples: 3,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: None,
+        };
+        let model = Replies::new([
+            metered(Vec::new(), 100, 5),
+            metered(vec![pay("t1")], 120, 8),
+            metered(vec![finish()], 150, 9),
+        ]);
+        let end = run_agent_loop(&config, &model, &mut OkExecutor, "go".to_owned())
+            .map_err(|error| error.to_string())?;
+        assert_eq!(end.answer, Some(done_payload()));
+        assert_eq!(end.telemetry.model_calls, Some(3));
+        assert_eq!(end.telemetry.input_tokens, Some(370));
+        assert_eq!(end.telemetry.output_tokens, Some(22));
+
+        let prose = Replies::new((0..4).map(|_| metered(Vec::new(), 100, 5)));
+        let error = run_agent_loop(&config, &prose, &mut OkExecutor, "go".to_owned())
+            .err()
+            .ok_or("a model that only writes prose fails the pass")?;
+        assert_eq!(
+            error.reason(),
+            AgentLoopFailureReason::EmptyTurnBudgetExhausted
+        );
+        let projection = error.telemetry().public_projection();
+        assert_eq!(
+            projection.get("model_calls"),
+            Some(&JsonValue::Number(4_u64.into()))
+        );
+        assert_eq!(
+            projection.get("input_tokens"),
+            Some(&JsonValue::Number(400_u64.into()))
+        );
+        assert_eq!(
+            projection.get("output_tokens"),
+            Some(&JsonValue::Number(20_u64.into()))
+        );
+        Ok(())
+    }
+
+    /// One call that reports no usage leaves both token counts out, since a
+    /// sum missing it would read as the whole, and the call still counts.
+    #[test]
+    fn a_call_that_reports_no_usage_leaves_the_tokens_out() -> Result<(), String> {
+        let config = AgentLoopConfig {
+            max_rounds: 8,
+            max_empty_turn_resamples: 3,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: None,
+        };
+        let model = Replies::new([
+            metered(vec![pay("t1")], 120, 8),
+            unmetered(vec![pay("t2")]),
+            metered(vec![finish()], 150, 9),
+        ]);
+        let end = run_agent_loop(&config, &model, &mut OkExecutor, "go".to_owned())
+            .map_err(|error| error.to_string())?;
+        assert_eq!(end.telemetry.model_calls, Some(3));
+        assert_eq!(end.telemetry.input_tokens, None);
+        assert_eq!(end.telemetry.output_tokens, None);
+        let projection = end.telemetry.public_projection();
+        assert!(
+            !projection.contains_key("input_tokens") && !projection.contains_key("output_tokens")
+        );
+        Ok(())
     }
 
     struct ErrExecutor {
@@ -1097,11 +1307,11 @@ mod tests {
     fn loop_sanitizes_provider_failure_and_preserves_bounded_telemetry() {
         struct FailingModel;
         impl ModelCaller for FailingModel {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+            ) -> Result<ModelReply, RuntimeError> {
                 Err(RuntimeError::SkillFailed {
                     skill_name: "provider".to_owned(),
                     message: "secret prompt and raw provider body".to_owned(),
@@ -1144,11 +1354,11 @@ mod tests {
         const KEY: &str = "AIza-dogfood-key";
         struct RefusingModel;
         impl ModelCaller for RefusingModel {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+            ) -> Result<ModelReply, RuntimeError> {
                 let body = format!(
                     r#"[{{"error":{{"code":404,"message":"This model is no longer\n available for key {KEY}.","status":"NOT_FOUND","details":["private prompt"]}}}}]"#
                 );
@@ -1200,17 +1410,17 @@ mod tests {
 
         struct UnknownToolModel;
         impl ModelCaller for UnknownToolModel {
-            fn next_tool_uses(
+            fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
-            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
-                Ok(vec![AgentToolUse {
+            ) -> Result<ModelReply, RuntimeError> {
+                Ok(unmetered(vec![AgentToolUse {
                     id: "unknown".to_owned(),
                     name: SENSITIVE_MARKER.to_owned(),
                     input: JsonValue::Object(Default::default()),
                     replay: None,
-                }])
+                }]))
             }
         }
 
@@ -1323,11 +1533,11 @@ mod tests {
 
     struct DistinctThenRepeat;
     impl ModelCaller for DistinctThenRepeat {
-        fn next_tool_uses(
+        fn reply(
             &self,
             _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
-        ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+        ) -> Result<ModelReply, RuntimeError> {
             // Call pay, then read, then pay again (a repeat), then finalize.
             let executed = transcript
                 .iter()
@@ -1344,12 +1554,12 @@ mod tests {
             } else {
                 JsonValue::Object(Default::default())
             };
-            Ok(vec![AgentToolUse {
+            Ok(unmetered(vec![AgentToolUse {
                 id: format!("c{executed}"),
                 name: name.to_owned(),
                 input,
                 replay: None,
-            }])
+            }]))
         }
     }
 

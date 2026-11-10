@@ -2733,6 +2733,8 @@ export type RunEventFactContract = {
   readonly receipt_id: string;
   readonly step_id: string;
   readonly succeeded: boolean;
+  /** What an agent step's turn used of its model, as its answer states it. Absent when the answer states none, and on every other step. */
+  readonly usage?: TurnUsageContract;
 } | {
   readonly kind: "skipped";
   readonly step_ids: readonly string[];
@@ -3827,6 +3829,13 @@ export type TurnToolContract = {
   /** Distinct within the turn, in the MCP tool-name grammar. */
   readonly name: string;
   readonly target: CallTargetContract;
+};
+
+/** What a turn's answer cost in calls to its model, as the driver that asked the model counted them: every call, a reply it asked for again included. The token counts are the sums the provider reported, both or neither: a call that reported none leaves both out, because a sum missing a call would read as the whole. runx's managed agent counts the pass that answered. */
+export type TurnUsageContract = {
+  readonly input_tokens?: number;
+  readonly model_calls: number;
+  readonly output_tokens?: number;
 };
 
 /** A turn as its agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
