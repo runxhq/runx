@@ -509,9 +509,10 @@ test("Ausca's GPU job runner, its sandbox's and GitHub's runner limit stay, and 
 // receipt words a test keeps, and spec.md's canonical governed call receipt.
 const cloudSpec = "# Runx spec\n\nThe harness context names a run.\n\n```json\n{\n  \"schema\": \"runx.receipt.v1\",\n  \"id\": \"sha256:5659e76269eb6d8d43c09b3de141d448c6d0be2a94b48ee671eedc3db681c8a5\",\n  \"subject\": { \"uri\": \"runx:run:test-stated#post\", \"runner\": \"default\" },\n  \"verification\": [\n    { \"uri\": \"runx:harness:provider-readback:sha256:da07e2036fc936095ab8f3a\" }\n  ]\n}\n```\n";
 const cloudPin = {
-  "packages/api/src/payments/holdings-postgres.ts": 'export const label = "purchase-holdings";\n',
+  "packages/api/src/payments/leases-postgres.ts": 'export const label = "purchase-holdings";\n',
   "packages/api/src/receipts/notary-projection.test.ts": 'export const subject = { ref_type: "harness" };\nexport const ref = { type: "harness", uri: "runx:harness:poisoned-secret-locator" };\n',
   "spec/spec.md": cloudSpec,
+  "scripts/site-release.ts": 'export const retired = { "https://schemas.runx.ai/runx/control/harness-context/v1.json": {} };\n',
 };
 
 test("a pinned block in Markdown comes out byte-exact, while the rest of its file renames", (t) => {
@@ -520,6 +521,16 @@ test("a pinned block in Markdown comes out byte-exact, while the rest of its fil
   assert.equal(status, 0, out);
   assert.equal(read(root, "spec/spec.md"), cloudSpec.replace("The harness context names a run.", "The run context names a run."));
   assert.equal(read(root, "packages/api/src/receipts/notary-projection.test.ts"), cloudPin["packages/api/src/receipts/notary-projection.test.ts"]);
+});
+
+test("a pinned literal keeps its bytes and lands on nothing, though its file already holds the name the table renames it to", (t) => {
+  const leases = 'export const label = "purchase-holdings";\nexport const table = "leases";\n';
+  const release = 'export const retired = {\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": { why: "The 0.12 rename made it runx/control/run-context/v1." },\n};\n';
+  const root = tree(t, { ...cloudPin, "packages/api/src/payments/leases-postgres.ts": leases, "scripts/site-release.ts": release });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "packages/api/src/payments/leases-postgres.ts"), leases);
+  assert.equal(read(root, "scripts/site-release.ts"), release);
 });
 
 test("a block pin that names no fenced block refuses", (t) => {

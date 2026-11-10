@@ -223,7 +223,7 @@ const PINNED = {
   ],
   cloud: [
     {
-      file: "packages/api/src/payments/holdings-postgres.ts",
+      file: "packages/api/src/payments/leases-postgres.ts",
       literal: '"purchase-holdings"',
       why: "the lease cipher's key-derivation label: stored ciphertext opens only under these bytes",
     },
@@ -231,6 +231,9 @@ const PINNED = {
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'ref_type: "harness"', why: "a receipt subject's ref type: 0.12's receipt schema still writes harness" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'type: "harness",', why: "a receipt ref's type, the same wire value" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: "runx:harness:poisoned-secret-locator", why: "that ref's uri, and the secret the test proves is scrubbed from it" },
+    // A retired schema's own URL, which the release check refuses by name: its
+    // retired_by and why say what took its place.
+    { file: "scripts/site-release.ts", literal: '"https://schemas.runx.ai/runx/control/harness-context/v1.json"', why: "a retired schema's URL, which the release check names to refuse it" },
     // spec.md's canonical receipts are OSS's fixtures/contracts/canonical-receipts, made by its
     // generator. Only the governed call's carries an old word, its runx:harness: readback, so it
     // alone is pinned, by its own id: the id and digest cover every byte.
@@ -455,11 +458,15 @@ function apply(repo, root, write, list, showStays) {
   // A new name a code file already holds needs a row for the name it lands
   // on: moved aside, or kept with a note that the two are one thing. Clashes
   // across files are the compiler's to catch, and prose landing on a word it
-  // already uses, such as "tests", is only English.
+  // already uses, such as "tests", is only English. A pinned literal keeps
+  // its bytes, so a name inside one is renamed nowhere and lands on nothing.
   const collisions = new Map();
   for (const file of workingSources(root).filter((file) => !file.endsWith(".md"))) {
-    const names = new Set(readSource(root, file)?.text?.match(TOKEN) ?? []);
-    for (const name of names) {
+    const text = readSource(root, file)?.text ?? "";
+    const pinned = pinnedSpans(pins.filter((pin) => pin.file === file), text);
+    const renamed = new Set([...text.matchAll(TOKEN)].filter((m) => !pinned.some(([from, to]) => m.index >= from && m.index < to)).map((m) => m[0]));
+    const names = new Set(text.match(TOKEN) ?? []);
+    for (const name of renamed) {
       const to = renames.get(name);
       if (to !== undefined && names.has(to) && !known.has(to)) collisions.set(`${name} -> ${to}`, file);
     }
