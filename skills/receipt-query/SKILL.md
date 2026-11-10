@@ -31,7 +31,9 @@ matched receipt count and verification status, not a synthesized business
 answer. Zero matches return `needs_more_evidence`.
 
 Exact-id stubs preserve the native `subject_uri` even when no skill label is
-available. Detail retains `issuer_type` and `seal_criteria`: a failed output
+available. Detail retains `issuer_type`, `seal_criteria` and, for a failed step,
+`seal_failure`: its code, its reason, whether a retry is offered and its own
+fields, such as each field a provider's answer contradicts. A failed output
 contract is still visible when a step has no act. A verified `local` issuer
 means the Runx home signed the receipt; it does not establish an independent
 operator or provider attestation. Missing replay fields stay unknown.

@@ -22,6 +22,10 @@ inputs:
           status: failed
           evidence_uris: [runx:artifact:output-check]
           verification_uris: [runx:verification:output-contract]
+      seal_failure:
+        code: runtime_error
+        reason: the step's output violates its declared contract
+        retryable: false
       authority: {}
       acts: []
       decisions: []
@@ -45,5 +49,9 @@ expect:
                   status: failed
                   evidence_uris: [runx:artifact:output-check]
                   verification_uris: [runx:verification:output-contract]
+              seal_failure:
+                code: runtime_error
+                reason: the step's output violates its declared contract
+                retryable: false
           chain_verification: {checked: true, intact: null, breaks: []}
   receipt: {schema: runx.receipt.v1}

@@ -124,6 +124,7 @@ function projectReceiptDetail(value) {
     outcome: stringValue(detail.outcome) || "",
     issuer_type: stringValue(detail.issuer_type),
     seal_criteria: records(detail.seal_criteria).map(projectCriterion),
+    seal_failure: projectFailure(detail.seal_failure),
     verification: record(detail.verification),
     authority: projectAuthority(detail.authority),
     decisions: records(detail.decisions).map(projectDecision),
@@ -131,6 +132,19 @@ function projectReceiptDetail(value) {
     artifact_uris: stringArray(detail.artifact_uris, 500),
     lineage_uris: stringArray(detail.lineage_uris, 500),
     seal_reason: stringValue(detail.seal_reason),
+  };
+}
+
+// Why a failed step failed, as its seal records it; nothing for any other step.
+function projectFailure(value) {
+  const failure = record(value);
+  const code = stringValue(failure.code);
+  if (!code) return undefined;
+  return {
+    code,
+    reason: stringValue(failure.reason) || "",
+    retryable: failure.retryable === true,
+    fields: record(failure.fields),
   };
 }
 
