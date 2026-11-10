@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use runx_contracts::{
-    DoctorDiagnostic, DoctorDiagnosticSeverity, DoctorLocation, DoctorRepair,
+    ConnectorInstance, DoctorDiagnostic, DoctorDiagnosticSeverity, DoctorLocation, DoctorRepair,
     DoctorRepairConfidence, DoctorRepairKind, DoctorRepairRisk, DoctorReport, DoctorReportSchema,
-    DoctorStatus, DoctorSummary, JsonObject, JsonValue,
+    DoctorStatus, DoctorSummary, InstanceAuthority, JsonObject, JsonValue,
 };
 use runx_runtime::{
     HOSTED_API_TOKEN_ENV, HostedApiEnvironment, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
@@ -67,6 +67,9 @@ fn run_doctor_command(
     if let Some(diagnostic) = managed_agent_config_diagnostic(env, cwd) {
         report.diagnostics.push(diagnostic);
     }
+    report
+        .diagnostics
+        .extend(runx_0_11_diagnostics(&RunxPaths::resolve(env, cwd)));
     report.summary = summary(&report.diagnostics);
     if report
         .diagnostics
@@ -307,6 +310,276 @@ fn managed_agent_config_diagnostic(
             Vec::new()
         },
     })
+}
+
+/// What runx 0.11 left in its store beside this runx's, said every time
+/// doctor looks: the runs it left unsealed, which finish with runx 0.11, and
+/// each connector instance it bound, with the command that binds it again.
+fn runx_0_11_diagnostics(paths: &RunxPaths) -> Vec<DoctorDiagnostic> {
+    match runx_runtime::KernelStore::runx_0_11_store(paths) {
+        Ok(None) => Vec::new(),
+        Ok(Some(store)) => {
+            let path = store.path.display().to_string();
+            let runs = store
+                .notice()
+                .map(|message| runx_0_11_runs_diagnostic(&path, message, &store.unsealed));
+            runs.into_iter()
+                .chain(
+                    store
+                        .instances
+                        .iter()
+                        .map(|instance| runx_0_11_instance_diagnostic(&path, instance)),
+                )
+                .collect()
+        }
+        Err(error) => vec![runx_0_11_runs_diagnostic(
+            &paths
+                .project()
+                .join(runx_runtime::kernel::store::RUNX_0_11_KERNEL_STORE_FILE)
+                .display()
+                .to_string(),
+            format!("couldn't read what runx 0.11 left: {error}"),
+            &[],
+        )],
+    }
+}
+
+/// The runs runx 0.11 left unsealed, which finish with runx 0.11.
+fn runx_0_11_runs_diagnostic(path: &str, message: String, unsealed: &[String]) -> DoctorDiagnostic {
+    DoctorDiagnostic {
+        id: "runx.kernel.runx_0_11_runs".to_owned(),
+        instance_id: "runx:doctor:runx.kernel.runx_0_11_runs".to_owned(),
+        severity: DoctorDiagnosticSeverity::Warning,
+        title: "Runs runx 0.11 left unsealed".to_owned(),
+        message,
+        target: object([
+            ("kind", string_value("kernel_store")),
+            ("id", string_value("runx.kernel.runx_0_11_runs")),
+        ]),
+        location: DoctorLocation {
+            path: path.to_owned(),
+            json_pointer: None,
+        },
+        evidence: Some(object([
+            ("path", string_value(path)),
+            (
+                "unsealed_runs",
+                JsonValue::Array(unsealed.iter().map(|run| string_value(run)).collect()),
+            ),
+        ])),
+        repairs: vec![DoctorRepair {
+            id: "runx.kernel.runx_0_11_runs.finish".to_owned(),
+            kind: DoctorRepairKind::Manual,
+            confidence: DoctorRepairConfidence::High,
+            risk: DoctorRepairRisk::Low,
+            path: Some(path.to_owned()),
+            json_pointer: None,
+            contents: Some(
+                "Finish or close each of these runs with runx 0.11, which reads its own store; this runx never writes it."
+                    .to_owned(),
+            ),
+            patch: None,
+            command: None,
+            requires_human_review: false,
+        }],
+    }
+}
+
+/// A connector instance runx 0.11 bound, which this runx doesn't carry over:
+/// every connector's pins changed with the store's format, and a changed
+/// connector is bound again by its person, with the command its record's
+/// pointers fill in. A secret stays where it is; no value is named.
+fn runx_0_11_instance_diagnostic(
+    path: &str,
+    instance: &runx_runtime::Runx011Instance,
+) -> DoctorDiagnostic {
+    let (connector, how, again) = match &instance.record {
+        Ok(record) => (
+            Some(record.connector.as_str()),
+            bound_by(&record.authority),
+            bind_again(record),
+        ),
+        Err(reason) => (
+            None,
+            format!("a record this runx can't read ({reason})"),
+            Err("bind its connector again with runx connector use".to_owned()),
+        ),
+    };
+    let named = connector.map_or_else(String::new, |connector| format!(" {connector}"));
+    let message = format!(
+        "runx 0.11 bound connector{named} as instance {} ({how}){}, which this runx doesn't carry over: every connector's pins changed with the store's format, so bind it again; its secret, if it has one, stays where it is.",
+        instance.instance_id,
+        if instance.selected {
+            ", its selected one"
+        } else {
+            ""
+        },
+    );
+    let (command, contents) = match again {
+        Ok((command, contents)) => (Some(command), contents),
+        Err(contents) => (None, contents),
+    };
+    let mut evidence = object([
+        ("path", string_value(path)),
+        ("instance_id", string_value(&instance.instance_id)),
+        ("selected", JsonValue::Bool(instance.selected)),
+    ]);
+    if let Some(connector) = connector {
+        evidence.insert("connector".to_owned(), string_value(connector));
+    }
+    if let Some(command) = &command {
+        evidence.insert("command".to_owned(), string_value(command));
+    }
+    DoctorDiagnostic {
+        id: "runx.kernel.runx_0_11_instance".to_owned(),
+        instance_id: format!(
+            "runx:doctor:runx.kernel.runx_0_11_instance:{}",
+            instance.instance_id
+        ),
+        severity: DoctorDiagnosticSeverity::Warning,
+        title: "A connector runx 0.11 bound".to_owned(),
+        message,
+        target: object([
+            ("kind", string_value("connector_instance")),
+            ("id", string_value(&instance.instance_id)),
+        ]),
+        location: DoctorLocation {
+            path: path.to_owned(),
+            json_pointer: None,
+        },
+        evidence: Some(evidence),
+        repairs: vec![DoctorRepair {
+            id: "runx.kernel.runx_0_11_instance.bind".to_owned(),
+            kind: if command.is_some() {
+                DoctorRepairKind::RunCommand
+            } else {
+                DoctorRepairKind::Manual
+            },
+            confidence: DoctorRepairConfidence::High,
+            risk: DoctorRepairRisk::Low,
+            path: None,
+            json_pointer: None,
+            contents: Some(contents),
+            patch: None,
+            command,
+            requires_human_review: true,
+        }],
+    }
+}
+
+/// How an instance holds its authority, by the pointers its record keeps.
+fn bound_by(authority: &InstanceAuthority) -> String {
+    match authority {
+        InstanceAuthority::Secret {
+            credential, secret, ..
+        } => format!("credential {credential} from the secret {secret}"),
+        InstanceAuthority::Environment {
+            credential,
+            variable,
+            ..
+        } => format!("credential {credential} from the variable {variable}"),
+        InstanceAuthority::Session { session, .. } => {
+            format!("its {} session", session.as_str())
+        }
+        InstanceAuthority::HostedGrant { grant_id } => format!("the Connect grant {grant_id}"),
+        InstanceAuthority::Held { credential, target } => {
+            format!("credential {credential} held for {target}")
+        }
+        InstanceAuthority::Public => "no credential".to_owned(),
+    }
+}
+
+/// The command that binds `instance` again as runx 0.11 bound it, filled
+/// from its record's pointers, and what it reads; or why none does.
+fn bind_again(instance: &ConnectorInstance) -> Result<(String, String), String> {
+    let mut args = vec![
+        "runx".to_owned(),
+        "connector".to_owned(),
+        "use".to_owned(),
+        instance.connector.as_str().to_owned(),
+    ];
+    let scoped = |args: &mut Vec<String>, scopes: &[runx_contracts::schema::NonEmptyString]| {
+        for scope in scopes {
+            args.extend(["--scope".to_owned(), scope.as_str().to_owned()]);
+        }
+    };
+    let contents = match &instance.authority {
+        InstanceAuthority::Secret {
+            credential,
+            secret,
+            scopes,
+            ..
+        } => {
+            args.extend([
+                "--credential".to_owned(),
+                credential.as_str().to_owned(),
+                "--secret".to_owned(),
+                secret.as_str().to_owned(),
+            ]);
+            scoped(&mut args, scopes);
+            format!("Binds the secret {secret}, which stays in this runx home.")
+        }
+        InstanceAuthority::Environment {
+            credential,
+            variable,
+            scopes,
+        } => {
+            args.extend(["--credential".to_owned(), credential.as_str().to_owned()]);
+            scoped(&mut args, scopes);
+            format!("Binds the variable {variable}, which must be set when it runs.")
+        }
+        InstanceAuthority::Session { session, scopes } => {
+            args.push("--session".to_owned());
+            scoped(&mut args, scopes);
+            format!(
+                "Binds the {} session the connector signs in with.",
+                session.as_str()
+            )
+        }
+        InstanceAuthority::HostedGrant { grant_id } => {
+            args.push(grant_id.as_str().to_owned());
+            format!("Binds the Connect grant {grant_id} again.")
+        }
+        InstanceAuthority::Held { target, .. } => {
+            return Err(format!(
+                "Held for {target} by a purchase, which takes it again; no person binds it."
+            ));
+        }
+        InstanceAuthority::Public => {
+            return Err("A public connector needs no binding.".to_owned());
+        }
+    };
+    if !matches!(instance.authority, InstanceAuthority::Session { .. }) {
+        for (name, value) in &instance.parameters {
+            let value = match value {
+                JsonValue::String(text) => text.clone(),
+                other => serde_json::to_string(other)
+                    .map_err(|error| format!("its parameter {name} can't be written: {error}"))?,
+            };
+            args.extend(["--parameter".to_owned(), format!("{name}={value}")]);
+        }
+    }
+    Ok((
+        args.iter()
+            .map(|arg| shell_word(arg))
+            .collect::<Vec<_>>()
+            .join(" "),
+        contents,
+    ))
+}
+
+/// `word` as a shell reads it back: as it is when it holds nothing a shell
+/// reads specially, else in single quotes.
+fn shell_word(word: &str) -> String {
+    if !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./:=@,+%".contains(c))
+    {
+        word.to_owned()
+    } else {
+        format!("'{}'", word.replace('\'', "'\\''"))
+    }
 }
 
 fn first_non_empty<'a>(values: impl IntoIterator<Item = Option<&'a str>>) -> Option<&'a str> {

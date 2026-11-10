@@ -230,6 +230,7 @@ pub(super) fn admit_file_target(
     if normalized.file_name().is_some_and(|name| {
         let name = name.to_string_lossy().to_ascii_lowercase();
         name.starts_with(crate::kernel::store::KERNEL_STORE_FILE)
+            || name.starts_with(crate::kernel::store::RUNX_0_11_KERNEL_STORE_FILE)
             || name.starts_with(crate::kernel::store::RETIRED_KERNEL_STORE_FILE)
             || name == crate::receipts::store::STORE_LOCK_FILE_NAME
             || name.starts_with(&format!(

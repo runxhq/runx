@@ -31,8 +31,15 @@ use thiserror::Error;
 
 mod schema;
 
-/// The store's file name inside the project `.runx` directory.
-pub const KERNEL_STORE_FILE: &str = "kernel-v2.sqlite";
+/// The store's file name inside the project `.runx` directory, named for the
+/// format it writes, schema version 3: each format's file sits beside the
+/// last, so a workspace an earlier runx used runs on this one at once.
+pub const KERNEL_STORE_FILE: &str = "kernel-v3.sqlite";
+
+/// The store file runx 0.11 wrote, in format 2. This runx reads it only for
+/// what 0.11 left unsealed, which finishes with runx 0.11, and never writes
+/// or moves it.
+pub const RUNX_0_11_KERNEL_STORE_FILE: &str = "kernel-v2.sqlite";
 
 /// The store file runx 0.10 wrote. 0.11 renamed every record it holds and
 /// reads none of them; the file stays where it is, for runx 0.10.
@@ -209,11 +216,11 @@ pub enum KernelStoreError {
     #[error("kernel store at {path} is not a runx kernel store")]
     Foreign { path: PathBuf },
     #[error(
-        "kernel store at {path} is from before runx 0.12, which 0.12 doesn't read; move it aside to start a new store"
+        "kernel store at {path} is from a runx before 0.12, which 0.12 doesn't read; that runx keeps its store under its own name, kernel-v2.sqlite for runx 0.11, so move it back there and this runx starts its own"
     )]
     BeforeThisRunx { path: PathBuf },
     #[error(
-        "runx 0.10 left provider effects in flight in {path} ({}). runx 0.11 starts a new kernel log and cannot finish them: finish or reconcile these runs with runx 0.10, or move {path} aside to discard them",
+        "runx 0.10 left provider effects in flight in {path} ({}). runx 0.11 and later start their own kernel log and cannot finish them: finish or reconcile these runs with runx 0.10, or move {path} aside to discard them",
         .acts.join(", ")
     )]
     RetiredEffectsInFlight { path: PathBuf, acts: Vec<String> },
@@ -235,6 +242,62 @@ pub enum KernelStoreError {
 impl KernelStoreError {
     fn encode(error: serde_json::Error) -> Self {
         Self::Codec(error.to_string())
+    }
+}
+
+/// runx 0.11's store beside this one: the runs it left unsealed there, and
+/// the connector instances it bound, which this runx doesn't carry over.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Runx011Store {
+    pub path: PathBuf,
+    /// Its top-level runs whose stream isn't sealed, by id.
+    pub unsealed: Vec<String>,
+    /// The connector instances it bound and didn't revoke, by id.
+    pub instances: Vec<Runx011Instance>,
+}
+
+/// A connector instance runx 0.11 bound and didn't revoke. Every connector's
+/// pins changed with the store's format, and a changed connector is bound
+/// again by its person, so this runx only names it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Runx011Instance {
+    pub instance_id: String,
+    /// What runx 0.11 recorded of it, or why that can't be read.
+    pub record: Result<runx_contracts::ConnectorInstance, String>,
+    /// Whether it was its connector's selected instance.
+    pub selected: bool,
+}
+
+/// An instance's last event in runx 0.11's store, in its own words.
+#[derive(serde::Deserialize)]
+#[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
+enum Runx011InstanceEvent {
+    Confirmed {
+        instance: Box<runx_contracts::ConnectorInstance>,
+    },
+}
+
+/// A connector's last selection in runx 0.11's store.
+#[derive(serde::Deserialize)]
+#[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
+enum Runx011SelectionEvent {
+    Selected { instance_id: String },
+}
+
+impl Runx011Store {
+    /// What a person reads of it, once runx 0.11 left a run unsealed: how
+    /// many, where, and that they finish with runx 0.11.
+    #[must_use]
+    pub fn notice(&self) -> Option<String> {
+        let (runs, finish) = match self.unsealed.len() {
+            0 => return None,
+            1 => ("1 run".to_owned(), "finish it"),
+            count => (format!("{count} runs"), "finish them"),
+        };
+        Some(format!(
+            "runx 0.11 left {runs} unsealed in {}; {finish} with runx 0.11. New runs go ahead in this runx's own store.",
+            self.path.display()
+        ))
     }
 }
 
@@ -309,6 +372,53 @@ impl KernelStore {
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// What runx 0.11 left in its own store in the project at `paths`: the
+    /// runs it didn't seal, which finish with runx 0.11. Its store is read,
+    /// never written; none when 0.11 left none there.
+    ///
+    /// # Errors
+    ///
+    /// Returns why runx 0.11's store couldn't be read.
+    pub fn runx_0_11_store(
+        paths: &crate::paths::RunxPaths,
+    ) -> Result<Option<Runx011Store>, KernelStoreError> {
+        let path = paths.project().join(RUNX_0_11_KERNEL_STORE_FILE);
+        if !path.is_file() {
+            return Ok(None);
+        }
+        let unsealed = schema::runx_0_11_unsealed_runs(&path)?;
+        let (confirmed, selections) = schema::runx_0_11_instances(&path)?;
+        let selected = selections
+            .iter()
+            .filter_map(|data| serde_json::from_slice::<Runx011SelectionEvent>(data).ok())
+            .map(|Runx011SelectionEvent::Selected { instance_id }| instance_id)
+            .collect::<std::collections::BTreeSet<_>>();
+        let instances = confirmed
+            .into_iter()
+            .map(|(instance_id, data)| Runx011Instance {
+                selected: selected.contains(&instance_id),
+                record: serde_json::from_slice::<Runx011InstanceEvent>(&data)
+                    .map(|Runx011InstanceEvent::Confirmed { instance }| *instance)
+                    .map_err(|error| error.to_string()),
+                instance_id,
+            })
+            .collect();
+        Ok(Some(Runx011Store {
+            path,
+            unsealed,
+            instances,
+        }))
+    }
+
+    /// Whether runx 0.11's store in the project at `paths` recorded run
+    /// `run_id`, read without writing it.
+    pub(crate) fn runx_0_11_recorded_run(
+        paths: &crate::paths::RunxPaths,
+        run_id: &str,
+    ) -> Result<bool, KernelStoreError> {
+        schema::runx_0_11_recorded_run(&paths.project().join(RUNX_0_11_KERNEL_STORE_FILE), run_id)
     }
 
     /// The authoritative project state directory this store was opened in.

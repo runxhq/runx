@@ -206,10 +206,18 @@ pub fn apply_fixture_signing(command: &mut Command, signing_key_id: &str) {
 /// JSON commands keep their machine envelope on stdout. A governed skill run
 /// may additionally emit the human-readable operator preflight on stderr:
 /// compact, or under `--diagnostics` followed by the full operator context.
+/// Before it, a command that cares says once what runx 0.11 left unsealed.
 /// Accept only those exact channel shapes so tests do not hide arbitrary
 /// warnings.
 pub fn assert_json_stderr(stderr: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     let stderr = std::str::from_utf8(stderr)?;
+    let stderr = match stderr.strip_prefix("runx: runx 0.11 left ") {
+        Some(said) => said
+            .split_once('\n')
+            .map(|(_, rest)| rest)
+            .ok_or_else(|| format!("unexpected stderr for JSON command:\n{stderr}"))?,
+        None => stderr,
+    };
     if stderr.is_empty() {
         return Ok(());
     }

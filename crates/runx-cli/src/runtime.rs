@@ -17,6 +17,19 @@ pub fn runtime_effect_registry() -> Result<RuntimeEffectRegistry, runx_runtime::
     RuntimeEffectRegistry::local()
 }
 
+/// Say once, on stderr, what runx 0.11 left unsealed in its store beside
+/// this one, which finishes with runx 0.11; a command that would care says
+/// it before it goes ahead.
+pub fn say_what_runx_0_11_left(paths: &runx_runtime::RunxPaths) {
+    let said = match runx_runtime::KernelStore::runx_0_11_store(paths) {
+        Ok(store) => store.as_ref().and_then(runx_runtime::Runx011Store::notice),
+        Err(error) => Some(format!("couldn't read what runx 0.11 left: {error}")),
+    };
+    if let Some(said) = said {
+        let _ignored = crate::cli_io::write_stderr(&format!("runx: {said}\n"));
+    }
+}
+
 /// A process that drives a run its host named ends with that host, so a
 /// host that dies leaves no driver behind and its successor can see that.
 /// The runtime holds the run's driver lock while it drives.

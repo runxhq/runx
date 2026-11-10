@@ -204,6 +204,9 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
     let effects = RuntimeEffectRegistry::default();
     for root in [workspace.path(), alternate.path()] {
         for filename in [
+            "kernel-v3.sqlite",
+            "kernel-v3.sqlite-wal",
+            "kernel-v3.sqlite-shm",
             "kernel-v2.sqlite",
             "kernel-v2.sqlite-wal",
             "kernel-v2.sqlite-shm",

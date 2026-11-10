@@ -1108,6 +1108,96 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
     Ok(())
 }
 
+/// A workspace runx 0.11 used runs on this runx at once. Its store stays as
+/// 0.11 left it; each command that cares says once what 0.11 left unsealed,
+/// and doctor says it each time; a run only 0.11 recorded is read with 0.11.
+#[test]
+fn a_workspace_runx_011_used_runs_here_and_says_what_it_left() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-runx-011-workspace");
+    let skill = root.join("skills/printer");
+    fs::create_dir_all(&skill)?;
+    fs::create_dir_all(root.join("home"))?;
+    fs::create_dir_all(root.join(".runx"))?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: printer\ndescription: Prints one object.\n---\n# Printer\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  print:\n    steps:\n      - id: print\n        tool: {command: sh, args: [-c, 'printf \"{\\\"ok\\\":true}\"'], timeout_seconds: 5}\n        outputs:\n          ok: {type: boolean}\n",
+    )?;
+    // The store runx 0.11.1 left: one run paused, one sealed.
+    let earlier = root.join(".runx/kernel-v2.sqlite");
+    {
+        let store = rusqlite::Connection::open(&earlier)?;
+        store.execute_batch(include_str!(
+            "../../../fixtures/kernel-store/runx-0.11.1-store.sql"
+        ))?;
+        for (run, head) in [
+            ("run_notes_01a0f1aa", "suspended"),
+            ("run_notes_01a0f0aa", "sealed"),
+        ] {
+            store.execute(
+                "INSERT INTO kernel_streams VALUES ('run', ?1, 3, ?2, 'chain', '2026-10-01T00:00:00.000Z')",
+                rusqlite::params![run, head],
+            )?;
+        }
+    }
+    let before = fs::read(&earlier)?;
+    let runx = |args: &[&str]| {
+        crate::support::unsigned_runx_command_at(&root)
+            .env("RUNX_CWD", &root)
+            .args(args)
+            .output()
+    };
+    let said_once = |output: &Output| -> TestResult {
+        let said = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            said.matches("runx 0.11 left 1 run unsealed in").count(),
+            1,
+            "{said}"
+        );
+        assert!(said.contains("finish it with runx 0.11"), "{said}");
+        Ok(())
+    };
+
+    let ran = runx(&["skill", "skills/printer", "--json"])?;
+    assert_exit(&ran, 0)?;
+    said_once(&ran)?;
+    let history = runx(&["history"])?;
+    assert_exit(&history, 0)?;
+    said_once(&history)?;
+    let earlier_run = runx(&["history", "run_notes_01a0f1aa"])?;
+    assert_eq!(earlier_run.status.code(), Some(1));
+    let said = String::from_utf8_lossy(&earlier_run.stderr);
+    assert!(
+        said.contains("run run_notes_01a0f1aa was written by runx 0.11; read it with that version"),
+        "{said}"
+    );
+    let doctor: Value = serde_json::from_slice(&runx(&["doctor", "--json"])?.stdout)?;
+    let left = doctor["diagnostics"]
+        .as_array()
+        .and_then(|diagnostics| {
+            diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic["id"] == "runx.kernel.runx_0_11_runs")
+        })
+        .ok_or_else(|| format!("doctor says nothing of what runx 0.11 left: {doctor}"))?;
+    assert_eq!(
+        left["evidence"]["unsealed_runs"],
+        serde_json::json!(["run_notes_01a0f1aa"]),
+        "{left}"
+    );
+
+    assert_eq!(
+        fs::read(&earlier)?,
+        before,
+        "runx 0.11's store is as it left it"
+    );
+    assert!(root.join(".runx/kernel-v3.sqlite").is_file());
+    Ok(())
+}
+
 /// One turn tool call on its own `runx mcp --run` process, so a test proves
 /// what survives between processes. Returns the call's structured result.
 fn turn_tool(root: &Path, run: &str, tool: &str, arguments: Value) -> TestResult<Value> {
