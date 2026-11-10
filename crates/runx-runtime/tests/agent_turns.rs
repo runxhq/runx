@@ -1747,6 +1747,66 @@ fn resume_document(
     })?)
 }
 
+/// A person's answer reaches a run whose agent harness is mid-turn without
+/// closing its session (the answer inbox): with the session open, a resume
+/// approving the turn's held write is accepted rather than refused for the
+/// run's live driver, and the session's next action applies it, so the
+/// write runs and the session goes on. The same approval delivered again
+/// names a request the run no longer waits on, and is refused as it's
+/// delivered.
+#[test]
+fn an_approval_reaches_a_run_mid_turn_without_closing_its_session() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::write(root.join("README.md"), "old\n")?;
+    let started = start_bounded(
+        root,
+        write_develop_skill(root)?,
+        asking(serde_json::json!([]))?,
+    )?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let turn = opened(root, &started)?;
+    let held = turn.call(
+        TURN,
+        "fs_write",
+        None,
+        input(serde_json::json!({
+            "path": "README.md",
+            "contents": "new\n",
+            "expected_digest": runx_contracts::sha256_prefixed(b"old\n"),
+        }))?,
+    )?;
+    floor_gate(&held, "answer/0/tool")?;
+    let approve = crate::support::bind_resume(
+        &env(root),
+        root,
+        &run_id,
+        serde_json::json!({"approvals": {"answer/0/tool": true}}),
+    )?;
+
+    let accepted = resume_document(root, &run_id, approve.clone())?;
+    assert_eq!(
+        text(object(&accepted.output)?, "status"),
+        Some("accepted"),
+        "{:?}",
+        accepted.output
+    );
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "old\n");
+
+    // The session's next action applies the delivered approval.
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
+
+    // The same approval again names a request the run no longer waits on.
+    let refused = resume_document(root, &run_id, approve)
+        .err()
+        .ok_or("a delivery naming no waiting request is refused")?;
+    assert!(refused.to_string().contains("answer/0/tool"), "{refused}");
+    Ok(())
+}
+
 #[test]
 fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> TestResult {
     let temp = tempdir()?;

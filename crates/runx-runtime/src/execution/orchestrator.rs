@@ -154,6 +154,30 @@ impl RunResult {
         self.status == RunStatus::NeedsAgent || self.outcome == Some(RunOutcome::Deferred)
     }
 
+    /// The answers a resume brought are in run `run_id`'s inbox, for its
+    /// live driver to apply.
+    pub(crate) fn accepted(run_id: &str) -> Self {
+        Self {
+            status: RunStatus::Accepted,
+            outcome: None,
+            output: JsonValue::Object(runx_contracts::JsonObject::from([
+                (
+                    "schema".to_owned(),
+                    JsonValue::String("runx.skill_run.v1".to_owned()),
+                ),
+                (
+                    "status".to_owned(),
+                    JsonValue::String("accepted".to_owned()),
+                ),
+                ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
+            ])),
+            receipt_ids: Vec::new(),
+            child_receipt_uris: Vec::new(),
+            pending_requests: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
+
     pub(crate) fn sealed(output: JsonValue, receipt: &Receipt) -> Self {
         Self {
             status: RunStatus::Sealed,
@@ -172,6 +196,8 @@ pub enum RunStatus {
     NeedsAgent,
     Sealed,
     Failed,
+    /// The run's live driver took the answers, to apply between its actions.
+    Accepted,
 }
 
 #[derive(Debug, Error)]
@@ -301,8 +327,18 @@ impl LocalOrchestrator {
         if request.answers.close.is_some() {
             return Ok(super::skill_front::close_run(continuation)?);
         }
-        let run = super::skill_front::bind_paused_run(continuation, &self.effects)?;
-        Ok(run.execute()?)
+        match super::skill_front::bind_paused_run(continuation, &self.effects) {
+            Ok(run) => Ok(run.execute()?),
+            // A driver lives: the answers go to the run's inbox, which it
+            // applies between its actions.
+            Err(error) if error.is_driven() => Ok(super::skill_front::deliver_answers(
+                &request.run_id,
+                &request.env,
+                &request.cwd,
+                &request.answers,
+            )?),
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// Open the agent turns a paused run waits on, for a host that works them

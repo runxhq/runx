@@ -101,10 +101,15 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
             .to_string()
             .as_bytes(),
     )?;
+    // A resume sent while the run's driver lives goes to the run's inbox,
+    // checked as it's delivered: a process step's retry can't be sent again
+    // safely, so its acknowledgement is refused there, and nothing drives
+    // the run but its driver (changed 11 November: it was refused as a
+    // second driver's).
     let refused = resume.wait_with_output()?;
-    assert!(!refused.status.success(), "a second driver is refused");
+    assert!(!refused.status.success(), "the delivery is refused");
     let refusal = String::from_utf8_lossy(&refused.stdout);
-    assert!(refusal.contains("driven"), "{refusal}");
+    assert!(refusal.contains("cannot be sent again safely"), "{refusal}");
 
     gate.release(original.id())?;
     let finished = original.wait_with_output()?;

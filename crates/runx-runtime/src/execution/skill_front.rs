@@ -72,6 +72,42 @@ pub enum SkillRunError {
     ReceiptStore(#[from] ReceiptStoreError),
 }
 
+impl SkillRunError {
+    /// Whether another driver holds the run, so nothing here could drive it.
+    pub(crate) fn is_driven(&self) -> bool {
+        matches!(
+            self,
+            Self::Runtime(RuntimeError::RunRecord(
+                crate::execution::run_record::RunRecordError::Driven { .. }
+            ))
+        )
+    }
+}
+
+/// Deliver the `answers` a resume brought to run `run_id`, whose driver
+/// lives, through the run's inbox (the answer inbox): each is checked against
+/// what the run waits on now, by its digest and its lane, as the driver
+/// checks it again when it applies it between its actions. A resume that
+/// would close the run never reaches a driver this way.
+pub(crate) fn deliver_answers(
+    run_id: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    answers: &runx_contracts::ResumeDocument,
+) -> Result<RunResult, SkillRunError> {
+    let workspace =
+        WorkspaceEnv::new(env.clone(), cwd.to_path_buf()).map_err(RuntimeError::from)?;
+    let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
+        .map_err(crate::execution::run_record::RunRecordError::from)?;
+    let run_id = crate::execution::run_record::validate_run_id(run_id)?;
+    let log = crate::execution::run_record::RunLog::open(store, run_id)?;
+    resolution_answers::ResolutionAnswers::from_document(answers.clone())?
+        .check_waiting(run_id, &log.waiting()?)?;
+    crate::execution::run_record::inbox::deliver(log.store(), run_id, answers)
+        .map_err(crate::execution::run_record::RunRecordError::from)?;
+    Ok(RunResult::accepted(run_id))
+}
+
 /// Per-run choices and explicitly shared native host services. Every entry
 /// point retains the same admission, continuation, and receipt semantics.
 /// Omitted services use the normal local runtime defaults.
@@ -131,6 +167,9 @@ pub(crate) struct BoundRun {
     /// The run's log, which every pass of this driver reads and writes
     /// through, so a pass reads only what the run committed since the last.
     log: std::sync::OnceLock<crate::execution::run_record::RunLog>,
+    /// How far into the run's inbox this driver has taken what was
+    /// delivered.
+    inbox: std::sync::Mutex<u64>,
 }
 
 pub(crate) fn execute_skill_run_with_overrides(
@@ -549,6 +588,7 @@ fn bind_resolved(
         max_concurrency,
         max_receipts,
         log: run_log.map_or_else(std::sync::OnceLock::new, std::sync::OnceLock::from),
+        inbox: std::sync::Mutex::new(0),
     })
 }
 

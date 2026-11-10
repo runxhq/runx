@@ -9749,7 +9749,8 @@ export const runxSchemaArtifacts = {
           "needs_approval",
           "payment_required",
           "policy_denied",
-          "failure"
+          "failure",
+          "accepted"
         ],
         "title": "SkillOutputStatus",
         "type": "string"

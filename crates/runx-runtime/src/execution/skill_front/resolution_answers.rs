@@ -91,6 +91,26 @@ impl ResolutionAnswers {
         })
     }
 
+    /// Keep only the entries that answer a request the run waits on now, by
+    /// its address and its digest: one whose request was answered since, or
+    /// changed, is passed over.
+    pub(super) fn retain_waiting(&mut self, waiting: &[PendingRequest]) {
+        self.entries.retain(|address, entry| {
+            waiting
+                .iter()
+                .any(|request| request.id == *address && request.digest == entry.digest)
+        });
+    }
+
+    /// Take `other`'s entries and its standing approvals: a later delivery's
+    /// entry for an address replaces an earlier one's.
+    pub(super) fn absorb(&mut self, other: Self) {
+        self.entries.extend(other.entries);
+        if other.standing.is_some() {
+            self.standing = other.standing;
+        }
+    }
+
     /// The answer to the request at `address` whose digest is `digest`; a
     /// different request at that address is not answered.
     pub(super) fn get(&self, address: &str, digest: &str) -> Option<&JsonValue> {

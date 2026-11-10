@@ -23,6 +23,12 @@ The command completed successfully. A sealed skill result exits 0 only when its
 outcome is `completed`; Runx preserves every other terminal result as
 a signed receipt while returning the process status shown above.
 
+`runx resume` also exits 0 with the status `accepted` when the run's driver is
+alive, as a session working one of its turns is: the answers go to the run's
+inbox, checked against what the run waits on, and that driver applies them
+between its actions. The run's result comes from that driver, not from this
+command.
+
 Common follow-up:
 
 ```bash

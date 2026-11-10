@@ -15,7 +15,9 @@
 //! depth, and waits for nothing. Completing or failing a turn's act waits
 //! only for that turn's own calls, so one lead's completion goes ahead with
 //! a sibling still running (D36). Every other action waits until no call is
-//! executing, so it reads the run as its calls left it.
+//! executing, so it reads the run as its calls left it. A person's answer
+//! brought while the session drives the run reaches it through the run's
+//! inbox, which each action under the driver applies first.
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -696,18 +698,20 @@ mod tests {
                 .contains("call 0 of its turn has not settled"),
             "{early}"
         );
-        // A person's answer needs the driver lock: the host closes the
-        // session to deliver it.
+        // A person's answer reaches the open session through the run's
+        // inbox, checked as it's delivered: anything but the exact
+        // acknowledgement is refused there (changed 11 November: an open
+        // session refused any answer as a second driver's).
         let held = answer(
             root,
             &run_id,
             "approvals",
             "answer/0/retry",
-            serde_json::json!({"retry": true}),
+            serde_json::json!({"retry": false}),
         )
         .err()
-        .ok_or("an open session refuses a second driver")?;
-        assert!(held.to_string().contains("driven"), "{held}");
+        .ok_or("only the exact acknowledgement is delivered")?;
+        assert!(held.to_string().contains("acknowledged only"), "{held}");
         drop(session);
 
         let refused = answer(

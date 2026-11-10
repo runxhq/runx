@@ -49,6 +49,7 @@ use crate::kernel::store::{
 
 mod claim;
 mod driver;
+pub(crate) mod inbox;
 mod read;
 
 pub(crate) use claim::retained_claim;

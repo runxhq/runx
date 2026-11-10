@@ -19,6 +19,10 @@ pub enum SkillOutputStatus {
     PaymentRequired,
     PolicyDenied,
     Failure,
+    /// A resume brought while the run's driver lives: its answers are in the
+    /// run's inbox, and the driver applies them between its actions. The run
+    /// goes on there, so this carries no result of its own.
+    Accepted,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

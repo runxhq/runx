@@ -85,6 +85,13 @@ impl BoundRun {
         let existing = log.load()?;
         let waiting = log.waiting()?;
         host.check_turn(log.run_id(), &waiting)?;
+        // What the run's inbox delivered while it was driven reaches it here,
+        // under the driver, before the host's own answers.
+        if !host.executes() {
+            let mut answers = self.delivered(&log, &waiting)?;
+            answers.absorb(std::mem::take(&mut host.answers));
+            host.answers = answers;
+        }
         host.answers.check_waiting(log.run_id(), &waiting)?;
         let request_context = CallerContext {
             current: request.current_context.clone(),
@@ -445,6 +452,40 @@ impl BoundRun {
     pub(super) fn waiting(&self) -> Result<Vec<PendingRequest>, SkillRunError> {
         let log = self.log()?;
         Ok(log.waiting()?)
+    }
+
+    /// What the run's inbox delivered since this driver last took it, where
+    /// it still answers what the run waits on, `waiting`, by digest and lane:
+    /// the answers a resume brought while a driver held the run. A delivery
+    /// whose request was answered since, or changed, is passed over, so a
+    /// driver that takes the inbox from its start applies only what still
+    /// waits.
+    fn delivered(
+        &self,
+        log: &RunLog,
+        waiting: &[PendingRequest],
+    ) -> Result<ResolutionAnswers, SkillRunError> {
+        let mut through = self
+            .inbox
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (read_to, documents) = crate::execution::run_record::inbox::delivered_after(
+            log.store(),
+            log.run_id(),
+            *through,
+        )
+        .map_err(crate::execution::run_record::RunRecordError::from)
+        .map_err(RuntimeError::from)?;
+        *through = read_to;
+        let mut answers = ResolutionAnswers::default();
+        for document in documents {
+            let mut delivered = ResolutionAnswers::from_document(document)?;
+            delivered.retain_waiting(waiting);
+            if delivered.check_waiting(log.run_id(), waiting).is_ok() {
+                answers.absorb(delivered);
+            }
+        }
+        Ok(answers)
     }
 
     /// The run this binding drives.

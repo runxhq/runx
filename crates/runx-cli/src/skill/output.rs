@@ -35,6 +35,8 @@ pub(super) fn run_result_exit_code(
 ) -> ExitCode {
     if let Some(outcome) = result.outcome {
         run_outcome_exit_code(outcome)
+    } else if result.status == runx_runtime::execution::orchestrator::RunStatus::Accepted {
+        ExitCode::SUCCESS
     } else if result.needs_resolution() {
         ExitCode::from(2)
     } else {

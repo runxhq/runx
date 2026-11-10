@@ -3323,7 +3323,7 @@ export type SkillOutputContract = {
 
 export type SkillOutputSchemaContract = "runx.skill_run.v1";
 
-export type SkillOutputStatusContract = "sealed" | "needs_agent" | "needs_approval" | "payment_required" | "policy_denied" | "failure";
+export type SkillOutputStatusContract = "sealed" | "needs_agent" | "needs_approval" | "payment_required" | "policy_denied" | "failure" | "accepted";
 
 export type SkillPackageDeltaContract = {
   readonly bytes: number;
