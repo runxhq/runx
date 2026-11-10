@@ -109,6 +109,26 @@ test("requested residual email patterns still hold, including obfuscation", () =
     assert.ok(out.scanner.findings.some((f) => f.class === "email"));
   }
 });
+test("an identifier ending the text is found with its exact span, by every pattern", () => {
+  for (const [rule, identifier] of [
+    ["direct_email", "jane@example.test"],
+    ["us_ssn", "123-45-6789"],
+    ["payment_card_digits", "4111 1111 1111 1111"],
+    ["phone_digits", "+1 415 555 0100"],
+    ["ipv4_address", "192.168.0.1"],
+    ["obfuscated_email", "jane at example dot test"],
+  ]) {
+    const content = `Reach them at ${identifier}`;
+    const out = scrub(content, [], {
+      classes: ["email", "government_id", "payment_card", "phone", "precise_geolocation"],
+    });
+    assert.deepEqual(
+      out.scanner.findings.filter((finding) => finding.rule === rule).map((finding) => finding.span),
+      [[content.length - identifier.length, content.length]],
+      rule,
+    );
+  }
+});
 test("an intentionally empty source can have an empty successful result", () => {
   const out = scrub("");
   assert.equal(out.decision, "ready");

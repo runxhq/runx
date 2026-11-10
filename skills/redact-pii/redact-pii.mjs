@@ -183,21 +183,22 @@ function quoteStarts(source, quote) {
 }
 
 function applyDetections(source, detections, treatment) {
+  // Each class's tokens, by the text each one replaces: one token for each
+  // distinct text of a class.
   const counts = new Map(),
     tokens = new Map();
   const replacements = detections.map((detection) => {
     const label = detection.class.toUpperCase();
     if (treatment !== "tokenize") return "[REDACTED:" + label + "]";
-    const key = JSON.stringify([
-      detection.class,
-      source.slice(...detection.span),
-    ]);
-    if (!tokens.has(key)) {
+    let byText = tokens.get(detection.class);
+    if (byText === undefined) tokens.set(detection.class, (byText = new Map()));
+    const text = source.slice(...detection.span);
+    if (!byText.has(text)) {
       const count = (counts.get(label) || 0) + 1;
       counts.set(label, count);
-      tokens.set(key, "[TOKEN:" + label + ":" + count + "]");
+      byText.set(text, "[TOKEN:" + label + ":" + count + "]");
     }
-    return tokens.get(key);
+    return byText.get(text);
   });
   const chunks = [];
   let offset = 0;
@@ -209,25 +210,35 @@ function applyDetections(source, detections, treatment) {
   return chunks.join("");
 }
 
+// The worker's regex engine copies a string it holds as Latin-1 whole each
+// time it looks for a match (boa #5587), so a scan of a text with many
+// matches cost the square of the text's length. A string holding a character
+// past Latin-1 is held as UTF-16, which it reads in place, so the scan reads
+// the text with U+0100 after it, made once: no pattern matches that
+// character, and neither \b nor \w takes it for a word character, so every
+// finding and its span are the text's own.
+const PAST_LATIN1 = "\u0100";
+
 function scanResidual(value) {
+  const text = value + PAST_LATIN1;
   const findings = [];
   collect(
     findings,
-    value,
+    text,
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu,
     "email",
     "direct_email",
   );
   collect(
     findings,
-    value,
+    text,
     /\b\d{3}-\d{2}-\d{4}\b/gu,
     "government_id",
     "us_ssn",
   );
   collect(
     findings,
-    value,
+    text,
     /\b(?:\d[ -]*?){13,19}\b/gu,
     "payment_card",
     "payment_card_digits",
@@ -235,7 +246,7 @@ function scanResidual(value) {
   );
   collect(
     findings,
-    value,
+    text,
     /(?<!\w)(?:\+?\d[\d().\s-]{6,}\d)(?!\w)/gu,
     "phone",
     "phone_digits",
@@ -246,14 +257,14 @@ function scanResidual(value) {
   );
   collect(
     findings,
-    value,
+    text,
     /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/gu,
     "precise_geolocation",
     "ipv4_address",
   );
   collect(
     findings,
-    value,
+    text,
     /\b[A-Z0-9._%+-]+\s*(?:\[at\]|\(at\)|\sat\s)\s*[A-Z0-9.-]+\s*(?:\[dot\]|\(dot\)|\sdot\s)\s*[A-Z]{2,}\b/giu,
     "email",
     "obfuscated_email",
