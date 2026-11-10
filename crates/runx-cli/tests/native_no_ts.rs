@@ -124,7 +124,7 @@ methods:
       - id: first
         skill: ../skills/json-output
         inputs:
-          message: hello from graph
+          message: hello from workflow
       - id: second
         skill: ../skills/echo
         inputs:

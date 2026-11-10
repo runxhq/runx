@@ -63,7 +63,7 @@ fn workflow_context_materialization_reaches_the_target_invocation()
     let consumer = calls.last().ok_or("consumer skill was not invoked")?;
     assert_eq!(
         consumer.inputs.get("message"),
-        Some(&JsonValue::String("hello from graph".to_owned()))
+        Some(&JsonValue::String("hello from workflow".to_owned()))
     );
     assert!(!consumer.skill_name.is_empty());
     assert_eq!(consumer.step_id.as_deref(), Some("default"));

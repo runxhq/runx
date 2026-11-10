@@ -7,7 +7,7 @@ methods:
       - id: first
         skill: ../hello-world
         inputs:
-          message: hello from graph
+          message: hello from workflow
       - id: second
         skill: ../hello-world
         inputs:

@@ -7,21 +7,21 @@
   ],
   "contracts": [
     {
-      "message": "hello from graph"
+      "message": "hello from workflow"
     },
     {
-      "message": "hello from graph"
+      "message": "hello from workflow"
     }
   ],
   "createdAt": "2026-05-18T00:00:00Z",
-  "workflowSealDigest": "sha256:92731a336c01955a437bd6e4ed0ad00ed6c4a97461c31c6f703342a2492b897b",
+  "workflowSealDigest": "sha256:ebfb6ca5c4d1a3099766dc52fac05011aea6de82cb615b9d3051c11fa6e1bc4c",
   "childSealDigests": [
-    "sha256:8111c419d15662a7d46895bd700e534b6d0ba73dbc7d10a966c379f18a8d7aee",
-    "sha256:9d37c35249c8cd632ffbb63572c5ac6064bb3e053524dc051ab3d3221750250d"
+    "sha256:5a0c87caff7bb29fe5d5775b49426425ace4c2a5b1903faa8d06ebcf79ed08e7",
+    "sha256:49c6ff7d6f4987b678c7af779b6dd4b971c9bc4cde6caaf7008dacb7d2367662"
   ],
-  "workflowReceiptId": "sha256:c56602bed34541369b252b77b1d1d098c00ba7bc8e6001f03b46bc51af3b3901",
+  "workflowReceiptId": "sha256:a71c9f2113ef9acc177421d17a43d6e250d1a9e86b0a82bf5de11dabaccc1782",
   "childReceiptIds": [
-    "sha256:e72b24a24cbfbf30fdb4466a07af9cad6743e8ea5f5895dcf09f5904e725163b",
-    "sha256:aee018040240870198274758ce2842a9466d7de63baacc6746fdf42c0c9daba3"
+    "sha256:6b5b35adccb05d4043c929a099775db90f0eb06ab6a44f677c0c902809d64944",
+    "sha256:739b5af6c006f4b778bee684f1ffa9d7ef242931ae44e02efee53eb894b4dcc7"
   ]
 }

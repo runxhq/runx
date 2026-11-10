@@ -19,7 +19,7 @@ methods:
       - id: first
         skill: ../hello-world#default
         inputs:
-          message: hello from graph
+          message: hello from workflow
       - id: second
         skill: ../hello-world#default
         inputs:
