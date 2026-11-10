@@ -42,8 +42,9 @@ url.workspace = true
 
 [dev-dependencies]
 rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
-# The crash tests drive a binary with crash points; only a test build has them.
-runx-runtime = { workspace = true, features = ["crash-points"] }
+# The crash tests drive a binary with crash points, and count the reads of
+# each stream it recovers; only a test build has either.
+runx-runtime = { workspace = true, features = ["crash-points", "probe-fixtures"] }
 rustix = { version = "1.1.4", features = ["fs", "process"] }
 
 [[bin]]

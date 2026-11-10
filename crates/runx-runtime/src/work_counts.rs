@@ -53,6 +53,10 @@ pub(crate) enum Work {
     StoreSearchPage,
     /// One event read from a key's history in the `private` store.
     StoreEventRowRead,
+    /// A script run from its beginning on a worker.
+    ScriptPass,
+    /// A settlement handed to a script, recorded or fresh.
+    ScriptSettlementDelivered,
 }
 
 static PROCESS_SPAWNS: AtomicU64 = AtomicU64::new(0);
@@ -75,6 +79,8 @@ static STORE_KEY_ROWS_VISITED: AtomicU64 = AtomicU64::new(0);
 static STORE_KEY_ROWS_PASSED_OVER: AtomicU64 = AtomicU64::new(0);
 static STORE_SEARCH_PAGES: AtomicU64 = AtomicU64::new(0);
 static STORE_EVENT_ROWS_READ: AtomicU64 = AtomicU64::new(0);
+static SCRIPT_PASSES: AtomicU64 = AtomicU64::new(0);
+static SCRIPT_SETTLEMENTS_DELIVERED: AtomicU64 = AtomicU64::new(0);
 
 /// The points an artifact's bytes are copied at, from the store to a worker
 /// and to a result.
@@ -137,6 +143,8 @@ pub(crate) fn count_many(work: Work, units: usize) {
         Work::StoreKeyRowPassedOver => &STORE_KEY_ROWS_PASSED_OVER,
         Work::StoreSearchPage => &STORE_SEARCH_PAGES,
         Work::StoreEventRowRead => &STORE_EVENT_ROWS_READ,
+        Work::ScriptPass => &SCRIPT_PASSES,
+        Work::ScriptSettlementDelivered => &SCRIPT_SETTLEMENTS_DELIVERED,
     };
     counter.fetch_add(u64::try_from(units).unwrap_or(u64::MAX), Ordering::Relaxed);
 }
@@ -247,6 +255,12 @@ pub struct WorkCounts {
     pub store_search_pages: u64,
     /// Events read from keys' histories in the `private` store.
     pub store_event_rows_read: u64,
+    /// Scripts run from their beginning on a worker: one for a script a live
+    /// worker runs to its end, and one more each time a lost worker is
+    /// rebuilt from the record.
+    pub script_passes: u64,
+    /// Settlements handed to scripts, recorded ones replayed included.
+    pub script_settlements_delivered: u64,
 }
 
 #[must_use]
@@ -286,24 +300,27 @@ pub fn snapshot() -> WorkCounts {
         store_key_rows_passed_over: STORE_KEY_ROWS_PASSED_OVER.load(Ordering::Relaxed),
         store_search_pages: STORE_SEARCH_PAGES.load(Ordering::Relaxed),
         store_event_rows_read: STORE_EVENT_ROWS_READ.load(Ordering::Relaxed),
+        script_passes: SCRIPT_PASSES.load(Ordering::Relaxed),
+        script_settlements_delivered: SCRIPT_SETTLEMENTS_DELIVERED.load(Ordering::Relaxed),
     }
 }
 
-/// Write this process's counts to the file `RUNX_PERF_COUNTS_PATH` names,
-/// when it names one.
-///
 /// The reads of each kernel stream's events, by `<kind> <key>` and version,
-/// while a probe tallies them; none otherwise. Only the benches build it.
+/// while a probe tallies them, or for the whole of a process that writes its
+/// counts; none otherwise. Only the benches and the CLI's test build have it.
 #[cfg(feature = "probe-fixtures")]
 static STREAM_READS: Mutex<Option<BTreeMap<String, BTreeMap<u64, u64>>>> = Mutex::new(None);
 
 /// Count one read of event `version` of the kernel stream `key` of `kind`,
-/// while a probe tallies them.
+/// while a probe tallies them or the process writes its counts.
 #[cfg(feature = "probe-fixtures")]
 pub(crate) fn stream_event_read(kind: &str, key: &str, version: u64) {
     let mut reads = STREAM_READS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if reads.is_none() && std::env::var_os(RUNX_PERF_COUNTS_PATH_ENV).is_some() {
+        *reads = Some(BTreeMap::new());
+    }
     if let Some(reads) = reads.as_mut() {
         *reads
             .entry(format!("{kind} {key}"))
@@ -330,6 +347,11 @@ pub(crate) fn stream_reads<T>(
     (measured, reads)
 }
 
+/// Write this process's counts to the file `RUNX_PERF_COUNTS_PATH` names,
+/// when it names one. A build that tallies stream reads adds the most times
+/// it read any one kernel stream event, 1 where it read each stream once, and
+/// how many events it read more than once.
+///
 /// # Errors
 ///
 /// Returns why the file couldn't be written.
@@ -337,7 +359,32 @@ pub fn record_from_process_env() -> std::io::Result<()> {
     let Some(path) = std::env::var_os(RUNX_PERF_COUNTS_PATH_ENV) else {
         return Ok(());
     };
-    let counts = serde_json::to_vec(&snapshot()).map_err(std::io::Error::other)?;
+    #[cfg_attr(not(feature = "probe-fixtures"), allow(unused_mut))]
+    let mut counts = serde_json::to_value(snapshot()).map_err(std::io::Error::other)?;
+    #[cfg(feature = "probe-fixtures")]
+    if let serde_json::Value::Object(counts) = &mut counts {
+        let reads = STREAM_READS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map(|reads| {
+                reads
+                    .values()
+                    .flat_map(BTreeMap::values)
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        counts.insert(
+            "most_reads_of_one_stream_event".to_owned(),
+            serde_json::Value::from(reads.iter().copied().max().unwrap_or(0)),
+        );
+        counts.insert(
+            "stream_events_read_again".to_owned(),
+            serde_json::Value::from(reads.iter().filter(|read| **read > 1).count()),
+        );
+    }
+    let counts = serde_json::to_vec(&counts).map_err(std::io::Error::other)?;
     std::fs::write(path, counts)
 }
 

@@ -71,6 +71,10 @@ impl LiveScript<'_> {
         settled: Vec<runx_contracts::javascript_worker::ScriptSettlement>,
         now: i64,
     ) -> Result<ScriptPassed, RuntimeError> {
+        crate::work_counts::count_many(
+            crate::work_counts::Work::ScriptSettlementDelivered,
+            settled.len(),
+        );
         script_passed(self.script.settle(settled, now)?)
     }
 }
@@ -192,6 +196,11 @@ impl JavaScriptAdapter {
     ) -> Result<(LiveScript<'_>, ScriptPassed), RuntimeError> {
         let inputs = serde_json::to_value(inputs)
             .map_err(|source| RuntimeError::json("serializing a script's inputs", source))?;
+        crate::work_counts::count(crate::work_counts::Work::ScriptPass);
+        crate::work_counts::count_many(
+            crate::work_counts::Work::ScriptSettlementDelivered,
+            settled.len(),
+        );
         let (script, result) = self
             .supervisor
             .start_script(supervisor::ScriptPassInvocation {
