@@ -21,6 +21,7 @@ pub mod execution;
 pub mod execution_boundary;
 pub mod execution_requirements;
 pub mod host_protocol;
+pub mod input_digest;
 pub mod javascript_worker;
 pub mod json;
 pub mod list;
