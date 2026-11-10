@@ -579,7 +579,6 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         record.suspension.map(|held| held.step_id),
         Some("answer".to_owned())
     );
-    assert_eq!(record.calls.len(), 2);
     assert_eq!(log.calls("answer", 1).unwrap().len(), 2);
     assert_eq!(
         waiting_ids(&store, "run_turn_1"),
@@ -1207,6 +1206,106 @@ fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
     assert_eq!(
         small.2, large.2,
         "a poll at a turn reads what changed, not the turn"
+    );
+}
+
+/// A run of `run_id` waiting at its turn `answer`, which made `calls` calls,
+/// each completed, and the call that records one more.
+fn turn_of_calls(store: &Arc<KernelStore>, run_id: &str, calls: u32) -> (RunLog, impl Fn(u32)) {
+    let log = RunLog::open(Arc::clone(store), run_id).unwrap();
+    start(&log, &JsonObject::new());
+    log.record_request("answer", 1, &turn("answer")).unwrap();
+    let turn = waiting_requests(store, run_id).unwrap().remove(0);
+    let recording = log.clone();
+    let run_id = run_id.to_owned();
+    let call = move |index: u32| {
+        recording
+            .record_call(&CallRecord {
+                step_id: "answer",
+                attempt: 1,
+                turn: Some(&turn),
+                index,
+                call_id: None,
+                target: &CallTarget::Tool {
+                    tool: "data.digest".into(),
+                },
+                input: &JsonObject::new(),
+                outcome: &CallOutcome::Completed(Box::new(step(
+                    &run_id,
+                    &format!("answer/{index}"),
+                ))),
+                outputs: &[],
+                standing: None,
+                answers: &[],
+                cancelled: false,
+                inline_bound: None,
+                reuse: None,
+            })
+            .unwrap();
+    };
+    for index in 0..calls {
+        call(index);
+    }
+    (log, call)
+}
+
+/// The rows of the store `measure` read.
+fn rows_read(measure: impl FnOnce()) -> u64 {
+    let before = crate::work_counts::snapshot().store_rows_read;
+    measure();
+    crate::work_counts::snapshot().store_rows_read - before
+}
+
+#[test]
+fn a_run_taken_whole_reads_each_call_once_and_nothing_it_settled() {
+    let test = concat!(
+        module_path!(),
+        "::a_run_taken_whole_reads_each_call_once_and_nothing_it_settled"
+    );
+    // The rows a new log reads to take whole a run whose turn made `calls`
+    // calls.
+    let whole = |calls: u32| -> u64 {
+        let (_directory, store) = store();
+        drop(turn_of_calls(&store, "run_whole", calls));
+        let log = RunLog::open(store, "run_whole").unwrap();
+        rows_read(|| {
+            log.load().unwrap();
+        })
+    };
+    let (small, large) = crate::work_counts::alone(test, || (whole(10), whole(1_000)));
+    assert_eq!(
+        large - small,
+        990,
+        "a call's event is one row, and its input and result wait until its step reads them"
+    );
+}
+
+#[test]
+fn a_driver_reads_its_run_again_only_from_where_it_last_read() {
+    let test = concat!(
+        module_path!(),
+        "::a_driver_reads_its_run_again_only_from_where_it_last_read"
+    );
+    // The rows a driver reads to take its run and its turn's calls again
+    // after one more call, at a turn that made `calls` calls it already read.
+    let again = |calls: u32| -> (usize, u64) {
+        let (_directory, store) = store();
+        let (log, call) = turn_of_calls(&store, "run_again", calls);
+        log.load().unwrap();
+        log.calls("answer", 1).unwrap();
+        call(calls);
+        let mut made = 0;
+        let rows = rows_read(|| {
+            log.load().unwrap();
+            made = log.calls("answer", 1).unwrap().len();
+        });
+        (made, rows)
+    };
+    let (small, large) = crate::work_counts::alone(test, || (again(10), again(1_000)));
+    assert_eq!((small.0, large.0), (11, 1_001));
+    assert_eq!(
+        small.1, large.1,
+        "a driver reads what was committed since it last read, not the run"
     );
 }
 

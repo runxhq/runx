@@ -398,7 +398,7 @@ mod tests {
         assert_eq!(sealed.receipt.seal.outcome, RunOutcome::Superseded);
         assert_eq!(sealed.receipt.seal.reason, Some(SealReason::HostClosed));
         assert!(
-            matches!(record.calls.as_slice(), [call] if matches!(call.outcome, CallOutcome::Claimed(_))),
+            matches!(log.calls("answer", 1)?.as_slice(), [call] if matches!(call.outcome, CallOutcome::Claimed(_))),
             "the claimed call stays unconfirmed"
         );
         Ok(())
@@ -481,7 +481,11 @@ mod tests {
         .ok_or("a stopped driver admits no call")?;
         assert!(stopped.to_string().contains("stopped before"), "{stopped}");
         let record = log.load()?.ok_or("the run has a record")?;
-        assert_eq!(record.calls.len(), 1, "the stop recorded nothing");
+        assert_eq!(
+            log.calls("answer", 1)?.len(),
+            1,
+            "the stop recorded nothing"
+        );
         assert!(record.sealed.is_none());
 
         let next = session.call("answer", "data_digest", Some("next"), input()?)?;
@@ -878,15 +882,29 @@ mod tests {
     /// A run of a one-turn skill that reads and writes files, waiting on its
     /// turn, and the session that works it.
     fn files_session(root: &Path) -> TestResult<(String, Arc<super::TurnSession>)> {
-        let skill = root.join("files-demo");
+        session_offering(root, "files-demo", "[fs.read, fs.write]")
+    }
+
+    /// The session of a run of package `name` at its turn `answer`, which
+    /// offers `tools`.
+    fn session_offering(
+        root: &Path,
+        name: &str,
+        tools: &str,
+    ) -> TestResult<(String, Arc<super::TurnSession>)> {
+        let skill = root.join(name);
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: files-demo\ndescription: Reads and writes files.\n---\n# Files demo\n\n## Agent task: answer\n\nRead, write, answer.\n",
+            format!(
+                "---\nname: {name}\ndescription: Works a turn.\n---\n# {name}\n\n## Agent task: answer\n\nWork the turn, then answer.\n"
+            ),
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [fs.read, fs.write]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+            format!(
+                "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: {tools}\n        inputs: $input\n        outputs:\n          answer: {{type: string}}\n"
+            ),
         )?;
         let started = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {
@@ -931,6 +949,37 @@ mod tests {
 
     fn input(value: serde_json::Value) -> TestResult<JsonObject> {
         Ok(serde_json::from_value(value)?)
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_call_at_a_turn_reads_what_moved_not_the_turn() {
+        let test = concat!(
+            module_path!(),
+            "::a_call_at_a_turn_reads_what_moved_not_the_turn"
+        );
+        // The rows the last of `calls` digests made at one turn reads.
+        let last = |calls: u32| -> u64 {
+            let temp = tempfile::tempdir().unwrap();
+            let (_, session) =
+                session_offering(temp.path(), "digest-demo", "[data.digest]").unwrap();
+            let mut rows = 0;
+            for index in 0..calls {
+                let digest = input(
+                    serde_json::json!({"value": format!("call {index}"), "encoding": "utf8_text"}),
+                )
+                .unwrap();
+                let before = crate::work_counts::snapshot().store_rows_read;
+                session.call("answer", "data_digest", None, digest).unwrap();
+                rows = crate::work_counts::snapshot().store_rows_read - before;
+            }
+            rows
+        };
+        let (small, large) = crate::work_counts::alone(test, || (last(10), last(100)));
+        assert_eq!(
+            small, large,
+            "a call at a turn reads what moved since the call before it, not the turn"
+        );
     }
 
     #[test]

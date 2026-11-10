@@ -451,12 +451,17 @@ impl BoundRun {
         self.driver.run_id()
     }
 
-    /// The record of the run this binding drives.
+    /// The record of the run this binding drives: one log for every pass,
+    /// which reads again only what the run committed since it last read.
     fn log(&self) -> Result<RunLog, SkillRunError> {
+        if let Some(log) = self.log.get() {
+            return Ok(log.clone());
+        }
         let store = KernelStore::for_project(self.workspace.paths())
             .map_err(crate::execution::run_record::RunRecordError::from)
             .map_err(RuntimeError::from)?;
-        Ok(RunLog::open(store, self.run_id()).map_err(RuntimeError::from)?)
+        let log = RunLog::open(store, self.run_id()).map_err(RuntimeError::from)?;
+        Ok(self.log.get_or_init(|| log).clone())
     }
 
     /// The run waits on every request open in it, at any depth.

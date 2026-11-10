@@ -153,3 +153,85 @@ fn a_run_starts_a_worker_only_when_its_method_can_run_javascript() {
         assert_eq!(started.worker.as_deref(), worker, "{name}");
     }
 }
+
+#[test]
+fn a_resume_takes_its_run_whole_once() {
+    let test = concat!(module_path!(), "::a_resume_takes_its_run_whole_once");
+    let root = tempfile::tempdir().unwrap();
+    let env: BTreeMap<String, String> = [
+        ("RUNX_CWD".to_owned(), root.path().display().to_string()),
+        (
+            "RUNX_HOME".to_owned(),
+            root.path().join("home").display().to_string(),
+        ),
+    ]
+    .into();
+    let skill = root.path().join("holds");
+    std::fs::create_dir_all(&skill).unwrap();
+    std::fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: holds\ndescription: Holds for a person twice.\n---\n# Holds\n",
+    )
+    .unwrap();
+    std::fs::write(
+        skill.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: hold\n        ask: {gate: holds.hold, reason: Hold here.}\n      - id: again\n        ask: {gate: holds.again, reason: Hold here again.}\n",
+    )
+    .unwrap();
+    let orchestrator = crate::execution::orchestrator::LocalOrchestrator::default();
+    let started = orchestrator
+        .run_skill_with_binding(
+            &crate::execution::orchestrator::SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(root.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env.clone(),
+                cwd: root.path().to_path_buf(),
+                managed_agent: Default::default(),
+            },
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    let run_id = started.output.as_object().unwrap()["run_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let held = crate::execution::run_record::read_run(&env, root.path(), &run_id, None)
+        .unwrap()
+        .waiting
+        .remove(0);
+    let taken = crate::work_counts::alone(test, || {
+        let before = crate::work_counts::snapshot().run_materializations;
+        let resumed = orchestrator
+            .resume(&crate::execution::orchestrator::ResumeRequest {
+                run_id: run_id.clone(),
+                answers: serde_json::from_value(serde_json::json!({"approvals": {
+                    held.address.as_str(): {"request_digest": held.request_digest.as_str(), "approved": true}
+                }}))
+                .unwrap(),
+                receipt_dir: Some(root.path().join("receipts")),
+                env: env.clone(),
+                cwd: root.path().to_path_buf(),
+                managed_agent: Default::default(),
+                package_digest: None,
+                execution_closure_digest: None,
+            })
+            .unwrap();
+        assert_eq!(
+            resumed.output.as_object().unwrap()["status"].as_str(),
+            Some("needs_approval"),
+            "{:?}",
+            resumed.output
+        );
+        crate::work_counts::snapshot().run_materializations - before
+    });
+    assert_eq!(taken, 1, "a resume reads its run's record once");
+}

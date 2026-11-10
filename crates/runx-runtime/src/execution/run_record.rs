@@ -632,11 +632,6 @@ pub(crate) struct RunRecord {
     /// The standing approvals the person last set, which replace the set the
     /// run started with.
     pub standing: Option<Vec<StandingApproval>>,
-    /// Every call the run's steps made, each as its latest event settled it,
-    /// in the order they were first made.
-    pub calls: Vec<RecordedCall>,
-    /// How many call events the run records.
-    pub calls_recorded: u64,
     /// How many times the run has waited for a bounded retry.
     pub retries: u32,
     pub sealed: Option<Sealed>,
@@ -748,6 +743,70 @@ struct RunLogInner {
     act: OnceLock<Option<CallAct>>,
     /// Where each turn's calls begin in the stream.
     calls: Mutex<CallIndex>,
+    /// What this log read of its run, so it reads again only what was
+    /// committed since.
+    kept: Mutex<Kept>,
+}
+
+/// The run as a log last took it, and each step's calls as it last read
+/// them, each through the version it read to.
+#[derive(Clone, Default)]
+struct Kept {
+    record: Option<(u64, RunRecord)>,
+    steps: BTreeMap<(String, u32), KeptCalls>,
+}
+
+/// A step's calls, each as its latest event settled it, and its script's
+/// clock reads, by position, through `through`.
+#[derive(Clone)]
+struct KeptCalls {
+    through: u64,
+    calls: Vec<RecordedCall>,
+    clock: BTreeMap<u32, i64>,
+    /// The place the step's next call event takes among its call events.
+    order: u64,
+}
+
+impl KeptCalls {
+    fn through(through: u64) -> Self {
+        Self {
+            through,
+            calls: Vec::new(),
+            clock: BTreeMap::new(),
+            order: 0,
+        }
+    }
+
+    /// The step's calls after `events`, the stream's next.
+    fn apply(
+        &mut self,
+        store: &KernelStore,
+        events: Vec<Recorded<RunEvent>>,
+        step_id: &str,
+        attempt: u32,
+    ) -> Result<(), RunRecordError> {
+        for recorded in events {
+            match recorded.event {
+                RunEvent::Call(call) if call.step_id == step_id && call.attempt == attempt => {
+                    settle_call(&mut self.calls, recorded_call(store, *call, self.order)?);
+                    self.order += 1;
+                }
+                RunEvent::Clock(read) if read.step_id == step_id && read.attempt == attempt => {
+                    self.clock.insert(read.index, read.millis);
+                }
+                _ => {}
+            }
+            self.through = recorded.version;
+        }
+        Ok(())
+    }
+
+    /// The calls by index, and the clock reads.
+    fn read(&self) -> (Vec<RecordedCall>, BTreeMap<u32, i64>) {
+        let mut calls = self.calls.clone();
+        calls.sort_by_key(|call| call.index);
+        (calls, self.clock.clone())
+    }
 }
 
 /// The version of each step's first call or clock read, and the calls of
@@ -822,6 +881,7 @@ impl RunLog {
             strict: true,
             act: OnceLock::new(),
             calls: Mutex::default(),
+            kept: Mutex::default(),
         })))
     }
 
@@ -830,13 +890,18 @@ impl RunLog {
     /// writes are still refused against a version it did not read.
     #[must_use]
     pub(crate) fn reading(&self) -> Self {
+        // What it read is taken first, as `load` takes it before the version,
+        // and each guard is released before the next is taken.
+        let kept = self.kept().clone();
+        let version = *self.version();
         Self(Arc::new(RunLogInner {
             store: Arc::clone(&self.0.store),
             run_id: self.0.run_id.clone(),
-            version: Mutex::new(*self.version()),
+            version: Mutex::new(version),
             strict: false,
             act: self.0.act.clone(),
             calls: Mutex::default(),
+            kept: Mutex::new(kept),
         }))
     }
 
@@ -894,15 +959,52 @@ impl RunLog {
             }))
     }
 
-    /// Rebuild the run from its stream; `None` when it has not started.
+    /// The inputs the run was started with, as the event that opened its
+    /// stream names them; `None` before the run is recorded.
+    pub(crate) fn started_inputs(&self) -> Result<Option<JsonObject>, RunRecordError> {
+        let Some(first) = self.0.store.first::<RunEvent>(&self.0.run_id)? else {
+            return Ok(None);
+        };
+        let digest = match first.event {
+            RunEvent::Started(started) => started.inputs,
+            RunEvent::ChildStarted(started) => started.inputs,
+            RunEvent::EvaluationStarted(_) => return Ok(Some(JsonObject::new())),
+            _ => {
+                return Err(RunRecordError::Invalid {
+                    run_id: self.0.run_id.clone(),
+                    reason: "the stream does not begin with its start".to_owned(),
+                });
+            }
+        };
+        Ok(Some(self.0.store.blob_json(&digest)?))
+    }
+
+    /// Rebuild the run from its stream; `None` when it has not started. A
+    /// log that took its run once reads only what was committed since.
     pub(crate) fn load(&self) -> Result<Option<RunRecord>, RunRecordError> {
+        let mut kept = self.kept();
+        if let Some((through, record)) = kept.record.as_mut() {
+            let newer = self
+                .0
+                .store
+                .read_all_after::<RunEvent>(&self.0.run_id, *through)?;
+            let mut held = self.version();
+            let mut index = self.call_index();
+            for recorded in newer {
+                if index.through + 1 == recorded.version {
+                    index.note(recorded.version, &recorded.event);
+                }
+                record.apply(&self.0.store, &self.0.run_id, recorded.event)?;
+                *through = recorded.version;
+            }
+            *held = *through;
+            return Ok(Some(record.clone()));
+        }
         crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
         let version = events.last().map_or(0, |event| event.version);
-        let mut held = self.version();
-        *held = version;
+        *self.version() = version;
         *self.call_index() = CallIndex::of(&events);
-        drop(held);
         let record = replay(
             &self.0.store,
             &self.0.run_id,
@@ -910,6 +1012,7 @@ impl RunLog {
         )?;
         if let Some(record) = &record {
             self.keep_act(record.act.as_ref());
+            kept.record = Some((version, record.clone()));
         }
         Ok(record)
     }
@@ -944,6 +1047,13 @@ impl RunLog {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    fn kept(&self) -> std::sync::MutexGuard<'_, Kept> {
+        self.0
+            .kept
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// The calls of one turn, in order, as this driver last saw the run. A
     /// run another driver has advanced since is contended.
     pub(crate) fn calls(
@@ -962,53 +1072,62 @@ impl RunLog {
         step_id: &str,
         attempt: u32,
     ) -> Result<(Vec<RecordedCall>, BTreeMap<u32, i64>), RunRecordError> {
+        let step = (step_id.to_owned(), attempt);
+        let version = *self.version();
+        if self.0.strict && self.0.store.version::<RunEvent>(&self.0.run_id)? != version {
+            return Err(RunRecordError::Contended {
+                run_id: self.0.run_id.clone(),
+            });
+        }
+        // A step's calls this log read are read again only from where it read
+        // them to.
+        if let Some(calls) = self.kept().steps.get_mut(&step) {
+            let newer = self
+                .0
+                .store
+                .read_all_after::<RunEvent>(&self.0.run_id, calls.through)?;
+            calls.apply(&self.0.store, newer, step_id, attempt)?;
+            return Ok(calls.read());
+        }
         // A driver's log knows where the step's calls begin, as long as no
         // other writer has advanced the run since it last read it, so it reads
         // them from there; settling a call costs the same at call 1,000 as at
         // call 1.
-        if self.0.strict {
-            let version = *self.version();
-            if self.0.store.version::<RunEvent>(&self.0.run_id)? != version {
-                return Err(RunRecordError::Contended {
-                    run_id: self.0.run_id.clone(),
-                });
+        let index = self.call_index().clone();
+        let read = if self.0.strict && index.through == version {
+            match index.first.get(&step) {
+                None => KeptCalls::through(version),
+                Some(&first) => {
+                    let events = self
+                        .0
+                        .store
+                        .read_all_after::<RunEvent>(&self.0.run_id, first - 1)?;
+                    let mut calls = KeptCalls::through(first - 1);
+                    calls.apply(&self.0.store, events, step_id, attempt)?;
+                    calls
+                }
             }
-            let index = self.call_index().clone();
-            if index.through == version {
-                let Some(&first) = index.first.get(&(step_id.to_owned(), attempt)) else {
-                    return Ok((Vec::new(), BTreeMap::new()));
-                };
-                let events = self
-                    .0
-                    .store
-                    .read_all_after::<RunEvent>(&self.0.run_id, first - 1)?;
-                return step_calls(
-                    &self.0.store,
-                    events.into_iter().map(|event| event.event),
-                    step_id,
-                    attempt,
-                );
+        } else {
+            // A log that only reads, or one that never read the run it writes,
+            // takes the run whole, and a driver's then knows where its calls
+            // begin.
+            crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
+            let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
+            if self.0.strict {
+                if events.last().map_or(0, |event| event.version) != version {
+                    return Err(RunRecordError::Contended {
+                        run_id: self.0.run_id.clone(),
+                    });
+                }
+                *self.call_index() = CallIndex::of(&events);
             }
-        }
-        // A log that only reads, or one that never read the run it writes,
-        // takes the run whole, and a driver's then knows where its calls begin.
-        crate::work_counts::count(crate::work_counts::Work::RunMaterialization);
-        let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
-        let version = events.last().map_or(0, |event| event.version);
-        if self.0.strict {
-            if version != *self.version() {
-                return Err(RunRecordError::Contended {
-                    run_id: self.0.run_id.clone(),
-                });
-            }
-            *self.call_index() = CallIndex::of(&events);
-        }
-        step_calls(
-            &self.0.store,
-            events.into_iter().map(|event| event.event),
-            step_id,
-            attempt,
-        )
+            let mut calls = KeptCalls::through(0);
+            calls.apply(&self.0.store, events, step_id, attempt)?;
+            calls
+        };
+        let calls = read.read();
+        self.kept().steps.insert(step, read);
+        Ok(calls)
     }
 
     /// Record what a script's `ctx.now()` read at position `index` of its
@@ -1819,72 +1938,95 @@ fn replay(
     run_id: &str,
     events: impl IntoIterator<Item = RunEvent>,
 ) -> Result<Option<RunRecord>, RunRecordError> {
-    let invalid = |reason: &str| RunRecordError::Invalid {
-        run_id: run_id.to_owned(),
-        reason: reason.to_owned(),
-    };
     let mut events = events.into_iter();
     let Some(first) = events.next() else {
         return Ok(None);
     };
-    let (origin, inputs_digest, context, created_at) = match first {
-        RunEvent::Started(started) => {
-            let digest = Some(started.inputs.clone());
-            let context = started
-                .context
-                .as_ref()
-                .map(|digest| store.blob_json(digest))
-                .transpose()?
-                .unwrap_or_default();
-            let created_at = started.created_at.clone();
-            (Origin::Run(started), digest, context, created_at)
-        }
-        RunEvent::ChildStarted(started) => {
-            let digest = Some(started.inputs.clone());
-            let created_at = started.created_at.clone();
-            (
-                Origin::Child(started),
-                digest,
-                CallerContext::default(),
-                created_at,
-            )
-        }
-        RunEvent::EvaluationStarted(started) => {
-            let created_at = started.created_at.clone();
-            (
-                Origin::Evaluation(started),
-                None,
-                CallerContext::default(),
-                created_at,
-            )
-        }
-        _ => return Err(invalid("the stream does not begin with its start")),
-    };
-    let act = match &origin {
-        Origin::Run(started) => started.act.clone(),
-        Origin::Child(started) => started.act.clone(),
-        Origin::Evaluation(_) => None,
-    };
-    let mut record = RunRecord {
-        origin,
-        created_at,
-        act,
-        inputs: inputs_digest
-            .map(|digest| store.blob_json(&digest))
-            .transpose()?
-            .unwrap_or_default(),
-        context,
-        facts: Vec::new(),
-        suspension: None,
-        answers: Vec::new(),
-        admitted: Vec::new(),
-        standing: None,
-        calls: Vec::new(),
-        calls_recorded: 0,
-        retries: 0,
-        sealed: None,
-    };
+    let mut record = RunRecord::begin(store, run_id, first)?;
     for event in events {
+        record.apply(store, run_id, event)?;
+    }
+    Ok(Some(record))
+}
+
+impl RunRecord {
+    /// The run as the event that opened its stream starts it.
+    fn begin(store: &KernelStore, run_id: &str, first: RunEvent) -> Result<Self, RunRecordError> {
+        let invalid = |reason: &str| RunRecordError::Invalid {
+            run_id: run_id.to_owned(),
+            reason: reason.to_owned(),
+        };
+        let (origin, inputs_digest, context, created_at) = match first {
+            RunEvent::Started(started) => {
+                let digest = Some(started.inputs.clone());
+                let context = started
+                    .context
+                    .as_ref()
+                    .map(|digest| store.blob_json(digest))
+                    .transpose()?
+                    .unwrap_or_default();
+                let created_at = started.created_at.clone();
+                (Origin::Run(started), digest, context, created_at)
+            }
+            RunEvent::ChildStarted(started) => {
+                let digest = Some(started.inputs.clone());
+                let created_at = started.created_at.clone();
+                (
+                    Origin::Child(started),
+                    digest,
+                    CallerContext::default(),
+                    created_at,
+                )
+            }
+            RunEvent::EvaluationStarted(started) => {
+                let created_at = started.created_at.clone();
+                (
+                    Origin::Evaluation(started),
+                    None,
+                    CallerContext::default(),
+                    created_at,
+                )
+            }
+            _ => return Err(invalid("the stream does not begin with its start")),
+        };
+        let act = match &origin {
+            Origin::Run(started) => started.act.clone(),
+            Origin::Child(started) => started.act.clone(),
+            Origin::Evaluation(_) => None,
+        };
+        Ok(Self {
+            origin,
+            created_at,
+            act,
+            inputs: inputs_digest
+                .map(|digest| store.blob_json(&digest))
+                .transpose()?
+                .unwrap_or_default(),
+            context,
+            facts: Vec::new(),
+            suspension: None,
+            answers: Vec::new(),
+            admitted: Vec::new(),
+            standing: None,
+            retries: 0,
+            sealed: None,
+        })
+    }
+
+    /// The run after `event`, the next its stream holds. A call's input and
+    /// result are its step's to read, so the run reads only the answers it
+    /// consumed.
+    fn apply(
+        &mut self,
+        store: &KernelStore,
+        run_id: &str,
+        event: RunEvent,
+    ) -> Result<(), RunRecordError> {
+        let invalid = |reason: &str| RunRecordError::Invalid {
+            run_id: run_id.to_owned(),
+            reason: reason.to_owned(),
+        };
+        let record = self;
         if record.sealed.is_some() {
             return Err(invalid("an event follows the seal"));
         }
@@ -1951,13 +2093,7 @@ fn replay(
                     hold,
                 });
             }
-            RunEvent::Call(call) => {
-                let call = *call;
-                record.consume(store, &call.answers)?;
-                let order = record.calls_recorded;
-                record.calls_recorded += 1;
-                settle_call(&mut record.calls, recorded_call(store, call, order)?);
-            }
+            RunEvent::Call(call) => record.consume(store, &call.answers)?,
             // A new standing set leaves the run where it waits.
             RunEvent::Standing(standing) => record.standing = Some(standing.approvals),
             // An admitted answer leaves the run where it waits, and replaces
@@ -1989,35 +2125,8 @@ fn replay(
                 });
             }
         }
+        Ok(())
     }
-    Ok(Some(record))
-}
-
-/// A step's calls, by index, each keeping the place of its latest event, and
-/// its script's clock reads, by position.
-fn step_calls(
-    store: &KernelStore,
-    events: impl IntoIterator<Item = RunEvent>,
-    step_id: &str,
-    attempt: u32,
-) -> Result<(Vec<RecordedCall>, BTreeMap<u32, i64>), RunRecordError> {
-    let mut calls = Vec::new();
-    let mut clock = BTreeMap::new();
-    let mut order = 0;
-    for event in events {
-        match event {
-            RunEvent::Call(call) if call.step_id == step_id && call.attempt == attempt => {
-                settle_call(&mut calls, recorded_call(store, *call, order)?);
-                order += 1;
-            }
-            RunEvent::Clock(read) if read.step_id == step_id && read.attempt == attempt => {
-                clock.insert(read.index, read.millis);
-            }
-            _ => {}
-        }
-    }
-    calls.sort_by_key(|call| call.index);
-    Ok((calls, clock))
 }
 
 /// A later event for a call's index settles the call.

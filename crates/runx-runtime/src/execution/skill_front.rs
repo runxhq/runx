@@ -125,6 +125,9 @@ pub(crate) struct BoundRun {
     max_concurrency: crate::MaxConcurrency,
     /// The host's budget of receipts the run's tree may hold.
     max_receipts: usize,
+    /// The run's log, which every pass of this driver reads and writes
+    /// through, so a pass reads only what the run committed since the last.
+    log: std::sync::OnceLock<crate::execution::run_record::RunLog>,
 }
 
 pub(crate) fn execute_skill_run_with_overrides(
@@ -521,6 +524,7 @@ fn bind_resolved(
         execution_closure_digest: execution_closure_digest.map(str::to_owned),
         max_concurrency,
         max_receipts,
+        log: std::sync::OnceLock::new(),
     })
 }
 
@@ -640,11 +644,12 @@ pub(crate) fn restore_continuation_inputs(
     };
     let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
         .map_err(crate::execution::run_record::RunRecordError::from)?;
-    let Some(record) = crate::execution::run_record::RunLog::open(
+    // The run's inputs are its first event's, so nothing else of it is read.
+    let Some(inputs) = crate::execution::run_record::RunLog::open(
         store,
         crate::execution::run_record::validate_run_id(run_id)?,
     )?
-    .load()?
+    .started_inputs()?
     else {
         return if answered {
             Err(invalid(format!("run {run_id} has no record to continue")))
@@ -655,13 +660,13 @@ pub(crate) fn restore_continuation_inputs(
     if request
         .inputs
         .iter()
-        .any(|(name, value)| record.inputs.get(name) != Some(value))
+        .any(|(name, value)| inputs.get(name) != Some(value))
     {
         return Err(invalid(
             "workflow run identity cannot replace its original inputs",
         ));
     }
-    request.inputs = record.inputs.into_iter().collect();
+    request.inputs = inputs.into_iter().collect();
     Ok(())
 }
 

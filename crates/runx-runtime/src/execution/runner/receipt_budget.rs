@@ -127,11 +127,8 @@ pub(crate) fn count_recorded_tree(tally: &ReceiptTally, log: &RunLog) -> Result<
     };
     let (step_id, attempt) = (suspension.step_id.as_str(), suspension.attempt);
     tally.count(step_key(log.run_id(), step_id, attempt), 1);
-    let calls = record
-        .calls
-        .iter()
-        .filter(|call| call.step_id == step_id && call.attempt == attempt)
-        .collect::<Vec<_>>();
+    let recorded = log.calls(step_id, attempt)?;
+    let calls = recorded.iter().collect::<Vec<_>>();
     count_recorded_calls(tally, log, step_id, attempt, &calls)?;
     if let Hold::Child(_) = &suspension.hold {
         count_recorded_tree(tally, &log.child(step_id)?)?;
