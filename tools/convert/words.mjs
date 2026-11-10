@@ -97,6 +97,15 @@ export function proseSites(file, text) {
   return (at) => inMovedPath(text, at);
 }
 
+// Signed data verifies as its stored bytes, so a renamed field would break
+// it: a file, or a document's fenced block, that holds a signature.
+export const SIGNED = /"signature"\s*:/;
+
+/** Each fenced block a Markdown document holds that carries a signature: signed text, left as written. */
+export function signedBlocks(file, text) {
+  return file.endsWith(".md") ? fencedBlocks(text).filter(([from, to]) => SIGNED.test(text.slice(from, to))) : [];
+}
+
 /** Each fenced code block in a Markdown text: the span between its fences. */
 export function fencedBlocks(text) {
   const blocks = [];

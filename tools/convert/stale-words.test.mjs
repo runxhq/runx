@@ -177,3 +177,16 @@ test("Cargo's harness key in a bench or test table is Cargo's, and stays, as doe
       "stale: 0 uses of runner as a method, 3 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
   );
 });
+
+test("a signed receipt a document quotes is signed text the guard doesn't read, and the document's other words it does", (t) => {
+  const signed = '```json\n{\n  "uri": "runx:harness:provider-readback",\n  "runner": "default",\n  "signature": { "alg": "Ed25519", "value": "base64:8ZrB" }\n}\n```\n';
+  const root = tree(t, { "spec/spec.md": `# Spec\n\n${signed}\nThe harness checks it.\n\n\`\`\`json\n{ "runner": "default" }\n\`\`\`\n` });
+  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  assert.equal(run.status, 1);
+  assert.equal(
+    run.stdout,
+    "spec/spec.md:11\tharness\tharness\tThe harness checks it.\n" +
+      'spec/spec.md:14\trunner\trunner\t{ "runner": "default" }\n' +
+      "stale: 1 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of a key the format removes and 0 paths holding a retired word, in 1 files\n",
+  );
+});

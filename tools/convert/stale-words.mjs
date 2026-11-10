@@ -19,7 +19,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SOURCE, bareWord, fencedBlocks, pathStayFor, proseSites, retiredInPath, stayFor, stringLiterals } from "./words.mjs";
+import { GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -37,7 +37,6 @@ const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[A
 // "An agent acts" is an agent who acts: after a determiner of one, acts is
 // the verb, which the rename leaves as written.
 const AGENT_WHO_ACTS = /\b(?:an?|each|every|this|that|one|another|no)\s+agent acts$/i;
-const SIGNED = /"signature"\s*:/;
 
 const table = new URL("./identifiers.tsv", import.meta.url);
 
@@ -83,6 +82,9 @@ function main([root, ...rest]) {
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
     if (file.endsWith(".json") && SIGNED.test(text)) continue;
+    // A signed block a document quotes is signed text too.
+    const signed = signedBlocks(file, text);
+    const unsigned = (at) => !signed.some(([from, to]) => at >= from && at < to);
     // A prose-only word is stale where it's read as code or prose.
     const inProse = proseSites(file, text);
     const lines = text.split("\n");
@@ -100,6 +102,7 @@ function main([root, ...rest]) {
       lineStart += line.length + 1;
       for (const match of line.matchAll(TOKEN)) {
         const token = match[0];
+        if (!unsigned(start + match.index)) continue;
         for (const [word, pattern] of Object.entries(RETIRED)) {
           if (!pattern.test(token)) continue;
           if (PROSE_ONLY.has(word) && !inProse(start + match.index, token)) continue;
@@ -112,6 +115,7 @@ function main([root, ...rest]) {
       }
       for (const [word, pattern] of [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]]) {
         for (const match of line.matchAll(pattern)) {
+          if (!unsigned(start + match.index)) continue;
           if (word === "turn" && AGENT_WHO_ACTS.test(line.slice(0, match.index + match[0].length))) continue;
           found[word] += 1;
           byFile.set(file, (byFile.get(file) ?? 0) + 1);
