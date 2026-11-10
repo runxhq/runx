@@ -994,7 +994,7 @@ fn enforce_condition(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), Runtim
         return Ok(());
     };
     let shown = operand_text(&when.value);
-    let holds = condition_holds(when, runs).ok_or_else(|| RuntimeError::StepFailed {
+    let holds = condition_met(when, runs).ok_or_else(|| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason: format!("condition '{shown}' resolves to nothing"),
     })?;
@@ -1146,7 +1146,7 @@ where
 /// Whether `when` holds over `runs`. An input the run wasn't given is
 /// absent, which equals nothing, so `equals` doesn't hold and `not_equals`
 /// does. A step's output it reads that isn't there decides nothing.
-fn condition_holds(when: &runx_parser::WorkflowWhen, runs: &[StepRun]) -> Option<bool> {
+fn condition_met(when: &runx_parser::WorkflowWhen, runs: &[StepRun]) -> Option<bool> {
     let holds = |value: Option<&JsonValue>| match (&when.equals, &when.not_equals) {
         (Some(expected), _) => value == Some(expected),
         (_, Some(disallowed)) => value != Some(disallowed),
@@ -1217,7 +1217,7 @@ pub(super) fn when_skipped_steps(
             let Some(when) = &step.when else {
                 continue;
             };
-            let Some(satisfied) = condition_holds(when, runs) else {
+            let Some(satisfied) = condition_met(when, runs) else {
                 continue;
             };
             if !satisfied {
