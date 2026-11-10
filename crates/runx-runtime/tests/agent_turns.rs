@@ -961,9 +961,7 @@ fn a_cancelled_nested_call_is_recorded_and_its_turn_goes_on() -> TestResult {
     let decision = output
         .get("command_execution")
         .and_then(|execution| execution.as_object())
-        .and_then(|execution| execution.get("data"))
-        .and_then(|data| data.as_object())
-        .and_then(|data| data.get("decision"))
+        .and_then(|execution| execution.get("decision"))
         .and_then(JsonValue::as_str);
     assert_eq!(decision, Some("stopped"), "{output:?}");
 
@@ -1110,6 +1108,74 @@ fn run_case(root: &Path, skill_dir: PathBuf) -> TestResult<runx_runtime::Package
             skill_path: skill_dir,
             receipt_dir: Some(root.join("receipts")),
         })?)
+}
+
+/// An agent that calls a skill is a caller: the call's outcome gives each
+/// packet its result holds as its data, never the envelope its record keeps
+/// it in.
+#[test]
+fn a_turns_call_to_a_skill_is_given_its_packet_as_data() -> TestResult {
+    let temp = tempdir()?;
+    let child = temp.path().join("packet-child");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: packet-child\ndescription: Reports a value as a packet.\n---\n# Packet child\n",
+        "minimum_runx: 0.12.0\nmethods:\n  report:\n    steps:\n      - id: report\n        tool: {module: report.mjs}\n        outputs:\n          report: {type: object, packet: acme/packet-child.report.v1}\n",
+    )?;
+    std::fs::write(
+        child.join("report.mjs"),
+        "export default () => ({ report: { value: \"RUNX\" } });\n",
+    )?;
+    std::fs::create_dir_all(child.join("packets"))?;
+    std::fs::write(
+        child.join("packets/report.v1.schema.json"),
+        r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://schemas.runx.ai/packages/acme/packet-child/report/v1.json","x-runx-packet-id":"acme/packet-child.report.v1","type":"object","required":["value"],"properties":{"value":{"type":"string"}},"additionalProperties":false}"#,
+    )?;
+    let skill_dir = temp.path().join("packet-parent");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: packet-parent\ndescription: Answers from a child's report.\n---\n# Packet parent\n\n## Agent task: answer\n\nRead the child's report, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          skills: [../packet-child]
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    std::fs::create_dir_all(skill_dir.join("tests"))?;
+    std::fs::write(
+        skill_dir.join("tests/reads-the-report.yaml"),
+        format!(
+            r#"name: reads-the-report
+host:
+  turns:
+    {TURN}:
+      calls:
+        - tool: skill__packet-child
+          expect:
+            subset:
+              outcome:
+                status: completed
+                output:
+                  report: {{value: RUNX}}
+      output:
+        answer: RUNX
+expect:
+  status: sealed
+  output:
+    subset:
+      answer: RUNX
+"#
+        ),
+    )?;
+    let report = run_case(temp.path(), skill_dir)?;
+    assert_eq!(report.status, "passed", "{:?}", report.assertion_errors);
+    Ok(())
 }
 
 /// A parent and child whose turns share an id: a script keyed by the
@@ -2216,10 +2282,7 @@ fn a_pinned_call_runs_once_and_its_outcome_is_on_the_runs_record() -> TestResult
         )?)?;
         match &part.output {
             Some(name) => {
-                rebuilt.insert(
-                    name.as_str().to_owned(),
-                    serde_json::json!({ "data": value }),
-                );
+                rebuilt.insert(name.as_str().to_owned(), value);
             }
             None => rebuilt.extend(value.as_object().cloned().unwrap_or_default()),
         }
@@ -2553,8 +2616,6 @@ methods:
     };
     let descriptor = output
         .get("artifact")
-        .and_then(JsonValue::as_object)
-        .and_then(|value| value.get("data"))
         .ok_or("store returned its exact descriptor")?;
     let reopened = turn.call(
         TURN,
@@ -2565,7 +2626,7 @@ methods:
     let TurnCallOutcome::Completed { output, .. } = reopened.outcome else {
         return Err(format!("open did not complete: {reopened:?}").into());
     };
-    let page = &serde_json::to_value(output)?["artifact_page"]["data"];
+    let page = &serde_json::to_value(output)?["artifact_page"];
     let records = page["records"].as_array().ok_or("framed records")?;
     assert_eq!(records.len(), 1);
     let record: serde_json::Value =
@@ -2621,7 +2682,7 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
     let reference = artifacts
         .get("digest_result")
         .ok_or("the packet output is an artifact")?;
-    let named = serde_json::to_value(output)?["digest_result"]["data"]["digest"]
+    let named = serde_json::to_value(output)?["digest_result"]["digest"]
         .as_str()
         .ok_or("the digest names a digest")?
         .to_owned();
@@ -2648,8 +2709,8 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         return Err("the digest of the digest completed".into());
     };
     assert_eq!(
-        serde_json::to_value(read_output)?["digest_result"]["data"],
-        serde_json::to_value(&expected)?["digest_result"]["data"],
+        serde_json::to_value(read_output)?["digest_result"],
+        serde_json::to_value(&expected)?["digest_result"],
         "the reader digested the packet the reference names"
     );
 
@@ -2660,8 +2721,6 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
     let artifacts = runx_runtime::RunxPaths::resolve(&env(&paused.root), &paused.root).artifacts();
     let data = output
         .get("digest_result")
-        .and_then(JsonValue::as_object)
-        .and_then(|envelope| envelope.get("data"))
         .ok_or("the digest is a packet")?;
     let earlier = runx_runtime::persist_json_artifact(
         &artifacts,

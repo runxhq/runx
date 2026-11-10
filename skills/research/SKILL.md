@@ -107,7 +107,7 @@ pages. Search result snippets are candidates, not fetched source content.
 Use the exact offered tool names and schemas from native turn status.
 
 For `fs_read_bundle`, take the unchanged entries in
-`output.file_read_bundle.data.files` as the individual source packets. The
+`output.file_read_bundle.files` as the individual source packets. The
 outer bundle groups files and missing-path reports; it is not itself a source.
 Keep each file entry's path, contents, byte count, content_digest and truncation
 metadata. Inspect `missing` before proceeding; when a missing source prevents

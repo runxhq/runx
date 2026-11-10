@@ -970,7 +970,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
             .outcome
         {
             TurnCallOutcome::Completed { output, .. } => {
-                Ok(serde_json::to_value(output)?["registry_search"]["data"].take())
+                Ok(serde_json::to_value(output)?["registry_search"].take())
             }
             outcome => Err(format!("the search completed: {outcome:?}").into()),
         }
@@ -1006,9 +1006,8 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     let TurnCallOutcome::Completed { output, .. } = &inspected.outcome else {
         return Err(format!("the inspection completed: {inspected:?}").into());
     };
-    let inspection: runx_contracts::SkillInspection = serde_json::from_value(
-        serde_json::to_value(output)?["registry_inspection"]["data"].take(),
-    )?;
+    let inspection: runx_contracts::SkillInspection =
+        serde_json::from_value(serde_json::to_value(output)?["registry_inspection"].take())?;
     assert_eq!(inspection.name, "echo");
     assert_eq!(
         inspection.method.map(|method| method.name).as_deref(),
@@ -1028,7 +1027,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     let TurnCallOutcome::Completed { output, .. } = &store.outcome else {
         return Err(format!("the connector inspection completed: {store:?}").into());
     };
-    let output = serde_json::to_value(output)?["registry_inspection"]["data"].take();
+    let output = serde_json::to_value(output)?["registry_inspection"].take();
     let operations = output["operations"]
         .as_array()
         .ok_or("a connector inspection lists its operations")?;

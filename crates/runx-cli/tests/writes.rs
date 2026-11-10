@@ -90,7 +90,7 @@ fn a_turns_own_call_never_appends_to_a_stream_at_any_effects() -> TestResult {
         )?;
         assert_ne!(spelled["status"], "completed", "{spelled}");
         let read = call("store__events_read", json!({"input": consent_stream()}))?;
-        let events = &read["output"]["provider_operation"]["data"]["result"]["events"];
+        let events = &read["output"]["provider_operation"]["result"]["events"];
 
         assert_eq!(
             appended["status"], "refused",
@@ -587,7 +587,7 @@ fn keeper_call(root: &Path, authority: &str, method: &str, input: Value) -> Test
 fn kept(root: &Path, authority: &str, stream: &str) -> TestResult<Vec<Value>> {
     let read = keeper_call(root, authority, "read", json!({"stream": stream}))?;
     assert_eq!(read["status"], "completed", "{read}");
-    let result = &read["output"]["provider_operation"]["data"]["result"];
+    let result = &read["output"]["provider_operation"]["result"];
     assert_eq!(
         result["stream"],
         format!("{KEEPER_STREAMS}{stream}"),
@@ -624,7 +624,7 @@ fn a_read_turn_keeps_the_persons_words_in_said_on_private_under_its_hosts_term()
         json!({"stream": "said:personal", "text": "I write in Australian English."}),
     )?;
     assert_eq!(kept_words["status"], "completed", "{kept_words}");
-    let appended = &kept_words["output"]["provider_operation"]["data"]["result"];
+    let appended = &kept_words["output"]["provider_operation"]["result"];
     assert_eq!(appended["status"], "committed", "{kept_words}");
     // A loaded workspace package writes under its own name, not its loader's.
     assert_eq!(

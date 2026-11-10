@@ -44,7 +44,7 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
         "capture-source",
         serde_json::json!({"path": "source.txt", "media_type": "text/plain"}),
     )?;
-    let artifact = &admitted["outcome"]["output"]["artifact"]["data"];
+    let artifact = &admitted["outcome"]["output"]["artifact"];
     let reference = artifact["ref"].as_str().ok_or("artifact reference")?;
     fs::write(root.join("source.txt"), "changed after admission")?;
     let mut text = String::new();
@@ -56,7 +56,7 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
             &format!("page-{index}"),
             serde_json::json!({"ref": reference, "offset": offset, "max_bytes": 5, "encoding": "utf8"}),
         )?;
-        let page = &page["outcome"]["output"]["artifact_page"]["data"];
+        let page = &page["outcome"]["output"]["artifact_page"];
         text.push_str(page["data"].as_str().ok_or("page text")?);
         offset = page["next_offset"].as_u64().ok_or("page offset")?;
         assert_eq!(page["eof"], index == 1);
@@ -241,9 +241,19 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
     // completes. Read the sealed call from a later run, not an unpublished
     // receipt of a still-open turn.
     let read = call(next_run, "receipt_read", &read_input)?;
-    let claim = &read["outcome"]["output"]["receipt_read"]["data"];
+    let claim = &read["outcome"]["output"]["receipt_read"];
     assert_eq!(claim["status"], "available", "{read}");
-    assert_eq!(claim["value"], original["outcome"]["output"]);
+    // The receipt keeps each packet in the envelope the record holds it in;
+    // the call that made it was given its data.
+    let mut held = original["outcome"]["output"].clone();
+    for name in original["outcome"]["artifacts"]
+        .as_object()
+        .ok_or("the call names its packet outputs")?
+        .keys()
+    {
+        held[name] = serde_json::json!({ "data": held[name].take() });
+    }
+    assert_eq!(claim["value"], held);
     let root_read = turn_tool(
         &root,
         next_run,
@@ -255,7 +265,7 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
             "input": {"receipt_id": completed_receipt},
         }),
     )?;
-    let workflow = &root_read["outcome"]["output"]["receipt_read"]["data"];
+    let workflow = &root_read["outcome"]["output"]["receipt_read"];
     assert_eq!(workflow["status"], "not_a_step", "{root_read}");
     assert!(workflow["value"].is_null());
     assert!(

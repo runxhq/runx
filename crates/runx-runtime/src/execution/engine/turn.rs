@@ -1726,8 +1726,10 @@ where
                     made.index
                 )),
             },
+            // An agent that calls is a caller: it is given each packet's
+            // data, never the envelope the record keeps it in.
             CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
-                output: run.contract.clone(),
+                output: run.values(),
                 receipt_id: run.receipt.id.to_string().into(),
                 artifacts: outputs
                     .iter()

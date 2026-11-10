@@ -1087,7 +1087,7 @@ fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to
         Ok(serde_json::from_str(content)?)
     };
     let stored = result(&sent[2])?;
-    let artifact = stored["outcome"]["output"]["artifact"]["data"].clone();
+    let artifact = stored["outcome"]["output"]["artifact"].clone();
     assert_eq!(artifact["labels"]["sharing"], "local_only", "{stored}");
     let widened = result(&sent[3])?;
     assert_ne!(widened["outcome"]["status"], "completed", "{widened}");
