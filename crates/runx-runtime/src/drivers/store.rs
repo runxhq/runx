@@ -379,15 +379,16 @@ pub(crate) fn lay_down_private_history(
     env: &std::collections::BTreeMap<String, String>,
     history: &[HistoryEvent],
 ) -> Result<(), StoreError> {
-    let path = match Location::of(Kind::Private, &JsonObject::new(), env)? {
-        Location::Sqlite(path) => path,
-        #[cfg(feature = "store")]
-        _ => {
-            return Err(StoreError::invalid(
-                "a history is laid down in a sqlite store",
-            ));
-        }
+    let location = Location::of(Kind::Private, &JsonObject::new(), env)?;
+    // Without the `store` feature, SQLite is the only place a store can be.
+    #[cfg(feature = "store")]
+    let Location::Sqlite(path) = location else {
+        return Err(StoreError::invalid(
+            "a history is laid down in a sqlite store",
+        ));
     };
+    #[cfg(not(feature = "store"))]
+    let Location::Sqlite(path) = location;
     let mut store = sqlite::Sqlite::open(&path, Kind::Private)?;
     let mut versions = std::collections::BTreeMap::<(&str, &str), u64>::new();
     let idempotency = history
