@@ -13,7 +13,7 @@ inputs:
       claims:
         - claim: Package-rooted skills are the migration subject.
           source_ids: [changelog_1]
-    payload_digest: sha256:22d50f9adab4c26e2408063ce226b8eccf65415f8abb5eb8205791cf2202c251
+    payload_digest: sha256:790941b5ad1bec77bd891d3bc3001e1449134549746fe68da1bf922661a26d30
     moderation_notes: {final_check: [No unsupported claims.]}
     follow_up_plan: {monitor_for: [migration questions]}
     source_evidence:
