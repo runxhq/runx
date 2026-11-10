@@ -273,9 +273,7 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
             path: config_path.to_path_buf(),
         });
     };
-    let reshaped = upgrade_to_secrets(object, config_path)?;
-    let renamed = upgrade_material_names(object);
-    let upgraded = reshaped || renamed;
+    let upgraded = upgrade_to_secrets(object, config_path)?;
     let config: RunxConfigFile =
         serde_json::from_value(value).map_err(|error| ConfigError::InvalidConfig {
             path: config_path.to_path_buf(),
@@ -285,41 +283,6 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
         write_runx_config_file(config_path, &config)?;
     }
     Ok(config)
-}
-
-/// Rename the sealed-material ids a home written by runx 0.10 names as
-/// references: `secrets.<name>.stored.material_ref`, `public.api_token_ref`
-/// and `public.publish_api_token_ref`. Only keys move, and a key whose new
-/// name is already present stays, so the typed read refuses the file rather
-/// than choose between two ids. `false` when nothing was renamed.
-fn upgrade_material_names(config: &mut serde_json::Map<String, Value>) -> bool {
-    let rename = |object: &mut serde_json::Map<String, Value>, from: &str, to: &str| {
-        if object.contains_key(to) {
-            return false;
-        }
-        let Some(value) = object.remove(from) else {
-            return false;
-        };
-        object.insert(to.to_owned(), value);
-        true
-    };
-    let mut renamed = false;
-    if let Some(public) = config.get_mut("public").and_then(Value::as_object_mut) {
-        renamed |= rename(public, "api_token_ref", "api_token_material_id");
-        renamed |= rename(
-            public,
-            "publish_api_token_ref",
-            "publish_api_token_material_id",
-        );
-    }
-    if let Some(secrets) = config.get_mut("secrets").and_then(Value::as_object_mut) {
-        for record in secrets.values_mut() {
-            if let Some(stored) = record.get_mut("stored").and_then(Value::as_object_mut) {
-                renamed |= rename(stored, "material_ref", "material_id");
-            }
-        }
-    }
-    renamed
 }
 
 /// The home file before `runx secret`: connector credential profiles, each
@@ -618,47 +581,26 @@ mod tests {
         Ok(())
     }
 
-    /// A home runx 0.10 wrote names its sealed material as references; its
-    /// secrets and logins keep their sealed files under the 0.11 names.
+    /// A home that names its sealed material by the `_ref` keys is refused,
+    /// naming the file and the key it doesn't read, and is left as it was.
     #[test]
-    fn a_home_runx_010_wrote_keeps_its_secrets_and_logins_under_material_ids()
+    fn a_home_naming_sealed_material_by_ref_is_refused_and_left_as_it_was()
     -> Result<(), Box<dyn std::error::Error>> {
         let home = tempfile::tempdir()?;
         let path = home.path().join("config.json");
-        fs::write(
-            &path,
-            r#"{
-              "public": {"api_token_ref": "public_api_token_1", "publish_api_token_ref": "public_api_token_2", "principal_id": "runx:principal:operator"},
-              "secrets": {"github": {"stored": {"material_ref": "local_secret_3"}}, "vault": {"reference": {"reference": "aws-sm://team/env#KEY"}}}
-            }"#,
-        )?;
+        let contents = r#"{"public": {"api_token_ref": "public_api_token_1", "principal_id": "runx:principal:operator"}}"#;
+        fs::write(&path, contents)?;
 
-        let config = load_runx_config_file(&path)?;
+        let refused = load_runx_config_file(&path)
+            .err()
+            .ok_or("the home is refused")?;
 
-        let public = config.public.as_ref().ok_or("public settings")?;
-        assert_eq!(
-            public.api_token_material_id.as_deref(),
-            Some("public_api_token_1")
-        );
-        assert_eq!(
-            public.publish_api_token_material_id.as_deref(),
-            Some("public_api_token_2")
-        );
-        assert_eq!(
-            config
-                .secrets
-                .get(&SecretName::new("github").ok_or("a secret name")?),
-            Some(&RunxSecretRecord::Stored {
-                material_id: "local_secret_3".to_owned()
-            })
-        );
-        let written = fs::read_to_string(&path)?;
-        assert!(!written.contains("_ref\""), "{written}");
-        assert_eq!(
-            load_runx_config_file(&path)?,
-            config,
-            "upgraded once, read as it is after"
-        );
+        let ConfigError::InvalidConfig { path: named, .. } = &refused else {
+            return Err(format!("expected an invalid config, got {refused}").into());
+        };
+        assert_eq!(named, &path);
+        assert!(refused.to_string().contains("api_token_ref"), "{refused}");
+        assert_eq!(fs::read_to_string(&path)?, contents, "nothing is rewritten");
         Ok(())
     }
 
