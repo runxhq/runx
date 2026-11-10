@@ -260,6 +260,22 @@ process of its test binary that runs that test alone.
   every size. The bench records that at 10, 100 and 1,000 calls, the most
   times per call a call took the run whole, and the provider calls a
   transaction was held open across, with each run's raw counts beside them.
+- **Journey 3, composition.** The runtime bench runs a script that calls a
+  native leaf skill 1, 10, 100 and 1,000 times, one after another, and the
+  same at the bottom of scripts nested 1, 3 and 5 deep, once and ten times.
+  A call's record reads (the rows the kernel store reads), store
+  writes and runs taken whole are a run's past the smaller run's, over the
+  calls between them, which must be the same at 10, 100 and 1,000 children
+  and at depth 1, 3 and 5. A run of one child whose provider read waits on a
+  gate, beside 15 native children, has a host that opens the gate only once
+  every other child has sealed: the driver hands a call's reports to its host
+  and records it in one step, one call at a time, so a sibling handed back
+  after the slow child was delayed by it, and none may be. A run under a
+  `max_concurrency` of 8 calls 2 child scripts at once, each declaring a
+  concurrency of 8 and making 8 provider calls at once, and each waits until
+  8 are in flight: the most in flight is the run's peak, which must reach its
+  `max_concurrency`, as nested scripts keep their concurrency, and must not
+  pass it, as they draw from the run's.
 - **Journey 5, memory.** The runtime bench lays down a personal memory of
   100, 10,000 and 100,000 entries, each in a fresh home, through the store's
   own append: a third of them the person's words, a tenth corrected, a

@@ -86,6 +86,30 @@ try {
     "journey_5.index_reads_what_it_shows",
   );
 
+  const growingReads = journeys();
+  growingReads["3"].settle_reads_per_call["1000"] = 300;
+  expectFail(
+    runQualityVerification(quality({ journeys: growingReads })),
+    "a settle that reads more of the record the more calls came before",
+    "journey_3.settlement_flat_at_call_1000",
+  );
+
+  const deeperReads = journeys();
+  deeperReads["3"].settle_reads_at_depth["5"] = 50;
+  expectFail(
+    runQualityVerification(quality({ journeys: deeperReads })),
+    "a settle that reads more of the record the deeper it is",
+    "journey_3.settlement_flat_at_depth_5",
+  );
+
+  const serialNested = journeys();
+  serialNested["3"].peak_concurrency = 2;
+  expectFail(
+    runQualityVerification(quality({ journeys: serialNested })),
+    "nested scripts that run their calls one at a time",
+    "journey_3.nested_scripts_keep_their_concurrency",
+  );
+
   expectFail(
     runQualityVerification(quality({ nativeExtra: { p99_ns: 1_500_000 } })),
     "a percentile of Criterion's batch averages",
@@ -239,7 +263,11 @@ function journeys() {
       transactions_spanning_provider_calls: 0,
     },
     3: {
-      settle_reads_per_call: { 1: 4, 1000: 4 },
+      settle_reads_per_call: { 10: 30, 100: 30, 1000: 30 },
+      settle_writes_per_call: { 10: 6, 100: 6, 1000: 6 },
+      settle_replays_per_call: { 10: 3, 100: 3, 1000: 3 },
+      settle_reads_at_depth: { 1: 30, 3: 30, 5: 30 },
+      settle_writes_at_depth: { 1: 6, 3: 6, 5: 6 },
       results_delayed_by_slow_read: 0,
       peak_concurrency: 8,
       max_concurrency: 8,

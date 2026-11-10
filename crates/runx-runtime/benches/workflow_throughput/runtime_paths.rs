@@ -26,6 +26,9 @@ use tempfile::TempDir;
 
 use super::{record_resource_metrics, session_metric};
 
+#[path = "runtime_paths/composition.rs"]
+mod composition;
+
 const CREATED_AT: &str = "2026-07-20T00:00:00Z";
 const BENCHMARK_GRANT: &str = "grant_runtime_perf";
 const LARGE_INPUT_BYTES: usize = 4 * 1024 * 1024 - 64;
@@ -36,15 +39,24 @@ pub(super) fn register(c: &mut Criterion) {
     let mut resources = fixtures
         .smoke()
         .expect("runtime-path benchmark fixtures must execute successfully");
-    // performance.md's journey 2, by count, on the runtime the smoke warmed.
+    // performance.md's journeys 2 and 3, by count, on the runtimes the smoke
+    // warmed.
     resources.insert(
         "journeys".to_owned(),
-        JsonValue::Object(JsonObject::from([(
-            "2".to_owned(),
-            fixtures
-                .warm_execution()
-                .expect("the warm-execution journey must run each of its calls"),
-        )])),
+        JsonValue::Object(JsonObject::from([
+            (
+                "2".to_owned(),
+                fixtures
+                    .warm_execution()
+                    .expect("the warm-execution journey must run each of its calls"),
+            ),
+            (
+                "3".to_owned(),
+                fixtures
+                    .composition()
+                    .expect("the composition journey must settle each of its calls"),
+            ),
+        ])),
     );
     record_resource_metrics(&resources)
         .expect("runtime-path benchmark resource metrics must be recorded");
@@ -134,6 +146,9 @@ struct RuntimePathFixtures {
     large_module_invocation: SkillInvocation,
     module_adapter: JavaScriptAdapter,
     provider_runtime: Runtime<JavaScriptAdapter>,
+    /// What the provider runtime runs under, for a run that states its own
+    /// authority.
+    provider_options: RuntimeOptions,
     provider_workflow: Workflow,
     provider_transport: ProviderBenchmarkTransport,
 }
@@ -230,7 +245,7 @@ impl RuntimePathFixtures {
             &provider_options.env,
             directory.path(),
         )?;
-        let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options);
+        let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options.clone());
         let provider_workflow = method_workflow("provider-effect", PROVIDER_EFFECT_SKILL)?;
 
         Ok(Self {
@@ -244,6 +259,7 @@ impl RuntimePathFixtures {
             large_module_invocation,
             module_adapter,
             provider_runtime,
+            provider_options,
             provider_workflow,
             provider_transport,
         })
@@ -568,6 +584,60 @@ struct ProviderBenchmarkState {
     operation_attempts: AtomicU64,
     logical_mutations: AtomicU64,
     mutations: Mutex<BTreeMap<String, JsonObject>>,
+    /// Journey 3's slow read: an operation whose text is [`GATED_TEXT`]
+    /// waits until the probe opens the gate.
+    gate: Gate,
+    /// Journey 3's crowd: an operation whose text is [`CROWDED_TEXT`] waits
+    /// until [`CROWD`] of them are in flight at once, then all go on.
+    crowd: std::sync::Barrier,
+    /// The crowd's operations in flight now, and the most there were at once.
+    crowded: AtomicU64,
+    most_crowded: AtomicU64,
+}
+
+/// What an operation that waits on journey 3's gate says.
+const GATED_TEXT: &str = "gated";
+/// What an operation of journey 3's crowd says.
+const CROWDED_TEXT: &str = "crowded";
+/// How many of the crowd's operations go on together: the run's
+/// `max_concurrency`, as performance.md's conditions set it.
+const CROWD: usize = 8;
+
+/// A gate an operation waits on until it opens.
+#[derive(Default)]
+struct Gate {
+    open: Mutex<bool>,
+    opened: std::sync::Condvar,
+}
+
+impl Gate {
+    fn wait(&self) {
+        let open = self
+            .open
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _open = self
+            .opened
+            .wait_while(open, |open| !*open)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    }
+
+    fn set(&self, open: bool) {
+        *self
+            .open
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = open;
+        self.opened.notify_all();
+    }
+}
+
+/// One of the crowd's operations in flight, until it drops.
+struct Crowded<'a>(&'a AtomicU64);
+
+impl Drop for Crowded<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
+    }
 }
 
 impl ProviderBenchmarkTransport {
@@ -589,6 +659,10 @@ impl ProviderBenchmarkTransport {
                 operation_attempts: AtomicU64::default(),
                 logical_mutations: AtomicU64::default(),
                 mutations: Mutex::default(),
+                gate: Gate::default(),
+                crowd: std::sync::Barrier::new(CROWD),
+                crowded: AtomicU64::default(),
+                most_crowded: AtomicU64::default(),
             }),
         })
     }
@@ -629,6 +703,20 @@ impl RuntimeHttpTransport for ProviderBenchmarkTransport {
             .and_then(JsonValue::as_object)
             .ok_or_else(|| benchmark_transport_error("provider input is missing"))?;
         let idempotency_key = benchmark_string(input, "idempotency_key")?;
+        let _crowded = match input.get("text").and_then(JsonValue::as_str) {
+            Some(GATED_TEXT) => {
+                self.state.gate.wait();
+                None
+            }
+            Some(CROWDED_TEXT) => {
+                let now = self.state.crowded.fetch_add(1, Ordering::Relaxed) + 1;
+                self.state.most_crowded.fetch_max(now, Ordering::Relaxed);
+                let crowded = Crowded(&self.state.crowded);
+                self.state.crowd.wait();
+                Some(crowded)
+            }
+            _ => None,
+        };
         let mut mutations = self
             .state
             .mutations
