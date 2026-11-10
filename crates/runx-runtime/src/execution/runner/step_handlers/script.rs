@@ -235,6 +235,16 @@ where
         }
     };
     drop(live);
+    // A script that ended without its output, by a throw, a rejection it
+    // never handled, an early return or a limit, leaves nothing it started
+    // running: what it left open is dropped, and an effect whose end isn't
+    // known holds the step until it settles. Only then does the step fail,
+    // with the script's own reason, which a replay reaches again.
+    if ended.is_err()
+        && let Some((position, requests)) = drop_open_calls(&mut ledger, host)?
+    {
+        return Err(waiting_on(&step.id, position, requests));
+    }
     let recorded = ledger.recorded()?;
     // What the script made is made from what its calls returned and what it
     // read.
@@ -320,10 +330,12 @@ where
     A: SkillAdapter,
 {
     let mut waiting = Vec::new();
-    let mut admitted = Vec::new();
+    // Every call the pass made names something the ledger can make before
+    // any is admitted, so one it can't leaves none of them claimed.
+    let mut made = Vec::with_capacity(new.len());
     for call in new {
-        let (target, input) = match ledger_call(&call.target) {
-            Ok(Some(call)) => call,
+        match ledger_call(&call.target) {
+            Ok(Some((target, input))) => made.push((call, target, input)),
             Ok(None) => {
                 return Err(RuntimeError::EngineInvariant {
                     context: "making a script's calls",
@@ -331,7 +343,10 @@ where
                 });
             }
             Err(refusal) => return Ok(Err(refusal)),
-        };
+        }
+    }
+    let mut admitted = Vec::new();
+    for (call, target, input) in made {
         match ledger.admit(host, call.position, target, input, reuse(&call.target))? {
             Admission::Settled(result) => {
                 if let TurnCallOutcome::Pending { waiting: requests } = result.outcome {
@@ -406,6 +421,31 @@ where
         }
     }
     Ok(Ok(waiting))
+}
+
+/// Drop each call the script left open, and return the first that still
+/// waits on its effect's end, with what it waits on.
+fn drop_open_calls<A>(
+    ledger: &mut CallLedger<'_, A>,
+    host: &mut dyn Host,
+) -> Result<Option<Waiting>, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let open = ledger
+        .recorded()?
+        .iter()
+        .filter(|call| !settled(&call.outcome))
+        .map(|call| call.index)
+        .collect::<Vec<_>>();
+    let mut held = None;
+    for index in open {
+        let waiting = ledger.drop_open(host, index)?;
+        if held.is_none() && !waiting.is_empty() {
+            held = Some((index, waiting));
+        }
+    }
+    Ok(held)
 }
 
 /// Take each recorded call that hasn't settled further, and return those that

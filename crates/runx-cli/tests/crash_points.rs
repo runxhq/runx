@@ -427,6 +427,53 @@ fn a_fixed_step_in_flight_at_a_kill_reruns_if_it_only_reads_and_waits_on_its_ret
     Ok(())
 }
 
+const WRITE_BESIDE_A_REFUSAL: &str = r#"export default async function (ctx, { value }) {
+  await Promise.all([
+    ctx.tool("fs.write", { path: "written.txt", contents: value }),
+    ctx.tool("fs.read", { path: "secret.txt" }),
+  ]);
+  return { digested: [] };
+}
+"#;
+
+/// A script that ends while an effect it made may have happened waits for
+/// that effect to settle before its step fails. Killed once its write was
+/// admitted, the run's recovery has the script throw when the write's
+/// sibling is refused, and the step holds on the write's retry; once the
+/// write runs again, the step fails with the script's own reason.
+#[test]
+fn a_script_that_ends_with_an_effect_unsettled_waits_for_it_then_fails_with_its_reason()
+-> TestResult {
+    let root = crate::support::temp_root("crash-ended-write");
+    let skill = write_skills(
+        &root,
+        WRITE_BESIDE_A_REFUSAL,
+        "          digested: {type: array}\n",
+    )?;
+    crashed(&run(&root, &skill, Some("after_admission@prepare/0"))?);
+
+    let held = status(&run(&root, &skill, None)?)?;
+    assert_eq!(held["requests"][0]["id"], "prepare/0/retry", "{held}");
+    assert!(!root.join("written.txt").exists());
+
+    let ended = acknowledge_retries(&root)?;
+    assert_eq!(ended["outcome"], "failed", "{ended}");
+    assert!(
+        ended["result"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("fs.read")),
+        "{ended}"
+    );
+    assert_eq!(fs::read_to_string(root.join("written.txt"))?, "hello");
+    let settled = calls(&history(&root)?, RUN_ID);
+    assert_eq!(
+        settled.last(),
+        Some(&pair(0, "completed")),
+        "the write settled before the step failed: {settled:?}"
+    );
+    Ok(())
+}
+
 /// No build that ships has crash points: the feature is off by default, and
 /// only `runx-cli`'s dev-dependency turns it on.
 #[test]

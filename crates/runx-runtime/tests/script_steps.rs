@@ -1851,6 +1851,184 @@ fn a_skill_call_records_its_reuse_ask_once_and_runs() -> TestResult {
     Ok(())
 }
 
+/// `script` as a step whose calls are an approval-gated write under
+/// `effects: ask`, a child that waits on its own ask, a wait and a digest.
+fn write_cleanup_skill(root: &Path, script: &str) -> TestResult<PathBuf> {
+    let skill_dir = write_script_skill(root, script, "          done: {type: string}\n")?;
+    let manifest = skill_dir.join("run.yaml");
+    let declared = std::fs::read_to_string(&manifest)?
+        .replace(
+            "          tools: [data.digest]\n",
+            "          tools: [data.digest, fs.write]\n",
+        )
+        .replace(
+            "        max_calls: 4\n",
+            "        max_calls: 8\n        concurrency: 4\n        effects: ask\n",
+        );
+    std::fs::write(&manifest, declared)?;
+    Ok(skill_dir)
+}
+
+/// How the run ended, and the message its step failed with.
+fn ending(result: &RunResult) -> TestResult<(String, String)> {
+    let output = object(&result.output)?;
+    let message = output
+        .get("result")
+        .and_then(JsonValue::as_object)
+        .and_then(|result| text(result, "message"))
+        .unwrap_or_default();
+    Ok((
+        text(output, "outcome").unwrap_or_default().to_owned(),
+        message.to_owned(),
+    ))
+}
+
+/// How call `index` last settled in `events`.
+fn last_of(events: &[(u32, &'static str)], index: u32) -> Option<&'static str> {
+    events
+        .iter()
+        .rev()
+        .find(|(known, _)| *known == index)
+        .map(|(_, outcome)| *outcome)
+}
+
+/// The run a script's skill call at `index` started.
+fn child_of(root: &Path, run_id: &str, index: u32) -> TestResult<String> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    read.events
+        .into_iter()
+        .find_map(|record| match record.event {
+            RunEventFact::Call {
+                index: known,
+                outcome,
+                ..
+            } if known == index => match *outcome {
+                RunCallOutcome::Child { run_id } => Some(run_id.as_str().to_owned()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .ok_or_else(|| format!("call {index} started no child run").into())
+}
+
+/// How `child`, a run beneath `run_id`, sealed, as `run_id`'s read holds it.
+fn seal_of(root: &Path, run_id: &str, child: &str) -> TestResult<serde_json::Value> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    read.events
+        .into_iter()
+        .filter(|record| record.stream.as_str() == child)
+        .find_map(|record| match record.event {
+            RunEventFact::Sealed { outcome, .. } => serde_json::to_value(outcome).ok(),
+            _ => None,
+        })
+        .ok_or_else(|| format!("run {child} hasn't sealed").into())
+}
+
+/// After a throw, the kernel drops what the script started and never got
+/// to: a write still waiting on its approval and a wait settle `cancelled`,
+/// and a child waiting on its own person is cancelled, so it seals killed.
+/// Only then does the step fail, with the script's own reason, and the run
+/// waits on nothing.
+#[test]
+fn a_script_that_throws_drops_what_it_started_and_fails_with_its_own_reason() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_cleanup_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  ctx.tool("fs.write", { path: "never.txt", contents: value });
+  ctx.skill("../confirm-child", { value });
+  ctx.wait({ until: 4102444800000 });
+  await ctx.tool("data.digest", { value, encoding: "utf8_text" });
+  throw new Error("the script's own reason");
+}
+"#,
+    )?;
+    let ended = run(temp.path(), skill_dir)?;
+    let (outcome, message) = ending(&ended)?;
+    assert_eq!(outcome, "failed", "{:?}", ended.output);
+    assert!(
+        message.contains("the script's own reason"),
+        "{:?}",
+        ended.output
+    );
+    assert!(ended.pending_requests.is_empty(), "{:?}", ended.output);
+    assert!(!temp.path().join("never.txt").exists());
+    let run_id = text(object(&ended.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let events = call_events(temp.path(), &run_id)?;
+    for index in [0, 1, 2] {
+        assert_eq!(last_of(&events, index), Some("cancelled"), "{events:?}");
+    }
+    assert_eq!(last_of(&events, 3), Some("completed"), "{events:?}");
+    let child = child_of(temp.path(), &run_id, 1)?;
+    assert_eq!(seal_of(temp.path(), &run_id, &child)?, "killed");
+    Ok(())
+}
+
+/// A script that returns with a call outstanding fails its step, tested at
+/// the kernel: its output never counts, and the call it left is dropped.
+#[test]
+fn a_script_that_returns_with_a_call_outstanding_fails_and_never_seals_its_output() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_cleanup_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  ctx.skill("../confirm-child", { value });
+  await ctx.tool("data.digest", { value, encoding: "utf8_text" });
+  return { done: "early" };
+}
+"#,
+    )?;
+    let ended = run(temp.path(), skill_dir)?;
+    let (outcome, message) = ending(&ended)?;
+    assert_eq!(outcome, "failed", "{:?}", ended.output);
+    assert!(
+        message.contains("returned with call 0 outstanding"),
+        "{:?}",
+        ended.output
+    );
+    assert!(ended.pending_requests.is_empty(), "{:?}", ended.output);
+    let run_id = text(object(&ended.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let events = call_events(temp.path(), &run_id)?;
+    assert_eq!(last_of(&events, 0), Some("cancelled"), "{events:?}");
+    assert_eq!(last_of(&events, 1), Some("completed"), "{events:?}");
+    Ok(())
+}
+
+/// A rejection the script never handles ends it as a throw does: the
+/// sibling still waiting on its person is dropped, and the step fails with
+/// the rejection's own reason.
+#[test]
+fn an_unhandled_rejection_drops_its_siblings_and_fails_with_its_reason() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_cleanup_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  await Promise.all([
+    ctx.skill("../confirm-child", { value }),
+    ctx.tool("fs.read", { path: "secret.txt" }),
+  ]);
+  return { done: "never" };
+}
+"#,
+    )?;
+    let ended = run(temp.path(), skill_dir)?;
+    let (outcome, message) = ending(&ended)?;
+    assert_eq!(outcome, "failed", "{:?}", ended.output);
+    assert!(message.contains("fs.read"), "{:?}", ended.output);
+    assert!(ended.pending_requests.is_empty(), "{:?}", ended.output);
+    let run_id = text(object(&ended.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let events = call_events(temp.path(), &run_id)?;
+    assert_eq!(last_of(&events, 0), Some("cancelled"), "{events:?}");
+    assert_eq!(last_of(&events, 1), Some("refused"), "{events:?}");
+    Ok(())
+}
+
 /// Whether `stream` is run `run_id`'s own or one of its steps' calls
 /// streams.
 fn of_run(stream: &str, run_id: &str) -> bool {

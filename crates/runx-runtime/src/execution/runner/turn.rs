@@ -704,6 +704,41 @@ where
         }
     }
 
+    /// Drop call `index`, which its script left open when it ended. One that
+    /// never started, a wait, or a read settles `cancelled`. A skill call's
+    /// child run is cancelled, so it starts no further step and seals
+    /// killed, and the call settles as the child ended: `cancelled` when it
+    /// committed no effect. An effect whose end isn't known isn't dropped:
+    /// what it still waits on is returned, and the step holds on it.
+    pub(super) fn drop_open(
+        &mut self,
+        host: &mut dyn Host,
+        index: u32,
+    ) -> Result<Vec<ResolutionRequest>, RuntimeError> {
+        let Some(call) = self
+            .recorded()?
+            .iter()
+            .find(|call| call.index == index)
+            .cloned()
+        else {
+            return Err(RuntimeError::ContinuationRejected {
+                reason: format!("step {} has no call {index}", self.scope.step_id),
+            });
+        };
+        let ended = match &call.outcome {
+            CallOutcome::Pending(_) | CallOutcome::Executing => {
+                self.settled(Made::of(&call), CallOutcome::Cancelled, &[])?
+            }
+            CallOutcome::Child(_) => self.enter_cancelled(host, call)?,
+            CallOutcome::Claimed(retry) => return Ok(vec![resolution_request(retry)?]),
+            _ => return Ok(Vec::new()),
+        };
+        Ok(match ended.outcome {
+            TurnCallOutcome::Pending { waiting } => waiting,
+            _ => Vec::new(),
+        })
+    }
+
     /// The step's calls as the run records them, in order.
     pub(super) fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
         Ok(&self.step_record()?.calls)
@@ -1357,6 +1392,25 @@ where
         host: &mut dyn Host,
         call: RecordedCall,
     ) -> Result<TurnCallResult, RuntimeError> {
+        self.enter_under(host, call, false)
+    }
+
+    /// Enter a skill call's child run cancelled, as its host's cancel would
+    /// reach it: it starts no further step and seals killed.
+    fn enter_cancelled(
+        &mut self,
+        host: &mut dyn Host,
+        call: RecordedCall,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        self.enter_under(host, call, true)
+    }
+
+    fn enter_under(
+        &mut self,
+        host: &mut dyn Host,
+        call: RecordedCall,
+        cancel: bool,
+    ) -> Result<TurnCallResult, RuntimeError> {
         let made = Made::of(&call);
         if !host.records() {
             self.admits(made.index)?;
@@ -1371,6 +1425,13 @@ where
         // Its child runs further under the driver, and under the call, so
         // its host can cancel it meanwhile.
         let stop = self.stop(made.index, &step.step);
+        if cancel {
+            self.scope
+                .runtime
+                .options
+                .call_stops
+                .cancel(&self.call_address(made.index));
+        }
         stop.start();
         let mut run = || {
             self.scope
