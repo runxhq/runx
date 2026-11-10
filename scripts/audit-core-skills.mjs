@@ -6,7 +6,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { repositorySkills } from "./lib/skills.mjs";
-import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
 const schema = "runx.core_skill_operator_value_audit.v1";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -520,7 +519,6 @@ function parseOptions(args) {
     selfTest: false,
     runxBin: undefined,
     skills: undefined,
-    coreOnly: false,
     writeComposes: false,
   };
   for (let index = 0; index < args.length; index += 1) {
@@ -529,7 +527,6 @@ function parseOptions(args) {
     if (argument === "--json") options.json = true;
     else if (argument === "--self-test") options.selfTest = true;
     else if (argument === "--write-composes") options.writeComposes = true;
-    else if (argument === "--core-only") options.coreOnly = true;
     else if (argument === "--skills") {
       const value = args[index + 1];
       if (!value) throw new Error("--skills requires a comma-separated list");
@@ -544,8 +541,6 @@ function parseOptions(args) {
     }
     else throw new Error(`unknown option: ${argument}`);
   }
-  if (options.coreOnly && options.skills) throw new Error("--core-only and --skills cannot be combined");
-  if (options.coreOnly) options.skills = new Set(bundledCoreSkills());
   return options;
 }
 
