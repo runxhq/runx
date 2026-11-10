@@ -616,6 +616,13 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
         json!({"kind": "managed_agent", "provider": "scripted"}),
         "{step}"
     );
+    // Where it ran is recorded as it started, and read from the record.
+    let started = events
+        .iter()
+        .map(|record| &record["event"])
+        .find(|event| event["kind"] == "started")
+        .ok_or_else(|| format!("the run's start is recorded: {read}"))?;
+    assert_eq!(started["ran_on"], "local", "{started}");
     // The run reads its own record through `run.read`, as the CLI's history
     // does, and finds the same load.
     let own = &output["result"]["run_read"]["data"];

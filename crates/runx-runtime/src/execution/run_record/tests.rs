@@ -43,6 +43,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         prepared: None,
         purchase: None,
         implementation: &implementation(),
+        ran_on: runx_contracts::RanOn::Local,
         created_at: "2026-10-09T00:00:00.000Z",
     })
     .expect("begin");
@@ -254,6 +255,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 prepared: None,
                 purchase: None,
                 implementation: &implementation(),
+                ran_on: runx_contracts::RanOn::Local,
                 created_at: "2026-10-09T00:00:00.000Z",
             }),
         Err(RunRecordError::Contended { .. })

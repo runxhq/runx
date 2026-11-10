@@ -120,12 +120,20 @@ pub struct RunEventRecord {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RunEventFact {
+    /// A run read by `runx history` is live by its origin: fixture
+    /// providers exist only in a `runx test` evaluation, which begins with
+    /// its own event no run read reads, and whose turns are answered by the
+    /// test's scripted host. So a started run records no `providers`, and
+    /// none should be added: every run it starts is live.
     Started {
         skill: NonEmptyString,
         method: NonEmptyString,
         /// What started it: the source-tree digest each of its binaries
         /// reports.
         implementation: RunImplementation,
+        /// Where it ran, as it was started: recorded then, never read from a
+        /// reader's environment.
+        ran_on: RanOn,
     },
     ChildStarted {
         parent: NonEmptyString,
@@ -218,6 +226,15 @@ pub enum RunEventFact {
         answer_digest: NonEmptyString,
         actor: ResolutionResponseActor,
     },
+}
+
+/// Where a run ran: on a person's machine, or a hosted runner, which sets
+/// the hosted workspace policy every run it starts runs under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RanOn {
+    Local,
+    Hosted,
 }
 
 /// The host that answered a turn, as its answer records it. One run's turns
@@ -377,7 +394,7 @@ mod tests {
                 "request": {"kind": "approval", "id": "send.approval", "gate": {"id": "send.approval", "reason": "send it"}}
             }],
             "events": [
-                {"stream": "run_1", "version": 1, "committed_at": "2026-10-14T00:00:00Z", "event": {"kind": "started", "skill": "reply", "method": "reply", "implementation": {"runtime": "sha256:runtime"}}},
+                {"stream": "run_1", "version": 1, "committed_at": "2026-10-14T00:00:00Z", "event": {"kind": "started", "skill": "reply", "method": "reply", "implementation": {"runtime": "sha256:runtime"}, "ran_on": "local"}},
                 {"stream": "run_1", "version": 2, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "suspended", "step_id": "send", "attempt": 1, "hold": {"kind": "request", "address": "send.approval", "request_digest": "sha256:r"}}},
                 {"stream": "run_1/draft", "version": 3, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0, "target": {"kind": "ask"}, "input_digest": "sha256:i", "call_id": "toolu_1", "outcome": {"status": "refused", "reason": "ask is not in the turn's allowance"}}}
             ],

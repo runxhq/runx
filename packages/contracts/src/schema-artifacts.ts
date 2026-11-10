@@ -7046,6 +7046,15 @@ export const runxSchemaArtifacts = {
         "title": "QuotePurchaseAdmission",
         "type": "object"
       },
+      "RanOn": {
+        "description": "Where a run ran: on a person's machine, or a hosted runner, which sets the hosted workspace policy every run it starts runs under.",
+        "enum": [
+          "local",
+          "hosted"
+        ],
+        "title": "RanOn",
+        "type": "string"
+      },
       "RateLimit": {
         "additionalProperties": false,
         "description": "How a provider says when a rate limit lifts. A rate limited request (an HTTP 429) stops a repeated write, and the outcome carries the time.",
@@ -7973,6 +7982,7 @@ export const runxSchemaArtifacts = {
         "anyOf": [
           {
             "additionalProperties": false,
+            "description": "A run read by `runx history` is live by its origin: fixture providers exist only in a `runx test` evaluation, which begins with its own event no run read reads, and whose turns are answered by the test's scripted host. So a started run records no `providers`, and none should be added: every run it starts is live.",
             "properties": {
               "implementation": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
@@ -7986,6 +7996,10 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
+              "ran_on": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RanOn",
+                "description": "Where it ran, as it was started: recorded then, never read from a reader's environment."
+              },
               "skill": {
                 "minLength": 1,
                 "type": "string"
@@ -7995,7 +8009,8 @@ export const runxSchemaArtifacts = {
               "kind",
               "skill",
               "method",
-              "implementation"
+              "implementation",
+              "ran_on"
             ],
             "type": "object"
           },

@@ -212,6 +212,7 @@ impl BoundRun {
                 prepared: prepared.as_ref(),
                 purchase: self.purchase(),
                 implementation: &start.implementation,
+                ran_on: crate::execution_environment::ran_on(&request.env),
                 created_at: &crate::time::now_iso8601(),
             })?,
         }
@@ -1216,6 +1217,7 @@ methods:
                     runtime: "sha256:runtime".into(),
                     worker: None,
                 },
+                ran_on: runx_contracts::RanOn::Local,
                 created_at: "2026-07-24T00:00:00Z",
             })?;
             if suspended {

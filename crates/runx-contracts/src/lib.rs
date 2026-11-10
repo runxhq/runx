@@ -218,7 +218,7 @@ pub use resume::{
     StandingCommands, StandingEdits, StandingOperations,
 };
 pub use run_read::{
-    RecomputeReason, ReuseDecision, RunCallOutcome, RunCallOutput, RunCallReuse, RunDriver,
+    RanOn, RecomputeReason, ReuseDecision, RunCallOutcome, RunCallOutput, RunCallReuse, RunDriver,
     RunEventFact, RunEventRecord, RunHold, RunImplementation, RunRead, RunReadSchema,
     RunReadSummary, RunState, TurnHost, WaitedRequest,
 };

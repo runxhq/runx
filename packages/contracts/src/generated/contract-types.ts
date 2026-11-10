@@ -2239,6 +2239,9 @@ export type QuotePurchaseResultContract = {
   readonly status: "refused";
 };
 
+/** Where a run ran: on a person's machine, or a hosted runner, which sets the hosted workspace policy every run it starts runs under. */
+export type RanOnContract = "local" | "hosted";
+
 /** How a provider says when a rate limit lifts. A rate limited request (an HTTP 429) stops a repeated write, and the outcome carries the time. */
 export type RateLimitContract = {
   /** The response header holding the Unix second the limit lifts at. */
@@ -2649,6 +2652,8 @@ export type RunEventFactContract = {
   readonly implementation: RunImplementationContract;
   readonly kind: "started";
   readonly method: string;
+  /** Where it ran, as it was started: recorded then, never read from a reader's environment. */
+  readonly ran_on: RanOnContract;
   readonly skill: string;
 } | {
   /** What started it, decided from the child's own method. */

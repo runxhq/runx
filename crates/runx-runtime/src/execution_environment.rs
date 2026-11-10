@@ -124,6 +124,17 @@ pub(crate) fn credential_variables(
         })
 }
 
+/// Where a run with `environment` runs: a hosted runner sets the hosted
+/// workspace policy every run it starts runs under, and a person's machine
+/// sets none.
+pub(crate) fn ran_on(environment: &BTreeMap<String, String>) -> runx_contracts::RanOn {
+    if environment.contains_key(RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV) {
+        runx_contracts::RanOn::Hosted
+    } else {
+        runx_contracts::RanOn::Local
+    }
+}
+
 /// The host's workspace policy, when it sets one.
 fn workspace_policy(
     environment: &BTreeMap<String, String>,
@@ -209,6 +220,16 @@ pub fn environment_requirement_statuses(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_run_under_the_hosted_workspace_policy_ran_hosted() {
+        assert_eq!(ran_on(&BTreeMap::new()), runx_contracts::RanOn::Local);
+        let hosted = BTreeMap::from([(
+            RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV.to_owned(),
+            "{}".to_owned(),
+        )]);
+        assert_eq!(ran_on(&hosted), runx_contracts::RanOn::Hosted);
+    }
 
     #[test]
     fn baseline_matches_windows_names_without_admitting_other_variables() {
