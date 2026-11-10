@@ -46,6 +46,19 @@ out doesn't confirm a summary of it or the force it's given.
 
 An entry's handle is `memory:<stream>#<key>@<version>`.
 
+## A write is shown what it likely replaces
+
+`remember` and `observe` take `supersedes`: the handle of the entry the new
+one replaces, or `none`. Without it, they search the stream they'd write for
+current entries whose text matches the new one. If any match, nothing is kept
+and they're returned as `matches`, so the writer decides with them in view and
+calls again. If none does, there's nothing to decide, so it's kept at once and
+the result says so, with no `matches` and the new handle. For `observe`, a
+handle keeps the new observation as that entry's next version. For
+`remember`, it makes the call a correction of that entry, at the correction's
+own gate. So a fact that contradicts an older one can't sit beside it as
+current unless the writer said it doesn't replace it.
+
 ## The index
 
 Each line is `<handle> <date> <summary>`, with its date and never a relative

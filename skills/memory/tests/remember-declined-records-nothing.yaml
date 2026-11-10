@@ -23,4 +23,4 @@ setup:
               packages: [runx/memory, project:memory]
 expect:
   status: declined
-  steps: [entry, current, change, confirm]
+  steps: [entry, likely, current, change, confirm]

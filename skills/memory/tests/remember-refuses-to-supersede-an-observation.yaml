@@ -1,0 +1,23 @@
+name: remember-refuses-to-supersede-an-observation
+method: remember
+inputs:
+  level: personal
+  text: I write in British English.
+  summary: I write in British English.
+  purpose: confirmed_memory
+  date: 2026-11-09
+  sources: [conversation]
+  supersedes: "memory:observed:personal#0000000000000000000000000000000000000000000000000000000000000000@1"
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: failure

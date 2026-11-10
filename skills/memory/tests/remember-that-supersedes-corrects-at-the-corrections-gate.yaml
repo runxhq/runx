@@ -1,0 +1,26 @@
+name: remember-that-supersedes-corrects-at-the-corrections-gate
+method: remember
+inputs:
+  level: personal
+  text: I write in British English.
+  summary: I write in British English.
+  purpose: confirmed_memory
+  date: 2026-11-09
+  sources: [conversation]
+  supersedes: "memory:said:personal#0000000000000000000000000000000000000000000000000000000000000000@1"
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  # Naming the entry it replaces makes it that entry's correction, which
+  # refuses one that isn't kept, and never reaches the person's words gate.
+  status: failure
+  steps: [entry, corrected]

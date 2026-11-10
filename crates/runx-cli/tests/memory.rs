@@ -91,12 +91,13 @@ impl Memory {
 
     /// The person's words, kept once a resume approves them.
     fn remember(&self, inputs: Value) -> TestResult<String> {
-        Ok(self.remember_shown(inputs)?.0)
+        let (result, _) = self.remember_shown(inputs)?;
+        Ok(result["handle"].as_str().ok_or("no handle")?.to_owned())
     }
 
-    /// The person's words, kept once a resume approves them, and what the
-    /// gate showed the person beside its reason.
-    fn remember_shown(&self, inputs: Value) -> TestResult<(String, Value)> {
+    /// The person's words, kept once a resume approves them: the run's
+    /// result, and what the gate showed the person beside its reason.
+    fn remember_shown(&self, inputs: Value) -> TestResult<(Value, Value)> {
         let paused = self.run("remember", inputs, EVERY_STREAM)?;
         assert_eq!(paused["status"], "needs_approval", "{paused}");
         let run_id = paused["run_id"].as_str().ok_or("no run id")?.to_owned();
@@ -114,13 +115,7 @@ impl Memory {
                 .stdout,
         )?;
         assert_eq!(resumed["outcome"], "completed", "{resumed}");
-        Ok((
-            resumed["result"]["handle"]
-                .as_str()
-                .ok_or("no handle")?
-                .to_owned(),
-            shown,
-        ))
+        Ok((resumed["result"].clone(), shown))
     }
 
     /// A change a gate decides, approved on resume.
@@ -250,14 +245,23 @@ fn words(text: &str) -> Value {
 }
 
 /// The person's words with the line the index shows for them and their
-/// purpose.
+/// purpose, which supersede no entry.
 fn said(text: &str, summary: &str, purpose: &str) -> Value {
-    json!({"level": "personal", "text": text, "summary": summary, "purpose": purpose, "date": "2026-11-08", "sources": ["conversation"]})
+    json!({"level": "personal", "text": text, "summary": summary, "purpose": purpose, "date": "2026-11-08", "sources": ["conversation"], "supersedes": "none"})
 }
 
-/// An observation dated `date`, shown by its own text.
+/// An observation dated `date`, shown by its own text, which supersedes no
+/// entry.
 fn observation(text: &str, date: &str) -> Value {
-    json!({"level": "personal", "text": text, "summary": text, "date": date, "sources": ["fixture"]})
+    json!({"level": "personal", "text": text, "summary": text, "date": date, "sources": ["fixture"], "supersedes": "none"})
+}
+
+/// `inputs` with nothing said about what they supersede.
+fn unsaid(mut inputs: Value) -> Value {
+    if let Some(object) = inputs.as_object_mut() {
+        object.remove("supersedes");
+    }
+    inputs
 }
 
 /// Each line of an index, as a turn reads it.
@@ -716,17 +720,17 @@ fn an_entry_past_its_end_date_leaves_the_index_and_search_still_finds_it() -> Te
     let ended = memory.observe_with(json!({
         "level": "personal", "text": "The lighthouse tour runs on Tuesdays.",
         "summary": "Lighthouse tour days", "date": "1999-06-01",
-        "valid_until": "2000-01-01", "sources": ["fixture"],
+        "valid_until": "2000-01-01", "sources": ["fixture"], "supersedes": "none",
     }))?;
     let rule = memory.remember(json!({
         "level": "personal", "text": "Bring a coat to the lighthouse.",
         "summary": "Coat for the lighthouse", "purpose": "mandate",
-        "date": "1999-06-01", "valid_until": "2000-01-01", "sources": ["conversation"],
+        "date": "1999-06-01", "valid_until": "2000-01-01", "sources": ["conversation"], "supersedes": "none",
     }))?;
     let later = memory.observe_with(json!({
         "level": "personal", "text": "The ferry runs hourly.",
         "summary": "Ferry times", "date": "2026-11-09",
-        "valid_until": "2999-12-31", "sources": ["fixture"],
+        "valid_until": "2999-12-31", "sources": ["fixture"], "supersedes": "none",
     }))?;
     let (index, _) = memory.index(None)?;
     assert_eq!(handles(&index), [later.as_str()]);
@@ -793,6 +797,7 @@ fn the_persons_words_gate_shows_the_line_and_the_purpose() -> TestResult {
         "level": "personal", "text": "Always copy Sam on customer mail until the launch.",
         "summary": "Copy Sam on customer mail", "purpose": "mandate",
         "date": "2026-11-08", "valid_until": "2026-12-01", "sources": ["conversation"],
+        "supersedes": "none",
     }))?;
     let mut shown = shown;
     // The read names the digest of what the gate showed beside it.
@@ -812,5 +817,85 @@ fn the_persons_words_gate_shows_the_line_and_the_purpose() -> TestResult {
             "stream": "said:personal",
         })
     );
+    Ok(())
+}
+
+/// Without `supersedes`, a write first looks for the current entries on its
+/// stream that match it. When none does, there's nothing to decide: the
+/// person's words go straight to their gate and are kept, an observation is
+/// kept, and the result says so, with no matches and the new handle.
+#[test]
+fn a_write_that_matches_nothing_is_kept_at_once() -> TestResult {
+    let memory = Memory::new("runx-memory-unmatched")?;
+    let (result, _) = memory.remember_shown(unsaid(words("I take my tea black.")))?;
+    assert!(entries(&result["matches"])?.is_empty(), "{result}");
+    let handle = result["handle"].as_str().ok_or("no handle")?;
+    let observed = memory.completed(
+        "observe",
+        unsaid(observation("The build runs on Node 26.", "2026-11-09")),
+    )?;
+    assert!(entries(&observed["matches"])?.is_empty(), "{observed}");
+    let observed = observed["handle"].as_str().ok_or("no handle")?;
+    assert_eq!(handles(&memory.index(None)?.0), [handle, observed]);
+    Ok(())
+}
+
+/// Without `supersedes`, a write that matches current entries keeps nothing
+/// and returns them, with no gate, so the writer decides with them in view.
+/// Saying it supersedes none keeps it beside them; naming an observation
+/// makes it that entry's next version.
+#[test]
+fn a_write_that_matches_a_current_entry_keeps_nothing_and_shows_it() -> TestResult {
+    let memory = Memory::new("runx-memory-matched")?;
+    let tea = memory.remember(words("I take my tea black."))?;
+    let shown = memory.completed("remember", unsaid(words("I take my tea with milk now.")))?;
+    assert_eq!(handles(&entries(&shown["matches"])?), [tea.as_str()]);
+    assert!(shown.get("handle").is_none(), "{shown}");
+    assert_eq!(handles(&memory.index(None)?.0), [tea.as_str()]);
+    let beside = memory.remember(words("I take my tea with milk now."))?;
+    assert_eq!(
+        handles(&memory.index(None)?.0),
+        [beside.as_str(), tea.as_str()]
+    );
+
+    let node = memory.observe("The build runs on Node 26.", "2026-11-09")?;
+    let shown = memory.completed(
+        "observe",
+        unsaid(observation("The build runs on Node 28.", "2026-11-10")),
+    )?;
+    assert_eq!(handles(&entries(&shown["matches"])?), [node.as_str()]);
+    assert!(shown.get("handle").is_none(), "{shown}");
+    let mut superseding = observation("The build runs on Node 28.", "2026-11-10");
+    superseding["supersedes"] = node.clone().into();
+    let next = memory.observe_with(superseding)?;
+    assert_eq!(
+        next.rsplit_once('@').map(|(entry, _)| entry),
+        node.rsplit_once('@').map(|(entry, _)| entry)
+    );
+    assert!(next.ends_with("@2"), "{next}");
+    Ok(())
+}
+
+/// The person's words that name the entry they supersede are that entry's
+/// correction, decided at the correction's own gate, never the person's
+/// words gate a host may answer itself.
+#[test]
+fn words_that_supersede_an_entry_correct_it_at_the_corrections_gate() -> TestResult {
+    let memory = Memory::new("runx-memory-supersede")?;
+    let tea = memory.remember(words("I take my tea black."))?;
+    let mut replacing = words("I take my tea with milk.");
+    replacing["supersedes"] = tea.clone().into();
+    // The correction's gate, in the child run of `remember`'s `corrected`
+    // step that runs `correct`.
+    let corrected = memory.approved("remember", "corrected#memory.correct", replacing)?;
+    let corrected = corrected["handle"].as_str().ok_or("no handle")?;
+    assert_eq!(
+        corrected.rsplit_once('@').map(|(entry, _)| entry),
+        tea.rsplit_once('@').map(|(entry, _)| entry)
+    );
+    assert!(corrected.ends_with("@2"), "{corrected}");
+    let (index, _) = memory.index(None)?;
+    assert_eq!(handles(&index), [corrected]);
+    assert_eq!(index[0]["data"]["text"], "I take my tea with milk.");
     Ok(())
 }

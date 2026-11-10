@@ -1,0 +1,28 @@
+name: remember-keeps-words-that-match-nothing-at-once
+method: remember
+inputs:
+  level: personal
+  text: I write in Australian English.
+  summary: I write in Australian English.
+  purpose: confirmed_memory
+  date: 2026-11-08
+  sources: [conversation]
+host:
+  approvals:
+    memory.remember: true
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: sealed
+  # Nothing on the stream matches, so there's nothing to decide: the search
+  # finds none and the words go straight to the person's gate.
+  steps: [entry, likely, current, change, confirm, append, readback, handle]

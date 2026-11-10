@@ -1,0 +1,22 @@
+name: observe-keeps-an-observation-that-matches-nothing-at-once
+method: observe
+inputs:
+  level: personal
+  text: The build runs on Node 26.
+  summary: The build's Node version
+  date: 2026-11-09
+  sources: [package.json]
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: sealed
+  steps: [entry, likely, current, change, append, readback, handle]

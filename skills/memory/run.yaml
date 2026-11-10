@@ -92,22 +92,51 @@ shared_inputs:
     description: One entry at one version, memory:<stream>#<key>@<version>.
 methods:
   remember:
-    description: Keep the person's exact words, with the line the index shows for them and their purpose, once the person confirms them. Nothing is recorded without the confirmation.
-    inputs: { level: {}, project: {}, brand: {}, text: {}, summary: {}, purpose: {}, date: {}, valid_until: {}, sources: {} }
+    description: Keep the person's exact words, with the line the index shows for them and their purpose, once the person confirms them. Without supersedes, it first looks for current entries on their stream that match the words, and when any does it keeps nothing and returns them, so the writer decides with them in view. Naming the entry it supersedes makes it a correction of that entry, with the correction's own gate. Nothing is recorded without the confirmation.
+    inputs:
+      level: {}
+      project: {}
+      brand: {}
+      text: {}
+      summary: {}
+      purpose: {}
+      date: {}
+      valid_until: {}
+      sources: {}
+      supersedes: { type: string, pattern: "^(none|memory:said:[^#]+#[^#]+@[0-9]+)$", maxLength: 512, optional: true, description: "The entry these words replace, at its current version, which makes this its correction, or none. Without it, words that match a current entry are returned rather than kept." }
     examples:
-      - { level: personal, text: I write in Australian English., summary: I write in Australian English., purpose: confirmed_memory, date: 2026-11-08, sources: [conversation] }
+      - { level: personal, text: I write in Australian English., summary: I write in Australian English., purpose: confirmed_memory, date: 2026-11-08, sources: [conversation], supersedes: none }
+    result_from: [likely, corrected, handle]
     steps:
       - id: entry
         tool: { module: memory.mjs, export: newEntry }
-        inputs: { kind: said, level: $input.level, project: $input.project, brand: $input.brand, workspace_id: $run.workspace_id, text: $input.text, date: $input.date, sources: $input.sources }
+        inputs: { kind: said, level: $input.level, project: $input.project, brand: $input.brand, workspace_id: $run.workspace_id, text: $input.text, date: $input.date, sources: $input.sources, supersedes: $input.supersedes }
         outputs:
           stream: { type: string }
           key: { type: string }
           version: { type: integer }
+      - id: likely
+        when: { value: $steps.entry.version, equals: 0 }
+        script: { module: memory.mjs, export: likely }
+        inputs: { entry: $steps.entry, kind: said, text: $input.text, supersedes: $input.supersedes, method: remember }
+        calls:
+          operations: [private/keys.search]
+        max_calls: 1
+        effects: none
+        outputs:
+          matches: { type: array, packet: runx/memory.entries.v1, description: "The current entries on the stream whose text best matches the words, best first. When any matches, nothing is kept." }
+      - id: corrected
+        when: { value: $steps.entry.version, not_equals: 0 }
+        skill: .#correct
+        inputs: { handle: $input.supersedes, text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources }
+        outputs:
+          handle: { type: string }
       - id: current
+        when: { value: $steps.likely.matches, equals: [] }
         operation: private/key.inspect
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
+        when: { value: $steps.likely.matches, equals: [] }
         tool: { module: memory.mjs, export: change }
         inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.remembered, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: CONF }, valid_until: $input.valid_until }
         outputs:
@@ -115,9 +144,11 @@ methods:
           idempotency_key: { type: string }
           standing: { type: boolean }
       - id: confirm
+        when: { value: $steps.likely.matches, equals: [] }
         ask: { gate: memory.remember, reason: $steps.change.reason, type: person_words }
         inputs: { quote: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources, stream: $steps.entry.stream }
       - id: append
+        when: { value: $steps.likely.matches, equals: [] }
         operation: private/events.append
         guard:
           - { value: $steps.confirm.approval_decision.approved, equals: true }
@@ -131,10 +162,12 @@ methods:
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
       - id: readback
+        when: { value: $steps.likely.matches, equals: [] }
         operation: private/key.inspect
         confirms: append
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: handle
+        when: { value: $steps.likely.matches, equals: [] }
         tool: { module: memory.mjs, export: entryHandle }
         inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
         outputs:
@@ -233,7 +266,7 @@ methods:
         outputs:
           handle: { type: string }
   observe:
-    description: Keep what an agent found, with its date, sources and the line the index shows for it. Naming the observation it supersedes makes this that entry's next version, and the one it replaces stays in the entry's history. Never promoted into an instruction or a confirmed memory.
+    description: Keep what an agent found, with its date, sources and the line the index shows for it. Without supersedes, it first looks for current observations on its stream that match it, and when any does it keeps nothing and returns them, so the writer decides with them in view. Naming the observation it supersedes makes this that entry's next version, and the one it replaces stays in the entry's history. Never promoted into an instruction or a confirmed memory.
     inputs: 
       level: {}
       project: {}
@@ -243,7 +276,8 @@ methods:
       date: {}
       valid_until: {}
       sources: {}
-      supersedes: { type: string, pattern: "^memory:observed:[^#]+#[^#]+@[0-9]+$", maxLength: 512, optional: true, description: "The observation this one replaces, at its current version." }
+      supersedes: { type: string, pattern: "^(none|memory:observed:[^#]+#[^#]+@[0-9]+)$", maxLength: 512, optional: true, description: "The observation this one replaces, at its current version, or none. Without it, an observation that matches a current one is returned rather than kept." }
+    result_from: [likely, handle]
     steps:
       - id: entry
         tool: { module: memory.mjs, export: newEntry }
@@ -252,16 +286,28 @@ methods:
           stream: { type: string }
           key: { type: string }
           version: { type: integer }
+      - id: likely
+        script: { module: memory.mjs, export: likely }
+        inputs: { entry: $steps.entry, kind: observed, text: $input.text, supersedes: $input.supersedes, method: observe }
+        calls:
+          operations: [private/keys.search]
+        max_calls: 1
+        effects: none
+        outputs:
+          matches: { type: array, packet: runx/memory.entries.v1, description: "The current observations on the stream whose text best matches this one, best first. When any matches, nothing is kept." }
       - id: current
+        when: { value: $steps.likely.matches, equals: [] }
         operation: private/key.inspect
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
+        when: { value: $steps.likely.matches, equals: [] }
         tool: { module: memory.mjs, export: change }
         inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.observed, data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }, valid_until: $input.valid_until }
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
       - id: append
+        when: { value: $steps.likely.matches, equals: [] }
         operation: private/events.append
         inputs:
           stream: $steps.entry.stream
@@ -272,10 +318,12 @@ methods:
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
       - id: readback
+        when: { value: $steps.likely.matches, equals: [] }
         operation: private/key.inspect
         confirms: append
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: handle
+        when: { value: $steps.likely.matches, equals: [] }
         tool: { module: memory.mjs, export: entryHandle }
         inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
         outputs:
