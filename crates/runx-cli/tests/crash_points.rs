@@ -441,3 +441,292 @@ fn a_kill_with_calls_in_flight_recovers_each_by_its_own_record() -> TestResult {
     }
     Ok(())
 }
+
+/// A script that digests `calls` values four at a time, each four at once,
+/// and returns the digests in position order and the positions in the order
+/// they settled.
+const BATCHED_DIGESTS: &str = r#"export default async function (ctx, { calls }) {
+  const digests = [];
+  const settled = [];
+  for (let first = 0; first < calls; first += 4) {
+    const batch = [];
+    for (let index = first; index < Math.min(first + 4, calls); index += 1) {
+      batch.push(
+        ctx.tool("data.digest", { value: `call ${index}`, encoding: "utf8_text" }).then((made) => {
+          settled.push(index);
+          return made.digest_result.digest;
+        }),
+      );
+    }
+    digests.push(...(await Promise.all(batch)));
+  }
+  return { digests, settled };
+}
+"#;
+
+/// `batched` runs [`BATCHED_DIGESTS`] over its `calls` input.
+fn write_batched(root: &Path) -> TestResult<PathBuf> {
+    let skill = root.join("batched");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: batched\ndescription: Digests a batch of values.\n---\n# Batched\n\nDigest them.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  digest:
+    inputs:
+      calls: {type: integer}
+    steps:
+      - id: prepare
+        script: {module: batch.mjs}
+        inputs:
+          calls: $input.calls
+        calls:
+          tools: [data.digest]
+        max_calls: 1000
+        concurrency: 4
+        outputs:
+          digests: {type: array}
+          settled: {type: array}
+"#,
+    )?;
+    fs::write(skill.join("batch.mjs"), BATCHED_DIGESTS)?;
+    Ok(skill)
+}
+
+/// Run `skill` over `calls` under the pinned run id, crashing at `crash`
+/// when given, and the work the process counted.
+fn run_counted(
+    root: &Path,
+    skill: &Path,
+    calls: usize,
+    crash: Option<&str>,
+) -> TestResult<(Output, Option<serde_json::Value>)> {
+    let counted = root.join("counts.json");
+    let _ignored = fs::remove_file(&counted);
+    let mut command = unsigned_runx_command_at(root);
+    command
+        .args([
+            "skill",
+            skill.to_str().ok_or("non-utf8 skill dir")?,
+            "-i",
+            &format!("calls={calls}"),
+            "--run-id",
+            RUN_ID,
+            "--receipt-dir",
+            root.join("receipts")
+                .to_str()
+                .ok_or("non-utf8 receipt dir")?,
+            "--json",
+        ])
+        .env("RUNX_PERF_COUNTS_PATH", &counted);
+    if let Some(crash) = crash {
+        command.env("RUNX_CRASH_AT", crash);
+    }
+    let output = command.output()?;
+    let counts = fs::read(&counted)
+        .ok()
+        .map(|bytes| serde_json::from_slice(&bytes))
+        .transpose()?;
+    Ok((output, counts))
+}
+
+/// The run as a host reads it, every page of it.
+fn whole_history(root: &Path) -> TestResult<serde_json::Value> {
+    let mut whole = history(root)?;
+    while whole["more"] == true {
+        let after = whole["cursor"]
+            .as_str()
+            .ok_or("a read with more names its cursor")?;
+        let read = unsigned_runx_command_at(root)
+            .args(["history", RUN_ID, "--after", after, "--json"])
+            .output()?;
+        assert!(
+            read.status.success(),
+            "{}",
+            String::from_utf8_lossy(&read.stderr)
+        );
+        let mut page: serde_json::Value = serde_json::from_slice(&read.stdout)?;
+        let events = page["events"]
+            .as_array_mut()
+            .map(std::mem::take)
+            .unwrap_or_default();
+        whole["events"]
+            .as_array_mut()
+            .ok_or("a read holds its events")?
+            .extend(events);
+        whole["more"] = page["more"].take();
+        whole["cursor"] = page["cursor"].take();
+    }
+    Ok(whole)
+}
+
+/// What a sealed run returned: its result, or, when the CLI wrote it to an
+/// artifact for its size, the artifact's content.
+fn result_of(sealed: &serde_json::Value) -> TestResult<serde_json::Value> {
+    let result = &sealed["result"];
+    match result["artifact"]["path"].as_str() {
+        Some(path) => Ok(serde_json::from_slice(&fs::read(path)?)?),
+        None => Ok(result.clone()),
+    }
+}
+
+fn counted(counts: &serde_json::Value, name: &str) -> u64 {
+    counts[name].as_u64().unwrap_or(u64::MAX)
+}
+
+/// The replay proof (script-step.md, §4.11, D36), counted at 10, 100 and
+/// 1,000 calls. A live worker runs the script once, from its beginning, and
+/// hands it each settlement once: live running never replays. A run killed
+/// mid-batch, between one batch's calls settling and the next one's being
+/// admitted, is recovered by one pass over its record, which hands the
+/// script each recorded settlement once, in the order the calls settled, and
+/// then goes on live: its output is a run's that never crashed. Recovery
+/// takes the run whole once, and settling a call costs the same at every
+/// size, live or recovered.
+#[test]
+fn a_lost_worker_is_rebuilt_from_its_record_and_live_running_never_replays() -> TestResult {
+    let mut live = Vec::new();
+    let mut recovered = Vec::new();
+    for size in [10_usize, 100, 1000] {
+        let reference = crate::support::temp_root(&format!("replay-live-{size}"));
+        let skill = write_batched(&reference)?;
+        let (output, counts) = run_counted(&reference, &skill, size, None)?;
+        let sealed = status(&output)?;
+        assert_eq!(sealed["status"], "sealed", "{sealed}");
+        let counts = counts.ok_or("the live run wrote its counts")?;
+        assert_eq!(counted(&counts, "script_passes"), 1, "{size}: {counts}");
+        assert_eq!(
+            counted(&counts, "script_settlements_delivered"),
+            size as u64,
+            "{size}: {counts}"
+        );
+        live.push((size, counts));
+
+        // Killed as the batch after the first half is admitted.
+        let killed_at = size / 2 / 4 * 4;
+        let root = crate::support::temp_root(&format!("replay-recovered-{size}"));
+        let skill = write_batched(&root)?;
+        let (output, _) = run_counted(
+            &root,
+            &skill,
+            size,
+            Some(&format!("before_admission@prepare/{killed_at}")),
+        )?;
+        crashed(&output);
+        let completed = |read: &serde_json::Value| {
+            calls(read, RUN_ID)
+                .into_iter()
+                .filter(|(_, status)| status == "completed")
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(completed(&whole_history(&root)?).len(), killed_at);
+
+        let (output, counts) = run_counted(&root, &skill, size, None)?;
+        let resumed = status(&output)?;
+        assert_eq!(resumed["status"], "sealed", "{resumed}");
+        let (result, uncrashed) = (result_of(&resumed)?, result_of(&sealed)?);
+        assert_eq!(
+            result["digests"], uncrashed["digests"],
+            "{size}: the recovered run's output is the uncrashed run's"
+        );
+        let settled = result["settled"]
+            .as_array()
+            .ok_or("the script returned the order its calls settled")?
+            .iter()
+            .filter_map(serde_json::Value::as_u64)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            settled,
+            completed(&whole_history(&root)?),
+            "{size}: the script saw its calls settle in the order the record holds"
+        );
+        let counts = counts.ok_or("the recovery wrote its counts")?;
+        assert_eq!(counted(&counts, "script_passes"), 1, "{size}: {counts}");
+        assert_eq!(
+            counted(&counts, "script_settlements_delivered"),
+            size as u64,
+            "{size}: each settlement, recorded or new, delivered once: {counts}"
+        );
+        // Recovery reads each event of the run's stream, and of each of its
+        // steps' calls streams, once.
+        assert_eq!(
+            counted(&counts, "most_reads_of_one_stream_event"),
+            1,
+            "{size}: {counts}"
+        );
+        assert_eq!(
+            counted(&counts, "stream_events_read_again"),
+            0,
+            "{size}: {counts}"
+        );
+        recovered.push((size, counts));
+    }
+    // Settling a call costs the same at every size: what the store reads and
+    // writes, and the runs it takes whole, each a line through the three
+    // sizes, against the calls a live run made, and against the calls a
+    // recovered run read back and the calls it then made.
+    let line = |name: &str, points: &[(u64, u64)]| {
+        let [(x0, y0), (x1, y1), (x2, y2)] = points else {
+            return;
+        };
+        assert_eq!(
+            (y1 - y0) * (x2 - x0),
+            (y2 - y0) * (x1 - x0),
+            "{name} at 10, 100 and 1,000 calls: {points:?}"
+        );
+    };
+    let points = |runs: &[(usize, serde_json::Value)], count: &str, calls: fn(u64) -> u64| {
+        runs.iter()
+            .map(|(size, counts)| (calls(*size as u64), counted(counts, count)))
+            .collect::<Vec<_>>()
+    };
+    let made = |size: u64| size;
+    let read_back = |size: u64| size / 2 / 4 * 4;
+    let made_after = |size: u64| size - size / 2 / 4 * 4;
+    for count in ["store_rows_read", "store_writes", "run_materializations"] {
+        line(&format!("live {count}"), &points(&live, count, made));
+    }
+    line(
+        "recovered store_rows_read",
+        &points(&recovered, "store_rows_read", read_back),
+    );
+    line(
+        "recovered store_writes",
+        &points(&recovered, "store_writes", made_after),
+    );
+    line(
+        "recovered run_materializations",
+        &points(&recovered, "run_materializations", made),
+    );
+    Ok(())
+}
+
+/// A script changed between its crash and its recovery is a failed recovery
+/// that acts on nothing: the run is pinned to the package it started from,
+/// so recovery under another refuses before any call is replayed or made,
+/// and nothing is written.
+#[test]
+fn a_script_changed_after_a_kill_recovers_nothing() -> TestResult {
+    let root = crate::support::temp_root("crash-changed");
+    let skill = write_batched(&root)?;
+    crashed(&run_counted(&root, &skill, 10, Some("before_admission@prepare/4"))?.0);
+    let before = calls(&whole_history(&root)?, RUN_ID);
+    fs::write(
+        skill.join("batch.mjs"),
+        BATCHED_DIGESTS.replace("value: `call ${index}`", "value: `changed ${index}`"),
+    )?;
+
+    let (output, counts) = run_counted(&root, &skill, 10, None)?;
+    let refused = status(&output)?;
+    assert_eq!(refused["status"], "failure", "{refused}");
+    let counts = counts.ok_or("the refused recovery wrote its counts")?;
+    assert_eq!(counted(&counts, "script_passes"), 0, "{counts}");
+    assert_eq!(counted(&counts, "store_writes"), 0, "{counts}");
+    assert_eq!(calls(&whole_history(&root)?, RUN_ID), before);
+    Ok(())
+}

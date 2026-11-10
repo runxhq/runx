@@ -480,12 +480,12 @@ fn bind_resolved(
         package_digest,
         execution_closure_digest,
     } = resolved;
-    let (mut request, workspace, receipts) = prepare_skill_execution(
+    let (mut request, workspace, receipts, run_log) = prepare_skill_execution(
         request,
         manifest,
         method,
         trusted_prepared,
-        overrides.run_log.as_ref(),
+        overrides.run_log.clone(),
     )?;
     // A caller-pinned id is a submission identity: a repeated submission
     // continues the same run, and hosted execution keys its effects on it,
@@ -548,10 +548,7 @@ fn bind_resolved(
         execution_closure_digest: execution_closure_digest.map(str::to_owned),
         max_concurrency,
         max_receipts,
-        log: overrides
-            .run_log
-            .clone()
-            .map_or_else(std::sync::OnceLock::new, std::sync::OnceLock::from),
+        log: run_log.map_or_else(std::sync::OnceLock::new, std::sync::OnceLock::from),
     })
 }
 
@@ -600,14 +597,22 @@ fn prepare_skill_execution(
     manifest: &SkillMethodManifest,
     method: &SkillMethodDefinition,
     trusted_prepared: bool,
-    run_log: Option<&crate::execution::run_record::RunLog>,
-) -> Result<(SkillRunRequest, WorkspaceEnv, ReceiptServices), SkillRunError> {
+    run_log: Option<crate::execution::run_record::RunLog>,
+) -> Result<
+    (
+        SkillRunRequest,
+        WorkspaceEnv,
+        ReceiptServices,
+        Option<crate::execution::run_record::RunLog>,
+    ),
+    SkillRunError,
+> {
     let mut request = request.clone();
     let raw_workspace =
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
     let receipts = ReceiptServices::resolve(&raw_workspace)
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
-    restore_continuation_inputs(&mut request, &raw_workspace, run_log)?;
+    let run_log = restore_continuation_inputs(&mut request, &raw_workspace, run_log)?;
     crate::input_contract::apply_defaults(&method.inputs, &mut request.inputs);
     let materialized = if request.answers.is_some() {
         crate::input_contract::materialize_present_method_inputs(&method.inputs, &request.inputs)
@@ -652,44 +657,42 @@ fn prepare_skill_execution(
     }
     let workspace =
         WorkspaceEnv::new(runtime_env, request.cwd.clone()).map_err(RuntimeError::from)?;
-    Ok((request, workspace, receipts))
+    Ok((request, workspace, receipts, run_log))
 }
 
 /// A request that names a recorded run continues it, under the inputs the
 /// run was started with: the request may restate them but never replace them.
-/// Answers continue only a recorded run.
+/// Answers continue only a recorded run. The run's log, `run_log` when the
+/// caller holds it and otherwise opened here, is returned for the run to be
+/// bound through, so continuing a run reads its record once.
 pub(crate) fn restore_continuation_inputs(
     request: &mut SkillRunRequest,
     workspace: &WorkspaceEnv,
-    run_log: Option<&crate::execution::run_record::RunLog>,
-) -> Result<(), SkillRunError> {
+    run_log: Option<crate::execution::run_record::RunLog>,
+) -> Result<Option<crate::execution::run_record::RunLog>, SkillRunError> {
     let answered = request.answers.is_some();
     let Some(run_id) = request.run_id.as_deref() else {
         return if answered {
             Err(invalid("workflow continuation requires run_id"))
         } else {
-            Ok(())
+            Ok(None)
         };
     };
-    // A continuation's log holds the run's record, inputs and all; otherwise
-    // the run's inputs are its first event's, so nothing else of it is read.
-    let inputs = match run_log {
-        Some(log) => log.load()?.map(|record| record.inputs),
-        None => {
-            let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
-                .map_err(crate::execution::run_record::RunRecordError::from)?;
-            crate::execution::run_record::RunLog::open(
-                store,
-                crate::execution::run_record::validate_run_id(run_id)?,
-            )?
-            .started_inputs()?
-        }
+    let log = match run_log {
+        Some(log) => log,
+        None => crate::execution::run_record::RunLog::open(
+            crate::kernel::store::KernelStore::for_project(workspace.paths())
+                .map_err(crate::execution::run_record::RunRecordError::from)?,
+            crate::execution::run_record::validate_run_id(run_id)?,
+        )?,
     };
+    let inputs = log.load()?.map(|record| record.inputs);
+    // A run not yet recorded starts through the same log.
     let Some(inputs) = inputs else {
         return if answered {
             Err(invalid(format!("run {run_id} has no record to continue")))
         } else {
-            Ok(())
+            Ok(Some(log))
         };
     };
     if request
@@ -702,7 +705,7 @@ pub(crate) fn restore_continuation_inputs(
         ));
     }
     request.inputs = inputs.into_iter().collect();
-    Ok(())
+    Ok(Some(log))
 }
 
 /// A run that waits: the requests it waits on, each with its id.

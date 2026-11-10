@@ -478,6 +478,69 @@ methods:
     Ok(())
 }
 
+/// Recovery runs a script from its beginning against its record, and each
+/// call it makes must be the call the record holds at that position. A script
+/// changed since, making a call with another input or to another target
+/// there, is a failed recovery that acts on nothing: no call executes and
+/// nothing is recorded. A host that pins its run's package refuses a changed
+/// script before any replay; a runtime that reads packages as they are, as a
+/// test replay does, reaches this check.
+#[test]
+fn a_script_that_changed_since_its_record_recovers_nothing() -> TestResult {
+    let script = |first: &str| {
+        format!(
+            "export default async function (ctx) {{\n  await {first};\n  await ctx.wait({{ until: 4102444800000 }});\n  return {{ done: true }};\n}}\n"
+        )
+    };
+    let recorded = r#"ctx.tool("data.digest", { value: "first", encoding: "utf8_text" })"#;
+    for changed in [
+        r#"ctx.tool("data.digest", { value: "other", encoding: "utf8_text" })"#,
+        r#"ctx.tool("data.compare", { actual: "first", expected: "first" })"#,
+    ] {
+        let temp = tempdir()?;
+        let skill_dir = write_one_step(
+            temp.path(),
+            "        calls:\n          tools: [data.digest, data.compare]\n        max_calls: 2\n        outputs:\n          done: {type: boolean}\n",
+            &script(recorded),
+        )?;
+        let started = run(temp.path(), skill_dir.clone())?;
+        let run_id = text(object(&started.output)?, "run_id")
+            .ok_or("missing run_id")?
+            .to_owned();
+        let before = call_events(temp.path(), &run_id)?;
+        assert_eq!(before, [(0, "claimed"), (0, "completed"), (1, "pending")]);
+
+        std::fs::write(skill_dir.join("prepare.mjs"), script(changed))?;
+        let paths = runx_runtime::paths::RunxPaths::resolve(&env(temp.path()), temp.path());
+        let mut options = crate::support::signed_runtime_options(runx_runtime::RunLog::open(
+            runx_runtime::kernel::store::KernelStore::for_project(&paths)?,
+            &run_id,
+        )?)?;
+        options.env.extend(env(temp.path()));
+        let refused = runx_runtime::Runtime::new(
+            runx_runtime::adapters::javascript::JavaScriptAdapter::default(),
+            options,
+        )
+        .run_workflow_with_host(
+            &skill_dir,
+            crate::support::method_workflow(&skill_dir, "prepare")?,
+            &mut runx_runtime::NoopHost,
+        )
+        .err()
+        .ok_or("a changed script is not recovered")?;
+        assert!(
+            refused.to_string().contains("can't be recovered at call 0"),
+            "{changed}: {refused}"
+        );
+        assert_eq!(
+            call_events(temp.path(), &run_id)?,
+            before,
+            "{changed}: nothing was executed or recorded"
+        );
+    }
+    Ok(())
+}
+
 /// A script package of one step, `prepare`, whose run.yaml step is `step`
 /// and whose module is `script`.
 fn write_one_step(root: &Path, step: &str, script: &str) -> TestResult<PathBuf> {

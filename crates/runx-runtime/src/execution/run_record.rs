@@ -1075,26 +1075,6 @@ impl RunLog {
             }))
     }
 
-    /// The inputs the run was started with, as the event that opened its
-    /// stream names them; `None` before the run is recorded.
-    pub(crate) fn started_inputs(&self) -> Result<Option<JsonObject>, RunRecordError> {
-        let Some(first) = self.0.store.first::<RunEvent>(&self.0.run_id)? else {
-            return Ok(None);
-        };
-        let digest = match first.event {
-            RunEvent::Started(started) => started.inputs,
-            RunEvent::ChildStarted(started) => started.inputs,
-            RunEvent::EvaluationStarted(_) => return Ok(Some(JsonObject::new())),
-            _ => {
-                return Err(RunRecordError::Invalid {
-                    run_id: self.0.run_id.clone(),
-                    reason: "the stream does not begin with its start".to_owned(),
-                });
-            }
-        };
-        Ok(Some(self.0.store.blob_json(&digest)?))
-    }
-
     /// Rebuild the run from its stream; `None` when it has not started. A
     /// log that took its run once reads only what was committed since.
     pub(crate) fn load(&self) -> Result<Option<RunRecord>, RunRecordError> {

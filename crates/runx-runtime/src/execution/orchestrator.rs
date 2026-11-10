@@ -361,6 +361,7 @@ impl LocalOrchestrator {
         let (loaded, packages) = prepared.verify_artifacts()?;
         let overrides = super::skill_front::SkillRunOverrides {
             method: Some(prepared.selected_method().to_owned()),
+            run_log: prepared.run_log().cloned(),
             ..Default::default()
         };
         let output = super::skill_front::execute_prepared_skill_run_with_resolved(

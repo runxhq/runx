@@ -178,6 +178,9 @@ pub struct PreparedSkillRun {
     report: PreparedSkillRunReport,
     guards: Vec<PreparedArtifactGuard>,
     context_bound: bool,
+    /// The log of the run the request continues, opened once while it was
+    /// prepared, which the run is bound through.
+    run_log: Option<crate::execution::run_record::RunLog>,
 }
 
 impl std::fmt::Debug for PreparedSkillRun {
@@ -266,6 +269,11 @@ impl PreparedSkillRun {
 
     pub(crate) fn selected_method(&self) -> &str {
         &self.selected_method
+    }
+
+    /// The log of the run the request continues, when it names one.
+    pub(crate) fn run_log(&self) -> Option<&crate::execution::run_record::RunLog> {
+        self.run_log.as_ref()
     }
 
     pub(crate) fn manifest(&self) -> &SkillMethodManifest {
@@ -375,7 +383,7 @@ pub(crate) fn prepare_skill_run_with_effects(
     if entry.execution_closure_digest.is_none() {
         entry.execution_closure_digest = execution_closure_digest.clone();
     }
-    super::skill_front::restore_continuation_inputs(&mut request, &workspace, None)?;
+    let run_log = super::skill_front::restore_continuation_inputs(&mut request, &workspace, None)?;
     crate::input_contract::apply_defaults(&method.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_method_inputs(
         &method.inputs,
@@ -471,6 +479,7 @@ pub(crate) fn prepare_skill_run_with_effects(
         },
         guards,
         context_bound: false,
+        run_log,
     })
 }
 
