@@ -376,6 +376,7 @@ fn step_run(
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,

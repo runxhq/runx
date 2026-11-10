@@ -677,6 +677,12 @@ pub struct StepRun {
     /// ran the step; its run returns it to its caller.
     #[doc(hidden)]
     pub refusal: Option<JsonObject>,
+    /// The record of the failure this step's call met, when it states one,
+    /// such as a provider's answer that contradicts the call. Like the
+    /// refusal it lives only in the process that ran the step; its run
+    /// returns it to its caller, as the call would have.
+    #[doc(hidden)]
+    pub failure: Option<JsonObject>,
     pub admission_witness: StepAdmissionWitness,
     /// What settles the effect this step consumed, committed with the step
     /// itself when the run records it.
@@ -2126,6 +2132,7 @@ mod tests {
             nested_receipts: Vec::new(),
             recorded_nested: Vec::new(),
             refusal: None,
+            failure: None,
             admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
             receipt,
             settlement: None,

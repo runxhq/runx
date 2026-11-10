@@ -355,6 +355,7 @@ fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) 
                 nested_receipts: Vec::new(),
                 recorded_nested: Vec::new(),
                 refusal: None,
+                failure: None,
                 settlement: None,
                 labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
                 input_digest: None,

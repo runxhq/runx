@@ -2977,7 +2977,7 @@ fn public_storage_acts_as_the_runs_declared_actor() {
 }
 
 #[test]
-fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
+fn an_artifact_stored_for_another_principal_settles_failed_and_names_it() {
     let mut fixture = Fixture::new(&[]);
     fixture.env.insert(
         crate::execution::engine::RUNX_RUN_ID_ENV.to_owned(),
@@ -2990,8 +2990,29 @@ fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
             &allocation(serde_json::json!({"answer": 42})),
             None,
         )
-        .expect_err("held");
-    assert!(error.contains("another principal"), "{error}");
+        .expect_err("contradicted");
+    assert!(
+        error.contains(&format!(
+            r#"principal_uri holds "runx:principal:someone-else" where "{PRINCIPAL_REF}" was asked"#
+        )),
+        "{error}"
+    );
+    assert!(!error.contains("unknown"), "{error}");
+    // Settled: the same call is sent again rather than held.
+    fixture
+        .run(
+            "allocate",
+            &allocation(serde_json::json!({"answer": 42})),
+            None,
+        )
+        .expect_err("contradicted again");
+    assert_eq!(
+        sent(&fixture)
+            .iter()
+            .filter(|body| body["operation"] == "artifact.allocate")
+            .count(),
+        2
+    );
 }
 
 #[test]

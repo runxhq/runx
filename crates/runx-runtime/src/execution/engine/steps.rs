@@ -728,6 +728,7 @@ impl WorkflowExecution {
             let outcome = run.receipt.seal.outcome;
             let reason = run.receipt.seal.reason;
             let refusal = run.refusal.clone().map(Box::new);
+            let failure = run.failure.clone();
             self.push_run(runtime, run, answers)?;
             // A child run killed by its caller's cancel ends this run where it
             // stands, by the same rule.
@@ -745,6 +746,14 @@ impl WorkflowExecution {
                     reason,
                     summary: message,
                     refusal,
+                });
+            }
+            // A failure that states its own record is returned with it.
+            if let Some(record) = failure {
+                return Err(RuntimeError::StepFailedRecorded {
+                    step_id: plan.step_id.to_owned(),
+                    reason: message,
+                    record,
                 });
             }
             Err(RuntimeError::SkillFailed {

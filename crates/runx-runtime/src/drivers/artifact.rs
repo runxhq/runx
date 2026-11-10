@@ -21,8 +21,8 @@ use base64::Engine as _;
 use runx_contracts::connector::{ReadbackExpected, ReadbackMatch};
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
-    Artifact as ArtifactDescriptor, ArtifactLabels, ArtifactSchema, Digest, JsonObject, JsonValue,
-    ProviderOperationPacket,
+    Artifact as ArtifactDescriptor, ArtifactLabels, ArtifactSchema, Digest, JsonNumber, JsonObject,
+    JsonValue, ProviderOperationPacket,
 };
 use serde::Deserialize;
 
@@ -127,24 +127,52 @@ impl Artifact<'_> {
                 ("media_type".to_owned(), text(media_type)),
             ]),
         )?;
-        if answer.operation != ALLOCATE {
-            return Err(malformed("runx answered for another artifact operation"));
-        }
         let principal_uri = self.session.principal_uri.as_str();
-        if answer.principal_uri.as_deref() != Some(principal_uri) {
+        let (Some(answered_principal), Some(answered_key)) =
+            (answer.principal_uri.clone(), answer.idempotency_key.clone())
+        else {
             return Err(malformed(
-                "runx acted for another principal than the signed-in account",
+                "runx stated no account or key it stored the artifact under",
             ));
-        }
-        if answer.idempotency_key.as_deref() != Some(key) {
-            return Err(malformed("runx stored the artifact under another key"));
-        }
+        };
+        let operation = answer.operation.clone();
         let artifact = self.artifact(answer)?;
-        if artifact.digest != digest
-            || artifact.media_type.as_str() != media_type
-            || u64::try_from(bytes.len()).ok() != Some(artifact.size_bytes)
-        {
-            return Err(malformed("runx holds other bytes than the call stored"));
+        // Another operation, account, key or bytes is runx stating it did
+        // other than the call asked, and the same call gets the same answer.
+        let size = |size: u64| JsonValue::Number(JsonNumber::U64(size));
+        let mismatches = [
+            ("operation", text(ALLOCATE), text(&operation)),
+            (
+                "principal_uri",
+                text(principal_uri),
+                text(&answered_principal),
+            ),
+            ("idempotency_key", text(key), text(&answered_key)),
+            (
+                "artifact.digest",
+                text(digest.as_str()),
+                text(artifact.digest.as_str()),
+            ),
+            (
+                "artifact.media_type",
+                text(media_type),
+                text(artifact.media_type.as_str()),
+            ),
+            (
+                "artifact.size_bytes",
+                size(u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
+                size(artifact.size_bytes),
+            ),
+        ]
+        .into_iter()
+        .filter(|(_, asked, held)| asked != held)
+        .map(|(field, asked, held)| {
+            Mismatch::new(field, asked, held, self.call.withheld)
+                .map_err(|reason| malformed(&reason))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+        if !mismatches.is_empty() {
+            return Err(Unperformed::Contradicted(Contradiction { mismatches }));
         }
         held(&artifact, Some(principal_uri))
     }
@@ -158,11 +186,12 @@ impl Artifact<'_> {
         )?;
         if answer.operation != INSPECT {
             return Err(Unconfirmed::Contradicted(Contradiction {
-                mismatches: vec![Mismatch {
-                    field: "operation".to_owned(),
-                    asked: text(INSPECT),
-                    held: text(&answer.operation),
-                }],
+                mismatches: vec![Mismatch::new(
+                    "operation",
+                    text(INSPECT),
+                    text(&answer.operation),
+                    self.call.withheld,
+                )?],
             }));
         }
         let principal_uri = answer.principal_uri.clone();

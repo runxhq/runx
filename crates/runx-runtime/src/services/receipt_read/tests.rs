@@ -88,6 +88,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness: StepAdmissionWitness::local_runtime("read", receipt.id.as_str()),
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,

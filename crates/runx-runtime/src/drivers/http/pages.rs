@@ -206,6 +206,7 @@ fn item_error(failure: Unperformed) -> JsonValue {
         Unperformed::NotSent { code, reason }
         | Unperformed::Refused { code, reason, .. }
         | Unperformed::MaybeSent { code, reason } => (code, reason, None),
+        Unperformed::Contradicted(contradiction) => ("contradicted", contradiction.reason(), None),
     };
     let mut error = JsonObject::from([
         ("code".to_owned(), JsonValue::String(code.to_owned())),

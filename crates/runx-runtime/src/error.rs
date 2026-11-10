@@ -17,19 +17,71 @@ pub struct ContextEdgeUnresolvedError {
     available_keys: Vec<String>,
 }
 
-/// A field a checking read states with another value than the call asked:
-/// what was asked of it, and what the provider holds there.
+/// What a mismatch records of a value: the value as it is, or its digest
+/// when it comes from a field the call marks never to persist.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Recorded {
+    Value(JsonValue),
+    Digest(String),
+}
+
+impl std::fmt::Display for Recorded {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Value(value) => formatter.write_str(
+                &runx_contracts::canonical_stable_json(value)
+                    .unwrap_or_else(|_| "an unprintable value".to_owned()),
+            ),
+            Self::Digest(digest) => write!(formatter, "a value with digest {digest}"),
+        }
+    }
+}
+
+/// A field a provider's answer states with another value than the call
+/// asked: what was asked of it, and what the provider holds there.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mismatch {
     pub field: String,
-    pub asked: JsonValue,
-    pub held: JsonValue,
+    pub asked: Recorded,
+    pub held: Recorded,
 }
 
-/// A checking read that answered and contradicts what the call asked, in
-/// every field it contradicts. The outcome is definite: the provider holds
-/// what it states, so the call settles failed, naming what it holds for a
-/// person to clean up, and no retry is offered.
+impl Mismatch {
+    /// The mismatch at `field`, a dotted path. Where the field meets a path
+    /// in `withheld`, the result paths the call marks never to persist, each
+    /// value is recorded by its digest.
+    pub(crate) fn new(
+        field: impl Into<String>,
+        asked: JsonValue,
+        held: JsonValue,
+        withheld: &[Vec<String>],
+    ) -> Result<Self, String> {
+        let field = field.into();
+        let segments = field.split('.').collect::<Vec<_>>();
+        let digested = withheld.iter().any(|path| {
+            path.iter()
+                .zip(&segments)
+                .all(|(withheld, segment)| withheld == segment)
+        });
+        let recorded = |value: JsonValue| match digested {
+            false => Ok(Recorded::Value(value)),
+            true => runx_contracts::to_canonical_bytes(&value)
+                .map(|bytes| Recorded::Digest(runx_contracts::sha256_prefixed(&bytes)))
+                .map_err(|_| format!("the value at {field} cannot be digested")),
+        };
+        Ok(Self {
+            asked: recorded(asked)?,
+            held: recorded(held)?,
+            field,
+        })
+    }
+}
+
+/// A provider's answer that contradicts what the call asked, in every field
+/// it contradicts: a write's own answer, or a read that checks it. The
+/// outcome is definite: the provider holds what it states, so the call
+/// settles failed, naming what it holds for a person to clean up, and no
+/// retry is offered.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Contradiction {
     pub mismatches: Vec<Mismatch>,
@@ -38,10 +90,6 @@ pub struct Contradiction {
 impl std::fmt::Display for Contradiction {
     /// Each field, what the provider holds there and what was asked.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let shown = |value: &JsonValue| {
-            runx_contracts::canonical_stable_json(value)
-                .unwrap_or_else(|_| "an unprintable value".to_owned())
-        };
         for (index, mismatch) in self.mismatches.iter().enumerate() {
             if index > 0 {
                 formatter.write_str("; ")?;
@@ -49,9 +97,7 @@ impl std::fmt::Display for Contradiction {
             write!(
                 formatter,
                 "{} holds {} where {} was asked",
-                mismatch.field,
-                shown(&mismatch.held),
-                shown(&mismatch.asked)
+                mismatch.field, mismatch.held, mismatch.asked
             )?;
         }
         Ok(())
@@ -60,26 +106,60 @@ impl std::fmt::Display for Contradiction {
 
 impl Contradiction {
     pub(crate) fn reason(&self) -> String {
-        format!("the read contradicts the call: {self}")
+        format!("the provider's answer contradicts the call: {self}")
     }
 
-    /// The contradiction with a presented credential removed from what it
-    /// names.
+    /// The contradiction with a presented credential removed from the values
+    /// it records.
     pub(crate) fn scrub(
         self,
         secret: &crate::kernel::operation::credentials::CredentialSecret,
     ) -> Self {
+        let scrubbed = |recorded: Recorded| match recorded {
+            Recorded::Value(value) => Recorded::Value(secret.scrub(value)),
+            digest @ Recorded::Digest(_) => digest,
+        };
         Self {
             mismatches: self
                 .mismatches
                 .into_iter()
                 .map(|mismatch| Mismatch {
                     field: secret.scrub_text(mismatch.field),
-                    asked: secret.scrub(mismatch.asked),
-                    held: secret.scrub(mismatch.held),
+                    asked: scrubbed(mismatch.asked),
+                    held: scrubbed(mismatch.held),
                 })
                 .collect(),
         }
+    }
+
+    /// The failure record's list: each field, with each value as it is or by
+    /// its digest.
+    fn record(&self) -> JsonValue {
+        JsonValue::Array(
+            self.mismatches
+                .iter()
+                .map(|mismatch| {
+                    let mut record = JsonObject::from([(
+                        "field".to_owned(),
+                        JsonValue::String(mismatch.field.clone()),
+                    )]);
+                    for (name, recorded) in [("asked", &mismatch.asked), ("held", &mismatch.held)] {
+                        match recorded {
+                            Recorded::Value(value) => {
+                                record.insert(name.to_owned(), value.clone());
+                            }
+                            Recorded::Digest(digest) => {
+                                record.insert(
+                                    format!("{name}_digest"),
+                                    JsonValue::String(digest.clone()),
+                                );
+                            }
+                        }
+                    }
+                    JsonValue::Object(record)
+                })
+                .collect(),
+        )
     }
 }
 
@@ -111,6 +191,15 @@ pub enum RuntimeError {
     StepMissingSkill { step_id: String },
     #[error("workflow step '{step_id}' failed: {reason}")]
     StepFailed { step_id: String, reason: String },
+    /// A step whose failure states its own record, such as an operation
+    /// whose provider answered with what contradicts the call. Its run
+    /// returns that record, as the call returned it.
+    #[error("workflow step '{step_id}' failed: {reason}")]
+    StepFailedRecorded {
+        step_id: String,
+        reason: String,
+        record: JsonObject,
+    },
     #[error("workflow step '{step_id}' uses unsupported run type '{run_type}'")]
     UnsupportedRunStep { step_id: String, run_type: String },
     #[error("workflow step '{step_id}' is blocked: {reason}")]
@@ -246,14 +335,14 @@ pub enum RuntimeError {
         http_status: u16,
         reason: String,
     },
-    /// A checking read answered and contradicts what the call asked: a
-    /// definite outcome, whatever the provider applied. It names each field,
-    /// what was asked and what the provider holds, for a person to clean up,
-    /// and offers no retry.
+    /// The provider's answer, a write's own or a read that checks it,
+    /// contradicts what the call asked: a definite outcome, whatever the
+    /// provider applied. It names each field, what was asked and what the
+    /// provider holds, for a person to clean up, and offers no retry.
     #[error(
-        "provider read-back contradicts the call for plan {plan_digest} with idempotency key {idempotency_key}: {contradiction}"
+        "provider answer contradicts the call for plan {plan_digest} with idempotency key {idempotency_key}: {contradiction}"
     )]
-    ProviderReadbackContradicted {
+    ProviderEffectContradicted {
         plan_digest: String,
         idempotency_key: String,
         contradiction: Contradiction,
@@ -350,6 +439,7 @@ impl RuntimeError {
             | Self::Json { .. }
             | Self::StepMissingSkill { .. }
             | Self::StepFailed { .. }
+            | Self::StepFailedRecorded { .. }
             | Self::UnsupportedRunStep { .. }
             | Self::WorkflowBlocked { .. }
             | Self::Cancelled { .. }
@@ -369,7 +459,7 @@ impl RuntimeError {
             | Self::JavaScriptWorker { .. }
             | Self::CredentialDelivery(_)
             | Self::ProviderEffectRejected { .. }
-            | Self::ProviderReadbackContradicted { .. }
+            | Self::ProviderEffectContradicted { .. }
             | Self::SkillFailed { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
@@ -458,31 +548,16 @@ impl RuntimeError {
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
-            Self::ProviderReadbackContradicted { contradiction, .. } => {
+            Self::StepFailedRecorded { record, .. } => {
+                projection = record.clone();
+            }
+            Self::ProviderEffectContradicted { contradiction, .. } => {
                 projection.insert(
                     "code".to_owned(),
-                    JsonValue::String("provider_readback_contradicted".to_owned()),
+                    JsonValue::String("provider_contradicted".to_owned()),
                 );
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
-                projection.insert(
-                    "mismatches".to_owned(),
-                    JsonValue::Array(
-                        contradiction
-                            .mismatches
-                            .iter()
-                            .map(|mismatch| {
-                                JsonValue::Object(JsonObject::from([
-                                    (
-                                        "field".to_owned(),
-                                        JsonValue::String(mismatch.field.clone()),
-                                    ),
-                                    ("asked".to_owned(), mismatch.asked.clone()),
-                                    ("held".to_owned(), mismatch.held.clone()),
-                                ]))
-                            })
-                            .collect(),
-                    ),
-                );
+                projection.insert("mismatches".to_owned(), contradiction.record());
             }
             Self::AuthorityDenied {
                 verb,
@@ -571,6 +646,7 @@ impl RuntimeError {
             Self::StepMissing { step_id }
             | Self::StepMissingSkill { step_id }
             | Self::StepFailed { step_id, .. }
+            | Self::StepFailedRecorded { step_id, .. }
             | Self::UnsupportedRunStep { step_id, .. }
             | Self::WorkflowBlocked { step_id, .. }
             | Self::Cancelled { step_id }
@@ -680,6 +756,11 @@ impl RuntimeError {
                 step_id: step_id.to_owned(),
                 reason,
             },
+            Self::StepFailedRecorded { reason, record, .. } => Self::StepFailedRecorded {
+                step_id: step_id.to_owned(),
+                reason,
+                record,
+            },
             error => Self::StepFailed {
                 step_id: step_id.to_owned(),
                 reason: error.to_string(),
@@ -710,5 +791,23 @@ mod tests {
             message.ends_with(": the turn requires fresh_context"),
             "{message}"
         );
+    }
+
+    /// A step's recorded failure is what its run returns, however many layers
+    /// scope it.
+    #[test]
+    fn a_recorded_step_failure_projects_its_own_record() {
+        let record = runx_contracts::JsonObject::from([(
+            "code".to_owned(),
+            runx_contracts::JsonValue::String("provider_contradicted".to_owned()),
+        )]);
+        let failed = RuntimeError::StepFailedRecorded {
+            step_id: "send".to_owned(),
+            reason: "the provider's answer contradicts the call".to_owned(),
+            record: record.clone(),
+        };
+        let scoped = failed.at_workflow_step("outer");
+        assert_eq!(scoped.workflow_step_id(), Some("outer"));
+        assert_eq!(scoped.public_failure_projection(), record);
     }
 }

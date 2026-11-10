@@ -308,6 +308,7 @@ mod tests {
                 | Unperformed::Halted { code, .. }
                 | Unperformed::MaybeSent { code, .. },
             ) => Some(code),
+            Err(Unperformed::Contradicted(_)) => Some("contradicted"),
             Ok(_) => None,
         }
     }

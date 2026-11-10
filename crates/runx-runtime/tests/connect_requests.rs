@@ -92,9 +92,32 @@ fn run(
     purchase: Option<&str>,
     status: &str,
 ) -> Result<TestReplayOutput, TestReplayError> {
+    // Connect sends the request only with a purchase to send.
+    let (purchase, exchanges) = match purchase {
+        Some(purchase) => (format!("    purchase_id: {purchase}\n"), EXCHANGE),
+        None => (String::new(), ""),
+    };
+    run_case(
+        root,
+        name,
+        CONNECTOR,
+        &format!("{purchase}{exchanges}"),
+        status,
+    )
+}
+
+/// Run one case of the sales skill over `connector`, whose Connect holds
+/// the case's grant and answers with `providers`.
+fn run_case(
+    root: &Path,
+    name: &str,
+    connector: &str,
+    providers: &str,
+    status: &str,
+) -> Result<TestReplayOutput, TestReplayError> {
     std::fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     std::fs::create_dir_all(root.join("connectors/sales")).unwrap();
-    std::fs::write(root.join("connectors/sales/connector.yaml"), CONNECTOR).unwrap();
+    std::fs::write(root.join("connectors/sales/connector.yaml"), connector).unwrap();
     let skill = root.join("sales");
     std::fs::create_dir_all(skill.join("tests")).unwrap();
     std::fs::write(
@@ -103,11 +126,6 @@ fn run(
     )
     .unwrap();
     std::fs::write(skill.join("run.yaml"), SKILL).unwrap();
-    // Connect sends the request only with a purchase to send.
-    let (purchase, exchanges) = match purchase {
-        Some(purchase) => (format!("    purchase_id: {purchase}\n"), EXCHANGE),
-        None => (String::new(), ""),
-    };
     let path: PathBuf = skill.join("tests").join(format!("{name}.yaml"));
     std::fs::write(
         &path,
@@ -119,7 +137,7 @@ providers:
   hosted:
     principal_id: operator-fixture
     grant: {{grant_id: sales-fixture, provider: sales, scopes: [sale.create]}}
-{purchase}{exchanges}expect:
+{providers}expect:
   status: {status}
 "#
         ),
@@ -171,5 +189,103 @@ fn a_declared_write_that_sends_the_purchase_fails_closed_without_one() {
         failure.contains("connect_refused")
             && failure.contains(r#"template binding $runx \"purchase\" is unavailable"#),
         "{failure}"
+    );
+}
+
+/// The sale as Connect records it, read back by its id.
+const READ_BACK_CONNECTOR: &str = r#"schema: runx.connector.v1
+name: sales
+title: Acme Sales
+description: Record one sale, and read it back.
+category: agent-tools
+auth:
+  credentials:
+    service_token:
+      kind: api_key
+      fields:
+        - {name: token, label: Acme service token}
+      delivery: {env: ACME_SERVICE_TOKEN}
+      audience: [api.example.com]
+placements:
+  hosted: {auth: credential, credential: service_token}
+operations:
+  sale.create:
+    description: Record one sale.
+    verb: write
+    scopes: [sale.create]
+    credentials: [service_token]
+    target:
+      template: "acme:sale"
+    guarantees:
+      provider_idempotency: inherent
+    input_schema:
+      type: object
+      required: [amount]
+      additionalProperties: false
+      properties:
+        amount: {type: integer}
+    result_fields: [sale]
+    implementation:
+      http:
+        allowed_hosts: [api.example.com]
+        auth: {service_token: {type: bearer, field: token}}
+        requests:
+          - http_method: POST
+            url: https://api.example.com/v1/sales
+            body:
+              amount: {"$argument": "/amount"}
+        readbacks:
+          - request:
+              id: read
+              http_method: GET
+              url: https://api.example.com/v1/sales/sale_1
+            matches:
+              - expected: {source: acknowledgement, path: sale_id}
+                observed: sale_id
+"#;
+
+/// The provider records sale_1, and reading it back finds sale_2: an answer
+/// that contradicts the call fails its step with the failure's own record,
+/// as the call returns it, which the run returns.
+#[test]
+fn a_write_whose_readback_contradicts_it_fails_its_step_with_the_record() {
+    let root = tempfile::tempdir().unwrap();
+    let output = run_case(
+        root.path(),
+        "contradicted",
+        READ_BACK_CONNECTOR,
+        r#"  http:
+    - request:
+        method: POST
+        url: https://api.example.com/v1/sales
+        body: {json: {amount: 7}}
+      response:
+        status: 201
+        headers: {content-type: application/json}
+        body: '{"sale_id": "sale_1"}'
+    - request: {method: GET, url: "https://api.example.com/v1/sales/sale_1", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"sale_id": "sale_2"}'
+"#,
+        "failure",
+    )
+    .expect("the contradicted sale fails");
+
+    assert_eq!(output.status, TestExpectedStatus::Failure);
+    let sell = output
+        .steps
+        .iter()
+        .find(|step| step.step_id == "sell")
+        .expect("the sale ran");
+    let record =
+        serde_json::to_value(sell.failure.as_ref().expect("the step keeps its record")).unwrap();
+    assert_eq!(record["code"], "provider_contradicted", "{record:#}");
+    assert_eq!(record["retryable"], false, "{record:#}");
+    assert_eq!(
+        record["mismatches"],
+        serde_json::json!([{"field": "sale_id", "asked": "sale_1", "held": "sale_2"}]),
+        "{record:#}"
     );
 }

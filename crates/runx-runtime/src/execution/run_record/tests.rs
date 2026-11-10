@@ -92,6 +92,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,

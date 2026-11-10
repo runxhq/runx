@@ -77,15 +77,17 @@ impl Readback {
             ("idempotency_key", key, self.idempotency_key.as_deref()),
         ]
         .into_iter()
+        // The packet's own fields, never a result's, so none is withheld.
         .filter_map(|(field, asked, held)| match (asked, held) {
-            (Some(asked), Some(held)) if asked != held => Some(Mismatch {
-                field: field.to_owned(),
-                asked: JsonValue::String(asked.to_owned()),
-                held: JsonValue::String(held.to_owned()),
-            }),
+            (Some(asked), Some(held)) if asked != held => Some(Mismatch::new(
+                field,
+                JsonValue::String(asked.to_owned()),
+                JsonValue::String(held.to_owned()),
+                &[],
+            )),
             _ => None,
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
         if !mismatches.is_empty() {
             return Err(Unconfirmed::Contradicted(Contradiction { mismatches }));
         }
@@ -121,11 +123,10 @@ impl Readback {
                     "the provider result must be an object to verify or project it".to_owned(),
                 );
             };
-            for (field, value) in expected_result.into_iter().flatten() {
-                if result.get(field) != Some(value) {
-                    return Err(format!(
-                        "result field {field:?} did not match the expected value"
-                    ));
+            for (field, asked) in expected_result.into_iter().flatten() {
+                let held = result.get(field);
+                if held != Some(asked) {
+                    return Err(unequal(field, asked, held, &shape.ephemeral)?);
                 }
             }
             if projected {
@@ -173,6 +174,31 @@ impl Readback {
             cost: seal.cost.clone(),
         })
     }
+}
+
+/// Why a result field fails the value the call requires of it, naming what
+/// the result holds there, a value from a path the call marks never to
+/// persist by its digest.
+fn unequal(
+    field: &str,
+    asked: &JsonValue,
+    held: Option<&JsonValue>,
+    withheld: &[Vec<String>],
+) -> Result<String, String> {
+    let held = held.cloned().unwrap_or(JsonValue::Null);
+    let mismatch = Mismatch::new(field, asked.clone(), held.clone(), withheld)?;
+    Ok(match held {
+        JsonValue::Null => format!(
+            "the result states no value at {field}, where {} was asked",
+            mismatch.asked
+        ),
+        _ => format!(
+            "the result contradicts the call: {}",
+            Contradiction {
+                mismatches: vec![mismatch],
+            }
+        ),
+    })
 }
 
 /// Move the caller-only result paths out of a packet's result. Their values
@@ -284,5 +310,62 @@ mod tests {
         assert!(read.verify(&selected).is_ok());
         read.idempotency_key = Some("another-call".to_owned());
         assert!(read.verify(&selected).is_err());
+    }
+
+    #[test]
+    fn an_unequal_result_field_names_what_it_holds_by_the_rule_for_values() {
+        let json = |value: serde_json::Value| {
+            serde_json::from_value::<JsonValue>(value).unwrap_or(JsonValue::Null)
+        };
+        let answered = |status: &str| Readback {
+            result: json(serde_json::json!({"status": status, "token": {"value": "held-secret"}})),
+            ..readback()
+        };
+        let shape = ResultShape {
+            required: None,
+            optional: None,
+            ephemeral: vec![vec!["token".to_owned(), "value".to_owned()]],
+        };
+        let seal = Seal {
+            access: "mutate",
+            finality: "confirmed",
+            transport: "runx_connect",
+            principal_uri: "runx:principal:operator-1",
+            grant_id: None,
+            account_id: None,
+            intent_digest: "sha256:intent",
+            operation_digest: "sha256:operation",
+            implementation_digest: None,
+            cost: None,
+        };
+        let equals = |field: &str, value: serde_json::Value| {
+            JsonObject::from([(field.to_owned(), json(value))])
+        };
+        let refused = |status: &str, field: &str, value: serde_json::Value| {
+            answered(status)
+                .into_packet(&shape, Some(&equals(field, value)), &seal)
+                .err()
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            refused("pending", "status", serde_json::json!("succeeded")),
+            r#"the result contradicts the call: status holds "pending" where "succeeded" was asked"#
+        );
+        assert_eq!(
+            refused("pending", "missing", serde_json::json!("x")),
+            r#"the result states no value at missing, where "x" was asked"#
+        );
+        let withheld = refused(
+            "succeeded",
+            "token",
+            serde_json::json!({"value": "asked-secret"}),
+        );
+        assert!(
+            withheld.starts_with(
+                "the result contradicts the call: token holds a value with digest sha256:"
+            ),
+            "{withheld}"
+        );
+        assert!(!withheld.contains("secret"), "{withheld}");
     }
 }

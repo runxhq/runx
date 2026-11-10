@@ -202,6 +202,9 @@ pub(crate) struct AdmittedCall<'a> {
     /// The package the call is made from, which a store records as an
     /// event's writer; none for a call no package makes.
     pub writer: Option<&'a crate::identity::ChainLink>,
+    /// The result paths the call marks never to persist: a value from one
+    /// that a contradiction names is recorded by its digest.
+    pub withheld: &'a [Vec<String>],
     access: OperationAccess,
     _sealed: Sealed,
 }
@@ -231,6 +234,7 @@ impl<'a> AdmittedCall<'a> {
             env,
             held: Vec::new(),
             writer: None,
+            withheld: &[],
             access,
             _sealed: Sealed,
         }
@@ -1015,7 +1019,7 @@ impl Dispatched {
 }
 
 /// The code custody settles a contradicted attempt with.
-const CONTRADICTED: &str = "readback_contradicted";
+const CONTRADICTED: &str = "contradicted";
 
 /// How a placement failed.
 #[derive(Debug)]
@@ -1033,8 +1037,8 @@ pub(crate) enum Failure {
     Unknown(String),
     /// The write was acknowledged and its readback did not complete.
     ReadbackPending(String),
-    /// A checking read answered and contradicts what was asked: definite,
-    /// and the call may have executed.
+    /// The provider's answer, a write's own or a checking read's,
+    /// contradicts what was asked: definite, and the call may have executed.
     Contradicted(crate::error::Contradiction),
 }
 
@@ -1302,7 +1306,7 @@ pub(crate) fn execute(
                         RuntimeError::effect_state("recording the contradiction", error.to_string())
                     })?;
             }
-            Err(RuntimeError::ProviderReadbackContradicted {
+            Err(RuntimeError::ProviderEffectContradicted {
                 plan_digest: intent_digest,
                 idempotency_key: provider_key.unwrap_or_default(),
                 contradiction,
@@ -1530,6 +1534,7 @@ fn dispatch(
             _ => Vec::new(),
         },
         writer: context.caller.as_ref(),
+        withheld: &context.shape.ephemeral,
         access: operation.access(),
         _sealed: Sealed,
     };

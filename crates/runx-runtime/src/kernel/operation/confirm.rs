@@ -6,9 +6,10 @@
 //! in custody before anything is read back, every confirming read must match
 //! the acknowledged write, a write that may have reached the provider is
 //! never reported as refused, and a write's evidence is its confirming reads,
-//! never its own answer. A confirming read that answers and contradicts what
-//! was asked settles the call failed, naming what the provider holds; one
-//! that doesn't answer leaves the outcome unknown. A write the provider
+//! never its own answer. An answer that contradicts what was asked, a
+//! write's own or a confirming read's, settles the call failed, naming what
+//! the provider holds; a read that doesn't answer, or states no value where
+//! the call is compared, leaves the outcome unknown. A write the provider
 //! cannot read back declares no readbacks: its evidence is its recorded
 //! acknowledgement, which the receipt seals as evidence of the effect, never
 //! as its finality.
@@ -17,8 +18,9 @@
 //! item's outcome is recorded as it lands, a refused item does not stop the
 //! others, a provider that refuses the caller (a rate limit) settles every
 //! later item as unsent and defers the checking reads to the retry, an item
-//! that may have landed stops the batch as an unknown outcome, and every
-//! applied item is read back. A recovered batch resumes after its last
+//! that may have landed stops the batch as an unknown outcome, one whose
+//! answer contradicts the call settles it failed, and every applied item is
+//! read back. A recovered batch resumes after its last
 //! recorded item.
 
 use runx_contracts::connector::{ReadbackExpected, ReadbackMatch};
@@ -63,6 +65,10 @@ pub(crate) enum Unperformed {
     /// The request may have reached the provider, and nothing shows that it
     /// did not act.
     MaybeSent { code: &'static str, reason: String },
+    /// The provider answered that it did other than the call asked: other
+    /// bytes, another key or another principal. It may have acted, and the
+    /// same call gets the same answer.
+    Contradicted(Contradiction),
 }
 
 impl Unperformed {
@@ -72,6 +78,7 @@ impl Unperformed {
             | Self::Refused { reason, .. }
             | Self::Halted { reason, .. }
             | Self::MaybeSent { reason, .. } => reason,
+            Self::Contradicted(contradiction) => contradiction.reason(),
         }
     }
 }
@@ -246,6 +253,12 @@ impl Driver for Custody<'_> {
                     code,
                     reason: self.text(reason),
                 },
+                Unperformed::Contradicted(contradiction) => {
+                    Unperformed::Contradicted(match self.credential {
+                        Some(secret) => contradiction.scrub(secret),
+                        None => contradiction,
+                    })
+                }
             })
     }
 
@@ -391,6 +404,7 @@ fn once(
                     reason,
                     release: false,
                 },
+                Unperformed::Contradicted(contradiction) => Failure::Contradicted(contradiction),
             })?;
             if mutation {
                 record(&acknowledgement(performed.value.clone())).map_err(Failure::Unknown)?;
@@ -411,7 +425,15 @@ fn once(
                 &write,
             )
             .and_then(|observed| {
-                verify(matches, call.arguments, None, &write, &observed.value).map(|()| observed)
+                verify(
+                    matches,
+                    call.arguments,
+                    call.withheld,
+                    None,
+                    &write,
+                    &observed.value,
+                )
+                .map(|()| observed)
             })
             .map_err(|unconfirmed| unconfirmed.failure(Failure::ReadbackPending))?;
         evidence.extend(observed.evidence);
@@ -486,6 +508,11 @@ fn repeated(
                     items.len()
                 )));
             }
+            // An item whose answer contradicts the call settles the batch
+            // failed where it stands, as one call's answer would.
+            Err(Unperformed::Contradicted(contradiction)) => {
+                return Err(Failure::Contradicted(contradiction));
+            }
         };
         outcomes.push(settled);
         // A provider that refuses the caller refuses every later item too,
@@ -542,6 +569,7 @@ fn repeated(
                     verify(
                         matches,
                         call.arguments,
+                        call.withheld,
                         items.get(index),
                         applied,
                         &observed.value,
@@ -569,6 +597,7 @@ fn preconditions(
                 verify(
                     matches,
                     call.arguments,
+                    call.withheld,
                     None,
                     &JsonValue::Null,
                     &observed.value,
@@ -628,9 +657,11 @@ fn acknowledgement(write_result: JsonValue) -> Acknowledgement {
 /// was approved with and, for a repeated write, the item it was sent for. A
 /// field it states with another value contradicts the call, whatever else
 /// can't be compared.
+/// `withheld` holds the result paths the call marks never to persist.
 fn verify(
     matches: &[ReadbackMatch],
     arguments: &JsonValue,
+    withheld: &[Vec<String>],
     item: Option<&JsonValue>,
     write: &JsonValue,
     observed: &JsonValue,
@@ -639,7 +670,9 @@ fn verify(
     let mut mismatches = Vec::new();
     let mut unanswered = None;
     for binding in matches {
-        match compare(binding, &responses, arguments, item, write, observed) {
+        match compare(
+            binding, &responses, arguments, withheld, item, write, observed,
+        ) {
             Ok(()) => {}
             Err(Unconfirmed::Contradicted(contradiction)) => {
                 mismatches.extend(contradiction.mismatches);
@@ -656,11 +689,14 @@ fn verify(
     }
 }
 
-/// One match of a confirming read.
+/// One match of a confirming read. A field it states no value at, absent or
+/// null, doesn't answer the call; one it states another value at
+/// contradicts it.
 fn compare(
     binding: &ReadbackMatch,
     responses: &std::cell::OnceCell<std::collections::BTreeMap<String, JsonObject>>,
     arguments: &JsonValue,
+    withheld: &[Vec<String>],
     item: Option<&JsonValue>,
     write: &JsonValue,
     observed: &JsonValue,
@@ -702,16 +738,15 @@ fn compare(
     let path = binding.observed.as_str();
     let held =
         held_at(observed, path).ok_or_else(|| format!("the readback states nothing at {path}"))?;
-    if !holds(&held, path, expected) {
-        return Err(Unconfirmed::Contradicted(Contradiction {
-            mismatches: vec![Mismatch {
-                field: path.to_owned(),
-                asked: expected.clone(),
-                held,
-            }],
-        }));
+    if holds(&held, path, expected) {
+        return Ok(());
     }
-    Ok(())
+    if held == JsonValue::Null {
+        return Err(format!("the readback states no value at {path}").into());
+    }
+    Err(Unconfirmed::Contradicted(Contradiction {
+        mismatches: vec![Mismatch::new(path, expected.clone(), held, withheld)?],
+    }))
 }
 
 /// What a read states at an observed path. A `*` segment maps over an
@@ -796,6 +831,7 @@ mod tests {
 
     use super::super::Sealed;
     use super::*;
+    use crate::error::Recorded;
 
     fn observed_matches(observed: &JsonValue, path: &str, expected: &JsonValue) -> bool {
         held_at(observed, path).is_some_and(|held| holds(&held, path, expected))
@@ -820,6 +856,7 @@ mod tests {
             verify(
                 std::slice::from_ref(&expected),
                 &arguments,
+                &[],
                 None,
                 &write,
                 &matching
@@ -836,6 +873,7 @@ mod tests {
                 verify(
                     std::slice::from_ref(&expected),
                     &arguments,
+                    &[],
                     None,
                     &write,
                     &observed
@@ -847,6 +885,7 @@ mod tests {
             verify(
                 &[expected],
                 &parse(serde_json::json!({})),
+                &[],
                 None,
                 &write,
                 &matching
@@ -927,6 +966,7 @@ mod tests {
             env: &env,
             held: Vec::new(),
             writer: None,
+            withheld: &[],
             access,
             _sealed: Sealed,
         })
@@ -966,6 +1006,7 @@ mod tests {
             env: &env,
             held: Vec::new(),
             writer: None,
+            withheld: &[],
             access: OperationAccess::Mutate,
             _sealed: Sealed,
         };
@@ -1136,6 +1177,7 @@ mod tests {
             verify(
                 &[title("title")],
                 &arguments,
+                &[],
                 None,
                 &JsonValue::Null,
                 &observed("approved")
@@ -1146,6 +1188,7 @@ mod tests {
             verify(
                 &[title("title")],
                 &arguments,
+                &[],
                 None,
                 &JsonValue::Null,
                 &observed("other")
@@ -1157,6 +1200,7 @@ mod tests {
                 verify(
                     &[title("title")],
                     &arguments,
+                    &[],
                     None,
                     &JsonValue::Null,
                     &JsonValue::Object(JsonObject::new())
@@ -1166,15 +1210,79 @@ mod tests {
             "a read that states nothing at the field doesn't answer it"
         );
         assert!(
+            matches!(
+                verify(
+                    &[title("title")],
+                    &arguments,
+                    &[],
+                    None,
+                    &JsonValue::Null,
+                    &JsonValue::Object(JsonObject::from([("title".to_owned(), JsonValue::Null)]))
+                ),
+                Err(Unconfirmed::Unanswered(_))
+            ),
+            "null states no value, so it doesn't answer the field either"
+        );
+        assert!(
             verify(
                 &[title("body")],
                 &arguments,
+                &[],
                 None,
                 &JsonValue::Null,
                 &observed("other")
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn a_contradicted_field_the_call_never_persists_is_recorded_by_its_digest() {
+        let secret = |value: &str| {
+            JsonValue::Object(JsonObject::from([(
+                "token".to_owned(),
+                JsonValue::Object(JsonObject::from([(
+                    "value".to_owned(),
+                    JsonValue::String(value.to_owned()),
+                )])),
+            )]))
+        };
+        let token = ReadbackMatch {
+            expected: ReadbackExpected::Acknowledgement {
+                path: "token.value".to_owned().into(),
+            },
+            observed: "token.value".to_owned().into(),
+        };
+        let withheld = [vec!["token".to_owned(), "value".to_owned()]];
+        let digest = |value: &str| {
+            sha256_prefixed(
+                &runx_contracts::to_canonical_bytes(&JsonValue::String(value.to_owned()))
+                    .expect("canonical"),
+            )
+        };
+        let contradiction = match verify(
+            &[token],
+            &JsonValue::Null,
+            &withheld,
+            None,
+            &secret("asked-secret"),
+            &secret("held-secret"),
+        ) {
+            Err(Unconfirmed::Contradicted(contradiction)) => Some(contradiction),
+            _ => None,
+        }
+        .expect("another token contradicts the write");
+        assert_eq!(
+            contradiction.mismatches,
+            [Mismatch {
+                field: "token.value".to_owned(),
+                asked: Recorded::Digest(digest("asked-secret")),
+                held: Recorded::Digest(digest("held-secret")),
+            }]
+        );
+        let reason = contradiction.reason();
+        assert!(!reason.contains("secret\""), "{reason}");
+        assert!(reason.contains(&digest("held-secret")), "{reason}");
     }
 
     #[test]
@@ -1266,8 +1374,8 @@ mod tests {
             contradiction.mismatches,
             [Mismatch {
                 field: "id".to_owned(),
-                asked: JsonValue::String("m-1".to_owned()),
-                held: JsonValue::String("m-2".to_owned()),
+                asked: Recorded::Value(JsonValue::String("m-1".to_owned())),
+                held: Recorded::Value(JsonValue::String("m-2".to_owned())),
             }]
         );
         assert_eq!(

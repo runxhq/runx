@@ -883,6 +883,7 @@ where
         nested_receipts: receipt_lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
         refusal: context.refusal,
+        failure: None,
         admission_witness,
         settlement,
         labels: read,
@@ -1122,6 +1123,7 @@ fn seal_turn_step<A>(
         nested_receipts: lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness,
         settlement: None,
         labels: read,
@@ -1536,6 +1538,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness,
         settlement,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
@@ -1659,6 +1662,7 @@ where
     }
     let mut effects = Vec::new();
     let mut credential_fingerprint = None;
+    let mut failure = None;
     let output = match outcome {
         Ok(outcome) => {
             effects = outcome.effects;
@@ -1680,8 +1684,13 @@ where
             | RuntimeError::ProviderReadbackPending { .. }
             | RuntimeError::EffectState { .. }),
         ) => return Err(error),
-        Err(error) => crate::adapter_pipeline::AdapterProjection::from_started(started)
-            .failure(error.to_string(), observations),
+        // A definite failure keeps its record, which the run returns as the
+        // call returned it.
+        Err(error) => {
+            failure = Some(error.public_failure_projection());
+            crate::adapter_pipeline::AdapterProjection::from_started(started)
+                .failure(error.to_string(), observations)
+        }
     };
     let artifacts = crate::kernel::operation::packet_artifacts();
     let skill = context.skill_label();
@@ -1707,6 +1716,7 @@ where
     )
     .map(|run| StepRun {
         credential_fingerprint,
+        failure,
         ..run
     })
 }
@@ -1870,6 +1880,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
@@ -2027,6 +2038,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
@@ -2225,6 +2237,7 @@ where
         nested_receipts: lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
         refusal: None,
+        failure: None,
         admission_witness,
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
