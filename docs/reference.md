@@ -356,6 +356,11 @@ once only narrows it: what runs at once is the least of the step's
 `concurrency`, the authority's limit and the host's ceiling, so nesting can't
 multiply it.
 
+A host may also hold a run to fewer receipts than the bound every verifier
+holds a tree to (see Receipts): the CLI reads the budget from
+`RUNX_MAX_RECEIPTS`, a positive integer narrowed to that bound, and refuses to
+start a run under anything else.
+
 A run's authority may also set `max_spend_micro_usd`, the most the run may spend in
 integer micro-USD (1 = $0.000001); `runx skill --max-spend <usd>` sets it for a
 local run. Every priced call's quote, and every amount a call moves in USD or

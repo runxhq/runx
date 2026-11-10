@@ -25,7 +25,7 @@ use super::{BoundRun, SkillRunError, invalid};
 use crate::RuntimeError;
 use crate::execution::orchestrator::RunResult;
 use crate::execution::runner::turn::Admission;
-use crate::execution::runner::{CallCancel, CallStops, EffectGate};
+use crate::execution::runner::{CallCancel, CallPool, CallStops, EffectGate, ReceiptTally};
 
 pub struct TurnSession {
     run: BoundRun,
@@ -40,6 +40,16 @@ pub struct TurnSession {
     /// Where each call the session's run executes is registered, at any
     /// depth, so its host can cancel it alone.
     stops: Arc<CallStops>,
+    shared: SessionShared,
+}
+
+/// What every pass of a session draws from: the run's one receipt tally,
+/// so no pass counts what another did and none takes what another took, and
+/// its one pool of calls executing at once.
+#[derive(Default)]
+pub(super) struct SessionShared {
+    pub(super) receipts: Arc<ReceiptTally>,
+    pub(super) pool: Arc<CallPool>,
 }
 
 impl std::fmt::Debug for TurnSession {
@@ -62,6 +72,7 @@ impl TurnSession {
             settled: Condvar::new(),
             gate: Arc::new(EffectGate::default()),
             stops: Arc::new(CallStops::default()),
+            shared: SessionShared::default(),
         };
         let turn = session
             .waiting()?
@@ -244,6 +255,7 @@ impl TurnSession {
         .in_session(
             Arc::clone(&self.gate),
             Arc::clone(&self.stops),
+            &self.shared,
             self.in_flight_now(),
         );
         self.run.advance(&mut host)?;
@@ -272,6 +284,7 @@ impl TurnSession {
         .in_session(
             Arc::clone(&self.gate),
             Arc::clone(&self.stops),
+            &self.shared,
             self.in_flight_now(),
         );
         let result = self.run.advance(&mut host)?;

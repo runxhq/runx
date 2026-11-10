@@ -73,10 +73,12 @@ impl TestOptions {
         fixture: &TestFixture,
         target: &Path,
     ) -> Result<RuntimeOptions, RuntimeError> {
+        let policy =
+            |error| RuntimeError::effect_state("reading the host's resource policy", error);
         let max_concurrency =
-            crate::execution::runner::host_max_concurrency(&self.env).map_err(|error| {
-                RuntimeError::effect_state("reading the host's resource policy", error)
-            })?;
+            crate::execution::runner::host_max_concurrency(&self.env).map_err(policy)?;
+        let max_receipts =
+            crate::execution::runner::host_max_receipts(&self.env).map_err(policy)?;
         let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&self.env, target))
             .map_err(|error| {
                 RuntimeError::effect_state("opening a test case kernel", error.to_string())
@@ -104,7 +106,7 @@ impl TestOptions {
             reads: crate::execution::runner::RunReads::default(),
             workspace: None,
             max_concurrency,
-            max_receipts: runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
+            max_receipts,
             receipts: std::sync::Arc::default(),
             pool: std::sync::Arc::default(),
         })

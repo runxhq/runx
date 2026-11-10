@@ -45,8 +45,10 @@ pub mod turn;
 mod workflow_engine;
 
 pub(crate) use admission::declared_operations_refusal;
+pub(crate) use call_pool::CallPool;
 pub use call_stops::CallCancel;
 pub(crate) use call_stops::{CallStop, CallStops, CallWork};
+pub(crate) use receipt_budget::ReceiptTally;
 use workflow_engine::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
@@ -300,6 +302,34 @@ pub fn host_max_concurrency(
         })
 }
 
+/// Where the CLI host reads its receipt budget, a positive integer.
+pub const RUNX_MAX_RECEIPTS_ENV: &str = "RUNX_MAX_RECEIPTS";
+
+/// The receipt budget a host whose environment is `env` sets: its
+/// `RUNX_MAX_RECEIPTS`, narrowed to the bound every verifier holds a tree
+/// to, else that bound.
+///
+/// # Errors
+///
+/// Returns why `RUNX_MAX_RECEIPTS` is no positive integer, so the host
+/// refuses to start a run under it.
+pub fn host_max_receipts(env: &BTreeMap<String, String>) -> Result<usize, String> {
+    let Some(value) = env.get(RUNX_MAX_RECEIPTS_ENV) else {
+        return Ok(runx_contracts::MAX_RECEIPT_TREE_RECEIPTS);
+    };
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_digit())
+        .then(|| value.parse::<std::num::NonZeroUsize>().ok())
+        .flatten()
+        .map(|budget| budget.get().min(runx_contracts::MAX_RECEIPT_TREE_RECEIPTS))
+        .ok_or_else(|| {
+            format!(
+                "{RUNX_MAX_RECEIPTS_ENV} is the most receipts a run's tree may hold, a positive integer, not {value:?}"
+            )
+        })
+}
+
 /// The gate a session's calls take where they reach the world: a read shares
 /// it and a change holds it alone, including inside a child run, so effects
 /// never overlap and reads never wait on each other.
@@ -535,12 +565,12 @@ impl RuntimeOptions {
             .min(runx_contracts::MAX_RECEIPT_TREE_RECEIPTS)
     }
 
-    /// Take `receipts` of the run's receipt budget for what `step_id` will
-    /// seal, refused before it runs when they would take the tree past its
-    /// bound.
-    pub(crate) fn take_receipts(&self, step_id: &str, receipts: usize) -> Result<(), RuntimeError> {
+    /// Take the receipt `key` names from the run's receipt budget, for what
+    /// `step_id` will seal: refused before it runs when it would take the
+    /// tree past its bound.
+    pub(crate) fn take_receipt(&self, key: String, step_id: &str) -> Result<(), RuntimeError> {
         let bound = self.receipt_bound();
-        if self.receipts.take(receipts, bound) {
+        if self.receipts.take(key, 1, bound) {
             Ok(())
         } else {
             Err(RuntimeError::ReceiptBudgetExceeded {
@@ -962,10 +992,12 @@ where
         terminal_outcome: WorkflowTerminalOutcome,
     ) -> Result<WorkflowRun, RuntimeError> {
         let mut execution = self.open_execution(&workflow)?;
-        // What the run's record holds is its tree's already.
-        self.options
-            .receipts
-            .count(execution.runs.iter().map(StepRun::receipts).sum());
+        // What the run's record holds is its tree's already: its own receipt
+        // and its recorded steps.
+        self.options.receipts.count(
+            receipt_budget::run_key(self.options.run.run_id()),
+            1 + execution.runs.iter().map(StepRun::receipts).sum::<usize>(),
+        );
         match execution.run(self, workflow_dir, &workflow, host) {
             Ok(()) => {
                 let receipt = workflow_receipt_with_ending(

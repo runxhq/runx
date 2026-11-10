@@ -424,9 +424,9 @@ impl BoundRun {
             reads: crate::execution::runner::RunReads::default(),
             workspace: Some(self.workspace.paths().clone()),
             max_concurrency: self.max_concurrency,
-            max_receipts: runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
-            receipts: std::sync::Arc::default(),
-            pool: std::sync::Arc::default(),
+            max_receipts: self.max_receipts,
+            receipts: host.receipts.clone().unwrap_or_default(),
+            pool: host.pool.clone().unwrap_or_default(),
         };
         let local_artifacts = crate::services::LocalArtifactService::for_run(
             &options.run.store().project_dir(),
@@ -681,6 +681,12 @@ pub(super) struct RunHost {
     /// The stops of the calls its session executes, through which the
     /// session's host cancels one.
     stops: Option<std::sync::Arc<crate::execution::runner::CallStops>>,
+    /// What its session's run has drawn of its receipt budget, which every
+    /// pass of the session draws from.
+    receipts: Option<std::sync::Arc<crate::execution::runner::ReceiptTally>>,
+    /// What its session's run has executing at once, within its
+    /// `max_concurrency`, in every pass of the session.
+    pool: Option<std::sync::Arc<crate::execution::runner::CallPool>>,
     #[cfg(feature = "agent")]
     managed: Option<std::rc::Rc<crate::adapters::managed_agent::ManagedAgent>>,
 }
@@ -696,6 +702,8 @@ impl RunHost {
             in_flight: std::collections::BTreeSet::new(),
             gate: None,
             stops: None,
+            receipts: None,
+            pool: None,
             #[cfg(feature = "agent")]
             managed: None,
         }
@@ -717,16 +725,20 @@ impl RunHost {
 
     /// Work the run as a session whose calls execute concurrently: `gate` is
     /// what they take where they reach the world, `stops` where each is
-    /// registered while it executes so the session's host can cancel it, and
-    /// `in_flight` the calls executing apart from this pass.
+    /// registered while it executes so the session's host can cancel it,
+    /// `shared` the run's receipt tally and pool, which every pass draws from,
+    /// and `in_flight` the calls executing apart from this pass.
     pub(super) fn in_session(
         mut self,
         gate: std::sync::Arc<crate::execution::runner::EffectGate>,
         stops: std::sync::Arc<crate::execution::runner::CallStops>,
+        shared: &super::turn_session::SessionShared,
         in_flight: std::collections::BTreeSet<(String, u32)>,
     ) -> Self {
         self.gate = Some(gate);
         self.stops = Some(stops);
+        self.receipts = Some(std::sync::Arc::clone(&shared.receipts));
+        self.pool = Some(std::sync::Arc::clone(&shared.pool));
         self.in_flight = in_flight;
         self
     }

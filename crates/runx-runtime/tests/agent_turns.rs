@@ -2748,3 +2748,149 @@ methods:
     assert_eq!(text(object(&sealed.output)?, "status"), Some("sealed"));
     Ok(())
 }
+
+/// A turn's run draws its receipts from one budget, however its turn is
+/// worked. The turn's first call runs a child that seals a step and then
+/// waits on its ask; its tree's receipts are the run's already. A new call
+/// that would take the tree past the host's budget is refused before it
+/// runs, both in the session that made the first call and in a later one,
+/// which counts the waiting child's recorded tree as the turn's record
+/// loads. The run then seals with its tree at the budget exactly.
+#[test]
+fn a_call_past_the_budget_counts_a_waiting_childs_tree_and_is_refused() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    crate::support::write_test_skill_package(
+        &root.join("asking-child"),
+        "---\nname: asking-child\ndescription: Digests a value, then asks.\n---\n# Asking child\n\nDigest, then ask.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  confirm:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.value
+          encoding: utf8_text
+      - id: approve
+        ask: {gate: confirm, reason: Confirm the digest.}
+"#,
+    )?;
+    let skill_dir = root.join("budget-turn");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: budget-turn\ndescription: Digests through a child.\n---\n# Budget turn\n\n## Agent task: answer\n\nDigest, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    inputs:
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          tools: [data.digest]
+          skills: [../asking-child]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    // The root, its agent step, and the child call: its own receipt, its
+    // child run's, and that run's two steps.
+    let budget = 6;
+    let mut budget_env = env(root);
+    budget_env.insert("RUNX_MAX_RECEIPTS".to_owned(), budget.to_string());
+    let receipts = root.join("receipts");
+    let started = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipts.clone()),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([(
+                "question".to_owned(),
+                JsonValue::String("what digests?".to_owned()),
+            )]),
+            env: budget_env.clone(),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let open = || -> TestResult<TurnSession> {
+        Ok(LocalOrchestrator::default().open_turns(&TurnRequest {
+            run_id: run_id.clone(),
+            receipt_dir: Some(receipts.clone()),
+            env: budget_env.clone(),
+            cwd: root.to_path_buf(),
+        })?)
+    };
+    let digest = || input(serde_json::json!({"value": "more", "encoding": "utf8_text"}));
+    let refused_at_the_budget = |call: &TurnCallResult| {
+        matches!(&call.outcome, TurnCallOutcome::Refused { reason }
+            if reason.as_str().contains(&format!("past its bound of {budget} receipts")))
+    };
+
+    let session = open()?;
+    let asked = session.call(
+        TURN,
+        "skill__asking-child",
+        None,
+        input(serde_json::json!({"value": "child"}))?,
+    )?;
+    let ask = waiting_on(&asked)?;
+    let refused = session.call(TURN, "data_digest", None, digest()?)?;
+    assert!(refused_at_the_budget(&refused), "{refused:?}");
+    drop(session);
+
+    let session = open()?;
+    let refused = session.call(TURN, "data_digest", None, digest()?)?;
+    assert!(refused_at_the_budget(&refused), "{refused:?}");
+    assert_eq!(
+        statuses(&session.status(TURN)?),
+        ["pending", "refused", "refused"]
+    );
+    drop(session);
+
+    let approvals = ask
+        .iter()
+        .map(|id| (id.clone(), serde_json::Value::Bool(true)))
+        .collect::<serde_json::Map<_, _>>();
+    LocalOrchestrator::default().resume(&ResumeRequest {
+        run_id: run_id.clone(),
+        answers: crate::support::bind_resume(
+            &budget_env,
+            root,
+            &run_id,
+            serde_json::json!({ "approvals": approvals }),
+        )?,
+        receipt_dir: Some(receipts.clone()),
+        env: budget_env.clone(),
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+        package_digest: None,
+        execution_closure_digest: None,
+    })?;
+    let sealed = open()?.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "outcome"), Some("completed"), "{output:?}");
+    let receipt_id = text(output, "receipt_id").ok_or("missing receipt_id")?;
+    let signature = crate::support::test_signature_config()?;
+    let trees = runx_runtime::receipts::store::LocalReceiptStore::new(&receipts)
+        .verify_trees(Some(receipt_id), signature.signature_policy())?;
+    assert!(trees.valid(), "{trees:?}");
+    assert_eq!(trees.trees[0].receipt_count, budget);
+    Ok(())
+}

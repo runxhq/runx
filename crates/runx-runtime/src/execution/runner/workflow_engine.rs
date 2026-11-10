@@ -413,9 +413,15 @@ impl WorkflowExecution {
         let plan = StepExecutionPlan { step_id, attempt };
         let step = self.find_step(workflow, plan.step_id)?;
         // The step's receipt is counted against the run's tree before
-        // anything of the step runs. A step a governed stop ends seals none,
+        // anything of the step runs: a step the run waits at, as a fact, and
+        // a new one from what's left. A step a governed stop ends seals none,
         // and gives it back.
-        runtime.options.take_receipts(step_id, 1)?;
+        let key = super::receipt_budget::step_key(runtime.options.run.run_id(), step_id, attempt);
+        if self.suspended_step.as_deref() == Some(step_id) {
+            runtime.options.receipts.count(key.clone(), 1);
+        } else {
+            runtime.options.take_receipt(key.clone(), step_id)?;
+        }
         let ran = self.runs.len();
         let loaded_skill = self.cached_step_skill(runtime, workflow_dir, step);
         let result = self.run_loaded_step(
@@ -433,7 +439,7 @@ impl WorkflowExecution {
             && self.runs.len() == ran
             && !super::step_may_seal(workflow, error)
         {
-            runtime.options.receipts.give_back(1);
+            runtime.options.receipts.give_back(&key, 1);
         }
         result
     }
