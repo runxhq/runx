@@ -216,7 +216,9 @@ function applyDetections(source, detections, treatment) {
 // past Latin-1 is held as UTF-16, which it reads in place, so the scan reads
 // the text with U+0100 after it, made once: no pattern matches that
 // character, and neither \b nor \w takes it for a word character, so every
-// finding and its span are the text's own.
+// finding and its span are the text's own. This comes out, and the scan
+// reads `value` itself, once boa stops copying a Latin-1 string on every
+// exec (boa #5587).
 const PAST_LATIN1 = "\u0100";
 
 function scanResidual(value) {
