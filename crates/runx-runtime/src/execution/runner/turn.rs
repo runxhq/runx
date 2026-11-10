@@ -280,8 +280,11 @@ where
         // A call its host cancelled before it started never runs, nor one
         // in a child run its caller's host cancelled. A read runs under its
         // own stop and its callers', so a cancel ends it, and however it
-        // ended it settles cancelled. A skill call's child run runs under
-        // the call, and heeds its cancel. An effect runs to its end.
+        // ended it settles cancelled. A stop of the run ends a read too, and
+        // the read settles nothing: the stop is the host's, never the
+        // caller's to catch, and the run goes on from the call as it stood.
+        // A skill call's child run runs under the call, and heeds its
+        // cancel. An effect runs to its end.
         let ran = if !stop.start() || crate::interrupt::caller_cancelled() {
             Ran::Cancelled
         } else if let Some(working) = stop.working() {
@@ -290,6 +293,11 @@ where
             });
             if stop.cancelled() || crate::interrupt::caller_cancelled() {
                 Ran::Cancelled
+            } else if crate::interrupt::stop_requested() {
+                return Err(RuntimeError::Stopped {
+                    run_id: self.runtime.options.run.run_id().to_owned(),
+                    step_id: format!("call {} of {}", made.index, self.step_id),
+                });
             } else {
                 ran?
             }

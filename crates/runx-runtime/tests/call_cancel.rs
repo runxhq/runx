@@ -625,6 +625,90 @@ fn a_cancelled_skill_call_whose_child_only_read_settles_cancelled() -> TestResul
     Ok(())
 }
 
+/// Stopping a run stops its script's calls in flight and never reaches the
+/// script's catch: the script waits on a read whose process the stop ends,
+/// the drive returns stopped, and the run stays open where it stood.
+#[test]
+fn stopping_a_run_stops_its_scripts_calls_in_flight_and_never_reaches_its_catch() -> TestResult {
+    use std::os::unix::fs::OpenOptionsExt;
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    let skill = root.join("stopper");
+    crate::support::write_test_skill_package(
+        &skill,
+        "---\nname: stopper\ndescription: Waits on a read.\n---\n# Stopper\n\nRead.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    steps:\n      - id: prepare\n        script: {module: prepare.mjs}\n        calls:\n          operations: [gate/gate.wait]\n        max_calls: 1\n        outputs:\n          done: {type: string}\n",
+    )?;
+    std::fs::write(
+        skill.join("prepare.mjs"),
+        format!(
+            "export default async function (ctx) {{\n  try {{\n    await ctx.operation(\"gate/gate.wait\", {{ started: {on:?}, release: {off:?} }});\n    return {{ done: \"read\" }};\n  }} catch (rejected) {{\n    return {{ done: `caught ${{rejected.reason}}` }};\n  }}\n}}\n",
+            on = on.display().to_string(),
+            off = off.display().to_string(),
+        ),
+    )?;
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stopped = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            if started(&on).is_ok() {
+                stop.store(true, std::sync::atomic::Ordering::Release);
+            }
+        });
+        runx_runtime::interrupt::while_working(&stop, || {
+            orchestrator(root)?
+                .run_skill_with_binding(
+                    &SkillRunRequest {
+                        current_context: Vec::new(),
+                        historical_context: Vec::new(),
+                        run_authority: None,
+                        act: None,
+                        skill_path: skill.clone(),
+                        receipt_dir: Some(root.join("receipts")),
+                        run_id: Some("stopped_run".to_owned()),
+                        answers: None,
+                        inputs: BTreeMap::new(),
+                        env: env(root),
+                        cwd: root.to_path_buf(),
+                        managed_agent: ManagedAgentPolicy::HostDriven,
+                    },
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
+        })
+    });
+    let error = match stopped {
+        Err(error) => error,
+        Ok(result) => {
+            return Err(format!("a stopped run returns stopped, not {:?}", result.output).into());
+        }
+    };
+    assert!(error.to_string().contains("stopped"), "{error}");
+    // The read's process ended: nothing reads its release pipe any more.
+    let released = std::fs::OpenOptions::new()
+        .write(true)
+        .custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32)
+        .open(&off);
+    assert!(released.is_err(), "the read is still in flight");
+    // The call stands as it was claimed, and the run stays open.
+    let read = runx_runtime::run_record::read_run(&env(root), root, "stopped_run", None)?;
+    assert!(
+        !read
+            .events
+            .iter()
+            .any(|record| matches!(record.event, RunEventFact::Sealed { .. })),
+        "the stopped run sealed"
+    );
+    Ok(())
+}
+
 /// Whether `stream` is run `run_id`'s own or one of its steps' calls
 /// streams.
 fn of_run(stream: &str, run_id: &str) -> bool {

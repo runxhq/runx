@@ -2105,6 +2105,96 @@ fn a_fixed_step_a_person_declines_seals_its_run_declined() -> TestResult {
     Ok(())
 }
 
+/// A worker limit ends the script's step where it stands: a loop past the
+/// engine's bound, a stack past its depth and memory past the worker's heap
+/// never reach the script's catch, and the step fails. (A single buffer the
+/// heap can't hold is the language's own RangeError, which a script may
+/// catch: the heap's bound holds, and nothing past it was allocated.)
+#[test]
+fn a_worker_limit_never_reaches_a_scripts_catch() -> TestResult {
+    for (limit, body) in [
+        ("loop", "while (true) {}"),
+        ("stack", "const recurse = () => recurse(); recurse();"),
+        (
+            "memory",
+            "const held = []; while (true) held.push(new Array(1024).fill(held.length));",
+        ),
+    ] {
+        let temp = tempdir()?;
+        let skill_dir = write_one_step(
+            temp.path(),
+            "        calls:\n          tools: [data.digest]\n        max_calls: 1\n        outputs:\n          done: {type: string}\n",
+            &format!(
+                "export default async function (ctx) {{\n  try {{\n    {body}\n  }} catch (caught) {{\n    return {{ done: `caught ${{caught}}` }};\n  }}\n  return {{ done: \"past it\" }};\n}}\n"
+            ),
+        )?;
+        let ended = run(temp.path(), skill_dir)?;
+        let output = object(&ended.output)?;
+        assert_eq!(
+            text(output, "outcome"),
+            Some("failed"),
+            "{limit}: {output:?}"
+        );
+        let result = object(output.get("result").ok_or("no result")?)?;
+        assert!(
+            result.get("done").is_none(),
+            "{limit}: the catch ran: {output:?}"
+        );
+    }
+    Ok(())
+}
+
+/// An engine fault never reaches a script's catch: a child skill changed
+/// while its call waited, so the run's resume is refused before the script
+/// is given anything, and the run stays open, unsealed, for the package it
+/// started from.
+#[test]
+fn an_engine_fault_never_reaches_a_scripts_catch() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_script_skill(
+        temp.path(),
+        r#"export default async function (ctx, { value }) {
+  try {
+    const confirmed = await ctx.skill("../confirm-child", { value });
+    return { confirmed: Object.keys(confirmed) };
+  } catch (rejected) {
+    return { confirmed: ["caught", rejected.reason] };
+  }
+}
+"#,
+        "          confirmed: {type: array}
+",
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    assert_eq!(requests(&started)?, ["prepare/0#confirm"]);
+    let child = temp.path().join("confirm-child/run.yaml");
+    let declared = std::fs::read_to_string(&child)?;
+    std::fs::write(
+        &child,
+        declared.replace("Confirm the digest.", "Confirm it."),
+    )?;
+
+    let refused = resume(
+        temp.path(),
+        &run_id,
+        serde_json::json!({"approvals": {"prepare/0#confirm": true}}),
+    );
+    assert!(
+        refused.is_err(),
+        "{:?}",
+        refused.map(|result| result.output)
+    );
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        [(0, "child")],
+        "nothing settled the call, so nothing reached the catch"
+    );
+    Ok(())
+}
+
 /// Whether `stream` is run `run_id`'s own or one of its steps' calls
 /// streams.
 fn of_run(stream: &str, run_id: &str) -> bool {
