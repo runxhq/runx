@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use runx_contracts::{ExecutionEvent, ResolutionRequest, ResolutionResponse};
 
 use crate::RuntimeError;
@@ -51,9 +53,10 @@ pub type DetachedAnswers =
 
 /// A host serving one call apart from the run's driver. What the call
 /// reports and logs is kept, and the driver hands it to its own host when it
-/// records the call.
+/// records the call. A call it serves that runs calls of its own, a child
+/// script's, serves each apart too, from the same answers.
 pub struct DetachedHost {
-    answers: DetachedAnswers,
+    answers: Arc<Mutex<DetachedAnswers>>,
     reported: Vec<ExecutionEvent>,
     logged: Vec<String>,
 }
@@ -62,7 +65,7 @@ impl DetachedHost {
     #[must_use]
     pub fn new(answers: DetachedAnswers) -> Self {
         Self {
-            answers,
+            answers: Arc::new(Mutex::new(answers)),
             reported: Vec::new(),
             logged: Vec::new(),
         }
@@ -90,12 +93,29 @@ impl Host for DetachedHost {
         &mut self,
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
-        (self.answers)(request)
+        let mut answers = self
+            .answers
+            .lock()
+            .map_err(|_| RuntimeError::EngineInvariant {
+                context: "answering a call apart from its driver",
+                message: "a call answered from the same answers panicked".to_owned(),
+            })?;
+        (answers)(request)
     }
 
     fn log(&mut self, message: String) -> Result<(), RuntimeError> {
         self.logged.push(message);
         Ok(())
+    }
+
+    /// A call of the call this host serves runs apart from it on the same
+    /// answers, and what it reports comes back to this host.
+    fn detached(&self) -> Option<DetachedHost> {
+        Some(Self {
+            answers: Arc::clone(&self.answers),
+            reported: Vec::new(),
+            logged: Vec::new(),
+        })
     }
 }
 

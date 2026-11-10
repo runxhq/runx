@@ -106,6 +106,7 @@ impl TestOptions {
             max_concurrency,
             max_receipts: runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
             receipts: std::sync::Arc::default(),
+            pool: std::sync::Arc::default(),
         })
     }
 }

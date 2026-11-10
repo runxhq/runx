@@ -34,6 +34,7 @@ use crate::receipts::{
 
 mod admission;
 mod bounded;
+mod call_pool;
 mod call_stops;
 mod dispatch;
 pub(crate) mod floor;
@@ -258,6 +259,9 @@ pub struct RuntimeOptions {
     /// What the root run's tree has drawn of its receipt budget, shared by
     /// its child runs.
     pub(crate) receipts: std::sync::Arc<receipt_budget::ReceiptTally>,
+    /// What the root run's tree has executing at once, which its child runs
+    /// draw from too, within its `max_concurrency`.
+    pub(crate) pool: std::sync::Arc<call_pool::CallPool>,
 }
 
 /// Where the CLI host reads its concurrency ceiling, a positive integer.
@@ -502,12 +506,25 @@ impl RuntimeOptions {
             max_concurrency: DEFAULT_MAX_CONCURRENCY,
             max_receipts: runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
             receipts: std::sync::Arc::default(),
+            pool: std::sync::Arc::default(),
         }
     }
 
     #[must_use]
     pub fn signature_policy(&self) -> RuntimeReceiptSignaturePolicy<'_> {
         self.receipt_signature.signature_policy()
+    }
+
+    /// Take a place in the root run's pool for work that runs by itself, held
+    /// while the place is: at most the run's `max_concurrency` hold one at
+    /// once, at every depth. A child run's authority holds its root's.
+    pub(crate) fn enter_pool(&self) -> Result<call_pool::PoolPlace<'_>, RuntimeError> {
+        let capacity = crate::kernel::authority::run_concurrency(
+            self.run_authority.as_ref(),
+            self.max_concurrency,
+        );
+        self.pool
+            .enter(usize::try_from(capacity).unwrap_or(usize::MAX))
     }
 
     /// The most receipts the run's tree may hold: the host's budget, within
@@ -1196,6 +1213,7 @@ impl<A: Clone> Runtime<A> {
         // A new run reads its packages afresh, and has a tree of its own.
         options.reads = RunReads::default();
         options.receipts = std::sync::Arc::default();
+        options.pool = std::sync::Arc::default();
         Self {
             configured_adapter: self.configured_adapter.clone(),
             javascript: self.javascript.clone(),

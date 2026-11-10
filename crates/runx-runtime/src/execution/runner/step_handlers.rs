@@ -239,6 +239,11 @@ where
     let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
     let authority =
         prepare_effect_execution(effect_request, authority, host, &runtime.options.effects)?;
+    // Work that runs by itself holds a place in its root run's pool while it
+    // runs, so the run's max_concurrency bounds its whole tree.
+    let place = matches!(step.kind, StepKind::Tool(_) | StepKind::Operation(_))
+        .then(|| runtime.options.enter_pool())
+        .transpose()?;
     let mut run = run_registered_step(StepHandlerCtx {
         runtime,
         workflow_dir,
@@ -256,6 +261,7 @@ where
         ask_reason,
         given,
     })?;
+    drop(place);
     // What the step made is labelled by everything it was given, everything
     // it read, and what it made, in every step kind alike.
     run.labels = ArtifactLabels::derived_from([
