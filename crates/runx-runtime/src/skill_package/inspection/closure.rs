@@ -1313,7 +1313,7 @@ mod tests {
             .and_then(|manifest| manifest.default_method())
             .map(|method| method.name.clone())
             .ok_or("a default method")?;
-        let (closure, ..) = inspect_method_execution_closure(loaded, &method, &BTreeMap::new())?;
+        let (closure, ..) = inspect_method_closure(loaded, &method, &BTreeMap::new())?;
         Ok(closure
             .as_object()
             .and_then(|closure| closure.get("summary"))
