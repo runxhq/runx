@@ -79,6 +79,8 @@ methods:
           operator_context: $input.operator_context
           target_entities: $input.target_entities
           source_packets: $input.source_packets
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
       - id: acquire
         when: {value: $steps.select.comparison.equal, equals: true}
         agent: research-acquire
@@ -109,6 +111,8 @@ methods:
           operator_context: $input.operator_context
           target_entities: $input.target_entities
           source_packets: $steps.acquire.source_packets
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
   research:
     description: Answer one question from governed source packets you supply, separating evidence from inference and citing every claim.
     inputs:
@@ -148,6 +152,8 @@ methods:
           operator_context: $input.operator_context
           target_entities: $input.target_entities
           source_index: $steps.index.source_index
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
 
   local-files:
     description: Answer one question from bounded local files, read through runx's filesystem.
@@ -215,3 +221,5 @@ methods:
           operator_context: $input.operator_context
           target_entities: $input.target_entities
           source_index: $steps.index.source_index
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
