@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 51,
+  "capability_count": 53,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -595,6 +595,30 @@
         "kind": "named",
         "output": "skill_validation",
         "packet": "runx.skill.validation.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "verdict.criteria",
+      "source": "runx-runtime/verdict",
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "named",
+        "output": "criteria",
+        "packet": "runx.criteria.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "verdict.decide",
+      "source": "runx-runtime/verdict",
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "named",
+        "output": "decision",
+        "packet": "runx.verdict.decision.v1"
       },
       "execution_boundary": "native_capability"
     }

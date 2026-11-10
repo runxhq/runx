@@ -72,10 +72,10 @@ pub(crate) fn agent_output_contract_schema(
                 ),
             });
         }
-        replace_output_property_schema(&mut root, &name, packet_schema(&catalog, &packet)?)?;
+        replace_output_property_schema(&mut root, &name, produced(&catalog, &packet)?)?;
     }
     if let Some((name, packet)) = wrapped_binding {
-        let packet_schema = packet_schema(&catalog, &packet)?;
+        let packet_schema = produced(&catalog, &packet)?;
         if output.contains_key(&name) {
             replace_output_property_schema(&mut root, &name, packet_schema)?;
         } else {
@@ -177,6 +177,22 @@ fn agent_packet_shape_error() -> RuntimeError {
         skill_name: "agent".to_owned(),
         message: "wrapped packet schema is not a mergeable object contract".to_owned(),
     }
+}
+
+/// A packet's schema as its producer answers it. A verdict's `evaluator` is
+/// the runtime's to name, never the producer's, so the producer needn't state
+/// it; one it states that isn't the runtime's is refused.
+fn produced(
+    catalog: &PacketSchemaCatalog,
+    packet: &PacketId,
+) -> Result<runx_contracts::JsonObject, RuntimeError> {
+    let mut schema = packet_schema(catalog, packet)?;
+    if packet.as_str() == runx_contracts::VERDICT_SCHEMA
+        && let Some(runx_contracts::JsonValue::Array(required)) = schema.get_mut("required")
+    {
+        required.retain(|field| field.as_str() != Some("evaluator"));
+    }
+    Ok(schema)
 }
 
 fn packet_schema(

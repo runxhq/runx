@@ -259,6 +259,15 @@ where
         ),
         Err(message) => InvocationOutput::runtime_failure(JsonValue::Null, message, 0),
     };
+    if output.succeeded() {
+        super::verdict::name_verdicts(
+            runtime,
+            workflow_dir,
+            step,
+            step.artifacts.as_ref(),
+            &mut output.value,
+        )?;
+    }
     let projection = build_step_output_projection(step, &output, None, None)?;
     let ephemeral_contract = build_ephemeral_step_output(step, &output, None, None);
     if output.succeeded() {

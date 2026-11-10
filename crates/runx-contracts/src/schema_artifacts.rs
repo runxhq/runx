@@ -143,6 +143,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<Decision>("decision.schema.json"),
         public_packet_artifact::<crate::Verdict>("verdict.schema.json"),
         public_packet_artifact::<crate::Criteria>("criteria.schema.json"),
+        public_packet_artifact::<crate::VerdictDecision>("verdict-decision.schema.json"),
         public_packet_artifact::<Receipt>("receipt.schema.json"),
         public_packet_artifact::<Artifact>("artifact.schema.json"),
         public_packet_artifact::<OperationalPolicy>("operational-policy.schema.json"),

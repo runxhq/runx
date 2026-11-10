@@ -378,3 +378,106 @@ methods:
                 properties:
                   queries: {type: integer, minimum: 0}
                   passed: {type: integer, minimum: 0}
+  evals:
+    description: Run a package's evals, each worked by a fresh turn of the agent skill's write method under the run's authority, and judge each attempt with a verdict the run decides by the one rule.
+    inputs:
+      skill:
+        type: string
+        description: Workspace-relative path of the package whose evals/evals.json is run.
+      repeats:
+        type: integer
+        minimum: 1
+        maximum: 5
+        optional: true
+        description: Attempts per eval; 1 when absent.
+    steps:
+      - id: subject
+        tool: runx.skill.validate
+        inputs:
+          skill_path: $input.skill
+          allow_execute_test: false
+      - id: run
+        script: {module: evals.mjs}
+        inputs:
+          subject: $steps.subject.skill_validation
+          repeats: $input.repeats
+        calls:
+          skills: [../agent#write, .#grade]
+          tools: [fs.read, run.read, verdict.criteria, verdict.decide]
+        max_calls: 900
+        outputs:
+          eval_results:
+            type: object
+            additionalProperties: false
+            required: [package, package_digest, repeats, evals, met, not_met, inconclusive, refused]
+            properties:
+              package: {type: string, minLength: 1}
+              package_digest: {type: string, minLength: 1}
+              repeats: {type: integer, minimum: 1}
+              evals:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, prompt, criteria_set, attempts]
+                  properties:
+                    id: {type: integer}
+                    prompt: {type: string, minLength: 1}
+                    criteria_set:
+                      type: object
+                      additionalProperties: false
+                      required: [ref, revision]
+                      properties:
+                        ref: {type: string, minLength: 1}
+                        revision: {type: string, minLength: 1}
+                    attempts:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required: [verdict, calls]
+                        properties:
+                          verdict: {enum: [met, not_met, inconclusive, refused]}
+                          unresolved: {type: array, items: {type: string}}
+                          reason: {type: string}
+                          receipt_id: {type: string}
+                          evaluator: {type: object, additionalProperties: true}
+                          calls:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required: [target, outcome]
+                              properties:
+                                target: {type: string, minLength: 1}
+                                outcome: {type: string, minLength: 1}
+                                reason: {type: string}
+              met: {type: integer, minimum: 0}
+              not_met: {type: integer, minimum: 0}
+              inconclusive: {type: integer, minimum: 0}
+              refused: {type: integer, minimum: 0}
+  grade:
+    description: Judge one eval attempt against its criteria set, from the attempt's record, and return a verdict whose evaluator the runtime names.
+    inputs:
+      subject:
+        type: object
+        description: What is judged, the package at its digest, as a ref and a revision.
+      criteria_set:
+        type: object
+        description: The ref and revision of the criteria set the verdict answers.
+      criteria:
+        type: object
+        description: The runx.criteria.v1 set, each check a question that must be answered yes.
+      eval:
+        type: object
+        description: The eval's prompt and expected output.
+      attempt:
+        type: object
+        description: The attempt as its record holds it, its outcome, summary, calls and receipt.
+    steps:
+      - id: grade
+        agent: grade
+        requires: [fresh_context]
+        inputs: $input
+        outputs:
+          verdict: {packet: runx.verdict.v1}

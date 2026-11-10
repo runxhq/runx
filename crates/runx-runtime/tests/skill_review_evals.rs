@@ -37,8 +37,15 @@ fn digest_package(root: &Path, name: &str, description: &str) -> TestResult<Path
 }
 
 /// Run `skill-review#<method>` with `inputs` in the workspace at `root`,
-/// every turn worked by the scripted model at `endpoint`.
-fn review(root: &Path, method: &str, inputs: Value, endpoint: &str) -> TestResult<Value> {
+/// every turn worked by the scripted model at `endpoint`, under `authority`
+/// when one is given.
+fn review(
+    root: &Path,
+    method: &str,
+    inputs: Value,
+    endpoint: &str,
+    authority: Option<Value>,
+) -> TestResult<Value> {
     let mut env = BTreeMap::from([
         ("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned()),
         (
@@ -60,7 +67,7 @@ fn review(root: &Path, method: &str, inputs: Value, endpoint: &str) -> TestResul
         &SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),
-            run_authority: None,
+            run_authority: authority.map(serde_json::from_value).transpose()?,
             act: None,
             skill_path: skill_review(),
             receipt_dir: Some(root.join("receipts")),
@@ -158,6 +165,7 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
         "triggers",
         json!({"skill": "skills/subject"}),
         model.endpoint(),
+        None,
     );
     model.finish()?;
     let output = output?;
@@ -191,5 +199,202 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
     assert_eq!(measured["passed"], 5, "{measured}");
     assert_eq!(measured["should_trigger"]["passed"], 2, "{measured}");
     assert_eq!(measured["should_not_trigger"]["passed"], 3, "{measured}");
+    Ok(())
+}
+
+/// The criteria set an eval is judged against, as the eval run builds it:
+/// its expected output, then each expectation, all required.
+fn criteria_of(eval: &Value) -> TestResult<runx_contracts::Criteria> {
+    let mut criteria = vec![json!({
+        "id": "expected_output",
+        "required": true,
+        "question": eval["expected_output"],
+    })];
+    for (index, expectation) in eval["expectations"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        criteria.push(json!({
+            "id": format!("expectation_{}", index + 1),
+            "required": true,
+            "question": expectation,
+        }));
+    }
+    Ok(runx_contracts::Criteria::new(serde_json::from_value(
+        Value::Array(criteria),
+    )?)?)
+}
+
+/// The eval a request is about, by the marker its prompt starts with.
+fn eval_marker(request: &Value) -> Option<&'static str> {
+    let sent = request.to_string();
+    ["Meets", "Misses", "Partial", "Wrong", "Claims", "Write"]
+        .into_iter()
+        .find(|marker| sent.contains(&format!("{marker}:")))
+}
+
+/// An eval run works each eval in a fresh turn of the agent skill's write
+/// method under the run's authority, then has each attempt judged by
+/// `skill-review#grade`, whose verdict the runtime names as the grader's and
+/// the run decides by the one rule. A verdict that names another evaluator,
+/// or another subject, is refused, and a refused verdict answers nothing,
+/// which isn't `inconclusive`. Under `effects: none` an attempt's write is
+/// refused at any depth (D16).
+#[test]
+fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let subject = digest_package(root, "subject", "Digests a value for the person.")?;
+    let evals = json!([
+        {"id": 1, "prompt": "Meets: digest proof.", "expected_output": "The digest of proof.", "files": [], "expectations": ["It names the digest."]},
+        {"id": 2, "prompt": "Misses: digest proof.", "expected_output": "The digest of proof.", "files": []},
+        {"id": 3, "prompt": "Partial: digest proof.", "expected_output": "The digest of proof.", "files": [], "expectations": ["It names the digest."]},
+        {"id": 4, "prompt": "Wrong: digest proof.", "expected_output": "The digest of proof.", "files": []},
+        {"id": 5, "prompt": "Claims: digest proof.", "expected_output": "The digest of proof.", "files": []},
+        {"id": 6, "prompt": "Write: write the digest to a file.", "expected_output": "The digest, written nowhere.", "files": []},
+    ]);
+    fs::create_dir_all(subject.join("evals"))?;
+    fs::write(
+        subject.join("evals/evals.json"),
+        json!({"skill_name": "subject", "evals": evals}).to_string(),
+    )?;
+    let digest = runx_runtime::load_validated_skill_package(&subject)?
+        .package
+        .package_digest
+        .clone();
+    let pinned = |reference: &str, revision: &str| json!({"ref": reference, "revision": revision});
+    let mut sets = BTreeMap::new();
+    for eval in evals.as_array().into_iter().flatten() {
+        let marker = eval["prompt"]
+            .as_str()
+            .and_then(|prompt| prompt.split(':').next())
+            .ok_or("an eval's prompt starts with its marker")?;
+        sets.insert(
+            marker.to_owned(),
+            pinned(
+                &format!("skills/subject/evals/evals.json#{}", eval["id"]),
+                criteria_of(eval)?.revision.as_str(),
+            ),
+        );
+    }
+    let written = root.join("written.txt");
+    let judged = digest.clone();
+    let model = ScriptedModel::serve(move |request| {
+        let complete = |answer: Value| tool_call("call-final", "turn_complete", &answer);
+        let Some(marker) = eval_marker(request) else {
+            return complete(json!({"summary": "No eval."}));
+        };
+        let sent = request.to_string();
+        if !sent.contains("Judge the attempt") {
+            // The attempt's turn: the write eval tries to write, and every
+            // other one finishes.
+            if marker == "Write" && !sent.contains("call-write") {
+                return tool_call(
+                    "call-write",
+                    "fs_write",
+                    &json!({"path": "written.txt", "contents": "proof", "create": true}),
+                );
+            }
+            return complete(json!({"summary": format!("{marker}: done.")}));
+        }
+        let met = |id: &str| json!({"verdict": "met", "id": id, "evidence": []});
+        let mut verdict = json!({
+            "schema": "runx.verdict.v1",
+            "verdict": "met",
+            "subject": pinned("skills/subject", &judged),
+            "criteria_set": sets[marker],
+            "assessments": [met("expected_output")],
+        });
+        match marker {
+            "Meets" => {
+                verdict["assessments"] = json!([met("expected_output"), met("expectation_1")]);
+            }
+            "Misses" => {
+                verdict["verdict"] = json!("not_met");
+                verdict["assessments"] = json!([{"verdict": "not_met", "id": "expected_output", "evidence": [], "failure": {"expected": "the digest of proof", "actual": "nothing", "where": "the attempt's summary"}}]);
+            }
+            // It answers only the expectation, and states met for the whole.
+            "Partial" => verdict["assessments"] = json!([met("expectation_1")]),
+            "Wrong" => verdict["subject"] = pinned("skills/other", &judged),
+            "Claims" => {
+                verdict["evaluator"] =
+                    json!({"package": "runx/other", "method": "judge", "run": "run_other"});
+            }
+            _ => {}
+        }
+        complete(json!({"verdict": verdict}))
+    })?;
+
+    let output = review(
+        root,
+        "evals",
+        json!({"skill": "skills/subject"}),
+        model.endpoint(),
+        Some(json!({"effects": "none"})),
+    );
+    model.finish()?;
+    let output = output?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let results = &output["result"]["eval_results"];
+    assert_eq!(results["package_digest"], digest.as_str(), "{output}");
+    let attempt = |id: u64| -> TestResult<Value> {
+        let eval = results["evals"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|eval| eval["id"] == id)
+            .ok_or_else(|| format!("eval {id} is run: {results}"))?;
+        Ok(eval["attempts"][0].clone())
+    };
+    assert_eq!(attempt(1)?["verdict"], "met", "{results}");
+    assert_eq!(attempt(2)?["verdict"], "not_met", "{results}");
+    // An answer left out makes it inconclusive, whatever the whole it stated.
+    assert_eq!(attempt(3)?["verdict"], "inconclusive", "{results}");
+    assert_eq!(
+        attempt(3)?["unresolved"],
+        json!(["expected_output"]),
+        "{results}"
+    );
+    // A refused verdict answers nothing.
+    for id in [4, 5] {
+        let refused = attempt(id)?;
+        assert_eq!(refused["verdict"], "refused", "{refused}");
+        assert!(refused.get("unresolved").is_none(), "{refused}");
+    }
+    assert!(
+        attempt(4)?["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("skills/other")),
+        "{results}"
+    );
+    assert!(
+        attempt(5)?["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("runx/other")),
+        "{results}"
+    );
+    // The runtime names the grader as the evaluator, never the turn.
+    let evaluator = attempt(1)?["evaluator"].clone();
+    assert_eq!(evaluator["method"], "grade", "{evaluator}");
+    let run_id = output["run_id"].as_str().ok_or("the run has an id")?;
+    assert!(
+        evaluator["run"]
+            .as_str()
+            .is_some_and(|run| run.starts_with(run_id) && run != run_id),
+        "{evaluator}"
+    );
+    // The write eval's attempt wrote nothing: the run's authority refuses
+    // every write, at any depth.
+    assert!(!written.exists(), "an eval writes nothing to the world");
+    assert!(
+        attempt(6)?["calls"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|call| call["target"] == "fs.write" && call["outcome"] == "refused"),
+        "{results}"
+    );
     Ok(())
 }

@@ -5,6 +5,7 @@ mod host_resolution;
 mod load;
 mod output;
 mod script;
+mod verdict;
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
@@ -1249,6 +1250,16 @@ where
             ),
         });
     }
+    // The verdicts it returns name this step as their evaluator, as the
+    // runtime names it, before the answer's packets are checked.
+    let mut response = response;
+    verdict::name_verdicts(
+        runtime,
+        workflow_dir,
+        step,
+        step.artifacts.as_ref(),
+        &mut response.payload,
+    )?;
     // An answer that breaks the act's output contract is refused, not sealed:
     // the turn stays open for a corrected answer. An act that failed returns
     // no outputs to check; its step fails with its reason.

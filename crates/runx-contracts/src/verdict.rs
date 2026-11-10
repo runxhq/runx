@@ -348,5 +348,43 @@ impl Verdict {
     }
 }
 
+/// What a reader made of a verdict (`verdict.decide`): the whole the one rule
+/// decided and the required criteria left unanswered, or why it was refused.
+/// A refused verdict answers nothing, which isn't `inconclusive`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+#[runx_schema(id = "runx.verdict.decision.v1")]
+pub enum VerdictDecision {
+    Decided {
+        verdict: VerdictAnswer,
+        unresolved: Vec<CriterionId>,
+    },
+    Refused {
+        reason: NonEmptyString,
+    },
+}
+
+impl VerdictDecision {
+    /// `verdict` read against the subject and criteria set the reader
+    /// expects.
+    #[must_use]
+    pub fn of(
+        verdict: &Verdict,
+        subject: &Pinned,
+        criteria_ref: &str,
+        criteria: &Criteria,
+    ) -> Self {
+        match verdict.decide(subject, criteria_ref, criteria) {
+            Ok(decided) => Self::Decided {
+                verdict: decided.verdict,
+                unresolved: decided.unresolved,
+            },
+            Err(refused) => Self::Refused {
+                reason: refused.to_string().into(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

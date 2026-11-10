@@ -1255,6 +1255,21 @@ RUNX_PUBLIC_API_TOKEN=dev-token runx notarize ./.runx/receipts/<receipt-id>.json
   --allow-local-api
 ```
 
+## Verdicts
+
+A verdict (`runx.verdict.v1`) says whether an exact subject meets a fixed set
+of checks (`runx.criteria.v1`) it didn't choose. A step that returns one, an
+output whose packet is `runx.verdict.v1`, is an evaluator, and runx names it in
+the verdict's `evaluator`, `{ package, method, run }`: the step needn't state
+it, and a verdict that names another evaluator fails its step. `verdict.criteria`
+makes a criteria set from its checks, its `revision` the digest of what it
+holds. A reader decides a verdict with `verdict.decide`, against the subject
+and the criteria set it expects, by one rule: any required check `not_met`
+makes it `not_met`, any left unanswered or `inconclusive` makes it
+`inconclusive`, and only every required check `met` makes it `met`. A verdict
+that judges another subject or answers another set is refused, and a refused
+verdict answers nothing, which isn't `inconclusive`.
+
 ## Tests
 
 Run a whole skill package to execute each of its `tests/<name>.yaml`, in name

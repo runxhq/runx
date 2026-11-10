@@ -253,8 +253,8 @@ pub use tools::{
 };
 pub use verdict::{
     Assessment, AssessmentFailure, CRITERIA_SCHEMA, Criteria, CriteriaSchema, CriterionId, Decided,
-    Evaluator, Pinned, VERDICT_SCHEMA, Verdict, VerdictAnswer, VerdictCriterion, VerdictRefused,
-    VerdictSchema,
+    Evaluator, Pinned, VERDICT_SCHEMA, Verdict, VerdictAnswer, VerdictCriterion, VerdictDecision,
+    VerdictRefused, VerdictSchema,
 };
 pub use work_outcome::{WorkOutcome, WorkProposal, WorkState};
 pub use x402::{

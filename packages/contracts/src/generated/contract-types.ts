@@ -3790,6 +3790,16 @@ export type VerdictCriterionContract = {
   readonly required: boolean;
 };
 
+/** What a reader made of a verdict (`verdict.decide`): the whole the one rule decided and the required criteria left unanswered, or why it was refused. A refused verdict answers nothing, which isn't `inconclusive`. */
+export type VerdictDecisionContract = {
+  readonly status: "decided";
+  readonly unresolved: readonly string[];
+  readonly verdict: VerdictAnswerContract;
+} | {
+  readonly reason: string;
+  readonly status: "refused";
+};
+
 export type VerdictSchemaContract = "runx.verdict.v1";
 
 /** A request the run waits on: its address, the digest an answer binds to, and the request itself. */

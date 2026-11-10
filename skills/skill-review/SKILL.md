@@ -23,6 +23,7 @@ execution evidence may require more evidence; they are not permission to fetch.
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
 - `agent#read`
+- `agent#write`
 
 ## Procedure
 
@@ -73,6 +74,25 @@ against the whole catalog the host sees: the workspace's packages and the
 registry `RUNX_REGISTRY_URL` names. Matching by digest means a turn that loads
 an older published copy of the package hasn't selected the candidate, whose
 description is what's measured.
+
+## Running evals
+
+`evals` runs each eval in `evals/evals.json`, `repeats` times (once when
+absent), in a fresh turn of the `agent` skill's `write` method under this
+run's authority. No eval writes to the world: a scripted model's run uses
+provider fixtures, and a real model's runs under `effects: none`, with its
+reads live and recorded as live, so a write is refused at any depth.
+
+Each attempt is judged by `grade`, a fresh turn given the eval, the attempt as
+its record holds it (its outcome, the calls it made and how each ended, its
+receipt), and the eval's criteria set: its expected output, then each of its
+expectations, every one required, made by a deterministic step, never by the
+attempt or the grader. The grader returns a `runx.verdict.v1`, and the runtime
+names `grade` as its evaluator. The run decides each verdict by the one rule
+against the package at its digest and that criteria set: `met`, `not_met`, or
+`inconclusive` when a required check is left unanswered. A verdict that judges
+something else, answers another set, or names another evaluator is refused,
+and a refused verdict answers nothing, which isn't `inconclusive`.
 
 ## Stop conditions
 
@@ -126,3 +146,17 @@ missing. Copy native evidence identifiers rather than inventing them. Do not use
 `adopt_with_caveats` to hide a missing advertised core capability. A useful local
 draft or analysis may be a complete job without a provider write, but its value
 must be visible in the artifact and caller journey.
+
+## Agent task: grade
+
+Judge the attempt against each criterion in the criteria set, from the
+attempt as its record holds it: its outcome, its result or failure, and each
+call it made and how that ended. Answer every criterion: `met` when the record
+shows the question answered yes, `not_met` with what was expected, what
+happened and where when it shows no, and `inconclusive` when the record can't
+say. Never answer from what the attempt says it did where its calls say
+otherwise. Return one `verdict`: `schema` `runx.verdict.v1`, the `subject` and
+`criteria_set` exactly as given, an `assessments` entry per criterion with the
+attempt's receipt as its evidence when it has one, and the whole by the rule:
+`not_met` if any required criterion is, `inconclusive` if any is unanswered or
+inconclusive, otherwise `met`. Don't name an evaluator: runx names it.

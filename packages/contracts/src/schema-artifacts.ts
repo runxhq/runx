@@ -14488,6 +14488,60 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.turn_status.v1"
   } as JsonSchema,
+  "verdict-decision.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/verdict/decision/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "decided",
+            "type": "string"
+          },
+          "unresolved": {
+            "items": {
+              "maxLength": 128,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verdict": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/VerdictAnswer"
+          }
+        },
+        "required": [
+          "status",
+          "verdict",
+          "unresolved"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "const": "refused",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "type": "object"
+      }
+    ],
+    "description": "What a reader made of a verdict (`verdict.decide`): the whole the one rule decided and the required criteria left unanswered, or why it was refused. A refused verdict answers nothing, which isn't `inconclusive`.",
+    "title": "VerdictDecision",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.verdict.decision.v1"
+  } as JsonSchema,
   "verdict.schema.json": {
     "$id": "https://schemas.runx.ai/runx/verdict/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",

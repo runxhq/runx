@@ -30,6 +30,7 @@ mod receipt_tools;
 mod registry;
 mod run_tools;
 mod snapshot;
+mod verdict;
 mod workspace;
 
 mod catalog;
@@ -59,6 +60,7 @@ const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
     receipt_tools::CAPABILITIES,
     registry::CAPABILITIES,
     run_tools::CAPABILITIES,
+    verdict::CAPABILITIES,
     policy::CAPABILITIES,
     process::CAPABILITIES,
 ];
