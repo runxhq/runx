@@ -350,7 +350,9 @@ impl WaitingCallEvent {
                 index,
                 run_id: run_id.clone(),
             }),
-            CallOutcomeEvent::Completed { .. }
+            // A safe read in flight waits on nothing: it reruns by itself.
+            CallOutcomeEvent::Executing
+            | CallOutcomeEvent::Completed { .. }
             | CallOutcomeEvent::Refused { .. }
             | CallOutcomeEvent::Failed { .. }
             | CallOutcomeEvent::Cancelled
@@ -424,6 +426,9 @@ enum CallOutcomeEvent {
         request: String,
         digest: String,
     },
+    /// A safe read was claimed and has not settled: a crash that leaves it
+    /// so reruns it with nobody asked (D33).
+    Executing,
     /// The call runs a child skill as `run_id`, and waits on what that run
     /// waits on.
     Child { run_id: String },
@@ -576,6 +581,9 @@ pub(crate) enum CallOutcome {
     Pending(PendingRequest),
     /// Claimed and not settled: waits on its retry.
     Claimed(PendingRequest),
+    /// A safe read claimed and not settled, which waits on nothing: a crash
+    /// that leaves it so reruns it with nobody asked (D33).
+    Executing,
     /// Runs a child skill as this run, and waits on what it waits on.
     Child(String),
     /// Its host cancelled it before it started, or while it only read.
@@ -1640,6 +1648,7 @@ impl RunLog {
                 blobs.push(request);
                 outcome
             }
+            CallOutcome::Executing => CallOutcomeEvent::Executing,
             CallOutcome::Child(run_id) => CallOutcomeEvent::Child {
                 run_id: run_id.clone(),
             },
@@ -2358,6 +2367,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             value: store.blob_json(request)?,
             digest: digest.clone(),
         }),
+        CallOutcomeEvent::Executing => CallOutcome::Executing,
         CallOutcomeEvent::Child { run_id } => CallOutcome::Child(run_id.clone()),
         CallOutcomeEvent::Cancelled => CallOutcome::Cancelled,
         CallOutcomeEvent::Waited { at } => CallOutcome::Waited(*at),

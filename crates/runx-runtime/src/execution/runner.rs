@@ -56,7 +56,9 @@ pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 /// One crash model for workflow steps and turn calls: what reaches the world
 /// (an operation, a native tool, a trusted host process) is claimed before it
 /// runs, so one that never settles waits on its retry instead of running
-/// again unseen. Worker compute reaches nothing and simply runs again.
+/// again unseen. A safe read ([`safe_read`]) runs again with nobody asked: a
+/// call's claim names no retry, and a fixed step's isn't claimed. Worker
+/// compute reaches nothing and simply runs again.
 pub(crate) fn reaches_world(kind: &runx_parser::StepKind) -> bool {
     use runx_parser::{StepKind, ToolTarget};
     matches!(
@@ -79,6 +81,27 @@ pub(crate) fn only_reads(
         StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
         StepKind::Operation(target) => {
             crate::kernel::operation::operation_reads(target, &step.inputs, env, workflow_dir)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `step` with its inputs is a safe read (D33): a native tool that
+/// changes nothing, or an operation that is a safe read by
+/// [`crate::kernel::operation::safe_read`]. A crash that leaves one
+/// unsettled reruns it with nobody asked, as it does worker compute. Any
+/// other step that reaches the world follows custody: it is claimed, and
+/// waits on its retry.
+pub(crate) fn safe_read(
+    step: &runx_parser::WorkflowStep,
+    workflow_dir: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    use runx_parser::{StepKind, ToolTarget};
+    match &step.kind {
+        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
+        StepKind::Operation(target) => {
+            crate::kernel::operation::operation_safe_read(target, &step.inputs, env, workflow_dir)
         }
         _ => false,
     }

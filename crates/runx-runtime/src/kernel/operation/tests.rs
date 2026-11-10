@@ -3064,6 +3064,94 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
     assert!(resends_safely(&with_cost("note.put", 5_000), false));
 }
 
+/// A safe read reruns by itself after a crash (D33): a read that costs
+/// nothing and that runx carries out itself. A read a process carries out,
+/// the connector's own or a stdio server's, rests on its author's promise,
+/// and a priced one can bill unseen, so neither does, and nor does a write.
+#[test]
+fn only_a_free_read_runx_carries_out_is_a_safe_read() {
+    let manifest = |mcp_server: serde_json::Value| -> runx_contracts::connector::ConnectorManifest {
+        serde_json::from_value(serde_json::json!({
+            "schema": "runx.connector.v1",
+            "name": "notes",
+            "title": "Notes",
+            "description": "Read and write notes.",
+            "auth": {"delegated": {"principal": {"url": "https://notes.example/api/me", "id": "id", "login": "login"}}},
+            "placements": {
+                "hosted": {"auth": "delegated"},
+                "local": {"auth": ["none"], "mcp_server": mcp_server}
+            },
+            "operations": {
+                "note.read": {
+                    "description": "Read a note.",
+                    "verb": "read",
+                    "scopes": ["note.read"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "provider_scopes": ["notes:read"]
+                },
+                "note.priced": {
+                    "description": "Read a note at a price.",
+                    "verb": "read",
+                    "scopes": ["note.read"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "cost": {"usd_micro": 5000, "per": "request", "source": "docs"},
+                    "provider_scopes": ["notes:read"]
+                },
+                "note.shell": {
+                    "description": "Read a note through a process.",
+                    "verb": "read",
+                    "scopes": ["note.read"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "implementation": {"process": {"tool": "notes.read"}}
+                },
+                "note.served": {
+                    "description": "Read a note through the connector's server.",
+                    "verb": "read",
+                    "scopes": ["note.read"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "implementation": {"mcp": {
+                        "tool": "read_note",
+                        "arguments": {"note": {"$argument": "/note"}},
+                        "tool_digest": format!("sha256:{}", "0".repeat(64))
+                    }}
+                },
+                "note.post": {
+                    "description": "Post a note.",
+                    "verb": "write",
+                    "scopes": ["note.post"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "approval": "required",
+                    "result_fields": ["note"],
+                    "provider_scopes": ["notes:write"]
+                }
+            }
+        }))
+        .expect("the manifest parses")
+    };
+    let safe = |manifest: &runx_contracts::connector::ConnectorManifest, name: &str| {
+        let operation = manifest
+            .operations
+            .iter()
+            .find(|(operation, _)| operation.as_str() == name)
+            .map(|(_, operation)| operation)
+            .expect("the operation");
+        safe_read(manifest, operation)
+    };
+    let served_over_http = manifest(serde_json::json!({
+        "transport": "streamable_http", "url": "https://notes.example/mcp"
+    }));
+    assert!(safe(&served_over_http, "note.read"));
+    assert!(safe(&served_over_http, "note.served"));
+    assert!(!safe(&served_over_http, "note.priced"));
+    assert!(!safe(&served_over_http, "note.shell"));
+    assert!(!safe(&served_over_http, "note.post"));
+    let served_by_a_process = manifest(serde_json::json!({
+        "transport": "stdio", "command": "notes-server"
+    }));
+    assert!(safe(&served_by_a_process, "note.read"));
+    assert!(!safe(&served_by_a_process, "note.served"));
+}
+
 #[cfg(unix)]
 #[test]
 fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {

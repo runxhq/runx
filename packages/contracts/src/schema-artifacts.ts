@@ -7801,7 +7801,7 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "Claimed and not settled: its effect may have happened.",
+            "description": "Claimed and not settled: its effect may have happened, and it waits on its retry at `address`.",
             "properties": {
               "address": {
                 "minLength": 1,
@@ -7820,6 +7820,20 @@ export const runxSchemaArtifacts = {
               "status",
               "address",
               "request_digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A safe read in flight: a crash that leaves it unsettled reruns it with nobody asked (D33).",
+            "properties": {
+              "status": {
+                "const": "executing",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
             ],
             "type": "object"
           },
@@ -10685,7 +10699,7 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "The call has not settled. `waiting` is what it waits on, each request by its address: its own ask or approval, its retry while its effect is unconfirmed, or what the child run it started waits on, including that run's open turns. The call settles when those are answered.",
+            "description": "The call has not settled. `waiting` is what it waits on, each request by its address: its own ask or approval, its retry while its effect is unconfirmed, or what the child run it started waits on, including that run's open turns. The call settles when those are answered. A safe read in flight waits on nothing, and reruns by itself if a crash leaves it unsettled (D33).",
             "properties": {
               "status": {
                 "const": "pending",

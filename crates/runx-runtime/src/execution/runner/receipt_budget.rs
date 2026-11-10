@@ -160,7 +160,7 @@ pub(crate) fn count_recorded_calls(
             continue;
         }
         match &call.outcome {
-            CallOutcome::Pending(_) | CallOutcome::Claimed(_) => {}
+            CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Executing => {}
             CallOutcome::Child(_) => {
                 count_recorded_tree(tally, &log.child(&call_step_id(step_id, call.index))?)?;
             }

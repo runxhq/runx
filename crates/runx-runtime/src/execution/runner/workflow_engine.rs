@@ -527,13 +527,12 @@ impl WorkflowExecution {
             context.step,
             &mut answering,
         );
-        let claimed = floor.is_ok() && super::reaches_world(&context.step.kind);
-        let reads = claimed
-            && super::only_reads(
-                context.step,
-                context.workflow_dir,
-                &context.runtime.options.env,
-            );
+        let (workflow_dir, env) = (context.workflow_dir, &context.runtime.options.env);
+        let reaches = floor.is_ok() && super::reaches_world(&context.step.kind);
+        let reads = reaches && super::only_reads(context.step, workflow_dir, env);
+        // A safe read isn't claimed: a crash that leaves it unsettled runs it
+        // again with nobody asked, as it does worker compute (D33).
+        let claimed = reaches && !super::safe_read(context.step, workflow_dir, env);
         let result = match floor {
             Err(error) => Err(error),
             Ok(admitted) => {
@@ -545,17 +544,17 @@ impl WorkflowExecution {
                         &super::unsettled_retry(
                             retry,
                             &format!("step {}", context.plan.step_id),
-                            super::resend_of(
-                                context.step,
-                                context.workflow_dir,
-                                &context.runtime.options.env,
-                            ),
+                            super::resend_of(context.step, workflow_dir, env),
                         ),
                         &std::mem::take(&mut answering.answers),
                     )?;
                     if !reads {
                         crate::interrupt::note_effect();
                     }
+                }
+                #[cfg(feature = "crash-points")]
+                if reaches {
+                    crate::crash::at("after_admission", &log.address(context.plan.step_id));
                 }
                 let mut admission_refs = admission_refs;
                 admission_refs.extend(admitted.reference()?);
@@ -635,6 +634,8 @@ impl WorkflowExecution {
             }
             result => result?,
         };
+        #[cfg(feature = "crash-points")]
+        crate::crash::at("after_execution", &log.address(context.plan.step_id));
         self.commit_step_run(context.runtime, context.host, context.plan, run, &answers)
     }
 

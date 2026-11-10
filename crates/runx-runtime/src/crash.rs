@@ -4,7 +4,8 @@
 //! writes of its own, so recovery reads exactly what a kill there leaves.
 //!
 //! `RUNX_CRASH_AT=<boundary>@<call>` chooses the one point that aborts, where
-//! `<call>` is a call's address in its run, such as `prepare/1`.
+//! `<call>` is a call's address in its run, such as `prepare/1`, or a fixed
+//! step's, such as `read`.
 
 /// The environment variable that names the point to abort at.
 const CRASH_AT: &str = "RUNX_CRASH_AT";

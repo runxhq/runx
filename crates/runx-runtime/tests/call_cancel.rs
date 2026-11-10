@@ -207,6 +207,7 @@ fn calls(root: &Path, run_id: &str, stream: &str) -> TestResult<Vec<(u32, &'stat
                     RunCallOutcome::Failed { .. } => "failed",
                     RunCallOutcome::Pending { .. } => "pending",
                     RunCallOutcome::Claimed { .. } => "claimed",
+                    RunCallOutcome::Executing => "executing",
                     RunCallOutcome::Child { .. } => "child",
                     RunCallOutcome::Cancelled => "cancelled",
                     RunCallOutcome::Waited { .. } => "waited",
@@ -357,7 +358,7 @@ methods:
         script,
         [
             (0, "child", false),
-            (1, "claimed", false),
+            (1, "executing", false),
             (0, "completed", true),
             (1, "cancelled", true),
         ]

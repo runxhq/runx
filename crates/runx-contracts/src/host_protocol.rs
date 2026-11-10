@@ -677,7 +677,9 @@ pub enum TurnCallOutcome {
     /// The call has not settled. `waiting` is what it waits on, each request
     /// by its address: its own ask or approval, its retry while its effect
     /// is unconfirmed, or what the child run it started waits on, including
-    /// that run's open turns. The call settles when those are answered.
+    /// that run's open turns. The call settles when those are answered. A
+    /// safe read in flight waits on nothing, and reruns by itself if a crash
+    /// leaves it unsettled (D33).
     Pending { waiting: Vec<ResolutionRequest> },
     /// Its host cancelled it before it started, or while it only read:
     /// nothing it did is in effect. An effect its host cancels in flight

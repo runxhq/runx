@@ -1199,7 +1199,9 @@ mod tests {
         drop(session);
 
         // The next session finds each by its id, and a call made again with
-        // its id returns it rather than running again.
+        // its id returns it rather than making another. Each is a safe read,
+        // so it reran with nobody asked and completed (D33; changed 10
+        // November: before D33 each waited on its retry).
         let session = open(root, &run_id)?;
         let again = session.call(
             "answer",
@@ -1209,17 +1211,23 @@ mod tests {
         )?;
         assert_eq!(again.index, 1);
         assert!(
-            matches!(again.outcome, TurnCallOutcome::Pending { .. }),
-            "it waits on its retry: {again:?}"
+            matches!(again.outcome, TurnCallOutcome::Completed { .. }),
+            "it reran by itself: {again:?}"
         );
         let status = session.status("answer")?;
         assert_eq!(
             status
                 .calls
                 .iter()
-                .map(|call| call.call_id.as_ref().map(|id| id.as_str().to_owned()))
+                .map(|call| (
+                    call.call_id.as_ref().map(|id| id.as_str().to_owned()),
+                    matches!(call.outcome, TurnCallOutcome::Completed { .. })
+                ))
                 .collect::<Vec<_>>(),
-            [Some("first".to_owned()), Some("second".to_owned())]
+            [
+                (Some("first".to_owned()), true),
+                (Some("second".to_owned()), true)
+            ]
         );
         Ok(())
     }

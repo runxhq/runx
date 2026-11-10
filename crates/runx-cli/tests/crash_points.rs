@@ -56,7 +56,7 @@ methods:
         inputs:
           value: $input.value
         calls:
-          tools: [data.digest]
+          tools: [data.digest, fs.write]
           skills: [../confirm-child]
         max_calls: 4
         concurrency: 2
@@ -72,6 +72,13 @@ const TWO_DIGESTS: &str = r#"export default async function (ctx, { value }) {
   const first = await ctx.tool("data.digest", { value, encoding: "utf8_text" });
   const second = await ctx.tool("data.digest", { value: value + "!", encoding: "utf8_text" });
   return { digested: [Object.keys(first).length, Object.keys(second).length] };
+}
+"#;
+
+const WRITE_THEN_DIGEST: &str = r#"export default async function (ctx, { value }) {
+  const written = await ctx.tool("fs.write", { path: "written.txt", contents: value });
+  const digested = await ctx.tool("data.digest", { value, encoding: "utf8_text" });
+  return { digested: [Object.keys(written).length, Object.keys(digested).length] };
 }
 "#;
 
@@ -119,13 +126,16 @@ fn history(root: &Path) -> TestResult<serde_json::Value> {
     Ok(serde_json::from_slice(&read.stdout)?)
 }
 
-/// Each call event of run `stream`'s steps, as `(index, status)`.
-fn calls(read: &serde_json::Value, stream: &str) -> Vec<(u64, String)> {
+/// Each call event of run `stream`'s steps, in order.
+fn call_events<'a>(
+    read: &'a serde_json::Value,
+    stream: &'a str,
+) -> impl Iterator<Item = &'a serde_json::Value> {
     read["events"]
         .as_array()
         .into_iter()
         .flatten()
-        .filter(|record| {
+        .filter(move |record| {
             // A step's calls are on its own stream, `<run>/<step>@<attempt>`.
             record["stream"]
                 .as_str()
@@ -134,10 +144,16 @@ fn calls(read: &serde_json::Value, stream: &str) -> Vec<(u64, String)> {
                 .is_some_and(|step| !step.contains('/') && step.contains('@'))
                 && record["event"]["kind"] == "call"
         })
-        .map(|record| {
+        .map(|record| &record["event"])
+}
+
+/// Each call event of run `stream`'s steps, as `(index, status)`.
+fn calls(read: &serde_json::Value, stream: &str) -> Vec<(u64, String)> {
+    call_events(read, stream)
+        .map(|call| {
             (
-                record["event"]["index"].as_u64().unwrap_or(u64::MAX),
-                record["event"]["outcome"]["status"]
+                call["index"].as_u64().unwrap_or(u64::MAX),
+                call["outcome"]["status"]
                     .as_str()
                     .unwrap_or_default()
                     .to_owned(),
@@ -180,6 +196,58 @@ fn pair(index: u64, status: &str) -> (u64, String) {
     (index, status.to_owned())
 }
 
+/// The retry each claimed call of the run waits on, in order.
+fn claim_retries(read: &serde_json::Value) -> Vec<String> {
+    call_events(read, RUN_ID)
+        .filter(|call| call["outcome"]["status"] == "claimed")
+        .filter_map(|call| call["outcome"]["address"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// `fixed-demo` digests its value in one fixed step and writes it in the
+/// next.
+fn write_fixed_steps(root: &Path) -> TestResult<PathBuf> {
+    let skill = root.join("fixed-demo");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: fixed-demo\ndescription: Digests a value, then writes it.\n---\n# Fixed demo\n\nDigest, then write.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  prepare:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: read
+        tool: data.digest
+        inputs: {value: $input.value, encoding: utf8_text}
+      - id: write
+        tool: fs.write
+        inputs: {path: written.txt, contents: $input.value}
+"#,
+    )?;
+    Ok(skill)
+}
+
+/// The steps `stream` records as ended, by id, in order.
+fn ended_steps(read: &serde_json::Value, stream: &str) -> Vec<String> {
+    read["events"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|record| record["stream"] == stream && record["event"]["kind"] == "step")
+        .map(|record| {
+            record["event"]["step_id"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect()
+}
+
 #[test]
 fn a_kill_before_a_call_is_admitted_makes_it_on_recovery_and_runs_nothing_again() -> TestResult {
     let root = crate::support::temp_root("crash-before-admission");
@@ -188,7 +256,7 @@ fn a_kill_before_a_call_is_admitted_makes_it_on_recovery_and_runs_nothing_again(
     // Call 0 settled; call 1 left nothing behind.
     assert_eq!(
         calls(&history(&root)?, RUN_ID),
-        [pair(0, "claimed"), pair(0, "completed")]
+        [pair(0, "executing"), pair(0, "completed")]
     );
 
     let recovered = status(&run(&root, &skill, None)?)?;
@@ -196,25 +264,64 @@ fn a_kill_before_a_call_is_admitted_makes_it_on_recovery_and_runs_nothing_again(
     assert_eq!(
         calls(&history(&root)?, RUN_ID),
         [
-            pair(0, "claimed"),
+            pair(0, "executing"),
             pair(0, "completed"),
-            pair(1, "claimed"),
+            pair(1, "executing"),
             pair(1, "completed"),
         ]
     );
     Ok(())
 }
 
+/// A safe read, a tool or read operation that declares no effect, killed
+/// after it was admitted or after it ran reruns on recovery with nobody
+/// asked, and runs once to its record (D33). Changed 10 November: before
+/// D33 this test held the read to a retry a person acknowledged.
 #[test]
-fn a_kill_after_a_call_is_admitted_or_has_run_waits_on_its_retry() -> TestResult {
+fn a_safe_read_in_flight_at_a_kill_reruns_on_recovery_with_nobody_asked() -> TestResult {
     for boundary in ["after_admission", "after_execution"] {
-        let root = crate::support::temp_root(&format!("crash-{boundary}"));
+        let root = crate::support::temp_root(&format!("crash-read-{boundary}"));
         let skill = write_skills(&root, TWO_DIGESTS, "          digested: {type: array}\n")?;
         crashed(&run(&root, &skill, Some(&format!("{boundary}@prepare/0")))?);
-        assert_eq!(calls(&history(&root)?, RUN_ID), [pair(0, "claimed")]);
+        // It was executing, which waits on no retry, so a host reading the
+        // run sees nothing to ask anyone.
+        let read = history(&root)?;
+        assert_eq!(calls(&read, RUN_ID), [pair(0, "executing")]);
+        assert_eq!(read["waiting"], serde_json::json!([]), "{boundary}");
 
-        // The call may have run, so recovery never runs it again unseen: it
-        // waits on the person's acknowledgement of its retry.
+        let recovered = status(&run(&root, &skill, None)?)?;
+        assert_eq!(recovered["status"], "sealed", "{boundary}: {recovered}");
+        let settled = calls(&history(&root)?, RUN_ID);
+        assert_eq!(
+            settled
+                .iter()
+                .filter(|call| **call == pair(0, "completed"))
+                .count(),
+            1,
+            "{boundary}: {settled:?}"
+        );
+    }
+    Ok(())
+}
+
+/// A write killed after it was admitted or after it ran may have happened,
+/// so recovery never runs it again unseen: it waits on the person's
+/// acknowledgement of its retry, then runs again with the same input and
+/// the run goes on to seal.
+#[test]
+fn a_write_in_flight_at_a_kill_waits_on_its_retry() -> TestResult {
+    for boundary in ["after_admission", "after_execution"] {
+        let root = crate::support::temp_root(&format!("crash-write-{boundary}"));
+        let skill = write_skills(
+            &root,
+            WRITE_THEN_DIGEST,
+            "          digested: {type: array}\n",
+        )?;
+        crashed(&run(&root, &skill, Some(&format!("{boundary}@prepare/0")))?);
+        let read = history(&root)?;
+        assert_eq!(calls(&read, RUN_ID), [pair(0, "claimed")]);
+        assert_eq!(claim_retries(&read), ["prepare/0/retry"], "{boundary}");
+
         let recovered = status(&run(&root, &skill, None)?)?;
         assert_eq!(
             recovered["requests"][0]["id"], "prepare/0/retry",
@@ -225,25 +332,7 @@ fn a_kill_after_a_call_is_admitted_or_has_run_waits_on_its_retry() -> TestResult
         assert_eq!(read["waiting"][0]["address"], "prepare/0/retry");
         assert_eq!(calls(&read, RUN_ID), [pair(0, "claimed")]);
 
-        // Acknowledged, it runs again with the same input, and the run goes
-        // on to seal.
-        let answers = root.join("retry.json");
-        fs::write(
-            &answers,
-            crate::support::bind_resume(
-                &read,
-                serde_json::json!({"approvals": {"prepare/0/retry": {"value": {"retry": true}}}}),
-            )?
-            .to_string(),
-        )?;
-        let resumed = unsigned_runx_command_at(&root)
-            .args(["resume", RUN_ID])
-            .arg(&answers)
-            .arg("--receipt-dir")
-            .arg(root.join("receipts"))
-            .arg("--json")
-            .output()?;
-        let resumed = status(&resumed)?;
+        let resumed = acknowledge_retries(&root)?;
         assert_eq!(resumed["status"], "sealed", "{boundary}: {resumed}");
         let settled = calls(&history(&root)?, RUN_ID);
         assert_eq!(
@@ -273,7 +362,7 @@ fn a_kill_after_a_child_sealed_records_it_on_recovery_without_running_it_again()
     assert_eq!(steps(&read, &child), 2);
     assert_eq!(
         calls(&read, RUN_ID),
-        [pair(0, "claimed"), pair(0, "completed"), pair(1, "child")]
+        [pair(0, "executing"), pair(0, "completed"), pair(1, "child")]
     );
 
     let recovered = status(&run(&root, &skill, None)?)?;
@@ -283,12 +372,58 @@ fn a_kill_after_a_child_sealed_records_it_on_recovery_without_running_it_again()
     assert_eq!(
         calls(&read, RUN_ID),
         [
-            pair(0, "claimed"),
+            pair(0, "executing"),
             pair(0, "completed"),
             pair(1, "child"),
             pair(1, "completed"),
         ]
     );
+    Ok(())
+}
+
+/// A fixed step recovers by the same rule as a call (D33): a safe read
+/// killed after it was admitted or after it ran reruns with nobody asked,
+/// and a write waits on its retry, then runs again on its acknowledgement.
+#[test]
+fn a_fixed_step_in_flight_at_a_kill_reruns_if_it_only_reads_and_waits_on_its_retry_if_it_writes()
+-> TestResult {
+    for boundary in ["after_admission", "after_execution"] {
+        let root = crate::support::temp_root(&format!("crash-fixed-read-{boundary}"));
+        let skill = write_fixed_steps(&root)?;
+        crashed(&run(&root, &skill, Some(&format!("{boundary}@read")))?);
+        assert_eq!(
+            history(&root)?["waiting"],
+            serde_json::json!([]),
+            "{boundary}"
+        );
+
+        let recovered = status(&run(&root, &skill, None)?)?;
+        assert_eq!(recovered["status"], "sealed", "{boundary}: {recovered}");
+        assert_eq!(
+            ended_steps(&history(&root)?, RUN_ID),
+            ["read", "write"],
+            "{boundary}"
+        );
+    }
+    for boundary in ["after_admission", "after_execution"] {
+        let root = crate::support::temp_root(&format!("crash-fixed-write-{boundary}"));
+        let skill = write_fixed_steps(&root)?;
+        crashed(&run(&root, &skill, Some(&format!("{boundary}@write")))?);
+
+        let recovered = status(&run(&root, &skill, None)?)?;
+        assert_eq!(
+            recovered["requests"][0]["id"], "write/retry",
+            "{boundary}: {recovered}"
+        );
+        let resumed = acknowledge_retries(&root)?;
+        assert_eq!(resumed["status"], "sealed", "{boundary}: {resumed}");
+        assert_eq!(fs::read_to_string(root.join("written.txt"))?, "hello");
+        assert_eq!(
+            ended_steps(&history(&root)?, RUN_ID),
+            ["read", "write"],
+            "{boundary}"
+        );
+    }
     Ok(())
 }
 
@@ -386,8 +521,9 @@ fn acknowledge_retries(root: &Path) -> TestResult<serde_json::Value> {
 }
 
 /// Killed while two calls are in flight, each recovers by its own record: a
-/// call recorded as done isn't run again, and one admitted but not recorded
-/// waits on its retry.
+/// call recorded as done isn't run again, and a safe read admitted but not
+/// recorded reruns by itself (D33). Changed 10 November: before D33 the
+/// unrecorded read waited on its retry.
 #[test]
 fn a_kill_with_calls_in_flight_recovers_each_by_its_own_record() -> TestResult {
     for crash in ["after_admission@prepare/1", "after_execution@prepare/0"] {
@@ -402,30 +538,11 @@ fn a_kill_with_calls_in_flight_recovers_each_by_its_own_record() -> TestResult {
         // Both were admitted, in position order, before either ran.
         assert_eq!(
             left[..2],
-            [pair(0, "claimed"), pair(1, "claimed")],
+            [pair(0, "executing"), pair(1, "executing")],
             "{crash}"
         );
-        let done_before = left
-            .iter()
-            .filter(|(_, status)| status == "completed")
-            .map(|(index, _)| *index)
-            .collect::<Vec<_>>();
 
-        let recovered = status(&run(&root, &skill, None)?)?;
-        let waiting = recovered["requests"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|request| request["id"].as_str().map(str::to_owned))
-            .collect::<Vec<_>>();
-        let expected = [0, 1]
-            .iter()
-            .filter(|index| !done_before.contains(index))
-            .map(|index| format!("prepare/{index}/retry"))
-            .collect::<Vec<_>>();
-        assert_eq!(waiting, expected, "{crash}: {recovered}");
-
-        let sealed = acknowledge_retries(&root)?;
+        let sealed = status(&run(&root, &skill, None)?)?;
         assert_eq!(sealed["status"], "sealed", "{crash}: {sealed}");
         let settled = calls(&history(&root)?, RUN_ID);
         for index in [0, 1] {

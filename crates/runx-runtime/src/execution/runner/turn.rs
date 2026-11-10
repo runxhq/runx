@@ -680,6 +680,9 @@ where
             CallOutcome::Pending(waiting) => {
                 self.run(AnsweringHost::new(host, Some(&waiting)), Made::of(&call))
             }
+            // A safe read left executing reruns with nobody asked: running
+            // it again changes nothing (D33).
+            CallOutcome::Executing => self.run(AnsweringHost::new(host, None), Made::of(&call)),
             // A claimed call runs again only on the host's exact
             // acknowledgement, which its new claim records; with no answer
             // yet it still waits on its retry.
@@ -884,9 +887,10 @@ where
             .recorded()?
             .iter()
             .find_map(|call| match &call.outcome {
-                CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
-                    Some(call.index)
-                }
+                CallOutcome::Pending(_)
+                | CallOutcome::Claimed(_)
+                | CallOutcome::Executing
+                | CallOutcome::Child(_) => Some(call.index),
                 CallOutcome::Completed(_)
                 | CallOutcome::Refused(_)
                 | CallOutcome::Failed(_)
@@ -1186,9 +1190,7 @@ where
         let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
         let held_by_effects = admitted == super::floor::Admitted::Held;
         let claim = match &made.target {
-            _ if super::reaches_world(&call.step.kind) => {
-                CallOutcome::Claimed(self.retry(made.index, &call.step)?)
-            }
+            _ if super::reaches_world(&call.step.kind) => self.claim(made.index, &call.step)?,
             CallTarget::Skill { .. } => {
                 CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
             }
@@ -1307,6 +1309,13 @@ where
                 let pending = CallOutcome::Pending(pending_request(&request)?);
                 self.settled(made, pending, answers)
             }
+            // A safe read whose answer never came failed: nothing it did is
+            // in effect.
+            (Ran::Unconfirmed, CallOutcome::Executing) => self.settled(
+                made,
+                CallOutcome::Failed("the read's answer never arrived".to_owned()),
+                answers,
+            ),
             (Ran::Unconfirmed, claim) => self.still(made, claim, newly),
         }
     }
@@ -1394,19 +1403,22 @@ where
         Ok(())
     }
 
-    /// What a claimed call waits on until it settles: the person's
-    /// acknowledgement to run it again with the same input, when it can be
-    /// sent again.
-    fn retry(&self, index: u32, step: &WorkflowStep) -> Result<PendingRequest, RuntimeError> {
+    /// How call `index`, which runs as `step` and reaches the world, stands
+    /// once claimed: executing, for a safe read, which a crash reruns with
+    /// nobody asked (D33); otherwise claimed, waiting until it settles on the
+    /// person's acknowledgement to run it again with the same input, when it
+    /// can be sent again.
+    fn claim(&self, index: u32, step: &WorkflowStep) -> Result<CallOutcome, RuntimeError> {
+        let (workflow_dir, env) = (self.scope.workflow_dir, &self.scope.runtime.options.env);
+        if super::safe_read(step, workflow_dir, env) {
+            return Ok(CallOutcome::Executing);
+        }
         pending_request(&super::unsettled_retry(
             self.retry_id(index),
             &format!("call {index}"),
-            super::resend_of(
-                step,
-                self.scope.workflow_dir,
-                &self.scope.runtime.options.env,
-            ),
+            super::resend_of(step, workflow_dir, env),
         ))
+        .map(CallOutcome::Claimed)
     }
 
     /// The address of call `index`'s retry: `<step>/<index>/retry` in this
@@ -1450,6 +1462,7 @@ where
             CallOutcome::Pending(_)
                 | CallOutcome::Child(_)
                 | CallOutcome::Claimed(_)
+                | CallOutcome::Executing
                 | CallOutcome::Completed(_)
         ) {
             self.scope
@@ -1634,6 +1647,10 @@ where
                     waiting: vec![resolution_request(request)?],
                 }
             }
+            // A safe read in flight waits on nothing.
+            CallOutcome::Executing => TurnCallOutcome::Pending {
+                waiting: Vec::new(),
+            },
             CallOutcome::Child(run_id) => TurnCallOutcome::Pending {
                 waiting: self
                     .scope

@@ -267,6 +267,7 @@ fn project(
                     address: request_id.into(),
                     request_digest: digest.into(),
                 },
+                CallOutcomeEvent::Executing => RunCallOutcome::Executing,
                 CallOutcomeEvent::Child { run_id } => RunCallOutcome::Child {
                     run_id: run_id.into(),
                 },

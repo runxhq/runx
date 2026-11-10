@@ -2585,6 +2585,8 @@ export type RunCallOutcomeContract = {
   readonly request_digest: string;
   readonly status: "claimed";
 } | {
+  readonly status: "executing";
+} | {
   readonly run_id: string;
   readonly status: "child";
 } | {

@@ -282,11 +282,15 @@ pub enum RunCallOutcome {
         address: NonEmptyString,
         request_digest: NonEmptyString,
     },
-    /// Claimed and not settled: its effect may have happened.
+    /// Claimed and not settled: its effect may have happened, and it waits
+    /// on its retry at `address`.
     Claimed {
         address: NonEmptyString,
         request_digest: NonEmptyString,
     },
+    /// A safe read in flight: a crash that leaves it unsettled reruns it
+    /// with nobody asked (D33).
+    Executing,
     Child {
         run_id: NonEmptyString,
     },

@@ -149,6 +149,7 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<(u32, &'static str)>
                     RunCallOutcome::Failed { .. } => "failed",
                     RunCallOutcome::Pending { .. } => "pending",
                     RunCallOutcome::Claimed { .. } => "claimed",
+                    RunCallOutcome::Executing => "executing",
                     RunCallOutcome::Child { .. } => "child",
                     RunCallOutcome::Cancelled => "cancelled",
                     RunCallOutcome::Waited { .. } => "waited",
@@ -181,7 +182,7 @@ fn a_script_calls_a_tool_and_a_skill_and_replays_its_record_to_seal() -> TestRes
     assert_eq!(waiting, ["prepare/1#confirm"]);
     assert_eq!(
         call_events(temp.path(), &run_id)?,
-        [(0, "claimed"), (0, "completed"), (1, "child")]
+        [(0, "executing"), (0, "completed"), (1, "child")]
     );
 
     let sealed = resume(
@@ -196,7 +197,7 @@ fn a_script_calls_a_tool_and_a_skill_and_replays_its_record_to_seal() -> TestRes
     assert_eq!(
         call_events(temp.path(), &run_id)?,
         [
-            (0, "claimed"),
+            (0, "executing"),
             (0, "completed"),
             (1, "child"),
             (1, "completed")
@@ -508,7 +509,7 @@ fn a_script_that_changed_since_its_record_recovers_nothing() -> TestResult {
             .ok_or("missing run_id")?
             .to_owned();
         let before = call_events(temp.path(), &run_id)?;
-        assert_eq!(before, [(0, "claimed"), (0, "completed"), (1, "pending")]);
+        assert_eq!(before, [(0, "executing"), (0, "completed"), (1, "pending")]);
 
         std::fs::write(skill_dir.join("prepare.mjs"), script(changed))?;
         let paths = runx_runtime::paths::RunxPaths::resolve(&env(temp.path()), temp.path());
@@ -588,7 +589,7 @@ fn a_rejected_sibling_leaves_the_others_running_and_settled() -> TestResult {
     let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
     assert_eq!(
         call_events(temp.path(), &run_id)?,
-        [(0, "refused"), (1, "claimed"), (1, "completed")]
+        [(0, "refused"), (1, "executing"), (1, "completed")]
     );
     Ok(())
 }
@@ -627,9 +628,9 @@ fn termination_never_reaches_a_scripts_catch() -> TestResult {
     assert_eq!(
         call_events(temp.path(), &run_id)?,
         [
-            (0, "claimed"),
+            (0, "executing"),
             (0, "completed"),
-            (1, "claimed"),
+            (1, "executing"),
             (1, "completed")
         ]
     );

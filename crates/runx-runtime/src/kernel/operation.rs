@@ -355,6 +355,45 @@ pub(crate) fn operation_reads(
         })
 }
 
+/// Whether the operation step `target` with `inputs` is a safe read, which
+/// reruns by itself if a crash leaves it unsettled (D33).
+pub(crate) fn operation_safe_read(
+    target: &runx_parser::OperationStepTarget,
+    inputs: &JsonObject,
+    env: &BTreeMap<String, String>,
+    workflow_dir: &Path,
+) -> bool {
+    Declared::of(target, inputs, env, workflow_dir).is_some_and(|declared| {
+        declared
+            .operation()
+            .is_some_and(|operation| safe_read(&declared.connector.manifest, operation))
+    })
+}
+
+/// Whether `operation` of `manifest` is a safe read: a read that costs
+/// nothing and that runx carries out itself. A read a process carries out,
+/// the connector's own or the stdio server it starts, rests on its author's
+/// promise rather than on what runx can see, and a priced read can bill
+/// with no answer back, so neither is.
+pub(crate) fn safe_read(
+    manifest: &runx_contracts::connector::ConnectorManifest,
+    operation: &runx_contracts::connector::ConnectorOperation,
+) -> bool {
+    let by_a_process = match &operation.implementation {
+        Some(Implementation::Process(_)) => true,
+        Some(Implementation::Mcp(_)) => matches!(
+            manifest
+                .placements
+                .local
+                .as_ref()
+                .and_then(|local| local.mcp_server.as_ref()),
+            Some(runx_contracts::connector::McpServer::Stdio { .. })
+        ),
+        _ => false,
+    };
+    operation.access() == OperationAccess::Read && !operation.is_metered() && !by_a_process
+}
+
 /// The operation an operation step calls, as its connector declares it.
 struct Declared {
     call: OperationCall,

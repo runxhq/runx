@@ -646,7 +646,10 @@ where
             value: serde_json::Value::from(*at),
             references: Vec::new(),
         },
-        CallOutcome::Pending(_) | CallOutcome::Claimed(_) | CallOutcome::Child(_) => {
+        CallOutcome::Pending(_)
+        | CallOutcome::Claimed(_)
+        | CallOutcome::Executing
+        | CallOutcome::Child(_) => {
             return Err(RuntimeError::EngineInvariant {
                 context: "replaying a script",
                 message: "an open call has no settlement to deliver".to_owned(),
