@@ -52,10 +52,8 @@ host:
         success_checkpoint:
           milestone: send_refused
           description: No provider action is authorized from a gate-bypass request.
-      closure:
-        outcome: blocked
-        reason_code: approval_bypass_refused
-        summary: Live customer send approval cannot be bypassed.
+      ending: blocked
+      ending_reason: Live customer send approval cannot be bypassed.
 expect:
   status: policy_denied
   receipt:
