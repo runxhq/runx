@@ -599,11 +599,14 @@ impl<'a> ExecutionClosureInspector<'a> {
             },
             &mut walk,
         )?;
+        // A method's result is a declared artifact when a step its
+        // `result_from` names declares a packet or `result_as`, whatever kind
+        // of step it is: the packets its inspection lists.
         closure.declared_artifact = self
             .root
             .manifest()
             .and_then(|manifest| manifest.methods.get(method_name))
-            .is_some_and(|method| result_declares_artifact(&method.workflow));
+            .is_some_and(|method| !method.result_artifacts().is_empty());
         Ok(closure)
     }
 
@@ -645,7 +648,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             manifest
                 .methods
                 .values()
-                .any(|method| result_declares_artifact(&method.workflow))
+                .any(|method| !method.result_artifacts().is_empty())
         });
         Ok(closure)
     }
@@ -1260,23 +1263,6 @@ fn normalize_relative_path(path: PathBuf) -> Option<String> {
         }
     }
     Some(normalized.join("/"))
-}
-
-/// Whether a method's result is a declared artifact: the step its
-/// `result_from` names, or its last step, declares a packet or `result_as`,
-/// whatever kind of step it is.
-fn result_declares_artifact(workflow: &runx_parser::Workflow) -> bool {
-    match workflow.result_from.as_slice() {
-        [] => workflow
-            .steps
-            .last()
-            .is_some_and(|step| step.artifacts.is_some()),
-        named => workflow
-            .steps
-            .iter()
-            .filter(|step| named.contains(&step.id))
-            .any(|step| step.artifacts.is_some()),
-    }
 }
 
 fn execution_summary(components: &[String], agent_acts: usize, declared_artifact: bool) -> String {
