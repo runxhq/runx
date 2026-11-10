@@ -123,18 +123,15 @@ pub enum RunEventFact {
         skill: NonEmptyString,
         method: NonEmptyString,
         /// What started it: the source-tree digest each of its binaries
-        /// reports. Absent for a run an earlier runx started.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        implementation: Option<RunImplementation>,
+        /// reports.
+        implementation: RunImplementation,
     },
     ChildStarted {
         parent: NonEmptyString,
         step_id: NonEmptyString,
         skill: NonEmptyString,
-        /// What started it, decided from the child's own method. Absent for
-        /// a child an earlier runx started.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        implementation: Option<RunImplementation>,
+        /// What started it, decided from the child's own method.
+        implementation: RunImplementation,
     },
     Step {
         step_id: NonEmptyString,
@@ -340,7 +337,7 @@ mod tests {
                 "request": {"kind": "approval", "id": "send.approval", "gate": {"id": "send.approval", "reason": "send it"}}
             }],
             "events": [
-                {"stream": "run_1", "version": 1, "committed_at": "2026-10-14T00:00:00Z", "event": {"kind": "started", "skill": "reply", "method": "reply"}},
+                {"stream": "run_1", "version": 1, "committed_at": "2026-10-14T00:00:00Z", "event": {"kind": "started", "skill": "reply", "method": "reply", "implementation": {"runtime": "sha256:runtime"}}},
                 {"stream": "run_1", "version": 2, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "suspended", "step_id": "send", "attempt": 1, "hold": {"kind": "request", "address": "send.approval", "request_digest": "sha256:r"}}},
                 {"stream": "run_1/draft", "version": 3, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0, "target": {"kind": "ask"}, "input_digest": "sha256:i", "call_id": "toolu_1", "outcome": {"status": "refused", "reason": "ask is not in the turn's allowance"}}}
             ],

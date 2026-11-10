@@ -146,7 +146,9 @@ fn a_run_starts_a_worker_only_when_its_method_can_run_javascript() {
             .events
             .into_iter()
             .find_map(|record| match record.event {
-                runx_contracts::RunEventFact::Started { implementation, .. } => implementation,
+                runx_contracts::RunEventFact::Started { implementation, .. } => {
+                    Some(implementation)
+                }
                 _ => None,
             })
             .unwrap();

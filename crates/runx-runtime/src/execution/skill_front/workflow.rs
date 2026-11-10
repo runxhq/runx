@@ -183,7 +183,7 @@ impl BoundRun {
                     .is_none()
                     .then(|| {
                         crate::implementation::refusal(
-                            started.implementation.as_ref(),
+                            &started.implementation,
                             &start.implementation,
                         )
                     })

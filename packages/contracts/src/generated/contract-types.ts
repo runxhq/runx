@@ -2640,14 +2640,14 @@ export type RunContextContract = {
 export type RunDriverContract = "attached" | "managed";
 
 export type RunEventFactContract = {
-  /** What started it: the source-tree digest each of its binaries reports. Absent for a run an earlier runx started. */
-  readonly implementation?: RunImplementationContract;
+  /** What started it: the source-tree digest each of its binaries reports. */
+  readonly implementation: RunImplementationContract;
   readonly kind: "started";
   readonly method: string;
   readonly skill: string;
 } | {
-  /** What started it, decided from the child's own method. Absent for a child an earlier runx started. */
-  readonly implementation?: RunImplementationContract;
+  /** What started it, decided from the child's own method. */
+  readonly implementation: RunImplementationContract;
   readonly kind: "child_started";
   readonly parent: string;
   readonly skill: string;

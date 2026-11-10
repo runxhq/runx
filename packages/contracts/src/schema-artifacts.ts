@@ -7992,7 +7992,7 @@ export const runxSchemaArtifacts = {
             "properties": {
               "implementation": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
-                "description": "What started it: the source-tree digest each of its binaries reports. Absent for a run an earlier runx started."
+                "description": "What started it: the source-tree digest each of its binaries reports."
               },
               "kind": {
                 "const": "started",
@@ -8010,7 +8010,8 @@ export const runxSchemaArtifacts = {
             "required": [
               "kind",
               "skill",
-              "method"
+              "method",
+              "implementation"
             ],
             "type": "object"
           },
@@ -8019,7 +8020,7 @@ export const runxSchemaArtifacts = {
             "properties": {
               "implementation": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunImplementation",
-                "description": "What started it, decided from the child's own method. Absent for a child an earlier runx started."
+                "description": "What started it, decided from the child's own method."
               },
               "kind": {
                 "const": "child_started",
@@ -8042,7 +8043,8 @@ export const runxSchemaArtifacts = {
               "kind",
               "parent",
               "step_id",
-              "skill"
+              "skill",
+              "implementation"
             ],
             "type": "object"
           },

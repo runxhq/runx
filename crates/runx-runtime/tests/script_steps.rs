@@ -1093,10 +1093,10 @@ fn a_run_records_the_implementation_that_started_it() -> TestResult {
     let runtime = runx_contracts::schema::NonEmptyString::from(env!("RUNX_RUNTIME_SOURCE_DIGEST"));
     assert_eq!(
         started_implementation(temp.path(), run_id)?,
-        Some(runx_contracts::RunImplementation {
+        runx_contracts::RunImplementation {
             runtime: runtime.clone(),
             worker: Some(env!("RUNX_JS_WORKER_SOURCE_DIGEST").into()),
-        })
+        }
     );
     let child = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), run_id, None)?
         .events
@@ -1108,10 +1108,10 @@ fn a_run_records_the_implementation_that_started_it() -> TestResult {
         .ok_or("the child started")?;
     assert_eq!(
         child,
-        Some(runx_contracts::RunImplementation {
+        runx_contracts::RunImplementation {
             runtime,
             worker: None,
-        })
+        }
     );
     Ok(())
 }
@@ -1120,7 +1120,7 @@ fn a_run_records_the_implementation_that_started_it() -> TestResult {
 fn started_implementation(
     root: &Path,
     run_id: &str,
-) -> TestResult<Option<runx_contracts::RunImplementation>> {
+) -> TestResult<runx_contracts::RunImplementation> {
     let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
     Ok(read
         .events
@@ -1222,7 +1222,7 @@ fn a_run_that_runs_no_javascript_records_no_worker_and_resumes_under_another() -
     let paused = run(temp.path(), temp.path().join("confirm-child"))?;
     assert_eq!(requests(&paused)?, ["confirm"], "{:?}", paused.output);
     let run_id = text(object(&paused.output)?, "run_id").ok_or("missing run_id")?;
-    let recorded = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    let recorded = started_implementation(temp.path(), run_id)?;
     assert_eq!(recorded.worker, None);
 
     let worker = write_worker_reporting(temp.path(), "sha256:other")?;
@@ -1270,7 +1270,7 @@ fn a_javascript_run_starts_one_worker_process_and_records_it() -> TestResult {
         "one worker learned the digest and ran the tool"
     );
     let run_id = text(output, "run_id").ok_or("missing run_id")?;
-    let recorded = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    let recorded = started_implementation(temp.path(), run_id)?;
     assert_eq!(
         recorded.worker.as_deref(),
         Some(env!("RUNX_JS_WORKER_SOURCE_DIGEST"))
@@ -1335,7 +1335,7 @@ fn a_resume_under_a_worker_that_reports_other_sources_is_refused() -> TestResult
         paused.output
     );
     let run_id = text(object(&paused.output)?, "run_id").ok_or("missing run_id")?;
-    let started = started_implementation(temp.path(), run_id)?.ok_or("no implementation")?;
+    let started = started_implementation(temp.path(), run_id)?;
     let recorded = started.worker.ok_or("the run records its worker")?;
 
     let worker = write_worker_reporting(temp.path(), "sha256:other")?;

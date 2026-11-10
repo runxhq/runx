@@ -134,10 +134,8 @@ pub(crate) struct Started {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purchase: Option<String>,
     /// What started it: the source-tree digest each of its binaries reports.
-    /// A resume under another is refused. Absent for a run an earlier runx
-    /// started.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub implementation: Option<runx_contracts::RunImplementation>,
+    /// A resume under another is refused.
+    pub implementation: runx_contracts::RunImplementation,
     pub created_at: String,
 }
 
@@ -152,10 +150,8 @@ pub(crate) struct ChildStarted {
     /// The act the parent's step gave the child, read as its `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<CallAct>,
-    /// What started it, decided from its own method. Absent for a child an
-    /// earlier runx started.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub implementation: Option<runx_contracts::RunImplementation>,
+    /// What started it, decided from its own method.
+    pub implementation: runx_contracts::RunImplementation,
     pub created_at: String,
 }
 
@@ -1169,7 +1165,7 @@ impl RunLog {
             driver: started.driver,
             prepared: started.prepared.cloned(),
             purchase: started.purchase.map(str::to_owned),
-            implementation: Some(started.implementation.clone()),
+            implementation: started.implementation.clone(),
             created_at: started.created_at.to_owned(),
         };
         let mut blobs = vec![inputs];
@@ -1231,9 +1227,7 @@ impl RunLog {
                 return Err(self.mismatch("act"));
             }
             if let Some(reason) = must_match
-                .then(|| {
-                    crate::implementation::refusal(recorded.implementation.as_ref(), implementation)
-                })
+                .then(|| crate::implementation::refusal(&recorded.implementation, implementation))
                 .flatten()
             {
                 return Err(RunRecordError::Implementation {
@@ -1249,7 +1243,7 @@ impl RunLog {
             skill: skill.to_owned(),
             inputs: inputs.digest().to_owned(),
             act: act.cloned(),
-            implementation: Some(implementation.clone()),
+            implementation: implementation.clone(),
             created_at: created_at.to_owned(),
         };
         self.append_first(RunEvent::ChildStarted(Box::new(event)), vec![inputs])?;

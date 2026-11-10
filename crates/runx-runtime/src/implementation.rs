@@ -112,26 +112,18 @@ pub(crate) fn expected_worker() -> Option<&'static str> {
 
 /// Why a run started under `started` can't go on under `current`: a run
 /// resumes only under the implementation that started it.
-pub(crate) fn refusal(
-    started: Option<&RunImplementation>,
-    current: &RunImplementation,
-) -> Option<String> {
+pub(crate) fn refusal(started: &RunImplementation, current: &RunImplementation) -> Option<String> {
     let describe = |implementation: &RunImplementation| match &implementation.worker {
         Some(worker) => format!("runtime {}, worker {worker}", implementation.runtime),
         None => format!("runtime {}, no worker", implementation.runtime),
     };
-    match started {
-        Some(started) if started == current => None,
-        Some(started) => Some(format!(
+    (started != current).then(|| {
+        format!(
             "the run was started by {} and this runx is {}; a run resumes only under the implementation that started it",
             describe(started),
             describe(current)
-        )),
-        None => Some(format!(
-            "the run was started before runx recorded its implementation; finish it with the runx that started it (this runx is {})",
-            describe(current)
-        )),
-    }
+        )
+    })
 }
 
 #[cfg(test)]
@@ -213,20 +205,15 @@ mod tests {
     #[test]
     fn a_resume_under_another_implementation_names_both() {
         let now = implementation(Some("sha256:worker".into()));
-        assert_eq!(refusal(Some(&now), &now), None);
+        assert_eq!(refusal(&now, &now), None);
         let earlier = RunImplementation {
             runtime: "sha256:earlier".into(),
             worker: now.worker.clone(),
         };
-        let refused = refusal(Some(&earlier), &now).unwrap_or_default();
+        let refused = refusal(&earlier, &now).unwrap_or_default();
         assert!(
             refused.contains("runtime sha256:earlier") && refused.contains(now.runtime.as_str()),
             "{refused}"
-        );
-        let older = refusal(None, &now).unwrap_or_default();
-        assert!(
-            older.contains("started before runx recorded its implementation; finish it with the runx that started it"),
-            "a run that records none says what to do: {older}"
         );
     }
 }
