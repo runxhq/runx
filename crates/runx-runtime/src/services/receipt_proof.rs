@@ -43,7 +43,7 @@ impl ProofProjection {
         store_label: &crate::ReceiptStoreLabel,
         policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<(), RuntimeError> {
-        let tree = match load_verified_tree(store, receipt_id, policy) {
+        let tree = match load_verified_tree(store, receipt_id, None, policy) {
             Ok(tree) => tree,
             Err(error) => {
                 store_finding(&mut self.findings, receipt_id, &error, store_label);

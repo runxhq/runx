@@ -12,19 +12,14 @@ mod test_support;
 
 use std::collections::BTreeSet;
 
-use runx_contracts::{Receipt, Reference};
+use runx_contracts::{MAX_RECEIPT_TREE_DEPTH, MAX_RECEIPT_TREE_RECEIPTS, Receipt, Reference};
 
 use crate::{ReceiptProofContext, ReceiptVerification, verify_receipt_proof};
 use findings::{duplicate_child_findings, orphan_child_findings};
 use proof::{ChildProofPolicy, child_receipt_proof_findings};
 use traversal::TreeTraversal;
 
-pub use groups::{ReceiptTreeGroup, group_receipt_trees};
-
-/// How many levels a receipt tree may hold below its root.
-pub const MAX_RECEIPT_TREE_DEPTH: usize = 64;
-/// How many receipts a receipt tree may hold, its root included.
-pub const MAX_RECEIPT_TREE_RECEIPTS: usize = 1024;
+pub use groups::{ReceiptLinks, ReceiptTreeGroup, group_receipt_trees};
 
 /// The one rule every verifier of a runx receipt tree applies: a root and
 /// its descendants, each committed once by its parent's signed lineage, at
@@ -51,9 +46,20 @@ pub fn receipt_edge_references(receipt: &Receipt) -> impl Iterator<Item = &Refer
     receipt.lineage.children.iter()
 }
 
+/// Where a verifier finds the children a tree's lineage names. A child is
+/// needed only while its subtree is walked, so a resolver may lend a
+/// receipt it holds or one it reads for that walk alone: the walk then
+/// holds the path from the root to the receipt it is at, never the tree.
 pub trait ReceiptResolver {
-    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a>;
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>>;
+    /// A resolved child, kept for the walk of its subtree and dropped after.
+    type Child<'a>: std::ops::Deref<Target = Receipt>
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<Self::Child<'a>>;
+    /// The receipts handed in beside the root, each verified once up front;
+    /// a resolver that reads children as they are named supplies none.
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>>;
 }
 
 pub trait ReceiptProofContextProvider {
@@ -61,14 +67,14 @@ pub trait ReceiptProofContextProvider {
 }
 
 #[derive(Clone, Debug)]
-pub struct ResolvedReceipt<'a> {
+pub struct ResolvedReceipt<R> {
     pub path: String,
-    pub receipt: &'a Receipt,
+    pub receipt: R,
 }
 
 #[derive(Clone, Debug)]
-pub enum ReceiptResolveResult<'a> {
-    Found(ResolvedReceipt<'a>),
+pub enum ReceiptResolveResult<R> {
+    Found(ResolvedReceipt<R>),
     Missing,
     Malformed,
     Ambiguous,

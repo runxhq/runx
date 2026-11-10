@@ -1,99 +1,67 @@
-use std::collections::BTreeSet;
+use std::cell::RefCell;
 
-use runx_contracts::{JsonObject, JsonValue, Receipt, ReferenceType};
-use runx_receipts::receipt_edge_references;
+use runx_contracts::{JsonObject, JsonValue, Receipt};
 
 use crate::receipts::RuntimeReceiptSignaturePolicy;
 use crate::receipts::store::{LocalReceiptStore, ReceiptStoreError};
 
 pub(crate) struct LoadedReceiptTree {
     pub(crate) root: Receipt,
-    pub(crate) children: Vec<Receipt>,
+    /// The one receipt of the tree the caller asked to keep, as the walk
+    /// read it.
+    pub(crate) kept: Option<Receipt>,
     pub(crate) receipt_count: usize,
     pub(crate) verification: runx_receipts::ReceiptVerification,
     pub(crate) findings: Vec<JsonValue>,
 }
 
-/// The shared native proof owner: load only this root's signed descendants,
-/// then apply the normal tree and signature policy once.
+/// The shared native proof owner: read only this root's signed descendants,
+/// each as the walk reaches it, and apply the normal tree and signature
+/// policy once. The walk holds the path it is on, never the tree, and keeps
+/// the receipt `keep` names when it reads it.
 pub(crate) fn load_verified_tree(
     store: &LocalReceiptStore,
     receipt_id: &str,
+    keep: Option<&str>,
     policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<LoadedReceiptTree, ReceiptStoreError> {
     let root = store.read_exact(receipt_id, policy)?;
-    let (children, mut findings) = load_children(store, &root, policy);
-    let receipt_count = children.len() + 1;
-    let verification = crate::receipts::tree::verify_runtime_receipt_tree_refs(
+    let findings = RefCell::new(Vec::new());
+    let kept = RefCell::new(None);
+    let read = crate::receipts::tree::verify_runtime_receipt_tree_reading(
         &root,
-        &children,
-        crate::ReceiptTreeConfig::default(),
+        |child_id| match store.read_exact(child_id, policy) {
+            Ok(receipt) => {
+                if keep == Some(child_id) {
+                    *kept.borrow_mut() = Some(receipt.clone());
+                }
+                Some(receipt)
+            }
+            Err(error) => {
+                finding(
+                    &mut findings.borrow_mut(),
+                    "receipt.tree.child_unreadable",
+                    format!(
+                        "child receipt {child_id} could not be verified: {}",
+                        public_error(&error)
+                    ),
+                );
+                None
+            }
+        },
         policy,
     );
-    findings.extend(super::projection::tree_findings(&verification.findings));
+    let mut findings = findings.into_inner();
+    findings.extend(super::projection::tree_findings(
+        &read.verification.findings,
+    ));
     Ok(LoadedReceiptTree {
         root,
-        children,
-        receipt_count,
-        verification,
+        kept: kept.into_inner(),
+        receipt_count: read.receipt_count,
+        verification: read.verification,
         findings,
     })
-}
-
-pub(super) fn load_children(
-    store: &LocalReceiptStore,
-    root: &Receipt,
-    policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> (Vec<Receipt>, Vec<JsonValue>) {
-    let mut children = Vec::new();
-    let mut findings = Vec::new();
-    let mut seen = BTreeSet::new();
-    let mut pending = receipt_edge_references(root).cloned().collect::<Vec<_>>();
-    while let Some(reference) = pending.pop() {
-        // A tree holds its root and at most this many descendants.
-        if children.len() + 1 >= runx_receipts::MAX_RECEIPT_TREE_RECEIPTS {
-            finding(
-                &mut findings,
-                "receipt.tree.limit",
-                "the receipt tree exceeds the receipts a tree may hold",
-            );
-            break;
-        }
-        if reference.reference_type != ReferenceType::Receipt {
-            finding(
-                &mut findings,
-                "receipt.tree.reference",
-                "child reference is not a typed receipt reference",
-            );
-            continue;
-        }
-        let Some(receipt_id) = reference.uri.strip_prefix("runx:receipt:") else {
-            finding(
-                &mut findings,
-                "receipt.tree.reference",
-                "child receipt reference has an invalid URI",
-            );
-            continue;
-        };
-        if !seen.insert(receipt_id.to_owned()) {
-            continue;
-        }
-        match store.read_exact(receipt_id, policy) {
-            Ok(receipt) => {
-                pending.extend(receipt_edge_references(&receipt).cloned());
-                children.push(receipt);
-            }
-            Err(error) => finding(
-                &mut findings,
-                "receipt.tree.child_unreadable",
-                format!(
-                    "child receipt {receipt_id} could not be verified: {}",
-                    public_error(&error)
-                ),
-            ),
-        }
-    }
-    (children, findings)
 }
 
 pub(super) fn store_finding(

@@ -18,6 +18,10 @@ runArtifacts(check ? ["--out", schemasDir, "--check"] : ["--out", schemasDir], "
 const declared = JSON.parse(runArtifacts(["--types"], "pipe")) as {
   readonly artifacts: Record<string, string>;
   readonly types: Record<string, Record<string, unknown>>;
+  readonly receiptTree: {
+    readonly maxReceipts: number;
+    readonly maxDepth: number;
+  };
   readonly x402: {
     readonly protocolVersion: number;
     readonly upstreamPackage: string;
@@ -96,6 +100,9 @@ function renderSchemaArtifactsSource(sourceDir: string): string {
     `import type { JsonSchema } from "./internal.js";`,
     "",
     `export const runxX402Metadata = ${JSON.stringify(declared.x402, null, 2)} as const;`,
+    "",
+    "/** The receipt tree bounds runx-contracts states. */",
+    `export const runxReceiptTreeLimits = ${JSON.stringify(declared.receiptTree, null, 2)} as const;`,
     "",
     "export const runxSchemaArtifacts = {",
     artifactEntries.join(",\n"),

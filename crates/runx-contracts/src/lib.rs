@@ -185,7 +185,8 @@ pub use purchase::{
     RUNX_BALANCE_SETTLEMENT_FAMILY, SettlementFamilies, SettlementFamily,
 };
 pub use receipt::{
-    Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct, ReceiptAuthority,
+    Lineage, MAX_RECEIPT_TREE_DEPTH, MAX_RECEIPT_TREE_RECEIPTS, RECEIPT_CANONICALIZATION,
+    RECEIPT_SCHEMA, RECEIPTS_PER_SKILL_CALL, Receipt, ReceiptAct, ReceiptAuthority,
     ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,
     ReceiptSignature, RunOutcome, Seal, SealReason, SignatureAlgorithm, Subject, SubjectKind,
 };

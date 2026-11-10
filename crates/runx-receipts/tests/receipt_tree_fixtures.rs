@@ -124,7 +124,12 @@ struct FixtureResolver<'a> {
 }
 
 impl ReceiptResolver for FixtureResolver<'_> {
-    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         let Some(receipt_id) = referenced_receipt_id(reference) else {
             return ReceiptResolveResult::Malformed;
         };
@@ -152,7 +157,7 @@ impl ReceiptResolver for FixtureResolver<'_> {
         })
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         self.children
             .iter()
             .enumerate()

@@ -13,6 +13,7 @@ import type {
   SealContract,
   SubjectContract,
 } from "../generated/contract-types.js";
+import { runxReceiptTreeLimits } from "../schema-artifacts.js";
 
 /**
  * runx.receipt.v1 — the single signed governance receipt.
@@ -58,8 +59,12 @@ export function validateReceiptContract(value: unknown, label = "receipt"): Rece
 
 /**
  * The one rule every verifier of a runx receipt tree applies, as
- * runx-receipts states it: a root and its descendants, each committed once by
- * its parent's signed lineage, at most this many receipts (the root included)
- * and this many levels below the root.
+ * runx-contracts states it: a root and its descendants, each committed once
+ * by its parent's signed lineage, at most this many receipts (the root
+ * included) and this many levels below the root. The receipt bound follows
+ * the kernel's script call ceiling.
  */
-export const RECEIPT_TREE_LIMITS = Object.freeze({ maxReceipts: 1024, maxDepth: 64 });
+export const RECEIPT_TREE_LIMITS = Object.freeze({
+  maxReceipts: runxReceiptTreeLimits.maxReceipts,
+  maxDepth: runxReceiptTreeLimits.maxDepth,
+});

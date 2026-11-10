@@ -10,6 +10,12 @@ export const runxX402Metadata = {
   "upstreamPackageVersion": "2.29.0"
 } as const;
 
+/** The receipt tree bounds runx-contracts states. */
+export const runxReceiptTreeLimits = {
+  "maxDepth": 64,
+  "maxReceipts": 30002
+} as const;
+
 export const runxSchemaArtifacts = {
   "agent-act-invocation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",

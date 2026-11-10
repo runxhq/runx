@@ -76,7 +76,7 @@ impl<R: ReceiptResolver, P: ReceiptProofContextProvider> TreeTraversal<'_, R, P>
             ReceiptResolveResult::Ambiguous => return vec![ambiguous_child(path)],
             ReceiptResolveResult::ResolverError => return vec![resolver_error(path)],
         };
-        let child = resolved.receipt;
+        let child = &*resolved.receipt;
         if self.visiting.contains(child.id.as_str()) {
             return vec![ReceiptFinding {
                 code: ReceiptFindingCode::ChildReceiptCycle,

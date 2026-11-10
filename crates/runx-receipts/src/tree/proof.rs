@@ -7,7 +7,7 @@ use crate::tree::findings::{child_digest_link_findings, child_finding};
 use crate::{ReceiptFinding, verify_receipt_proof};
 
 pub(super) fn child_receipt_proof_findings(
-    children: &[ResolvedReceipt<'_>],
+    children: &[ResolvedReceipt<&Receipt>],
     proof_contexts: &impl ReceiptProofContextProvider,
 ) -> Vec<ReceiptFinding> {
     children
@@ -24,17 +24,20 @@ pub(super) fn child_receipt_proof_findings(
 }
 
 /// What a child edge must prove: the parent's ref carries the child's exact
-/// digest, and the child, once, its own proof.
+/// digest, and the child its own proof. A supplied receipt was verified up
+/// front, so it is not verified again; a receipt the resolver lends for one
+/// walk is verified each time it is lent, since a later one may sit where it
+/// sat.
 pub(super) struct ChildProofPolicy<'a, P: ReceiptProofContextProvider> {
     proof_contexts: &'a P,
-    verified_receipts: BTreeSet<usize>,
+    supplied_receipts: BTreeSet<usize>,
 }
 
 impl<'a, P: ReceiptProofContextProvider> ChildProofPolicy<'a, P> {
-    pub(super) fn new(supplied: &[ResolvedReceipt<'_>], proof_contexts: &'a P) -> Self {
+    pub(super) fn new(supplied: &[ResolvedReceipt<&Receipt>], proof_contexts: &'a P) -> Self {
         Self {
             proof_contexts,
-            verified_receipts: supplied
+            supplied_receipts: supplied
                 .iter()
                 .map(|child| receipt_address(child.receipt))
                 .collect(),
@@ -48,7 +51,7 @@ impl<'a, P: ReceiptProofContextProvider> ChildProofPolicy<'a, P> {
         receipt: &Receipt,
     ) -> Vec<ReceiptFinding> {
         let mut findings = child_digest_link_findings(path, reference, receipt);
-        if !self.verified_receipts.insert(receipt_address(receipt)) {
+        if self.supplied_receipts.contains(&receipt_address(receipt)) {
             return findings;
         }
         let context = self.proof_contexts.proof_context(receipt);

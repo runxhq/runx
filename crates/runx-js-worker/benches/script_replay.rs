@@ -184,7 +184,7 @@ fn unmeasured(error: &dyn std::error::Error) -> Duration {
 fn script_replay(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("script_replay");
     group.sample_size(10);
-    let ceiling = runx_parser::MAX_SCRIPT_CALLS;
+    let ceiling = runx_contracts::javascript_worker::MAX_SCRIPT_CALLS;
     let drives: [(&str, Drive, u32); 4] = [
         ("replayed", replayed, BATCH),
         ("live", live, BATCH),

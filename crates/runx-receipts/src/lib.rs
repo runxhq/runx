@@ -24,9 +24,9 @@ pub use runx_contracts::{
     ReceiptSchema, ReceiptSignature, Seal, SignatureAlgorithm,
 };
 pub use tree::{
-    MAX_RECEIPT_TREE_DEPTH, MAX_RECEIPT_TREE_RECEIPTS, ReceiptProofContextProvider,
-    ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig, ReceiptTreeGroup, ResolvedReceipt,
-    group_receipt_trees, receipt_edge_references, verify_receipt_tree_proof_with_resolver,
+    ReceiptLinks, ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver,
+    ReceiptTreeConfig, ReceiptTreeGroup, ResolvedReceipt, group_receipt_trees,
+    receipt_edge_references, verify_receipt_tree_proof_with_resolver,
 };
 pub use verify::{
     ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptProofContext, ReceiptVerification,

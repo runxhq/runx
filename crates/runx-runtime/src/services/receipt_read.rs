@@ -29,6 +29,7 @@ pub(crate) fn read_receipt_claim(
     let tree = load_verified_tree(
         context.store(),
         root_receipt_id.unwrap_or(receipt_id),
+        Some(receipt_id),
         context.signature_policy(),
     )
     .map_err(|error| invalid(error.public_message(&context.resolved().label)))?;
@@ -38,17 +39,14 @@ pub(crate) fn read_receipt_claim(
         ));
     }
     let original_root = root_receipt_id.map(|_| tree.root.id.to_string().into());
-    // The verified load contains only signed descendants. Do not look up an
+    // The verified load reads only signed descendants. Do not look up an
     // unrelated selected id, even if another valid receipt exists in the store.
     let receipt = if tree.root.id.as_str() == receipt_id {
         tree.root
     } else {
-        tree.children
-            .into_iter()
-            .find(|receipt| receipt.id.as_str() == receipt_id)
-            .ok_or_else(|| {
-                invalid("the selected receipt does not belong to the original receipt tree")
-            })?
+        tree.kept.ok_or_else(|| {
+            invalid("the selected receipt does not belong to the original receipt tree")
+        })?
     };
     let mut output = ReceiptRead {
         schema: ReceiptReadSchema::V1,

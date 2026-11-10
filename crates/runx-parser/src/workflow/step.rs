@@ -21,6 +21,7 @@ use super::types::{
 use crate::ValidationError;
 use crate::skill::OutputArtifacts;
 use runx_contracts::connector::{OperationName, is_connector_name, is_operation_name};
+use runx_contracts::javascript_worker::MAX_SCRIPT_CALLS;
 
 /// The six step kinds; a step declares exactly one.
 const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill", "script"];
@@ -37,16 +38,6 @@ const SCRIPT_CALLS_FIELDS: &[&str] = &["tools", "operations", "skills"];
 
 /// What `script` takes.
 const SCRIPT_FIELDS: &[&str] = &["module", "export"];
-
-/// The most calls one script step may make: the kernel's ceiling over every
-/// `max_calls`. Set from what recovery costs, since recovery replays a
-/// step's whole record in one pass of the worker (the worker's
-/// `script_replay` bench, 9 November 2026): replay is linear, about 3 to
-/// 4 µs a recorded call, so a record at this ceiling replays in about 30 ms,
-/// under 2% of the 2 s a pass may take by default. The pass's frame binds first:
-/// at this ceiling a call's result averages at most about 1 KiB inline in the
-/// worker's 10 MiB frame.
-pub const MAX_SCRIPT_CALLS: u32 = 10_000;
 
 /// What an agent step's `context` gives it.
 const CONTEXT_FIELDS: &[&str] = &["skills", "kinds", "entries"];

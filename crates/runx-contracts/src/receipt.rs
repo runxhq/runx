@@ -46,6 +46,21 @@ impl ReceiptCanonicalization {
 /// The canonicalization's wire name, for contracts that name it.
 pub const RECEIPT_CANONICALIZATION: &str = ReceiptCanonicalization::C14nV1.as_str();
 
+/// What one script call to a skill adds to its root's receipt tree: the
+/// call's own receipt, the workflow receipt of the child run it started, and
+/// the receipt of that run's one step.
+pub const RECEIPTS_PER_SKILL_CALL: usize = 3;
+
+/// How many levels a receipt tree may hold below its root.
+pub const MAX_RECEIPT_TREE_DEPTH: usize = 64;
+
+/// How many receipts a receipt tree may hold, its root included: enough that
+/// a run whose one step is a script making the kernel's ceiling of skill
+/// calls seals at depth 1, so the bound follows that ceiling. It is each
+/// call's receipts times the ceiling, plus the root and its script step.
+pub const MAX_RECEIPT_TREE_RECEIPTS: usize =
+    RECEIPTS_PER_SKILL_CALL * crate::javascript_worker::MAX_SCRIPT_CALLS as usize + 2;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum ReceiptSchema {
     #[serde(rename = "runx.receipt.v1")]

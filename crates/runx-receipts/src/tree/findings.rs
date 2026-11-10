@@ -5,7 +5,9 @@ use runx_contracts::{Receipt, Reference, ReferenceType};
 use super::ResolvedReceipt;
 use crate::{ReceiptFinding, ReceiptFindingCode};
 
-pub(super) fn duplicate_child_findings(children: &[ResolvedReceipt<'_>]) -> Vec<ReceiptFinding> {
+pub(super) fn duplicate_child_findings(
+    children: &[ResolvedReceipt<&Receipt>],
+) -> Vec<ReceiptFinding> {
     let mut seen = BTreeMap::new();
     children
         .iter()
@@ -27,7 +29,7 @@ pub(super) fn duplicate_child_findings(children: &[ResolvedReceipt<'_>]) -> Vec<
 }
 
 pub(super) fn orphan_child_findings(
-    children: &[ResolvedReceipt<'_>],
+    children: &[ResolvedReceipt<&Receipt>],
     reached: &std::collections::BTreeSet<String>,
 ) -> Vec<ReceiptFinding> {
     children

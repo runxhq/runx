@@ -1183,9 +1183,13 @@ Workflow receipt lineage is an immutable one-way tree. The parent commits each
 child receipt ID and exact signed-body digest; a child never names its parent,
 so receipt identity stays content-addressed. Every verifier applies one rule to
 a tree: each receipt is committed once by its parent, and a tree holds at most
-1024 receipts and 64 levels below its root. A receipt two parents commit is
-refused, and two different signed bodies under the same receipt ID are
-ambiguous and fail verification.
+30,002 receipts and 64 levels below its root. The bound follows the kernel's
+ceiling of 10,000 calls a script step may make: three receipts for each such
+skill call (its own, its child run's and that run's step), plus the root and
+its script step. A verifier reads a tree's receipts as it walks it, keeping
+only the path it is on. A receipt two parents commit is refused, and two
+different signed bodies under the same receipt ID are ambiguous and fail
+verification.
 
 Native `receipt.prove` and `receipt.query` expose redacted metadata and tree
 verification. `receipt.read` additionally requires `receipt.claim.read` and

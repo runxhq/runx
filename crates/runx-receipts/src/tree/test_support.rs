@@ -1,3 +1,6 @@
+use std::cell::Cell;
+use std::collections::BTreeMap;
+
 use runx_contracts::{Receipt, Reference, ReferenceType};
 use serde::Deserialize;
 
@@ -6,7 +9,11 @@ use super::{
     ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig,
     ResolvedReceipt, verify_receipt_tree_proof_with_resolver,
 };
-use crate::{ReceiptFindingCode, ReceiptProofContext, ReceiptVerification};
+use crate::{
+    ReceiptError, ReceiptFindingCode, ReceiptProofContext, ReceiptVerification,
+    SignatureVerificationFailure, SignatureVerifier, canonical_receipt_body_digest,
+    content_addressed_receipt_id,
+};
 
 #[path = "../../tests/fixture_key.rs"]
 mod fixture_key;
@@ -125,6 +132,50 @@ pub(super) fn verify_tree_with(
     )
 }
 
+/// Give `receipt` the content address and digest of what it now reads,
+/// leaving its signature as it was: for a walk that trusts every signature.
+pub(super) fn address(receipt: &mut Receipt) -> Result<(), ReceiptError> {
+    receipt.id = content_addressed_receipt_id(receipt)?.into();
+    receipt.digest = canonical_receipt_body_digest(receipt)?.into();
+    Ok(())
+}
+
+/// Verify the tree `root` heads through `resolver` under the default tree
+/// rule, trusting every signature: the tests above prove signatures, and a
+/// test of the walk itself need not pay for them.
+pub(super) fn verify_tree_trusting_signatures(
+    root: &Receipt,
+    resolver: &impl ReceiptResolver,
+) -> ReceiptVerification {
+    verify_receipt_tree_proof_with_resolver(
+        root,
+        resolver,
+        ReceiptTreeConfig::default(),
+        &TrustingProofContexts,
+    )
+}
+
+struct TrustingProofContexts;
+
+impl SignatureVerifier for TrustingProofContexts {
+    fn verify(
+        &self,
+        _issuer: &runx_contracts::ReceiptIssuer,
+        _signature: &runx_contracts::ReceiptSignature,
+        _body_digest: &str,
+    ) -> Result<(), SignatureVerificationFailure> {
+        Ok(())
+    }
+}
+
+impl ReceiptProofContextProvider for TrustingProofContexts {
+    fn proof_context<'a>(&'a self, _receipt: &Receipt) -> ReceiptProofContext<'a> {
+        ReceiptProofContext {
+            signature_verifier: Some(self),
+        }
+    }
+}
+
 pub(super) fn assert_finding(
     verification: &ReceiptVerification,
     code: ReceiptFindingCode,
@@ -168,7 +219,12 @@ pub(super) struct FixtureResolver<'a> {
 }
 
 impl ReceiptResolver for FixtureResolver<'_> {
-    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         let Some(receipt_id) = referenced_receipt_id(reference) else {
             return ReceiptResolveResult::Malformed;
         };
@@ -189,7 +245,7 @@ impl ReceiptResolver for FixtureResolver<'_> {
         })
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         self.children
             .iter()
             .enumerate()
@@ -204,11 +260,16 @@ impl ReceiptResolver for FixtureResolver<'_> {
 pub(super) struct AmbiguousResolver;
 
 impl ReceiptResolver for AmbiguousResolver {
-    fn resolve_child<'a>(&'a self, _reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, _reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         ReceiptResolveResult::Ambiguous
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         Vec::new()
     }
 }
@@ -216,11 +277,16 @@ impl ReceiptResolver for AmbiguousResolver {
 pub(super) struct ResolverErrorResolver;
 
 impl ReceiptResolver for ResolverErrorResolver {
-    fn resolve_child<'a>(&'a self, _reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, _reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         ReceiptResolveResult::ResolverError
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         Vec::new()
     }
 }
@@ -230,14 +296,19 @@ pub(super) struct HiddenChildResolver<'a> {
 }
 
 impl ReceiptResolver for HiddenChildResolver<'_> {
-    fn resolve_child<'a>(&'a self, _reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, _reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         ReceiptResolveResult::Found(ResolvedReceipt {
             path: "hidden_child".to_owned(),
             receipt: self.child,
         })
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         Vec::new()
     }
 }
@@ -248,7 +319,12 @@ pub(super) struct DuplicateIdResolver<'a> {
 }
 
 impl ReceiptResolver for DuplicateIdResolver<'_> {
-    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         if reference.uri.ends_with(":first") {
             return ReceiptResolveResult::Found(ResolvedReceipt {
                 path: "hidden_first".to_owned(),
@@ -261,7 +337,85 @@ impl ReceiptResolver for DuplicateIdResolver<'_> {
         })
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
+        Vec::new()
+    }
+}
+
+/// A store's resolver: it reads a receipt only when a ref names it, as a
+/// copy lent for the walk of that receipt's subtree. It counts the copies it
+/// has lent and not had back, and the most it ever had out.
+pub(super) struct ReadingResolver {
+    stored: BTreeMap<String, Receipt>,
+    out: Cell<usize>,
+    pub(super) most_out: Cell<usize>,
+    pub(super) reads: Cell<usize>,
+}
+
+impl ReadingResolver {
+    pub(super) fn storing(receipts: Vec<Receipt>) -> Self {
+        Self {
+            stored: receipts
+                .into_iter()
+                .map(|receipt| (receipt.id.to_string(), receipt))
+                .collect(),
+            out: Cell::new(0),
+            most_out: Cell::new(0),
+            reads: Cell::new(0),
+        }
+    }
+
+    pub(super) fn out(&self) -> usize {
+        self.out.get()
+    }
+}
+
+/// A receipt read for one walk; dropping it hands it back.
+pub(super) struct Lent<'a> {
+    receipt: Receipt,
+    out: &'a Cell<usize>,
+}
+
+impl std::ops::Deref for Lent<'_> {
+    type Target = Receipt;
+
+    fn deref(&self) -> &Receipt {
+        &self.receipt
+    }
+}
+
+impl Drop for Lent<'_> {
+    fn drop(&mut self) {
+        self.out.set(self.out.get() - 1);
+    }
+}
+
+impl ReceiptResolver for ReadingResolver {
+    type Child<'a>
+        = Lent<'a>
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<Lent<'a>> {
+        let Some(receipt_id) = referenced_receipt_id(reference) else {
+            return ReceiptResolveResult::Malformed;
+        };
+        let Some(stored) = self.stored.get(receipt_id) else {
+            return ReceiptResolveResult::Missing;
+        };
+        self.reads.set(self.reads.get() + 1);
+        self.out.set(self.out.get() + 1);
+        self.most_out.set(self.most_out.get().max(self.out.get()));
+        ReceiptResolveResult::Found(ResolvedReceipt {
+            path: format!("store[{receipt_id}]"),
+            receipt: Lent {
+                receipt: stored.clone(),
+                out: &self.out,
+            },
+        })
+    }
+
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         Vec::new()
     }
 }

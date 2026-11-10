@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use runx_contracts::{Receipt, Reference, ReferenceType};
@@ -31,7 +32,12 @@ impl RuntimeReceiptResolver {
 }
 
 impl ReceiptResolver for RuntimeReceiptResolver {
-    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         let Some(receipt_id) = referenced_receipt_id(reference) else {
             return ReceiptResolveResult::Malformed;
         };
@@ -50,7 +56,7 @@ impl ReceiptResolver for RuntimeReceiptResolver {
         })
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         self.receipts
             .iter()
             .enumerate()
@@ -83,7 +89,12 @@ impl<'a> RuntimeReceiptRefResolver<'a> {
 }
 
 impl ReceiptResolver for RuntimeReceiptRefResolver<'_> {
-    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a> {
+    type Child<'a>
+        = &'a Receipt
+    where
+        Self: 'a;
+
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<&'a Receipt> {
         let Some(receipt_id) = referenced_receipt_id(reference) else {
             return ReceiptResolveResult::Malformed;
         };
@@ -102,9 +113,10 @@ impl ReceiptResolver for RuntimeReceiptRefResolver<'_> {
         })
     }
 
-    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
         self.receipts
             .iter()
+            .copied()
             .enumerate()
             .map(|(index, receipt)| ResolvedReceipt {
                 path: runtime_receipt_path(index),
@@ -163,6 +175,70 @@ pub(crate) fn verify_runtime_receipt_tree_refs<'a>(
     let resolver = RuntimeReceiptRefResolver::new(receipts);
     let proof_contexts = RuntimeReceiptProofContextProvider::new(signature_policy);
     verify_receipt_tree_proof_with_resolver(root, &resolver, config, &proof_contexts)
+}
+
+/// A store's children, each read only when a ref names it and lent for the
+/// walk of its subtree, so verifying a tree holds the path the walk is on,
+/// never the tree.
+struct ReadingReceiptResolver<F> {
+    read: F,
+    reads: Cell<usize>,
+}
+
+impl<F: Fn(&str) -> Option<Receipt>> ReceiptResolver for ReadingReceiptResolver<F> {
+    type Child<'a>
+        = Box<Receipt>
+    where
+        Self: 'a;
+
+    fn resolve_child(&self, reference: &Reference) -> ReceiptResolveResult<Box<Receipt>> {
+        let Some(receipt_id) = referenced_receipt_id(reference) else {
+            return ReceiptResolveResult::Malformed;
+        };
+        let Some(receipt) = (self.read)(receipt_id) else {
+            return ReceiptResolveResult::Missing;
+        };
+        self.reads.set(self.reads.get() + 1);
+        ReceiptResolveResult::Found(ResolvedReceipt {
+            path: format!("receipts[{receipt_id}]"),
+            receipt: Box::new(receipt),
+        })
+    }
+
+    fn supplied_receipts(&self) -> Vec<ResolvedReceipt<&Receipt>> {
+        Vec::new()
+    }
+}
+
+/// A tree verified as its children were read, and how many receipts the
+/// walk read, its root included.
+pub(crate) struct ReadTreeVerification {
+    pub(crate) verification: ReceiptVerification,
+    pub(crate) receipt_count: usize,
+}
+
+/// Verify the tree `root` heads, reading each child through `read` only when
+/// a ref names it; a child `read` cannot give is missing.
+pub(crate) fn verify_runtime_receipt_tree_reading(
+    root: &Receipt,
+    read: impl Fn(&str) -> Option<Receipt>,
+    signature_policy: RuntimeReceiptSignaturePolicy<'_>,
+) -> ReadTreeVerification {
+    let resolver = ReadingReceiptResolver {
+        read,
+        reads: Cell::new(0),
+    };
+    let proof_contexts = RuntimeReceiptProofContextProvider::new(signature_policy);
+    let verification = verify_receipt_tree_proof_with_resolver(
+        root,
+        &resolver,
+        ReceiptTreeConfig::default(),
+        &proof_contexts,
+    );
+    ReadTreeVerification {
+        verification,
+        receipt_count: resolver.reads.get() + 1,
+    }
 }
 
 fn runtime_receipt_path(index: usize) -> String {

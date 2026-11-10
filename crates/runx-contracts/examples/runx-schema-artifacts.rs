@@ -55,6 +55,10 @@ fn print_types() -> Result<(), std::io::Error> {
     let document = serde_json::json!({
         "artifacts": artifacts,
         "types": types,
+        "receiptTree": {
+            "maxReceipts": runx_contracts::MAX_RECEIPT_TREE_RECEIPTS,
+            "maxDepth": runx_contracts::MAX_RECEIPT_TREE_DEPTH,
+        },
         "x402": {
             "protocolVersion": runx_contracts::X402_PROTOCOL_VERSION,
             "upstreamPackage": runx_contracts::X402_UPSTREAM_PACKAGE,

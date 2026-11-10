@@ -698,7 +698,9 @@ impl LocalReceiptStore {
     /// Every receipt tree in the store, or each one holding `receipt_id`,
     /// verified under `signature_policy`. Unreadable files are reported for
     /// the selected trees, including their signed child references. A whole-store
-    /// audit reports every unreadable receipt file.
+    /// audit reports every unreadable receipt file. The store is grouped from
+    /// each receipt's links alone, and each tree is verified as its receipts
+    /// are read, so the audit holds the path a walk is on, never a tree.
     ///
     /// # Errors
     ///
@@ -713,7 +715,7 @@ impl LocalReceiptStore {
             path: self.root.clone(),
             source,
         };
-        let mut receipts = Vec::new();
+        let mut links = Vec::new();
         let mut unreadable = Vec::new();
         let mut earlier = Vec::new();
         // The receipt asked for, when an earlier runx wrote it.
@@ -729,7 +731,7 @@ impl LocalReceiptStore {
                 continue;
             };
             match read_receipt_file_without_proof(&path, &expected_id) {
-                Ok(receipt) => receipts.push(receipt),
+                Ok(receipt) => links.push(runx_receipts::ReceiptLinks::of(&receipt)),
                 Err(error @ ReceiptStoreError::ReceiptBeforeThisRunx { .. }) => {
                     earlier.push(UnreadableReceiptFile {
                         file: path,
@@ -745,8 +747,8 @@ impl LocalReceiptStore {
                 }),
             }
         }
-        receipts.sort_by(|left, right| left.id.cmp(&right.id));
-        let groups = runx_receipts::group_receipt_trees(&receipts)
+        links.sort_by(|left, right| left.id.cmp(&right.id));
+        let groups = runx_receipts::group_receipt_trees(&links)
             .into_iter()
             .filter(|group| receipt_id.is_none_or(|id| group.member_ids.contains(id)))
             .collect::<Vec<_>>();
@@ -771,11 +773,11 @@ impl LocalReceiptStore {
                 .map(|id| super::archive::receipt_uri(id))
                 .collect::<BTreeSet<_>>();
             relevant.extend(
-                receipts
+                links
                     .iter()
                     .filter(|receipt| member_ids.contains(receipt.id.as_str()))
-                    .flat_map(runx_receipts::receipt_edge_references)
-                    .map(|reference| reference.uri.to_string()),
+                    .flat_map(|receipt| receipt.children.iter())
+                    .map(|child| super::archive::receipt_uri(child)),
             );
             let relevant_file = |issue: &UnreadableReceiptFile| {
                 issue
@@ -788,30 +790,39 @@ impl LocalReceiptStore {
             unreadable.retain(relevant_file);
             earlier.retain(relevant_file);
         }
-        let trees = groups
-            .into_iter()
-            .map(|group| {
-                // The root anchors the traversal; it is never its own child.
-                let children = receipts
-                    .iter()
-                    .filter(|receipt| {
-                        receipt.id != group.root.id
-                            && group.member_ids.contains(receipt.id.as_str())
-                    })
-                    .cloned()
-                    .collect::<Vec<_>>();
-                StoredReceiptTree {
-                    root_receipt_id: group.root.id.to_string(),
-                    receipt_count: group.member_ids.len(),
-                    verification: super::tree::verify_runtime_receipt_tree(
-                        &group.root,
-                        children,
-                        runx_receipts::ReceiptTreeConfig::default(),
-                        signature_policy,
-                    ),
-                }
-            })
-            .collect();
+        drop(links);
+        let read = |id: &str| {
+            let path = self.receipt_path(id).ok()?;
+            read_receipt_file_without_proof(&path, id).ok()
+        };
+        let mut trees = Vec::with_capacity(groups.len());
+        for group in groups {
+            // The root anchors the walk; it is read again, as its children are.
+            let Some(root) = read(&group.root_id) else {
+                unreadable.push(UnreadableReceiptFile {
+                    file: self.receipt_path(&group.root_id)?,
+                    message: "the receipt could not be read again to verify its tree".to_owned(),
+                });
+                continue;
+            };
+            let verification = super::tree::verify_runtime_receipt_tree_reading(
+                &root,
+                |child_id| {
+                    group
+                        .member_ids
+                        .contains(child_id)
+                        .then(|| read(child_id))
+                        .flatten()
+                },
+                signature_policy,
+            )
+            .verification;
+            trees.push(StoredReceiptTree {
+                root_receipt_id: group.root_id,
+                receipt_count: group.member_ids.len(),
+                verification,
+            });
+        }
         Ok(StoreTreeVerification {
             trees,
             unreadable,

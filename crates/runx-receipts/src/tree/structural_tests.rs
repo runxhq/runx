@@ -1,10 +1,14 @@
+use runx_contracts::connector::Digest;
+use runx_contracts::javascript_worker::MAX_SCRIPT_CALLS;
+use runx_contracts::{MAX_RECEIPT_TREE_RECEIPTS, RECEIPTS_PER_SKILL_CALL, Reference};
+
 use super::ReceiptTreeConfig;
 use crate::ReceiptFindingCode;
 
 use super::test_support::{
-    AmbiguousResolver, FixtureResolver, assert_finding, child_link, child_refs_mut,
-    link_child_digest, proof_child, proof_root, refresh_proof_digest_and_signature, verify_tree,
-    verify_tree_with,
+    AmbiguousResolver, FixtureResolver, ReadingResolver, address, assert_finding, child_link,
+    child_refs_mut, link_child_digest, proof_child, proof_root, refresh_proof_digest_and_signature,
+    verify_tree, verify_tree_trusting_signatures, verify_tree_with,
 };
 
 #[test]
@@ -168,5 +172,52 @@ fn positive_fanout_tree_verifies() -> Result<(), serde_json::Error> {
     let verification = verify_tree(&root, &[first, second]);
 
     assert!(verification.valid, "{:?}", verification.findings);
+    Ok(())
+}
+
+/// A tree at the bound is the one a run seals when its one step is a script
+/// making the kernel's ceiling of skill calls: the root, its script step,
+/// and each call's receipt over its child run's workflow and that run's one
+/// step. It verifies through a resolver that reads each receipt only when a
+/// ref names it, and the walk never has more of them than the tree is deep.
+#[test]
+fn a_tree_at_the_bound_verifies_keeping_only_the_path_it_walks()
+-> Result<(), Box<dyn std::error::Error>> {
+    // Every receipt is the fixture with its own outcome and children, so
+    // each is a content address of its own; the fixture's acts and decisions
+    // say nothing the walk reads.
+    let mut template = proof_child("template")?;
+    template.acts.clear();
+    template.decisions.clear();
+    let addressed = |label: String, children: Vec<Reference>| {
+        let mut receipt = template.clone();
+        receipt.subject.outcome_digest = Digest::of(label.as_bytes());
+        receipt.lineage.children = children;
+        address(&mut receipt).map(|()| receipt)
+    };
+    let mut stored = Vec::new();
+    let mut calls = Vec::new();
+    for call in 0..MAX_SCRIPT_CALLS {
+        let step = addressed(format!("child step {call}"), Vec::new())?;
+        let workflow = addressed(format!("child run {call}"), vec![child_link(&step)])?;
+        let receipt = addressed(format!("call {call}"), vec![child_link(&workflow)])?;
+        calls.push(child_link(&receipt));
+        let added = [step, workflow, receipt];
+        assert_eq!(added.len(), RECEIPTS_PER_SKILL_CALL);
+        stored.extend(added);
+    }
+    let script = addressed("script step".to_owned(), calls)?;
+    let root = addressed("root".to_owned(), vec![child_link(&script)])?;
+    stored.push(script);
+    assert_eq!(stored.len() + 1, MAX_RECEIPT_TREE_RECEIPTS);
+    let resolver = ReadingResolver::storing(stored);
+
+    let verification = verify_tree_trusting_signatures(&root, &resolver);
+
+    assert!(verification.valid, "{:?}", verification.findings.first());
+    assert_eq!(resolver.reads.get(), MAX_RECEIPT_TREE_RECEIPTS - 1);
+    // The script step, a call, its child run, and that run's step.
+    assert_eq!(resolver.most_out.get(), 4);
+    assert_eq!(resolver.out(), 0);
     Ok(())
 }
