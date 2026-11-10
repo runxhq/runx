@@ -1,9 +1,31 @@
+// The catalog collection each selection limit names entries of.
+const LIMITS = {allowed_sources: "sources", excluded_sources: "sources",
+  allowed_owners: "owners", allowed_skills: "skills"};
+
 export default function validateRoute(inputs) {
-  const {available_sources: catalog, route_proposal: proposal} = inputs;
+  const catalog = indexes(inputs.available_sources);
+  return refusedLimits(catalog, inputs) ?? checkedRoute(catalog, inputs);
+}
+
+// The refusal that selection limits naming an entry outside the catalog earn,
+// or null. Such limits are the caller's, so no proposal can satisfy them.
+export function limitsRefusal(inputs) {
+  return refusedLimits(indexes(inputs.available_sources), inputs);
+}
+
+function refusedLimits(catalog, inputs) {
   const constraints = inputs.constraints ?? {};
-  const sources = indexed(catalog.sources, "source");
-  const owners = indexed(catalog.owners, "owner");
-  const skills = indexed(catalog.skills, "skill");
+  for (const [field, kind] of Object.entries(LIMITS)) {
+    if (Object.hasOwn(constraints, field) && constraints[field].some(id => !catalog[kind].has(id))) {
+      return rejected("selection limits must reference entries in the supplied catalog", [], inputs.constraints);
+    }
+  }
+  return null;
+}
+
+function checkedRoute({sources, owners, skills}, inputs) {
+  const {route_proposal: proposal} = inputs;
+  const constraints = inputs.constraints ?? {};
   const sourceIds = proposal.route.source_ids;
   const matchIds = proposal.source_matches.map(match => match.source_id);
   const ownerId = proposal.owner_recommendation?.owner_id;
@@ -30,18 +52,11 @@ export default function validateRoute(inputs) {
       matchIds.some(id => !selectedSources.has(id))) {
     return rejected("source_matches must name each selected route source exactly once", [], inputs.constraints);
   }
-  for (const [field, index, selected] of [
-    ["allowed_sources", sources, sourceIds],
-    ["excluded_sources", sources, sourceIds],
-    ["allowed_owners", owners, ownerId ? [ownerId] : []],
-    ["allowed_skills", skills, nextSkill ? [nextSkill] : []],
-  ]) {
+  const selected = {sources: sourceIds, owners: ownerId ? [ownerId] : [], skills: nextSkill ? [nextSkill] : []};
+  for (const [field, kind] of Object.entries(LIMITS)) {
     if (!Object.hasOwn(constraints, field)) continue;
     const ids = new Set(constraints[field]);
-    for (const id of ids) {
-      if (!index.has(id)) return rejected("selection limits must reference entries in the supplied catalog", [], inputs.constraints);
-    }
-    for (const id of selected) {
+    for (const id of selected[kind]) {
       if (field === "excluded_sources" ? ids.has(id) : !ids.has(id)) {
         return rejected("route violates " + field, [], inputs.constraints);
       }
@@ -56,6 +71,11 @@ export default function validateRoute(inputs) {
     validation: {valid: true, catalog_digest: inputs.catalog_digest,
       unknown_entries: [], constraints_applied: inputs.constraints ?? null},
   }};
+}
+
+function indexes(catalog) {
+  return {sources: indexed(catalog.sources, "source"), owners: indexed(catalog.owners, "owner"),
+    skills: indexed(catalog.skills, "skill")};
 }
 
 function indexed(entries, label) {

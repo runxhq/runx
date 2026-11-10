@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import validateRoute from "./knowledge-router.mjs";
+import validateRoute, { limitsRefusal } from "./knowledge-router.mjs";
 const job = {
   question:
     "Which existing source and owner should I inspect before changing artifact lifetime across CLI process exits?",
@@ -133,4 +133,22 @@ test("honest missing context selects nothing", () => {
     next_skill: null,
   };
   assert.equal(run(p, {}).verdict, "needs_more_context");
+});
+test("limits naming an entry outside the catalog refuse whatever is proposed", () => {
+  for (const constraints of [
+    { allowed_sources: ["not-in-catalog"] },
+    { excluded_sources: ["not-in-catalog"] },
+    { allowed_owners: ["not-in-catalog"] },
+    { allowed_skills: ["not-in-catalog"] },
+  ]) {
+    const refusal = limitsRefusal({ ...job, constraints }).knowledge_route;
+    assert.equal(refusal.verdict, "refused");
+    assert.equal(refusal.route.rationale, "selection limits must reference entries in the supplied catalog");
+    const invented = structuredClone(proposal);
+    invented.route.source_ids.push("invented-docs");
+    invented.source_matches.push({ source_id: "invented-docs", matching_signal: "lifetime", reason: "Invented." });
+    assert.deepEqual(run(invented, constraints), refusal);
+  }
+  assert.equal(limitsRefusal(job), null);
+  assert.equal(limitsRefusal({ ...job, constraints: undefined }), null);
 });
