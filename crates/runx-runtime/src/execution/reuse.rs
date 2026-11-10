@@ -264,17 +264,32 @@ fn call_is_seen(call: &super::run_record::RecordedCall) -> bool {
     }
 }
 
-/// Whether the operation `run` made only read, and runx read it itself: its
-/// packet shows read access through a transport that isn't a process runx
-/// started, a local process or an MCP server that may be one.
+/// The transports runx carries out itself, by the names an operation's
+/// packet gives them: HTTP and a web read runx makes, its store, its
+/// artifacts, and runx Connect. A process runx starts, an MCP server that
+/// may be one, and any transport added later aren't among them until named.
+const RUNX_TRANSPORTS: [&str; 5] = [
+    "local_http",
+    "local_web",
+    "local_store",
+    "local_artifact",
+    "runx_connect",
+];
+
+/// Whether the operation `run` made only read, and runx read it itself.
 fn read_runx_made(run: &crate::StepRun) -> bool {
-    let Some(runx_contracts::JsonValue::Object(packet)) = run.output("provider_operation") else {
-        return false;
-    };
+    match run.output("provider_operation") {
+        Some(runx_contracts::JsonValue::Object(packet)) => packet_read_runx_made(packet),
+        _ => false,
+    }
+}
+
+/// Whether an operation's `packet` shows read access through a transport
+/// runx carries out itself.
+fn packet_read_runx_made(packet: &runx_contracts::JsonObject) -> bool {
     let field = |name: &str| packet.get(name).and_then(runx_contracts::JsonValue::as_str);
     field("access") == Some("read")
-        && field("transport")
-            .is_some_and(|transport| !matches!(transport, "local_process" | "local_mcp"))
+        && field("transport").is_some_and(|transport| RUNX_TRANSPORTS.contains(&transport))
 }
 
 /// Whether runx's managed agent gave `answer`: no person did, and it states
@@ -289,7 +304,7 @@ fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
 mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-    use super::{Source, decide, head, index_at};
+    use super::{Source, decide, head, index_at, packet_read_runx_made};
     use crate::kernel::store::KernelStore;
 
     fn source(run: &str) -> Source {
@@ -340,5 +355,37 @@ mod tests {
             }
         );
         assert_eq!(identity, None, "nothing is indexed for it");
+    }
+
+    /// An operation's read counts only through a transport runx carries out
+    /// itself, named one by one: a process it starts, an MCP server that may
+    /// be one, and any transport added later aren't, until they're named.
+    #[test]
+    fn a_read_counts_only_through_a_transport_runx_carries_out() {
+        let packet = |access: &str, transport: &str| {
+            serde_json::from_value::<runx_contracts::JsonObject>(
+                serde_json::json!({"access": access, "transport": transport}),
+            )
+            .unwrap()
+        };
+        for transport in [
+            "local_http",
+            "local_web",
+            "local_store",
+            "local_artifact",
+            "runx_connect",
+        ] {
+            assert!(
+                packet_read_runx_made(&packet("read", transport)),
+                "{transport}"
+            );
+        }
+        for transport in ["local_process", "local_mcp", "local_carrier_pigeon"] {
+            assert!(
+                !packet_read_runx_made(&packet("read", transport)),
+                "{transport}"
+            );
+        }
+        assert!(!packet_read_runx_made(&packet("mutate", "local_store")));
     }
 }
