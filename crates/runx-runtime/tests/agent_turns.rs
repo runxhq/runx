@@ -2752,6 +2752,76 @@ methods:
     Ok(())
 }
 
+/// A read-only turn can't write through a script, at any depth: the turn's
+/// `effects: none` reaches the script it calls and the child that script
+/// calls, so the script's own write and its child's are refused, and
+/// nothing is written.
+#[test]
+fn a_read_only_turn_cant_write_through_a_script_at_any_depth() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    crate::support::write_test_skill_package(
+        &root.join("writer-child"),
+        "---\nname: writer-child\ndescription: Writes a file.\n---\n# Writer child\n\nWrite it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        tool: fs.write\n        inputs: {path: child.txt, contents: written}\n",
+    )?;
+    let writer = root.join("writer-script");
+    crate::support::write_test_skill_package(
+        &writer,
+        "---\nname: writer-script\ndescription: Writes, and has its child write.\n---\n# Writer script\n\nWrite.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        script: {module: write.mjs}\n        calls:\n          tools: [fs.write]\n          skills: [../writer-child]\n        max_calls: 2\n        outputs:\n          own: {type: string}\n          child: {type: string}\n",
+    )?;
+    std::fs::write(
+        writer.join("write.mjs"),
+        r#"export default async function (ctx) {
+  const reason = (call) => call.then(() => "ran", (rejected) => rejected.reason);
+  return {
+    own: await reason(ctx.tool("fs.write", { path: "own.txt", contents: "written" })),
+    child: await reason(ctx.skill("../writer-child", {})),
+  };
+}
+"#,
+    )?;
+    let skill_dir = root.join("read-only-turn");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: read-only-turn\ndescription: Reads through a script.\n---\n# Read only turn\n\nCall it, then answer.\n\n## Agent task: answer\n\nCall it, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  answer:
+    inputs:
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        effects: none
+        calls:
+          skills: [../writer-script]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    let paused = Paused::start(root, skill_dir, TURN)?;
+    let turn = paused.open()?;
+    let called = turn.call(TURN, "skill__writer-script", None, JsonObject::new())?;
+    let TurnCallOutcome::Completed { output, .. } = &called.outcome else {
+        return Err(format!("the script ran and reported each write: {called:?}").into());
+    };
+    let output = serde_json::to_value(output)?;
+    assert_eq!(output["own"], "refused", "{output}");
+    assert_ne!(output["child"], "ran", "{output}");
+    for written in [
+        "own.txt",
+        "child.txt",
+        "writer-child/child.txt",
+        "writer-script/own.txt",
+    ] {
+        assert!(!root.join(written).exists(), "{written} was written");
+    }
+    Ok(())
+}
+
 /// A turn's run draws its receipts from one budget, however its turn is
 /// worked. The turn's first call runs a child that seals a step and then
 /// waits on its ask; its tree's receipts are the run's already. A new call
