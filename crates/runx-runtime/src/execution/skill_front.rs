@@ -91,7 +91,7 @@ pub(crate) struct SkillRunOverrides {
 
 pub(crate) struct ResolvedSkillRun<'a> {
     pub(crate) loaded: &'a std::sync::Arc<crate::LoadedSkillPackage>,
-    /// Every package the run's execution closure binds, as admitted.
+    /// Every package the run's closure binds, as admitted.
     pub(crate) packages: crate::skill_package::AdmittedPackages,
     pub(crate) request: &'a SkillRunRequest,
     pub(crate) overrides: &'a SkillRunOverrides,
@@ -100,7 +100,7 @@ pub(crate) struct ResolvedSkillRun<'a> {
     pub(crate) manifest: &'a SkillMethodManifest,
     pub(crate) method: &'a SkillMethodDefinition,
     pub(crate) package_digest: &'a str,
-    pub(crate) execution_closure_digest: Option<&'a str>,
+    pub(crate) closure_digest: Option<&'a str>,
 }
 
 /// A skill run bound to its verified package: everything a run of it needs
@@ -123,7 +123,7 @@ pub(crate) struct BoundRun {
     manifest: SkillMethodManifest,
     method: SkillMethodDefinition,
     package_digest: String,
-    execution_closure_digest: Option<String>,
+    closure_digest: Option<String>,
     /// The host's ceiling on the calls the run may have executing at once.
     max_concurrency: crate::MaxConcurrency,
     /// The host's budget of receipts the run's tree may hold.
@@ -146,14 +146,14 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
     overrides: &SkillRunOverrides,
     effects: &RuntimeEffectRegistry,
     expected_package_digest: Option<&str>,
-    expected_execution_closure_digest: Option<&str>,
+    expected_closure_digest: Option<&str>,
 ) -> Result<RunResult, SkillRunError> {
     bind_skill_run(
         request,
         overrides,
         effects,
         expected_package_digest,
-        expected_execution_closure_digest,
+        expected_closure_digest,
     )?
     .execute()
 }
@@ -211,7 +211,7 @@ pub(crate) fn bind_skill_run(
     overrides: &SkillRunOverrides,
     effects: &RuntimeEffectRegistry,
     expected_package_digest: Option<&str>,
-    expected_execution_closure_digest: Option<&str>,
+    expected_closure_digest: Option<&str>,
 ) -> Result<BoundRun, SkillRunError> {
     let loaded = std::sync::Arc::new(crate::load_validated_skill_package(&request.skill_path)?);
     let skill_dir = loaded.directory.clone();
@@ -232,7 +232,7 @@ pub(crate) fn bind_skill_run(
         &method.name,
         workspace.env(),
         expected_package_digest,
-        expected_execution_closure_digest,
+        expected_closure_digest,
     )
     .map_err(|error| invalid(error.to_string()))?;
     bind_resolved(
@@ -246,7 +246,7 @@ pub(crate) fn bind_skill_run(
             manifest: &manifest,
             method: &method,
             package_digest: &package_digest,
-            execution_closure_digest: binding.closure_digest.as_deref(),
+            closure_digest: binding.closure_digest.as_deref(),
         },
         false,
     )
@@ -263,12 +263,12 @@ pub(crate) struct Continuation<'a> {
     pub(crate) managed_agent: crate::execution::orchestrator::ManagedAgentPolicy,
     /// Digests a caller pins; each must be the one the run started under.
     pub(crate) package_digest: Option<&'a str>,
-    pub(crate) execution_closure_digest: Option<&'a str>,
+    pub(crate) closure_digest: Option<&'a str>,
 }
 
 /// Seal run `run_id` with its host's close, from its record alone: any run
 /// that is not sealed, whether it waits at an act or stopped between steps.
-/// Nothing is bound first, so a package or execution closure that changed
+/// Nothing is bound first, so a package or closure that changed
 /// since the run started never traps it open, and an effect the run left
 /// unconfirmed stays unconfirmed. The close holds the run's driver lock, so
 /// a live driver refuses it.
@@ -317,9 +317,9 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
             &started.package_digest,
         ),
         (
-            "execution closure",
-            continuation.execution_closure_digest,
-            &started.execution_closure_digest,
+            "closure",
+            continuation.closure_digest,
+            &started.closure_digest,
         ),
     ] {
         if let Some(pinned) = pinned
@@ -418,9 +418,9 @@ pub(crate) fn bind_paused_run(
             &paused.package_digest,
         ),
         (
-            "execution closure",
-            continuation.execution_closure_digest,
-            &paused.execution_closure_digest,
+            "closure",
+            continuation.closure_digest,
+            &paused.closure_digest,
         ),
     ] {
         if let Some(pinned) = pinned
@@ -454,7 +454,7 @@ pub(crate) fn bind_paused_run(
         },
         effects,
         Some(&paused.package_digest),
-        Some(&paused.execution_closure_digest),
+        Some(&paused.closure_digest),
     )
 }
 
@@ -478,7 +478,7 @@ fn bind_resolved(
         manifest,
         method,
         package_digest,
-        execution_closure_digest,
+        closure_digest,
     } = resolved;
     let (mut request, workspace, receipts, run_log) = prepare_skill_execution(
         request,
@@ -545,7 +545,7 @@ fn bind_resolved(
         manifest: manifest.clone(),
         method: method.clone(),
         package_digest: package_digest.to_owned(),
-        execution_closure_digest: execution_closure_digest.map(str::to_owned),
+        closure_digest: closure_digest.map(str::to_owned),
         max_concurrency,
         max_receipts,
         log: run_log.map_or_else(std::sync::OnceLock::new, std::sync::OnceLock::from),

@@ -242,7 +242,7 @@ fn render_default_method(
     output.push_str("\n```\n\n");
     output.push_str(&render_continuation(
         package_digest,
-        method.execution_closure_digest.as_deref(),
+        method.closure_digest.as_deref(),
         runx_bin,
     ));
     output
@@ -255,7 +255,7 @@ fn render_method_index(
     runx_bin: &str,
 ) -> String {
     let mut output = String::from(
-        "## Other methods\n\nSelect a non-default method only when the source manual calls for it. Inspect it for its input_schema and execution_closure.closure_digest. Replace the `#method` and closure digest in both invocation and continuation commands; keep the package digest. Never resume another method with the default method's closure digest.\n\n",
+        "## Other methods\n\nSelect a non-default method only when the source manual calls for it. Inspect it for its input_schema and closure.closure_digest. Replace the `#method` and closure digest in both invocation and continuation commands; keep the package digest. Never resume another method with the default method's closure digest.\n\n",
     );
     for method in methods {
         let name = method.name.as_deref().unwrap_or("default");
@@ -332,11 +332,8 @@ fn render_command(
         "  --package-digest {}",
         shell_quote(package_digest)
     ));
-    if let Some(closure_digest) = method.execution_closure_digest.as_deref() {
-        lines.push(format!(
-            "  --execution-closure-digest {}",
-            shell_quote(closure_digest)
-        ));
+    if let Some(digest) = method.closure_digest.as_deref() {
+        lines.push(format!("  --closure-digest {}", shell_quote(digest)));
     }
     lines.push("  --json".to_owned());
     lines.join(" \\\n")
@@ -344,15 +341,12 @@ fn render_command(
 
 fn render_continuation(
     package_digest: &str,
-    execution_closure_digest: Option<&str>,
+    closure_digest: Option<&str>,
     runx_bin: &str,
 ) -> String {
     let mut binding = format!(" --package-digest {}", shell_quote(package_digest));
-    if let Some(closure_digest) = execution_closure_digest {
-        binding.push_str(&format!(
-            " --execution-closure-digest {}",
-            shell_quote(closure_digest)
-        ));
+    if let Some(digest) = closure_digest {
+        binding.push_str(&format!(" --closure-digest {}", shell_quote(digest)));
     }
     format!(
         "\

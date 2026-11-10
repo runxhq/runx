@@ -933,7 +933,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
     let paused = runx_runtime::run_record::paused_run(&BTreeMap::new(), temp.path(), run_id)?
         .ok_or("the run is not paused in its record")?;
     assert!(paused.package_digest.starts_with("sha256:"));
-    assert!(paused.execution_closure_digest.starts_with("sha256:"));
+    assert!(paused.closure_digest.starts_with("sha256:"));
     assert_eq!(
         paused
             .waiting
@@ -3058,7 +3058,7 @@ fn skill_inspection_reports_registry_refs_the_project_does_not_hold()
                 .method_inspections
                 .first()
                 .ok_or("no method inspection")?
-                .execution_closure
+                .closure
                 .clone(),
         ))
     };

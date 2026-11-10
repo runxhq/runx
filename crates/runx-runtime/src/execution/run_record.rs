@@ -115,7 +115,7 @@ pub(crate) struct Started {
     pub skill_path: String,
     pub method: String,
     pub package_digest: String,
-    pub execution_closure_digest: String,
+    pub closure_digest: String,
     /// Blob: the run's inputs.
     pub inputs: String,
     /// Blob: the caller's current and historical context, when supplied.
@@ -1019,7 +1019,7 @@ impl RunLog {
             skill_path: started.skill_path,
             method: started.method,
             package_digest: started.package_digest,
-            execution_closure_digest: started.execution_closure_digest,
+            closure_digest: started.closure_digest,
             purchase: started.purchase,
             waiting: self.waiting()?,
         }))
@@ -1262,7 +1262,7 @@ impl RunLog {
             skill_path: started.skill_path.to_owned(),
             method: started.method.to_owned(),
             package_digest: started.package_digest.to_owned(),
-            execution_closure_digest: started.execution_closure_digest.to_owned(),
+            closure_digest: started.closure_digest.to_owned(),
             inputs: inputs.digest().to_owned(),
             context: context.as_ref().map(|blob| blob.digest().to_owned()),
             run_authority: started.run_authority.cloned(),
@@ -1932,7 +1932,7 @@ pub(crate) struct StartRequest<'a> {
     pub skill_path: &'a str,
     pub method: &'a str,
     pub package_digest: &'a str,
-    pub execution_closure_digest: &'a str,
+    pub closure_digest: &'a str,
     pub inputs: &'a JsonObject,
     pub context: &'a CallerContext,
     pub run_authority: Option<&'a RunAuthority>,
@@ -2773,7 +2773,7 @@ pub struct PausedRun {
     pub skill_path: String,
     pub method: String,
     pub package_digest: String,
-    pub execution_closure_digest: String,
+    pub closure_digest: String,
     /// The registry reference the run buys, when it is a purchase.
     pub purchase: Option<String>,
     pub waiting: Vec<PendingRequest>,
@@ -2806,7 +2806,7 @@ pub fn paused_run(
         skill_path: started.skill_path,
         method: started.method,
         package_digest: started.package_digest,
-        execution_closure_digest: started.execution_closure_digest,
+        closure_digest: started.closure_digest,
         purchase: started.purchase,
         waiting: waiting_requests(&store, run_id)?,
     }))

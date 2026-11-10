@@ -51,7 +51,7 @@ only bank or card details has no payable HTTPS resource, so it stops here.
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `extract#from-file`
 - `pay#pay`

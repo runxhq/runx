@@ -51,7 +51,7 @@ pub struct RunReadSummary {
     /// The execution package digest of the package the run loaded, not the
     /// registry's digest of the published package files a listing carries.
     pub package_digest: NonEmptyString,
-    pub execution_closure_digest: NonEmptyString,
+    pub closure_digest: NonEmptyString,
     pub driver: RunDriver,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt_id: Option<NonEmptyString>,
@@ -343,7 +343,7 @@ mod tests {
                 "method": "reply",
                 "state": "paused",
                 "package_digest": "sha256:p",
-                "execution_closure_digest": "sha256:c",
+                "closure_digest": "sha256:c",
                 "driver": "attached",
                 "driven": false,
                 "created_at": "2026-10-14T00:00:00Z",

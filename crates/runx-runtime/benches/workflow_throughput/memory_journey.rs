@@ -376,7 +376,7 @@ impl Memory {
             version: None,
             digest: None,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
             trust_tier: None,
         };
         let before = snapshot();

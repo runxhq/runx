@@ -1495,7 +1495,7 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
         cwd: temp.path().to_path_buf(),
         managed_agent: ManagedAgentPolicy::inline(3)?,
         package_digest: None,
-        execution_closure_digest: None,
+        closure_digest: None,
     })?;
     let output = serde_json::to_value(&sealed.output)?;
     assert_eq!(output["status"], "sealed", "{output}");

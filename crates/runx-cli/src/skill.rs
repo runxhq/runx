@@ -40,7 +40,7 @@ pub struct SkillPlan {
     pub registry: Option<String>,
     pub expected_digest: Option<String>,
     pub expected_package_digest: Option<String>,
-    pub expected_execution_closure_digest: Option<String>,
+    pub expected_closure_digest: Option<String>,
     pub json: bool,
     /// Show everything: the full prepared context before the run, and the
     /// run's context and trace inline in its output.
@@ -252,7 +252,7 @@ pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &Workspac
         }
     };
     let bound_execution =
-        plan.expected_package_digest.is_some() && plan.expected_execution_closure_digest.is_some();
+        plan.expected_package_digest.is_some() && plan.expected_closure_digest.is_some();
     let result = if let Some(purchase) = &purchase {
         orchestrator.buy_skill(&request, purchase, plan.method.as_deref())
     } else if bound_execution {
@@ -260,13 +260,13 @@ pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &Workspac
             &request,
             plan.method.as_deref(),
             plan.expected_package_digest.as_deref(),
-            plan.expected_execution_closure_digest.as_deref(),
+            plan.expected_closure_digest.as_deref(),
         )
     } else {
         let mut prepared = match orchestrator.prepare_skill(
             request,
             plan.method.as_deref(),
-            prepared_entry_provenance(&resolved, plan.expected_execution_closure_digest.as_deref()),
+            prepared_entry_provenance(&resolved, plan.expected_closure_digest.as_deref()),
         ) {
             Ok(prepared) => prepared,
             Err(error) => {
@@ -382,7 +382,7 @@ pub(crate) fn write_run_result(
 
 fn prepared_entry_provenance(
     resolved: &ResolvedSkillRef,
-    execution_closure_digest: Option<&str>,
+    closure_digest: Option<&str>,
 ) -> PreparedEntryProvenance {
     PreparedEntryProvenance {
         kind: match resolved.kind {
@@ -413,7 +413,7 @@ fn prepared_entry_provenance(
         version: resolved.version.clone(),
         digest: resolved.digest.clone(),
         package_digest: resolved.package_digest.clone(),
-        execution_closure_digest: execution_closure_digest.map(str::to_owned),
+        closure_digest: closure_digest.map(str::to_owned),
         trust_tier: resolved.trust_tier.clone(),
     }
 }

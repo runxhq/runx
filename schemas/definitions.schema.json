@@ -668,7 +668,7 @@
     },
     "BoundClosure": {
       "additionalProperties": false,
-      "description": "The exact package and execution closure a load bound for one method.",
+      "description": "The exact package and closure a load bound for one method.",
       "properties": {
         "closure_digest": {
           "minLength": 1,
@@ -3754,7 +3754,7 @@
     "MethodInspectionEntry": {
       "additionalProperties": false,
       "properties": {
-        "execution_closure": {
+        "closure": {
           "additionalProperties": {},
           "type": "object"
         },
@@ -3764,7 +3764,7 @@
       },
       "required": [
         "method",
-        "execution_closure"
+        "closure"
       ],
       "title": "MethodInspectionEntry",
       "type": "object"
@@ -7237,6 +7237,10 @@
     "RunReadSummary": {
       "additionalProperties": false,
       "properties": {
+        "closure_digest": {
+          "minLength": 1,
+          "type": "string"
+        },
         "created_at": {
           "minLength": 1,
           "type": "string"
@@ -7247,10 +7251,6 @@
         },
         "driver": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunDriver"
-        },
-        "execution_closure_digest": {
-          "minLength": 1,
-          "type": "string"
         },
         "method": {
           "minLength": 1,
@@ -7290,7 +7290,7 @@
         "method",
         "state",
         "package_digest",
-        "execution_closure_digest",
+        "closure_digest",
         "driver",
         "driven",
         "created_at",

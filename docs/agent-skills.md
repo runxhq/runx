@@ -13,7 +13,7 @@ back to runx:
 
 - **Claude** gets one `SKILL.md` shim per skill under `~/.claude/skills/<name>/`
   (or `./.claude/skills/` with `--project`). Each shim declares `allowed-tools`
-  locked to the runx binary and carries a package- and execution-closure-bound
+  locked to the runx binary and carries a package- and closure-bound
   `runx skill ... --json` command. The exact method schema stays inspectable on
   demand instead of being copied into every agent context.
 - **Codex** gets the same per-skill shims under `~/.agents/skills/<name>/` plus an
@@ -42,7 +42,7 @@ pnpm codex-export:check                     # verify the active managed Codex su
 
 Add `--json` for machine-readable output. A governed package must be public and
 have a default method with a validated standalone operator-journey contract and
-an exactly bound execution closure. Public visibility alone is insufficient.
+an exactly bound closure. Public visibility alone is insufficient.
 Internal runtime paths, test fixtures and composed-only stages are skipped;
 explicitly naming an ineligible package returns an error.
 
@@ -85,7 +85,7 @@ printf '%s' "$RUNX_INPUTS_JSON" | /path/to/runx skill /path/to/skills/pay#pay \
   --inputs - \
   --act "$RUNX_ACT_JSON" \
   --package-digest sha256:<package> \
-  --execution-closure-digest sha256:<closure> \
+  --closure-digest sha256:<closure> \
   --json
 ```
 
@@ -98,7 +98,7 @@ to copy. Authored method examples remain available through inspection.
 
 For Claude, the `allowed-tools` line limits the shim to the runx binary. Codex
 uses the generated rules block. Run and resume commands carry both exact
-digests, so edited package bytes or a changed execution closure fail before
+digests, so edited package bytes or a changed closure fail before
 execution. Runx remains the authority boundary on both surfaces.
 
 ## Continuing a workflow

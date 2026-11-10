@@ -96,7 +96,7 @@ pub fn read_run(
             state,
             outcome,
             package_digest: started.package_digest.into(),
-            execution_closure_digest: started.execution_closure_digest.into(),
+            closure_digest: started.closure_digest.into(),
             driver: started.driver,
             receipt_id: receipt_id.map(Into::into),
             driven: driven(&paths, run_id)?,

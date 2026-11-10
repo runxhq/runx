@@ -14,8 +14,8 @@ export function executionBindingFromInspection(
   if (!method || !packageDigest) {
     throw new Error("Native skill inspection omitted its selected method or package digest.");
   }
-  const executionClosureDigest = executionClosureFromInspection(inspection).closureDigest;
-  return { method, packageDigest, executionClosureDigest };
+  const closureDigest = closureFromInspection(inspection).closureDigest;
+  return { method, packageDigest, closureDigest };
 }
 
 export function assertInspectionMatchesBinding(
@@ -33,9 +33,9 @@ export function assertInspectionMatchesBinding(
       `Native inspection resolved package '${inspected.packageDigest}' instead of bound package '${binding.packageDigest}'.`,
     );
   }
-  if (inspected.executionClosureDigest !== binding.executionClosureDigest) {
+  if (inspected.closureDigest !== binding.closureDigest) {
     throw new Error(
-      `Native inspection resolved execution closure '${inspected.executionClosureDigest}' instead of bound closure '${binding.executionClosureDigest}'.`,
+      `Native inspection resolved closure '${inspected.closureDigest}' instead of bound closure '${binding.closureDigest}'.`,
     );
   }
 }
@@ -49,33 +49,33 @@ export interface ExecutionPackageBinding {
   readonly sourceFiles: readonly string[];
 }
 
-export interface ExecutionClosureInspection {
+export interface ClosureInspection {
   readonly closureDigest: string;
   readonly packageBindings: readonly ExecutionPackageBinding[];
   /** The exact connector revisions the closure runs, its packages' dependencies included. */
   readonly connectorBindings: readonly ConnectorBinding[];
 }
 
-export function executionClosureFromInspection(
+export function closureFromInspection(
   inspection: SkillInspection,
-): ExecutionClosureInspection {
-  const closure = isRecord(inspection.execution_closure)
-    ? inspection.execution_closure
+): ClosureInspection {
+  const closure = isRecord(inspection.closure)
+    ? inspection.closure
     : undefined;
   const closureDigest = closure
     ? textOrUndefined(closure.closure_digest)
     : undefined;
   if (!closureDigest || closure?.fully_bound !== true) {
     throw new Error(
-      "Native skill inspection did not return a fully bound execution closure.",
+      "Native skill inspection did not return a fully bound closure.",
     );
   }
   if (!Array.isArray(closure.package_bindings) || closure.package_bindings.length === 0) {
-    throw new Error("Native skill inspection returned no execution-closure packages.");
+    throw new Error("Native skill inspection returned no closure packages.");
   }
   const packageBindings = closure.package_bindings.map((value, index) => {
     if (!isRecord(value)) {
-      throw new Error(`Native execution-closure package ${index} is not an object.`);
+      throw new Error(`Native closure package ${index} is not an object.`);
     }
     const skill = textOrUndefined(value.skill);
     // The closure's wire key still says `method`.
@@ -97,14 +97,14 @@ export function executionClosureFromInspection(
       || sourceFiles.length === 0
     ) {
       throw new Error(
-        `Native execution-closure package ${index} omitted skill, method, package digest, source kind, source path, or admitted files.`,
+        `Native closure package ${index} omitted skill, method, package digest, source kind, source path, or admitted files.`,
       );
     }
     return { skill, method, packageDigest, sourceKind: admittedSourceKind, sourcePath, sourceFiles };
   });
   const declared = closure.connector_bindings ?? [];
-  if (!Array.isArray(declared)) throw new Error("Native execution closure's connector bindings are not a list.");
-  const connectorBindings = declared.map((value, index) => validateConnectorBinding(value, `execution_closure.connector_bindings[${index}]`));
+  if (!Array.isArray(declared)) throw new Error("Native closure's connector bindings are not a list.");
+  const connectorBindings = declared.map((value, index) => validateConnectorBinding(value, `closure.connector_bindings[${index}]`));
   return { closureDigest, packageBindings, connectorBindings };
 }
 

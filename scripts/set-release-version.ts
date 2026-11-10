@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 // Single source of truth for the runx CLI release version across every CLI
 // channel. A cli-vX.Y.Z tag is the CLI distribution version only. It stamps the
 // npm selector/native packages, the `runx-cli` crate, and the runtime's
-// execution-closure release identity so both displayed and bound versions stay
+// closure release identity so both displayed and bound versions stay
 // truthful. Internal library crate versions remain independent and unpublished.
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));

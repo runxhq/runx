@@ -260,7 +260,7 @@ impl Paused {
             cwd: self.root.clone(),
             managed_agent,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
         })?)
     }
 
@@ -1035,7 +1035,7 @@ fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
             cwd: temp.path().to_path_buf(),
             managed_agent: ManagedAgentPolicy::HostDriven,
             package_digest: Some("sha256:another".to_owned()),
-            execution_closure_digest: None,
+            closure_digest: None,
         })
         .err()
         .ok_or("a pinned digest the run did not start under is refused")?;
@@ -1743,7 +1743,7 @@ fn resume_document(
         cwd: root.to_path_buf(),
         managed_agent: ManagedAgentPolicy::HostDriven,
         package_digest: None,
-        execution_closure_digest: None,
+        closure_digest: None,
     })?)
 }
 
@@ -2954,7 +2954,7 @@ methods:
         cwd: root.to_path_buf(),
         managed_agent: ManagedAgentPolicy::HostDriven,
         package_digest: None,
-        execution_closure_digest: None,
+        closure_digest: None,
     })?;
     let sealed = open()?.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
     let output = object(&sealed.output)?;

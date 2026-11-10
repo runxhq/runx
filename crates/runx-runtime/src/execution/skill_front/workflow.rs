@@ -69,10 +69,10 @@ impl BoundRun {
     /// action on the turn the run waits on, or a managed agent.
     pub(super) fn advance(&self, host: &mut RunHost) -> Result<RunResult, SkillRunError> {
         let request = &self.request;
-        let execution_closure_digest = self
-            .execution_closure_digest
+        let closure_digest = self
+            .closure_digest
             .as_deref()
-            .ok_or_else(|| invalid("workflow execution requires an execution-closure digest"))?;
+            .ok_or_else(|| invalid("workflow execution requires an closure digest"))?;
         let log = self.log()?;
         // A pass that executes a call apart from its session's driver writes
         // nothing of the run's own, and reads the run as it finds it.
@@ -100,7 +100,7 @@ impl BoundRun {
                         &request_context,
                         &self.method,
                         &self.package_digest,
-                        execution_closure_digest,
+                        closure_digest,
                     )?;
                     host.check_driver(log.run_id(), started.driver)?;
                     (
@@ -199,7 +199,7 @@ impl BoundRun {
                 skill_path: &request.skill_path.to_string_lossy(),
                 method: &self.method.name,
                 package_digest: &self.package_digest,
-                execution_closure_digest,
+                closure_digest,
                 inputs: &workflow_inputs,
                 context: &request_context,
                 run_authority: request.run_authority.as_ref(),
@@ -518,7 +518,7 @@ fn continuation_identity<'a>(
     request_context: &CallerContext,
     method: &SkillMethodDefinition,
     package_digest: &str,
-    execution_closure_digest: &str,
+    closure_digest: &str,
 ) -> Result<&'a crate::execution::run_record::Started, SkillRunError> {
     let Origin::Run(started) = &record.origin else {
         return Err(invalid("a child run continues only through its parent"));
@@ -534,8 +534,8 @@ fn continuation_identity<'a>(
     if started.package_digest != package_digest {
         return Err(refuse("package digest"));
     }
-    if started.execution_closure_digest != execution_closure_digest {
-        return Err(refuse("execution closure"));
+    if started.closure_digest != closure_digest {
+        return Err(refuse("closure"));
     }
     let request_inputs = request
         .inputs
@@ -1204,7 +1204,7 @@ methods:
                 skill_path: "skill",
                 method: "default",
                 package_digest: "sha256:package",
-                execution_closure_digest: "sha256:closure",
+                closure_digest: "sha256:closure",
                 inputs: &JsonObject::new(),
                 context: &CallerContext::default(),
                 run_authority: None,

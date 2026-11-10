@@ -19,13 +19,13 @@ mod resolve;
 
 pub use inspection::inspect_connector_readiness;
 pub(crate) use inspection::{
-    CaseClosureTarget, LocalExecutionClosure, case_closure_connectors, closure_registry_refs,
-    inspect_loaded_local_execution_closure, unheld_loaded_registry_refs,
+    CaseClosureTarget, LocalClosure, case_closure_connectors, closure_registry_refs,
+    inspect_loaded_local_closure, unheld_loaded_registry_refs,
 };
 pub use inspection::{
     SkillInspectionError, inspect_skill_package, inspect_skill_readiness, unheld_registry_refs_at,
 };
-pub(crate) use inspection::{inspect_loaded_execution_closure_binding, method_makes_calls};
+pub(crate) use inspection::{inspect_loaded_closure_binding, method_makes_calls};
 pub use resolve::resolve_local_skill_reference;
 
 pub(crate) const MAX_PACKAGE_FILES: usize = 500;
@@ -91,7 +91,7 @@ fn usable_example_status(status: Option<&TestExpectedStatus>) -> bool {
 }
 
 /// The packages a run admitted, by canonical directory: its skill and every
-/// child skill its execution closure binds, as they were when the run was
+/// child skill its closure binds, as they were when the run was
 /// bound, each with who it is (D30). A run reads every package it executes
 /// from here and never from disk again: its modules, its child skills'
 /// methods, its agents' instructions. So what a run executes is what it
@@ -145,7 +145,7 @@ impl AdmittedPackages {
     }
 }
 
-/// What a run binds to: its execution closure's digest, when the closure is
+/// What a run binds to: its closure's digest, when the closure is
 /// fully bound, and every package the closure binds.
 pub(crate) struct ExecutionBinding {
     pub(crate) closure_digest: Option<String>,
@@ -157,7 +157,7 @@ pub(crate) fn verify_loaded_execution_binding(
     method: &str,
     env: &std::collections::BTreeMap<String, String>,
     expected_package_digest: Option<&str>,
-    expected_execution_closure_digest: Option<&str>,
+    expected_closure_digest: Option<&str>,
 ) -> Result<ExecutionBinding, SkillInspectionError> {
     let loaded = loaded.into();
     if let Some(expected) = expected_package_digest
@@ -168,8 +168,8 @@ pub(crate) fn verify_loaded_execution_binding(
             received: loaded.package.package_digest.clone(),
         });
     }
-    let closure = inspect_loaded_execution_closure_binding(loaded, method, env)?;
-    if let Some(expected) = expected_execution_closure_digest {
+    let closure = inspect_loaded_closure_binding(loaded, method, env)?;
+    if let Some(expected) = expected_closure_digest {
         if !closure.fully_bound {
             return Err(SkillInspectionError::ClosureNotFullyBound {
                 method: method.to_owned(),

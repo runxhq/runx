@@ -242,7 +242,7 @@ pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
 /// The runx release this runtime ships in: the CLI version.
 ///
 /// Published Runx binaries are immutable for one CLI version. Every native
-/// execution closure binds it, so a queued or resumed run cannot silently
+/// closure binds it, so a queued or resumed run cannot silently
 /// cross a runtime upgrade while retaining the same closure digest, and every
 /// receipt's issuer states it.
 pub const RUNX_VERSION: &str = "0.11.1";

@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRunxClient, executionClosureFromInspection } from "../packages/client/src/index.js";
+import { createRunxClient, closureFromInspection } from "../packages/client/src/index.js";
 import { runxBinary } from "./native-test-environment.js";
 
 // The client's commands against the native CLI itself, so what the client
@@ -71,7 +71,7 @@ describe("the client against the native CLI", () => {
         environment: { PATH: process.env.PATH, RUNX_PUBLIC_API_BASE_URL: url, RUNX_PUBLIC_API_TOKEN: "rxk_operator", RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK: "1" },
       });
       const unbound = await client.skills.inspect({ skillPath, method: "list" });
-      const binding = executionClosureFromInspection(unbound).connectorBindings.find((bound) => bound.connector === "fixture/records");
+      const binding = closureFromInspection(unbound).connectorBindings.find((bound) => bound.connector === "fixture/records");
       expect(binding).toBeDefined();
       grants = [{ grant_id: "grant_records_read", provider: "fixture/records", connector_binding: binding, status: "active", credential_material_bound: true, scopes: ["records.read", "records.summary.read"] }];
       const runAuthority = { grants: { "fixture/records": "grant_records_read" } };

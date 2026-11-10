@@ -321,7 +321,7 @@ export type BoundApprovalContract = {
   readonly value?: unknown;
 };
 
-/** The exact package and execution closure a load bound for one method. */
+/** The exact package and closure a load bound for one method. */
 export type BoundClosureContract = {
   readonly closure_digest: string;
   readonly package_digest: string;
@@ -1503,7 +1503,7 @@ export type MethodInspectionContract = {
 };
 
 export type MethodInspectionEntryContract = {
-  readonly execution_closure: {
+  readonly closure: {
     readonly [key: string]: unknown;
   };
   readonly method: MethodInspectionContract;
@@ -2797,11 +2797,11 @@ export type RunReadContract = {
 export type RunReadSchemaContract = "runx.run_read.v1";
 
 export type RunReadSummaryContract = {
+  readonly closure_digest: string;
   readonly created_at: string;
   /** Whether a process holds the run's driver lock now. A host that restarts reconciles once this is false. */
   readonly driven: boolean;
   readonly driver: RunDriverContract;
-  readonly execution_closure_digest: string;
   readonly method: string;
   readonly outcome?: RunOutcomeContract;
   /** The execution package digest of the package the run loaded, not the registry's digest of the published package files a listing carries. */
@@ -3148,6 +3148,9 @@ export type SkillIdentityDecisionContract = {
 
 export type SkillInspectionContract = {
   readonly catalog?: SkillCatalogContract;
+  readonly closure?: {
+    readonly [key: string]: unknown;
+  };
   /** Each operation the method may call, as ready as the project leaves it. */
   readonly connector_readiness?: readonly ReadinessContract[];
   readonly description?: string;
@@ -3158,13 +3161,10 @@ export type SkillInspectionContract = {
   /** The environment the method reads, by name and availability, never by value. */
   readonly environment?: EnvironmentReadinessContract;
   readonly examples?: readonly string[];
-  readonly execution_closure?: {
-    readonly [key: string]: unknown;
-  };
   readonly manual_digest: string;
   /** The method inspected: the one named, else the default. */
   readonly method?: MethodInspectionContract;
-  /** Each method with the execution closure it binds. */
+  /** Each method with the closure it binds. */
   readonly method_inspections?: readonly MethodInspectionEntryContract[];
   /** Every method the package declares, by name. */
   readonly methods: readonly string[];

@@ -317,7 +317,7 @@ Its checked-in package also includes the command and test case.
 | Domain modules | Deterministic computation specific to the skill. |
 | Runx | Provider transport, filesystem and process access, credential delivery, execution state, and receipts. |
 
-Runx binds the manual and execution closure by digest. An acting agent receives
+Runx binds the manual and closure by digest. An acting agent receives
 the invoked skill's full manual; declared adjacent skills contribute bounded
 summaries until invoked. A workflow can also supply a skill as explicit
 `context.skills` on an agent step—for example, a writing rubric. Context informs
@@ -395,7 +395,7 @@ runx resume <run-id> answers.json --json
 The run records pending requests and completed calls. Independent read calls
 can run concurrently; effects are serialized within the run. A retry reuses
 the call's identity, and an uncertain external result remains explicit for
-reconciliation. Resume checks the package and execution closure so a changed
+reconciliation. Resume checks the package and closure so a changed
 skill cannot silently continue an old run.
 
 Agent answers and human approvals have separate fields. Each decision binds to
@@ -442,7 +442,7 @@ operator and its state local unless you explicitly select a hosted service.
 
 Connector names identify the capability provider: `github`, `posthog`,
 `google/analytics`, or `google/search-console`. A skill binding a connector
-outside its own plugin pins the manifest digest; the execution closure binds
+outside its own plugin pins the manifest digest; the closure binds
 the operations it will actually use.
 
 [Credential setup](docs/credentials.md) ·

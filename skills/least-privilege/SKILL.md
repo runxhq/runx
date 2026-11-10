@@ -17,7 +17,7 @@ parser, wildcard matcher, permission hierarchy or policy engine.
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `receipt-query#read`
 

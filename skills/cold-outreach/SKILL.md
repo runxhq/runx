@@ -39,7 +39,7 @@ approved draft under its key. Memory levels it's given go to each lead's
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `ghostwrite#admit`
 - `ghostwrite#verify`

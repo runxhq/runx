@@ -173,7 +173,7 @@ fn load_publish_package(
 /// published (D30): it is an installed copy, which the registry already has.
 fn refuse_signatures(
     loaded: &LoadedSkillPackage,
-    closure: &crate::skill_package::LocalExecutionClosure,
+    closure: &crate::skill_package::LocalClosure,
 ) -> Result<(), RegistryPublishPackageError> {
     let signed = std::iter::once(&loaded.package_root)
         .chain(closure.packages.keys())
@@ -200,7 +200,7 @@ fn refuse_signatures(
 /// names pins the version it binds: one that names none would run whatever
 /// the registry publishes next (D30).
 fn refuse_unpinned_registry_refs(
-    closure: &crate::skill_package::LocalExecutionClosure,
+    closure: &crate::skill_package::LocalClosure,
 ) -> Result<(), RegistryPublishPackageError> {
     let unpinned = closure
         .registry_refs
@@ -259,7 +259,7 @@ fn prepare_loaded_package(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {
-    let local_closure = crate::skill_package::inspect_loaded_local_execution_closure(loaded, env)
+    let local_closure = crate::skill_package::inspect_loaded_local_closure(loaded, env)
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
     refuse_signatures(loaded, &local_closure)?;
     refuse_unpinned_registry_refs(&local_closure)?;
@@ -638,8 +638,7 @@ expect:
     }
 
     #[test]
-    fn publish_test_preserves_local_sibling_execution_closure()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn publish_test_preserves_local_sibling_closure() -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
         fs::write(temp.path().join("pnpm-workspace.yaml"), "packages: []\n")?;
         let catalog = temp.path().join("skills");

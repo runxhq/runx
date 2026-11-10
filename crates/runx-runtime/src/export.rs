@@ -67,7 +67,7 @@ pub struct RunxExportMethod {
     /// run.yaml. Named run.yaml methods are always explicit in generated commands.
     pub name: Option<String>,
     pub default: bool,
-    pub execution_closure_digest: Option<String>,
+    pub closure_digest: Option<String>,
     pub inputs: BTreeMap<String, SkillInput>,
     /// A run of this method reaches an agent turn that makes calls, so a host
     /// works it through the MCP tool `skill_tool_name` names.
@@ -212,7 +212,7 @@ fn export_skill(
             let Some(name) = method.name.as_deref() else {
                 continue;
             };
-            let binding = crate::skill_package::inspect_loaded_execution_closure_binding(
+            let binding = crate::skill_package::inspect_loaded_closure_binding(
                 loaded.clone().into(),
                 name,
                 execution_env,
@@ -220,11 +220,11 @@ fn export_skill(
             .map_err(|error| RunxExportLoadError::Parse(error.to_string()))?;
             if !binding.fully_bound {
                 return Err(RunxExportLoadError::InvalidArgs(format!(
-                    "cannot export {} method {name:?} because its execution closure is not fully bound",
+                    "cannot export {} method {name:?} because its closure is not fully bound",
                     skill.name
                 )));
             }
-            method.execution_closure_digest = Some(binding.digest);
+            method.closure_digest = Some(binding.digest);
             method.makes_calls = crate::skill_package::method_makes_calls(
                 loaded.clone().into(),
                 name,
@@ -292,7 +292,7 @@ fn export_methods(
         return vec![RunxExportMethod {
             name: None,
             default: true,
-            execution_closure_digest: None,
+            closure_digest: None,
             inputs: std::collections::BTreeMap::new(),
             makes_calls: false,
             description: package.skill.description.clone(),
@@ -309,7 +309,7 @@ fn export_methods(
         .map(|method| RunxExportMethod {
             name: Some(method.name.clone()),
             default: default == Some(method.name.as_str()),
-            execution_closure_digest: None,
+            closure_digest: None,
             inputs: method.inputs.clone(),
             makes_calls: false,
             description: manifest

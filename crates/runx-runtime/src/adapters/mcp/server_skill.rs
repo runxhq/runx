@@ -109,7 +109,7 @@ fn load_mcp_server_tool(
     let tool_method = selected.filter(|_| execution.method.is_none());
     let skill = loaded.package.skill.clone();
     let package_digest = loaded.package.package_digest.clone();
-    let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
+    let closure_digest = crate::skill_package::verify_loaded_execution_binding(
         loaded,
         &method.name,
         &execution.env,
@@ -118,7 +118,7 @@ fn load_mcp_server_tool(
     )
     .map_err(|error| mcp_method_error(&skill.name, error))?
     .closure_digest
-    .ok_or_else(|| mcp_method_error(&skill.name, "skill requires an execution-closure binding"))?;
+    .ok_or_else(|| mcp_method_error(&skill.name, "skill requires an closure binding"))?;
     Ok(McpServerTool {
         name: crate::export::skill_tool_name(&skill.name, tool_method),
         description,
@@ -128,7 +128,7 @@ fn load_mcp_server_tool(
             skill_name: skill.name,
             method: method.name,
             package_digest,
-            execution_closure_digest,
+            closure_digest,
             receipt_dir: execution.receipt_dir.clone(),
             env: execution.env.clone(),
             run_authority: execution.run_authority.clone(),
@@ -204,7 +204,7 @@ pub(super) fn execute_mcp_server_skill(
             &execution.method,
             javascript,
             &execution.package_digest,
-            &execution.execution_closure_digest,
+            &execution.closure_digest,
         ) {
         Ok(result) => result,
         Err(error) => {

@@ -530,7 +530,7 @@ pub enum CallTarget {
     },
 }
 
-/// The exact package and execution closure a load bound for one method.
+/// The exact package and closure a load bound for one method.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoundClosure {

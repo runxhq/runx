@@ -4,7 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createRunxClient, executionBindingFromInspection, executionClosureFromInspection, RunxClientError } from "./index.js";
+import { createRunxClient, executionBindingFromInspection, closureFromInspection, RunxClientError } from "./index.js";
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
 import { receiptCommitments } from "./receipt-tree.js";
@@ -63,19 +63,19 @@ describe("native invocation and decoding", () => {
     expect(inspection.method).toBeUndefined();
     expect(() => executionBindingFromInspection(inspection)).toThrow("selected method");
   });
-  it("reads the connector revisions an execution closure runs, and refuses one it cannot read", () => {
+  it("reads the connector revisions a closure runs, and refuses one it cannot read", () => {
     const binding = { connector: "ausca/inbox", manifest_digest: `sha256:${"a".repeat(64)}`, connector_digest: `sha256:${"b".repeat(64)}` };
     const closure = (connectorBindings?: unknown) => ({
       schema: "runx.skill.inspect.v1", status: "ok", name: "agent-inbox", package_digest: `sha256:${"c".repeat(64)}`,
-      execution_closure: {
+      closure: {
         closure_digest: `sha256:${"d".repeat(64)}`, fully_bound: true,
         package_bindings: [{ skill: "agent-inbox", method: "create", package_digest: `sha256:${"c".repeat(64)}`, source_kind: "source_root", source_path: "/skill", source_files: ["SKILL.md"] }],
         ...(connectorBindings === undefined ? {} : { connector_bindings: connectorBindings }),
       },
     }) as never;
-    expect(executionClosureFromInspection(closure([binding])).connectorBindings).toEqual([binding]);
-    expect(executionClosureFromInspection(closure()).connectorBindings).toEqual([]);
-    expect(() => executionClosureFromInspection(closure([{ connector: "ausca/inbox" }]))).toThrow("connector_bindings[0]");
+    expect(closureFromInspection(closure([binding])).connectorBindings).toEqual([binding]);
+    expect(closureFromInspection(closure()).connectorBindings).toEqual([]);
+    expect(() => closureFromInspection(closure([{ connector: "ausca/inbox" }]))).toThrow("connector_bindings[0]");
   });
   it("passes an exact resume packet without changing approval actors", async () => {
     const { root, config, receiptDir } = await setup();
@@ -94,7 +94,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "history.json");
     const read = {
       schema: "runx.run_read.v1",
-      run: { run_id: "run_test", skill: "reply", method: "reply", state: "paused", package_digest: "sha256:p", execution_closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
+      run: { run_id: "run_test", skill: "reply", method: "reply", state: "paused", package_digest: "sha256:p", closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
       waiting: [{ address: "send.approval", request_digest: "sha256:r", request: { kind: "approval", id: "send.approval", gate: { id: "send.approval", reason: "send it" } } }],
       events: [{ stream: "run_test", version: 2, committed_at: "t1", event: { kind: "suspended", step_id: "send", attempt: 1, hold: { kind: "request", address: "send.approval", request_digest: "sha256:r" } } }],
       cursor: "-cursor_1",

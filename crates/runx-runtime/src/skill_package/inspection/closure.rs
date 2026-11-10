@@ -1,4 +1,4 @@
-// Module rationale: execution-closure inspection keeps package traversal,
+// Module rationale: closure inspection keeps package traversal,
 // registry-edge classification, cycle detection, and summary projection in one
 // canonical walk.
 use std::collections::{BTreeMap, BTreeSet};
@@ -97,7 +97,7 @@ pub(crate) struct LocalSkillEdge {
 }
 
 #[derive(Default)]
-pub(crate) struct LocalExecutionClosure {
+pub(crate) struct LocalClosure {
     /// Each package the closure runs, with the packets its methods declare.
     pub packages: BTreeMap<PathBuf, BTreeSet<runx_contracts::PacketId>>,
     pub skill_edges: BTreeSet<LocalSkillEdge>,
@@ -106,7 +106,7 @@ pub(crate) struct LocalExecutionClosure {
 }
 
 #[derive(Serialize)]
-struct ExecutionClosure {
+struct Closure {
     closure_digest: String,
     runx_version: String,
     fully_bound: bool,
@@ -183,7 +183,7 @@ pub(crate) enum UnheldRegistryRefs {
     Reject,
 }
 
-pub(super) fn inspect_execution_closures(
+pub(super) fn inspect_closures(
     loaded: Arc<LoadedSkillPackage>,
     env: Option<&BTreeMap<String, String>>,
     unheld_registry_refs: UnheldRegistryRefs,
@@ -192,7 +192,7 @@ pub(super) fn inspect_execution_closures(
         .manifest()
         .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut inspector = ExecutionClosureInspector::new(loaded, env, unheld_registry_refs)?;
+    let mut inspector = ClosureInspector::new(loaded, env, unheld_registry_refs)?;
     method_names
         .into_iter()
         .map(|method_name| {
@@ -214,13 +214,12 @@ pub(super) type AdmittedClosure = (
     BTreeMap<String, PathBuf>,
 );
 
-pub(super) fn inspect_method_execution_closure(
+pub(super) fn inspect_method_closure(
     loaded: Arc<LoadedSkillPackage>,
     method_name: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<AdmittedClosure, SkillInspectionError> {
-    let mut inspector =
-        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
+    let mut inspector = ClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
     inspector.identify = true;
     let mut closure = inspector.inspect_root_method_accumulator(method_name)?;
     let packages = std::mem::take(&mut closure.packages);
@@ -240,8 +239,7 @@ pub(super) fn inspect_method_closure_methods(
     method_name: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<(Arc<LoadedSkillPackage>, String)>, SkillInspectionError> {
-    let mut inspector =
-        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
+    let mut inspector = ClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let closure = inspector.inspect_root_method_accumulator(method_name)?;
     Ok(closure
         .methods
@@ -255,31 +253,30 @@ pub(super) fn inspect_method_closure_methods(
         .collect())
 }
 
-pub(super) fn inspect_local_execution_closure(
+pub(super) fn inspect_local_closure(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
-) -> Result<LocalExecutionClosure, SkillInspectionError> {
+) -> Result<LocalClosure, SkillInspectionError> {
     let method_names = loaded
         .manifest()
         .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut inspector =
-        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
-    let mut closure = LocalExecutionClosure::default();
+    let mut inspector = ClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
+    let mut closure = LocalClosure::default();
     for method_name in method_names {
-        merge_local_execution_closure(
+        merge_local_closure(
             &mut closure,
             inspector
                 .inspect_root_method_accumulator(&method_name)?
-                .into_local_execution_closure(),
+                .into_local_closure(),
         );
     }
     for package in fixture_packages(&inspector.root) {
-        merge_local_execution_closure(
+        merge_local_closure(
             &mut closure,
             inspector
                 .inspect_fixture_package_accumulator(&package)?
-                .into_local_execution_closure(),
+                .into_local_closure(),
         );
     }
     Ok(closure)
@@ -299,8 +296,7 @@ pub(super) fn case_closure_connectors(
     target: CaseClosureTarget<'_>,
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<Arc<LoadedConnector>>, SkillInspectionError> {
-    let mut inspector =
-        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
+    let mut inspector = ClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let closure = match target {
         CaseClosureTarget::Method(method) => inspector.inspect_root_method_accumulator(method)?,
     };
@@ -376,8 +372,7 @@ fn closure_accumulators(
         .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
     let packages = fixture_packages(&loaded);
-    let mut inspector =
-        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
+    let mut inspector = ClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let mut accumulators = Vec::new();
     for method_name in method_names {
         accumulators.push(inspector.inspect_root_method_accumulator(&method_name)?);
@@ -389,8 +384,8 @@ fn closure_accumulators(
 }
 
 impl ClosureAccumulator {
-    fn into_local_execution_closure(self) -> LocalExecutionClosure {
-        LocalExecutionClosure {
+    fn into_local_closure(self) -> LocalClosure {
+        LocalClosure {
             packages: self.local_packages,
             skill_edges: self.local_skill_edges,
             registry_refs: self.local_registry_refs,
@@ -398,10 +393,7 @@ impl ClosureAccumulator {
     }
 }
 
-fn merge_local_execution_closure(
-    target: &mut LocalExecutionClosure,
-    source: LocalExecutionClosure,
-) {
+fn merge_local_closure(target: &mut LocalClosure, source: LocalClosure) {
     for (package_root, packet_ids) in source.packages {
         target
             .packages
@@ -413,7 +405,7 @@ fn merge_local_execution_closure(
     target.registry_refs.extend(source.registry_refs);
 }
 
-struct ExecutionClosureInspector<'a> {
+struct ClosureInspector<'a> {
     root: Arc<LoadedSkillPackage>,
     root_directory: PathBuf,
     package_root: PathBuf,
@@ -426,7 +418,7 @@ struct ExecutionClosureInspector<'a> {
     identify: bool,
 }
 
-impl<'a> ExecutionClosureInspector<'a> {
+impl<'a> ClosureInspector<'a> {
     fn connector_scope(
         &mut self,
         package_root: &Path,
@@ -1155,8 +1147,8 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
         .unresolved_skill_edges
         .into_iter()
         .collect::<Vec<_>>();
-    let output = ExecutionClosure {
-        closure_digest: execution_closure_digest(
+    let output = Closure {
+        closure_digest: closure_digest(
             &package_bindings,
             &connector_bindings,
             &unresolved_skill_edges,
@@ -1176,11 +1168,11 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
         environment,
     };
     let serialized = serde_json::to_vec(&output).map_err(|source| SkillInspectionError::Json {
-        context: "serializing execution closure",
+        context: "serializing closure",
         source,
     })?;
     serde_json::from_slice(&serialized).map_err(|source| SkillInspectionError::Json {
-        context: "projecting execution closure",
+        context: "projecting closure",
         source,
     })
 }
@@ -1189,13 +1181,13 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
 /// connector's manifest and implementation, and each edge left unresolved.
 /// runx's version is left out, so a person's trust in a closure and a closure
 /// pinned elsewhere survive an upgrade.
-fn execution_closure_digest(
+fn closure_digest(
     package_bindings: &[ExecutionPackageBinding],
     connector_bindings: &[ExecutionConnectorBinding],
     unresolved_skill_edges: &[String],
 ) -> String {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"runx.execution-closure.v1\0");
+    canonical.extend_from_slice(b"runx.closure.v1\0");
     for binding in package_bindings {
         append_digest_field(&mut canonical, binding.skill.as_bytes());
         append_digest_field(&mut canonical, binding.method.as_bytes());
@@ -1307,7 +1299,7 @@ mod tests {
             connector_digest: digest("c")?,
         }];
         assert_eq!(
-            execution_closure_digest(&packages, &connectors, &[]),
+            closure_digest(&packages, &connectors, &[]),
             "sha256:35d3a1537190dcd745b59333128a84b045510f7b112e69e3c6694e6c723597ad"
         );
         Ok(())

@@ -501,10 +501,7 @@ pub(crate) fn build_local_provision_observation(
         request_id: format!("local-credential-provision/{material_id_hex}").into(),
         response_id: None,
         status: CredentialDeliveryObservationStatus::Delivered,
-        run_ref: Reference::with_uri(
-            ReferenceType::Host,
-            "runx:host:local-credential-provision",
-        ),
+        run_ref: Reference::with_uri(ReferenceType::Host, "runx:host:local-credential-provision"),
         host_ref: Some(Reference::with_uri(
             ReferenceType::Host,
             "runx:host:local-cli",

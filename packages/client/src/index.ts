@@ -7,9 +7,9 @@ import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput,
 
 export { hostEnvironmentFrom } from "./environment.js";
 export { RunxClientError } from "./process.js";
-export { executionBindingFromInspection, executionClosureFromInspection, assertInspectionMatchesBinding } from "./inspection.js";
+export { executionBindingFromInspection, closureFromInspection, assertInspectionMatchesBinding } from "./inspection.js";
 export type * from "./types.js";
-export type { ExecutionPackageBinding, ExecutionClosureInspection } from "./inspection.js";
+export type { ExecutionPackageBinding, ClosureInspection } from "./inspection.js";
 
 export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   const config = { ...configuration, environment: { ...configuration.environment } };
@@ -184,8 +184,8 @@ function authorityArgs(authority?: RunAuthority): string[] { return authority ? 
 function bindingArgs(binding?: ExecutionBinding): string[] {
   if (!binding) return [];
   argument(binding.method);
-  if (![binding.packageDigest, binding.executionClosureDigest].every((value) => /^sha256:[0-9a-f]{64}$/u.test(value))) throw new TypeError("Invalid native execution binding digests.");
-  return ["--package-digest", binding.packageDigest, "--execution-closure-digest", binding.executionClosureDigest];
+  if (![binding.packageDigest, binding.closureDigest].every((value) => /^sha256:[0-9a-f]{64}$/u.test(value))) throw new TypeError("Invalid native execution binding digests.");
+  return ["--package-digest", binding.packageDigest, "--closure-digest", binding.closureDigest];
 }
 function skillEnvironment(environment?: Readonly<Record<string, string>>): NodeJS.ProcessEnv {
   for (const [name, value] of Object.entries(environment ?? {})) {

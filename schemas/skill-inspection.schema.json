@@ -6,6 +6,10 @@
     "catalog": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillCatalog"
     },
+    "closure": {
+      "additionalProperties": {},
+      "type": "object"
+    },
     "connector_readiness": {
       "description": "Each operation the method may call, as ready as the project leaves it.",
       "items": {
@@ -32,10 +36,6 @@
       },
       "type": "array"
     },
-    "execution_closure": {
-      "additionalProperties": {},
-      "type": "object"
-    },
     "manual_digest": {
       "type": "string"
     },
@@ -44,7 +44,7 @@
       "description": "The method inspected: the one named, else the default."
     },
     "method_inspections": {
-      "description": "Each method with the execution closure it binds.",
+      "description": "Each method with the closure it binds.",
       "items": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MethodInspectionEntry"
       },

@@ -401,7 +401,7 @@ impl Workspace {
             cwd: self.root().to_path_buf(),
             managed_agent: ManagedAgentPolicy::HostDriven,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
         })?)
     }
 }

@@ -15,7 +15,7 @@ const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 fn test_blocks_ending_and_seals_workflow_receipt() -> Result<(), Box<dyn std::error::Error>> {
     let case = TempCase::new("abnormal-seal")?;
     case.write_skill("act", "act", "approved: {type: boolean}")?;
-    case.write_skill("closure", "closure", "closed: {type: boolean}")?;
+    case.write_skill("ending", "ending", "ended: {type: boolean}")?;
     case.write_workflow()?;
     case.write_test()?;
 
@@ -85,7 +85,7 @@ impl SkillAdapter for RecordingAdapter {
             .push(request.skill_name.clone());
         let value = match request.skill_name.as_str() {
             "act" => serde_json::json!({ "approved": false }),
-            _ => serde_json::json!({ "closed": true }),
+            _ => serde_json::json!({ "ended": true }),
         };
         Ok(InvocationOutput::runtime_success(
             serde_json::from_value(value).map_err(|source| {
@@ -159,10 +159,10 @@ methods:
     steps:
       - id: act
         skill: ../act
-      - id: closure
+      - id: ending
         guard:
           - {value: $steps.act.approved, equals: true}
-        skill: ../closure
+        skill: ../ending
 "#,
         )
     }

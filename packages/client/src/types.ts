@@ -32,7 +32,7 @@ export interface InvocationOptions {
 export interface ExecutionBinding {
   readonly method: string;
   readonly packageDigest: string;
-  readonly executionClosureDigest: string;
+  readonly closureDigest: string;
 }
 
 /** A skill package's inspection, validated against `runx.skill.inspect.v1`. */

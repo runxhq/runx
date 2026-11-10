@@ -19,7 +19,7 @@ pub struct ResumePlan {
     pub answers_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
     pub expected_package_digest: Option<String>,
-    pub expected_execution_closure_digest: Option<String>,
+    pub expected_closure_digest: Option<String>,
     pub json: bool,
     pub diagnostics: bool,
     pub managed_agent: ManagedAgentPolicy,
@@ -38,7 +38,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
     }
     let mut receipt_dir = None;
     let mut expected_package_digest = None;
-    let mut expected_execution_closure_digest = None;
+    let mut expected_closure_digest = None;
     let mut json = false;
     let mut diagnostics = false;
     let mut managed_agent = false;
@@ -116,20 +116,20 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
                 )?);
                 index += 1;
             }
-            value if value.starts_with("--execution-closure-digest=") => {
-                expected_execution_closure_digest = Some(binding_flag_value(
-                    "--execution-closure-digest",
-                    value.trim_start_matches("--execution-closure-digest="),
+            value if value.starts_with("--closure-digest=") => {
+                expected_closure_digest = Some(binding_flag_value(
+                    "--closure-digest",
+                    value.trim_start_matches("--closure-digest="),
                 )?);
                 index += 1;
             }
-            "--execution-closure-digest" => {
+            "--closure-digest" => {
                 index += 1;
-                expected_execution_closure_digest = Some(binding_flag_value(
-                    "--execution-closure-digest",
+                expected_closure_digest = Some(binding_flag_value(
+                    "--closure-digest",
                     args.get(index)
                         .and_then(|value| value.to_str())
-                        .ok_or_else(|| "--execution-closure-digest requires a value".to_owned())?,
+                        .ok_or_else(|| "--closure-digest requires a value".to_owned())?,
                 )?);
                 index += 1;
             }
@@ -157,7 +157,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
         answers_path: PathBuf::from(positionals.remove(0)),
         receipt_dir,
         expected_package_digest,
-        expected_execution_closure_digest,
+        expected_closure_digest,
         json,
         diagnostics,
         managed_agent: managed_agent_policy("resume", managed_agent, managed_agent_rounds)?,
@@ -202,7 +202,7 @@ pub fn run_native_resume_with_workspace(
         cwd: workspace.cwd().to_path_buf(),
         managed_agent: plan.managed_agent,
         package_digest: plan.expected_package_digest,
-        execution_closure_digest: plan.expected_execution_closure_digest,
+        closure_digest: plan.expected_closure_digest,
     });
     match result {
         Ok(result) => crate::skill::write_run_result(
@@ -325,7 +325,7 @@ mod tests {
                 "run_123",
                 "answers.json",
                 "--package-digest=sha256:package",
-                "--execution-closure-digest",
+                "--closure-digest",
                 "sha256:closure",
             ]
             .into_iter()
@@ -337,7 +337,7 @@ mod tests {
             Some("sha256:package")
         );
         assert_eq!(
-            plan.expected_execution_closure_digest.as_deref(),
+            plan.expected_closure_digest.as_deref(),
             Some("sha256:closure")
         );
         Ok(())

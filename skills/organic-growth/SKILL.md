@@ -49,7 +49,7 @@ presentation ceiling into a claim that the site itself is unsupported.
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `google-analytics#report`
 - `google-search-console#performance`

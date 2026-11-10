@@ -380,13 +380,13 @@ managed agent: `runx mcp --run` refuses it, and `--drive` cannot take
 over a run its host drives.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
-`--package-digest` and `--execution-closure-digest`. Runx recomputes both at the
+`--package-digest` and `--closure-digest`. Runx recomputes both at the
 native execution boundary, persists them in pause checkpoints, and rejects a
 resume whose supplied bindings disagree with that checkpoint. These flags bind
 execution; they are never skill inputs. The closure digest includes the
 immutable Runx release identity, so a pending continuation cannot silently
 cross a runtime upgrade. Runx-generated run ids and durable workflow state bind
-the same package and execution-closure digests, so changing a skill, transitive
+the same package and closure digests, so changing a skill, transitive
 child package, or runtime closure cannot merge incompatible checkpoint history.
 
 Execution ceilings remain owned by the capability they constrain rather than
@@ -420,7 +420,7 @@ reaches the receipt as its status and its own error message, never its raw
 body or the key.
 
 Prepared context never asks for performative approval: it binds the selected
-skill, inputs, execution closure, and drift guards into the receipt. A
+skill, inputs, closure, and drift guards into the receipt. A
 consequential action stops once at its owning boundary. An `operation` step
 accepts an optional typed `approval` request, and an operation the connector
 marks `approval: required` always needs one; the kernel then suspends the call

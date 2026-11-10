@@ -494,7 +494,7 @@ methods:
                 "--json",
             ])
             .output()?;
-        Ok(assert_json(&output, Some(0))?["execution_closure"].clone())
+        Ok(assert_json(&output, Some(0))?["closure"].clone())
     };
 
     let unheld = inspect()?;
@@ -559,7 +559,7 @@ methods:
         .args(["skill", "inspect", skill, "--json"])
         .output()?;
     let inspected = assert_json(&output, Some(0))?;
-    let closure = &inspected["execution_closure"];
+    let closure = &inspected["closure"];
     assert_eq!(closure["fully_bound"], false);
     assert_eq!(
         closure["unresolved_skill_edges"],

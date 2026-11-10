@@ -77,7 +77,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "resume",
         top_level_usage: &[],
         usage: &[
-            "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
+            "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
         ],
         notes: &[
             crate::resume::ANSWER_DOCUMENT_EXAMPLE,
@@ -89,8 +89,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--drive  Explicitly allow an in-process model loop for this continuation",
             "--drive-rounds n  Bound each managed act to 1-32 rounds (default 4)",
             "--package-digest sha256   Reassert the checkpointed package binding",
-            "--execution-closure-digest sha256",
-            "                          Reassert the checkpointed execution closure",
+            "--closure-digest sha256",
+            "                          Reassert the checkpointed closure",
             "--diagnostics  Include execution trace and intermediate context",
             "-j, --json",
         ],
@@ -277,7 +277,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --closure-digest sha256] [--receipt-dir dir]",
             "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json | --authority name] [-j] [--registry url] [--digest sha256]",
         ],
         notes: &[
@@ -300,7 +300,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--registry url           The hosted registry a registry ref is fetched from",
             "--digest sha256          Refuse a fetched package whose registry content digest differs",
             "--package-digest sha256 Bind execution to the complete validated skill package; requires closure digest",
-            "--execution-closure-digest sha256",
+            "--closure-digest sha256",
             "                          Bind execution to the complete native skill closure; requires package digest",
         ],
     },

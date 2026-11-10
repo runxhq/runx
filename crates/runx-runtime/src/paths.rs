@@ -200,7 +200,7 @@ impl RunxPaths {
         self.home.join("install.json")
     }
 
-    /// The execution closures a person trusted, in their home, which holds
+    /// The closures a person trusted, in their home, which holds
     /// none when it fell back ([`Self::home_fell_back`]).
     #[must_use]
     pub fn trust_records(&self) -> PathBuf {

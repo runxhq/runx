@@ -224,7 +224,7 @@ fn a_resume_takes_its_run_whole_once() {
                 cwd: root.path().to_path_buf(),
                 managed_agent: Default::default(),
                 package_digest: None,
-                execution_closure_digest: None,
+                closure_digest: None,
             })
             .unwrap();
         assert_eq!(
@@ -320,7 +320,7 @@ fn a_resume_reads_the_same_whatever_its_settled_steps_called() {
                 cwd: root.path().to_path_buf(),
                 managed_agent: Default::default(),
                 package_digest: None,
-                execution_closure_digest: None,
+                closure_digest: None,
             })
             .unwrap();
         crate::work_counts::snapshot().store_rows_read - before
@@ -404,7 +404,7 @@ fn a_resume_reads_each_event_of_its_run_once() {
                 cwd: root.path().to_path_buf(),
                 managed_agent: Default::default(),
                 package_digest: None,
-                execution_closure_digest: None,
+                closure_digest: None,
             })
         });
         resumed.unwrap();

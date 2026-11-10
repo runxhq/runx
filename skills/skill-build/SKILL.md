@@ -107,7 +107,7 @@ authoring.
   the product's voice by themselves.
 - Explain meaningful upstream and downstream skill relationships naturally in
   the operator guide. Do not maintain a second machine-readable dependency
-  registry in `SKILL.md`: native execution-closure inspection owns the exact
+  registry in `SKILL.md`: native closure inspection owns the exact
   edge set and operator preflight surfaces it. Prose explains why the chain
   exists; the runtime proves what it actually calls.
 - Design capability chains by responsibility, not by whichever integration is
@@ -220,7 +220,7 @@ authoring.
   every materially different method; a default-only export cannot certify a
   multi-method skill. For an existing target, use
   `authoring_context.target_inspection` as the canonical method-contract and
-  execution-closure evidence. An `invalid` inspection is repair context, not
+  closure evidence. An `invalid` inspection is repair context, not
   permission to guess: read the declared target files, correct the owning
   contract, and validate the complete candidate.
 - Design evidence admission around the operator's job, not the first provider

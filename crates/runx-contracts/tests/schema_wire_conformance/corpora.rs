@@ -1591,7 +1591,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
             "method": "reply",
             "state": "paused",
             "package_digest": "sha256:package",
-            "execution_closure_digest": "sha256:closure",
+            "closure_digest": "sha256:closure",
             "driver": "attached",
             "driven": false,
             "created_at": "2026-10-14T00:00:00Z",
@@ -1616,7 +1616,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
                 json!({
                     "run_id": "run_1", "skill": "reply", "method": "reply", "state": "sealed",
                     "outcome": "completed", "receipt_id": "sha256:run",
-                    "package_digest": "sha256:package", "execution_closure_digest": "sha256:closure",
+                    "package_digest": "sha256:package", "closure_digest": "sha256:closure",
                     "driver": "managed", "driven": false,
                     "created_at": "2026-10-14T00:00:00Z", "updated_at": "2026-10-14T00:00:02Z",
                 }),

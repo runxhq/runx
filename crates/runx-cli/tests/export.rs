@@ -299,7 +299,7 @@ fn codex_global_writes_shim_and_idempotent_permission_block()
     assert!(shim.contains("full pending request id and its request_digest"));
     assert!(!shim.contains("turn_call"));
     assert!(shim.contains("resume \"<run_id>\" - --package-digest sha256:"));
-    assert!(shim.contains("--execution-closure-digest sha256:"));
+    assert!(shim.contains("--closure-digest sha256:"));
     assert!(shim.contains("runx-export:codex"));
     let rules = fixture.read_home_file(".codex/rules/default.rules")?;
     assert!(rules.contains("# existing approval"));
@@ -477,7 +477,7 @@ fn exports_default_method_inputs_when_skill_frontmatter_has_none()
         )
     );
     assert!(shim.contains("--package-digest sha256:"));
-    assert!(shim.contains("--execution-closure-digest sha256:"));
+    assert!(shim.contains("--closure-digest sha256:"));
     assert!(!shim.contains("Do not perform the work yourself"));
     Ok(())
 }
@@ -607,14 +607,11 @@ fn generated_shims_are_compact_digest_bound_and_detect_drift()
         shim.len()
     );
     assert_eq!(shim.matches("--package-digest sha256:").count(), 2);
-    assert_eq!(
-        shim.matches("--execution-closure-digest sha256:").count(),
-        2
-    );
+    assert_eq!(shim.matches("--closure-digest sha256:").count(), 2);
     assert!(!shim.contains("Input contract:"));
 
     let package_digest = flag_value(&shim, "--package-digest")?;
-    let closure_digest = flag_value(&shim, "--execution-closure-digest")?;
+    let closure_digest = flag_value(&shim, "--closure-digest")?;
     let manual = fixture.project.join("skills/visible/SKILL.md");
     fs::write(
         &manual,
@@ -636,7 +633,7 @@ fn generated_shims_are_compact_digest_bound_and_detect_drift()
             "objective=prove stale export refusal",
             "--package-digest",
             package_digest,
-            "--execution-closure-digest",
+            "--closure-digest",
             closure_digest,
             "--json",
         ])
@@ -1064,7 +1061,7 @@ fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
     let shim = fixture.read_home_file(".agents/skills/compose/SKILL.md")?;
     let exported_source = fixture.home.join(".agents/skills/compose");
     let package = flag_value(&shim, "--package-digest")?;
-    let closure = flag_value(&shim, "--execution-closure-digest")?;
+    let closure = flag_value(&shim, "--closure-digest")?;
     let exported_plan = {
         let mut reference = exported_source.clone().into_os_string();
         reference.push("#plan");
@@ -1092,7 +1089,7 @@ fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
             "-",
             "--package-digest",
             package,
-            "--execution-closure-digest",
+            "--closure-digest",
             closure,
             "--json",
         ])
@@ -1148,7 +1145,7 @@ fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
             "-",
             "--package-digest",
             package,
-            "--execution-closure-digest",
+            "--closure-digest",
             closure,
             "--json",
         ])

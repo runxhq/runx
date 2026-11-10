@@ -103,7 +103,7 @@ pub struct PreparedEntryProvenance {
     pub version: Option<String>,
     pub digest: Option<String>,
     pub package_digest: Option<String>,
-    pub execution_closure_digest: Option<String>,
+    pub closure_digest: Option<String>,
     pub trust_tier: Option<String>,
 }
 
@@ -208,12 +208,8 @@ impl PreparedSkillRun {
     }
 
     #[must_use]
-    pub(crate) fn execution_closure_digest(&self) -> Option<&str> {
-        self.report
-            .request
-            .entry
-            .execution_closure_digest
-            .as_deref()
+    pub(crate) fn closure_digest(&self) -> Option<&str> {
+        self.report.request.entry.closure_digest.as_deref()
     }
 
     #[must_use]
@@ -285,7 +281,7 @@ impl PreparedSkillRun {
     }
 
     /// The prepared package, checked against everything it was prepared
-    /// under, and every package its execution closure binds, as admitted.
+    /// under, and every package its closure binds, as admitted.
     pub(crate) fn verify_artifacts(
         &self,
     ) -> Result<
@@ -323,7 +319,7 @@ impl PreparedSkillRun {
             &self.selected_method,
             workspace.env(),
             Some(&self.package_digest),
-            self.execution_closure_digest(),
+            self.closure_digest(),
         )
         .map(|binding| (loaded, binding.packages))
         .map_err(|message| {
@@ -371,17 +367,17 @@ pub(crate) fn prepare_skill_run_with_effects(
     let method = selected_method(&manifest, selected_method_name)?.clone();
     let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
         .map_err(RuntimeError::from)?;
-    let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
+    let closure_digest = crate::skill_package::verify_loaded_execution_binding(
         loaded.clone(),
         &method.name,
         workspace.env(),
         entry.package_digest.as_deref(),
-        entry.execution_closure_digest.as_deref(),
+        entry.closure_digest.as_deref(),
     )
     .map_err(|error| SkillRunError::Invalid(error.to_string()))?
     .closure_digest;
-    if entry.execution_closure_digest.is_none() {
-        entry.execution_closure_digest = execution_closure_digest.clone();
+    if entry.closure_digest.is_none() {
+        entry.closure_digest = closure_digest.clone();
     }
     let run_log = super::skill_front::restore_continuation_inputs(&mut request, &workspace, None)?;
     crate::input_contract::apply_defaults(&method.inputs, &mut request.inputs);
@@ -915,7 +911,7 @@ mod tests {
     }
 
     #[test]
-    fn prepared_skill_rejects_execution_closure_drift() -> Result<(), Box<dyn Error>> {
+    fn prepared_skill_rejects_closure_drift() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let error = LocalOrchestrator::default()
@@ -923,18 +919,14 @@ mod tests {
                 request(temp.path()),
                 None,
                 PreparedEntryProvenance {
-                    execution_closure_digest: Some("sha256:not-the-closure".to_owned()),
+                    closure_digest: Some("sha256:not-the-closure".to_owned()),
                     ..PreparedEntryProvenance::default()
                 },
             )
             .err()
-            .ok_or("mismatched execution closure digest did not fail closed")?;
+            .ok_or("mismatched closure digest did not fail closed")?;
 
-        assert!(
-            error
-                .to_string()
-                .contains("skill execution closure digest mismatch")
-        );
+        assert!(error.to_string().contains("skill closure digest mismatch"));
         Ok(())
     }
 
@@ -958,7 +950,7 @@ mod tests {
             entry.join("run.yaml"),
             "minimum_runx: 0.12.0\nmethods:\n  inspect:\n    result_from: [store]\n    steps:\n      - id: store\n        skill: ../ledger#read\n",
         )?;
-        let closure = crate::skill_package::inspect_loaded_execution_closure_binding(
+        let closure = crate::skill_package::inspect_loaded_closure_binding(
             crate::load_validated_skill_package(&entry)?.into(),
             "inspect",
             &BTreeMap::new(),
@@ -968,7 +960,7 @@ mod tests {
             request(&entry),
             Some("inspect"),
             PreparedEntryProvenance {
-                execution_closure_digest: Some(closure.digest),
+                closure_digest: Some(closure.digest),
                 ..PreparedEntryProvenance::default()
             },
         )?;
@@ -986,17 +978,12 @@ mod tests {
                 .to_string()
                 .contains("skill execution binding drift at execution boundary")
         );
-        assert!(
-            error
-                .to_string()
-                .contains("skill execution closure digest mismatch")
-        );
+        assert!(error.to_string().contains("skill closure digest mismatch"));
         Ok(())
     }
 
     #[test]
-    fn bound_continuation_rechecks_execution_closure_without_reapproval()
-    -> Result<(), Box<dyn Error>> {
+    fn bound_continuation_rechecks_closure_without_reapproval() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let error = LocalOrchestrator::default()
@@ -1007,12 +994,8 @@ mod tests {
                 Some("sha256:not-the-closure"),
             )
             .err()
-            .ok_or("resumed continuation discarded its execution closure binding")?;
-        assert!(
-            error
-                .to_string()
-                .contains("skill execution closure digest mismatch")
-        );
+            .ok_or("resumed continuation discarded its closure binding")?;
+        assert!(error.to_string().contains("skill closure digest mismatch"));
         Ok(())
     }
 
@@ -1022,7 +1005,7 @@ mod tests {
         write_skill(temp.path(), "", "# Prepared")?;
         let loaded = crate::load_validated_skill_package(temp.path())?;
         let package_digest = loaded.package.package_digest.clone();
-        let closure = crate::skill_package::inspect_loaded_execution_closure_binding(
+        let closure = crate::skill_package::inspect_loaded_closure_binding(
             loaded.into(),
             "main",
             &BTreeMap::new(),
@@ -1050,7 +1033,7 @@ mod tests {
             crate::execution::run_record::paused_run(&BTreeMap::new(), temp.path(), run_id)?
                 .ok_or("the bound run did not pause in its record")?;
         assert_eq!(paused.package_digest, package_digest);
-        assert_eq!(paused.execution_closure_digest, closure);
+        assert_eq!(paused.closure_digest, closure);
         Ok(())
     }
 

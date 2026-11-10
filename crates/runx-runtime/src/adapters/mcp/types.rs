@@ -112,7 +112,7 @@ pub struct McpServerSkillExecution {
     pub skill_name: String,
     pub method: String,
     pub package_digest: String,
-    pub execution_closure_digest: String,
+    pub closure_digest: String,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     /// The authority the server was started with.

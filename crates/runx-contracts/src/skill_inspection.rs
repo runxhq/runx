@@ -1,6 +1,6 @@
 //! A skill package's inspection (`runx.skill.inspect.v1`, N12): what `runx
 //! skill inspect` and a turn's `registry.inspect` report of a package, by
-//! method, without running it. The execution closure and the catalog's
+//! method, without running it. The closure and the catalog's
 //! semantic report keep the shapes their owners give them.
 use std::collections::BTreeMap;
 
@@ -41,14 +41,14 @@ pub struct SkillInspection {
     pub catalog: Option<SkillCatalog>,
     /// Every method the package declares, by name.
     pub methods: Vec<String>,
-    /// Each method with the execution closure it binds.
+    /// Each method with the closure it binds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub method_inspections: Vec<MethodInspectionEntry>,
     /// The method inspected: the one named, else the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<MethodInspection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution_closure: Option<JsonObject>,
+    pub closure: Option<JsonObject>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub readiness: Option<InspectionReadiness>,
     /// Each operation the method may call, as ready as the project leaves it.
@@ -82,7 +82,7 @@ pub struct SkillCatalog {
 #[serde(deny_unknown_fields)]
 pub struct MethodInspectionEntry {
     pub method: MethodInspection,
-    pub execution_closure: JsonObject,
+    pub closure: JsonObject,
 }
 
 /// A method's input and output JSON Schemas, derived from its fields, and the

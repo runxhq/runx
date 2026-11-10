@@ -1,4 +1,4 @@
-mod execution_closure;
+mod closure;
 mod method;
 
 use std::collections::BTreeMap;
@@ -13,12 +13,10 @@ use runx_contracts::{
 use runx_parser::{CatalogMetadata, StepKind, ToolTarget};
 
 use super::LoadedSkillPackage;
-use execution_closure::inspect_local_execution_closure;
-use execution_closure::unheld_registry_refs;
-pub(crate) use execution_closure::{CaseClosureTarget, LocalExecutionClosure};
-use execution_closure::{
-    UnheldRegistryRefs, inspect_execution_closures, inspect_method_execution_closure,
-};
+use closure::inspect_local_closure;
+use closure::unheld_registry_refs;
+pub(crate) use closure::{CaseClosureTarget, LocalClosure};
+use closure::{UnheldRegistryRefs, inspect_closures, inspect_method_closure};
 use method::{fixture_examples, inspect_method};
 use thiserror::Error;
 
@@ -34,18 +32,18 @@ pub enum SkillInspectionError {
     MethodNotFound { method: String },
     #[error("method manifest is unavailable")]
     ManifestUnavailable,
-    #[error("native execution closure omitted method {method}")]
+    #[error("native closure omitted method {method}")]
     ClosureMissing { method: String },
-    #[error("native execution closure {problem} for method {method}")]
+    #[error("native closure {problem} for method {method}")]
     ClosureInvalid {
         method: String,
         problem: &'static str,
     },
     #[error("skill package digest mismatch: expected {expected}, received {received}")]
     PackageDigestMismatch { expected: String, received: String },
-    #[error("native execution closure for method {method} is not fully bound")]
+    #[error("native closure for method {method} is not fully bound")]
     ClosureNotFullyBound { method: String },
-    #[error("skill execution closure digest mismatch: expected {expected}, received {received}")]
+    #[error("skill closure digest mismatch: expected {expected}, received {received}")]
     ClosureDigestMismatch { expected: String, received: String },
     #[error("sub-skill {path} has no executable manifest")]
     SubSkillManifestMissing { path: PathBuf },
@@ -60,7 +58,7 @@ pub enum SkillInspectionError {
         #[source]
         source: std::io::Error,
     },
-    #[error("sub-skill reference {reference} escapes the inspected execution closure")]
+    #[error("sub-skill reference {reference} escapes the inspected closure")]
     ProfileEscape { reference: String },
     /// Who a package is could not be settled: a signature that fails, a copy
     /// that is not what its reference names, or two packages as one.
@@ -193,7 +191,7 @@ pub fn inspect_connector_readiness(
     let root = link(&identity(&loaded)?, &loaded)?;
     let mut readiness = Vec::new();
     for (package, method) in
-        execution_closure::inspect_method_closure_methods(Arc::clone(&loaded), &method, env)?
+        closure::inspect_method_closure_methods(Arc::clone(&loaded), &method, env)?
     {
         let mut chain = vec![root.clone()];
         if package.package_root != loaded.package_root {
@@ -310,10 +308,9 @@ pub(crate) fn inspect_loaded_skill_package(
     let method = inspected_method(manifest, selected_method)?;
     // Inspection reports the registry refs the project does not hold, so a
     // host can install them and inspect again; binding below rejects them.
-    let mut execution_closures =
-        inspect_execution_closures(loaded.clone(), env, UnheldRegistryRefs::Report)?;
+    let mut closures = inspect_closures(loaded.clone(), env, UnheldRegistryRefs::Report)?;
     let mut closure_of = |method: &str| -> Result<JsonObject, SkillInspectionError> {
-        match execution_closures.remove(method) {
+        match closures.remove(method) {
             Some(JsonValue::Object(closure)) => Ok(closure),
             Some(_) => Err(SkillInspectionError::ClosureInvalid {
                 method: method.to_owned(),
@@ -326,9 +323,9 @@ pub(crate) fn inspect_loaded_skill_package(
     };
     if let Some(manifest) = manifest {
         for definition in manifest.methods.values() {
-            let execution_closure = closure_of(&definition.name)?;
+            let closure = closure_of(&definition.name)?;
             if method.is_some_and(|method| method.name == definition.name) {
-                output.execution_closure = Some(execution_closure.clone());
+                output.closure = Some(closure.clone());
             }
             output.method_inspections.push(MethodInspectionEntry {
                 method: inspect_method(
@@ -337,7 +334,7 @@ pub(crate) fn inspect_loaded_skill_package(
                     loaded.package.skill.description.as_deref(),
                     &definition.examples,
                 )?,
-                execution_closure,
+                closure,
             });
         }
     }
@@ -370,7 +367,7 @@ pub(crate) fn inspect_loaded_skill_package(
     Ok(output)
 }
 
-pub(crate) struct InspectedExecutionClosureBinding {
+pub(crate) struct InspectedClosureBinding {
     pub(crate) digest: String,
     pub(crate) fully_bound: bool,
     /// Every package the closure binds, as it was loaded, by canonical
@@ -391,7 +388,7 @@ pub(crate) fn method_makes_calls(
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<bool, SkillInspectionError> {
     Ok(
-        execution_closure::inspect_method_closure_methods(loaded, method, env)?
+        closure::inspect_method_closure_methods(loaded, method, env)?
             .into_iter()
             .any(|(package, method)| {
                 package
@@ -409,13 +406,13 @@ pub(crate) fn method_makes_calls(
     )
 }
 
-pub(crate) fn inspect_loaded_execution_closure_binding(
+pub(crate) fn inspect_loaded_closure_binding(
     loaded: Arc<LoadedSkillPackage>,
     selected_method: &str,
     env: &std::collections::BTreeMap<String, String>,
-) -> Result<InspectedExecutionClosureBinding, SkillInspectionError> {
+) -> Result<InspectedClosureBinding, SkillInspectionError> {
     let (closure, packages, identities, projects) =
-        inspect_method_execution_closure(loaded, selected_method, env)?;
+        inspect_method_closure(loaded, selected_method, env)?;
     let closure = closure
         .as_object()
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {
@@ -438,7 +435,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
             method: selected_method.to_owned(),
             problem: "omitted digest",
         })?;
-    Ok(InspectedExecutionClosureBinding {
+    Ok(InspectedClosureBinding {
         digest,
         fully_bound,
         packages,
@@ -472,14 +469,14 @@ pub(crate) fn closure_registry_refs(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<std::collections::BTreeSet<String>, SkillInspectionError> {
-    execution_closure::closure_registry_refs(Arc::new(loaded.clone()), env)
+    closure::closure_registry_refs(Arc::new(loaded.clone()), env)
 }
 
-pub(crate) fn inspect_loaded_local_execution_closure(
+pub(crate) fn inspect_loaded_local_closure(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,
-) -> Result<LocalExecutionClosure, SkillInspectionError> {
-    inspect_local_execution_closure(Arc::new(loaded.clone()), env)
+) -> Result<LocalClosure, SkillInspectionError> {
+    inspect_local_closure(Arc::new(loaded.clone()), env)
 }
 
 /// Every connector a test case's run binds through its whole closure.
@@ -488,7 +485,7 @@ pub(crate) fn case_closure_connectors(
     target: CaseClosureTarget<'_>,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<Vec<Arc<crate::kernel::connectors::LoadedConnector>>, SkillInspectionError> {
-    execution_closure::case_closure_connectors(Arc::new(loaded.clone()), target, env)
+    closure::case_closure_connectors(Arc::new(loaded.clone()), target, env)
 }
 
 fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, SkillInspectionError> {
@@ -511,7 +508,7 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, Skill
             .unwrap_or_default(),
         method_inspections: Vec::new(),
         method: None,
-        execution_closure: None,
+        closure: None,
         readiness: None,
         connector_readiness: Vec::new(),
         environment: None,
@@ -605,7 +602,7 @@ methods:
 "#;
 
     #[test]
-    fn execution_closure_uses_validated_names_and_transitive_native_tools()
+    fn closure_uses_validated_names_and_transitive_native_tools()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir().expect("temporary skill catalog");
         let root = temp.path().join("root");
@@ -621,9 +618,9 @@ methods:
             return Err("inspection should be an object".into());
         };
         let closure = inspected
-            .get("execution_closure")
+            .get("closure")
             .and_then(JsonValue::as_object)
-            .expect("execution closure");
+            .expect("closure");
         assert_eq!(
             closure.get("summary").and_then(JsonValue::as_str),
             Some("tool:data.digest")
@@ -828,8 +825,7 @@ operations:
     }
 
     #[test]
-    fn execution_closure_pins_what_an_agent_turn_may_call() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn closure_pins_what_an_agent_turn_may_call() -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir().expect("temporary skill catalog");
         let root = temp.path().join("root");
         let child = root.join("child");
@@ -850,9 +846,9 @@ operations:
             let JsonValue::Object(mut inspected) = inspect_skill_package(root, None, None)? else {
                 return Err("inspection should be an object".into());
             };
-            match inspected.remove("execution_closure") {
+            match inspected.remove("closure") {
                 Some(JsonValue::Object(closure)) => Ok(closure),
-                _ => Err("execution closure".into()),
+                _ => Err("closure".into()),
             }
         };
 
@@ -889,7 +885,7 @@ operations:
     }
 
     #[test]
-    fn execution_closure_projects_transitive_environment_requirements()
+    fn closure_projects_transitive_environment_requirements()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir().expect("temporary skill catalog");
         let root = temp.path().join("root");
@@ -940,7 +936,7 @@ methods:
         let inspected = inspect_skill_package(&root, None, None).expect("valid inspection");
         let environment = inspected
             .as_object()
-            .and_then(|value| value.get("execution_closure"))
+            .and_then(|value| value.get("closure"))
             .and_then(JsonValue::as_object)
             .and_then(|value| value.get("environment"))
             .and_then(JsonValue::as_object)
@@ -964,7 +960,7 @@ methods:
     }
 
     #[test]
-    fn execution_closure_distinguishes_direct_external_skills_from_private_stages()
+    fn closure_distinguishes_direct_external_skills_from_private_stages()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir().expect("temporary skill catalog");
         let root = temp.path().join("root");
@@ -1009,9 +1005,9 @@ methods:
         let inspected = inspect_skill_package(&root, None, None).expect("valid inspection");
         let closure = inspected
             .as_object()
-            .and_then(|value| value.get("execution_closure"))
+            .and_then(|value| value.get("closure"))
             .and_then(JsonValue::as_object)
-            .expect("execution closure");
+            .expect("closure");
         assert_eq!(
             closure.get("direct_external_skill_edges"),
             Some(&JsonValue::Array(vec![JsonValue::Object(

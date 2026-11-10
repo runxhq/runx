@@ -17,7 +17,7 @@ well-supported findings over a broad report whose conclusions cannot be traced.
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `web-fetch#web-fetch`
 - `web-search#search`

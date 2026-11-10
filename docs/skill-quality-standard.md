@@ -171,12 +171,12 @@ agent act; they never substitute for the guide.
 
 The catalog audit enforces a deliberately structural anti-stub floor: before
 any agent task contracts, a public guide needs a title, a real section, and
-explanatory prose. Skill-chain facts are owned by the typed execution closure
+explanatory prose. Skill-chain facts are owned by the typed closure
 emitted by native `runx skill inspect` and surfaced in operator preflight.
 Manuals should still explain meaningful upstream and downstream relationships
 in natural language, but they do not duplicate that closure in a machine-parsed
 prose registry. The audit does not parse `run.yaml` through a parallel JavaScript
-model. Private nested stages remain visible in native execution-closure
+model. Private nested stages remain visible in native closure
 evidence.
 
 That structural floor is not a claim that the guide is substantive, nor should
@@ -364,7 +364,7 @@ The catalog and package gates block structurally invalid or unusable packages:
 
 A package's evals, `evals/evals.json` and `eval_queries.json`, are evaluation
 files, not a format requirement, and they decide nothing at publish. The native
-execution closure owns resolved package, method, tool, and edge truth; reviewers compare capability metadata with that closure rather than
+closure owns resolved package, method, tool, and edge truth; reviewers compare capability metadata with that closure rather than
 reimplementing effect classification in TypeScript or package code. Provider
 evidence remains graded: deterministic replay is `test`, live-provider
 evidence is `live`, and supplied agent answers never upgrade either. Test execution strips ambient Runx grants,

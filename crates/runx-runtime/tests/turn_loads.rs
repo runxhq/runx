@@ -218,7 +218,7 @@ impl Project {
             cwd: self.root.clone(),
             managed_agent: ManagedAgentPolicy::HostDriven,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
         })?)
     }
 }

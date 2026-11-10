@@ -1,5 +1,5 @@
 //! A person's trust (identity contract, "Trust"): a record in their runx home
-//! of each execution closure they trusted, by its digest, so a later load of
+//! of each closure they trusted, by its digest, so a later load of
 //! that exact closure, from any workspace sharing the home, does not ask
 //! again. The digest leaves runx's version out, so an upgrade keeps it. A
 //! repository can't ship one and a signature can't carry one, and a home that
@@ -16,7 +16,7 @@ use crate::private_file;
 /// The most a trust record runx writes holds.
 const MAX_TRUST_RECORD_BYTES: u64 = 64 * 1024;
 
-/// An execution closure a person trusted.
+/// A closure a person trusted.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TrustRecord {
@@ -29,7 +29,7 @@ pub struct TrustRecord {
     pub tier: Option<TrustTier>,
 }
 
-/// Whether a person trusted the execution closure `closure_digest`.
+/// Whether a person trusted the closure `closure_digest`.
 ///
 /// # Errors
 ///

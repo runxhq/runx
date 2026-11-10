@@ -99,13 +99,13 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
     let inspection_json = serde_json::to_value(&inspection)?;
     assert_eq!(
         inspection_json
-            .pointer("/execution_closure/package_bindings/0/input_packet_schemas/0/packet")
+            .pointer("/closure/package_bindings/0/input_packet_schemas/0/packet")
             .and_then(serde_json::Value::as_str),
         Some("acme/packet-input.plan.v1")
     );
     assert!(
         inspection_json
-            .pointer("/execution_closure/package_bindings/0/input_packet_schemas/0/schema_digest")
+            .pointer("/closure/package_bindings/0/input_packet_schemas/0/schema_digest")
             .and_then(serde_json::Value::as_str)
             .is_some_and(|digest| digest.starts_with("sha256:"))
     );

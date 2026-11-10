@@ -79,7 +79,7 @@ pending call lists what it waits on. The host answers an approval through
 with its output once none of its calls is pending, and the run continues.
 
 Inspection is uncached. An immutable deployment may cache at its owning host.
-An execution binding pins method, package and execution closure, and native
+An execution binding pins method, package and closure, and native
 revalidates it at invocation. Mutable local paths must be inspected again.
 
 Skill output preserves the native status and semantic outcome, including

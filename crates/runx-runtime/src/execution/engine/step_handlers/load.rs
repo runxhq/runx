@@ -61,7 +61,7 @@ struct Bound {
     manual: Option<SkillManual>,
     methods: Vec<LoadedMethod>,
     tools: Vec<TurnTool>,
-    /// The execution closures a person's trust covers.
+    /// The closures a person's trust covers.
     closures: Vec<String>,
     /// Each connector it reaches, at the exact revision it binds.
     connectors: Vec<ConnectorBinding>,
@@ -266,9 +266,9 @@ fn bind_skill(
         for (name, root) in binding.packages.projects() {
             agree_project(&mut projects, name, root, reference)?;
         }
-        let closure_digest = binding.closure_digest.ok_or_else(|| {
-            format!("{reference}#{method}: its execution closure is not fully bound")
-        })?;
+        let closure_digest = binding
+            .closure_digest
+            .ok_or_else(|| format!("{reference}#{method}: its closure is not fully bound"))?;
         for connector in crate::skill_package::case_closure_connectors(
             &loaded,
             crate::skill_package::CaseClosureTarget::Method(method),

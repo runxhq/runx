@@ -25,7 +25,7 @@ const allowedDecisions = new Set([
   "keep",
 ]);
 const generatedComposesMarker =
-  "<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->";
+  "<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->";
 let nativeProcessCount = 0;
 
 try {
@@ -117,7 +117,7 @@ function buildReport(options) {
       claimed_visibility: decision?.visibility ?? null,
       native_visibility: inspection.catalog?.visibility ?? null,
       claimed_execution: decision?.execution ?? null,
-      execution_closure: inspection.execution_closure ?? null,
+      closure: inspection.closure ?? null,
       archetype: decision?.archetype ?? null,
       decision: decision?.decision ?? null,
       rationale: decision?.rationale ?? null,
@@ -132,7 +132,7 @@ function buildReport(options) {
         manual_digest: inspection.manual_digest ?? null,
         methods: methodInspections.map((methodInspection) => ({
           method: methodInspection.method?.name ?? null,
-          execution_closure: methodInspection.execution_closure ?? null,
+          closure: methodInspection.closure ?? null,
         })),
       },
     });
@@ -294,9 +294,9 @@ function validateInspectionClaims({
 }) {
   const findings = [];
   findings.push(...validatePublicInvocationExample(name, record, inspection));
-  const closure = inspection.execution_closure;
-  if (!hasCanonicalExecutionClosure(closure)) {
-    findings.push(`${name}: native inspection omitted the canonical execution closure`);
+  const closure = inspection.closure;
+  if (!hasCanonicalClosure(closure)) {
+    findings.push(`${name}: native inspection omitted the canonical closure`);
   } else if (decision?.execution !== closure.summary) {
     findings.push(
       `${name}: review execution ${decision?.execution ?? "<missing>"} does not match native closure ${closure.summary}`,
@@ -316,8 +316,8 @@ function validateInspectionClaims({
     ) {
       findings.push(`${name}#${expectedMethod}: native method inspection identity mismatch`);
     }
-    if (!hasCanonicalExecutionClosure(methodInspection.execution_closure)) {
-      findings.push(`${name}#${expectedMethod}: native inspection omitted the execution closure`);
+    if (!hasCanonicalClosure(methodInspection.closure)) {
+      findings.push(`${name}#${expectedMethod}: native inspection omitted the closure`);
     }
     // Inspection resolves the description a host is shown: in a package with
     // several methods, only the method's own, as packaging requires.
@@ -347,7 +347,7 @@ function validatePublicInvocationExample(name, record, inspection) {
   return [];
 }
 
-function hasCanonicalExecutionClosure(closure) {
+function hasCanonicalClosure(closure) {
   return typeof closure?.summary === "string"
     && Array.isArray(closure?.components)
     && Array.isArray(closure?.skill_edges)
@@ -385,7 +385,7 @@ function validatePublicManual({
   }
 
   for (const edge of methodInspections.flatMap(
-    (inspection) => inspection.execution_closure?.direct_external_skill_edges ?? [],
+    (inspection) => inspection.closure?.direct_external_skill_edges ?? [],
   )) {
     if (typeof edge?.skill !== "string" || edge.skill.length === 0 || !edgeMethod(edge)) {
       findings.push(`${name}: native direct external skill edge is malformed`);
@@ -412,7 +412,7 @@ function validatePublicManual({
 function expectedCompositionRefs(methodInspections) {
   const refs = new Set();
   for (const edge of methodInspections.flatMap(
-    (inspection) => inspection.execution_closure?.direct_external_skill_edges ?? [],
+    (inspection) => inspection.closure?.direct_external_skill_edges ?? [],
   )) {
     const method = edgeMethod(edge);
     if (typeof edge?.skill === "string" && edge.skill.length > 0 && method) {
@@ -584,7 +584,7 @@ function runSelfTests() {
     methods: ["default"],
     method: { name: "default", input_schema: { examples: [{ objective: "fixture" }] } },
     catalog: { visibility: "public" },
-    execution_closure: {
+    closure: {
       summary: "tool:data.read",
       components: ["tool:data.read"],
       skill_edges: [],
@@ -594,7 +594,7 @@ function runSelfTests() {
       declared_artifact: false,
     },
   };
-  const methodInspection = { method: inspection.method, execution_closure: inspection.execution_closure };
+  const methodInspection = { method: inspection.method, closure: inspection.closure };
   assert(
     validateInspectionClaims({
       name: "alpha",
@@ -603,7 +603,7 @@ function runSelfTests() {
       inspection,
       methodInspections: [methodInspection],
     }).some((finding) => finding.includes("does not match native closure")),
-    "execution-closure drift must fail",
+    "closure drift must fail",
   );
   assert(
     validateInspectionClaims({
@@ -690,8 +690,8 @@ function runSelfTests() {
   );
   const composingInspection = {
     ...methodInspection,
-    execution_closure: {
-      ...inspection.execution_closure,
+    closure: {
+      ...inspection.closure,
       direct_external_skill_edges: [{ skill: "research", method: "research" }],
     },
   };

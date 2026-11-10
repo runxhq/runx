@@ -74,20 +74,18 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         (stated, None) => (limit_run(stated, state.max_cost)?, None),
     };
     if action == SkillAction::Inspect
-        && (state.expected_package_digest.is_some()
-            || state.expected_execution_closure_digest.is_some())
+        && (state.expected_package_digest.is_some() || state.expected_closure_digest.is_some())
     {
         return Err(
-            "runx skill --package-digest and --execution-closure-digest bind execution and are not accepted by inspect"
+            "runx skill --package-digest and --closure-digest bind execution and are not accepted by inspect"
                 .to_owned(),
         );
     }
     if action == SkillAction::Run
-        && (state.expected_package_digest.is_some()
-            != state.expected_execution_closure_digest.is_some())
+        && (state.expected_package_digest.is_some() != state.expected_closure_digest.is_some())
     {
         return Err(
-            "runx skill bound execution requires both --package-digest and --execution-closure-digest"
+            "runx skill bound execution requires both --package-digest and --closure-digest"
                 .to_owned(),
         );
     }
@@ -103,7 +101,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         registry: state.registry,
         expected_digest: state.expected_digest,
         expected_package_digest: state.expected_package_digest,
-        expected_execution_closure_digest: state.expected_execution_closure_digest,
+        expected_closure_digest: state.expected_closure_digest,
         json: state.json,
         diagnostics: state.diagnostics,
         inputs: state.inputs,
@@ -200,7 +198,7 @@ struct SkillParseState {
     registry: Option<String>,
     expected_digest: Option<String>,
     expected_package_digest: Option<String>,
-    expected_execution_closure_digest: Option<String>,
+    expected_closure_digest: Option<String>,
     json: bool,
     diagnostics: bool,
     inspect: bool,
@@ -222,7 +220,7 @@ fn reject_resolver_flags_for_skill_management_action(
     if state.registry.is_none()
         && state.expected_digest.is_none()
         && state.expected_package_digest.is_none()
-        && state.expected_execution_closure_digest.is_none()
+        && state.expected_closure_digest.is_none()
     {
         return Ok(());
     }
@@ -230,7 +228,7 @@ fn reject_resolver_flags_for_skill_management_action(
         return Ok(());
     }
     Err(
-        "runx skill --registry, --digest, --package-digest, and --execution-closure-digest are only supported when running a skill ref"
+        "runx skill --registry, --digest, --package-digest, and --closure-digest are only supported when running a skill ref"
             .to_owned(),
     )
 }
@@ -309,16 +307,16 @@ fn parse_skill_arg(
                 &string_arg(args, index)?,
             )?);
         }
-        value if value.starts_with("--execution-closure-digest=") => {
-            state.expected_execution_closure_digest = Some(non_empty_flag_value(
-                "--execution-closure-digest",
-                value.trim_start_matches("--execution-closure-digest="),
+        value if value.starts_with("--closure-digest=") => {
+            state.expected_closure_digest = Some(non_empty_flag_value(
+                "--closure-digest",
+                value.trim_start_matches("--closure-digest="),
             )?);
         }
-        "--execution-closure-digest" => {
+        "--closure-digest" => {
             index += 1;
-            state.expected_execution_closure_digest = Some(non_empty_flag_value(
-                "--execution-closure-digest",
+            state.expected_closure_digest = Some(non_empty_flag_value(
+                "--closure-digest",
                 &string_arg(args, index)?,
             )?);
         }
@@ -760,7 +758,7 @@ mod tests {
         let closure_only = [
             "skill",
             "skills/nws-weather",
-            "--execution-closure-digest",
+            "--closure-digest",
             "sha256:closure",
         ]
         .into_iter()
@@ -804,7 +802,7 @@ mod tests {
             "skills/github-issue-to-pr#status",
             "--package-digest",
             "sha256:package",
-            "--execution-closure-digest",
+            "--closure-digest",
             "sha256:closure",
         ]
         .into_iter()
@@ -817,7 +815,7 @@ mod tests {
             Some("sha256:package"),
         );
         assert_eq!(
-            plan.expected_execution_closure_digest.as_deref(),
+            plan.expected_closure_digest.as_deref(),
             Some("sha256:closure"),
         );
         assert!(plan.inputs.is_empty());

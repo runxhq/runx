@@ -20,7 +20,7 @@ no_skill, needs_core, or a blocked result instead of an adopted package.
 
 ## Composes
 
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `skill-build#build`
 

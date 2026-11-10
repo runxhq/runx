@@ -369,7 +369,7 @@ mod tests {
             cwd: root.to_path_buf(),
             managed_agent: ManagedAgentPolicy::HostDriven,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
         })?)
     }
 
@@ -391,7 +391,7 @@ mod tests {
             cwd: root.to_path_buf(),
             managed_agent: ManagedAgentPolicy::HostDriven,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
         })?;
         let record = log.load()?.ok_or("the run has a record")?;
         let sealed = record.sealed.ok_or("the close seals the run")?;
@@ -427,7 +427,7 @@ mod tests {
                     cwd: root.to_path_buf(),
                     managed_agent: ManagedAgentPolicy::HostDriven,
                     package_digest: None,
-                    execution_closure_digest: None,
+                    closure_digest: None,
                 })
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
         };
@@ -763,7 +763,7 @@ mod tests {
                     cwd: root.to_path_buf(),
                     managed_agent: ManagedAgentPolicy::HostDriven,
                     package_digest: None,
-                    execution_closure_digest: None,
+                    closure_digest: None,
                 })
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
         };
@@ -1060,7 +1060,7 @@ mod tests {
             cwd: root.to_path_buf(),
             managed_agent: ManagedAgentPolicy::HostDriven,
             package_digest: None,
-            execution_closure_digest: None,
+            closure_digest: None,
         })?;
 
         let status = open(root, &run_id)?.status("answer")?;

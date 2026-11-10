@@ -1,4 +1,4 @@
-//! Registry publication projects the complete local execution closure into one
+//! Registry publication projects the complete local closure into one
 //! digest-bound package without rewriting the source execution profile.
 
 use std::collections::BTreeMap;
@@ -11,13 +11,13 @@ use crate::registry::RegistryPackageFile;
 use crate::registry::package_bundle::{
     PACKAGE_BUNDLE_FILE, PackageBundleConnector, PackageBundleDependency, encode_package_bundle,
 };
-use crate::skill_package::{LoadedSkillPackage, LocalExecutionClosure};
+use crate::skill_package::{LoadedSkillPackage, LocalClosure};
 
 const DEPENDENCY_ROOT: &str = "dependencies";
 
 pub(super) fn collect_bundle_files(
     loaded: &LoadedSkillPackage,
-    closure: &LocalExecutionClosure,
+    closure: &LocalClosure,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<CollectedPackage, RegistryPublishPackageError> {
@@ -28,7 +28,7 @@ pub(super) fn collect_bundle_files(
         None if loaded.manifest().is_none() && closure.packages.is_empty() => &no_packet_ids,
         None => {
             return Err(RegistryPublishPackageError::invalid(
-                "publish execution closure omitted its root package",
+                "the closure a publish projects omitted its root package",
             ));
         }
     };
@@ -58,7 +58,7 @@ pub(super) fn collect_bundle_files(
 /// A source package: each local skill dependency's package below
 /// `dependencies/`, and the descriptor binding every edge to it.
 fn collect_source_bundle_files(
-    closure: &LocalExecutionClosure,
+    closure: &LocalClosure,
     env: &BTreeMap<String, String>,
     cwd: &Path,
     root: &Path,
@@ -125,7 +125,7 @@ fn collect_source_bundle_files(
 }
 
 fn collect_materialized_bundle_files(
-    closure: &LocalExecutionClosure,
+    closure: &LocalClosure,
     env: &BTreeMap<String, String>,
     cwd: &Path,
     root: &Path,
@@ -288,7 +288,7 @@ fn package_path<'a>(
         .map(String::as_str)
         .ok_or_else(|| {
             RegistryPublishPackageError::invalid(format!(
-                "publish dependency {} is absent from the execution closure",
+                "publish dependency {} is absent from the closure",
                 package_root.display()
             ))
         })
@@ -300,7 +300,7 @@ fn package_path<'a>(
 /// commits all files and the complete edge descriptor.
 fn portable_package_paths(
     root: &Path,
-    closure: &LocalExecutionClosure,
+    closure: &LocalClosure,
 ) -> Result<BTreeMap<PathBuf, String>, RegistryPublishPackageError> {
     let mut paths = BTreeMap::from([(root.to_path_buf(), ".".to_owned())]);
     let mut pending = VecDeque::from([root.to_path_buf()]);
@@ -342,7 +342,7 @@ fn portable_package_paths(
     }
     if paths.len() != closure.packages.len() {
         return Err(RegistryPublishPackageError::invalid(
-            "publish execution closure contains unreachable packages",
+            "the closure a publish projects holds unreachable packages",
         ));
     }
     Ok(paths)

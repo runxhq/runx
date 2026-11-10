@@ -41,7 +41,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help,
@@ -49,7 +49,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--execution-closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
+        "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -139,7 +139,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--receipt-dir dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json | --authority name] [--max-spend usd] [--context json] [--run-id id] [-j] [--diagnostics] [--drive [--drive-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --closure-digest sha256] [--receipt-dir dir]",
     );
     assert_help_line(
         &help("skill"),
@@ -227,7 +227,7 @@ fn filesystem_paths_do_not_require_utf8() {
             answers_path: path_buf.clone(),
             receipt_dir: None,
             expected_package_digest: None,
-            expected_execution_closure_digest: None,
+            expected_closure_digest: None,
             json: false,
             diagnostics: false,
             managed_agent: Default::default(),
@@ -551,7 +551,7 @@ fn routes_canonical_skill_run_to_native_plan() {
             registry: None,
             expected_digest: None,
             expected_package_digest: None,
-            expected_execution_closure_digest: None,
+            expected_closure_digest: None,
             json: true,
             diagnostics: false,
             inputs: runx_cli::skill::CliInputs {
@@ -675,7 +675,7 @@ fn skill_rejects_resolver_flags_for_management_actions() {
         assert_eq!(
             plan(&["skill", action, "--registry", "https://registry.runx.test"]),
             RouterAction::Error(
-                "runx skill --registry, --digest, --package-digest, and --execution-closure-digest are only supported when running a skill ref"
+                "runx skill --registry, --digest, --package-digest, and --closure-digest are only supported when running a skill ref"
                     .to_owned()
             ),
             "{action}"
@@ -683,7 +683,7 @@ fn skill_rejects_resolver_flags_for_management_actions() {
         assert_eq!(
             plan(&["skill", action, "--digest", "sha256:abc"]),
             RouterAction::Error(
-                "runx skill --registry, --digest, --package-digest, and --execution-closure-digest are only supported when running a skill ref"
+                "runx skill --registry, --digest, --package-digest, and --closure-digest are only supported when running a skill ref"
                     .to_owned()
             ),
             "{action}"
@@ -804,7 +804,7 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
             answers_path: PathBuf::from("answers.json"),
             receipt_dir: Some(PathBuf::from("receipts")),
             expected_package_digest: None,
-            expected_execution_closure_digest: None,
+            expected_closure_digest: None,
             json: true,
             diagnostics: false,
             managed_agent: Default::default(),

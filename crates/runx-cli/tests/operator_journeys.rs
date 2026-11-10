@@ -638,7 +638,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
 
     for (flag, value) in [
         ("--package-digest", "sha256:wrong-package"),
-        ("--execution-closure-digest", "sha256:wrong-closure"),
+        ("--closure-digest", "sha256:wrong-closure"),
     ] {
         let rejected = command(&root)
             .arg("resume")

@@ -1979,7 +1979,7 @@ export const runxSchemaArtifacts = {
       },
       "BoundClosure": {
         "additionalProperties": false,
-        "description": "The exact package and execution closure a load bound for one method.",
+        "description": "The exact package and closure a load bound for one method.",
         "properties": {
           "closure_digest": {
             "minLength": 1,
@@ -5065,7 +5065,7 @@ export const runxSchemaArtifacts = {
       "MethodInspectionEntry": {
         "additionalProperties": false,
         "properties": {
-          "execution_closure": {
+          "closure": {
             "additionalProperties": {},
             "type": "object"
           },
@@ -5075,7 +5075,7 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "method",
-          "execution_closure"
+          "closure"
         ],
         "title": "MethodInspectionEntry",
         "type": "object"
@@ -8548,6 +8548,10 @@ export const runxSchemaArtifacts = {
       "RunReadSummary": {
         "additionalProperties": false,
         "properties": {
+          "closure_digest": {
+            "minLength": 1,
+            "type": "string"
+          },
           "created_at": {
             "minLength": 1,
             "type": "string"
@@ -8558,10 +8562,6 @@ export const runxSchemaArtifacts = {
           },
           "driver": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunDriver"
-          },
-          "execution_closure_digest": {
-            "minLength": 1,
-            "type": "string"
           },
           "method": {
             "minLength": 1,
@@ -8601,7 +8601,7 @@ export const runxSchemaArtifacts = {
           "method",
           "state",
           "package_digest",
-          "execution_closure_digest",
+          "closure_digest",
           "driver",
           "driven",
           "created_at",
@@ -13951,6 +13951,10 @@ export const runxSchemaArtifacts = {
       "catalog": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillCatalog"
       },
+      "closure": {
+        "additionalProperties": {},
+        "type": "object"
+      },
       "connector_readiness": {
         "description": "Each operation the method may call, as ready as the project leaves it.",
         "items": {
@@ -13977,10 +13981,6 @@ export const runxSchemaArtifacts = {
         },
         "type": "array"
       },
-      "execution_closure": {
-        "additionalProperties": {},
-        "type": "object"
-      },
       "manual_digest": {
         "type": "string"
       },
@@ -13989,7 +13989,7 @@ export const runxSchemaArtifacts = {
         "description": "The method inspected: the one named, else the default."
       },
       "method_inspections": {
-        "description": "Each method with the execution closure it binds.",
+        "description": "Each method with the closure it binds.",
         "items": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/MethodInspectionEntry"
         },

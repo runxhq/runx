@@ -168,16 +168,16 @@ function validateShim(name, inspection, source) {
   // Inspection with no method named selects the default.
   const defaultMethod = inspection.method?.name;
   const method = inspection.method_inspections?.find((entry) => entry.method?.name === defaultMethod);
-  const closureDigest = method?.execution_closure?.closure_digest;
+  const closureDigest = method?.closure?.closure_digest;
   if (!defaultMethod || !isDigest(closureDigest)) {
-    fail(`${name}: inspected default method has no exact execution closure`);
-  } else if (!contents.includes(`--execution-closure-digest ${closureDigest}`)) {
+    fail(`${name}: inspected default method has no exact closure`);
+  } else if (!contents.includes(`--closure-digest ${closureDigest}`)) {
     fail(`${name}: default invocation is not bound to ${closureDigest}`);
   }
   if (!contents.includes(`--package-digest ${inspection.package_digest}`)) {
     fail(`${name}: default invocation is not bound to ${inspection.package_digest}`);
   }
-  if (/--(?:package|execution-closure)-digest sha256:</.test(contents)) {
+  if (/--(?:package|closure)-digest sha256:</.test(contents)) {
     fail(`${name}: invocation contains a digest placeholder`);
   }
 }

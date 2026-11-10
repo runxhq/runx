@@ -103,7 +103,7 @@ pub struct ResumeRequest {
     pub managed_agent: ManagedAgentPolicy,
     /// Digests a caller pins; each must be the one the run started under.
     pub package_digest: Option<String>,
-    pub execution_closure_digest: Option<String>,
+    pub closure_digest: Option<String>,
 }
 
 /// The agent turn a paused run waits on.
@@ -248,7 +248,7 @@ impl LocalOrchestrator {
         method: &str,
         javascript: crate::adapters::javascript::JavaScriptAdapter,
         package_digest: &str,
-        execution_closure_digest: &str,
+        closure_digest: &str,
     ) -> Result<RunResult, OrchestratorError> {
         Ok(super::skill_front::execute_bound_skill_run_with_overrides(
             request,
@@ -260,7 +260,7 @@ impl LocalOrchestrator {
             },
             &self.effects,
             Some(package_digest),
-            Some(execution_closure_digest),
+            Some(closure_digest),
         )?)
     }
 
@@ -269,7 +269,7 @@ impl LocalOrchestrator {
         request: &SkillRunRequest,
         method: Option<&str>,
         expected_package_digest: Option<&str>,
-        expected_execution_closure_digest: Option<&str>,
+        expected_closure_digest: Option<&str>,
     ) -> Result<RunResult, OrchestratorError> {
         let overrides = super::skill_front::SkillRunOverrides {
             method: method.map(str::to_owned),
@@ -280,7 +280,7 @@ impl LocalOrchestrator {
             &overrides,
             &self.effects,
             expected_package_digest,
-            expected_execution_closure_digest,
+            expected_closure_digest,
         )?;
         Ok(output)
     }
@@ -295,7 +295,7 @@ impl LocalOrchestrator {
             answers: Some(&request.answers),
             managed_agent: request.managed_agent.clone(),
             package_digest: request.package_digest.as_deref(),
-            execution_closure_digest: request.execution_closure_digest.as_deref(),
+            closure_digest: request.closure_digest.as_deref(),
         };
         // A close seals the run from its record, binding nothing.
         if request.answers.close.is_some() {
@@ -317,7 +317,7 @@ impl LocalOrchestrator {
                 answers: None,
                 managed_agent: ManagedAgentPolicy::HostDriven,
                 package_digest: None,
-                execution_closure_digest: None,
+                closure_digest: None,
             },
             &self.effects,
         )?;
@@ -375,7 +375,7 @@ impl LocalOrchestrator {
                 manifest: prepared.manifest(),
                 method: prepared.method(),
                 package_digest: prepared.package_digest(),
-                execution_closure_digest: prepared.execution_closure_digest(),
+                closure_digest: prepared.closure_digest(),
             },
         )?;
         Ok(output)
