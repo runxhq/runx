@@ -39,9 +39,8 @@ pub use data::{
 pub use fs::{
     FS_BUNDLE_MAX_BYTES, FS_BUNDLE_MAX_FILES, FS_LIST_MAX_ENTRIES, FS_SEARCH_MAX_CONTEXT_LINES,
     FS_SEARCH_MAX_MATCHES, FileAppliedDelete, FileAppliedWrite, FileApplyBundle, FileBoundDelete,
-    FileBundleDelete, FileBundleWrite, FileDeleteStatus, FileEdit, FileEntryKind,
-    FileInverseBundle, FileList, FileListEntry, FileRead, FileReadBundle, FileSearch,
-    FileSearchMatch, FileWrite, MissingFile,
+    FileBundleWrite, FileDeleteStatus, FileEdit, FileEntryKind, FileInverseBundle, FileList,
+    FileListEntry, FileRead, FileReadBundle, FileSearch, FileSearchMatch, FileWrite, MissingFile,
 };
 pub use git::{
     GIT_LOG_MAX_COMMITS, GitBlobDigest, GitBranch, GitCommit, GitDiff, GitLog, GitPatch, GitShow,

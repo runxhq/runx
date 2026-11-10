@@ -1,5 +1,5 @@
 use runx_contracts::{
-    Digest, FileApplyBundle, FileBundleDelete, FileBundleWrite, FileEdit, FileList, FileRead,
+    Digest, FileApplyBundle, FileBoundDelete, FileBundleWrite, FileEdit, FileList, FileRead,
     FileReadBundle, FileSearch, FileWrite, JsonNumber, JsonObject, JsonValue,
 };
 use serde::{Deserialize, Serialize};
@@ -103,7 +103,7 @@ pub(super) struct FileApplyBundleInput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) writes: Vec<FileBundleWrite>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) deletes: Vec<FileBundleDelete>,
+    pub(super) deletes: Vec<FileBoundDelete>,
 }
 
 impl CapabilityInput for FileApplyBundleInput {

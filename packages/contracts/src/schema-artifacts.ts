@@ -3728,6 +3728,7 @@ export const runxSchemaArtifacts = {
       },
       "FileBoundDelete": {
         "additionalProperties": false,
+        "description": "A file a bundle deletes: its path, and the digest of the content it removes, which a delete always names, so it never removes content its writer didn't read.",
         "properties": {
           "expected_digest": {
             "maxLength": 71,
@@ -3745,19 +3746,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "FileBoundDelete",
         "type": "object"
-      },
-      "FileBundleDelete": {
-        "anyOf": [
-          {
-            "minLength": 1,
-            "type": "string"
-          },
-          {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBoundDelete"
-          }
-        ],
-        "description": "A file a bundle deletes: its path, or its path with the digest of the content it removes.",
-        "title": "FileBundleDelete"
       },
       "FileBundleWrite": {
         "additionalProperties": false,
@@ -11617,7 +11605,7 @@ export const runxSchemaArtifacts = {
       },
       "deletes": {
         "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBundleDelete"
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBoundDelete"
         },
         "type": "array"
       },

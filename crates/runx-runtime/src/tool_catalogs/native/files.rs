@@ -6,9 +6,8 @@ use std::num::NonZeroU64;
 
 use runx_contracts::schema::{BoundedU64, BoundedVec, NonEmptyString};
 use runx_contracts::{
-    Digest, FS_BUNDLE_MAX_BYTES, FS_BUNDLE_MAX_FILES, FileAppliedWrite, FileApplyBundle,
-    FileBundleDelete, FileEdit, FileRead, FileReadBundle, FileWrite, JsonNumber, JsonValue,
-    MissingFile,
+    Digest, FS_BUNDLE_MAX_BYTES, FS_BUNDLE_MAX_FILES, FileAppliedWrite, FileApplyBundle, FileEdit,
+    FileRead, FileReadBundle, FileWrite, JsonNumber, JsonValue, MissingFile,
 };
 
 use super::capability::decode_typed_output;
@@ -503,24 +502,11 @@ fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeErro
     }
     let mut deletes = Vec::with_capacity(inputs.deletes.len());
     for delete in &inputs.deletes {
-        match delete {
-            // A delete removes what it read, so it names its digest.
-            FileBundleDelete::Path(path) => {
-                return Err(invalid_input(
-                    APPLY_BUNDLE_TOOL,
-                    format!(
-                        "deleting {path} names no expected_digest: read it, then name the content_digest the read returned"
-                    ),
-                ));
-            }
-            FileBundleDelete::Bound(bound) => {
-                expected.insert(
-                    bound.path.as_str().to_owned(),
-                    Expected::Digest(bound.expected_digest.as_str().to_owned()),
-                );
-                deletes.push(bound.path.as_str().to_owned());
-            }
-        }
+        expected.insert(
+            delete.path.as_str().to_owned(),
+            Expected::Digest(delete.expected_digest.as_str().to_owned()),
+        );
+        deletes.push(delete.path.as_str().to_owned());
     }
     Ok(TextBundle {
         writes: inputs

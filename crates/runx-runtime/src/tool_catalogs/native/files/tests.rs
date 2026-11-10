@@ -248,7 +248,16 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     ]))],
                     Vec::new(),
                 ),
-                (Vec::new(), vec![JsonValue::String(path.clone())]),
+                (
+                    Vec::new(),
+                    vec![JsonValue::Object(JsonObject::from([
+                        ("path".to_owned(), JsonValue::String(path.clone())),
+                        (
+                            "expected_digest".to_owned(),
+                            JsonValue::String(runx_contracts::sha256_prefixed(b"protected")),
+                        ),
+                    ]))],
+                ),
             ] {
                 let bundle_inputs = fixture_input::<FileApplyBundleInput>(JsonObject::from([
                     ("repo_root".to_owned(), JsonValue::String(repo_root.clone())),
@@ -339,9 +348,18 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
         ("writes".to_owned(), JsonValue::Array(Vec::new())),
         (
             "deletes".to_owned(),
-            JsonValue::Array(vec![JsonValue::String(
-                "receipts/.receipt-store.lock".to_owned(),
-            )]),
+            JsonValue::Array(vec![JsonValue::Object(JsonObject::from([
+                (
+                    "path".to_owned(),
+                    JsonValue::String("receipts/.receipt-store.lock".to_owned()),
+                ),
+                (
+                    "expected_digest".to_owned(),
+                    JsonValue::String(runx_contracts::sha256_prefixed(&fs::read(
+                        workspace.path().join("receipts/.receipt-store.lock"),
+                    )?)),
+                ),
+            ]))]),
         ),
     ]))?;
     assert!(

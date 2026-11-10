@@ -1011,13 +1011,11 @@ export type FileApplyBundleContract = {
   readonly writes: readonly FileAppliedWriteContract[];
 };
 
+/** A file a bundle deletes: its path, and the digest of the content it removes, which a delete always names, so it never removes content its writer didn't read. */
 export type FileBoundDeleteContract = {
   readonly expected_digest: string;
   readonly path: string;
 };
-
-/** A file a bundle deletes: its path, or its path with the digest of the content it removes. */
-export type FileBundleDeleteContract = string | FileBoundDeleteContract;
 
 /** A file a bundle writes. */
 export type FileBundleWriteContract = {
@@ -1053,7 +1051,7 @@ export type FileEntryKindContract = "file" | "directory" | "symlink";
 export type FileInverseBundleContract = {
   /** The calls it undoes, in the order the run made them. */
   readonly calls: readonly string[];
-  readonly deletes: readonly FileBundleDeleteContract[];
+  readonly deletes: readonly FileBoundDeleteContract[];
   /** The root the edits changed, relative to the workspace. */
   readonly repo_root: string;
   readonly writes: readonly FileBundleWriteContract[];

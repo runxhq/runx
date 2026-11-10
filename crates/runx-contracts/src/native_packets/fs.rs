@@ -218,7 +218,7 @@ pub struct FileInverseBundle {
     /// The root the edits changed, relative to the workspace.
     pub repo_root: NonEmptyString,
     pub writes: Vec<FileBundleWrite>,
-    pub deletes: Vec<FileBundleDelete>,
+    pub deletes: Vec<FileBoundDelete>,
     /// The calls it undoes, in the order the run made them.
     pub calls: NonEmptyVec<NonEmptyString>,
 }
@@ -237,15 +237,9 @@ pub struct FileBundleWrite {
     pub create: bool,
 }
 
-/// A file a bundle deletes: its path, or its path with the digest of the
-/// content it removes.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(untagged)]
-pub enum FileBundleDelete {
-    Path(NonEmptyString),
-    Bound(FileBoundDelete),
-}
-
+/// A file a bundle deletes: its path, and the digest of the content it
+/// removes, which a delete always names, so it never removes content its
+/// writer didn't read.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FileBoundDelete {

@@ -15,7 +15,7 @@
     },
     "deletes": {
       "items": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBundleDelete"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBoundDelete"
       },
       "type": "array"
     },

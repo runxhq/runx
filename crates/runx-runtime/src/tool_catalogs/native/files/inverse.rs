@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::schema::{NonEmptyString, NonEmptyVec};
 use runx_contracts::{
-    CallTarget, Digest, FileBoundDelete, FileBundleDelete, FileBundleWrite, FileInverseBundle,
-    JsonObject, JsonValue, RunCallOutcome, RunEventFact,
+    CallTarget, Digest, FileBoundDelete, FileBundleWrite, FileInverseBundle, JsonObject, JsonValue,
+    RunCallOutcome, RunEventFact,
 };
 use serde::{Deserialize, Serialize};
 
@@ -128,10 +128,10 @@ fn inverse(
                 expected_digest: now,
                 path: named(path, "path")?,
             }),
-            (None, Some(digest)) => deletes.push(FileBundleDelete::Bound(FileBoundDelete {
+            (None, Some(digest)) => deletes.push(FileBoundDelete {
                 path: named(path, "path")?,
                 expected_digest: digest,
-            })),
+            }),
             (None, None) => {}
         }
     }
