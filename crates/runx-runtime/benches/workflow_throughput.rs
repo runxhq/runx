@@ -16,6 +16,8 @@ use runx_runtime::{
 };
 use tempfile::TempDir;
 
+#[path = "workflow_throughput/long_runs_journey.rs"]
+mod long_runs_journey;
 #[path = "workflow_throughput/memory_journey.rs"]
 mod memory_journey;
 #[path = "workflow_throughput/runtime_paths.rs"]
@@ -34,6 +36,7 @@ const RECEIPT_STORE_SCALE_LARGE: usize = 128;
 fn bench_workflow_throughput(c: &mut Criterion) {
     runtime_paths::register(c);
     volume_paths::register(c);
+    long_runs_journey::register();
     memory_journey::register();
 
     c.bench_function("workflow_planning", |b| {

@@ -65,8 +65,9 @@ pub mod saved_authorities;
 pub mod tool_catalogs;
 pub mod work_counts;
 
-/// What a performance probe lays down before it counts. Only the benches
-/// enable `probe-fixtures`, so no build that ships has it.
+/// What a performance probe lays down before it counts, and what only a probe
+/// counts. Only the benches enable `probe-fixtures`, so no build that ships
+/// has it.
 #[cfg(feature = "probe-fixtures")]
 #[doc(hidden)]
 pub mod probe_fixtures {
@@ -84,6 +85,15 @@ pub mod probe_fixtures {
     ) -> Result<(), String> {
         crate::drivers::store::lay_down_private_history(env, history)
             .map_err(|error| error.to_string())
+    }
+
+    /// What `measure` returned, and, by `<kind> <key>`, the most times it
+    /// read any one of that kernel stream's events: what "recovery reads each
+    /// stream once" is counted in.
+    pub fn stream_reads<T>(
+        measure: impl FnOnce() -> T,
+    ) -> (T, std::collections::BTreeMap<String, u64>) {
+        crate::work_counts::stream_reads(measure)
     }
 }
 pub mod workspace_ids;

@@ -718,6 +718,8 @@ impl KernelStore {
             let (key, version, event_type, data, chain, committed_at, sequence, previous) =
                 row.map_err(|source| self.database("reading a stream tree", source))?;
             crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+            #[cfg(feature = "probe-fixtures")]
+            crate::work_counts::stream_event_read(E::KIND, &key, version);
             let integrity = || KernelStoreError::Integrity {
                 kind: E::KIND.to_owned(),
                 key: key.clone(),
@@ -882,6 +884,8 @@ impl KernelStore {
             let (version, event_type, data, stored_chain, committed_at) =
                 row.map_err(|source| self.database("reading a stream", source))?;
             crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+            #[cfg(feature = "probe-fixtures")]
+            crate::work_counts::stream_event_read(kind, key, version);
             if version != expected {
                 return Err(integrity(version));
             }

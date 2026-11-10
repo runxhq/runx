@@ -292,6 +292,47 @@ pub fn snapshot() -> WorkCounts {
 /// Write this process's counts to the file `RUNX_PERF_COUNTS_PATH` names,
 /// when it names one.
 ///
+/// The reads of each kernel stream's events, by `<kind> <key>` and version,
+/// while a probe tallies them; none otherwise. Only the benches build it.
+#[cfg(feature = "probe-fixtures")]
+static STREAM_READS: Mutex<Option<BTreeMap<String, BTreeMap<u64, u64>>>> = Mutex::new(None);
+
+/// Count one read of event `version` of the kernel stream `key` of `kind`,
+/// while a probe tallies them.
+#[cfg(feature = "probe-fixtures")]
+pub(crate) fn stream_event_read(kind: &str, key: &str, version: u64) {
+    let mut reads = STREAM_READS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(reads) = reads.as_mut() {
+        *reads
+            .entry(format!("{kind} {key}"))
+            .or_default()
+            .entry(version)
+            .or_default() += 1;
+    }
+}
+
+/// What `measure` returned, and, by `<kind> <key>`, the most times it read
+/// any one of that kernel stream's events: 1 where it read the stream once.
+#[cfg(feature = "probe-fixtures")]
+pub(crate) fn stream_reads<T>(measure: impl FnOnce() -> T) -> (T, BTreeMap<String, u64>) {
+    let tally = || {
+        STREAM_READS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    };
+    *tally() = Some(BTreeMap::new());
+    let measured = measure();
+    let reads = tally()
+        .take()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(stream, events)| (stream, events.into_values().max().unwrap_or(0)))
+        .collect();
+    (measured, reads)
+}
+
 /// # Errors
 ///
 /// Returns why the file couldn't be written.

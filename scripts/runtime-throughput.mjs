@@ -238,8 +238,8 @@ function capture(workloads, options) {
     hardware: hardwareIdentity(),
     workloads: metrics,
     // Each journey's structural measurements, from the probes that count
-    // them: journey 1 from launches of the CLI, journeys 2, 3, 5 and 7 from the
-    // runtime bench, which runs them on the runtimes its fixtures warmed. A
+    // them: journey 1 from launches of the CLI, journeys 2, 3, 4, 5 and 7 from
+    // the runtime bench, which runs them on the runtimes its fixtures warmed. A
     // journey no probe measures is absent, and the quality gate fails it.
     journeys: {
       ...(existsSync(runtimeResourceMetricsPath)
@@ -914,6 +914,10 @@ function measurementRefusals(workload, metric) {
 // hold at any speed, so they're checked apart from timing. A journey with no
 // measurement fails, and so does any budget whose measurement is missing.
 function journeyBudgets() {
+  // Journey 4's runs: a script's tool calls, its skill calls, and the calls
+  // at a turn whose first call waits on a person; each at 10, 100 and 1,000.
+  const LONG_RUNS = ["calls", "children", "waiting_turn"];
+  const LONG_RUN_SIZES = ["10", "100", "1000"];
   return [
     {
       journey: 1,
@@ -949,8 +953,10 @@ function journeyBudgets() {
       journey: 4,
       name: "Long runs",
       budgets: [
-        { id: "run_read_costs_what_moved", says: "A run read costs what moved since its cursor, not the tree's size: with nothing new, the same at 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.run_read_rows_with_nothing_new, ["10", "100", "1000"]) },
-        { id: "recovery_reads_each_stream_once", says: "Recovery reads each stream once.", holds: (m) => exactly(m.recovery_reads_per_stream, 1) },
+        { id: "run_read_costs_what_moved", says: "A run read costs what moved since its cursor, not the tree's size: with nothing new, the same at 10, 100 and 1,000 calls, children, and calls at a held turn.", holds: (m) => LONG_RUNS.every((shape) => flatAcross(m.run_read_rows_with_nothing_new?.[shape], LONG_RUN_SIZES)) },
+        { id: "resume_costs_the_same_at_1000", says: "A resume at 1,000 calls, children, and calls at a held turn costs what it does at 10.", holds: (m) => LONG_RUNS.every((shape) => flatAcross(m.resume_rows_read?.[shape], LONG_RUN_SIZES)) },
+        { id: "recovery_reads_each_stream_once", says: "Recovery reads each stream once: a resume reads no event of the run twice.", holds: (m) => exactly(m.recovery_reads_per_stream, 1) },
+        { id: "receipt_append_costs_the_same", says: "A receipt append does the same work at 16, 128 and 1,000 receipts.", holds: (m) => ["directory_entries_read", "index_entries_read", "index_entries_written"].every((field) => flatAcross(fieldBySize(m.receipt_append, field), ["16", "128", "1000"])) },
       ],
     },
     {
@@ -988,6 +994,11 @@ function journeyBudgets() {
       ],
     },
   ];
+}
+
+// One field of each size's counts, by size.
+function fieldBySize(bySize, field) {
+  return Object.fromEntries(Object.entries(bySize ?? {}).map(([size, counts]) => [size, counts?.[field]]));
 }
 
 function isCount(value) {

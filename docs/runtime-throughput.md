@@ -276,6 +276,17 @@ process of its test binary that runs that test alone.
   8 are in flight: the most in flight is the run's peak, which must reach its
   `max_concurrency`, as nested scripts keep their concurrency, and must not
   pass it, as they draw from the run's.
+- **Journey 4, long runs.** The runtime bench makes runs of 10, 100 and
+  1,000 calls and children as a caller does, each in a workspace of its own:
+  a script's tool calls, its skill calls, each a child run, and the calls a
+  host makes through its turn session at a turn whose first call waits on a
+  person. Each run then holds on a person. It records the store rows a read
+  from the cursor at the run's end reads, those a resume reads to where the
+  run holds again, and at the turn those its last call read, at each size. A
+  resume binds the run from its record, which is its recovery, and the bench
+  records the most times it read any one event of the run's streams. It
+  appends a receipt to stores of 16, 128 and 1,000, and records the
+  directory entries it listed and the index entries it read and wrote.
 - **Journey 5, memory.** The runtime bench lays down a personal memory of
   100, 10,000 and 100,000 entries, each in a fresh home, through the store's
   own append: a third of them the person's words, a tenth corrected, a

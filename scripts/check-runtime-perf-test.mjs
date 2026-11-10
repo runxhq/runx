@@ -77,6 +77,14 @@ try {
     "journey_2.constant_store_writes_per_call",
   );
 
+  const growingResume = journeys();
+  growingResume["4"].resume_rows_read.children["1000"] = 33_061;
+  expectFail(
+    runQualityVerification(quality({ journeys: growingResume })),
+    "a resume that reads more as the run grows",
+    "journey_4.resume_costs_the_same_at_1000",
+  );
+
   const growingIndex = journeys();
   growingIndex["5"].index_rows_visited["100000"] = 41;
   growingIndex["5"].index_rows_its_budget_reads["100000"] = 41;
@@ -273,8 +281,21 @@ function journeys() {
       max_concurrency: 8,
     },
     4: {
-      run_read_rows_with_nothing_new: { 10: 1, 100: 1, 1000: 1 },
+      run_read_rows_with_nothing_new: {
+        calls: { 10: 6, 100: 6, 1000: 6 },
+        children: { 10: 6, 100: 6, 1000: 6 },
+        waiting_turn: { 10: 8, 100: 8, 1000: 8 },
+      },
+      resume_rows_read: {
+        calls: { 10: 90, 100: 90, 1000: 90 },
+        children: { 10: 120, 100: 120, 1000: 120 },
+        waiting_turn: { 10: 100, 100: 100, 1000: 100 },
+      },
       recovery_reads_per_stream: 1,
+      receipt_append: Object.fromEntries([16, 128, 1000].map((receipts) => [
+        receipts,
+        { directory_entries_read: 0, index_entries_read: 0, index_entries_written: 1 },
+      ])),
     },
     5: {
       index_rows_visited: { 100: 40, 10000: 40, 100000: 40 },
