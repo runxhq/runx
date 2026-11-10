@@ -289,14 +289,12 @@ test("a source whose name holds the letters of lock is renamed, and a lockfile i
   assert.equal(read(root, "pnpm-lock.yaml"), lockfile);
 });
 
-test("a receipt's harness reference keeps its words: its type and its runx:harness: references", (t) => {
-  const reference = "pub enum ReferenceType {\n    Harness,\n}\n\nfn wire(kind: ReferenceType) -> &'static str {\n    match kind {\n        ReferenceType::Harness => \"harness\",\n    }\n}\n";
-  const seal = '// The harness seals its receipt.\nlet reference = Reference::with_uri(ReferenceType::Harness, "runx:harness:local-credential-provision");\n';
-  const root = tree(t, { "crates/runx-contracts/src/reference.rs": reference, "crates/runx-runtime/src/receipts/seal.rs": seal });
+test("a receipt carries no harness reference: the test lane's readback is a test reference", (t) => {
+  const responses = '// The harness answers each provider call.\nlet uri = format!("runx:harness:provider-readback:{identity}");\n';
+  const root = tree(t, { "crates/runx-runtime/src/execution/test/provider_responses.rs": responses });
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "crates/runx-contracts/src/reference.rs"), reference);
-  assert.equal(read(root, "crates/runx-runtime/src/receipts/seal.rs"), seal.replace("The harness seals", "The test seals"));
+  assert.equal(read(root, "crates/runx-runtime/src/execution/test/provider_responses.rs"), responses.replaceAll("harness", "test"));
 });
 
 test("the act engine and the test replay take their modules' names where the rename moves them, so a second run changes nothing", (t) => {
@@ -407,12 +405,12 @@ test("a message whose next line is a placeholder is still prose, and a document'
   assert.equal(read(root, "crates/runx-cli/tests/local_credential.rs"), code.replace("inline graph", "inline workflow"));
 });
 
-test("a kind filter's description names its wire values, so its graph stays", (t) => {
+test("the catalog kind filter's kinds are skill and workflow, in its description as on the wire", (t) => {
   const code = 'queryParameter("kind", "Catalog kind filter: skill or graph."),\nqueryParameter("q", "Text query over a skill or graph."),\n';
   const root = tree(t, { "packages/openapi-catalog/src/openapi-route-catalog.ts": code });
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "packages/openapi-catalog/src/openapi-route-catalog.ts"), code.replace("over a skill or graph.", "over a skill or workflow."));
+  assert.equal(read(root, "packages/openapi-catalog/src/openapi-route-catalog.ts"), code.replaceAll("or graph.", "or workflow."));
 });
 
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
@@ -461,17 +459,25 @@ test("Ausca's lease names take the lease's word", (t) => {
   assert.equal(read(root, "internal/app/resources.go"), "type ClaimedLease struct{}\n\nvar leasedCapability = ClaimedLease{}\n");
 });
 
-test("Ausca's own runners stay: a shell variable, a GPU job runner, its sandbox's and its buyer canary's", (t) => {
+test("Ausca's GPU job runner, its sandbox's and GitHub's runner limit stay, and the canary and a deploy command take their own words", (t) => {
   const kept = {
-    "deploy/worker-common.sh": "local runner=\"$4\"\n\"${runner}\" rollback\n",
     "docs/gpu.md": "Each GPU job runner pulls one job.\n",
     "docs/plans/code-execution.md": "The runner executes the snippet in its sandbox.\n",
-    "scripts/buyer-canary.mjs": "const runner = drive;\n",
+    "scripts/buyer-canary.mjs": "throw new Error(`beyond the ${LIMIT}-minute runner limit`);\n",
   };
-  const root = tree(t, { ...auscaPins, ...kept, "docs/methods.md": "The default runner reads the catalog.\n" });
+  const renamed = {
+    "deploy/worker-common.sh": ['local runner="$4"\n"${runner}" rollback\n', 'local command="$4"\n"${command}" rollback\n'],
+    "scripts/buyer-canary.test.mjs": [
+      'test("the runner settles", () => {});\n// This drives the whole runner, within the runner limit.\n',
+      'test("the canary settles", () => {});\n// This drives the whole canary, within the runner limit.\n',
+    ],
+  };
+  const files = { ...auscaPins, ...kept, ...Object.fromEntries(Object.entries(renamed).map(([file, [text]]) => [file, text])) };
+  const root = tree(t, { ...files, "docs/methods.md": "The default runner reads the catalog.\n" });
   const { status, out } = run(RENAME, "apply", "ausca", root, "--write");
   assert.equal(status, 0, out);
   for (const [file, text] of Object.entries(kept)) assert.equal(read(root, file), text, file);
+  for (const [file, [, text]] of Object.entries(renamed)) assert.equal(read(root, file), text, file);
   assert.equal(read(root, "docs/methods.md"), "The default method reads the catalog.\n");
 });
 

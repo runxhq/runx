@@ -293,38 +293,26 @@ export const STAYS = [
   // A test runner: libtest's, Vitest's or node's. runx's own is its test replay.
   { word: "runner", why: "a test runner", before: /(?<!\bnative )\btest $/i },
   { word: "runner", why: "the retired flag a test proves is refused", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /--$/ },
-  // runner in Ausca: a shell variable, a GPU job runner, its sandbox's own
-  // runner, and the buyer canary's driver beside GitHub's runner limit.
-  { word: "runner", why: "a shell variable holding the command it runs", file: /^deploy\/(resource-release-common|worker-common)\.sh$/ },
+  // runner in Ausca: a GPU job runner, its sandbox's own runner, and GitHub's
+  // runner limit beside the buyer canary. The canary itself and a deploy
+  // script's command take their own words (bare-words.tsv).
   { word: "runner", why: "a GPU job runner", before: /\bGPU job $/ },
   { word: "runner", why: "the code-execution sandbox's own runner", file: /^docs\/plans\/code-execution\.md$/ },
-  { word: "runner", why: "the buyer canary's own driver, and GitHub's runner limit", file: /^scripts\/buyer-canary(\.test)?\.mjs$/ },
+  { word: "runner", why: "GitHub's runner limit, which bounds the buyer canary", file: /^scripts\/buyer-canary(\.test)?\.mjs$/, after: /^ limit\b/ },
   // graph: another graph than a method's steps, which keeps the word.
   { word: "graph", why: "a dependency graph", before: /\b(crate|package|dependency|module|import)s? $/i },
   { word: "graph", why: "a call graph", before: /\bcall $/i },
   { word: "graph", why: "a knowledge graph", before: /\b(knowledge|claim|entity|semantic) $/i },
-  { word: "graph", why: "a graph of receipts", before: /\breceipt $/i },
   { word: "graph", why: "a graph database", after: /^ (database|databases|db|store|query)\b/i },
   { word: "graph", why: "a chart", before: /\b(bar|line|pie|time-series|latency|throughput) $/i },
-  { word: "graph", why: "a kind filter's value, which is wire: the catalog kinds are skill and graph", before: /\bkind filter: skill or $/ },
-  { word: "graph", why: "the hello-workflow example's message, which its run.yaml and fixtures write", before: /\bhello from $/ },
-  // harness: a receipt's harness reference, whose words receipts keep (§4.6):
-  // its type, the runx:harness: references a run's receipts carry, and the
-  // fixtures and tests that hold them.
-  { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", before: /\bReferenceType::$/ },
-  { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", file: /^crates\/runx-contracts\/src\/reference\.rs$/ },
-  { word: "harness", why: "a runx:harness: reference a receipt carries, which receipts keep (§4.6)", before: /\brunx:$/, after: /^:/ },
-  { word: "harness", why: "a receipt's harness reference type, which receipts keep (§4.6)", file: /^(fixtures\/contracts\/credential-delivery\/observation\.json|packages\/contracts\/src\/schemas\/credential-delivery\.test\.ts)$/, before: /\btype"?: ?"$/ },
-  // harness: the retired command a test names to prove native help dropped it.
-  // Cargo's own key in a [[bench]] or [[test]] table, the only tables that
-  // take it: whether libtest's harness runs the target.
+  // harness: Cargo's own key in a [[bench]] or [[test]] table, the only
+  // tables that take it: whether libtest's harness runs the target.
   { word: "harness", why: "Cargo's harness key, which says whether libtest runs a bench or test target", file: /(^|\/)Cargo\.toml$/, before: /^\s*$/, after: /^\s*=/ },
   // The same key as written, `harness = false`, in the check that holds
   // every bench target to it and in that check's test.
   { word: "harness", why: "Cargo's key as written, harness = false, which the bench targets check reads", file: /^scripts\/check-bench-targets(\.test)?\.mjs$/, after: /^\s*=\s*false\b/ },
+  // harness: the retired command a test names to prove native help dropped it.
   { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
-  // harness: a fixture post's own words, which its approved payload digest binds.
-  { word: "harness", why: "a fixture post's own words, which its approved payload digest binds", file: /^skills\/moltbook\/tests\/publish-creates-and-reads-back-post\.yaml$/ },
   // graph: JSON-LD's @graph keyword, and Microsoft Graph, a product's name.
   { word: "graph", why: "JSON-LD's @graph keyword", before: /@$/ },
   { word: "graph", why: "Microsoft Graph, a product's name", token: "Graph", before: /\b(Microsoft|through) $/ },

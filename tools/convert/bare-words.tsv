@@ -106,3 +106,6 @@ oss	fixtures/kernel/README.md	Runner	Evaluation		^$	the kernel fixture evaluatio
 oss	fixtures/kernel/README.md	runner	evaluator	\bfixture $		the kernel fixture evaluator
 oss	fixtures/kernel/README.md	runners	evaluators	\bRust $		the kernel fixture evaluators
 oss	fixtures/kernel/README.md	Runners	Evaluators			the kernel fixture evaluators
+ausca	deploy/resource-release-common.sh	runner	command			the deploy step's command, which the variable holds (rename ruling 10)
+ausca	deploy/worker-common.sh	runner	command			the command that runs Wrangler, which the variable holds (rename ruling 10)
+ausca	scripts/buyer-canary.test.mjs	runner	canary	\bthe (whole )?$		the buyer canary, its own driver (rename ruling 10)
