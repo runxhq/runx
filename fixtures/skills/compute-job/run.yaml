@@ -13,3 +13,24 @@ methods:
         max_calls: 1
         outputs:
           job: {type: object}
+  run:
+    inputs:
+      target: {type: string}
+      interval_seconds:
+        type: integer
+        description: How long to wait before each check on the job.
+        minimum: 0
+        maximum: 3600
+        default: 30
+        optional: true
+    steps:
+      - id: job
+        script: {module: run.mjs}
+        inputs:
+          target: $input.target
+          interval_seconds: $input.interval_seconds
+        calls:
+          operations: [fixture/compute/jobs.start, fixture/compute/jobs.inspect]
+        max_calls: 21
+        outputs:
+          job: {type: object}

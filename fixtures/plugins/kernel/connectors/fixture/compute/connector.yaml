@@ -1,7 +1,7 @@
 schema: runx.connector.v1
 name: fixture/compute
 title: Fixture Compute
-description: Start jobs in one account of a compute fixture.
+description: Start jobs in one account of a compute fixture, and read how each is going.
 auth:
   credentials:
     access_key:
@@ -29,3 +29,10 @@ operations:
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_ref, status, output_available, failure_reason, recovered]
+  jobs.inspect:
+    description: Read how one job is going, `running` until it ends `completed` or `failed`.
+    verb: read
+    scopes: [jobs.read]
+    target:
+      template: {"$argument": "/job_ref"}
+    result_fields: [job_ref, status, output_available, failure_reason]

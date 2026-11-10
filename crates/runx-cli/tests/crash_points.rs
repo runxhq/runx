@@ -541,6 +541,14 @@ const TWO_DIGESTS_AT_ONCE: &str = r#"export default async function (ctx, { value
 
 /// Acknowledge every retry the run waits on, in one resume.
 fn acknowledge_retries(root: &Path) -> TestResult<serde_json::Value> {
+    acknowledge_retries_by(root, unsigned_runx_command_at)
+}
+
+/// Acknowledge every retry the run waits on, in one resume `command` makes.
+fn acknowledge_retries_by(
+    root: &Path,
+    command: fn(&Path) -> std::process::Command,
+) -> TestResult<serde_json::Value> {
     let read = history(root)?;
     let mut approvals = serde_json::Map::new();
     for waited in read["waiting"].as_array().into_iter().flatten() {
@@ -557,7 +565,7 @@ fn acknowledge_retries(root: &Path) -> TestResult<serde_json::Value> {
         crate::support::bind_resume(&read, serde_json::json!({"approvals": approvals}))?
             .to_string(),
     )?;
-    let resumed = unsigned_runx_command_at(root)
+    let resumed = command(root)
         .args(["resume", RUN_ID])
         .arg(&answers)
         .arg("--receipt-dir")
@@ -959,5 +967,318 @@ fn a_script_changed_after_a_kill_recovers_nothing() -> TestResult {
     assert_eq!(counted(&counts, "script_passes"), 0, "{counts}");
     assert_eq!(counted(&counts, "store_writes"), 0, "{counts}");
     assert_eq!(calls(&whole_history(&root)?, RUN_ID), before);
+    Ok(())
+}
+
+/// A local copy of `fixture/compute`, whose process runs its jobs in the
+/// workspace. It enforces a start's key, as the connector declares: each
+/// start request it receives is appended to `compute/requests`, and only a
+/// key it hasn't seen starts a job, appended to `compute/starts`; a key it
+/// has seen returns that key's job, recovered. A start's readback reads the
+/// key's job back. Each inspection is appended to `compute/inspections`, and
+/// the second finds the job completed.
+const LOCAL_COMPUTE: &str = r#"schema: runx.connector.v1
+name: fixture/compute
+title: Fixture Compute
+description: Start jobs in one account of a compute fixture, and read how each is going.
+auth:
+  credentials:
+    access_key:
+      kind: api_key
+      fields:
+        - {name: token, label: compute token}
+      delivery: {env: COMPUTE_TOKEN}
+      audience: ["*.compute.fixture.invalid"]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  jobs.start:
+    description: Start one job on one stored object.
+    verb: write
+    scopes: [jobs.execute]
+    credentials: [access_key]
+    target:
+      template: {"$argument": "/target"}
+    guarantees:
+      provider_idempotency: enforced
+    result_fields: [job_ref, status, output_available, failure_reason, recovered]
+    implementation:
+      process:
+        tool: compute.start
+        readback:
+          matches:
+            - expected: {source: acknowledgement, path: job_ref}
+              observed: job_ref
+            - expected: {source: argument, path: target}
+              observed: target
+  jobs.inspect:
+    description: Read how one job is going, `running` until it ends `completed` or `failed`.
+    verb: read
+    scopes: [jobs.read]
+    credentials: [access_key]
+    target:
+      template: {"$argument": "/job_ref"}
+    result_fields: [job_ref, status, output_available, failure_reason]
+    implementation:
+      process:
+        tool: compute.inspect
+"#;
+
+const COMPUTE_START: &str = r#"#!/bin/sh
+set -eu
+provider="$RUNX_CWD/compute"
+mkdir -p "$provider"
+touch "$provider/starts"
+key="$RUNX_INPUT_IDEMPOTENCY_KEY"
+job=0
+known=false
+while read -r started target; do
+  job=$((job + 1))
+  if [ "$started" = "$key" ]; then
+    known=true
+    break
+  fi
+done < "$provider/starts"
+if [ "$RUNX_INPUT_PHASE" = readback ]; then
+  if [ "$known" = false ]; then
+    echo "no job was started with this key" >&2
+    exit 1
+  fi
+  printf '{"job_ref":"compute://job/%s","target":"%s"}\n' "$job" "$target"
+  exit 0
+fi
+printf '%s\n' "$key" >> "$provider/requests"
+if [ "$known" = false ]; then
+  printf '%s %s\n' "$key" "$RUNX_INPUT_TARGET" >> "$provider/starts"
+  job=$((job + 1))
+fi
+printf '{"job_ref":"compute://job/%s","status":"started","output_available":false,"failure_reason":"","recovered":%s}\n' "$job" "$known"
+"#;
+
+const COMPUTE_INSPECT: &str = r#"#!/bin/sh
+set -eu
+provider="$RUNX_CWD/compute"
+printf '%s\n' "$RUNX_INPUT_JOB_REF" >> "$provider/inspections"
+checks=0
+while read -r line; do
+  checks=$((checks + 1))
+done < "$provider/inspections"
+status=completed
+available=true
+if [ "$checks" -lt 2 ]; then
+  status=running
+  available=false
+fi
+printf '{"job_ref":"%s","status":"%s","output_available":%s,"failure_reason":""}\n' "$RUNX_INPUT_JOB_REF" "$status" "$available"
+"#;
+
+/// The object every job here runs on.
+const STORED_OBJECT: &str = "compute://account/306607894404/object/audio-9999";
+
+const COMPUTE_START_TOOL: &str = r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "compute.start",
+  "version": "0.1.0",
+  "description": "Start a job for a key not seen before, or read a key's job back.",
+  "process": {"command": "sh", "args": ["./start.sh"]},
+  "inputs": {
+    "target": {"type": "string", "description": "The stored object."},
+    "phase": {"type": "string", "description": "perform or readback."},
+    "idempotency_key": {"type": "string", "description": "The key the start is sent with."},
+    "acknowledgement": {"type": "object", "optional": true, "description": "What the start answered, which its readback confirms."}
+  }
+}
+"#;
+
+const COMPUTE_INSPECT_TOOL: &str = r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "compute.inspect",
+  "version": "0.1.0",
+  "description": "Read how one job is going.",
+  "process": {"command": "sh", "args": ["./inspect.sh"]},
+  "inputs": {
+    "job_ref": {"type": "string", "description": "The job."}
+  }
+}
+"#;
+
+/// A project holding `fixtures/skills/compute-job` and [`LOCAL_COMPUTE`].
+fn compute_project(root: &Path) -> TestResult<PathBuf> {
+    let connector = root.join("connectors/fixture/compute");
+    for (tool, manifest, script) in [
+        ("start", COMPUTE_START_TOOL, COMPUTE_START),
+        ("inspect", COMPUTE_INSPECT_TOOL, COMPUTE_INSPECT),
+    ] {
+        let directory = connector.join("tools/compute").join(tool);
+        fs::create_dir_all(&directory)?;
+        fs::write(directory.join("manifest.json"), manifest)?;
+        fs::write(directory.join(format!("{tool}.sh")), script)?;
+    }
+    fs::write(connector.join("connector.yaml"), LOCAL_COMPUTE)?;
+    let skill = root.join("skills/compute-job");
+    crate::support::copy_dir(
+        &crate::support::repo_root()?.join("fixtures/skills/compute-job"),
+        &skill,
+    )?;
+    Ok(skill)
+}
+
+/// A command in `root` that holds the local compute fixture's credential.
+fn compute_command(root: &Path) -> std::process::Command {
+    let mut command = unsigned_runx_command_at(root);
+    command.env("COMPUTE_TOKEN", "local-compute-token");
+    command
+}
+
+/// Start compute-job's `run` on [`STORED_OBJECT`] under the pinned run id,
+/// waiting `interval_seconds` before each check, crashing at `crash` when
+/// given.
+fn run_job(
+    root: &Path,
+    skill: &Path,
+    interval_seconds: u32,
+    crash: Option<&str>,
+) -> TestResult<serde_json::Value> {
+    let mut command = compute_command(root);
+    command.args([
+        "skill",
+        &format!("{}#run", skill.to_str().ok_or("non-utf8 skill dir")?),
+        "-i",
+        &format!("target={STORED_OBJECT}"),
+        "-i",
+        &format!("interval_seconds={interval_seconds}"),
+        "--run-id",
+        RUN_ID,
+        "--receipt-dir",
+        root.join("receipts")
+            .to_str()
+            .ok_or("non-utf8 receipt dir")?,
+        "--json",
+    ]);
+    match crash {
+        Some(crash) => {
+            crashed(&command.env("RUNX_CRASH_AT", crash).output()?);
+            Ok(serde_json::Value::Null)
+        }
+        None => status(&command.output()?),
+    }
+}
+
+/// Drive the run again, answering nothing.
+fn drive(root: &Path) -> TestResult<serde_json::Value> {
+    let nothing = root.join("nothing.json");
+    fs::write(&nothing, "{}")?;
+    status(
+        &compute_command(root)
+            .args(["resume", RUN_ID])
+            .arg(&nothing)
+            .arg("--receipt-dir")
+            .arg(root.join("receipts"))
+            .arg("--json")
+            .output()?,
+    )
+}
+
+/// The lines the local compute fixture appended to `name`.
+fn provider_lines(root: &Path, name: &str) -> TestResult<Vec<String>> {
+    match fs::read_to_string(root.join("compute").join(name)) {
+        Ok(lines) => Ok(lines.lines().map(str::to_owned).collect()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// The wait a paused run reports, as `(id, until)`.
+fn wait_of(paused: &serde_json::Value) -> (String, i64) {
+    let requests = paused["requests"].as_array().cloned().unwrap_or_default();
+    assert!(
+        matches!(&requests[..], [request] if request["kind"] == "wait"),
+        "the run waits on one wait: {paused}"
+    );
+    (
+        requests[0]["id"].as_str().unwrap_or_default().to_owned(),
+        requests[0]["until"].as_i64().unwrap_or_default(),
+    )
+}
+
+/// compute-job's `run` starts its job, then pauses on its wait before each
+/// check. A drive before the wait's time settles nothing and checks
+/// nothing: it reports the same wait again. A drive at or after it settles
+/// it, and the script checks on the job, waiting again while it runs, and
+/// ends with it.
+#[test]
+fn a_provider_jobs_run_pauses_on_each_wait_and_checks_only_once_its_due() -> TestResult {
+    let root = crate::support::temp_root("job-wait-not-due");
+    let skill = compute_project(&root)?;
+    let paused = run_job(&root, &skill, 3600, None)?;
+    let (wait, until) = wait_of(&paused);
+    assert_eq!(wait, "job/2", "{paused}");
+    assert_eq!(provider_lines(&root, "starts")?.len(), 1);
+    // Before the wait's time, a drive settles nothing and checks nothing.
+    let again = drive(&root)?;
+    assert_eq!(wait_of(&again), (wait, until), "{again}");
+    assert_eq!(provider_lines(&root, "inspections")?, Vec::<String>::new());
+
+    let root = crate::support::temp_root("job-wait-due");
+    let skill = compute_project(&root)?;
+    let paused = run_job(&root, &skill, 0, None)?;
+    assert_eq!(wait_of(&paused).0, "job/2", "{paused}");
+    assert_eq!(provider_lines(&root, "inspections")?, Vec::<String>::new());
+    // At or after its time, the wait settles and the script checks on the
+    // job, which is running, so it waits again.
+    let checked = drive(&root)?;
+    assert_eq!(wait_of(&checked).0, "job/5", "{checked}");
+    assert_eq!(provider_lines(&root, "inspections")?.len(), 1);
+    let ended = drive(&root)?;
+    assert_eq!(ended["status"], "sealed", "{ended}");
+    assert_eq!(ended["result"]["job"]["status"], "completed", "{ended}");
+    assert_eq!(provider_lines(&root, "inspections")?.len(), 2);
+    // Each drive went on from the start its run recorded, sending it once.
+    assert_eq!(provider_lines(&root, "requests")?.len(), 1);
+    Ok(())
+}
+
+/// Killed just past its job's start, before its run recorded it, compute-job
+/// recovers with one job started. The start ran, so recovery sends nothing
+/// unasked: it waits on the start's retry. Acknowledged, the retry finds the
+/// start's acknowledgement in custody, so it reads the job back rather than
+/// starting it again, and the run goes on from its wait to the job's end.
+#[test]
+fn a_kill_just_past_a_provider_jobs_start_recovers_with_one_start() -> TestResult {
+    let root = crate::support::temp_root("job-killed-past-start");
+    let skill = compute_project(&root)?;
+    run_job(&root, &skill, 0, Some("after_execution@job/0"))?;
+    assert_eq!(provider_lines(&root, "starts")?.len(), 1);
+
+    let held = run_job(&root, &skill, 0, None)?;
+    assert_eq!(held["requests"][0]["id"], "job/0/retry", "{held}");
+    assert_eq!(
+        provider_lines(&root, "requests")?.len(),
+        1,
+        "nothing resent unasked"
+    );
+
+    let paused = acknowledge_retries_by(&root, compute_command)?;
+    assert_eq!(wait_of(&paused).0, "job/2", "{paused}");
+    assert_eq!(
+        provider_lines(&root, "requests")?.len(),
+        1,
+        "the retry read the start back and sent nothing again"
+    );
+    assert_eq!(wait_of(&drive(&root)?).0, "job/5");
+    let ended = drive(&root)?;
+    assert_eq!(ended["status"], "sealed", "{ended}");
+    assert_eq!(
+        ended["result"]["job"]["job_ref"], "compute://job/1",
+        "{ended}"
+    );
+    assert_eq!(provider_lines(&root, "starts")?.len(), 1, "one job started");
+    assert_eq!(provider_lines(&root, "requests")?.len(), 1);
+    let started = calls(&history(&root)?, RUN_ID)
+        .into_iter()
+        .filter(|call| *call == pair(0, "completed"))
+        .count();
+    assert_eq!(started, 1, "the run recorded one start");
     Ok(())
 }
