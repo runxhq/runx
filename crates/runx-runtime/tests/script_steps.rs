@@ -2195,6 +2195,116 @@ fn an_engine_fault_never_reaches_a_scripts_catch() -> TestResult {
     Ok(())
 }
 
+/// Four scripts, each calling the next as a child skill, the last returning
+/// where it stands: `level-0` is the root, and each answers `n>` and what
+/// the next reached, or `nx` and why its call rejected.
+fn write_levels(root: &Path) -> TestResult<PathBuf> {
+    for level in 0..=3 {
+        let (calls, script) = if level == 3 {
+            (
+                "          tools: [data.digest]\n".to_owned(),
+                "export default async function () {\n  return { reached: \"3\" };\n}\n".to_owned(),
+            )
+        } else {
+            let next = level + 1;
+            (
+                format!("          skills: [../level-{next}]\n"),
+                format!(
+                    "export default async function (ctx) {{\n  try {{\n    const next = await ctx.skill(\"../level-{next}\", {{}});\n    return {{ reached: `{level}>${{next.reached}}` }};\n  }} catch (rejected) {{\n    return {{ reached: `{level}x${{rejected.reason}}` }};\n  }}\n}}\n"
+                ),
+            )
+        };
+        let skill = root.join(format!("level-{level}"));
+        crate::support::write_test_skill_package(
+            &skill,
+            &format!(
+                "---\nname: level-{level}\ndescription: Calls the next level.\n---\n# Level {level}\n\nCall the next.\n"
+            ),
+            &format!(
+                "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    steps:\n      - id: prepare\n        script: {{module: prepare.mjs}}\n        calls:\n{calls}        max_calls: 1\n        outputs:\n          reached: {{type: string}}\n"
+            ),
+        )?;
+        std::fs::write(skill.join("prepare.mjs"), script)?;
+    }
+    Ok(root.join("level-0"))
+}
+
+/// Run `skill_dir` under a delegation whose children nest at most `depth`
+/// deep, or under none.
+fn run_nested(root: &Path, skill_dir: PathBuf, depth: Option<u32>) -> TestResult<RunResult> {
+    Ok(LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: depth.map(|depth| runx_runtime::RunAuthority {
+                max_child_depth: Some(depth),
+                ..runx_runtime::RunAuthority::default()
+            }),
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?)
+}
+
+/// Depth through script calls is counted by the step that made each call:
+/// a script's child is one deeper than its run, a child's child two, and the
+/// delegation's `max_child_depth` refuses the call that would nest past it,
+/// as a rejection its script catches, not a fault.
+#[test]
+fn nested_depth_through_script_calls_is_counted_and_bounded() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_levels(temp.path())?;
+    let unbounded = run_nested(temp.path(), skill_dir.clone(), None)?;
+    let output = object(&unbounded.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        text(object(output.get("result").ok_or("no result")?)?, "reached"),
+        Some("0>1>2>3")
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    let read = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), &run_id, None)?;
+    let runs = read
+        .events
+        .iter()
+        .filter_map(|record| match &record.event {
+            RunEventFact::Sealed { .. } => Some(record.stream.as_str().to_owned()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    // Each child run sits one step below the call that made it.
+    assert_eq!(
+        runs,
+        [
+            run_id.clone(),
+            format!("{run_id}/prepare/0"),
+            format!("{run_id}/prepare/0/prepare/0"),
+            format!("{run_id}/prepare/0/prepare/0/prepare/0"),
+        ]
+        .into_iter()
+        .collect()
+    );
+
+    let bounded = run_nested(temp.path(), skill_dir, Some(2))?;
+    let output = object(&bounded.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        text(object(output.get("result").ok_or("no result")?)?, "reached"),
+        Some("0>1>2xrefused"),
+        "the call that would nest a third deep is refused: {output:?}"
+    );
+    Ok(())
+}
+
 /// Whether `stream` is run `run_id`'s own or one of its steps' calls
 /// streams.
 fn of_run(stream: &str, run_id: &str) -> bool {
