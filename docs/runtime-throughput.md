@@ -285,7 +285,10 @@ process of its test binary that runs that test alone.
   run holds again, and at the turn those its last call read, which journey
   3's budget reads, at each size. A resume binds the run from its record,
   which is its recovery, and the bench records the most times it read any one
-  event of the run's streams. It
+  event of the run's streams. At a turn of each size, a
+  read of the fixture chat connector is held in a transport the bench
+  controls until it has reached it and another thread has cancelled it, and
+  the bench records the rows the cancelled call read. It
   appends a receipt to stores of 16, 128 and 1,000, and records the
   directory entries it listed and the index entries it read and wrote.
 - **Journey 5, memory.** The runtime bench lays down a personal memory of

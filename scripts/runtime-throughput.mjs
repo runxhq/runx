@@ -956,6 +956,7 @@ function journeyBudgets() {
       budgets: [
         { id: "run_read_costs_what_moved", says: "A run read costs what moved since its cursor, not the tree's size: with nothing new, the same at 10, 100 and 1,000 calls, children, and calls at a held turn.", holds: (m) => LONG_RUNS.every((shape) => flatAcross(m.run_read_rows_with_nothing_new?.[shape], LONG_RUN_SIZES)) },
         { id: "resume_costs_the_same_at_1000", says: "A resume at 1,000 calls, children, and calls at a held turn costs what it does at 10.", holds: (m) => LONG_RUNS.every((shape) => flatAcross(m.resume_rows_read?.[shape], LONG_RUN_SIZES)) },
+        { id: "cancel_costs_the_same_at_1000", says: "A cancel at 1,000 calls costs what it does at 10: the rows a read cancelled while it executes reads are the same at a turn of 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.cancel_rows_read, LONG_RUN_SIZES) },
         { id: "recovery_reads_each_stream_once", says: "Recovery reads each stream once: a resume reads no event of the run twice.", holds: (m) => exactly(m.recovery_reads_per_stream, 1) },
         { id: "receipt_append_costs_the_same", says: "A receipt append does the same work at 16, 128 and 1,000 receipts.", holds: (m) => ["directory_entries_read", "index_entries_read", "index_entries_written"].every((field) => flatAcross(fieldBySize(m.receipt_append, field), ["16", "128", "1000"])) },
       ],

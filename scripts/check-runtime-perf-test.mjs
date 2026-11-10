@@ -293,6 +293,7 @@ function journeys() {
         waiting_turn: { 10: 100, 100: 100, 1000: 100 },
       },
       recovery_reads_per_stream: 1,
+      cancel_rows_read: { 10: 60, 100: 60, 1000: 60 },
       receipt_append: Object.fromEntries([16, 128, 1000].map((receipts) => [
         receipts,
         { directory_entries_read: 0, index_entries_read: 0, index_entries_written: 1 },
