@@ -53,6 +53,9 @@ methods:
           text: $input.text
           idempotency_key: $input.idempotency_key
           notification_plan: $steps.plan.notify_plan
+        outputs:
+          work_result: {type: object, packet: runx.work_outcome.v1, optional: true}
+          provider_operation: {type: object, packet: runx.provider.operation.v1, optional: true}
   plan_post_exact:
     description: Plan a post whose destination, principal and text an operator already chose under its own policy, with no second judgment. Posts nothing.
     inputs:
