@@ -18,9 +18,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { GENERATED, HISTORY, PROSE_ONLY, SOURCE, bareWord, fencedBlocks, pathStayFor, proseSites, retiredInPath, stayFor, stringLiterals } from "./words.mjs";
+import { GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SOURCE, bareWord, fencedBlocks, pathStayFor, proseSites, retiredInPath, stayFor, stringLiterals } from "./words.mjs";
 
-// What the rename reads: everything but the converter, scafld's records and vendored copies.
+// What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 const TOKEN = /[A-Za-z_$][A-Za-z0-9_$-]*[A-Za-z0-9]|[A-Za-z]/g;
 const RETIRED = {
@@ -43,7 +43,7 @@ function tracked(root) {
 }
 
 function files(root) {
-  return tracked(root).filter((file) => !NOT_OURS.test(file) && SOURCE.test(file) && !HISTORY.test(file) && !GENERATED.test(file));
+  return tracked(root).filter((file) => !NOT_OURS.test(file) && SOURCE.test(file) && !LOCKFILE.test(path.basename(file)) && !HISTORY.test(file) && !GENERATED.test(file));
 }
 
 /** Each file and folder whose own name holds a retired word, in order, with no path stay. */

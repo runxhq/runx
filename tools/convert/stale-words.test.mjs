@@ -26,6 +26,7 @@ test("the guard fails on runner as a method and harness as a test, and passes th
     "crates/runx-cli/tests/router.rs": 'assert!(refused("--runner"));\n',
     "scripts/ci.sh": "echo $RUNNER_OS\n",
     "docs/release/notes/0.10.md": "The harness ran every case.\n",
+    "pnpm-lock.yaml": "packages:\n  '@vitest/runner@4.1.12':\n    resolution: {}\n",
   });
   const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);

@@ -391,6 +391,11 @@ export function retiredInPath(file) {
   return undefined;
 }
 
+// A lockfile is its package manager's: Cargo.lock, pnpm-lock.yaml,
+// package-lock.json, packets.lock.json and their kind. A name that only holds
+// the letters, such as a test's blocked-push.yaml, is a source like any other.
+export const LOCKFILE = /(^|[.-])lock\.(json|ya?ml)$|\.lockb?$/;
+
 // Files a generator writes, regenerated after a rename and never edited.
 // Cloud's two API schema modules are scripts/generate-public-schemas.ts's, and
 // docs/api-surface.md is scripts/gen-api-index.ts's.
