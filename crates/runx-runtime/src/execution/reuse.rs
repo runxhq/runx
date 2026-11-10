@@ -54,10 +54,10 @@ struct Identity<'a> {
 ///
 /// # Errors
 ///
-/// Returns why it can't be made: the package can't be read again, or its
-/// closure isn't fully bound, which a run that reached this call's
-/// admission has already refused; or the method runs JavaScript on a worker
-/// this build doesn't know the sources of.
+/// Returns why it can't be made: the package can't be read again, its
+/// closure isn't fully bound, or the method runs JavaScript on a worker this
+/// build doesn't know the sources of. Such a call is never failed for asking:
+/// [`decide`] runs it as a plain call would.
 pub(crate) fn identity(
     skill: &LoadedStepSkill,
     inputs: &JsonObject,
@@ -92,6 +92,30 @@ pub(crate) fn identity(
         input_digest: &input_digest,
     })
     .map_err(|error| error.to_string())
+}
+
+/// What a call that asked to reuse a result is answered, given its
+/// `identity` or why it has none, and the identity its child is indexed
+/// under. A call whose identity can't be made has no source to find: it runs
+/// as a plain call would, and indexes nothing. A source that isn't eligible
+/// recomputes as ineligible, and one that is recomputes as not allowed until
+/// its reads are authorized for this run.
+pub(crate) fn decide(
+    store: &std::sync::Arc<KernelStore>,
+    identity: Result<String, String>,
+    workflow: &runx_parser::Workflow,
+) -> Result<(runx_contracts::ReuseDecision, Option<String>), super::run_record::RunRecordError> {
+    use runx_contracts::RecomputeReason;
+    let recomputed = |reason| runx_contracts::ReuseDecision::Recomputed { reason };
+    let Ok(identity) = identity else {
+        return Ok((recomputed(RecomputeReason::NoCandidate), None));
+    };
+    let reason = match head(store, &identity)? {
+        None => RecomputeReason::NoCandidate,
+        Some(source) if eligible(store, &source.run_id, workflow)? => RecomputeReason::NotAllowed,
+        Some(_) => RecomputeReason::Ineligible,
+    };
+    Ok((recomputed(reason), Some(identity)))
 }
 
 /// The newest source of `identity`, when one is indexed.
@@ -265,7 +289,7 @@ fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
 mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-    use super::{Source, head, index_at};
+    use super::{Source, decide, head, index_at};
     use crate::kernel::store::KernelStore;
 
     fn source(run: &str) -> Source {
@@ -288,5 +312,33 @@ mod tests {
         index_at(&store, "identity", source("second"), read)
             .expect("a source that loses the race succeeds");
         assert_eq!(head(&store, "identity").unwrap(), Some(source("first")));
+    }
+
+    /// Asking for reuse never fails a call that would succeed without it: a
+    /// call whose identity can't be made, such as one that runs JavaScript on
+    /// a worker this build doesn't know the sources of, has no source to find,
+    /// runs as a plain call would, and indexes nothing.
+    #[test]
+    fn a_call_whose_identity_cant_be_made_runs_and_indexes_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let store = KernelStore::open(root.path()).unwrap();
+        let workflow = crate::execution::workflow::testing::method_workflow(
+            "unpinned",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: x}\n",
+        )
+        .unwrap();
+        let (decision, identity) = decide(
+            &store,
+            Err("this build doesn't know its worker's sources".to_owned()),
+            &workflow,
+        )
+        .expect("a call that can't be pinned still runs");
+        assert_eq!(
+            decision,
+            runx_contracts::ReuseDecision::Recomputed {
+                reason: runx_contracts::RecomputeReason::NoCandidate,
+            }
+        );
+        assert_eq!(identity, None, "nothing is indexed for it");
     }
 }

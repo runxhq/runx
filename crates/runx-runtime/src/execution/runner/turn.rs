@@ -1061,15 +1061,12 @@ where
     }
 
     /// What a skill call that asked to reuse a result is answered, and the
-    /// identity its child is indexed under. A source that isn't eligible
-    /// recomputes as ineligible, and one that is recomputes as not allowed
-    /// until its reads are authorized for this run.
+    /// identity its child is indexed under, when it has one.
     fn reuse_candidate(
         &self,
         call: &CallStep,
         target: &CallTarget,
-    ) -> Result<(runx_contracts::ReuseDecision, String), RuntimeError> {
-        use runx_contracts::{RecomputeReason, ReuseDecision};
+    ) -> Result<(runx_contracts::ReuseDecision, Option<String>), RuntimeError> {
         let options = &self.scope.runtime.options;
         let skill = match target {
             CallTarget::Skill {
@@ -1087,41 +1084,17 @@ where
                 });
             }
         };
-        let recomputed = |reason| ReuseDecision::Recomputed { reason };
-        let identity = crate::execution::reuse::identity(
-            &skill,
-            &call.step.inputs,
-            call.act.as_ref(),
-            &options.env,
+        crate::execution::reuse::decide(
+            options.run.store(),
+            crate::execution::reuse::identity(
+                &skill,
+                &call.step.inputs,
+                call.act.as_ref(),
+                &options.env,
+            ),
+            &skill.method.workflow,
         )
-        .map_err(|message| RuntimeError::EngineInvariant {
-            context: "looking for a reuse source",
-            message,
-        })?;
-        let found =
-            crate::execution::reuse::head(options.run.store(), &identity).map_err(|error| {
-                RuntimeError::effect_state("reading the reuse index", error.to_string())
-            })?;
-        let reason = match found {
-            None => RecomputeReason::NoCandidate,
-            Some(source) => {
-                let eligible = crate::execution::reuse::eligible(
-                    options.run.store(),
-                    &source.run_id,
-                    &skill.method.workflow,
-                )
-                .map_err(|error| {
-                    RuntimeError::effect_state("reading a reuse source", error.to_string())
-                })?;
-                if eligible {
-                    // Until its reads are authorized for this run.
-                    RecomputeReason::NotAllowed
-                } else {
-                    RecomputeReason::Ineligible
-                }
-            }
-        };
-        Ok((recomputed(reason), identity))
+        .map_err(|error| RuntimeError::effect_state("reading the reuse index", error.to_string()))
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is
@@ -1198,10 +1171,10 @@ where
         // so its claim records what it was answered (reuse, D32).
         let made = match made.reuse.take() {
             Some(asked) if matches!(made.target, CallTarget::Skill { .. }) => {
-                let (decision, identity) = self.reuse_candidate(&call, &made.target)?;
+                let (decision, reuse_identity) = self.reuse_candidate(&call, &made.target)?;
                 Made {
                     reuse: Some(runx_contracts::RunCallReuse { decision, ..asked }),
-                    reuse_identity: Some(identity),
+                    reuse_identity,
                     ..made
                 }
             }
