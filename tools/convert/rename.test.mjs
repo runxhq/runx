@@ -288,6 +288,18 @@ test("a bare word an applied migration stores is refused until its row names the
   assert.equal(read(renamed, "packages/db/migrations/0001_runs.sql"), migration);
 });
 
+test("execution closure in prose, a comment or a string is a closure, with its case and article, and a code span keeps it", (t) => {
+  const doc = "An execution closure binds a run. Execution closures bind runs, and the execution closure's digest is `execution closure`.\n";
+  const code = '// Inspect the execution closure.\nthrow new Error("did not return a fully bound execution closure");\n';
+  const root = tree(t, { "docs/closure.md": doc, "src/closure.ts": code });
+  for (let pass = 0; pass < 2; pass += 1) {
+    const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+    assert.equal(status, 0, out);
+    assert.equal(read(root, "docs/closure.md"), "A closure binds a run. Closures bind runs, and the closure's digest is `execution closure`.\n");
+    assert.equal(read(root, "src/closure.ts"), '// Inspect the closure.\nthrow new Error("did not return a fully bound closure");\n');
+  }
+});
+
 test("a name an applied migration only mentions in a comment stores nothing, and one it writes as a value is stored", (t) => {
   const migration = "-- binds the package and execution-closure digest\ncreate table runs (id text primary key);\n";
   const code = 'export const flag = "--execution-closure-digest";\n';

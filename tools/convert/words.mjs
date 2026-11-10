@@ -254,6 +254,24 @@ export function markdownCode(text) {
   return spans;
 }
 
+// Retired phrases, each two words where the word it keeps is the name: a
+// package's closure is its closure. A phrase is never code, so it renames
+// wherever it's written, but in a Markdown code span, which quotes code.
+const PHRASE = /\b([Aa])n execution closure|\b([Ee])xecution closure/g;
+
+/** `text` with its retired phrases renamed outside `kept`, and how many were. */
+export function renamePhrases(file, text, kept) {
+  const spans = [...(file.endsWith(".md") ? markdownCode(text) : []), ...kept];
+  let count = 0;
+  const out = text.replace(PHRASE, (match, article, initial, at) => {
+    if (spans.some(([from, to]) => at >= from && at < to)) return match;
+    count += 1;
+    if (article) return `${article} closure`;
+    return initial === "E" ? "Closure" : "closure";
+  });
+  return { text: out, count };
+}
+
 // A bare form of a retired word, in any case, and the word it is.
 export function bareWord(token) {
   const lower = token.toLowerCase();

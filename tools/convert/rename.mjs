@@ -23,7 +23,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SOURCE, bareWord, decisionsFor, fencedBlocks, movedPath, pathStayFor, proseSites, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SOURCE, bareWord, decisionsFor, fencedBlocks, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -578,13 +578,17 @@ function apply(repo, root, write, list, showStays) {
         });
       })
       .join("\n");
+    // Retired phrases go after the names, outside any pin, so a pass over
+    // its own output finds none.
+    const phrased = renamePhrases(file, renamed, pinnedSpans(pins.filter((pin) => pin.file === file), renamed));
+    count += phrased.count;
     if (count === 0) continue;
     files += 1;
     replaced += count;
     if (list) process.stdout.write(`${count}\t${file}\n`);
-    writes.push([file, renamed]);
+    writes.push([file, phrased.text]);
     // Each renamed file, its edits and the sites that land on a name it holds.
-    edited.set(file, { original, renamed, edits, sites });
+    edited.set(file, { original, renamed: phrased.text, edits, sites });
     landings.push(...sites.map((site) => ({ file, ...site })));
   }
   if (conflicts.length > 0) {
