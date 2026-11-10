@@ -179,20 +179,27 @@ fn agent_packet_shape_error() -> RuntimeError {
     }
 }
 
-/// A packet's schema as its producer answers it. A verdict's `evaluator` is
-/// the runtime's to name, never the producer's, so the producer needn't state
-/// it; one it states that isn't the runtime's is refused.
-fn produced(
-    catalog: &PacketSchemaCatalog,
+/// A packet's schema as its producer answers it, and as a step's output is
+/// checked against it. A verdict's `evaluator` is the runtime's to name, where
+/// the step's output becomes its claim, never the producer's, so the producer
+/// needn't state it; one it states that isn't the runtime's fails its step.
+pub(crate) fn as_produced(
     packet: &PacketId,
-) -> Result<runx_contracts::JsonObject, RuntimeError> {
-    let mut schema = packet_schema(catalog, packet)?;
+    mut schema: runx_contracts::JsonObject,
+) -> runx_contracts::JsonObject {
     if packet.as_str() == runx_contracts::VERDICT_SCHEMA
         && let Some(runx_contracts::JsonValue::Array(required)) = schema.get_mut("required")
     {
         required.retain(|field| field.as_str() != Some("evaluator"));
     }
-    Ok(schema)
+    schema
+}
+
+fn produced(
+    catalog: &PacketSchemaCatalog,
+    packet: &PacketId,
+) -> Result<runx_contracts::JsonObject, RuntimeError> {
+    Ok(as_produced(packet, packet_schema(catalog, packet)?))
 }
 
 fn packet_schema(

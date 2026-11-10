@@ -45,7 +45,14 @@ fn verify_packet_binding(
     let schema = schemas
         .get(&binding.packet)
         .ok_or_else(|| packet_error(&binding, schemas.not_found(&binding.packet)))?;
-    let schema_document = serde_json::to_value(&schema.schema.value)
+    let produced = match &schema.schema.value {
+        JsonValue::Object(object) => JsonValue::Object(crate::packet_schemas::as_produced(
+            &binding.packet,
+            object.clone(),
+        )),
+        other => other.clone(),
+    };
+    let schema_document = serde_json::to_value(&produced)
         .map_err(|source| RuntimeError::json("serializing packet schema for validation", source))?;
     let published = crate::packet_schemas::PublishedSchemaRetriever::shared()
         .map_err(|error| packet_error(&binding, error))?;

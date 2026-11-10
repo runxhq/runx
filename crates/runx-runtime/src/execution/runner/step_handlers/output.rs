@@ -10,17 +10,24 @@ use crate::adapter::InvocationOutput;
 use crate::execution::output_projection::{StepOutputProjection, project_step_claim};
 use crate::output_contract::{project_artifact_outputs, project_declared_output_claim};
 
+use super::verdict::{Evaluating, name_verdicts};
+
 /// Project a step's output from its producing method contract.
 ///
 /// The addressable surface is sourced from the contract, never from the step
 /// kind: declared `run.outputs` plus the effective artifact packets. The
 /// effective artifact contract is the step's own inline `artifacts` when present,
 /// otherwise `extra_artifacts` (the invoked sub-skill / tool method contract).
+///
+/// Every step kind's output becomes its claim here, so here each verdict it
+/// returns names its evaluator, as `evaluating` says, before anything is
+/// sealed.
 pub(super) fn build_step_output_projection(
     step: &WorkflowStep,
     output: &InvocationOutput,
     extra_outputs: Option<&JsonObject>,
     extra_artifacts: Option<&OutputArtifacts>,
+    evaluating: &Evaluating<'_>,
 ) -> Result<StepOutputProjection, RuntimeError> {
     // A failed invocation produced diagnostics, not its declared success
     // contract. Preserve that failure for sealing instead of replacing it with
@@ -30,11 +37,13 @@ pub(super) fn build_step_output_projection(
     }
     let declared_outputs = step.outputs.as_ref().or(extra_outputs);
     let artifacts = step.artifacts.as_ref().or(extra_artifacts);
-    let claim = project_declared_output_claim(&step.id, &output.value, declared_outputs, artifacts)
-        .map_err(|error| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: error.to_string(),
-        })?;
+    let mut claim =
+        project_declared_output_claim(&step.id, &output.value, declared_outputs, artifacts)
+            .map_err(|error| RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason: error.to_string(),
+            })?;
+    name_verdicts(&mut claim, artifacts, evaluating, &step.id)?;
     Ok(project_step_claim(claim, artifacts))
 }
 
@@ -78,6 +87,7 @@ mod tests {
     use runx_contracts::{JsonObject, JsonValue};
     use runx_parser::WorkflowStep;
 
+    use super::super::verdict::Evaluating;
     use super::build_step_output_projection;
     use crate::RuntimeError;
     use crate::adapter::InvocationOutput;
@@ -95,7 +105,8 @@ mod tests {
             4,
         );
 
-        let projection = build_step_output_projection(&step, &output, None, None)?;
+        let projection =
+            build_step_output_projection(&step, &output, None, None, &Evaluating::Child)?;
 
         assert!(projection.outputs.is_empty());
         assert_eq!(
@@ -111,10 +122,11 @@ mod tests {
         let step = declared_output_step()?;
         let output = InvocationOutput::runtime_success(JsonValue::Null, 4);
 
-        let error = match build_step_output_projection(&step, &output, None, None) {
-            Err(error) => error,
-            Ok(_) => return Err("success without the declared output did not fail".into()),
-        };
+        let error =
+            match build_step_output_projection(&step, &output, None, None, &Evaluating::Child) {
+                Err(error) => error,
+                Ok(_) => return Err("success without the declared output did not fail".into()),
+            };
 
         assert!(matches!(
             error,
@@ -149,7 +161,8 @@ methods:
             .ok_or("validated output-contract workflow omitted its step")?;
         let output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 4);
 
-        let projection = build_step_output_projection(&step, &output, None, None)?;
+        let projection =
+            build_step_output_projection(&step, &output, None, None, &Evaluating::Child)?;
 
         assert!(projection.outputs.is_empty());
         Ok(())

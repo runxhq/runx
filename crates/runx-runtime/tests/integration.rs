@@ -50,4 +50,5 @@ mod tool_catalogs;
 mod turn_loads;
 mod turn_trust;
 mod validated_skill_package;
+mod verdicts;
 mod workflow_context_materialization;

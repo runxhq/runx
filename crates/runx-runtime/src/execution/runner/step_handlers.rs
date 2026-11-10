@@ -24,6 +24,7 @@ use runx_parser::{AskGate, AskReason, OutputArtifacts, StepKind, ToolTarget, Wor
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
+use self::verdict::Evaluating;
 use super::super::skill_context::load_context_skills;
 use super::super::workflow::{
     LoadedStepSkill, StepSkillLoadOptions, bind_run_inputs, load_step_skill,
@@ -465,7 +466,9 @@ where
     let result = super::workflow_terminal_result(&run)?;
     let ephemeral_result = workflow_run_ephemeral_result(&run);
     let mut output = workflow_run_skill_output(&result, &run)?;
-    let mut projection = build_step_output_projection(request.step, &output, None, None)?;
+    // The child run named the verdicts it returns as its own steps did.
+    let mut projection =
+        build_step_output_projection(request.step, &output, None, None, &Evaluating::Child)?;
     adopt_nested_workflow_result(
         &result,
         &workflow_run_result_artifacts(&run),
@@ -752,8 +755,15 @@ where
         }
         runtime.configured_adapter.invoke(invocation)?
     };
-    let provisional_projection =
-        build_step_output_projection(step, &output, raw_output.as_ref(), extra_artifacts)?;
+    let evaluator = || verdict::evaluator(runtime, &skill_directory, step);
+    let evaluating = Evaluating::Step(&evaluator);
+    let provisional_projection = build_step_output_projection(
+        step,
+        &output,
+        raw_output.as_ref(),
+        extra_artifacts,
+        &evaluating,
+    )?;
     let effect_claim = contract_output_claim(&provisional_projection);
     prepare_effect_output_before_gate(
         step,
@@ -765,8 +775,13 @@ where
     // An effect may remove transient provider material before sealing. Rebuild
     // the projection so receipts, durable replay state, and downstream context
     // all observe the same public output.
-    let projection =
-        build_step_output_projection(step, &output, raw_output.as_ref(), extra_artifacts)?;
+    let projection = build_step_output_projection(
+        step,
+        &output,
+        raw_output.as_ref(),
+        extra_artifacts,
+        &evaluating,
+    )?;
     let ephemeral_contract =
         build_ephemeral_step_output(step, &output, raw_output.as_ref(), extra_artifacts);
     if output.succeeded() {
@@ -1011,6 +1026,7 @@ where
 // The close for an agent act: a resolved host response becomes the step's
 // output, projection, and sealed receipt.
 struct TurnStepSeal<'a> {
+    workflow_dir: &'a Path,
     workflow_name: &'a str,
     step: &'a WorkflowStep,
     attempt: u32,
@@ -1030,6 +1046,7 @@ fn seal_turn_step<A>(
     request: TurnStepSeal<'_>,
 ) -> Result<StepRun, RuntimeError> {
     let TurnStepSeal {
+        workflow_dir,
         workflow_name,
         step,
         attempt,
@@ -1061,7 +1078,13 @@ fn seal_turn_step<A>(
         project_step_claim(JsonObject::new(), None)
     } else {
         let answer = InvocationOutput::runtime_success(response.payload.clone(), 0);
-        build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?
+        build_step_output_projection(
+            step,
+            &answer,
+            extra_outputs,
+            extra_artifacts,
+            &Evaluating::Step(&|| verdict::evaluator(runtime, workflow_dir, step)),
+        )?
     };
     let mut output = agent_task_output(response, &outcome)?;
     output.observations.contract = contract_checks;
@@ -1250,16 +1273,6 @@ where
             ),
         });
     }
-    // The verdicts it returns name this step as their evaluator, as the
-    // runtime names it, before the answer's packets are checked.
-    let mut response = response;
-    verdict::name_verdicts(
-        runtime,
-        workflow_dir,
-        step,
-        step.artifacts.as_ref(),
-        &mut response.payload,
-    )?;
     // An answer that breaks the act's output contract is refused, not sealed:
     // the turn stays open for a corrected answer. An act that failed returns
     // no outputs to check; its step fails with its reason.
@@ -1283,6 +1296,7 @@ where
     seal_turn_step(
         runtime,
         TurnStepSeal {
+            workflow_dir,
             workflow_name,
             step,
             attempt,
@@ -1438,7 +1452,10 @@ where
         skill,
         call,
     } = seal;
-    let provisional_projection = build_step_output_projection(step, &output, outputs, artifacts)?;
+    let evaluator = || verdict::evaluator(runtime, workflow_dir, step);
+    let evaluating = Evaluating::Step(&evaluator);
+    let provisional_projection =
+        build_step_output_projection(step, &output, outputs, artifacts, &evaluating)?;
     let provisional_claim = contract_output_claim(&provisional_projection);
     prepare_effect_output_before_gate(
         step,
@@ -1447,7 +1464,7 @@ where
         &mut output,
         &runtime.options.effects,
     )?;
-    let projection = build_step_output_projection(step, &output, outputs, artifacts)?;
+    let projection = build_step_output_projection(step, &output, outputs, artifacts, &evaluating)?;
     if output.succeeded() {
         // The packets the step declares, or else its tool's own, are checked
         // against the artifacts it holds, as any step's are.
