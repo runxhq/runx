@@ -450,6 +450,8 @@ impl KernelStore {
             return Ok(None);
         };
         crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+        #[cfg(feature = "probe-fixtures")]
+        crate::work_counts::stream_event_read(E::KIND, key, 1);
         let invalid = || KernelStoreError::Integrity {
             kind: E::KIND.to_owned(),
             key: key.to_owned(),
@@ -910,6 +912,8 @@ fn latest_kind_on<E: StreamEvent>(
         return Ok(None);
     };
     crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+    #[cfg(feature = "probe-fixtures")]
+    crate::work_counts::stream_event_read(kind, key, version);
     let invalid = || KernelStoreError::Integrity {
         kind: kind.to_owned(),
         key: key.to_owned(),

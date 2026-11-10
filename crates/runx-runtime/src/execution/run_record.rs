@@ -935,10 +935,123 @@ impl RunLog {
             .clone())
     }
 
+    /// The log of `run_id`, this run or one below it, from this log's child
+    /// logs, so what a driver read of that run it reads again only from
+    /// where it read it to.
+    pub(crate) fn log_of(&self, run_id: &str) -> Result<Self, RunRecordError> {
+        if run_id == self.0.run_id {
+            return Ok(self.clone());
+        }
+        let below = run_id
+            .strip_prefix(self.0.run_id.as_str())
+            .and_then(|rest| rest.strip_prefix('/'))
+            .ok_or_else(|| RunRecordError::Invalid {
+                run_id: self.0.run_id.clone(),
+                reason: format!("{run_id} is no run below it"),
+            })?;
+        let holding = self
+            .kept()
+            .children
+            .iter()
+            .find(|(child, _)| {
+                run_id == child.as_str()
+                    || run_id
+                        .strip_prefix(child.as_str())
+                        .is_some_and(|rest| rest.starts_with('/'))
+            })
+            .map(|(_, log)| log.clone());
+        match holding {
+            Some(child) => child.log_of(run_id),
+            None => self.child(below),
+        }
+    }
+
+    /// The run as a continuation finds it while it waits: what started it
+    /// and what it waits on, from the record this log took; `None` when it
+    /// waits on nothing or is a child run, which continues with its parent.
+    pub(crate) fn paused(&self) -> Result<Option<PausedRun>, RunRecordError> {
+        let Some(record) = self.load()? else {
+            return Ok(None);
+        };
+        if record.sealed.is_some() || record.suspension.is_none() {
+            return Ok(None);
+        }
+        let Origin::Run(started) = record.origin else {
+            return Ok(None);
+        };
+        Ok(Some(PausedRun {
+            run_id: self.0.run_id.clone(),
+            skill: started.skill,
+            skill_path: started.skill_path,
+            method: started.method,
+            package_digest: started.package_digest,
+            execution_closure_digest: started.execution_closure_digest,
+            purchase: started.purchase,
+            waiting: self.waiting()?,
+        }))
+    }
+
+    /// Everything the run waits on, at any depth, each request once: its
+    /// hold, the calls of its held step that still wait, and what each child
+    /// run they wait on waits on, from what this log and its child logs read,
+    /// so a driver reads each stream of its run once.
+    pub(crate) fn waiting(&self) -> Result<Vec<PendingRequest>, RunRecordError> {
+        let mut waiting = Vec::new();
+        self.collect_waiting(&mut waiting)?;
+        Ok(waiting)
+    }
+
+    fn collect_waiting(&self, waiting: &mut Vec<PendingRequest>) -> Result<(), RunRecordError> {
+        let Some(record) = self.load()? else {
+            return Ok(());
+        };
+        let Some(suspension) = record.suspension.filter(|_| record.sealed.is_none()) else {
+            return Ok(());
+        };
+        let request = match suspension.hold {
+            Hold::Child(run_id) => return self.log_of(&run_id)?.collect_waiting(waiting),
+            // A step waiting on a retry or a claim has made no call that waits.
+            Hold::Retry { request, .. } | Hold::Claimed(request) => {
+                push_waiting(waiting, request);
+                return Ok(());
+            }
+            Hold::Request(request) => request,
+        };
+        push_waiting(waiting, request);
+        for call in self
+            .waiting_calls(&suspension.step_id, suspension.attempt)?
+            .into_values()
+        {
+            match call {
+                WaitingCallEvent::Request {
+                    request_id,
+                    request,
+                    digest,
+                    ..
+                } => push_waiting(
+                    waiting,
+                    PendingRequest {
+                        id: request_id,
+                        value: self.0.store.blob_json(&request)?,
+                        digest,
+                    },
+                ),
+                WaitingCallEvent::Child { run_id, .. } => {
+                    self.log_of(&run_id)?.collect_waiting(waiting)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// When the run was admitted, as the event that opened its stream records
     /// it; none before the run is recorded. What a run's steps derive from
     /// its admission is dated by it, so a step driven again asks the same.
     pub(crate) fn admitted_at(&self) -> Result<Option<String>, RunRecordError> {
+        // A log that took its run holds it already.
+        if let Some((_, record)) = &self.kept().record {
+            return Ok(Some(record.created_at.clone()));
+        }
         Ok(self
             .0
             .store
@@ -1441,12 +1554,7 @@ impl RunLog {
             .store
             .tree_keys_with::<RunEvent>(&self.0.run_id, ANSWERED)?
         {
-            let events = self.0.store.read::<RunEvent>(&key)?;
-            if let Some(record) = replay(
-                &self.0.store,
-                &key,
-                events.into_iter().map(|event| event.event),
-            )? {
+            if let Some(record) = self.log_of(&key)?.load()? {
                 admitted.extend(record.admitted);
             }
         }
@@ -1773,19 +1881,15 @@ impl RunLog {
         }
     }
 
-    /// Whether the run's latest standing event still holds it where a step
-    /// waits: a hold on a request or a child, or a turn's call, which leaves
-    /// its run paused at the turn. A claim or a script's call doesn't.
+    /// Whether the run still stands where a step waits, a hold on a request
+    /// or a child, as the record this log took holds it. A claim doesn't.
     pub(crate) fn stands_waiting(&self) -> Result<bool, RunRecordError> {
-        Ok(
-            match standing_event(&self.0.store, &self.0.run_id)?.map(|latest| latest.event) {
-                Some(RunEvent::Suspended(suspended)) => matches!(
-                    suspended.hold,
-                    HoldEvent::Request { .. } | HoldEvent::Child { .. }
-                ),
-                _ => false,
-            },
-        )
+        Ok(self.load()?.is_some_and(|record| {
+            record.sealed.is_none()
+                && record.suspension.is_some_and(|suspension| {
+                    matches!(suspension.hold, Hold::Request(_) | Hold::Child(_))
+                })
+        }))
     }
 
     fn version(&self) -> std::sync::MutexGuard<'_, u64> {

@@ -10,8 +10,8 @@
 //! session. With the run held, a read from the cursor that reached its end
 //! finds nothing new, and a resume answers what it waits on and takes it to
 //! where it holds again. A resume binds the run from its record, which is its
-//! recovery, so the times it reads each stream from its start are counted
-//! too.
+//! recovery, so how many times it reads each event of the run's streams is
+//! counted too.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -82,7 +82,12 @@ fn long_runs() -> Result<(JsonValue, JsonValue), Box<dyn Error>> {
             let measured = LongRun::measure(shape, size)?;
             shape_read_rows.insert(label.to_owned(), count(measured.read.store_rows_read));
             shape_resume_rows.insert(label.to_owned(), count(measured.resume.store_rows_read));
-            let most = measured.stream_reads.values().copied().max().unwrap_or(0);
+            let most = measured
+                .stream_reads
+                .values()
+                .flat_map(|events| events.values().copied())
+                .max()
+                .unwrap_or(0);
             most_reads_of_one_stream = most_reads_of_one_stream.max(most);
             if let Some(call) = measured.last_turn_call {
                 turn_call_rows.insert(label.to_owned(), count(call.store_rows_read));
@@ -122,8 +127,8 @@ struct LongRun {
     read: Counted,
     /// The resume, from where the run held to where it holds again.
     resume: Counted,
-    /// How many times the resume read each stream from its start.
-    stream_reads: BTreeMap<String, u64>,
+    /// How many times the resume read each event of each stream.
+    stream_reads: BTreeMap<String, BTreeMap<u64, u64>>,
     /// At a turn, the last of its calls, made after all the others.
     last_turn_call: Option<Counted>,
 }
@@ -194,12 +199,17 @@ impl LongRun {
                 JsonValue::Object(
                     self.stream_reads
                         .iter()
-                        .map(|(stream, most)| (stream.clone(), count(*most)))
+                        .map(|(stream, events)| {
+                            (
+                                stream.clone(),
+                                count(events.values().copied().max().unwrap_or(0)),
+                            )
+                        })
                         .collect(),
                 ),
             ),
             (
-                "resume_most_reads_of_one_stream_from_its_start".to_owned(),
+                "resume_most_reads_of_one_event".to_owned(),
                 count(most_reads_of_one_stream),
             ),
         ]))

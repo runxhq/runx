@@ -27,7 +27,6 @@ use runx_parser::{
 
 use super::super::run_record::{
     Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
-    waiting_requests,
 };
 use super::super::workflow::{
     LoadedStepSkill, LoadedStepSkillPackage, StepSkillLoadOptions, load_step_skill, step_skill,
@@ -1558,7 +1557,13 @@ where
                 }
             }
             CallOutcome::Child(run_id) => TurnCallOutcome::Pending {
-                waiting: waiting_requests(self.scope.runtime.options.run.store(), run_id)?
+                waiting: self
+                    .scope
+                    .runtime
+                    .options
+                    .run
+                    .log_of(run_id)?
+                    .waiting()?
                     .iter()
                     .map(resolution_request)
                     .collect::<Result<_, _>>()?,

@@ -292,33 +292,33 @@ pub fn snapshot() -> WorkCounts {
 /// Write this process's counts to the file `RUNX_PERF_COUNTS_PATH` names,
 /// when it names one.
 ///
-/// How many times each kernel stream was read from its start, by `<kind>
-/// <key>`, while a probe tallies them; none otherwise. Only the benches build
-/// it.
+/// The reads of each kernel stream's events, by `<kind> <key>` and version,
+/// while a probe tallies them; none otherwise. Only the benches build it.
 #[cfg(feature = "probe-fixtures")]
-static STREAM_READS: Mutex<Option<BTreeMap<String, u64>>> = Mutex::new(None);
+static STREAM_READS: Mutex<Option<BTreeMap<String, BTreeMap<u64, u64>>>> = Mutex::new(None);
 
-/// Count a read of event `version` of the kernel stream `key` of `kind`,
-/// while a probe tallies them: a read of its first event is a read of the
-/// stream from its start, and neither a read of what followed a cursor nor a
-/// lookup of one event is.
+/// Count one read of event `version` of the kernel stream `key` of `kind`,
+/// while a probe tallies them.
 #[cfg(feature = "probe-fixtures")]
 pub(crate) fn stream_event_read(kind: &str, key: &str, version: u64) {
-    if version != 1 {
-        return;
-    }
     let mut reads = STREAM_READS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(reads) = reads.as_mut() {
-        *reads.entry(format!("{kind} {key}")).or_default() += 1;
+        *reads
+            .entry(format!("{kind} {key}"))
+            .or_default()
+            .entry(version)
+            .or_default() += 1;
     }
 }
 
-/// What `measure` returned, and, by `<kind> <key>`, how many times it read
-/// that kernel stream from its start: 1 where it read the stream once.
+/// What `measure` returned, and how many times it read each event of each
+/// kernel stream, by `<kind> <key>` and version.
 #[cfg(feature = "probe-fixtures")]
-pub(crate) fn stream_reads<T>(measure: impl FnOnce() -> T) -> (T, BTreeMap<String, u64>) {
+pub(crate) fn stream_reads<T>(
+    measure: impl FnOnce() -> T,
+) -> (T, BTreeMap<String, BTreeMap<u64, u64>>) {
     let tally = || {
         STREAM_READS
             .lock()

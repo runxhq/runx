@@ -87,12 +87,15 @@ pub mod probe_fixtures {
             .map_err(|error| error.to_string())
     }
 
-    /// What `measure` returned, and, by `<kind> <key>`, how many times it
-    /// read that kernel stream from its start: what "recovery reads each
-    /// stream once" is counted in.
+    /// What `measure` returned, and how many times it read each event of
+    /// each kernel stream, by `<kind> <key>` and version: what "recovery
+    /// reads each stream once" is counted in.
     pub fn stream_reads<T>(
         measure: impl FnOnce() -> T,
-    ) -> (T, std::collections::BTreeMap<String, u64>) {
+    ) -> (
+        T,
+        std::collections::BTreeMap<String, std::collections::BTreeMap<u64, u64>>,
+    ) {
         crate::work_counts::stream_reads(measure)
     }
 }

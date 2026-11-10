@@ -256,6 +256,7 @@ impl LocalOrchestrator {
                 method: Some(method.to_owned()),
                 javascript: Some(javascript),
                 purchase: None,
+                run_log: None,
             },
             &self.effects,
             Some(package_digest),

@@ -20,7 +20,7 @@ use crate::adapter::SkillInvocation;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
-    CallerContext, Hold, Origin, PendingRequest, RunLog, RunRecord, StartRequest, waiting_requests,
+    CallerContext, Hold, Origin, PendingRequest, RunLog, RunRecord, StartRequest,
 };
 use crate::execution::runner::turn::{Admission, AdmittedCall, ExecutedCall, Turn, admit_tool};
 use crate::execution::runner::{
@@ -83,7 +83,7 @@ impl BoundRun {
             crate::filesystem::recover(log.store(), log.run_id())?;
         }
         let existing = log.load()?;
-        let waiting = waiting_requests(log.store(), log.run_id())?;
+        let waiting = log.waiting()?;
         host.check_turn(log.run_id(), &waiting)?;
         host.answers.check_waiting(log.run_id(), &waiting)?;
         let request_context = CallerContext {
@@ -443,7 +443,7 @@ impl BoundRun {
     /// Every request the run waits on, by address.
     pub(super) fn waiting(&self) -> Result<Vec<PendingRequest>, SkillRunError> {
         let log = self.log()?;
-        Ok(waiting_requests(log.store(), log.run_id())?)
+        Ok(log.waiting()?)
     }
 
     /// The run this binding drives.
@@ -466,7 +466,7 @@ impl BoundRun {
 
     /// The run waits on every request open in it, at any depth.
     fn paused(&self, log: &RunLog) -> Result<RunResult, SkillRunError> {
-        let waiting = waiting_requests(log.store(), log.run_id())?;
+        let waiting = log.waiting()?;
         Ok(paused_output(
             &self.manifest,
             &self.method.name,

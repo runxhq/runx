@@ -375,7 +375,7 @@ pub(crate) fn prepare_skill_run_with_effects(
     if entry.execution_closure_digest.is_none() {
         entry.execution_closure_digest = execution_closure_digest.clone();
     }
-    super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
+    super::skill_front::restore_continuation_inputs(&mut request, &workspace, None)?;
     crate::input_contract::apply_defaults(&method.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_method_inputs(
         &method.inputs,
