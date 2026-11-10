@@ -304,6 +304,11 @@ pub(crate) fn inspect_loaded_skill_package(
 ) -> Result<SkillInspection, SkillInspectionError> {
     let loaded = Arc::new(loaded);
     let mut output = base_inspection(&loaded)?;
+    if let Some(env) = env {
+        output.distribution_digest =
+            crate::registry::distribution_digest(&loaded, env, &loaded.package_root)
+                .map_err(|error| SkillInspectionError::Runtime(Box::new(error)))?;
+    }
     let manifest = loaded.manifest();
     let method = inspected_method(manifest, selected_method)?;
     // Inspection reports the registry refs the project does not hold, so a
@@ -508,6 +513,7 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, Skill
         skill_path: loaded.directory.to_string_lossy().into_owned(),
         manual_digest: package.manual_digest.clone(),
         package_digest: package.package_digest.clone(),
+        distribution_digest: None,
         description: package.skill.description.clone(),
         version: manifest.and_then(|manifest| manifest.version.clone()),
         catalog: manifest
@@ -610,6 +616,50 @@ methods:
         inputs:
           value: inspected
 "#;
+
+    /// A source directory's inspection states the package digest a run binds
+    /// and the distribution digest of the package `runx registry package`
+    /// makes of it, which differ once packaging adds what the package
+    /// carries. Without an environment it packages nothing, so states none.
+    #[test]
+    fn a_source_directory_states_its_package_and_distribution_digests()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path().join("root");
+        let child = root.join("child");
+        fs::create_dir_all(&child)?;
+        fs::write(root.join("SKILL.md"), ROOT_MANUAL)?;
+        // One method, which a package that packages needs no description for.
+        fs::write(
+            root.join("run.yaml"),
+            "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  inspect:\n    result_from: [child]\n    steps:\n      - id: child\n        skill: child\n",
+        )?;
+        fs::write(child.join("SKILL.md"), CHILD_MANUAL)?;
+        fs::write(child.join("run.yaml"), CHILD_MANIFEST)?;
+        let env = std::collections::BTreeMap::new();
+
+        let inspected = super::inspect_skill_package(&root, None, Some(&env))?;
+        let package = crate::load_validated_skill_package(&root)?
+            .package
+            .package_digest;
+        let subject = root.to_string_lossy();
+        let distribution = crate::registry::prepare_registry_publish_package(
+            crate::registry::RegistryPublishPackageRequest {
+                subject: &subject,
+                env: &env,
+                cwd: &root,
+            },
+        )?
+        .into_parts()
+        .package_digest()?;
+        assert_eq!(inspected.package_digest, package);
+        assert_eq!(inspected.distribution_digest, Some(distribution.clone()));
+        assert_ne!(package, distribution);
+
+        let unpackaged = super::inspect_skill_package(&root, None, None)?;
+        assert_eq!(unpackaged.distribution_digest, None);
+        Ok(())
+    }
 
     #[test]
     fn closure_uses_validated_names_and_transitive_native_tools()
