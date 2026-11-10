@@ -914,6 +914,29 @@ fn a_lost_worker_is_rebuilt_from_its_record_and_live_running_never_replays() -> 
     Ok(())
 }
 
+/// A sealed script run invoked again under its id returns its seal: the
+/// same receipt, with no pass of its script, no call and nothing written.
+#[test]
+fn a_sealed_script_run_invoked_again_returns_its_seal() -> TestResult {
+    let root = crate::support::temp_root("sealed-again");
+    let skill = write_batched(&root)?;
+    let (output, _) = run_counted(&root, &skill, 10, None)?;
+    let sealed = status(&output)?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    let before = whole_history(&root)?;
+
+    let (output, counts) = run_counted(&root, &skill, 10, None)?;
+    let again = status(&output)?;
+    assert_eq!(again["status"], "sealed", "{again}");
+    assert_eq!(again["receipt_id"], sealed["receipt_id"], "{again}");
+    assert_eq!(result_of(&again)?, result_of(&sealed)?);
+    let counts = counts.ok_or("the second invocation wrote its counts")?;
+    assert_eq!(counted(&counts, "script_passes"), 0, "{counts}");
+    assert_eq!(counted(&counts, "store_writes"), 0, "{counts}");
+    assert_eq!(whole_history(&root)?["events"], before["events"]);
+    Ok(())
+}
+
 /// A script changed between its crash and its recovery is a failed recovery
 /// that acts on nothing: the run is pinned to the package it started from,
 /// so recovery under another refuses before any call is replayed or made,
