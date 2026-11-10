@@ -56,17 +56,16 @@ expect:
     validate:
       subset:
         knowledge_route:
-          data:
-            verdict: routed
-            route:
-              domain: authentication
-              source_ids:
-                - auth-docs
-                - campaigns-docs
-            owner_recommendation:
-              owner_id: security-team
-            next_skill:
-              skill: research
-            validation:
-              valid: true
-              unknown_entries: []
+          verdict: routed
+          route:
+            domain: authentication
+            source_ids:
+              - auth-docs
+              - campaigns-docs
+          owner_recommendation:
+            owner_id: security-team
+          next_skill:
+            skill: research
+          validation:
+            valid: true
+            unknown_entries: []

@@ -225,7 +225,7 @@ methods:
     let result = serde_json::from_slice::<serde_json::Value>(&run.stdout)?;
     assert_eq!(result["status"], "sealed");
     assert_eq!(
-        result["result"]["sibling_packet"]["data"]["digest_result"]["data"]["digest"],
+        result["result"]["sibling_packet"]["digest_result"]["digest"],
         "sha256:e225fda0645d7ec6cfdbd8216a0e81604271cb0a900ea4e2989187e3d4ecd3d1"
     );
 

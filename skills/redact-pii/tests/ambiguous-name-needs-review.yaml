@@ -28,14 +28,13 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: needs_review
-            redacted_digest: null
-            residual_risk:
-              level: medium
-              reason_code: ambiguous_semantics
-            scanner:
-              status: hold
+          decision: needs_review
+          redacted_digest: null
+          residual_risk:
+            level: medium
+            reason_code: ambiguous_semantics
+          scanner:
+            status: hold
         redacted_content: ""
   receipt:
     schema: runx.receipt.v1

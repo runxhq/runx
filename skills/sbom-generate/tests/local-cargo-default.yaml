@@ -8,8 +8,7 @@ expect:
     generate:
       subset:
         sbom_result:
-          data:
-            component_count: 2
-            decision: generated
-            license_summary:
-              missing_evidence: 2
+          component_count: 2
+          decision: generated
+          license_summary:
+            missing_evidence: 2

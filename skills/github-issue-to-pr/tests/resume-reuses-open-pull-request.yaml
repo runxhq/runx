@@ -79,20 +79,19 @@ expect:
   output:
     subset:
       issue_to_pr_result:
-        data:
-          schema: runx/github-issue-to-pr.result.v1
-          status: completed
-          outcome: published
-          repository: runxhq/runx
-          issue_number: "442"
-          commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          publication:
-            status: published
-            pr_number: "77"
-            url: https://github.com/runxhq/runx/pull/77
-          governance:
-            kind: scafld
-            status: verified
+        schema: runx/github-issue-to-pr.result.v1
+        status: completed
+        outcome: published
+        repository: runxhq/runx
+        issue_number: "442"
+        commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        publication:
+          status: published
+          pr_number: "77"
+          url: https://github.com/runxhq/runx/pull/77
+        governance:
+          kind: scafld
+          status: verified
   steps:
     - verify
     - intent

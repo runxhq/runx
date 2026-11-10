@@ -37,12 +37,11 @@ expect:
     finalize:
       subset:
         postmortem:
-          data:
-            decision: needs_more_evidence
-            publish_proposal: null
-            publish_performed: false
-            validation:
-              status: pass
-              findings: []
+          decision: needs_more_evidence
+          publish_proposal: null
+          publish_performed: false
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

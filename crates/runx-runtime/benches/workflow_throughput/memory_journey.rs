@@ -168,8 +168,7 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
 /// The index of `entries` leads with the standing rules that apply, every
 /// one, and only them: the ended and the disabled rule never show.
 fn rules_lead(index: &serde_json::Value, entries: usize) -> Result<(), Box<dyn Error>> {
-    let list = index["entries"].get("data").unwrap_or(&index["entries"]);
-    let purposes = list
+    let purposes = index["entries"]
         .as_array()
         .ok_or_else(|| format!("no entries in {index}"))?
         .iter()
@@ -193,9 +192,7 @@ fn count(value: u64) -> JsonValue {
 }
 
 fn entries_of(output: &serde_json::Value) -> Result<u64, Box<dyn Error>> {
-    let entries = &output["entries"];
-    let list = entries.get("data").unwrap_or(entries);
-    Ok(list
+    Ok(output["entries"]
         .as_array()
         .ok_or_else(|| format!("no entries in {output}"))?
         .len() as u64)

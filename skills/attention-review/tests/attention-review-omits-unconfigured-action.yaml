@@ -31,9 +31,8 @@ expect:
     finalize:
       subset:
         attention_packet:
-          data:
-            decision: ready
-            recommended_action_ids: []
-            work_proposals: []
-            validation: {status: pass, omitted_unconfigured_actions: 1, omitted_unconfigured_work: 1}
+          decision: ready
+          recommended_action_ids: []
+          work_proposals: []
+          validation: {status: pass, omitted_unconfigured_actions: 1, omitted_unconfigured_work: 1}
   receipt: {schema: runx.receipt.v1}

@@ -55,16 +55,15 @@ expect:
   output:
     subset:
       issue_to_pr_result:
-        data:
-          schema: runx/github-issue-to-pr.result.v1
-          status: blocked
-          outcome: blocked
-          errors:
-            - The repository-required scafld finalization did not verify for this exact commit and contract.
-          governance:
-            kind: scafld
-            status: unverified
-            receipt_digest: ""
+        schema: runx/github-issue-to-pr.result.v1
+        status: blocked
+        outcome: blocked
+        errors:
+          - The repository-required scafld finalization did not verify for this exact commit and contract.
+        governance:
+          kind: scafld
+          status: unverified
+          receipt_digest: ""
   steps:
     - verify
     - intent

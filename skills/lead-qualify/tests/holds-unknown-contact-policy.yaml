@@ -35,6 +35,5 @@ expect:
   step_outputs:
     finalize:
       subset:
-        lead_qualification:
-          data: {decision: hold, external_status: not_executed}
+        lead_qualification: {decision: hold, external_status: not_executed}
   receipt: {schema: runx.receipt.v1}

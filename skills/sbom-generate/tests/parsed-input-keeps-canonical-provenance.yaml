@@ -24,6 +24,5 @@ expect:
     generate:
       subset:
         sbom_result:
-          data:
-            source:
-              digest_encoding: canonical_json
+          source:
+            digest_encoding: canonical_json

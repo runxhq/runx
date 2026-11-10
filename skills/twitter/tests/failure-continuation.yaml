@@ -46,14 +46,13 @@ expect:
     batch1:
       subset:
         twitter_execution:
-          data:
-            decision: partial
-            counts:
-              processed: 1
-              succeeded: 0
-              failed: 1
-            results:
-            - status: failed
+          decision: partial
+          counts:
+            processed: 1
+            succeeded: 0
+            failed: 1
+          results:
+          - status: failed
     status1:
       subset:
         twitter_status:
@@ -68,12 +67,11 @@ expect:
     batch2:
       subset:
         twitter_execution:
-          data:
-            decision: completed_with_failures
-            counts:
-              processed: 2
-              succeeded: 1
-              failed: 1
+          decision: completed_with_failures
+          counts:
+            processed: 2
+            succeeded: 1
+            failed: 1
     status2:
       subset:
         twitter_status:
@@ -89,11 +87,10 @@ expect:
     complete:
       subset:
         twitter_execution:
-          data:
-            decision: noop
-            counts:
-              processed: 2
-              succeeded: 1
-              failed: 1
-            success_checkpoint:
-              milestone: plan_completed_with_failures
+          decision: noop
+          counts:
+            processed: 2
+            succeeded: 1
+            failed: 1
+          success_checkpoint:
+            milestone: plan_completed_with_failures

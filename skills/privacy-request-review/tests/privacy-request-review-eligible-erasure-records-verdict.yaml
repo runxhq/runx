@@ -53,16 +53,15 @@ expect:
     finalize:
       subset:
         subject_request_verdict:
-          data:
-            schema: runx/privacy-request-review.verdict.v1
-            decision:
-              eligible: true
-            escalation:
-              required: false
-            persistence:
-              append_status: committed
-              key: subject:alice:dsr-001
-              after_version: 1
-            downstream_effect_performed: false
+          schema: runx/privacy-request-review.verdict.v1
+          decision:
+            eligible: true
+          escalation:
+            required: false
+          persistence:
+            append_status: committed
+            key: subject:alice:dsr-001
+            after_version: 1
+          downstream_effect_performed: false
   receipt:
     schema: runx.receipt.v1

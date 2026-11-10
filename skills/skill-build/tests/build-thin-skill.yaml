@@ -182,6 +182,5 @@ expect:
     apply:
       subset:
         apply_result:
-          data:
-            schema: runx.skill.apply_result.v1
-            verdict: validated_and_applied
+          schema: runx.skill.apply_result.v1
+          verdict: validated_and_applied

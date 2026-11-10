@@ -368,7 +368,7 @@ methods:
   ]);
   const resumed = parseJson(resumedResult.stdout, "approval resume");
   const diagnostics = readArtifact(resumed.diagnostics_artifact);
-  const actor = diagnostics.context?.step_outputs?.approve?.approval_decision?.data?.actor;
+  const actor = diagnostics.context?.step_outputs?.approve?.approval_decision?.actor;
   const proof = path.join(root, "approval-proof.txt");
   if (
     resumed.status !== "sealed"

@@ -51,26 +51,24 @@ expect:
     request:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: twitter
-            operation: post.create
-            finality: confirmed
-            operation_id: "6001"
-            result:
-              post: {id: "6001", text: Runx 0.5 is out.}
+          status: success
+          provider: twitter
+          operation: post.create
+          finality: confirmed
+          operation_id: "6001"
+          result:
+            post: {id: "6001", text: Runx 0.5 is out.}
     apply:
       subset:
         twitter_execution:
-          data:
+          decision: partial
+          next_act_index: 1
+          remaining_count: 1
+          results:
+            - {act_id: act-post-1, kind: post, consequence: public_send, status: done, external_id: "6001", detail: null}
+          ledger_delta:
+            account_id: "42"
             decision: partial
             next_act_index: 1
-            remaining_count: 1
-            results:
-              - {act_id: act-post-1, kind: post, consequence: public_send, status: done, external_id: "6001", detail: null}
-            ledger_delta:
-              account_id: "42"
-              decision: partial
-              next_act_index: 1
-              batch: {start_act_index: 0, selected_act_count: 1, processed_act_count: 1, succeeded_act_count: 1, failed_act_count: 0, rate_limited: false}
+            batch: {start_act_index: 0, selected_act_count: 1, processed_act_count: 1, succeeded_act_count: 1, failed_act_count: 0, rate_limited: false}
   receipt: {schema: runx.receipt.v1, state: sealed}

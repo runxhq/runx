@@ -21,15 +21,14 @@ expect:
     finalize-users:
       subset:
         twitter_selection:
-          data:
-            decision: ready
-            matched: 2
-            scanned: 3
-            twitter_plan:
-              acts:
-              - act_id: act-unf-111
-                kind: unfollow
-              - act_id: act-unf-333
-                kind: unfollow
+          decision: ready
+          matched: 2
+          scanned: 3
+          twitter_plan:
+            acts:
+            - act_id: act-unf-111
+              kind: unfollow
+            - act_id: act-unf-333
+              kind: unfollow
   receipt:
     schema: runx.receipt.v1

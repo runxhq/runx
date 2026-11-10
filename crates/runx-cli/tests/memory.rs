@@ -222,10 +222,9 @@ fn walk(directory: &Path) -> TestResult<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// A packet output's entries, as the run's result holds them.
+/// A packet output's entries, as the run's result holds them: its data.
 fn entries(value: &Value) -> TestResult<Vec<Value>> {
-    let list = value.get("data").unwrap_or(value);
-    Ok(list
+    Ok(value
         .as_array()
         .ok_or_else(|| format!("no entries in {value}"))?
         .clone())
@@ -357,11 +356,8 @@ fn search_finds_the_corrected_words_and_read_reaches_the_old() -> TestResult {
     assert!(memory.search("tea black")?.is_empty());
     assert_eq!(handles(&memory.search("coffee")?), [corrected]);
     let read = memory.completed("read", json!({"handle": kept}))?;
-    // The entry, in the envelope its packet output arrives in.
-    assert_eq!(
-        read["entry"]["data"]["data"]["text"],
-        "I take my tea black."
-    );
+    // The entry, as its packet's data.
+    assert_eq!(read["entry"]["data"]["text"], "I take my tea black.");
     Ok(())
 }
 
@@ -384,11 +380,8 @@ fn a_disabled_entry_leaves_the_index_and_search() -> TestResult {
     assert!(memory.index(None)?.0.is_empty());
     assert!(memory.search("tea")?.is_empty());
     let read = memory.completed("read", json!({"handle": kept}))?;
-    // The entry, in the envelope its packet output arrives in.
-    assert_eq!(
-        read["entry"]["data"]["data"]["text"],
-        "I take my tea black."
-    );
+    // The entry, as its packet's data.
+    assert_eq!(read["entry"]["data"]["text"], "I take my tea black.");
     Ok(())
 }
 
@@ -744,7 +737,7 @@ fn an_entry_past_its_end_date_leaves_the_index_and_search_still_finds_it() -> Te
     expected.sort();
     assert_eq!(found, expected);
     let read = memory.completed("read", json!({"handle": ended}))?;
-    assert_eq!(read["entry"]["data"]["data"]["valid_until"], "2000-01-01");
+    assert_eq!(read["entry"]["data"]["valid_until"], "2000-01-01");
     // The listing visited the ended observation and passed over it.
     let counted = memory.counted_index()?;
     assert_eq!(counted["store_key_rows_passed_over"], 2, "{counted}");

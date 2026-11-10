@@ -31,11 +31,10 @@ expect:
     read:
       subset:
         provider_operation:
-          data:
-            status: success
-            result:
-              thread_locator: slack://T123ABC/C123ABC/1750000000.000001
-              next_cursor: next
+          status: success
+          result:
+            thread_locator: slack://T123ABC/C123ABC/1750000000.000001
+            next_cursor: next
   receipt:
     schema: runx.receipt.v1
     state: sealed

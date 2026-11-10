@@ -27,9 +27,8 @@ expect:
     finalize:
       subset:
         attention_packet:
-          data:
-            decision: ready
-            next_check_minutes: 20
-            delivery_status: not_sent
-            validation: {status: pass}
+          decision: ready
+          next_check_minutes: 20
+          delivery_status: not_sent
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

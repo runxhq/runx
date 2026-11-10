@@ -139,15 +139,14 @@ expect:
     finalize-lint:
       subset:
         policy_proposal_packet:
-          data:
-            policy_proposal:
-              decision: ready
-              policy:
-                policy_id: acme-review-flow
-              validation:
-                status: pass
-                engine: runx policy
-                reason: Native policy lint and fixed-setting comparison passed.
+          policy_proposal:
+            decision: ready
+            policy:
+              policy_id: acme-review-flow
+            validation:
+              status: pass
+              engine: runx policy
+              reason: Native policy lint and fixed-setting comparison passed.
   receipt:
     schema: runx.receipt.v1
     state: sealed

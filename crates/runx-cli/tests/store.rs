@@ -257,7 +257,7 @@ fn printed(output: &Output) -> String {
 
 /// The store result a run ended with.
 fn store_result(ran: &Value) -> Value {
-    ran["result"]["provider_operation"]["data"]["result"].clone()
+    ran["result"]["provider_operation"]["result"].clone()
 }
 
 /// A run's authority with one delegation on `connector`'s instance, holding

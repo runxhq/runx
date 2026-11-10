@@ -19,10 +19,9 @@ expect:
   output:
     subset:
       content_publish_packet:
-        data:
-          decision: ready_for_handoff
-          delivery_status: not_sent
-          channel: blog
-          evidence_binding:
-            evidence_packet_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+        decision: ready_for_handoff
+        delivery_status: not_sent
+        channel: blog
+        evidence_binding:
+          evidence_packet_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
   receipt: {schema: runx.receipt.v1}

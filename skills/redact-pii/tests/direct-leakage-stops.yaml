@@ -29,20 +29,19 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: needs_review
-            redacted_digest: null
-            residual_risk:
-              level: medium
-              reason_code: deterministic_residual_detected
-            scanner:
-              status: hold
-              findings:
-                - class: email
-                  span:
-                    - 6
-                    - 22
-                  rule: direct_email
+          decision: needs_review
+          redacted_digest: null
+          residual_risk:
+            level: medium
+            reason_code: deterministic_residual_detected
+          scanner:
+            status: hold
+            findings:
+              - class: email
+                span:
+                  - 6
+                  - 22
+                rule: direct_email
         redacted_content: ""
   receipt:
     schema: runx.receipt.v1

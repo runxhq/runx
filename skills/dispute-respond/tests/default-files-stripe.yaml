@@ -129,8 +129,7 @@ expect:
     file-auto:
       subset:
         filing_result:
-          data:
-            state: filed
+          state: filed
   receipt:
     schema: runx.receipt.v1
     state: sealed

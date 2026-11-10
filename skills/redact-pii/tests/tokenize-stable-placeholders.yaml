@@ -32,16 +32,15 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: ready
-            redacted_digest: sha256:e4217444a2851030189158f5941bec6f4913274e309bb2cf27f392f2ba3e7093
-            scanner:
-              status: pass
-              findings: []
-            policy:
-              classes:
-                - email
-              mode: tokenize
+          decision: ready
+          redacted_digest: sha256:e4217444a2851030189158f5941bec6f4913274e309bb2cf27f392f2ba3e7093
+          scanner:
+            status: pass
+            findings: []
+          policy:
+            classes:
+              - email
+            mode: tokenize
         redacted_content: Primary [TOKEN:EMAIL:1] backup [TOKEN:EMAIL:2].
   receipt:
     schema: runx.receipt.v1

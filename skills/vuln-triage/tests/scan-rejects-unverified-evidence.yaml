@@ -9,9 +9,8 @@ expect:
     stop:
       subset:
         vulnerability_review:
-          data:
-            decision: needs_more_evidence
-            validation:
-              status: fail
+          decision: needs_more_evidence
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

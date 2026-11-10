@@ -1681,7 +1681,7 @@ fn a_large_packet_reads_as_its_inline_value_and_returns_as_a_checked_packet() ->
     );
     assert_eq!(
         serde_json::to_value(result.get("letters").ok_or("letters")?)?,
-        serde_json::json!({ "data": letters }),
+        letters,
         "the returned reference is the step's packet"
     );
 

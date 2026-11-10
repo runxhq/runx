@@ -47,7 +47,6 @@ expect:
     finalize:
       subset:
         postmortem:
-          data:
-            decision: needs_more_evidence
-            publish_proposal: null
-            publish_performed: false
+          decision: needs_more_evidence
+          publish_proposal: null
+          publish_performed: false

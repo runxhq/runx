@@ -39,9 +39,8 @@ expect:
     judge:
       subset:
         decision_observation:
-          data:
-            status: decided
-            origin: human_account
-            approved: true
-            actor_id: U123ABC
+          status: decided
+          origin: human_account
+          approved: true
+          actor_id: U123ABC
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

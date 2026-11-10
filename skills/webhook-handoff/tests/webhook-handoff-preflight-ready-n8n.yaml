@@ -22,16 +22,15 @@ expect:
     build-handoff-context:
       subset:
         handoff_context:
-          data:
-            platform: n8n
-            event_id: evt_n8n_demo_001
-            status: ready
-            idempotency:
-              key: evt_n8n_demo_001
-              receiver_should_dedupe: true
-            receiver_validation:
-              require_scope: orchestrator.n8n.workflow.invoke
-              require_audience: n8n:workflow:runx-governed-effect
-            receipt_expectations:
-              outbound_effect_must_be_receipted: true
-              receiver_response_must_be_captured: true
+          platform: n8n
+          event_id: evt_n8n_demo_001
+          status: ready
+          idempotency:
+            key: evt_n8n_demo_001
+            receiver_should_dedupe: true
+          receiver_validation:
+            require_scope: orchestrator.n8n.workflow.invoke
+            require_audience: n8n:workflow:runx-governed-effect
+          receipt_expectations:
+            outbound_effect_must_be_receipted: true
+            receiver_response_must_be_captured: true

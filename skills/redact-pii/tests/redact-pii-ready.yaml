@@ -39,22 +39,21 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: ready
-            redacted_digest: sha256:03b11b6388500f1edfc6daab6492eed600a775443462ae9539d6cc2a51abe695
-            residual_risk:
-              level: low
-              reason_code: none
-            scanner:
-              status: pass
-              findings: []
-            policy:
-              classes:
-                - email
-                - name
-                - phone
-              mode: redact
-              locale: en-US
+          decision: ready
+          redacted_digest: sha256:03b11b6388500f1edfc6daab6492eed600a775443462ae9539d6cc2a51abe695
+          residual_risk:
+            level: low
+            reason_code: none
+          scanner:
+            status: pass
+            findings: []
+          policy:
+            classes:
+              - email
+              - name
+              - phone
+            mode: redact
+            locale: en-US
         redacted_content: "Customer [REDACTED:NAME] wrote in from [REDACTED:EMAIL] about order #44120; callback number on file is [REDACTED:PHONE]."
   receipt:
     schema: runx.receipt.v1

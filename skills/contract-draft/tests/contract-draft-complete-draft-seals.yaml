@@ -48,17 +48,16 @@ expect:
     finalize:
       subset:
         contract_draft:
-          data:
-            schema: runx/contract-draft.draft.v1
-            decision: drafted
-            deviations: []
-            send_proposal:
-              gate: human-approver
-              delivery_skill: message-send
-              sent: false
-            delivery_performed: false
-            validation:
-              status: pass
-              findings: []
+          schema: runx/contract-draft.draft.v1
+          decision: drafted
+          deviations: []
+          send_proposal:
+            gate: human-approver
+            delivery_skill: message-send
+            sent: false
+          delivery_performed: false
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

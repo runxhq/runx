@@ -51,18 +51,17 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            schema: runx/schema-check.check.v1
-            decision: compatible
-            policy_result: allowed
-            breaking_changes: []
-            proposal:
-              status: proposed
-              live_write_performed: false
-              changed_paths:
-                - $.note
-            validation:
-              status: pass
-              findings: []
+          schema: runx/schema-check.check.v1
+          decision: compatible
+          policy_result: allowed
+          breaking_changes: []
+          proposal:
+            status: proposed
+            live_write_performed: false
+            changed_paths:
+              - $.note
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

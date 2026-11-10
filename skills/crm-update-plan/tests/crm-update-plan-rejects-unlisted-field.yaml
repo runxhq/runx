@@ -27,15 +27,14 @@ expect:
     finalize:
       subset:
         crm_update_proposal:
-          data:
-            decision: no_action
-            updates: []
-            rejected_updates:
-              - record_id: acct-1
-                field: owner
-                reason: field is outside the crm_schema allowlist
-            validation:
-              status: pass
-              findings: []
+          decision: no_action
+          updates: []
+          rejected_updates:
+            - record_id: acct-1
+              field: owner
+              reason: field is outside the crm_schema allowlist
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

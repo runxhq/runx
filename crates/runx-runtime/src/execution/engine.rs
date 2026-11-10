@@ -711,6 +711,16 @@ impl StepRun {
         crate::output_contract::output_value(&self.contract, &self.artifact_outputs, name)
     }
 
+    /// The values the step's outputs hold, by name: each artifact's packet
+    /// data, and every other output as it is. The envelope is how the record
+    /// keeps a packet; no reader of a result is given it.
+    pub(crate) fn values(&self) -> JsonObject {
+        self.contract
+            .keys()
+            .filter_map(|name| Some((name.clone(), self.output(name)?.clone())))
+            .collect()
+    }
+
     /// The receipts this run adds to its tree: its own and each it carries.
     pub(crate) fn receipts(&self) -> usize {
         1 + self.nested_receipts.len() + self.recorded_nested.len()
@@ -784,7 +794,7 @@ pub(crate) fn workflow_terminal_result(run: &WorkflowRun) -> Result<JsonValue, R
             && step.receipt.seal.outcome == *outcome
     });
     match closing_step {
-        Some(step) => Ok(JsonValue::Object(step.contract.clone())),
+        Some(step) => Ok(JsonValue::Object(step.values())),
         None => workflow_run_result(run),
     }
 }
@@ -1362,11 +1372,12 @@ pub(crate) fn sealed_workflow_run(
 
 /// Build the workflow's public result from its explicit result producers.
 ///
-/// A producer contributes its complete declared output contract, byte-for-byte.
-/// In particular, artifact `{ data: ... }` envelopes are not unwrapped: those
-/// envelopes are the addressable contract consumed by parent workflows. Mutually
-/// exclusive terminal branches may name the same output because only one runs;
-/// two successful producers emitting the same key are ambiguous and fail.
+/// A producer contributes the values of its complete declared outputs: a
+/// packet's data, never the envelope its record keeps it in, which a parent
+/// that adopts the result wraps again from [`workflow_run_result_artifacts`].
+/// Mutually exclusive terminal branches may name the same output because only
+/// one runs; two successful producers emitting the same key are ambiguous and
+/// fail.
 pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, RuntimeError> {
     let runs = run
         .steps
@@ -1386,7 +1397,7 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
         if !step.outcome.succeeded() {
             continue;
         }
-        let outputs = declared_step_outputs(step);
+        let outputs = step.values();
         if outputs.is_empty() {
             return Err(RuntimeError::StepFailed {
                 step_id: step_id.clone(),
@@ -1420,9 +1431,9 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
 }
 
 /// What a method that declares `outputs` returns: its result producers'
-/// outputs narrowed to those fields. Once the method has succeeded, each is
-/// checked against its declaration, a packet's by the data its artifact
-/// carries, so the method returns exactly what its output schema describes.
+/// outputs narrowed to those fields. Once the method has succeeded, they are
+/// checked against its declaration, so the method returns exactly what its
+/// output schema describes.
 fn declared_method_result(
     run: &WorkflowRun,
     outputs: &JsonObject,
@@ -1438,28 +1449,15 @@ fn declared_method_result(
         .into_iter()
         .filter(|(name, _)| fields.contains_key(name))
         .collect::<JsonObject>();
+    let result = JsonValue::Object(result);
     if run.progress.state == WorkflowState::Succeeded {
-        let checked = result
-            .iter()
-            .map(|(name, value)| {
-                let value = match fields.get(name).and_then(|field| field.packet.as_ref()) {
-                    Some(_) => crate::output_contract::artifact_data(value)
-                        .cloned()
-                        .unwrap_or(JsonValue::Null),
-                    None => value.clone(),
-                };
-                (name.clone(), value)
-            })
-            .collect::<JsonObject>();
-        runx_contracts::validate_output_value(Some(&fields), &JsonValue::Object(checked)).map_err(
-            |error| {
-                failure(format!(
-                    "the method's result breaks its declared outputs at {error}"
-                ))
-            },
-        )?;
+        runx_contracts::validate_output_value(Some(&fields), &result).map_err(|error| {
+            failure(format!(
+                "the method's result breaks its declared outputs at {error}"
+            ))
+        })?;
     }
-    Ok(JsonValue::Object(result))
+    Ok(result)
 }
 
 /// The outputs of the workflow's result that are artifacts: those its result
@@ -1521,7 +1519,7 @@ pub(crate) fn workflow_run_context(run: &WorkflowRun) -> JsonValue {
         .steps
         .iter()
         .filter_map(|step| {
-            let outputs = declared_step_outputs(step);
+            let outputs = step.values();
             (!outputs.is_empty()).then(|| (step.step_id.clone(), JsonValue::Object(outputs)))
         })
         .collect::<JsonObject>();
@@ -1529,10 +1527,6 @@ pub(crate) fn workflow_run_context(run: &WorkflowRun) -> JsonValue {
         "step_outputs".to_owned(),
         JsonValue::Object(step_outputs),
     )]))
-}
-
-fn declared_step_outputs(step: &StepRun) -> JsonObject {
-    step.contract.clone()
 }
 
 /// Compact workflow provenance for the public skill-run envelope. Declared step

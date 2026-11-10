@@ -10,9 +10,8 @@ expect:
     plan:
       subset:
         sync_plan:
-          data:
-            decision: blocked
-            provider_status: not_called
+          decision: blocked
+          provider_status: not_called
   receipt:
     schema: runx.receipt.v1
     state: sealed

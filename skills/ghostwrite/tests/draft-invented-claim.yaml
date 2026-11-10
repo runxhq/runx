@@ -36,8 +36,7 @@ expect:
     finalize:
       subset:
         content_draft_packet:
-          data:
-            decision: needs_more_evidence
-            draft: {title: "", body: "", claims: []}
-            validation: {status: fail}
+          decision: needs_more_evidence
+          draft: {title: "", body: "", claims: []}
+          validation: {status: fail}
   receipt: {schema: runx.receipt.v1}

@@ -34,16 +34,15 @@ expect:
     batch1:
       subset:
         twitter_execution:
-          data:
-            decision: stopped
-            counts:
-              processed: 0
-              succeeded: 0
-              failed: 0
-            stop:
-              action: review
-              code: unauthorized
-            last_failure: null
+          decision: stopped
+          counts:
+            processed: 0
+            succeeded: 0
+            failed: 0
+          stop:
+            action: review
+            code: unauthorized
+          last_failure: null
     status1:
       subset:
         twitter_status:

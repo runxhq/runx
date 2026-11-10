@@ -46,11 +46,10 @@ expect:
     search:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: slack
-            result:
-              external_tenant_ref: T123ABC
+          status: success
+          provider: slack
+          result:
+            external_tenant_ref: T123ABC
   receipt:
     schema: runx.receipt.v1
     state: sealed

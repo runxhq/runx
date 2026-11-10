@@ -47,6 +47,5 @@ expect:
     finalize:
       subset:
         delegation_packet:
-          data:
-            decision: proposed
-            execution_status: not_started
+          decision: proposed
+          execution_status: not_started

@@ -40,16 +40,15 @@ expect:
     finalize:
       subset:
         vulnerability_review:
-          data:
-            schema: runx/vuln-triage.scan.v1
-            decision: remediate
-            validation:
-              status: pass
-            advisories:
-              - advisory_id: GHSA-example-1234
-                assessment:
-                  exposure: not_established
-                  fixed_version: 1.2.4
-                  evidence_status: source_bound
+          schema: runx/vuln-triage.scan.v1
+          decision: remediate
+          validation:
+            status: pass
+          advisories:
+            - advisory_id: GHSA-example-1234
+              assessment:
+                exposure: not_established
+                fixed_version: 1.2.4
+                evidence_status: source_bound
   receipt:
     schema: runx.receipt.v1

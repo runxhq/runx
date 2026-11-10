@@ -91,19 +91,18 @@ expect:
     query:
       subset:
         provider_operation:
-          data:
-            result:
-              status: executed
-              query_id: trials_by_campaign
-              columns:
-              - campaign
-              - qualified_trials
-              rows:
-              - - launch
-                - 2
-              - - docs
-                - 1
-              truncated: true
+          result:
+            status: executed
+            query_id: trials_by_campaign
+            columns:
+            - campaign
+            - qualified_trials
+            rows:
+            - - launch
+              - 2
+            - - docs
+              - 1
+            truncated: true
     finish:
       subset:
         analysis_result:

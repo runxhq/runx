@@ -17,26 +17,23 @@ expect:
     plan:
       subset:
         sync_plan:
-          data:
-            decision: ready
-            provider_status: not_called
+          decision: ready
+          provider_status: not_called
     append-cursor-event:
       subset:
         provider_operation:
-          data:
-            result:
-              schema: runx.store.result.v1
-              operation: events.append
-              status: committed
-              key: runxhq/runx:triage-open
-              backend: sqlite
+          result:
+            schema: runx.store.result.v1
+            operation: events.append
+            status: committed
+            key: runxhq/runx:triage-open
+            backend: sqlite
     readback:
       subset:
         provider_operation:
-          data:
-            result:
-              schema: runx.store.result.v1
-              operation: key.inspect
-              version: 1
-              backend: sqlite
+          result:
+            schema: runx.store.result.v1
+            operation: key.inspect
+            version: 1
+            backend: sqlite
   receipt: {schema: runx.receipt.v1}

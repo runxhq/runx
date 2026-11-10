@@ -32,6 +32,5 @@ expect:
     finalize:
       subset:
         support_triage_packet:
-          data:
-            decision: held
-            delivery_status: not_sent
+          decision: held
+          delivery_status: not_sent

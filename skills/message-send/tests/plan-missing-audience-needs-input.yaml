@@ -48,15 +48,14 @@ expect:
   output:
     subset:
       send_plan:
-        data:
-          decision: needs_input
-          action_family: message-send
-          audience:
-            locator: ""
-          gates:
-            human_approval_required: true
-          blockers:
-            - audience is missing
-          provider_actions: []
-          success_checkpoint:
-            milestone: awaiting_audience
+        decision: needs_input
+        action_family: message-send
+        audience:
+          locator: ""
+        gates:
+          human_approval_required: true
+        blockers:
+          - audience is missing
+        provider_actions: []
+        success_checkpoint:
+          milestone: awaiting_audience

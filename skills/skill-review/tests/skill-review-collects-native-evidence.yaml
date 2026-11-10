@@ -48,10 +48,9 @@ expect:
     collect-evidence:
       subset:
         skill_validation:
-          data:
-            verdict: tested
-            inspect:
-              status: ok
-              name: review-subject
-            test:
-              status: passed
+          verdict: tested
+          inspect:
+            status: ok
+            name: review-subject
+          test:
+            status: passed

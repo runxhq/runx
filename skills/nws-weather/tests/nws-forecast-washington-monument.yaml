@@ -19,15 +19,14 @@ expect:
     forecast:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: national-weather-service
-            operation: forecast.read
-            transport: local_http
-            result:
-              forecast:
-                type: Feature
-                properties:
-                  units: us
-                  elevation:
-                    unitCode: "wmoUnit:m"
+          status: success
+          provider: national-weather-service
+          operation: forecast.read
+          transport: local_http
+          result:
+            forecast:
+              type: Feature
+              properties:
+                units: us
+                elevation:
+                  unitCode: "wmoUnit:m"

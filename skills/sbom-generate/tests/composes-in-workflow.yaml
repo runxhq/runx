@@ -10,7 +10,6 @@ expect:
     same:
       subset:
         comparison:
-          data:
-            equal: true
+          equal: true
   receipt:
     schema: runx.receipt.v1

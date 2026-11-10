@@ -43,13 +43,12 @@ expect:
     analyze:
       subset:
         research_packet:
-          data:
-            decision: needs_more_evidence
-            research_brief:
-              summary: ""
-            evidence_log: []
-            decision_support: []
-            validation:
-              status: fail
+          decision: needs_more_evidence
+          research_brief:
+            summary: ""
+          evidence_log: []
+          decision_support: []
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

@@ -77,25 +77,23 @@ expect:
     evidence:
       subset:
         ledger_answer_packet:
-          data:
-            ledger_answer:
-              decision: answered
-            matched_receipts:
-              - receipt_id: rcpt_issue_triage_4471
-                verification_status: verified
-            receipt_details:
-              - id: rcpt_issue_triage_4471
-                subject_uri: github-issue-triage
-                authority:
-                  exercised_scopes:
-                    - scope: repo:read
+          ledger_answer:
+            decision: answered
+          matched_receipts:
+            - receipt_id: rcpt_issue_triage_4471
+              verification_status: verified
+          receipt_details:
+            - id: rcpt_issue_triage_4471
+              subject_uri: github-issue-triage
+              authority:
+                exercised_scopes:
+                  - scope: repo:read
     review-queried:
       subset:
         receipt_audit_packet:
-          data:
-            receipt_audit:
-              decision: needs_more_evidence
-              verdict: needs_more_evidence
+          receipt_audit:
+            decision: needs_more_evidence
+            verdict: needs_more_evidence
   receipt:
     schema: runx.receipt.v1
     state: sealed

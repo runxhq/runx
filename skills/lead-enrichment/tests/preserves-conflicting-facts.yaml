@@ -27,8 +27,7 @@ expect:
     enrich:
       subset:
         lead_enrichment_packet:
-          data:
-            decision: partial
-            conflicts:
-            - {field: person.title}
+          decision: partial
+          conflicts:
+          - {field: person.title}
   receipt: {schema: runx.receipt.v1}

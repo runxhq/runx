@@ -32,6 +32,5 @@ expect:
   step_outputs:
     plan:
       subset:
-        sync_plan:
-          data: {decision: ready_for_execution, provider_operation: issues.update, scope_used: repo.write}
+        sync_plan: {decision: ready_for_execution, provider_operation: issues.update, scope_used: repo.write}
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

@@ -166,6 +166,5 @@ expect:
     complete:
       subset:
         twitter_execution:
-          data:
-            decision: noop
-            next_act_index: 3
+          decision: noop
+          next_act_index: 3

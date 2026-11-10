@@ -473,9 +473,11 @@ inspection:
 }
 ```
 
-`result` is the selected method's normalized output: the declared contract of
-its successful result step. When a guard or an authority refused a
-step, `refusal` carries why (`code` and `message`) beside what the steps
+`result` is the selected method's normalized output: the values of its
+successful result step's declared contract, a packet output as its data. The
+envelope a run's record keeps a packet in reaches no caller; which packet an
+output is, inspection of the method's declared outputs says. When a guard or
+an authority refused a step, `refusal` carries why (`code` and `message`) beside what the steps
 produced; a failed run's `result` is its failure. Neither is part of the signed
 receipt, whose seal records the typed `outcome` and, when the outcome alone
 does not say why, a `reason` from a closed vocabulary. `trace` deliberately carries
@@ -1033,9 +1035,9 @@ the result, or admit a new separately bounded call while preserving the original
 uncertain attempt. A provider's enforced deduplication must cover the whole call
 and its charge, and its implementation must actually send the native key.
 
-`result_from` is not a list of workflow leaves. It returns each selected successful
-step's complete declared contract, including packet envelopes. Approvals and
-intermediate evidence remain in the separate operator context and signed
+`result_from` is not a list of workflow leaves. It returns the values of each
+selected successful step's complete declared contract, each packet as its data.
+Approvals and intermediate evidence remain in the separate operator context and signed
 receipts. Multiple names are for mutually exclusive result branches or
 deliberately combined, non-overlapping contracts; two successful producers may
 not emit the same key. Preparation resolves every result producer through its

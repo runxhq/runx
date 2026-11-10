@@ -31,7 +31,6 @@ expect:
     finalize:
       subset:
         attention_packet:
-          data:
-            decision: held
-            validation: {status: fail}
+          decision: held
+          validation: {status: fail}
   receipt: {schema: runx.receipt.v1}

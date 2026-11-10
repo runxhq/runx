@@ -26,7 +26,6 @@ expect:
     finalize:
       subset:
         crm_update_proposal:
-          data:
-            decision: refused
-            updates: []
-            write_performed: false
+          decision: refused
+          updates: []
+          write_performed: false

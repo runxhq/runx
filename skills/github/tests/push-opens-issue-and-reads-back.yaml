@@ -43,12 +43,11 @@ expect:
   output:
     subset:
       provider_operation:
-        data:
-          status: success
-          operation: issues.create
-          finality: confirmed
-          result:
-            issues:
-              - status: applied
-                acknowledgement: {number: 512, title: Test cases for issue creation}
+        status: success
+        operation: issues.create
+        finality: confirmed
+        result:
+          issues:
+            - status: applied
+              acknowledgement: {number: 512, title: Test cases for issue creation}
   receipt: {schema: runx.receipt.v1}

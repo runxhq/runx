@@ -57,13 +57,12 @@ expect:
     finish:
       subset:
         work_result:
-          data:
-            state: follow_up
-            completion_evidence: []
-            followups:
-              - route_id: private-reply
-                target_locator: host://qa/conversation/catalog-status
-                inputs:
-                  draft_message: The native fixes are verified locally. The full catalog work is still in progress, including final registry parity. No CI or release has run.
-                  thread_locator: host://qa/conversation/catalog-status
-                due_at_unix_seconds: 0
+          state: follow_up
+          completion_evidence: []
+          followups:
+            - route_id: private-reply
+              target_locator: host://qa/conversation/catalog-status
+              inputs:
+                draft_message: The native fixes are verified locally. The full catalog work is still in progress, including final registry parity. No CI or release has run.
+                thread_locator: host://qa/conversation/catalog-status
+              due_at_unix_seconds: 0

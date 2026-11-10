@@ -13,14 +13,13 @@ expect:
     block:
       subset:
         redaction_report:
-          data:
-            decision: blocked
-            redacted_digest: null
-            residual_risk:
-              level: high
-              reason_code: policy_block
-            scanner:
-              status: block
+          decision: blocked
+          redacted_digest: null
+          residual_risk:
+            level: high
+            reason_code: policy_block
+          scanner:
+            status: block
         redacted_content: ""
   receipt:
     schema: runx.receipt.v1

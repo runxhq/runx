@@ -24,17 +24,16 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: needs_review
-            redacted_digest: null
-            residual_risk:
-              level: medium
-              reason_code: deterministic_residual_detected
-            scanner:
-              status: hold
-              findings:
-                - class: email
-                  rule: obfuscated_email
+          decision: needs_review
+          redacted_digest: null
+          residual_risk:
+            level: medium
+            reason_code: deterministic_residual_detected
+          scanner:
+            status: hold
+            findings:
+              - class: email
+                rule: obfuscated_email
         redacted_content: ""
   receipt:
     schema: runx.receipt.v1

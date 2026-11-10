@@ -16,12 +16,11 @@ expect:
   output:
     subset:
       sync_plan:
-        data:
-          decision: ready_for_execution
-          scope_used: repo.write
-          mutation:
-            path: issues/241
-            op: update
-            payload: {labels: [triage]}
-          provider_status: not_called
+        decision: ready_for_execution
+        scope_used: repo.write
+        mutation:
+          path: issues/241
+          op: update
+          payload: {labels: [triage]}
+        provider_status: not_called
   receipt: {schema: runx.receipt.v1}

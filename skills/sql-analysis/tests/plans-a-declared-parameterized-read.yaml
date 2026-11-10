@@ -44,12 +44,11 @@ expect:
     finalize:
       subset:
         sql_analysis_plan:
-          data:
-            decision: ready
-            executed: false
-            query_id: qualified_trials_by_campaign
-            max_rows: 50
-            parameters:
-              since: '2026-10-01'
+          decision: ready
+          executed: false
+          query_id: qualified_trials_by_campaign
+          max_rows: 50
+          parameters:
+            since: '2026-10-01'
   receipt:
     schema: runx.receipt.v1

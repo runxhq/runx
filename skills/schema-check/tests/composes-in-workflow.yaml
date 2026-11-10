@@ -11,7 +11,6 @@ expect:
     schema-check:
       subset:
         schema_check:
-          data:
-            decision: compatible
-            proposal:
-              live_write_performed: false
+          decision: compatible
+          proposal:
+            live_write_performed: false

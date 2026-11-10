@@ -104,29 +104,26 @@ expect:
     taste:
       subset:
         taste_profile_packet:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
     draft:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            context_binding:
-              required:
-                - type: taste_profile
-                  packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed
-            validation:
-              status: pass
+          decision: ready
+          context_binding:
+            required:
+              - type: taste_profile
+                packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed
+          validation:
+            status: pass
     social-plan:
       subset:
         twitter_plan:
-          data:
-            decision: ready
-            context_bindings:
-              - packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed
-                applied_rules:
-                  - Choose operational clarity over decorative flourish.
+          decision: ready
+          context_bindings:
+            - packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed
+              applied_rules:
+                - Choose operational clarity over decorative flourish.
   receipt:
     schema: runx.receipt.v1

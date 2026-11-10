@@ -33,9 +33,8 @@ expect:
     held:
       subset:
         work_result:
-          data:
-            state: held
-            completion_evidence: []
-            followups: []
+          state: held
+          completion_evidence: []
+          followups: []
   receipt:
     schema: runx.receipt.v1

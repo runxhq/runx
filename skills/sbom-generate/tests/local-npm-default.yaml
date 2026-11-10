@@ -11,13 +11,12 @@ expect:
     generate:
       subset:
         sbom_result:
-          data:
-            schema: runx/sbom-generate.sbom.v1
-            decision: generated
-            component_count: 2
-            source:
-              digest_encoding: source_bytes
-            license_summary:
-              missing_evidence: 1
+          schema: runx/sbom-generate.sbom.v1
+          decision: generated
+          component_count: 2
+          source:
+            digest_encoding: source_bytes
+          license_summary:
+            missing_evidence: 1
   receipt:
     schema: runx.receipt.v1

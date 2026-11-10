@@ -11,9 +11,8 @@ expect:
     redact-pii:
       subset:
         redaction_report:
-          data:
-            decision: needs_review
-            residual_risk:
-              level: medium
-              reason_code: ambiguous_semantics
+          decision: needs_review
+          residual_risk:
+            level: medium
+            reason_code: ambiguous_semantics
         redacted_content: ""

@@ -41,15 +41,14 @@ expect:
   output:
     subset:
       provider_operation:
-        data:
-          status: success
-          provider: github
-          operation: issues.list
-          target: runxhq/runx
-          transport: local_http
-          result:
-            issues:
-              - number: 442
-                title: Make GitHub reads operator-first
+        status: success
+        provider: github
+        operation: issues.list
+        target: runxhq/runx
+        transport: local_http
+        result:
+          issues:
+            - number: 442
+              title: Make GitHub reads operator-first
   receipt:
     schema: runx.receipt.v1

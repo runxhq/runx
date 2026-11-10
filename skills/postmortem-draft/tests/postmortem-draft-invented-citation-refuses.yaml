@@ -33,11 +33,10 @@ expect:
     finalize:
       subset:
         postmortem:
-          data:
-            decision: refused
-            timeline: []
-            publish_proposal: null
-            validation:
-              status: fail
+          decision: refused
+          timeline: []
+          publish_proposal: null
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

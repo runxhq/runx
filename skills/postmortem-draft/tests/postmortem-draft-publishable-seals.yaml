@@ -54,16 +54,15 @@ expect:
     finalize:
       subset:
         postmortem:
-          data:
-            schema: runx/postmortem-draft.postmortem.v1
-            decision: publishable
-            publish_proposal:
-              gate: human-approver
-              delivery_skill: message-send
-              sent: false
-            publish_performed: false
-            validation:
-              status: pass
-              findings: []
+          schema: runx/postmortem-draft.postmortem.v1
+          decision: publishable
+          publish_proposal:
+            gate: human-approver
+            delivery_skill: message-send
+            sent: false
+          publish_performed: false
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

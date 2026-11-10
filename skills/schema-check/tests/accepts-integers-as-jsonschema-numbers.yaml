@@ -21,7 +21,6 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: compatible
+          decision: compatible
   receipt:
     schema: runx.receipt.v1

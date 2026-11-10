@@ -10,5 +10,4 @@ expect:
   step_outputs:
     package-content:
       subset:
-        content_publish_packet:
-          data: {decision: ready_for_handoff, delivery_status: not_sent}
+        content_publish_packet: {decision: ready_for_handoff, delivery_status: not_sent}

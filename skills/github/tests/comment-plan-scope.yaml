@@ -13,6 +13,5 @@ expect:
   step_outputs:
     plan:
       subset:
-        sync_plan:
-          data: {decision: ready_for_execution, provider_operation: comments.create, scope_used: issue.comment}
+        sync_plan: {decision: ready_for_execution, provider_operation: comments.create, scope_used: issue.comment}
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

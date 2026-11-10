@@ -30,8 +30,7 @@ expect:
     finalize:
       subset:
         moltbook_scan_packet:
-          data:
-            decision: ready
-            delivery_status: not_posted
-            validation: {status: pass}
+          decision: ready
+          delivery_status: not_posted
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

@@ -16,8 +16,7 @@ expect:
     reject-post:
       subset:
         moltbook_post_packet:
-          data:
-            decision: needs_more_evidence
-            delivery_status: not_posted
-            validation: {status: fail}
+          decision: needs_more_evidence
+          delivery_status: not_posted
+          validation: {status: fail}
   receipt: {schema: runx.receipt.v1}

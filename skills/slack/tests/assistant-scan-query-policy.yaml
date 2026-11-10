@@ -49,9 +49,8 @@ expect:
     finish:
       subset:
         assistant_page:
-          data:
-            schema: runx.conversation_page.v1
-            next_cursor: null
+          schema: runx.conversation_page.v1
+          next_cursor: null
   receipt:
     schema: runx.receipt.v1
     outcome: completed

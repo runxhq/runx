@@ -14,8 +14,7 @@ expect:
   output:
     subset:
       sync_plan:
-        data:
-          decision: blocked
-          provider_operation: ""
-          provider_input: null
-          blockers: ["a push applies one operation; send issue, pull request and comment changes as separate pushes"]
+        decision: blocked
+        provider_operation: ""
+        provider_input: null
+        blockers: ["a push applies one operation; send issue, pull request and comment changes as separate pushes"]

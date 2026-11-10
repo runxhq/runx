@@ -44,8 +44,7 @@ expect:
     request:
       subset:
         provider_operation:
-          data:
-            provider: reddit
-            operation: account.inspect
-            result:
-              account_id: example_builder
+          provider: reddit
+          operation: account.inspect
+          result:
+            account_id: example_builder

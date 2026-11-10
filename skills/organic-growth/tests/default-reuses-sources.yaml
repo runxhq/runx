@@ -126,15 +126,14 @@ expect:
     reuse:
       subset:
         organic_growth_packet:
-          data:
-            decision: ready
-            objective: Improve qualified organic acquisition for the Runx guides.
-            site_url: https://example.com/
-            external_status: not_executed
-            input_caveats: [Prior source-read gaps must survive reuse.]
-            validation: {status: pass}
-            source_evidence:
-              - {kind: search_performance, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
-              - {kind: analytics_report, source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
-              - {kind: first_party_page, source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc}
+          decision: ready
+          objective: Improve qualified organic acquisition for the Runx guides.
+          site_url: https://example.com/
+          external_status: not_executed
+          input_caveats: [Prior source-read gaps must survive reuse.]
+          validation: {status: pass}
+          source_evidence:
+            - {kind: search_performance, source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+            - {kind: analytics_report, source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+            - {kind: first_party_page, source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc}
   receipt: {schema: runx.receipt.v1}

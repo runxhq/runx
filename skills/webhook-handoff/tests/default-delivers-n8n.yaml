@@ -43,11 +43,10 @@ expect:
     deliver:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: n8n
-            operation: handoff.deliver
-            finality: acknowledged
-            result:
-              acknowledgement: {message: Workflow was started}
+          status: success
+          provider: n8n
+          operation: handoff.deliver
+          finality: acknowledged
+          result:
+            acknowledgement: {message: Workflow was started}
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

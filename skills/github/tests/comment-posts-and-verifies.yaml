@@ -38,14 +38,13 @@ expect:
     post-comment:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: github
-            operation: comments.create
-            finality: confirmed
-            result:
-              comments:
-                - status: applied
-                  acknowledgement:
-                    id: 1001
+          status: success
+          provider: github
+          operation: comments.create
+          finality: confirmed
+          result:
+            comments:
+              - status: applied
+                acknowledgement:
+                  id: 1001
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

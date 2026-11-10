@@ -144,7 +144,7 @@ fn run(root: &Path, name: &str, inputs: serde_json::Value) -> TestResult<serde_j
     assert_eq!(envelope["status"], "sealed", "{envelope}");
     let result = envelope["result"].as_object().ok_or("a result")?;
     let (_, packet) = result.iter().next().ok_or("one packet")?;
-    Ok(packet["data"].clone())
+    Ok(packet.clone())
 }
 
 fn process(root: &Path, args: &[&str]) -> TestResult<serde_json::Value> {

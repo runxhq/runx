@@ -46,8 +46,7 @@ expect:
     finalize:
       subset:
         brand_voice_packet:
-          data:
-            decision: ready
-            receipt_notes: {authority: context-only, mutation: false}
-            validation: {status: pass}
+          decision: ready
+          receipt_notes: {authority: context-only, mutation: false}
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

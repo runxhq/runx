@@ -22,17 +22,16 @@ expect:
     fetch:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: web
-            operation: page.read
-            target: https://fixture.runx.invalid/example
-            transport: local_web
-            result:
-              status: 200
-              final_url: https://fixture.runx.invalid/example
-              extract_mode: metadata
-              extracted:
-                title: Example Domain
-                content_type: text/html
-                declared_language: en
+          status: success
+          provider: web
+          operation: page.read
+          target: https://fixture.runx.invalid/example
+          transport: local_web
+          result:
+            status: 200
+            final_url: https://fixture.runx.invalid/example
+            extract_mode: metadata
+            extracted:
+              title: Example Domain
+              content_type: text/html
+              declared_language: en

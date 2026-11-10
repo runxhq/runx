@@ -62,16 +62,15 @@ expect:
     evidence:
       subset:
         ledger_answer_packet:
-          data:
-            ledger_answer:
-              decision: answered
-            matched_receipts:
-              - receipt_id: rcpt_context_flattening
-                outcome: failed
-                verification_status: verified
-            receipt_details:
-              - id: rcpt_context_flattening
-                subject_uri: skills/skill-build
-                seal_reason: workflow_step_failed
+          ledger_answer:
+            decision: answered
+          matched_receipts:
+            - receipt_id: rcpt_context_flattening
+              outcome: failed
+              verification_status: verified
+          receipt_details:
+            - id: rcpt_context_flattening
+              subject_uri: skills/skill-build
+              seal_reason: workflow_step_failed
   receipt:
     schema: runx.receipt.v1

@@ -9,6 +9,5 @@ expect:
     generate:
       subset:
         sbom_result:
-          data:
-            component_count: 1
-            decision: generated
+          component_count: 1
+          decision: generated

@@ -46,13 +46,11 @@ expect:
     bind-content:
       subset:
         comparison:
-          data:
-            equal: false
+          equal: false
     hold-content:
       subset:
         work_result:
-          data:
-            state: held
-            completion_evidence: []
+          state: held
+          completion_evidence: []
   receipt:
     schema: runx.receipt.v1

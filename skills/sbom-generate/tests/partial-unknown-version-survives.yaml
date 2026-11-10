@@ -13,6 +13,5 @@ expect:
     generate:
       subset:
         sbom_result:
-          data:
-            decision: partial
-            component_count: 1
+          decision: partial
+          component_count: 1

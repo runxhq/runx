@@ -9,9 +9,8 @@ expect:
   output:
     subset:
       failure_packet:
-        data:
-          verdict: blocked
-          improvement_proposals: []
+        verdict: blocked
+        improvement_proposals: []
   receipt:
     schema: runx.receipt.v1
     outcome: completed

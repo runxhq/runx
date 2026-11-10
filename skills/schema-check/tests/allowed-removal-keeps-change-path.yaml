@@ -21,9 +21,8 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: compatible
-            proposal:
-              changed_paths: ['$.old_field']
-              live_write_performed: false
+          decision: compatible
+          proposal:
+            changed_paths: ['$.old_field']
+            live_write_performed: false
   receipt: {schema: runx.receipt.v1}

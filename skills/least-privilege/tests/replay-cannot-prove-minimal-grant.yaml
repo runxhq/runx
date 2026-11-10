@@ -35,8 +35,7 @@ expect:
     analyze:
       subset:
         least_privilege_packet:
-          data:
-            audit_report:
-              status: needs_more_evidence
-              retained_grant: [repo:read]
-              reviewer_action: gather_verified_evidence
+          audit_report:
+            status: needs_more_evidence
+            retained_grant: [repo:read]
+            reviewer_action: gather_verified_evidence

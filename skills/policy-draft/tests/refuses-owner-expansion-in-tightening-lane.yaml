@@ -136,8 +136,7 @@ expect:
     finalize-lint:
       subset:
         policy_proposal_packet:
-          data:
-            policy_proposal:
-              decision: reject
-              validation:
-                status: fail
+          policy_proposal:
+            decision: reject
+            validation:
+              status: fail

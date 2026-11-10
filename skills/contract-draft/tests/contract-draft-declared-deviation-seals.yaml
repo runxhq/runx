@@ -40,10 +40,9 @@ expect:
     finalize:
       subset:
         contract_draft:
-          data:
-            decision: drafted
-            validation:
-              status: pass
-              findings: []
+          decision: drafted
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

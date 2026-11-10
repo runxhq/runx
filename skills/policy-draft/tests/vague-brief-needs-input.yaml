@@ -28,13 +28,12 @@ expect:
     finalize-stop:
       subset:
         policy_proposal_packet:
-          data:
-            policy_proposal:
-              decision: needs_input
-              policy: null
-              validation:
-                status: not_run
-                engine: runx policy
+          policy_proposal:
+            decision: needs_input
+            policy: null
+            validation:
+              status: not_run
+              engine: runx policy
   receipt:
     schema: runx.receipt.v1
     state: sealed

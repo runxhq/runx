@@ -25,13 +25,12 @@ expect:
     forecast:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: open-meteo
-            operation: forecast.read
-            transport: local_http
-            result:
-              forecast:
-                timezone: Asia/Shanghai
-                timezone_abbreviation: GMT+8
-                utc_offset_seconds: 28800
+          status: success
+          provider: open-meteo
+          operation: forecast.read
+          transport: local_http
+          result:
+            forecast:
+              timezone: Asia/Shanghai
+              timezone_abbreviation: GMT+8
+              utc_offset_seconds: 28800

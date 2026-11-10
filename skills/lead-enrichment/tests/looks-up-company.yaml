@@ -35,12 +35,11 @@ expect:
         lookup_evidence:
           decision: matched
         lead_enrichment_packet:
-          data:
-            decision: enriched
-            facts:
-              - field: company.name
-                value: Example
-              - field: company.employee_count
-                value: 120
+          decision: enriched
+          facts:
+            - field: company.name
+              value: Example
+            - field: company.employee_count
+              value: 120
   receipt:
     schema: runx.receipt.v1

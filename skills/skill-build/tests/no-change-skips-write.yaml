@@ -120,6 +120,5 @@ expect:
     apply:
       subset:
         apply_result:
-          data:
-            decision: no_change
-            verdict: unchanged
+          decision: no_change
+          verdict: unchanged

@@ -34,8 +34,7 @@ expect:
         lookup_evidence:
           decision: ambiguous
         lead_enrichment_packet:
-          data:
-            decision: needs_more_evidence
-            facts: []
+          decision: needs_more_evidence
+          facts: []
   receipt:
     schema: runx.receipt.v1

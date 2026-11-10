@@ -21,11 +21,10 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: blocked
-            redacted_digest: null
-            scanner:
-              status: block
+          decision: blocked
+          redacted_digest: null
+          scanner:
+            status: block
         redacted_content: ""
   receipt:
     schema: runx.receipt.v1

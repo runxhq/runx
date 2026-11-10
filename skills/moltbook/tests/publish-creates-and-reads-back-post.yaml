@@ -55,12 +55,11 @@ expect:
     publish:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: moltbook
-            operation: post.create
-            finality: confirmed
-            operation_id: 7d0c3a52-0002-4000-8000-000000000001
-            result:
-              post: {id: 7d0c3a52-0002-4000-8000-000000000001, submolt: {name: agents}}
+          status: success
+          provider: moltbook
+          operation: post.create
+          finality: confirmed
+          operation_id: 7d0c3a52-0002-4000-8000-000000000001
+          result:
+            post: {id: 7d0c3a52-0002-4000-8000-000000000001, submolt: {name: agents}}
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

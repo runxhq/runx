@@ -61,19 +61,18 @@ expect:
   output:
     subset:
       send_plan:
-        data:
-          decision: ready
-          action_family: message-send
-          audience:
-            type: list
-            locator: newsletter-subscribers
-            requires_reconfirmation: false
-          content:
-            digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          gates:
-            preflight_required: true
-            human_approval_required: true
-            approval_id: approval:pending
-          blockers: []
-          success_checkpoint:
-            milestone: send_ready_for_approval
+        decision: ready
+        action_family: message-send
+        audience:
+          type: list
+          locator: newsletter-subscribers
+          requires_reconfirmation: false
+        content:
+          digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_id: approval:pending
+        blockers: []
+        success_checkpoint:
+          milestone: send_ready_for_approval

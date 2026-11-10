@@ -67,11 +67,10 @@ expect:
     validate:
       subset:
         knowledge_route:
-          data:
-            verdict: routed
-            route:
-              source_ids:
-                - artifact-store
-                - author-contract
-            validation:
-              valid: true
+          verdict: routed
+          route:
+            source_ids:
+              - artifact-store
+              - author-contract
+          validation:
+            valid: true

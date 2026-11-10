@@ -66,9 +66,7 @@ pub(super) fn assert_expectations(
             .steps
             .iter()
             .find(|step| step.step_id == *step_id)
-            .map_or(JsonValue::Null, |step| {
-                JsonValue::Object(step.contract.clone())
-            });
+            .map_or(JsonValue::Null, |step| JsonValue::Object(step.values()));
         assert_json_expectation(
             expectation,
             &actual,

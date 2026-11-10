@@ -34,14 +34,13 @@ expect:
     finalize:
       subset:
         crm_update_proposal:
-          data:
-            schema: runx/crm-update-plan.proposal.v1
-            decision: proposed
-            write_performed: false
-            gate: crm-operator-or-human-approver
-            rejected_updates: []
-            validation:
-              status: pass
-              findings: []
+          schema: runx/crm-update-plan.proposal.v1
+          decision: proposed
+          write_performed: false
+          gate: crm-operator-or-human-approver
+          rejected_updates: []
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

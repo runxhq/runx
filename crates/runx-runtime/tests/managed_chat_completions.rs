@@ -625,7 +625,7 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
     assert_eq!(started["ran_on"], "local", "{started}");
     // The run reads its own record through `run.read`, as the CLI's history
     // does, and finds the same load.
-    let own = &output["result"]["run_read"]["data"];
+    let own = &output["result"]["run_read"];
     let own_load = own["events"]
         .as_array()
         .into_iter()

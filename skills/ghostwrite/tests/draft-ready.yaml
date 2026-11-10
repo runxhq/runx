@@ -50,10 +50,9 @@ expect:
     finalize:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            validation: {status: pass}
-            evidence_binding:
-              source_digests:
-                - sha256:1111111111111111111111111111111111111111111111111111111111111111
+          decision: ready
+          validation: {status: pass}
+          evidence_binding:
+            source_digests:
+              - sha256:1111111111111111111111111111111111111111111111111111111111111111
   receipt: {schema: runx.receipt.v1}

@@ -22,7 +22,6 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: refused
+          decision: refused
   receipt:
     schema: runx.receipt.v1

@@ -16,8 +16,7 @@ expect:
     decide:
       subset:
         procurement_approval:
-          data:
-            decision: refused
-            refused_reason: over_remaining_budget
-            validation:
-              status: pass
+          decision: refused
+          refused_reason: over_remaining_budget
+          validation:
+            status: pass

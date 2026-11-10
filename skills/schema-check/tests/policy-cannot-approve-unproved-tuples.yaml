@@ -20,10 +20,9 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: refused
-            proposal: null
-            validation:
-              status: fail
+          decision: refused
+          proposal: null
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

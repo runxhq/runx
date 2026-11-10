@@ -27,8 +27,7 @@ expect:
     finalize:
       subset:
         conversation_packet:
-          data:
-            status: coding
-            request_quote: Please fix the failing parser test in the repository.
-            validation: {status: pass, findings: []}
+          status: coding
+          request_quote: Please fix the failing parser test in the repository.
+          validation: {status: pass, findings: []}
   receipt: {schema: runx.receipt.v1}

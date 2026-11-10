@@ -16,7 +16,6 @@ expect:
   output:
     subset:
       sync_plan:
-        data:
-          decision: refused
-          provider_status: not_called
+        decision: refused
+        provider_status: not_called
   receipt: {schema: runx.receipt.v1}

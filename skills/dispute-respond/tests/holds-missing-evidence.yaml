@@ -73,9 +73,8 @@ expect:
     prepare-auto:
       subset:
         prepared_response:
-          data:
-            decision: held
-            filing_status: not_attempted
+          decision: held
+          filing_status: not_attempted
   receipt:
     schema: runx.receipt.v1
     state: sealed

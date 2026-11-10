@@ -27,10 +27,9 @@ expect:
     finalize:
       subset:
         crm_update_proposal:
-          data:
-            decision: refused
-            updates: []
-            validation:
-              status: fail
+          decision: refused
+          updates: []
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

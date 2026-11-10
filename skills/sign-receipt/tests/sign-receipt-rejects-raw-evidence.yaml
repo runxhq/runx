@@ -15,11 +15,10 @@ expect:
     attest:
       subset:
         attestation:
-          data:
-            decision: needs_more_evidence
-            proof_boundary:
-              external_action_verified: false
-              provider_status: not_called
-              runtime_seal_status: pending_parent_receipt
+          decision: needs_more_evidence
+          proof_boundary:
+            external_action_verified: false
+            provider_status: not_called
+            runtime_seal_status: pending_parent_receipt
   receipt:
     schema: runx.receipt.v1

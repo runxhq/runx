@@ -36,6 +36,5 @@ expect:
     stop:
       subset:
         contract_draft:
-          data:
-            decision: refused
-            document: null
+          decision: refused
+          document: null

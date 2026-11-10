@@ -44,8 +44,7 @@ expect:
     finalize:
       subset:
         sql_analysis_plan:
-          data:
-            decision: no_suitable_query
-            executed: false
+          decision: no_suitable_query
+          executed: false
   receipt:
     schema: runx.receipt.v1

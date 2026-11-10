@@ -52,10 +52,9 @@ expect:
     finalize:
       subset:
         subject_request_verdict:
-          data:
-            decision:
-              eligible: false
-            handoff: null
-            downstream_effect_performed: false
+          decision:
+            eligible: false
+          handoff: null
+          downstream_effect_performed: false
   receipt:
     schema: runx.receipt.v1

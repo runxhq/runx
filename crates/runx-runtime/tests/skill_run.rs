@@ -656,8 +656,6 @@ methods:
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let result = object_field(output, "result").ok_or("missing result")?;
     let transformed = object_field(result, "transformed").ok_or("missing transformed output")?;
-    let transformed =
-        object_field(transformed, "data").ok_or("missing transformed data envelope")?;
     assert_eq!(string_field(transformed, "value"), Some("RUNX"));
     let steps = object_field(output, "trace")
         .and_then(|trace| trace.get("steps"))
@@ -804,6 +802,135 @@ methods:
         failure(&required).is_some_and(|message| message.contains("\"plan\" was not returned")),
         "{required:?}"
     );
+    Ok(())
+}
+
+/// A packet is kept in its envelope in the record, and every reader of a
+/// method's result is given its data: the run's result the CLI prints, the
+/// MCP tool result, and `runx test`'s output and step outputs, for the
+/// method that makes the packet and for a parent whose skill step returns it.
+#[test]
+fn every_reader_of_a_packet_result_is_given_its_data() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("packet-reader");
+    fs::create_dir_all(skill_dir.join("packets"))?;
+    fs::create_dir_all(skill_dir.join("tests"))?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: packet-reader\ndescription: Return an upper-cased value as a packet.\n---\n# Packet reader\n",
+    )?;
+    let profile = |method: &str| {
+        format!(
+            r#"
+minimum_runx: 0.12.0
+default_method: {method}
+methods:
+  transform:
+    description: Upper-case the value.
+    inputs:
+      value: {{type: string}}
+    steps:
+      - id: transform
+        inputs: {{value: $input.value}}
+        tool: {{module: domain.mjs}}
+        outputs:
+          transformed: {{type: object, packet: acme/packet-reader.transformed.v1}}
+  relay:
+    description: Return transform's result.
+    inputs:
+      value: {{type: string}}
+    steps:
+      - id: relay
+        skill: .#transform
+        inputs: {{value: $input.value}}
+        outputs:
+          transformed: {{type: object, packet: acme/packet-reader.transformed.v1}}
+"#
+        )
+    };
+    fs::write(
+        skill_dir.join("domain.mjs"),
+        "export default ({ value }) => ({ transformed: { value: value.toUpperCase() } });\n",
+    )?;
+    fs::write(
+        skill_dir.join("packets/transformed.v1.schema.json"),
+        r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/acme/packet-reader/transformed/v1.json",
+  "x-runx-packet-id": "acme/packet-reader.transformed.v1",
+  "type": "object",
+  "required": ["value"],
+  "properties": { "value": { "type": "string" } },
+  "additionalProperties": false
+}"#,
+    )?;
+    let data = JsonValue::Object(runx_contracts::JsonObject::from([(
+        "value".to_owned(),
+        JsonValue::String("RUNX".to_owned()),
+    )]));
+    for (method, step) in [("transform", "transform"), ("relay", "relay")] {
+        fs::write(skill_dir.join("run.yaml"), profile(method))?;
+
+        let result = run_skill(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir.clone(),
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("runx".to_owned()))]),
+            env: path_env(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        })?;
+        let output = object(&result.output, "the run's output")?;
+        assert_eq!(
+            string_field(output, "outcome"),
+            Some("completed"),
+            "{output:?}"
+        );
+        let printed = object_field(output, "result").ok_or("the run's result")?;
+        assert_eq!(
+            printed.get("transformed"),
+            Some(&data),
+            "{method}: {printed:?}"
+        );
+
+        let mcp = runx_runtime::adapters::mcp::mcp_tool_result_from_run_result(result, None);
+        let structured = mcp
+            .structured_content
+            .ok_or("the MCP tool's structured result")?;
+        let given = structured
+            .get("output")
+            .and_then(JsonValue::as_object)
+            .ok_or("the MCP tool's output")?;
+        assert_eq!(given.get("transformed"), Some(&data), "{method}: {given:?}");
+
+        fs::write(
+            skill_dir.join("tests/reads-the-data.yaml"),
+            format!(
+                "name: reads-the-data\ninputs:\n  value: runx\nexpect:\n  status: sealed\n  output:\n    subset:\n      transformed: {{value: RUNX}}\n  step_outputs:\n    {step}:\n      subset:\n        transformed: {{value: RUNX}}\n"
+            ),
+        )?;
+        let report = LocalOrchestrator::default()
+            .with_environment(
+                path_env()
+                    .into_iter()
+                    .chain([("RUNX_CWD".to_owned(), temp.path().display().to_string())])
+                    .collect(),
+            )
+            .run_package_test(&runx_runtime::PackageTestRequest {
+                skill_path: skill_dir.clone(),
+                receipt_dir: Some(temp.path().join("receipts")),
+            })?;
+        assert_eq!(
+            report.status, "passed",
+            "{method}: {:?}",
+            report.assertion_errors
+        );
+    }
     Ok(())
 }
 
@@ -2793,9 +2920,8 @@ fn native_workflow_skill_resume_applies_approval_before_completing_step()
     let resumed_output = object(&resumed.output, "resumed approval result")?;
     assert_eq!(string_field(resumed_output, "status"), Some("sealed"));
     let result = object_field(resumed_output, "result").ok_or("missing result")?;
-    let approval_packet =
+    let approval_data =
         object_field(result, "approval_decision").ok_or("missing approval packet")?;
-    let approval_data = object_field(approval_packet, "data").ok_or("missing approval data")?;
     assert_eq!(approval_data.get("approved"), Some(&JsonValue::Bool(true)));
     assert_eq!(string_field(approval_data, "status"), Some("approved"));
     assert_eq!(
@@ -4759,7 +4885,7 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
     })?;
 
     let output = serde_json::to_value(&result.output)?;
-    let validation = &output["result"]["skill_validation"]["data"];
+    let validation = &output["result"]["skill_validation"];
     assert_eq!(validation["verdict"], "tested", "{output}");
     assert_eq!(validation["test"]["status"], "passed", "{output}");
     // Read by its record, never acquired, and nothing added to the operator's

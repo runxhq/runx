@@ -85,16 +85,14 @@ expect:
     research-topic:
       subset:
         research_packet:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
     draft-brief:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

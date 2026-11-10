@@ -39,24 +39,23 @@ expect:
     finalize-replay:
       subset:
         ledger_answer_packet:
-          data:
-            ledger_answer:
-              decision: answered
-              query:
-                receipt_ids:
-                  - rcpt_target
-            matched_receipts:
-              - receipt_id: rcpt_target
-                skill: runx/skill-build
-                outcome: completed
-                verification_status: verified
-            receipt_details:
-              - id: rcpt_target
-                subject_uri: runx/skill-build
-                authority:
-                  exercised_scopes:
-                    - scope: fs:read
-            chain_verification:
-              checked: false
+          ledger_answer:
+            decision: answered
+            query:
+              receipt_ids:
+                - rcpt_target
+          matched_receipts:
+            - receipt_id: rcpt_target
+              skill: runx/skill-build
+              outcome: completed
+              verification_status: verified
+          receipt_details:
+            - id: rcpt_target
+              subject_uri: runx/skill-build
+              authority:
+                exercised_scopes:
+                  - scope: fs:read
+          chain_verification:
+            checked: false
   receipt:
     schema: runx.receipt.v1

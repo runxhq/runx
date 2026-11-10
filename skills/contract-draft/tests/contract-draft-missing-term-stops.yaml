@@ -25,11 +25,10 @@ expect:
     stop:
       subset:
         contract_draft:
-          data:
-            decision: refused
-            document: null
-            send_proposal: null
-            validation:
-              status: fail
+          decision: refused
+          document: null
+          send_proposal: null
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

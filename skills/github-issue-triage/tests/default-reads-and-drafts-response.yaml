@@ -43,9 +43,8 @@ expect:
     finalize:
       subset:
         issue_triage_packet:
-          data:
-            decision: draft_ready
-            delivery_status: not_sent
-            provider_status: readback
-            validation: {status: pass}
+          decision: draft_ready
+          delivery_status: not_sent
+          provider_status: readback
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

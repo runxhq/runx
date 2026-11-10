@@ -39,25 +39,23 @@ expect:
     request:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: twitter
-            operation: account.posts.read
-            result:
-              next: page-3
+          status: success
+          provider: twitter
+          operation: account.posts.read
+          result:
+            next: page-3
     finalize:
       subset:
         twitter_evidence:
-          data:
-            decision: ok
-            source: live
-            query: {kind: posts}
-            account: {id: "42", username: runx}
-            item_count: 4
-            truncated: true
-            next_cursor: page-3
-            items:
-              - {id: "9004", text: Fourth, has_link: false, in_reply_to: null}
-              - {id: "9003", has_link: true}
-              - {id: "9002", in_reply_to: "7"}
-              - {id: "9001", text: First}
+          decision: ok
+          source: live
+          query: {kind: posts}
+          account: {id: "42", username: runx}
+          item_count: 4
+          truncated: true
+          next_cursor: page-3
+          items:
+            - {id: "9004", text: Fourth, has_link: false, in_reply_to: null}
+            - {id: "9003", has_link: true}
+            - {id: "9002", in_reply_to: "7"}
+            - {id: "9001", text: First}

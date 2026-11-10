@@ -55,18 +55,17 @@ expect:
   output:
     subset:
       issue_to_pr_result:
-        data:
-          schema: runx/github-issue-to-pr.result.v1
-          status: completed
-          outcome: local_change
-          repository: runxhq/runx
-          issue_number: "442"
-          commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          publication:
-            status: not_requested
-          governance:
-            kind: scafld
-            status: verified
+        schema: runx/github-issue-to-pr.result.v1
+        status: completed
+        outcome: local_change
+        repository: runxhq/runx
+        issue_number: "442"
+        commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        publication:
+          status: not_requested
+        governance:
+          kind: scafld
+          status: verified
   steps:
     - verify
     - intent

@@ -179,21 +179,20 @@ expect:
     finalize:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            context_binding:
-              required:
-                - type: brand_voice
-                  packet_digest: sha256:242e528c7321572ef34e4942bc0d8350828e38185bcb79b1012e69db2b369253
-                  scope:
-                    audience: operators
-                    channel: brief
-                - type: taste_profile
-                  packet_digest: sha256:7dcbc2daee848863a29e219180c1edeae50a046e521d8f67cbbc298cdee2dff9
-                  scope:
-                    audience: operators
-                    channel: brief
-            validation:
-              status: pass
+          decision: ready
+          context_binding:
+            required:
+              - type: brand_voice
+                packet_digest: sha256:242e528c7321572ef34e4942bc0d8350828e38185bcb79b1012e69db2b369253
+                scope:
+                  audience: operators
+                  channel: brief
+              - type: taste_profile
+                packet_digest: sha256:7dcbc2daee848863a29e219180c1edeae50a046e521d8f67cbbc298cdee2dff9
+                scope:
+                  audience: operators
+                  channel: brief
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

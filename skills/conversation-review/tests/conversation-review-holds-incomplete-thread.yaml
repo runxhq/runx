@@ -27,7 +27,6 @@ expect:
     finalize:
       subset:
         conversation_packet:
-          data:
-            status: needs_context
-            validation: {status: pass, findings: []}
+          status: needs_context
+          validation: {status: pass, findings: []}
   receipt: {schema: runx.receipt.v1}

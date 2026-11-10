@@ -12,9 +12,8 @@ expect:
     finalize:
       subset:
         notify_plan:
-          data:
-            decision: ready_for_provider
-            provider_status: not_called
-            delivery_status: not_sent
+          decision: ready_for_provider
+          provider_status: not_called
+          delivery_status: not_sent
   receipt:
     schema: runx.receipt.v1

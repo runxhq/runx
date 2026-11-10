@@ -23,12 +23,11 @@ expect:
     finalize:
       subset:
         crm_update_proposal:
-          data:
-            decision: proposed
-            updates:
-              - record_id: northstar
-                field: secondary_email
-                from: former@northstar.example
-                to: null
-                evidence_quote: Clear the secondary email; it belongs to a former employee.
-            write_performed: false
+          decision: proposed
+          updates:
+            - record_id: northstar
+              field: secondary_email
+              from: former@northstar.example
+              to: null
+              evidence_quote: Clear the secondary email; it belongs to a former employee.
+          write_performed: false

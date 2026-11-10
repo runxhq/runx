@@ -15,7 +15,6 @@ expect:
     apply_noop:
       subset:
         twitter_execution:
-          data:
-            decision: refused
-            blockers:
-              - No saved X plan is available in this store. Supply the original exact plan and its native digest to execute once.
+          decision: refused
+          blockers:
+            - No saved X plan is available in this store. Supply the original exact plan and its native digest to execute once.

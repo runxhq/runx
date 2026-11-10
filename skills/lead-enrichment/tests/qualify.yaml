@@ -13,10 +13,8 @@ expect:
   step_outputs:
     enrich:
       subset:
-        lead_enrichment_packet:
-          data: {decision: enriched, acquisition: supplied_evidence}
+        lead_enrichment_packet: {decision: enriched, acquisition: supplied_evidence}
     qualify:
       subset:
-        lead_qualification:
-          data: {decision: hold, fit: fit, next_action: resolve_contact_policy, external_status: not_executed}
+        lead_qualification: {decision: hold, fit: fit, next_action: resolve_contact_policy, external_status: not_executed}
   receipt: {schema: runx.receipt.v1}

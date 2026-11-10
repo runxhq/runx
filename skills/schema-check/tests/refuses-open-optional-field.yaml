@@ -17,12 +17,11 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: refused
-            policy_result: blocked_by_policy
-            proposal: null
-            validation:
-              status: pass
-              findings: []
+          decision: refused
+          policy_result: blocked_by_policy
+          proposal: null
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

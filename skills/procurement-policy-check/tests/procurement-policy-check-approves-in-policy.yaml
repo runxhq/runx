@@ -23,16 +23,15 @@ expect:
     decide:
       subset:
         procurement_approval:
-          data:
-            schema: runx/procurement-policy-check.approval.v1
-            decision: approved
-            payee: sourcey
-            ceiling_amount: 200
-            human_lane: null
-            refused_reason: null
-            spend_executed: false
-            validation:
-              status: pass
-              findings: []
+          schema: runx/procurement-policy-check.approval.v1
+          decision: approved
+          payee: sourcey
+          ceiling_amount: 200
+          human_lane: null
+          refused_reason: null
+          spend_executed: false
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

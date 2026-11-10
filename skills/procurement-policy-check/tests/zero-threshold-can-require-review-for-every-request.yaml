@@ -18,7 +18,6 @@ expect:
     decide:
       subset:
         procurement_approval:
-          data:
-            decision: needs_human
-            amount: 0
-            spend_executed: false
+          decision: needs_human
+          amount: 0
+          spend_executed: false

@@ -790,10 +790,10 @@ where
             .or_else(|| output.steps.last())
             .map(|run| {
                 if run.outcome.succeeded() {
-                    InvocationOutput::runtime_success(JsonValue::Object(run.contract.clone()), 0)
+                    InvocationOutput::runtime_success(JsonValue::Object(run.values()), 0)
                 } else {
                     InvocationOutput::runtime_failure(
-                        JsonValue::Object(run.contract.clone()),
+                        JsonValue::Object(run.values()),
                         run.outcome
                             .failure_message()
                             .unwrap_or_else(|| "workflow test step failed".to_owned()),

@@ -18,9 +18,8 @@ expect:
     plan:
       subset:
         sql_analysis_plan:
-          data:
-            decision: ready
-            executed: false
-            max_rows: 50
+          decision: ready
+          executed: false
+          max_rows: 50
   receipt:
     schema: runx.receipt.v1

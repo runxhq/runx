@@ -63,13 +63,12 @@ expect:
   output:
     subset:
       send_plan:
-        data:
-          decision: refused
-          gates:
-            human_approval_required: true
-            approval_id: ""
-          blockers:
-            - live customer send approval cannot be bypassed
-          provider_actions: []
-          success_checkpoint:
-            milestone: send_refused
+        decision: refused
+        gates:
+          human_approval_required: true
+          approval_id: ""
+        blockers:
+          - live customer send approval cannot be bypassed
+        provider_actions: []
+        success_checkpoint:
+          milestone: send_refused

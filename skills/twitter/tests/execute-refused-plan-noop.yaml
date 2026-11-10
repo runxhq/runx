@@ -23,8 +23,7 @@ expect:
     apply_noop:
       subset:
         twitter_execution:
-          data:
-            decision: refused
-            next_act_index: 0
-            remaining_count: 1
+          decision: refused
+          next_act_index: 0
+          remaining_count: 1
   receipt: {schema: runx.receipt.v1}

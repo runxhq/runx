@@ -58,11 +58,10 @@ expect:
     stripe:
       subset:
         provider_operation:
-          data:
-            result:
-              payment_id: pi_northstar
-              amount_minor: 150
-              amount_received: 150
-              currency: usd
-              status: succeeded
-              reference: invoice-42
+          result:
+            payment_id: pi_northstar
+            amount_minor: 150
+            amount_received: 150
+            currency: usd
+            status: succeeded
+            reference: invoice-42

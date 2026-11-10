@@ -709,7 +709,9 @@ where
 /// A nested workflow exposes the same canonical public result that a top-level
 /// workflow returns, and which of its outputs are artifacts. This keeps
 /// composition and direct invocation on one output contract without
-/// re-reading the nested workflow's diagnostic step state.
+/// re-reading the nested workflow's diagnostic step state. The step holds
+/// each artifact in its packet envelope again, as the record keeps every
+/// packet, and every other output as it is.
 fn adopt_nested_workflow_result(
     result: &JsonValue,
     artifacts: &BTreeSet<String>,
@@ -719,10 +721,14 @@ fn adopt_nested_workflow_result(
         return;
     };
     for (name, value) in result {
-        projection.outputs.insert(name.clone(), value.clone());
         if artifacts.contains(name) {
+            projection.outputs.insert(
+                name.clone(),
+                crate::output_contract::data_envelope(value.clone()),
+            );
             projection.artifact_outputs.insert(name.clone());
         } else {
+            projection.outputs.insert(name.clone(), value.clone());
             projection.artifact_outputs.remove(name);
         }
     }

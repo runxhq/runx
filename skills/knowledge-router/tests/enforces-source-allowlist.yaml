@@ -63,7 +63,6 @@ expect:
     validate:
       subset:
         knowledge_route:
-          data:
-            verdict: refused
-            validation:
-              valid: false
+          verdict: refused
+          validation:
+            valid: false

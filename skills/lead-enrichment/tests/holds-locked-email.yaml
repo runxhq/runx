@@ -35,12 +35,11 @@ expect:
         lookup_evidence:
           decision: matched
         lead_enrichment_packet:
-          data:
-            decision: partial
-            missing_fields:
-              - person.email
-            facts:
-              - field: person.title
-                value: CTO
+          decision: partial
+          missing_fields:
+            - person.email
+          facts:
+            - field: person.title
+              value: CTO
   receipt:
     schema: runx.receipt.v1

@@ -53,7 +53,6 @@ expect:
     finish:
       subset:
         work_result:
-          data:
-            state: satisfied
-            followups: []
+          state: satisfied
+          followups: []
   receipt: {schema: runx.receipt.v1}

@@ -24,9 +24,8 @@ expect:
     decide:
       subset:
         procurement_approval:
-          data:
-            decision: needs_human
-            human_lane: finance-review
-            spend_executed: false
+          decision: needs_human
+          human_lane: finance-review
+          spend_executed: false
   receipt:
     schema: runx.receipt.v1

@@ -318,13 +318,13 @@ fn a_process_operation_receives_its_credential_and_its_receipt_records_the_deliv
     assert_success_without_secret(&read)?;
     let output = serde_json::from_slice::<serde_json::Value>(&read.stdout)?;
     assert_eq!(
-        output["result"]["provider_operation"]["data"]["result"]["token_bytes"],
+        output["result"]["provider_operation"]["result"]["token_bytes"],
         SECRET.len(),
         "{output}"
     );
     // The connector's own tool ran, not the skill's tool of the same name.
     assert!(
-        output["result"]["provider_operation"]["data"]["result"]
+        output["result"]["provider_operation"]["result"]
             .get("impostor")
             .is_none(),
         "{output}"
@@ -742,8 +742,7 @@ expect:
   output:
     subset:
       provider_operation:
-        data:
-          result: {id: n1, token_bytes: 42}
+        result: {id: n1, token_bytes: 42}
 "#;
     fs::write(&fixture, document)?;
     let replay = command(&root, &home)?

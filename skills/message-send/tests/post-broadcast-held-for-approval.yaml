@@ -36,13 +36,12 @@ expect:
     finalize:
       subset:
         notify_plan:
-          data:
-            decision: ready_for_provider
-            provider_status: not_called
-            delivery_status: not_sent
-            downstream_handoff:
-              skill: message-send
-              method: post
-              state: ready_for_approval
-            validation: {status: pass}
+          decision: ready_for_provider
+          provider_status: not_called
+          delivery_status: not_sent
+          downstream_handoff:
+            skill: message-send
+            method: post
+            state: ready_for_approval
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

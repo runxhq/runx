@@ -43,20 +43,18 @@ expect:
     evidence:
       subset:
         ledger_answer_packet:
-          data:
-            ledger_answer:
-              decision: answered
-            chain_verification:
-              checked: true
+          ledger_answer:
+            decision: answered
+          chain_verification:
+            checked: true
     analyze:
       subset:
         least_privilege_packet:
-          data:
-            audit_report:
-              status: needs_more_evidence
-              subject: growth/lifecycle-campaign-send
-              retained_grant:
-                - email:send
-                - repo:write
-                - payment:spend
-              reviewer_action: gather_verified_evidence
+          audit_report:
+            status: needs_more_evidence
+            subject: growth/lifecycle-campaign-send
+            retained_grant:
+              - email:send
+              - repo:write
+              - payment:spend
+            reviewer_action: gather_verified_evidence

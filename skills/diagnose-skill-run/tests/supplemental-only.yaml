@@ -25,16 +25,14 @@ expect:
     evidence:
       subset:
         ledger_answer_packet:
-          data:
-            ledger_answer:
-              decision: needs_agent
-            matched_receipts: []
-            receipt_details: []
+          ledger_answer:
+            decision: needs_agent
+          matched_receipts: []
+          receipt_details: []
   output:
     subset:
       failure_packet:
-        data:
-          verdict: needs_update
+        verdict: needs_update
   receipt:
     schema: runx.receipt.v1
     outcome: completed

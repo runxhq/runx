@@ -73,7 +73,7 @@ fn a_tool_steps_verdict_is_named_the_steps_own() -> TestResult {
     let output = run(temp.path(), &skill)?;
 
     assert_eq!(output["status"], "sealed", "{output}");
-    let evaluator = &output["result"]["verdict"]["data"]["evaluator"];
+    let evaluator = &output["result"]["verdict"]["evaluator"];
     assert_eq!(
         evaluator,
         &json!({

@@ -26,6 +26,5 @@ expect:
     reject:
       subset:
         moltbook_scan_packet:
-          data:
-            decision: needs_more_evidence
-            delivery_status: not_posted
+          decision: needs_more_evidence
+          delivery_status: not_posted

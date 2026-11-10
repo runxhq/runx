@@ -104,29 +104,26 @@ expect:
     voice:
       subset:
         brand_voice_packet:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
     draft:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            context_binding:
-              required:
-                - type: brand_voice
-                  packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
-            validation:
-              status: pass
+          decision: ready
+          context_binding:
+            required:
+              - type: brand_voice
+                packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
+          validation:
+            status: pass
     social-plan:
       subset:
         twitter_plan:
-          data:
-            decision: ready
-            context_bindings:
-              - packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
-                applied_rules:
-                  - Lead with governed action and proof.
+          decision: ready
+          context_bindings:
+            - packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
+              applied_rules:
+                - Lead with governed action and proof.
   receipt:
     schema: runx.receipt.v1

@@ -157,7 +157,7 @@ methods:
     )?;
     assert_eq!(completed["runx"]["outcome"], "completed");
     assert_eq!(
-        completed["output"]["artifact_page"]["data"]["data"],
+        completed["output"]["artifact_page"]["data"],
         "original captured bytes"
     );
     assert_receipt_verifies(

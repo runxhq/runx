@@ -40,5 +40,4 @@ expect:
     finalize:
       subset:
         structured_extraction_result:
-          data:
-            decision: ready
+          decision: ready

@@ -12,10 +12,9 @@ expect:
     finalize:
       subset:
         twitter_evidence:
-          data:
-            decision: ok
-            source: archive
-            item_count: 5
-            truncated: false
+          decision: ok
+          source: archive
+          item_count: 5
+          truncated: false
   receipt:
     schema: runx.receipt.v1

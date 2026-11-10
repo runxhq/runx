@@ -46,9 +46,9 @@ Seven methods:
   explicit list of typed acts with rationale, using agent judgment, then bind
   the exact plan through native `data.digest`. This is the curated lane, for
   dozens of acts that each deserve a reason. A plan is a draft; it delivers
-  nothing. The result exposes `twitter_plan.data` and the matching
-  `digest_result.data.digest` required by `execute`; callers never calculate
-  the digest themselves.
+  nothing. The result exposes `twitter_plan` and the matching
+  `digest_result.digest` required by `execute`; callers never calculate the
+  digest themselves.
 - `select`: the bulk lane. Apply a deterministic predicate to an archive export
   and emit a compact plan, no agent judgment. Use it when the criterion is
   mechanical and the match set runs to thousands, where a per-item rationale
@@ -306,8 +306,8 @@ For the `plan` method, build `twitter_plan` this way:
 - `read` and `read-archive` return `runx/twitter.evidence.v1`: typed post or
   user records with metrics, the cursor the next live read starts from, and
   provenance naming the provider answers or archive artifact by digest.
-- `plan` returns `runx/twitter.plan.v1` as `twitter_plan.data`, with its
-  digest as `digest_result.data.digest`. Each act carries its consequence and
+- `plan` returns `runx/twitter.plan.v1` as `twitter_plan`, with its digest as
+  `digest_result.digest`. Each act carries its consequence and
   rationale, and `context_bindings` preserve the exact brand or taste context
   the planner applied.
 - `select` returns `runx/twitter.selection.v1`: the matched records and the

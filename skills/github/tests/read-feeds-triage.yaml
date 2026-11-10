@@ -51,10 +51,9 @@ expect:
     triage:
       subset:
         issue_triage_packet:
-          data:
-            decision: draft_ready
-            delivery_status: not_sent
-            provider_status: supplied_snapshot
+          decision: draft_ready
+          delivery_status: not_sent
+          provider_status: supplied_snapshot
   receipt:
     schema: runx.receipt.v1
     state: sealed

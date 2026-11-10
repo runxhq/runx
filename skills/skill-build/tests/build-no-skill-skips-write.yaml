@@ -75,6 +75,5 @@ expect:
     apply:
       subset:
         apply_result:
-          data:
-            decision: no_skill
-            verdict: unchanged
+          decision: no_skill
+          verdict: unchanged

@@ -46,15 +46,14 @@ expect:
     finalize:
       subset:
         subject_request_verdict:
-          data:
-            decision:
-              eligible: false
-            escalation:
-              required: true
-              lane: human_privacy_review
-            handoff: null
-            persistence:
-              append_status: committed
-              after_version: 1
+          decision:
+            eligible: false
+          escalation:
+            required: true
+            lane: human_privacy_review
+          handoff: null
+          persistence:
+            append_status: committed
+            after_version: 1
   receipt:
     schema: runx.receipt.v1

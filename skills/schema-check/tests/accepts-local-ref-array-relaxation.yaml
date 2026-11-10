@@ -33,11 +33,10 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: compatible
-            breaking_changes: []
-            validation:
-              status: pass
-              findings: []
+          decision: compatible
+          breaking_changes: []
+          validation:
+            status: pass
+            findings: []
   receipt:
     schema: runx.receipt.v1

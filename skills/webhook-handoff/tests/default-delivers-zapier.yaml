@@ -41,11 +41,10 @@ expect:
     deliver:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: zapier
-            operation: handoff.deliver
-            finality: acknowledged
-            result:
-              acknowledgement: {status: success, request_id: 0192a1b2-0000-7000-8000-000000000003}
+          status: success
+          provider: zapier
+          operation: handoff.deliver
+          finality: acknowledged
+          result:
+            acknowledgement: {status: success, request_id: 0192a1b2-0000-7000-8000-000000000003}
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

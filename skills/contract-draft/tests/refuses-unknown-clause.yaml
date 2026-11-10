@@ -60,7 +60,6 @@ expect:
     finalize:
       subset:
         contract_draft:
-          data:
-            decision: refused
-            document: null
-            delivery_performed: false
+          decision: refused
+          document: null
+          delivery_performed: false

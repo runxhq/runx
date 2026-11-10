@@ -30,8 +30,7 @@ expect:
     apply:
       subset:
         redaction_report:
-          data:
-            decision: ready
+          decision: ready
         redacted_content: 😀 [REDACTED:NAME] and [REDACTED:NAME] replied.
   receipt:
     schema: runx.receipt.v1

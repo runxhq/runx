@@ -61,32 +61,30 @@ expect:
     request:
       subset:
         provider_operation:
-          data:
-            status: success
-            provider: twitter
-            operation: users.unfollow
-            finality: acknowledged
-            result:
-              outcomes:
-                - {status: applied, acknowledgement: {data: {following: false}}}
-                - {status: refused, code: provider_rejected}
-                - {status: refused, code: rate_limited, retry_at: "2027-01-15T08:00:00Z"}
-                - {status: unsent, code: rate_limited}
+          status: success
+          provider: twitter
+          operation: users.unfollow
+          finality: acknowledged
+          result:
+            outcomes:
+              - {status: applied, acknowledgement: {data: {following: false}}}
+              - {status: refused, code: provider_rejected}
+              - {status: refused, code: rate_limited, retry_at: "2027-01-15T08:00:00Z"}
+              - {status: unsent, code: rate_limited}
     apply:
       subset:
         twitter_execution:
-          data:
+          decision: stopped
+          next_act_index: 2
+          remaining_count: 3
+          rate: {limited: true, remaining: 0, reset_at: "2027-01-15T08:00:00Z"}
+          results:
+            - {act_id: act-unfollow-3001, status: done, external_id: "3001"}
+            - {act_id: act-unfollow-3002, status: done, external_id: "3002"}
+            - {act_id: act-unfollow-3003, status: failed, external_id: "3003"}
+          ledger_delta:
+            account_id: "42"
             decision: stopped
             next_act_index: 2
-            remaining_count: 3
-            rate: {limited: true, remaining: 0, reset_at: "2027-01-15T08:00:00Z"}
-            results:
-              - {act_id: act-unfollow-3001, status: done, external_id: "3001"}
-              - {act_id: act-unfollow-3002, status: done, external_id: "3002"}
-              - {act_id: act-unfollow-3003, status: failed, external_id: "3003"}
-            ledger_delta:
-              account_id: "42"
-              decision: stopped
-              next_act_index: 2
-              batch: {start_act_index: 0, selected_act_count: 4, processed_act_count: 2, succeeded_act_count: 2, failed_act_count: 0, rate_limited: true}
+            batch: {start_act_index: 0, selected_act_count: 4, processed_act_count: 2, succeeded_act_count: 2, failed_act_count: 0, rate_limited: true}
   receipt: {schema: runx.receipt.v1, state: sealed}

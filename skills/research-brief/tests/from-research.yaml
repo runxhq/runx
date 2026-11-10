@@ -11,6 +11,5 @@ expect:
     draft-brief:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            validation: {status: pass}
+          decision: ready
+          validation: {status: pass}

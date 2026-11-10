@@ -19,6 +19,5 @@ expect:
   step_outputs:
     enrich:
       subset:
-        lead_enrichment_packet:
-          data: {decision: needs_more_evidence, facts: []}
+        lead_enrichment_packet: {decision: needs_more_evidence, facts: []}
   receipt: {schema: runx.receipt.v1}

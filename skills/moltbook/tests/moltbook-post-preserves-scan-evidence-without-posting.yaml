@@ -43,8 +43,7 @@ expect:
     finalize-post:
       subset:
         moltbook_post_packet:
-          data:
-            decision: ready_for_handoff
-            delivery_status: not_posted
-            validation: {status: pass}
+          decision: ready_for_handoff
+          delivery_status: not_posted
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

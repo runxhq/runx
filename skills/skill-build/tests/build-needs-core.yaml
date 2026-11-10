@@ -76,8 +76,7 @@ expect:
     apply:
       subset:
         apply_result:
-          data:
-            decision: needs_core
-            verdict: needs_core
-            changed_paths: []
-            deleted_paths: []
+          decision: needs_core
+          verdict: needs_core
+          changed_paths: []
+          deleted_paths: []

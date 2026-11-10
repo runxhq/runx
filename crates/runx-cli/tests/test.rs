@@ -379,8 +379,7 @@ setup:
     append:
       subset:
         provider_operation:
-          data:
-            result: {{operation: events.append, status: committed, stream: "project:keeper/said:personal", version: 1}}
+          result: {{operation: events.append, status: committed, stream: "project:keeper/said:personal", version: 1}}
 "#
         ),
     )?;

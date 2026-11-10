@@ -91,29 +91,25 @@ expect:
     research-topic:
       subset:
         research_packet:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
     draft-brief:
       subset:
         content_draft_packet:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
     package-content:
       subset:
         content_publish_packet:
-          data:
-            decision: ready_for_handoff
-            delivery_status: not_sent
+          decision: ready_for_handoff
+          delivery_status: not_sent
     prepare-handoff:
       subset:
         content_handoff_packet:
-          data:
-            handoff_packet:
-              decision: handoff_ready
-              delivery_status: not_sent
+          handoff_packet:
+            decision: handoff_ready
+            delivery_status: not_sent
   receipt:
     schema: runx.receipt.v1

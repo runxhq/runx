@@ -39,9 +39,8 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: refused
-            policy_result: blocked_by_policy
-            proposal: null
+          decision: refused
+          policy_result: blocked_by_policy
+          proposal: null
   receipt:
     schema: runx.receipt.v1

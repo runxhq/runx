@@ -442,7 +442,7 @@ fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn s
 }
 
 fn status(run: &serde_json::Value) -> &serde_json::Value {
-    &run["result"]["provider_operation"]["data"]["result"]["status"]
+    &run["result"]["provider_operation"]["result"]["status"]
 }
 
 /// Without a store instance the streams live in the workspace store; a

@@ -19,15 +19,14 @@ expect:
     finalize-posts:
       subset:
         twitter_selection:
-          data:
-            decision: ready
-            matched: 2
-            scanned: 5
-            twitter_plan:
-              acts:
-              - act_id: act-del-2001
-                kind: delete_post
-              - act_id: act-del-2002
-                kind: delete_post
+          decision: ready
+          matched: 2
+          scanned: 5
+          twitter_plan:
+            acts:
+            - act_id: act-del-2001
+              kind: delete_post
+            - act_id: act-del-2002
+              kind: delete_post
   receipt:
     schema: runx.receipt.v1

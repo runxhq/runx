@@ -26,11 +26,10 @@ expect:
     check:
       subset:
         schema_check:
-          data:
-            decision: refused
-            policy_result: invalid_input
-            proposal: null
-            validation:
-              status: fail
+          decision: refused
+          policy_result: invalid_input
+          proposal: null
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

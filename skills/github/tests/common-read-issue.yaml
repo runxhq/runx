@@ -32,16 +32,15 @@ expect:
   output:
     subset:
       provider_operation:
-        data:
-          status: success
-          provider: github
-          operation: issues.read
-          target: runxhq/runx
-          transport: local_http
-          result:
-            issues:
-              - number: 241
-                title: Sourcey output path is unclear
-                body: The docs mention two different output directories.
+        status: success
+        provider: github
+        operation: issues.read
+        target: runxhq/runx
+        transport: local_http
+        result:
+          issues:
+            - number: 241
+              title: Sourcey output path is unclear
+              body: The docs mention two different output directories.
   receipt:
     schema: runx.receipt.v1
