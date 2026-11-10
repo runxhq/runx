@@ -201,7 +201,8 @@ export function newEntry({ kind, level, project, brand, workspace_id, text, date
 /// said, or nothing matches, there's nothing to decide, and it's kept.
 export async function likely(ctx, { entry, kind, text, supersedes, method }) {
   if (supersedes !== undefined) return { matches: [] };
-  const found = resultOf(
+  const found = await resultOf(
+    ctx,
     await ctx.operation("private/keys.search", {
       stream: entry.stream,
       query: text,
@@ -232,7 +233,8 @@ export function parseHandle({ handle, kind, short = false }) {
 export async function resolveHandle(ctx, { entry: { stream, key, version } }) {
   const named = (full) => ({ handle: handleOf(stream, full, version), stream, key: full, after_version: version - 1 });
   if (!SHORT_KEY.test(key)) return named(key);
-  const listed = resultOf(
+  const listed = await resultOf(
+    ctx,
     await ctx.operation("private/keys.list", { stream, prefix: key, limit: SHORT_MATCHES }),
   );
   const keys = (listed?.keys ?? []).map((item) => item.key);
@@ -418,10 +420,18 @@ function streamsOf(levels, workspace_id) {
   return streams;
 }
 
-/// A call's result, as the operation step it was recorded as holds it.
-function resultOf(value) {
-  const packet = value?.provider_operation;
-  return packet?.result ?? packet?.data?.result ?? packet;
+/// What a reference to an artifact names as its schema: a field of a call's
+/// result past the inline bound reaches a script as one.
+const ARTIFACT_SCHEMA = "runx.artifact.v1";
+
+/// A store call's result, as its operation packet holds it. A packet past
+/// the inline bound reaches the script as a reference to the artifact the
+/// call recorded it in, which holds what it would have held inline, so it's
+/// read whole: a page of keys, whatever its size, is never read as empty.
+async function resultOf(ctx, value) {
+  const held = value?.provider_operation;
+  const packet = held?.schema === ARTIFACT_SCHEMA ? await ctx.read(held) : held;
+  return packet?.result;
 }
 
 /// Whether a call was refused admission: a stream the run's authority
@@ -446,7 +456,8 @@ class StreamPages {
   async head() {
     if (this.keys.length === 0 && !this.done) {
       try {
-        const page = resultOf(
+        const page = await resultOf(
+          this.ctx,
           await this.ctx.operation("private/keys.list", {
             stream: this.stream,
             ...this.query,
@@ -682,7 +693,8 @@ export async function index(ctx, { levels, max_characters = 4096, focus, workspa
       const matched = [];
       for (const [order, stream] of streams[kind].entries()) {
         try {
-          const page = resultOf(
+          const page = await resultOf(
+            ctx,
             await ctx.operation("private/keys.search", { stream, query: focus, ...query, limit: pageKeysFor(room()) }),
           );
           for (const match of page?.matches ?? []) matched.push({ stream, order, ...match });
@@ -722,7 +734,8 @@ export async function search(ctx, { levels, query, limit = 10, workspace_id }) {
   for (const kind of Object.keys(KINDS)) {
     for (const stream of streams[kind]) {
       try {
-        const result = resultOf(
+        const result = await resultOf(
+          ctx,
           await ctx.operation("private/keys.search", {
             stream,
             query,

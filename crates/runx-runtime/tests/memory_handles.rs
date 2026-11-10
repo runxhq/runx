@@ -50,21 +50,32 @@ impl Memory {
     /// An observation under each of `keys`, oldest first, each shown by its
     /// own words.
     fn observe(&self, kept: &[(&str, &str)]) -> TestResult {
+        self.observe_lines(
+            &kept
+                .iter()
+                .map(|(key, text)| ((*key).to_owned(), (*text).to_owned(), (*text).to_owned()))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// An observation of each `(key, text, summary)`, oldest first, a second
+    /// apart.
+    fn observe_lines(&self, kept: &[(String, String, String)]) -> TestResult {
         let history = kept
             .iter()
             .enumerate()
-            .map(|(second, (key, text))| HistoryEvent {
+            .map(|(second, (key, text, summary))| HistoryEvent {
                 stream: format!("{PACKAGE}/observed:personal"),
-                key: (*key).to_owned(),
+                key: key.clone(),
                 event_type: "memory.observed".to_owned(),
                 data: serde_json::from_value(json!({
-                    "text": text, "summary": text, "date": "2026-11-01", "sources": ["fixture"],
+                    "text": text, "summary": summary, "date": "2026-11-01", "sources": ["fixture"],
                 }))
                 .unwrap_or_default(),
                 standing: false,
                 valid_until: None,
                 searchable: Some(vec!["text".to_owned(), "summary".to_owned()]),
-                committed_at: format!("2026-11-01T00:00:0{second}.000Z"),
+                committed_at: format!("2026-11-01T00:{:02}:{:02}.000Z", second / 60, second % 60),
                 writer_package: PACKAGE.to_owned(),
             })
             .collect::<Vec<_>>();
@@ -179,5 +190,38 @@ fn a_lines_key_is_the_start_no_other_line_shares_and_read_resolves_it() -> TestR
         !completed && none.to_string().contains("names no entry"),
         "{none}"
     );
+    Ok(())
+}
+
+/// A page of keys too large to reach the index inline arrives as a reference
+/// to the artifact its call recorded, and the index reads it whole: 150
+/// observations of 900 characters each make a first page of 100 keys past
+/// the inline bound, and the index still shows every line its budget holds.
+#[test]
+fn a_page_past_the_inline_bound_is_read_whole() -> TestResult {
+    let memory = Memory::new()?;
+    let kept = (0..150)
+        .map(|number| {
+            (
+                runx_contracts::sha256_prefixed(format!("note {number}").as_bytes())
+                    .trim_start_matches("sha256:")
+                    .to_owned(),
+                format!("Note {number}: {}", "a long observation. ".repeat(45)),
+                format!("Note {number}."),
+            )
+        })
+        .collect::<Vec<_>>();
+    memory.observe_lines(&kept)?;
+    let (completed, index) = memory.run("index", json!({"levels": [{"level": "personal"}]}))?;
+    assert!(completed, "{index}");
+    let shown = index["result"]["entries"][0]["data"]["entries"]
+        .as_array()
+        .map_or(0, Vec::len);
+    assert!(
+        shown > 100,
+        "{shown} lines, from more than a page: {}",
+        index["result"]["entries"][0]["summary"]
+    );
+    assert_eq!(index["result"]["entries_omitted"], true);
     Ok(())
 }
