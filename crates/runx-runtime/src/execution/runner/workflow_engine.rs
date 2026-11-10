@@ -994,15 +994,10 @@ fn enforce_condition(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), Runtim
         return Ok(());
     };
     let shown = operand_text(&when.value);
-    let value = operand_value(&when.value, runs).ok_or_else(|| RuntimeError::StepFailed {
+    let holds = condition_holds(when, runs).ok_or_else(|| RuntimeError::StepFailed {
         step_id: step.id.clone(),
         reason: format!("condition '{shown}' resolves to nothing"),
     })?;
-    let holds = match (&when.equals, &when.not_equals) {
-        (Some(expected), _) => value == expected,
-        (_, Some(disallowed)) => value != disallowed,
-        _ => true,
-    };
     if holds {
         Ok(())
     } else {
@@ -1148,6 +1143,22 @@ where
 /// declared result once that step has run. Guards and conditions read the
 /// same declared result as step values do; runtime diagnostics live on
 /// `StepOutcome`, never in it, so there is no second control-flow surface.
+/// Whether `when` holds over `runs`. An input the run wasn't given is
+/// absent, which equals nothing, so `equals` doesn't hold and `not_equals`
+/// does. A step's output it reads that isn't there decides nothing.
+fn condition_holds(when: &runx_parser::WorkflowWhen, runs: &[StepRun]) -> Option<bool> {
+    let holds = |value: Option<&JsonValue>| match (&when.equals, &when.not_equals) {
+        (Some(expected), _) => value == Some(expected),
+        (_, Some(disallowed)) => value != Some(disallowed),
+        _ => true,
+    };
+    match operand_value(&when.value, runs) {
+        Some(value) => Some(holds(Some(value))),
+        None if matches!(when.value, Operand::Reference(Source::Input { .. })) => Some(holds(None)),
+        None => None,
+    }
+}
+
 pub(super) fn operand_value<'a>(
     operand: &'a Operand,
     runs: &'a [StepRun],
@@ -1206,13 +1217,8 @@ pub(super) fn when_skipped_steps(
             let Some(when) = &step.when else {
                 continue;
             };
-            let Some(value) = operand_value(&when.value, runs) else {
+            let Some(satisfied) = condition_holds(when, runs) else {
                 continue;
-            };
-            let satisfied = match (&when.equals, &when.not_equals) {
-                (Some(expected), _) => value == expected,
-                (_, Some(disallowed)) => value != disallowed,
-                _ => true,
             };
             if !satisfied {
                 skipped.insert(step.id.clone());
@@ -1465,8 +1471,12 @@ methods:
         assert_eq!(skipped, BTreeSet::from(["apply".to_owned()]));
     }
 
+    /// An input the run wasn't given is absent, which equals nothing: a step
+    /// that runs only when it equals a value is skipped, one that runs when
+    /// it doesn't is run, and neither fails the run (plans 390a69f). A guard
+    /// still requires its value.
     #[test]
-    fn an_absent_input_satisfies_no_condition_and_passes_no_guard() {
+    fn an_absent_input_equals_nothing_and_passes_no_guard() {
         let workflow = crate::execution::workflow::testing::method_workflow(
             "absent-input",
             r#"
@@ -1477,6 +1487,9 @@ methods:
       - id: preview
         when: {value: $input.mode, not_equals: apply}
         agent: preview
+      - id: apply
+        when: {value: $input.mode, equals: apply}
+        agent: apply
       - id: send
         guard:
           - {value: $input.approved, not_equals: false}
@@ -1493,13 +1506,13 @@ methods:
         )
         .expect("the run input binds");
 
-        assert!(
-            when_skipped_steps(&workflow, &[], &BTreeSet::new()).is_empty(),
-            "an absent input decides no branch"
+        assert_eq!(
+            when_skipped_steps(&workflow, &[], &BTreeSet::new()),
+            BTreeSet::from(["apply".to_owned()]),
+            "an absent input equals nothing"
         );
-        let error = super::enforce_condition(&workflow.steps[0], &[]).expect_err("absent");
-        assert!(error.to_string().contains("resolves to nothing"), "{error}");
-        let error = super::enforce_guards(&workflow.steps[1], &[]).expect_err("absent");
+        super::enforce_condition(&workflow.steps[0], &[]).expect("it doesn't equal apply");
+        let error = super::enforce_guards(&workflow.steps[2], &[]).expect_err("absent");
         assert!(
             error
                 .to_string()
