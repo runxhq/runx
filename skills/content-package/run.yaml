@@ -56,6 +56,8 @@ methods:
           deliverable: content draft
           operator_context: $input.operator_context
           target_entities: $input.target_entities
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
 
       - id: draft-brief
         when:
@@ -68,6 +70,8 @@ methods:
           channel: $input.channel
           voice_guide: Write for the declared audience and channel, preserve evidence bindings, and separate verified claims from inference.
           evidence_pack: $steps.research-topic.research_packet
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
 
       - id: package-content
         when:
@@ -77,6 +81,8 @@ methods:
         inputs:
           channel: $input.channel
           draft: $steps.draft-brief.content_draft_packet
+        outputs:
+          content_publish_packet: {packet: runx/ghostwrite.publish.v1}
 
       - id: prepare-handoff
         when:
@@ -88,6 +94,8 @@ methods:
           boundary_kind: $input.boundary_kind
           target: $input.publication_target
           packet: $steps.package-content.content_publish_packet
+        outputs:
+          content_handoff_packet: {packet: runx/ghostwrite.handoff.v1}
 
   prepare:
     description: Prepare researched channel content from an objective and optional source selectors, reusing completed reads.
@@ -140,6 +148,8 @@ methods:
           paths: $input.paths
           urls: $input.urls
           source_packets: $input.source_packets
+        outputs:
+          research_packet: {packet: runx/research.packet.v1, optional: true}
       - id: prepare-content
         when: {value: $steps.research-topic.research_packet.decision, equals: ready}
         skill: .#from-research
@@ -152,6 +162,9 @@ methods:
           boundary_kind: $input.boundary_kind
           brand_context: $input.brand_context
           taste_context: $input.taste_context
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
+          content_publish_packet: {packet: runx/ghostwrite.publish.v1}
 
   from-research:
     description: Prepare channel content from a completed research packet, with no acquisition or repeat synthesis.
@@ -183,9 +196,13 @@ methods:
           brand_context: $input.brand_context
           taste_context: $input.taste_context
           voice_guide: Write for the declared reader and channel, preserve source bindings, and distinguish evidence from inference.
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
       - id: package-content
         skill: ../ghostwrite#package
         inputs: {channel: $input.channel, draft: $steps.draft-brief.content_draft_packet}
+        outputs:
+          content_publish_packet: {packet: runx/ghostwrite.publish.v1}
       - id: has-target
         tool: data.compare
         inputs: {actual: $input.publication_target, expected: {}}
@@ -197,6 +214,8 @@ methods:
           boundary_kind: $input.boundary_kind
           target: $input.publication_target
           packet: $steps.package-content.content_publish_packet
+        outputs:
+          content_handoff_packet: {packet: runx/ghostwrite.handoff.v1}
 
 shared_inputs:
   brand_context: {packet: runx/brand-voice.context.v1, description: Optional scoped brand voice admitted by the canonical writer., optional: true}
