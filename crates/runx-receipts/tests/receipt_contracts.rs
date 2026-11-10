@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::fixture_key::{FIXTURE_SEED, FixtureKey};
 use runx_contracts::{
     ProofKind, Receipt, ReceiptIssuer, ReceiptIssuerType, ReceiptSignature, Reference,
-    ReferenceType, RunOutcome,
+    ReferenceType, RunOutcome, SubjectKind,
 };
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContext, ReceiptVerification, SignatureVerificationFailure,
@@ -55,6 +55,42 @@ fn abnormal_failed_receipt_verifies_basic_invariants() -> Result<(), serde_json:
 
     assert!(verify_receipt(&receipt).valid);
     assert_eq!(receipt.seal.outcome, RunOutcome::Failed);
+    Ok(())
+}
+
+#[test]
+fn a_failed_steps_seal_must_say_why_it_failed() -> Result<(), serde_json::Error> {
+    let mut receipt = fixture(ABNORMAL_RECEIPT)?;
+    receipt.seal.failure = None;
+
+    let verification = verify_receipt(&receipt);
+
+    assert!(!verification.valid);
+    assert_finding(&verification, ReceiptFindingCode::SealFailureMissing);
+    Ok(())
+}
+
+#[test]
+fn only_a_failed_steps_seal_carries_a_failure() -> Result<(), serde_json::Error> {
+    let failure = fixture(ABNORMAL_RECEIPT)?.seal.failure;
+    assert!(
+        failure.is_some(),
+        "the failed step's fixture says why it failed"
+    );
+
+    // A step that completed has no failure to state.
+    let mut completed = fixture(SUCCESS_RECEIPT)?;
+    completed.seal.failure.clone_from(&failure);
+    let verification = verify_receipt(&completed);
+    assert!(!verification.valid);
+    assert_finding(&verification, ReceiptFindingCode::SealFailureUnexpected);
+
+    // A failed workflow says which step failed, and that step says why.
+    let mut workflow = fixture(ABNORMAL_RECEIPT)?;
+    workflow.subject.kind = SubjectKind::Workflow;
+    let verification = verify_receipt(&workflow);
+    assert!(!verification.valid);
+    assert_finding(&verification, ReceiptFindingCode::SealFailureUnexpected);
     Ok(())
 }
 

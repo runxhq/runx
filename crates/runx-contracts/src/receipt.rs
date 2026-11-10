@@ -195,7 +195,8 @@ pub struct Seal {
     pub reason: Option<SealReason>,
     pub criteria: Vec<CriterionBinding>,
     /// Why a failed step failed. Every failed step's receipt carries it, and
-    /// no other receipt does.
+    /// no other receipt does: a verifier refuses a failed step's receipt
+    /// without it and any other receipt with it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<SealFailure>,
 }

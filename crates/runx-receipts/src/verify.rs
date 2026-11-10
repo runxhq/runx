@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 
 use runx_contracts::{
     Criterion, CriterionBinding, Decision, ProofKind, Receipt, ReceiptAct, Reference,
-    ReferenceType, Seal,
+    ReferenceType, RunOutcome, Seal, SubjectKind,
 };
 
 mod finding;
@@ -57,6 +57,7 @@ impl Verifier {
         self.check_act_legitimacy(receipt);
         self.check_decisions(&receipt.decisions, &receipt.acts);
         self.check_seal_criteria(receipt, &receipt.seal);
+        self.check_seal_failure(receipt);
     }
 
     fn check_child_receipt_refs(&mut self, path: &str, refs: &[Reference]) {
@@ -129,6 +130,27 @@ impl Verifier {
                     "seal criterion must roll up an act criterion binding",
                 );
             }
+        }
+    }
+
+    /// A failed step's seal says why it failed, and no other seal carries a
+    /// failure: a completed step has none to state, and a failed workflow's
+    /// failed step states its own.
+    fn check_seal_failure(&mut self, receipt: &Receipt) {
+        let failed_step =
+            receipt.subject.kind == SubjectKind::Step && receipt.seal.outcome == RunOutcome::Failed;
+        match (failed_step, receipt.seal.failure.is_some()) {
+            (true, false) => self.push(
+                ReceiptFindingCode::SealFailureMissing,
+                "seal.failure",
+                "a failed step's seal must say why it failed",
+            ),
+            (false, true) => self.push(
+                ReceiptFindingCode::SealFailureUnexpected,
+                "seal.failure",
+                "only a failed step's seal carries a failure",
+            ),
+            _ => {}
         }
     }
 
