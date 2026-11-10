@@ -3,137 +3,209 @@ minimum_runx: 0.12.0
 catalog:
   visibility: public
   category: ops
+default_method: route
+shared_inputs:
+  question:
+    type: string
+    description: Question, source event, or thread summary to route.
+    minLength: 1
+  available_sources:
+    type: object
+    description: The maintained bounded index selected by this host. Exact source, owner/domain and follow-up skill records; selected source locators are resolved against this same catalog.
+    additionalProperties: false
+    required:
+      - sources
+      - owners
+      - skills
+    properties:
+      sources:
+        type: array
+        items:
+          type: object
+          required:
+            - id
+            - kind
+            - summary
+          properties:
+            id:
+              type: string
+              minLength: 1
+              maxLength: 1000
+              pattern: \S
+            kind:
+              type: string
+              minLength: 1
+              maxLength: 500
+              pattern: \S
+            summary:
+              type: string
+              minLength: 1
+              maxLength: 10000
+              pattern: \S
+            locator:
+              type: string
+              minLength: 1
+              maxLength: 4000
+              pattern: \S
+          additionalProperties: true
+      owners:
+        type: array
+        items:
+          type: object
+          required:
+            - id
+            - domains
+          properties:
+            id:
+              type: string
+              minLength: 1
+              maxLength: 1000
+              pattern: \S
+            domains:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 500
+                pattern: \S
+          additionalProperties: true
+      skills:
+        type: array
+        items:
+          type: object
+          required:
+            - id
+            - purpose
+          properties:
+            id:
+              type: string
+              minLength: 1
+              maxLength: 1000
+              pattern: \S
+            purpose:
+              type: string
+              minLength: 1
+              maxLength: 10000
+              pattern: \S
+          additionalProperties: true
+  constraints:
+    type: object
+    description: Selection limits, not authority. An absent allowlist imposes no additional limit; an empty one allows no selections of that kind. notes is advisory context.
+    additionalProperties: false
+    properties:
+      allowed_sources:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      excluded_sources:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      allowed_owners:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      allowed_skills:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      notes:
+        type: string
+        maxLength: 10000
+    optional: true
 methods:
   route:
+    description: Route one question or source event through the supplied catalog to validated source, owner, escalation and follow-up skill references. A proposal the validator refuses goes back to propose with the validator's findings, at most twice, and the last refusal is the result.
     inputs:
-      question:
-        type: string
-        description: Question, source event, or thread summary to route.
-        minLength: 1
-      available_sources:
-        type: object
-        description: The maintained bounded index selected by this host. Exact source, owner/domain and follow-up skill records; selected source locators are resolved against this same catalog.
-        additionalProperties: false
-        required:
-          - sources
-          - owners
-          - skills
-        properties:
-          sources:
-            type: array
-            items:
-              type: object
-              required:
-                - id
-                - kind
-                - summary
-              properties:
-                id:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-                  pattern: \S
-                kind:
-                  type: string
-                  minLength: 1
-                  maxLength: 500
-                  pattern: \S
-                summary:
-                  type: string
-                  minLength: 1
-                  maxLength: 10000
-                  pattern: \S
-                locator:
-                  type: string
-                  minLength: 1
-                  maxLength: 4000
-                  pattern: \S
-              additionalProperties: true
-          owners:
-            type: array
-            items:
-              type: object
-              required:
-                - id
-                - domains
-              properties:
-                id:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-                  pattern: \S
-                domains:
-                  type: array
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 500
-                    pattern: \S
-              additionalProperties: true
-          skills:
-            type: array
-            items:
-              type: object
-              required:
-                - id
-                - purpose
-              properties:
-                id:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-                  pattern: \S
-                purpose:
-                  type: string
-                  minLength: 1
-                  maxLength: 10000
-                  pattern: \S
-              additionalProperties: true
-      constraints:
-        type: object
-        description: Selection limits, not authority. An absent allowlist imposes no additional limit; an empty one allows no selections of that kind. notes is advisory context.
-        additionalProperties: false
-        properties:
-          allowed_sources:
-            type: array
-            uniqueItems: true
-            items:
-              type: string
-              minLength: 1
-              maxLength: 1000
-          excluded_sources:
-            type: array
-            uniqueItems: true
-            items:
-              type: string
-              minLength: 1
-              maxLength: 1000
-          allowed_owners:
-            type: array
-            uniqueItems: true
-            items:
-              type: string
-              minLength: 1
-              maxLength: 1000
-          allowed_skills:
-            type: array
-            uniqueItems: true
-            items:
-              type: string
-              minLength: 1
-              maxLength: 1000
-          notes:
-            type: string
-            maxLength: 10000
-        optional: true
+      question: {}
+      available_sources: {}
+      constraints: {}
     result_from:
-      - validate
+      - route
     steps:
       - id: digest
         tool: data.digest
         inputs:
           value: $input.available_sources
+      - id: route
+        script: {module: route.mjs}
+        inputs:
+          question: $input.question
+          available_sources: $input.available_sources
+          constraints: $input.constraints
+          catalog_digest: $steps.digest.digest_result.digest
+        calls:
+          skills: [.#propose]
+        max_calls: 6
+        effects: none
+        outputs:
+          knowledge_route:
+            type: object
+            packet: runx/knowledge-router.route.v1
+    examples:
+      - question: Can API keys be scoped to read-only campaign analytics?
+        available_sources:
+          sources:
+            - id: auth-docs
+              kind: docs
+              summary: Authentication and API key scopes.
+            - id: campaigns-docs
+              kind: docs
+              summary: Campaign analytics fields and export limits.
+          owners:
+            - id: security-team
+              domains:
+                - authentication
+            - id: growth-team
+              domains:
+                - campaigns
+          skills:
+            - id: research
+              purpose: Resolve a bounded source-backed question.
+  propose:
+    description: Propose one route through the supplied catalog, unvalidated, revising the refused proposal its feedback names. route validates what it proposes; call route for a validated route.
+    inputs:
+      question: {}
+      available_sources: {}
+      constraints: {}
+      feedback:
+        type: object
+        description: The last proposal the validator refused and why, for this proposal to revise. Absent on a first proposal.
+        additionalProperties: false
+        required: [proposal, reason, unknown_entries]
+        properties:
+          proposal:
+            type: object
+            description: The refused route_proposal.
+            additionalProperties: true
+          reason:
+            type: string
+            description: The validator's reason for refusing it.
+          unknown_entries:
+            type: array
+            description: The references it named outside the catalog, each with its kind and id.
+            items:
+              type: object
+              additionalProperties: false
+              required: [kind, id]
+              properties:
+                kind: {enum: [source, owner, skill]}
+                id: {type: string}
+        optional: true
+    steps:
       - id: propose
         agent: knowledge-router-propose
         inputs: $input
@@ -252,35 +324,3 @@ methods:
                 type:
                   - object
                   - "null"
-      - id: validate
-        inputs:
-          available_sources: $input.available_sources
-          constraints: $input.constraints
-          route_proposal: $steps.propose.route_proposal
-          catalog_digest: $steps.digest.digest_result.digest
-        tool:
-          module: knowledge-router.mjs
-        outputs:
-          knowledge_route:
-            type: object
-            packet: runx/knowledge-router.route.v1
-    examples:
-      - question: Can API keys be scoped to read-only campaign analytics?
-        available_sources:
-          sources:
-            - id: auth-docs
-              kind: docs
-              summary: Authentication and API key scopes.
-            - id: campaigns-docs
-              kind: docs
-              summary: Campaign analytics fields and export limits.
-          owners:
-            - id: security-team
-              domains:
-                - authentication
-            - id: growth-team
-              domains:
-                - campaigns
-          skills:
-            - id: research
-              purpose: Resolve a bounded source-backed question.

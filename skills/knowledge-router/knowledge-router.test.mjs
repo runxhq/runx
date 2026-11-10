@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import validateRoute, { limitsRefusal } from "./knowledge-router.mjs";
+import route from "./route.mjs";
 const job = {
   question:
     "Which existing source and owner should I inspect before changing artifact lifetime across CLI process exits?",
@@ -151,4 +152,59 @@ test("limits naming an entry outside the catalog refuse whatever is proposed", (
   }
   assert.equal(limitsRefusal(job), null);
   assert.equal(limitsRefusal({ ...job, constraints: undefined }), null);
+});
+// A script's ctx whose proposals arrive only as references, as a field past
+// the inline bound does: each resolves through ctx.read alone.
+const scripted = (proposals) => {
+  const calls = [];
+  const held = new Map();
+  return {
+    calls,
+    ctx: {
+      skill: async (ref, inputs) => {
+        calls.push({ ref, inputs: structuredClone(inputs) });
+        const reference = { reference: calls.length };
+        held.set(reference, proposals[calls.length - 1]);
+        return { route_proposal: reference };
+      },
+      read: async (value) => held.get(value),
+    },
+  };
+};
+const routeInputs = (changes = {}) => ({ question: job.question, available_sources: job.available_sources,
+  constraints: job.constraints, catalog_digest: digest, ...changes });
+test("a refused proposal goes back as feedback, and its revision routes", async () => {
+  const invented = structuredClone(proposal);
+  invented.route.source_ids = ["artifact-store", "invented-docs"];
+  invented.source_matches.push({ source_id: "invented-docs", matching_signal: "lifetime", reason: "Invented." });
+  const { ctx, calls } = scripted([invented, proposal]);
+  const { knowledge_route } = await route(ctx, routeInputs());
+  assert.equal(knowledge_route.verdict, "routed");
+  assert.deepEqual(calls.map((call) => call.ref), [".#propose", ".#propose"]);
+  assert.equal("feedback" in calls[0].inputs, false);
+  assert.deepEqual(calls[1].inputs.feedback, {
+    proposal: invented,
+    reason: "route contains references outside the supplied catalog",
+    unknown_entries: [{ kind: "source", id: "invented-docs" }],
+  });
+});
+test("two retries, and the third refusal is the result", async () => {
+  const { ctx, calls } = scripted([0, 1, 2].map((n) => {
+    const p = structuredClone(proposal);
+    p.route.source_ids = ["registry-pages"];
+    p.source_matches = [{ source_id: "registry-pages", matching_signal: "catalog", reason: "Attempt " + n }];
+    return p;
+  }));
+  const { knowledge_route } = await route(ctx, routeInputs());
+  assert.equal(calls.length, 3);
+  assert.equal(knowledge_route.verdict, "refused");
+  assert.equal(knowledge_route.route.rationale, "route violates allowed_sources");
+  assert.equal(calls[2].inputs.feedback.proposal.source_matches[0].reason, "Attempt 1");
+});
+test("limits outside the catalog refuse before any proposal", async () => {
+  const { ctx, calls } = scripted([]);
+  const { knowledge_route } = await route(ctx, routeInputs({ constraints: { allowed_owners: ["not-in-catalog"] } }));
+  assert.equal(calls.length, 0);
+  assert.equal(knowledge_route.verdict, "refused");
+  assert.equal(knowledge_route.route.rationale, "selection limits must reference entries in the supplied catalog");
 });

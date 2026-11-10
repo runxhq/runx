@@ -1,0 +1,70 @@
+name: revises-a-refused-proposal
+inputs:
+  question: Where is the retention policy documented, and who owns it?
+  available_sources:
+    sources:
+      - id: policy-docs
+        kind: docs
+        summary: Product policy documentation, including data retention.
+    owners:
+      - id: privacy-team
+        domains:
+          - data-retention
+    skills: []
+host:
+  answers:
+    route/0#propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: data-retention
+          rationale: Use the retention FAQ.
+          source_ids:
+            - retention-faq
+        source_matches:
+          - source_id: retention-faq
+            matching_signal: retention policy
+            reason: An invented source the validator refuses.
+        owner_recommendation:
+          owner_id: privacy-team
+          rationale: The catalog assigns data-retention to the privacy team.
+          escalation_required: false
+        next_skill: null
+    route/1#propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: data-retention
+          rationale: The policy documentation covers data retention.
+          source_ids:
+            - policy-docs
+        source_matches:
+          - source_id: policy-docs
+            matching_signal: data retention
+            reason: The catalog's policy documentation includes retention.
+        owner_recommendation:
+          owner_id: privacy-team
+          rationale: The catalog assigns data-retention to the privacy team.
+          escalation_required: false
+        next_skill: null
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - digest
+    - route
+  step_outputs:
+    route:
+      subset:
+        knowledge_route:
+          verdict: routed
+          route:
+            domain: data-retention
+            source_ids:
+              - policy-docs
+          owner_recommendation:
+            owner_id: privacy-team
+          validation:
+            valid: true
+            unknown_entries: []

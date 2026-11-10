@@ -64,7 +64,7 @@ host:
 expect:
   status: sealed
   step_outputs:
-    validate:
+    route:
       subset:
         knowledge_route:
           verdict: routed

@@ -53,7 +53,19 @@ than assigning the closest team.
    destructive decisions—not merely because the topic belongs to those teams.
 6. Validate every source, owner, and skill reference, source-match consistency,
    declared owner domain and supplied selection limits deterministically.
-7. Return `needs_more_context` when no supported route exists.
+7. Send a refused proposal back with the validator's findings, for at most two
+   revisions; the last refusal is the result.
+8. Return `needs_more_context` when no supported route exists.
+
+`route` proposes through its `propose` method and validates in a script: a
+proposal the validator refuses goes back to `propose` as `feedback`: that
+proposal, the validator's reason and any references it named outside the
+catalog. Each revision is a fresh proposal from the same inputs plus that
+feedback. Selection limits that name an entry outside the catalog are the
+caller's to fix, so they are refused before any proposal is made. A proposal
+that fails as a call, rather than as a route, ends the run with its reason;
+only a refused route is revised. `propose` alone returns an unvalidated
+proposal; call `route` for a validated one.
 
 ## Selection limits
 
@@ -108,4 +120,6 @@ owner_id, and skill must exactly match a supplied id. Choose the smallest useful
 set. Use needs_more_context with no selected ids when the catalog cannot support a route. Use
 manual_review for consequential legal, billing, security, privacy, or destructive decisions, not
 merely because the topic belongs to those domains. Do not answer the question or perform the
-follow-up skill.
+follow-up skill. When feedback is supplied, it gives your previous proposal, the validator's
+reason for refusing it, and any references it named outside the catalog: return a revised
+proposal that fixes that reason, using only supplied ids.

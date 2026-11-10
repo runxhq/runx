@@ -1,0 +1,29 @@
+{
+  "question": "How long are webhook delivery logs kept, and which doc says so?",
+  "available_sources": {
+    "sources": [
+      {
+        "id": "webhooks-guide",
+        "kind": "docs",
+        "summary": "Webhook delivery, retries, and how long delivery logs are kept."
+      }
+    ],
+    "owners": [
+      {
+        "id": "platform-team",
+        "domains": [
+          "webhooks"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "id": "research",
+        "purpose": "Resolve a bounded source-backed question from admitted sources."
+      }
+    ]
+  },
+  "constraints": {
+    "allowed_skills": []
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "question": "Our API keys may have leaked in a public repository. Who do we tell, and what do we read?",
+  "available_sources": {
+    "sources": [
+      {
+        "id": "key-rotation-runbook",
+        "kind": "runbook",
+        "summary": "Rotating and revoking API keys after exposure."
+      }
+    ],
+    "owners": [
+      {
+        "id": "security-team",
+        "domains": [
+          "authentication"
+        ]
+      },
+      {
+        "id": "support-lead",
+        "domains": [
+          "escalations"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "id": "research",
+        "purpose": "Resolve a bounded source-backed question from admitted sources."
+      }
+    ]
+  },
+  "constraints": {
+    "allowed_owners": [
+      "support-lead"
+    ]
+  }
+}

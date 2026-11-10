@@ -6,6 +6,46 @@
       "prompt": "Route this question to the validated knowledge source, owner, and next skill.",
       "expected_output": "Return exact source, ownership, escalation, and follow-up references from the supplied catalog.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Route the question in this file through its catalog. It names an owner but no source that answers it.",
+      "expected_output": "manual_review naming finance-ops under refunds with no source, or needs_more_context naming nothing; never a routed verdict without a source, and never needs_more_context with an owner.",
+      "files": [
+        "evals/files/owner-without-source.json"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Route the question in this file through its catalog, within its selection limits.",
+      "expected_output": "A validated route through key-rotation-runbook whose owner, if any, is support-lead under escalations; never security-team, which the limits leave out.",
+      "files": [
+        "evals/files/allowed-owner.json"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Route the question in this file through its catalog, within its selection limits.",
+      "expected_output": "A validated route through webhooks-guide with no next skill, since the limits allow none.",
+      "files": [
+        "evals/files/no-skills-allowed.json"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Route the question in this file through its catalog, within its selection limits. Its only relevant source is excluded.",
+      "expected_output": "needs_more_context naming nothing, or manual_review naming security-team under authentication with no source; never the excluded key-rotation-runbook.",
+      "files": [
+        "evals/files/only-source-excluded.json"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Route the question in this file through its catalog. It names an owner but no source that answers it.",
+      "expected_output": "manual_review naming facilities under office-leases with no source, or needs_more_context naming nothing; never needs_more_context with an owner.",
+      "files": [
+        "evals/files/owner-only-lease.json"
+      ]
     }
   ]
 }

@@ -1,0 +1,33 @@
+name: refuses-limits-outside-the-catalog-before-proposing
+inputs:
+  question: Where is the retention policy documented?
+  available_sources:
+    sources:
+      - id: policy-docs
+        kind: docs
+        summary: Product policy documentation.
+    owners: []
+    skills: []
+  constraints:
+    allowed_sources:
+      - retention-faq
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - digest
+    - route
+  step_outputs:
+    route:
+      subset:
+        knowledge_route:
+          verdict: refused
+          route:
+            rationale: selection limits must reference entries in the supplied catalog
+            source_ids: []
+          validation:
+            valid: false
+            constraints_applied:
+              allowed_sources:
+                - retention-faq

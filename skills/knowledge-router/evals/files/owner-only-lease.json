@@ -1,0 +1,32 @@
+{
+  "question": "Who signs off on renewing the Hobart office lease?",
+  "available_sources": {
+    "sources": [
+      {
+        "id": "campaigns-docs",
+        "kind": "docs",
+        "summary": "Creating, scheduling and analysing campaigns."
+      }
+    ],
+    "owners": [
+      {
+        "id": "facilities",
+        "domains": [
+          "office-leases"
+        ]
+      },
+      {
+        "id": "growth-team",
+        "domains": [
+          "campaigns"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "id": "research",
+        "purpose": "Resolve a bounded source-backed question from admitted sources."
+      }
+    ]
+  }
+}

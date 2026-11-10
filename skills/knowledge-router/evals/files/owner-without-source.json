@@ -1,0 +1,37 @@
+{
+  "question": "Who approves refunds over $500 for enterprise customers?",
+  "available_sources": {
+    "sources": [
+      {
+        "id": "campaigns-docs",
+        "kind": "docs",
+        "summary": "Creating, scheduling and analysing campaigns."
+      },
+      {
+        "id": "webhooks-guide",
+        "kind": "docs",
+        "summary": "Webhook delivery and retries."
+      }
+    ],
+    "owners": [
+      {
+        "id": "finance-ops",
+        "domains": [
+          "refunds"
+        ]
+      },
+      {
+        "id": "growth-team",
+        "domains": [
+          "campaigns"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "id": "research",
+        "purpose": "Resolve a bounded source-backed question from admitted sources."
+      }
+    ]
+  }
+}

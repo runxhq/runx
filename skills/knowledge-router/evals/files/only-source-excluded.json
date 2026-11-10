@@ -1,0 +1,37 @@
+{
+  "question": "How do we rotate a leaked API key?",
+  "available_sources": {
+    "sources": [
+      {
+        "id": "key-rotation-runbook",
+        "kind": "runbook",
+        "summary": "Rotating and revoking API keys after exposure."
+      },
+      {
+        "id": "campaigns-docs",
+        "kind": "docs",
+        "summary": "Creating, scheduling and analysing campaigns."
+      }
+    ],
+    "owners": [
+      {
+        "id": "security-team",
+        "domains": [
+          "authentication"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "id": "research",
+        "purpose": "Resolve a bounded source-backed question from admitted sources."
+      }
+    ]
+  },
+  "constraints": {
+    "excluded_sources": [
+      "key-rotation-runbook"
+    ],
+    "notes": "The runbook is being rewritten and is excluded."
+  }
+}

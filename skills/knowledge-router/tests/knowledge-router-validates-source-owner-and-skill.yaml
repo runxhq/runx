@@ -50,10 +50,9 @@ expect:
     schema: runx.receipt.v1
   steps:
     - digest
-    - propose
-    - validate
+    - route
   step_outputs:
-    validate:
+    route:
       subset:
         knowledge_route:
           verdict: routed

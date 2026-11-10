@@ -10,7 +10,7 @@ inputs:
     skills: []
 host:
   answers:
-    propose:
+    route/0#propose:
       route_proposal:
         verdict: routed
         route:
@@ -24,11 +24,50 @@ host:
             reason: Invented source must be rejected.
         owner_recommendation: null
         next_skill: null
+    route/1#propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: policy
+          rationale: Use the retention FAQ.
+          source_ids:
+            - retention-faq
+        source_matches:
+          - source_id: retention-faq
+            matching_signal: retention policy
+            reason: Still invented after the feedback.
+        owner_recommendation: null
+        next_skill: null
+    route/2#propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: policy
+          rationale: Use the retention handbook.
+          source_ids:
+            - retention-handbook
+        source_matches:
+          - source_id: retention-handbook
+            matching_signal: retention policy
+            reason: Invented a third time.
+        owner_recommendation: null
+        next_skill: null
 expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
   steps:
     - digest
-    - propose
-    - validate
+    - route
+  step_outputs:
+    route:
+      subset:
+        knowledge_route:
+          verdict: refused
+          route:
+            rationale: route contains references outside the supplied catalog
+            source_ids: []
+          validation:
+            valid: false
+            unknown_entries:
+              - {kind: source, id: retention-handbook}
