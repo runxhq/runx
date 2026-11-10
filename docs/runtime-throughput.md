@@ -294,11 +294,16 @@ process of its test binary that runs that test alone.
 - **Journey 5, memory.** The runtime bench lays down a personal memory of
   100, 10,000 and 100,000 entries, each in a fresh home, through the store's
   own append: a third of them the person's words, a tenth corrected, a
-  twentieth disabled and some observations superseded, placed by their
-  distance from the newest. It runs `runx/memory#index` and `#search` as any
-  caller does, and records the rows the index's listings visited and the most
-  the pages it read could hold with the disabled rows within them, at each
-  size, and the pages a search read per stream and the history rows it read.
+  twentieth disabled, some observations superseded and a seventh dated, half
+  of those ended, placed by their distance from the newest, and the same ten
+  standing rules at the oldest depths at every size, eight that apply, one
+  ended and one disabled. It runs `runx/memory#index`, with and without a
+  focus on a word every entry holds, and `#search` as any caller does. It
+  checks the index leads with the eight rules that apply and no other, and
+  records the rows the index's listings visited and the most the pages it
+  read could hold with the disabled and ended rows within them, at each
+  size, the pages a search read per stream and the history rows it read, and
+  the same two for the index's focus.
 - **Journey 7, artifacts.** The runtime bench takes artifacts of 1 KiB, 1 MiB
   and 64 MiB. It reads each whole with `artifact.read` in 64 KiB pages and
   records the most any page read from the store past the bytes it returned.

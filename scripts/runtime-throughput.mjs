@@ -965,9 +965,11 @@ function journeyBudgets() {
       journey: 5,
       name: "Memory",
       budgets: [
-        { id: "index_reads_what_it_shows", says: "The index reads only the pages its budget reads, counted in rows visited from the query plan: the same at 10,000 entries as at 100,000, and no more than those pages hold with the disabled rows within them.", holds: (m) => flatAcross(m.index_rows_visited, ["10000", "100000"]) && ["100", "10000", "100000"].every((size) => atMost(m.index_rows_visited?.[size], m.index_rows_its_budget_reads?.[size])) },
+        { id: "index_reads_what_it_shows", says: "The index reads only the pages its budget reads, counted in rows visited from the query plan: the same at 10,000 entries as at 100,000, and no more than those pages hold with the disabled and expired rows within them. Its standing rules are read from an index of their own, so the rows they cost don't grow with the facts.", holds: (m) => flatAcross(m.index_rows_visited, ["10000", "100000"]) && ["100", "10000", "100000"].every((size) => atMost(m.index_rows_visited?.[size], m.index_rows_its_budget_reads?.[size])) },
         { id: "search_one_page_per_stream", says: "Search reads one page per stream.", holds: (m) => exactly(m.search_pages_per_stream, 1) },
         { id: "search_current_entries_only", says: "Search reads current entries only.", holds: (m) => exactly(m.search_history_rows_read, 0) },
+        { id: "focus_one_search_page_per_stream", says: "With a focus on a word every entry holds, the index reads one search page per fact stream.", holds: (m) => exactly(m.index_focus_search_pages_per_stream, 1) },
+        { id: "focus_current_entries_only", says: "With a focus, the index reads current entries only.", holds: (m) => exactly(m.index_focus_history_rows_read, 0) },
       ],
     },
     {

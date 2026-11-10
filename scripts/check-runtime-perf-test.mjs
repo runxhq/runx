@@ -94,6 +94,14 @@ try {
     "journey_5.index_reads_what_it_shows",
   );
 
+  const pagedFocus = journeys();
+  pagedFocus["5"].index_focus_search_pages_per_stream = 2;
+  expectFail(
+    runQualityVerification(quality({ journeys: pagedFocus })),
+    "an index whose focus pages through its matches",
+    "journey_5.focus_one_search_page_per_stream",
+  );
+
   const growingReads = journeys();
   growingReads["3"].settle_reads_per_call["1000"] = 300;
   expectFail(
@@ -304,6 +312,8 @@ function journeys() {
       index_rows_its_budget_reads: { 100: 40, 10000: 40, 100000: 40 },
       search_pages_per_stream: 1,
       search_history_rows_read: 0,
+      index_focus_search_pages_per_stream: 1,
+      index_focus_history_rows_read: 0,
     },
     6: {
       queries_per_page: { 10: 1, 100: 1, 1000: 1 },

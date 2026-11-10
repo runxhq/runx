@@ -1,10 +1,13 @@
 //! performance.md's journey 5, memory, counted: the index and search over a
 //! personal memory of 100, 10,000 and 100,000 entries. Each size is laid down
 //! in a fresh home through the store's own append, a third of them the
-//! person's words, a tenth corrected, a twentieth disabled and some
-//! observations superseded, placed by their distance from the newest so the
-//! newest pages read alike at every size. Then `runx/memory#index` and
-//! `#search` run as any caller runs them, and the store counts what they read.
+//! person's words, a tenth corrected, a twentieth disabled, some observations
+//! superseded, and a seventh dated, half of those ended, placed by their
+//! distance from the newest so the newest pages read alike at every size.
+//! The same ten standing rules sit at the oldest depths at every size: eight
+//! that apply, one ended and one disabled. Then `runx/memory#index`, with and
+//! without a focus on a word every entry holds, and `#search` run as any
+//! caller runs them, and the store counts what they read.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -25,6 +28,18 @@ const ROWS_A_PAGE_KEEPS: u64 = 101;
 /// The streams a personal index or search reads: the person's words and the
 /// observations.
 const STREAMS: u64 = 2;
+/// The oldest entries the standing rules are planted among, a third of them
+/// the person's words, so ten rules at every size.
+const RULE_DEPTH: usize = 30;
+/// The standing rules that apply: the ten less the one ended and the one
+/// disabled.
+const RULES_THAT_APPLY: usize = 8;
+/// A focus every entry's text holds.
+const COMMON_WORD: &str = "entry";
+/// An end date long past by any run's clock.
+const ENDED: &str = "2000-01-01";
+/// An end date no run's clock reaches.
+const LATER: &str = "2999-12-31";
 
 #[allow(clippy::expect_used)]
 pub(super) fn register() {
@@ -40,6 +55,8 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
     let mut rows_its_budget_reads = JsonObject::new();
     let mut search_pages_per_stream = 0_u64;
     let mut search_history_rows_read = 0_u64;
+    let mut focus_search_pages_per_stream = 0_u64;
+    let mut focus_history_rows_read = 0_u64;
     let mut sizes = JsonObject::new();
     for (label, entries) in SIZES {
         let memory = Memory::new()?;
@@ -49,12 +66,13 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
             serde_json::json!({"levels": [{"level": "personal"}]}),
         )?;
         let shown = entries_of(&index)?;
-        if shown == 0 {
+        if shown <= RULES_THAT_APPLY as u64 {
             return Err(std::io::Error::other(format!(
-                "the index of {entries} entries showed none: {index}"
+                "the index of {entries} entries showed no fact: {index}"
             ))
             .into());
         }
+        rules_lead(&index, entries)?;
         let pages = counted.provider_calls;
         rows_visited.insert(label.to_owned(), count(counted.store_key_rows_visited));
         rows_its_budget_reads.insert(
@@ -74,6 +92,14 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
         search_pages_per_stream =
             search_pages_per_stream.max(searched.store_search_pages.div_ceil(STREAMS));
         search_history_rows_read = search_history_rows_read.max(searched.store_event_rows_read);
+        let (focused, focus_counted) = memory.run(
+            "index",
+            serde_json::json!({"levels": [{"level": "personal"}], "focus": COMMON_WORD}),
+        )?;
+        rules_lead(&focused, entries)?;
+        focus_search_pages_per_stream =
+            focus_search_pages_per_stream.max(focus_counted.store_search_pages.div_ceil(STREAMS));
+        focus_history_rows_read = focus_history_rows_read.max(focus_counted.store_event_rows_read);
         sizes.insert(
             label.to_owned(),
             JsonValue::Object(JsonObject::from([
@@ -99,6 +125,14 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
                     "search_history_rows_read".to_owned(),
                     count(searched.store_event_rows_read),
                 ),
+                (
+                    "index_focus_search_pages".to_owned(),
+                    count(focus_counted.store_search_pages),
+                ),
+                (
+                    "index_focus_rows_visited".to_owned(),
+                    count(focus_counted.store_key_rows_visited),
+                ),
             ])),
         );
     }
@@ -119,8 +153,39 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
             "search_history_rows_read".to_owned(),
             count(search_history_rows_read),
         ),
+        (
+            "index_focus_search_pages_per_stream".to_owned(),
+            count(focus_search_pages_per_stream),
+        ),
+        (
+            "index_focus_history_rows_read".to_owned(),
+            count(focus_history_rows_read),
+        ),
         ("sizes".to_owned(), JsonValue::Object(sizes)),
     ])))
+}
+
+/// The index of `entries` leads with the standing rules that apply, every
+/// one, and only them: the ended and the disabled rule never show.
+fn rules_lead(index: &serde_json::Value, entries: usize) -> Result<(), Box<dyn Error>> {
+    let list = index["entries"].get("data").unwrap_or(&index["entries"]);
+    let purposes = list
+        .as_array()
+        .ok_or_else(|| format!("no entries in {index}"))?
+        .iter()
+        .map(|entry| entry["labels"]["purpose"].as_str().unwrap_or_default())
+        .collect::<Vec<_>>();
+    let rules = purposes
+        .iter()
+        .take_while(|purpose| **purpose == "mandate")
+        .count();
+    if rules != RULES_THAT_APPLY || purposes.iter().skip(rules).any(|p| *p == "mandate") {
+        return Err(std::io::Error::other(format!(
+            "the index of {entries} entries led with {rules} standing rules, not {RULES_THAT_APPLY}: {purposes:?}"
+        ))
+        .into());
+    }
+    Ok(())
 }
 
 fn count(value: u64) -> JsonValue {
@@ -161,64 +226,104 @@ impl Memory {
     }
 
     /// `entries` entries on `said:personal` and `observed:personal`, oldest
-    /// first, each event at its own time.
+    /// first, each event at its own time. The person's words among the
+    /// oldest [`RULE_DEPTH`] are the standing rules, the same ten at every
+    /// size, and nothing else changes them; every other entry is corrected,
+    /// superseded, disabled or dated by its distance from the newest.
     fn lay_down(&self, entries: usize) -> Result<(), Box<dyn Error>> {
         let mut history = Vec::with_capacity(entries + entries / 5);
         for index in 0..entries {
             // Its distance from the newest entry, which places it.
             let distance = entries - 1 - index;
             let said = distance.is_multiple_of(3);
+            // The rules, numbered from the oldest: the first is disabled, the
+            // second ended, the rest apply.
+            let rule = (said && index < RULE_DEPTH).then_some(index / 3);
             let stream = format!(
                 "{PACKAGE}/{}:personal",
                 if said { "said" } else { "observed" }
             );
             let key = format!("{index:064x}");
-            let text = if distance % 50 == 1 {
+            let text = if rule.is_some() {
+                format!("Entry {index} is a rule the probe keeps standing.")
+            } else if distance % 50 == 1 {
                 format!("Entry {index} mentions a lighthouse on the point.")
             } else {
                 format!("Entry {index} is one of the probe's entries.")
             };
-            let at = |half: u64| committed_at(index as u64, half);
-            let mut event = |event_type: &str, data: serde_json::Value, half: u64| {
-                history.push(HistoryEvent {
-                    stream: stream.clone(),
-                    key: key.clone(),
-                    event_type: event_type.to_owned(),
-                    data: serde_json::from_value(data).unwrap_or_default(),
-                    standing: false,
-                    valid_until: None,
-                    committed_at: at(half),
-                    writer_package: PACKAGE.to_owned(),
-                });
+            // A seventh are dated, half of them ended, and one rule ended.
+            let valid_until = match rule {
+                Some(1) => Some(ENDED),
+                Some(_) => None,
+                None if distance % 14 == 2 => Some(ENDED),
+                None if distance % 7 == 2 => Some(LATER),
+                None => None,
             };
+            let at = |half: u64| committed_at(index as u64, half);
+            let mut event =
+                |event_type: &str, data: serde_json::Value, standing: bool, half: u64| {
+                    history.push(HistoryEvent {
+                        stream: stream.clone(),
+                        key: key.clone(),
+                        event_type: event_type.to_owned(),
+                        data: serde_json::from_value(data).unwrap_or_default(),
+                        standing,
+                        valid_until: valid_until
+                            .filter(|_| event_type != "memory.disabled")
+                            .map(str::to_owned),
+                        committed_at: at(half),
+                        writer_package: PACKAGE.to_owned(),
+                    });
+                };
             let fact = serde_json::json!({"text": text, "summary": text, "date": "2026-01-01", "sources": ["probe"]});
-            let confirmed = |mut fact: serde_json::Value| {
-                fact["purpose"] = serde_json::json!("confirmed_memory");
+            let confirmed = |mut fact: serde_json::Value, purpose: &str| {
+                fact["purpose"] = serde_json::json!(purpose);
                 fact["confirmation"] = serde_json::json!({"approved": true});
                 fact
             };
+            let disabled = || {
+                serde_json::json!({
+                    "reason": "The probe disables a twentieth.",
+                    "confirmation": {"approved": true},
+                })
+            };
+            if let Some(number) = rule {
+                event("memory.remembered", confirmed(fact, "mandate"), true, 0);
+                if number == 0 {
+                    event("memory.disabled", disabled(), false, 2);
+                }
+                continue;
+            }
             if said {
-                event("memory.remembered", confirmed(fact.clone()), 0);
+                event(
+                    "memory.remembered",
+                    confirmed(fact.clone(), "confirmed_memory"),
+                    false,
+                    0,
+                );
                 if distance % 10 == 3 {
                     let mut corrected = fact.clone();
                     corrected["text"] = serde_json::json!(format!("Entry {index}, corrected."));
                     corrected["summary"] = corrected["text"].clone();
-                    event("memory.corrected", confirmed(corrected), 1);
+                    event(
+                        "memory.corrected",
+                        confirmed(corrected, "confirmed_memory"),
+                        false,
+                        1,
+                    );
                 }
             } else {
-                event("memory.observed", fact.clone(), 0);
+                event("memory.observed", fact.clone(), false, 0);
                 if distance % 10 == 5 {
                     let mut superseding = fact.clone();
                     superseding["text"] =
                         serde_json::json!(format!("Entry {index}, observed again."));
                     superseding["summary"] = superseding["text"].clone();
-                    event("memory.observed", superseding, 1);
+                    event("memory.observed", superseding, false, 1);
                 }
             }
             if distance % 20 == 7 {
-                let mut disabled = serde_json::json!({"reason": "The probe disables a twentieth."});
-                disabled["confirmation"] = serde_json::json!({"approved": true});
-                event("memory.disabled", disabled, 2);
+                event("memory.disabled", disabled(), false, 2);
             }
         }
         runx_runtime::probe_fixtures::lay_down_private_history(&self.env, &history)?;
