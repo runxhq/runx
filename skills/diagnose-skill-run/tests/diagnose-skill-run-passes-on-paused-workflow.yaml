@@ -30,7 +30,7 @@ host:
     diagnose:
       diagnosis:
         verdict: pass
-        failure_summary: No failure. The graph paused as designed while awaiting caller cognitive work.
+        failure_summary: No failure. The workflow paused as designed while awaiting caller cognitive work.
         improvement_proposals: []
         next_test_checks:
           - target skill completes when a valid agent response is supplied

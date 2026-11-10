@@ -15,7 +15,7 @@ host:
         change_set:
           change_set_id: change-set-context-regression
           thread_locator: objective://runtime-context-regression
-          summary: Prove graph context materialization.
+          summary: Prove workflow context materialization.
           category: runtime
           severity: high
           recommended_lane: code-plan
@@ -35,7 +35,7 @@ host:
             - Native and agent-produced context remains addressable.
           phases:
             - id: validate-context
-              name: Validate graph context
+              name: Validate workflow context
               depends_on: []
               parallelizable: false
               repo_change_requests: []

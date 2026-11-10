@@ -64,7 +64,7 @@ fn a_pending_step_is_planned_as_its_first_attempt() {
         context_from: None,
     }];
     let state = SequentialWorkflow {
-        workflow_id: "graph".to_owned(),
+        workflow_id: "workflow".to_owned(),
         state: WorkflowState::Pending,
         steps: vec![SequentialWorkflowStep {
             step_id: "first".to_owned(),

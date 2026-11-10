@@ -303,6 +303,6 @@ mod tests {
             refused.contains("context skill 'workflow/plan' must not target workflow stages"),
             "{refused}"
         );
-        validate_local_context_ref("apply", "graph/plan").map_err(|error| error.to_string())
+        validate_local_context_ref("apply", "rubric/plan").map_err(|error| error.to_string())
     }
 }

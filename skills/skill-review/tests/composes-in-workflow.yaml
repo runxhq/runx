@@ -12,7 +12,7 @@ host:
           - Choose any real input, use case and downstream consumer outside this fixture.
         value_judgment: thin_wrapper
         value_reason: The local test proves a native digest call; it does not establish useful domain judgment or a new operator capability.
-        composition: A parent could consume the digest, but this fixture does not demonstrate a meaningful graph job beyond the existing native data.digest capability.
+        composition: A parent could consume the digest, but this fixture does not demonstrate a meaningful workflow job beyond the existing native data.digest capability.
       trust_assessment:
         tier: local_test
         caveats:

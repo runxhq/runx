@@ -1326,7 +1326,7 @@ fn write_approval_workflow_skill(root: &Path) -> Result<PathBuf, Box<dyn std::er
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: approval-workflow\ndescription: approval-workflow fixture.\n---\n# Approval Graph\n",
+        "---\nname: approval-workflow\ndescription: approval-workflow fixture.\n---\n# Approval Workflow\n",
     )?;
     fs::write(
         skill_dir.join("fail.mjs"),

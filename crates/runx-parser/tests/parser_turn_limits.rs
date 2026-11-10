@@ -274,7 +274,7 @@ methods:
       agent: omitted
       inputs: $input
       outputs: {summary: {type: string}}
-  graph:
+  workflow:
     steps:
     - id: read
       operation: fixture/forge/issue.read
@@ -291,7 +291,7 @@ methods:
     );
     assert!(allowance(&manifest, "omitted")?.operations.is_empty());
     assert!(matches!(
-        manifest.methods["graph"].workflow.steps[0].kind,
+        manifest.methods["workflow"].workflow.steps[0].kind,
         StepKind::Operation(_)
     ));
     // A requirement lists exactly the operations the steps name, once each.

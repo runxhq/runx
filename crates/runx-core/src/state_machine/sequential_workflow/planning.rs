@@ -128,7 +128,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let index = create_sequential_workflow_step_index(&definitions);
-        let mut workflow = create_sequential_workflow("graph", &definitions);
+        let mut workflow = create_sequential_workflow("workflow", &definitions);
         workflow.steps[0].state = WorkflowStepState::Succeeded;
 
         let canonical =

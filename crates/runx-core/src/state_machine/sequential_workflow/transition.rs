@@ -227,7 +227,7 @@ mod tests {
             context_from: None,
         }];
         let index = create_sequential_workflow_step_index(&definitions);
-        let mut borrowed = create_sequential_workflow("graph", &definitions);
+        let mut borrowed = create_sequential_workflow("workflow", &definitions);
         let mut owned = borrowed.clone();
         let mut direct = borrowed.clone();
         let events = vec![

@@ -552,7 +552,7 @@ fn write_inline_workflow_timeout_skill(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: inline-workflow-timeout\ndescription: inline-workflow-timeout fixture.\n---\n# Inline Graph Timeout\n",
+        "---\nname: inline-workflow-timeout\ndescription: inline-workflow-timeout fixture.\n---\n# Inline Workflow Timeout\n",
     )?;
     let wait = serde_json::to_string(&format!("read go < '{}'", gate.display()))?;
     fs::write(

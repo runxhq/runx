@@ -310,7 +310,7 @@ does not need storage, publication, or a provider action. The result can bind a
 later comparison to the same text, but it does not prove who authored the note
 or that anyone acted on it.
 
-Supply the complete note as `note`. The graph passes that value to Runx's
+Supply the complete note as `note`. The workflow passes that value to Runx's
 native `data.digest` capability using UTF-8 text encoding. Runx computes the
 digest, seals the local execution receipt, and returns `digest_result` with the
 algorithm and digest. No package JavaScript, network access, credentials, or

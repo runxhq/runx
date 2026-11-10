@@ -1013,7 +1013,7 @@ methods:
             &child.join("run.yaml"),
             r#"minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from: [judge]
     steps:
       - id: judge
@@ -1063,7 +1063,7 @@ methods:
             &child.join("run.yaml"),
             r#"minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from: [judge]
     steps:
       - id: judge

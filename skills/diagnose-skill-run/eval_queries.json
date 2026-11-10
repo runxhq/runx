@@ -11,7 +11,7 @@
   {"query": "Write a postmortem for yesterday's outage.", "should_trigger": false},
   {"query": "Diagnose why this skill run failed and propose the smallest fix.", "should_trigger": true},
   {"query": "Receipt rx_01J9QK7 came back failed at step 4. Work out the root cause, not just the symptom.", "should_trigger": true},
-  {"query": "My runx graph keeps getting a scope denial on the publish step. What's wrong, and what's the minimal change?", "should_trigger": true},
+  {"query": "My runx workflow keeps getting a scope denial on the publish step. What's wrong, and what's the minimal change?", "should_trigger": true},
   {"query": "This skill run finished, but the output looks wrong. Look at its receipt and tell me what happened.", "should_trigger": true},
   {"query": "Here's the output from the failing test case. Diagnose it and suggest one bounded improvement.", "should_trigger": true},
   {"query": "Explain this failed invocation from its input-contract error.", "should_trigger": true},

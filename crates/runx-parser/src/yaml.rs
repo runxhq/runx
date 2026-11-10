@@ -532,7 +532,7 @@ mod tests {
             "methods:\n  one:\n    outputs: &shared\n      result: string",
             "methods:\n  one:\n    outputs: *shared",
             "methods:\n  one:\n    runx:\n      <<: *shared",
-            "methods:\n  one:\n    type: !custom graph",
+            "methods:\n  one:\n    type: !custom workflow",
         ] {
             let result = assert_execution_profile_yaml_subset("method_manifest", literal);
             assert!(result.is_err(), "expected rejection, got {result:?}");

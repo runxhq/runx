@@ -1367,7 +1367,7 @@ mod tests {
                 context_from: None,
             })
             .collect::<Vec<_>>();
-        let mut state = create_sequential_workflow("graph", &definitions);
+        let mut state = create_sequential_workflow("workflow", &definitions);
         for (step, status) in state.steps.iter_mut().zip(statuses) {
             step.state = status.clone();
         }

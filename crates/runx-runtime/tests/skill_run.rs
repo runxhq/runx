@@ -921,7 +921,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
     let envelope = object_field(invocation, "envelope").ok_or("missing envelope")?;
     let instructions = string_field(envelope, "instructions").ok_or("missing instructions")?;
-    assert!(instructions.contains("# Graph Issue To PR"));
+    assert!(instructions.contains("# Workflow Issue To PR"));
     assert!(instructions.contains("Use the full issue context."));
     let envelope_inputs = object_field(envelope, "inputs").ok_or("missing inputs")?;
     assert_eq!(
@@ -3545,14 +3545,14 @@ fn write_workflow_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-issue-to-pr\ndescription: workflow-issue-to-pr fixture.\n---\n# Graph Issue To PR\n\n## Agent task: workflow-decide\n\nUse the full issue context.\n",
+        "---\nname: workflow-issue-to-pr\ndescription: workflow-issue-to-pr fixture.\n---\n# Workflow Issue To PR\n\n## Agent task: workflow-decide\n\nUse the full issue context.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -3579,7 +3579,7 @@ fn write_workflow_agent_task_with_context_skill(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-agent-context-skill\ndescription: workflow-agent-context-skill fixture.\n---\n# Graph Agent Context Skill\n\n## Agent task: apply taste guidance\n\nApply taste guidance.\n",
+        "---\nname: workflow-agent-context-skill\ndescription: workflow-agent-context-skill fixture.\n---\n# Workflow Agent Context Skill\n\n## Agent task: apply taste guidance\n\nApply taste guidance.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
@@ -3587,7 +3587,7 @@ fn write_workflow_agent_task_with_context_skill(
             r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from:
       - apply_taste
     steps:
@@ -3618,7 +3618,7 @@ fn write_workflow_gated_agent_task_skill_with_field(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-gated-agent-task\ndescription: workflow-gated-agent-task fixture.\n---\n# Graph Gated Agent Step\n\n## Agent task: gated-decide\n\nGated-decide.\n\n## Agent task: gated-followup\n\nGated-followup.\n",
+        "---\nname: workflow-gated-agent-task\ndescription: workflow-gated-agent-task fixture.\n---\n# Workflow Gated Agent Step\n\n## Agent task: gated-decide\n\nGated-decide.\n\n## Agent task: gated-followup\n\nGated-followup.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
@@ -3626,7 +3626,7 @@ fn write_workflow_gated_agent_task_skill_with_field(
             r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from:
       - gated
     steps:
@@ -3689,7 +3689,7 @@ methods:
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-nested-agent\ndescription: workflow-nested-agent fixture.\n---\n# Graph Nested agent\n",
+        "---\nname: workflow-nested-agent\ndescription: workflow-nested-agent fixture.\n---\n# Workflow Nested agent\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
@@ -3697,7 +3697,7 @@ methods:
             r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -3743,7 +3743,7 @@ fn write_workflow_importing_workflow_with_bundled_tool(
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -3766,7 +3766,7 @@ methods:
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       message:
         type: string
@@ -3790,14 +3790,14 @@ fn write_workflow_tool_skill_at(skill_dir: &Path) -> Result<PathBuf, Box<dyn std
     fs::create_dir_all(skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-tool\ndescription: workflow-tool fixture.\n---\n# Graph Tool\n",
+        "---\nname: workflow-tool\ndescription: workflow-tool fixture.\n---\n# Workflow Tool\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -3820,14 +3820,14 @@ fn write_workflow_agent_artifact_context_skill(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-agent-artifact-context\ndescription: workflow-agent-artifact-context fixture.\n---\n# Graph Agent Artifact Context\n\n## Agent task: workflow-author\n\nWorkflow-author.\n",
+        "---\nname: workflow-agent-artifact-context\ndescription: workflow-agent-artifact-context fixture.\n---\n# Workflow Agent Artifact Context\n\n## Agent task: workflow-author\n\nWorkflow-author.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from:
       - echo
     steps:
@@ -3851,14 +3851,14 @@ fn write_workflow_agent_then_input_tool_skill(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-agent-then-input-tool\ndescription: workflow-agent-then-input-tool fixture.\n---\n# Graph Agent Then Input Tool\n\n## Agent task: workflow-author\n\nWorkflow-author.\n",
+        "---\nname: workflow-agent-then-input-tool\ndescription: workflow-agent-then-input-tool fixture.\n---\n# Workflow Agent Then Input Tool\n\n## Agent task: workflow-author\n\nWorkflow-author.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -3889,14 +3889,14 @@ fn write_workflow_optional_json_tool_skill(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-optional-json-tool\ndescription: workflow-optional-json-tool fixture.\n---\n# Graph Optional JSON Tool\n",
+        "---\nname: workflow-optional-json-tool\ndescription: workflow-optional-json-tool fixture.\n---\n# Workflow Optional JSON Tool\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -3920,14 +3920,14 @@ fn write_workflow_required_input_skill(root: &Path) -> Result<PathBuf, Box<dyn s
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-required-input\ndescription: workflow-required-input fixture.\n---\n# Graph Required Input\n",
+        "---\nname: workflow-required-input\ndescription: workflow-required-input fixture.\n---\n# Workflow Required Input\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       lead:
         description: Lead packet to route.
@@ -3935,7 +3935,7 @@ methods:
       - approve
     steps:
       - id: approve
-        ask: {gate: workflow-required-input.approve, reason: approve the graph}
+        ask: {gate: workflow-required-input.approve, reason: approve the workflow}
 "#,
     )?;
     Ok(skill_dir)
@@ -3955,12 +3955,12 @@ fn write_workflow_approval_resume_skill(
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from:
       - approve
     steps:
       - id: approve
-        ask: {gate: approval-resume.approve, reason: approve the test graph, type: test.claim-bound}
+        ask: {gate: approval-resume.approve, reason: approve the test workflow, type: test.claim-bound}
 "#,
     )?;
     Ok(skill_dir)
@@ -4091,14 +4091,14 @@ console.log(JSON.stringify({ nested: { message: input.message } }));
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-nested-cli\ndescription: workflow-nested-cli fixture.\n---\n# Graph Nested CLI\n",
+        "---\nname: workflow-nested-cli\ndescription: workflow-nested-cli fixture.\n---\n# Workflow Nested CLI\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -4128,7 +4128,7 @@ fn write_workflow_nested_registry_skill_with_ref(
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-nested-registry\ndescription: workflow-nested-registry fixture.\n---\n# Graph Nested Registry\n",
+        "---\nname: workflow-nested-registry\ndescription: workflow-nested-registry fixture.\n---\n# Workflow Nested Registry\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
@@ -4136,7 +4136,7 @@ fn write_workflow_nested_registry_skill_with_ref(
             r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from:
       - nested
     steps:
@@ -4186,14 +4186,14 @@ console.log(JSON.stringify({ nested: { message: input.message } }));
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-stage-cli\ndescription: workflow-stage-cli fixture.\n---\n# Graph Stage CLI\n",
+        "---\nname: workflow-stage-cli\ndescription: workflow-stage-cli fixture.\n---\n# Workflow Stage CLI\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -4256,14 +4256,14 @@ console.log(JSON.stringify({ counted: { count } }));
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-nested-cli-counter\ndescription: workflow-nested-cli-counter fixture.\n---\n# Graph Nested CLI Counter\n",
+        "---\nname: workflow-nested-cli-counter\ndescription: workflow-nested-cli-counter fixture.\n---\n# Workflow Nested CLI Counter\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       count_file:
         type: string
@@ -4319,14 +4319,14 @@ console.log(JSON.stringify({ nested: { message: input.message } }));
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-nested-x-yaml-cli\ndescription: workflow-nested-x-yaml-cli fixture.\n---\n# Graph Nested X YAML CLI\n",
+        "---\nname: workflow-nested-x-yaml-cli\ndescription: workflow-nested-x-yaml-cli fixture.\n---\n# Workflow Nested X YAML CLI\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     inputs:
       thread_title:
         type: string
@@ -4394,14 +4394,14 @@ fn write_workflow_when_branch_skill(root: &Path) -> Result<PathBuf, Box<dyn std:
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: workflow-when-branch\ndescription: workflow-when-branch fixture.\n---\n# Graph When Branch\n\n## Agent task: when-decide\n\nWhen-decide.\n\n## Agent task: when-go\n\nWhen-go.\n\n## Agent task: when-stop\n\nWhen-stop.\n",
+        "---\nname: workflow-when-branch\ndescription: workflow-when-branch fixture.\n---\n# Workflow When Branch\n\n## Agent task: when-decide\n\nWhen-decide.\n\n## Agent task: when-go\n\nWhen-go.\n\n## Agent task: when-stop\n\nWhen-stop.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
 minimum_runx: 0.12.0
 methods:
-  graph:
+  workflow:
     result_from:
       - branch_go
       - branch_stop
@@ -4599,12 +4599,12 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
     crate::support::write_test_skill_package(
         &candidate,
         "---\nname: candidate\ndescription: Runs acme's registry child.\n---\n# Candidate\n",
-        "minimum_runx: 0.12.0\nmethods:\n  graph:\n    result_from: [nested]\n    steps:\n      - id: nested\n        skill: registry:acme/registry-child@1.0.0\n",
+        "minimum_runx: 0.12.0\nmethods:\n  workflow:\n    result_from: [nested]\n    steps:\n      - id: nested\n        skill: registry:acme/registry-child@1.0.0\n",
     )?;
     fs::create_dir_all(candidate.join("tests"))?;
     fs::write(
         candidate.join("tests/runs-the-registry-child.yaml"),
-        "name: runs-the-registry-child\nmethod: graph\nexpect:\n  status: sealed\n",
+        "name: runs-the-registry-child\nmethod: workflow\nexpect:\n  status: sealed\n",
     )?;
     let validator = temp.path().join("validator");
     crate::support::write_test_skill_package(

@@ -27,16 +27,16 @@ runx should make those loops safe and verifiable without becoming the loop host.
 loop host
   loads projection from receipts/events
   chooses next turn request
-  submits runx skill/graph with authority + context
+  submits a runx skill method with authority + context
   receives sealed receipt / pause / denial
   updates projection
   repeats only if stop policy allows
 
 runx run
-  parses skill/graph
+  parses the skill and its workflow
   loads digest-bound context_skills
   admits each call against the skill's limits
-  executes bounded model/tool graph
+  executes bounded model and tool steps
   routes approvals for risky effects
   seals receipt before success
 ```

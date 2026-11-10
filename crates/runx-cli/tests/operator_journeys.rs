@@ -802,7 +802,7 @@ fn compact_skill_output_externalizes_oversized_intermediate_context() -> TestRes
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: compact-output\ndescription: Proves compact graph output.\n---\n# Compact Output\n\nProduce one small terminal packet after a large intermediate value.\n",
+        "---\nname: compact-output\ndescription: Proves compact workflow output.\n---\n# Compact Output\n\nProduce one small terminal packet after a large intermediate value.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
