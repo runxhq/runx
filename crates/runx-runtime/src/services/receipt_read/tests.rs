@@ -91,6 +91,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     };
     log.record_step(&step, &[])?;
     Ok(Fixture {

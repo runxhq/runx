@@ -58,6 +58,21 @@ impl CredentialSecret {
             .ok_or_else(|| format!("the credential has no {name}"))
     }
 
+    /// A fingerprint of the credential, keyed by the runx home at `paths`:
+    /// the same credential fingerprints the same, and the fingerprint holds
+    /// none of it. None when the home can't key one.
+    pub(crate) fn fingerprint(&self, paths: &RunxPaths) -> Option<String> {
+        let fields = self
+            .fields
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.expose()))
+            .collect::<BTreeMap<_, _>>();
+        let message =
+            runx_contracts::canonical_json::to_canonical_bytes(&(self.name.as_str(), fields))
+                .ok()?;
+        crate::secrets::fingerprint(paths, "runx.credential.v1", &message)
+    }
+
     pub(crate) fn presented(&self, value: &str) {
         self.taint.borrow_mut().include(value);
     }

@@ -328,6 +328,7 @@ fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) 
                 settlement: None,
                 labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
                 input_digest: None,
+                credential_fingerprint: None,
             }
         })
         .collect()

@@ -926,6 +926,33 @@ pub(crate) struct OperationOutcome {
     pub value: JsonValue,
     pub ephemeral: Option<JsonValue>,
     pub effects: Vec<Reference>,
+    /// The credential the call presented, as reuse compares it
+    /// ([`presented`]).
+    pub credential: Option<String>,
+}
+
+/// What a call that presents no credential records as its credential.
+pub(crate) const NO_CREDENTIAL: &str = "none";
+
+/// The credential a call presents, as reuse compares it: [`NO_CREDENTIAL`]
+/// for a public call, a fingerprint keyed by the runx home for a secret or an
+/// environment variable, so a swapped token differs; and nothing for a
+/// session, a hosted grant whose credential runx never holds, or a credential
+/// the home can't key, none of which is ever taken as the same.
+fn presented(
+    context: &OperationAdmission,
+    session: &Session,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Option<String> {
+    match (&context.admitted.instance.authority, session) {
+        (InstanceAuthority::Public, Session::Local(None)) => Some(NO_CREDENTIAL.to_owned()),
+        (
+            InstanceAuthority::Secret { .. } | InstanceAuthority::Environment { .. },
+            Session::Local(Some(secret)),
+        ) => secret.fingerprint(&crate::paths::RunxPaths::resolve(env, cwd)),
+        _ => None,
+    }
 }
 
 /// What the kernel handed an implementation it runs itself when it invoked
@@ -1057,6 +1084,7 @@ pub(crate) fn execute(
         None => tools,
     };
     let session = prepare(context, env, cwd, tools).map_err(preflight)?;
+    let credential = presented(context, &session, env, cwd);
     let tool = context.process_tool(env, cwd).map_err(preflight)?;
     if let Some(pending) = &context.admitted.pending {
         // Readback is provider evidence, not permission to settle under a
@@ -1135,6 +1163,10 @@ pub(crate) fn execute(
                 implementation_digest.as_deref(),
                 produced,
             )
+            .map(|outcome| OperationOutcome {
+                credential,
+                ..outcome
+            })
         }
         Err(Failure::Rejected {
             status,
@@ -2190,6 +2222,7 @@ fn finish(
             )]))
         }),
         effects,
+        credential: None,
     })
 }
 

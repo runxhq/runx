@@ -3527,3 +3527,30 @@ fn with_uses(delegation: &mut crate::Delegation, uses: Option<runx_contracts::Au
     }
     delegation.terms = terms.into();
 }
+
+/// A read records the credential it presented as a fingerprint keyed by the
+/// runx home, never the credential: the same token fingerprints the same, a
+/// swapped token differently, and a hosted grant, whose credential runx
+/// never holds, not at all, so reuse never takes it as the same (§9, revise).
+#[test]
+fn a_read_fingerprints_the_credential_it_presented() {
+    let fixture = Fixture::for_connector("fixture/forge", &["repo.read"]);
+    let read: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"repository": "acme/app", "numbers": [7]},
+    }))
+    .unwrap();
+    let presented = |fixture: &Fixture| {
+        fixture
+            .run("issues", &read, None)
+            .expect("the read runs")
+            .1
+            .credential
+    };
+    assert_eq!(presented(&fixture), None, "a hosted grant's credential");
+    fixture.set_credential("fixture/forge", "token", "forge-local-token");
+    let first = presented(&fixture).expect("a local token is fingerprinted");
+    assert!(!first.contains("forge-local-token"), "{first}");
+    assert_eq!(presented(&fixture), Some(first.clone()));
+    fixture.set_credential("fixture/forge", "token", "a-rotated-token");
+    assert_ne!(presented(&fixture), Some(first));
+}

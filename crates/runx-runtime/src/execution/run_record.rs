@@ -203,6 +203,10 @@ struct RecordedStep {
     /// What the step was given, as one digest, when it could be made.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     input_digest: Option<String>,
+    /// The credential the step's operation call presented, when it could be
+    /// recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    credential_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1142,6 +1146,7 @@ impl RunLog {
             admission_witness: step.admission_witness.clone(),
             labels: step.labels,
             input_digest: step.input_digest.clone(),
+            credential_fingerprint: step.credential_fingerprint.clone(),
         })?;
         let receipt = Blob::json(&step.receipt)?;
         let nested = step
@@ -1377,6 +1382,7 @@ impl RunLog {
                     admission_witness: step.admission_witness.clone(),
                     labels: step.labels,
                     input_digest: step.input_digest.clone(),
+                    credential_fingerprint: step.credential_fingerprint.clone(),
                 })?;
                 let receipt = Blob::json(&step.receipt)?;
                 let nested = step
@@ -2143,6 +2149,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
         settlement: None,
         labels: record.labels,
         input_digest: record.input_digest,
+        credential_fingerprint: record.credential_fingerprint,
     })
 }
 

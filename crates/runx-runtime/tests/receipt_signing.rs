@@ -308,6 +308,7 @@ fn step_run(step_id: &str, receipt: Receipt) -> StepRun {
         refusal: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     }
 }
 
@@ -358,6 +359,7 @@ fn production_step_run(
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 

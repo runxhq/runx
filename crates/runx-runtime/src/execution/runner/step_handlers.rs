@@ -869,6 +869,7 @@ where
         settlement,
         labels: read,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 
@@ -1098,6 +1099,7 @@ fn seal_turn_step<A>(
         settlement: None,
         labels: read,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 
@@ -1506,6 +1508,7 @@ where
         settlement,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 
@@ -1623,9 +1626,11 @@ where
         }
     }
     let mut effects = Vec::new();
+    let mut credential_fingerprint = None;
     let output = match outcome {
         Ok(outcome) => {
             effects = outcome.effects;
+            credential_fingerprint = outcome.credential;
             let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
                 .runtime_output(
                     crate::adapter::InvocationStatus::Success,
@@ -1668,6 +1673,10 @@ where
         None,
         Some(&artifacts),
     )
+    .map(|run| StepRun {
+        credential_fingerprint,
+        ..run
+    })
 }
 
 fn agent_task_output(
@@ -1836,6 +1845,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 
@@ -1991,6 +2001,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 
@@ -2187,6 +2198,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
+        credential_fingerprint: None,
     })
 }
 

@@ -632,6 +632,10 @@ pub struct StepRun {
     /// all be digested, such as an environment it declares with no runx home
     /// the operator owns to fingerprint it with.
     pub input_digest: Option<String>,
+    /// The credential the step's operation call presented, as reuse compares
+    /// it: `none` for a call that presents none, a fingerprint keyed by the
+    /// runx home, or nothing when it can't be fingerprinted.
+    pub credential_fingerprint: Option<String>,
 }
 
 impl StepRun {
@@ -2038,6 +2042,7 @@ mod tests {
             settlement: None,
             labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
             input_digest: None,
+            credential_fingerprint: None,
         })
     }
 
