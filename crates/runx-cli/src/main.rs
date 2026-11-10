@@ -161,7 +161,6 @@ fn invocation_is_informational(args: &[OsString]) -> bool {
 }
 
 fn run_native_history(args: Vec<OsString>, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
-    runx_cli::runtime::say_what_runx_0_11_left(workspace.paths());
     let json = runx_cli::router::json_requested(&args);
     match runx_cli::history::run_history_command(&args, workspace.env(), workspace.cwd()) {
         Ok(output) => write_stdout(&output.output),

@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
+use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 
 use super::{BUSY_TIMEOUT, KernelStoreError};
 
@@ -10,130 +10,8 @@ use super::{BUSY_TIMEOUT, KernelStoreError};
 const APPLICATION_ID: i64 = 0x5255_4e4b;
 /// 0.12 raised it from 2 when `kernel_streams` and its `kind` became
 /// `kernel_keys` and `stream`, so a released runx refuses the store it opens.
-/// The store's file is named for it, so each format's file sits beside the
-/// last.
-pub(super) const SCHEMA_VERSION: i64 = 3;
-
-/// The format runx 0.11 wrote its store in.
-const RUNX_0_11_SCHEMA_VERSION: i64 = 2;
-
-/// runx 0.11's store at `path`, opened only to read, when one is there: this
-/// runx never writes it and never moves it, so runx 0.11 can still finish
-/// what it left there.
-fn open_runx_0_11(path: &Path) -> Result<Option<Connection>, KernelStoreError> {
-    let database = |operation: &'static str| {
-        move |source| KernelStoreError::Database {
-            path: path.to_path_buf(),
-            operation,
-            source,
-        }
-    };
-    if !path.is_file() {
-        return Ok(None);
-    }
-    let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(database("opening the runx 0.11 store"))?;
-    connection
-        .busy_timeout(BUSY_TIMEOUT)
-        .map_err(database("setting the busy timeout"))?;
-    let application_id: i64 = connection
-        .pragma_query_value(None, "application_id", |row| row.get(0))
-        .map_err(database("reading the application id"))?;
-    let version: i64 = connection
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(database("reading the schema version"))?;
-    Ok(
-        (application_id == APPLICATION_ID && version == RUNX_0_11_SCHEMA_VERSION)
-            .then_some(connection),
-    )
-}
-
-/// The runs runx 0.11 left unsealed in its store at `path`: each top-level
-/// run whose stream's head isn't its seal. A child run is its parent's.
-pub(super) fn runx_0_11_unsealed_runs(path: &Path) -> Result<Vec<String>, KernelStoreError> {
-    let database = |operation: &'static str| {
-        move |source| KernelStoreError::Database {
-            path: path.to_path_buf(),
-            operation,
-            source,
-        }
-    };
-    let Some(connection) = open_runx_0_11(path)? else {
-        return Ok(Vec::new());
-    };
-    let mut statement = connection
-        .prepare(
-            "SELECT key FROM kernel_streams
-             WHERE kind = 'run' AND instr(key, '/') = 0 AND event_type <> 'sealed'
-             ORDER BY key",
-        )
-        .map_err(database("reading the runx 0.11 runs"))?;
-    statement
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(database("reading the runx 0.11 runs"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(database("reading the runx 0.11 runs"))
-}
-
-/// Each instance runx 0.11 confirmed in its store at `path` and didn't
-/// revoke, by id, with its last event's bytes, and each connector's last
-/// selection's bytes.
-#[allow(clippy::type_complexity)]
-pub(super) fn runx_0_11_instances(
-    path: &Path,
-) -> Result<(Vec<(String, Vec<u8>)>, Vec<Vec<u8>>), KernelStoreError> {
-    let database = |operation: &'static str| {
-        move |source| KernelStoreError::Database {
-            path: path.to_path_buf(),
-            operation,
-            source,
-        }
-    };
-    let Some(connection) = open_runx_0_11(path)? else {
-        return Ok((Vec::new(), Vec::new()));
-    };
-    let heads = |kind: &str, head: &str| -> Result<Vec<(String, Vec<u8>)>, KernelStoreError> {
-        let mut statement = connection
-            .prepare(
-                "SELECT s.key, e.data FROM kernel_streams s
-                 JOIN kernel_events e ON e.kind = s.kind AND e.key = s.key AND e.version = s.version
-                 WHERE s.kind = ?1 AND s.event_type = ?2
-                 ORDER BY s.key",
-            )
-            .map_err(database("reading the runx 0.11 instances"))?;
-        statement
-            .query_map([kind, head], |row| Ok((row.get(0)?, row.get(1)?)))
-            .map_err(database("reading the runx 0.11 instances"))?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(database("reading the runx 0.11 instances"))
-    };
-    let instances = heads("instance", "confirmed")?;
-    let selections = heads("instance_selection", "selected")?
-        .into_iter()
-        .map(|(_, data)| data)
-        .collect();
-    Ok((instances, selections))
-}
-
-/// Whether runx 0.11's store at `path` recorded run `run_id`.
-pub(super) fn runx_0_11_recorded_run(path: &Path, run_id: &str) -> Result<bool, KernelStoreError> {
-    let Some(connection) = open_runx_0_11(path)? else {
-        return Ok(false);
-    };
-    connection
-        .query_row(
-            "SELECT 1 FROM kernel_streams WHERE kind = 'run' AND key = ?1",
-            [run_id],
-            |_| Ok(()),
-        )
-        .optional()
-        .map(|found| found.is_some())
-        .map_err(|source| KernelStoreError::Database {
-            path: path.to_path_buf(),
-            operation: "looking up a runx 0.11 run",
-            source,
-        })
-}
+/// A store from before 0.12 is never read.
+const SCHEMA_VERSION: i64 = 3;
 
 /// The acts whose provider effects runx 0.10 left in flight in its store.
 /// 0.11 reads none of that log, and its own idempotency keys differ, so a

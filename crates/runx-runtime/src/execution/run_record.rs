@@ -723,8 +723,6 @@ pub enum RunRecordError {
     InvalidCursor,
     #[error("run {run_id} has no record in this workspace")]
     UnknownRun { run_id: String },
-    #[error("run {run_id} was written by runx 0.11; read it with that version")]
-    RunBeforeThisRunx { run_id: String },
 }
 
 /// The writer of one run's stream.

@@ -236,20 +236,9 @@ An instance bound to a variable refuses a run in which the variable is not
 set, and one bound to a secret refuses once the secret is removed. A secret
 set again serves its instances from their next call, without binding again.
 
-Each store format has a file of its own, named for the format: runx 0.12
-keeps its kernel store in `.runx/kernel-v3.sqlite`, beside runx 0.11's
-`.runx/kernel-v2.sqlite` and runx 0.10's `.runx/kernel.sqlite`. runx 0.12
-never writes or moves 0.11's file. It reads how many runs 0.11 left unsealed
-there, says so on `runx skill`, `runx history` and `runx doctor`, and leaves
-them for runx 0.11 to finish. It doesn't carry over the connector instances
-0.11 bound: every connector's pins changed with the format, and a changed
-connector is bound again by its person. `runx doctor` names each one with the
-command that binds it again, filled from the instance's own pointers (the
-secret's name, the variable's name, the session or the Connect grant), so
-each is one confirmation, and a secret stays where it is. While the 0.10
-store still holds a provider effect in flight, a newer runx refuses to start
-its store: finish or reconcile that run with runx 0.10, or move the old file
-aside to discard it.
+A runx reads only the kernel store its own version wrote. A kernel store from
+before 0.12 refuses to open, saying 0.12 doesn't read it and to move it aside;
+moving it aside starts a new store, in which each connector is bound again.
 
 Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 workspace's `.runx`), together with the custody of operations in flight. Bind

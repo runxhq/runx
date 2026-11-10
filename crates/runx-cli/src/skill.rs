@@ -122,9 +122,6 @@ pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &Workspac
         .receipt_dir
         .take()
         .map(|dir| workspace.typed_path(&dir));
-    if plan.action == SkillAction::Run {
-        crate::runtime::say_what_runx_0_11_left(workspace.paths());
-    }
     let cwd = workspace.cwd().to_path_buf();
     let env = workspace.env().clone();
     let artifacts = workspace.paths().artifacts();

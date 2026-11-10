@@ -48,14 +48,7 @@ pub fn read_run(
     };
     let started = match store.first::<RunEvent>(run_id)?.map(|first| first.event) {
         Some(RunEvent::Started(started)) => started,
-        Some(_) => return Err(unknown()),
-        // A run runx 0.11 recorded is in its own store, which it reads.
-        None if KernelStore::runx_0_11_recorded_run(&paths, run_id)? => {
-            return Err(RunRecordError::RunBeforeThisRunx {
-                run_id: run_id.to_owned(),
-            });
-        }
-        None => return Err(unknown()),
+        _ => return Err(unknown()),
     };
     let after = match after {
         Some(cursor) => Cursor::decode(cursor, run_id)?.after,

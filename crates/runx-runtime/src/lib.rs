@@ -161,7 +161,7 @@ pub use kernel::connectors::{
 };
 pub use kernel::instances::{InstanceError, InstanceRecord, Instances};
 pub use kernel::operation::{OPERATION_EFFECT_FAMILY, OperationEffect};
-pub use kernel::store::{KernelStore, KernelStoreError, Runx011Instance, Runx011Store};
+pub use kernel::store::{KernelStore, KernelStoreError};
 pub use list::{
     RunxListItem, RunxListItemKind, RunxListOptions, RunxListRequestedKind, RunxListStatus,
     list_authoring_primitives, list_authoring_primitives_with_effects,

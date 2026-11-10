@@ -758,7 +758,7 @@ fn a_reference_is_read_through_the_managers_cli_and_listing_reads_nothing() -> T
             "listing read the secret"
         );
         assert!(
-            !fs::read_to_string(root.join(".runx/kernel-v3.sqlite"))
+            !fs::read_to_string(root.join(".runx/kernel-v2.sqlite"))
                 .unwrap_or_default()
                 .contains("refs-from-aws"),
             "the value was stored"

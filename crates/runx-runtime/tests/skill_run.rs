@@ -3289,7 +3289,7 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
     assert_eq!(fs::read_to_string(&count_file)?, "1");
 
     // A rewritten record fails its chain: the run holds instead of rerunning.
-    let store = temp.path().join(".runx/kernel-v3.sqlite");
+    let store = temp.path().join(".runx/kernel-v2.sqlite");
     let database = rusqlite::Connection::open(&store)?;
     let original_event: Vec<u8> = database.query_row(
         "SELECT data FROM kernel_events WHERE stream = 'run' AND key = 'run_pinned_counter' AND version = 2",

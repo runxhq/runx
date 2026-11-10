@@ -225,67 +225,6 @@ fn a_store_runx_010_left_settled_stays_put_and_a_new_one_opens() {
     );
 }
 
-/// A store as runx 0.11.1 left it in the project at `root`: its own schema,
-/// and each run's stream at its head.
-fn runx_011_store(root: &std::path::Path, heads: &[(&str, &str)]) -> std::path::PathBuf {
-    let path = root.join(RUNX_0_11_KERNEL_STORE_FILE);
-    let connection = Connection::open(&path).unwrap();
-    connection
-        .execute_batch(include_str!(
-            "../../../../../fixtures/kernel-store/runx-0.11.1-store.sql"
-        ))
-        .unwrap();
-    for (key, head) in heads {
-        connection
-            .execute(
-                "INSERT INTO kernel_streams VALUES ('run', ?1, 1, ?2, 'chain', 'now')",
-                params![key, head],
-            )
-            .unwrap();
-    }
-    path
-}
-
-#[test]
-fn a_store_runx_011_left_stays_as_it_was_beside_this_runxs_own() {
-    let root = tempfile::tempdir().unwrap();
-    let earlier = runx_011_store(
-        root.path(),
-        &[
-            ("run_paused", "suspended"),
-            ("run_paused/review", "child_started"),
-            ("run_answered", "answered"),
-            ("run_done", "sealed"),
-        ],
-    );
-    let before = std::fs::read(&earlier).unwrap();
-    let paths = crate::paths::RunxPaths::resolve(
-        &std::collections::BTreeMap::from([(
-            crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
-            root.path().display().to_string(),
-        )]),
-        root.path(),
-    );
-
-    let store = KernelStore::for_project(&paths).unwrap();
-
-    assert_eq!(
-        store.path().file_name().unwrap().to_str(),
-        Some(format!("kernel-v{}.sqlite", schema::SCHEMA_VERSION).as_str()),
-        "this runx's store is named for its format"
-    );
-    let left = KernelStore::runx_0_11_store(&paths).unwrap().unwrap();
-    assert_eq!(left.unsealed, ["run_answered", "run_paused"]);
-    assert!(KernelStore::runx_0_11_recorded_run(&paths, "run_done").unwrap());
-    assert!(!KernelStore::runx_0_11_recorded_run(&paths, "run_new").unwrap());
-    drop(store);
-    assert_eq!(
-        std::fs::read(&earlier).unwrap(),
-        before,
-        "runx 0.11's store is kept as it was"
-    );
-}
-
 #[test]
 fn effects_runx_010_left_in_flight_refuse_a_new_store() {
     let root = tempfile::tempdir().unwrap();
@@ -370,7 +309,7 @@ fn receipt_destination_does_not_split_workspace_state() {
             .path()
             .canonicalize()
             .unwrap()
-            .join(".runx/kernel-v3.sqlite")
+            .join(".runx/kernel-v2.sqlite")
     );
 }
 
@@ -605,9 +544,8 @@ fn a_tree_holds_its_root_and_descendants_only() {
     assert!(store.tree_heads::<Ledger>("missing").unwrap().is_empty());
 }
 
-/// A store in runx 0.11's format, version 2, under this runx's own name is
-/// from before 0.12: it refuses to open, says where that runx keeps it, and
-/// is left as it was, its rows unread.
+/// A store runx 0.11 wrote, version 2, is from before 0.12: it refuses to
+/// open, says to move it aside, and is left as it was, its rows unread.
 #[test]
 fn a_store_from_before_0_12_refuses_to_open_and_is_left_as_it_was() {
     let root = tempfile::tempdir().unwrap();
@@ -634,7 +572,7 @@ fn a_store_from_before_0_12_refuses_to_open_and_is_left_as_it_was() {
         "{refused}"
     );
     let message = refused.to_string();
-    assert!(message.contains("from a runx before 0.12"), "{message}");
-    assert!(message.contains("move it back there"), "{message}");
+    assert!(message.contains("before runx 0.12"), "{message}");
+    assert!(message.contains("move it aside"), "{message}");
     assert_eq!(std::fs::read(&path).unwrap(), before, "nothing is migrated");
 }
