@@ -106,29 +106,38 @@ pub(crate) fn head(
         }))
 }
 
-/// Make `source` the newest source of `identity`. Two sources sealing at
-/// once each try once more on the head the other wrote, and either standing
-/// as the newest is right.
+/// Make `source` the newest source of `identity`.
 pub(crate) fn index(
     store: &KernelStore,
     identity: &str,
     source: Source,
 ) -> Result<(), KernelStoreError> {
-    let event = IndexEvent::Indexed(source);
-    let append = |store: &KernelStore| -> Result<(), KernelStoreError> {
-        let version = store.version::<IndexEvent>(identity)?;
-        let expected = if version == 0 {
-            Expected::Absent
-        } else {
-            Expected::Version(version)
-        };
-        store
-            .append(vec![Append::kernel(identity, expected, &event)?])
-            .map(|_| ())
+    let read = store.version::<IndexEvent>(identity)?;
+    index_at(store, identity, source, read)
+}
+
+/// Make `source` the newest source of `identity`, whose head was at version
+/// `read`. Another source that sealed since leaves its own head standing, and
+/// either is right as the newest, so losing that race is no failure: indexing
+/// never fails the call that ran its source.
+fn index_at(
+    store: &KernelStore,
+    identity: &str,
+    source: Source,
+    read: u64,
+) -> Result<(), KernelStoreError> {
+    let expected = if read == 0 {
+        Expected::Absent
+    } else {
+        Expected::Version(read)
     };
-    match append(store) {
-        Err(KernelStoreError::Conflict { .. }) => append(store),
-        settled => settled,
+    match store.append(vec![Append::kernel(
+        identity,
+        expected,
+        &IndexEvent::Indexed(source),
+    )?]) {
+        Ok(_) | Err(KernelStoreError::Conflict { .. }) => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
@@ -250,4 +259,34 @@ fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
     !answer.human
         && super::outcome::stated_model(&answer.value).is_ok_and(|model| model.is_some())
         && super::outcome::states_met(&answer.value, runx_contracts::TurnRequirement::FreshContext)
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, clippy::unwrap_used)]
+
+    use super::{Source, head, index_at};
+    use crate::kernel::store::KernelStore;
+
+    fn source(run: &str) -> Source {
+        Source {
+            run_id: run.to_owned(),
+            receipt_id: format!("sha256:{run}"),
+            sealed_at: "2026-11-10T00:00:00Z".to_owned(),
+        }
+    }
+
+    /// Two sources sealing at once each append against the head they read.
+    /// The one that loses the race leaves the other's head standing and
+    /// succeeds, so indexing never fails the call that ran its source.
+    #[test]
+    fn a_source_that_loses_the_race_leaves_the_others_head() {
+        let root = tempfile::tempdir().unwrap();
+        let store = KernelStore::open(root.path()).unwrap();
+        let read = store.version::<super::IndexEvent>("identity").unwrap();
+        index_at(&store, "identity", source("first"), read).unwrap();
+        index_at(&store, "identity", source("second"), read)
+            .expect("a source that loses the race succeeds");
+        assert_eq!(head(&store, "identity").unwrap(), Some(source("first")));
+    }
 }
