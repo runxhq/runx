@@ -1,8 +1,9 @@
-#![cfg(feature = "agent")]
+#![cfg(all(feature = "agent", feature = "scripted-model"))]
 
 //! `skill-review`'s evals, on a scripted model served from this machine
-//! (`scripted_model`): the machinery proved with no spend. Each selection is
-//! read from the run's record, never from what a turn says it did.
+//! (`runx_runtime::scripted_model`): the machinery proved with no spend. Each
+//! selection is read from the run's record, never from what a turn says it
+//! did.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -13,7 +14,7 @@ use runx_runtime::{LocalOrchestrator, ManagedAgentPolicy, SkillRunRequest};
 use serde_json::{Value, json};
 use tempfile::tempdir;
 
-use crate::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 

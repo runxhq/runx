@@ -62,6 +62,11 @@ pub use process::detached::{
 };
 pub use time::now_iso8601;
 pub mod saved_authorities;
+/// A scripted model for the managed agent's tests and probes. Only tests and
+/// benches enable `scripted-model`, so no build that ships has it.
+#[cfg(feature = "scripted-model")]
+#[doc(hidden)]
+pub mod scripted_model;
 pub mod tool_catalogs;
 pub mod work_counts;
 

@@ -1,4 +1,4 @@
-#![cfg(feature = "agent")]
+#![cfg(all(feature = "agent", feature = "scripted-model"))]
 
 use std::cell::Cell;
 use std::io;
@@ -59,8 +59,10 @@ fn serve_responses<const N: usize>(
     for response in responses {
         // The client sends its whole request or closes, so the read ends.
         let (mut stream, _) = listener.accept()?;
-        requests.push(crate::scripted_model::read_chat_request(&mut stream)?);
-        crate::scripted_model::write_chat_response(&mut stream, &response)?;
+        requests.push(runx_runtime::scripted_model::read_chat_request(
+            &mut stream,
+        )?);
+        runx_runtime::scripted_model::write_chat_response(&mut stream, &response)?;
     }
     Ok(requests)
 }
@@ -158,12 +160,12 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
     let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
     let server = std::thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
-        let _request = crate::scripted_model::read_chat_request(&mut stream)?;
+        let _request = runx_runtime::scripted_model::read_chat_request(&mut stream)?;
         let body = json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[
             {"id":"first","type":"function","function":{"name":"fixture_read","arguments":"{\"value\":\"proof\"}"}},
             {"id":"second","type":"function","function":{"name":"unoffered_tool","arguments":"{}"}}
         ]}}]});
-        crate::scripted_model::write_chat_response(&mut stream, &body)
+        runx_runtime::scripted_model::write_chat_response(&mut stream, &body)
     });
     let tools = AgentToolNameMap::new(vec![AgentToolDefinition {
         name: "fixture.read".to_owned(),
@@ -846,7 +848,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
         let mut requests = Vec::new();
         for turn in 0..3 {
             let (mut stream, _) = listener.accept()?;
-            let request = crate::scripted_model::read_chat_request(&mut stream)?;
+            let request = runx_runtime::scripted_model::read_chat_request(&mut stream)?;
             let response = match turn {
                 0 => tool_call("call-input", "turn_read", json!({"locator": "input:kept"})),
                 1 => {
@@ -864,7 +866,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
                 _ => tool_call("call-final", "turn_complete", json!({"status": "done"})),
             };
             requests.push(request);
-            crate::scripted_model::write_chat_response(&mut stream, &response)?;
+            runx_runtime::scripted_model::write_chat_response(&mut stream, &response)?;
         }
         Ok(requests)
     });

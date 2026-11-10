@@ -29,6 +29,10 @@ crash-points = []
 # in `private`. Only the benches enable it, as their required features, so no
 # build that ships has it.
 probe-fixtures = []
+# A scripted model on a loopback port, speaking chat completions as a local
+# model server does, for the managed agent's tests and probes. Only tests and
+# benches enable it, so no build that ships has it.
+scripted-model = []
 mcp = ["dep:rmcp", "rmcp/transport-streamable-http-client-reqwest", "dep:sse-stream", "dep:bytes", "dep:http-body-util", "tokio/process", "tokio/io-util", "tokio/sync"]
 # Expose the governed MCP server over streamable HTTP/SSE (rmcp's tower service
 # driven by hyper). Inbound HTTP server surface; gated behind its own feature.
