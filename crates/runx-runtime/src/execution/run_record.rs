@@ -760,6 +760,8 @@ struct RunLogInner {
 struct Kept {
     record: Option<(u64, RunRecord)>,
     steps: BTreeMap<(String, u32), KeptCalls>,
+    /// The logs of the child runs this log opened, so each is read once.
+    children: BTreeMap<String, RunLog>,
 }
 
 /// A step's calls, each as its latest event settled it, the calls that
@@ -916,9 +918,21 @@ impl RunLog {
         format!("{}/{step_id}", self.0.run_id)
     }
 
-    /// The log of the child run that a nested skill step runs as.
+    /// The log of the child run that a nested skill step runs as: the one
+    /// this log opened before, so what it read of the child it reads again
+    /// only from there.
     pub(crate) fn child(&self, step_id: &str) -> Result<Self, RunRecordError> {
-        Self::open(Arc::clone(&self.0.store), self.child_id(step_id))
+        let child_id = self.child_id(step_id);
+        if let Some(child) = self.kept().children.get(&child_id) {
+            return Ok(child.clone());
+        }
+        let child = Self::open(Arc::clone(&self.0.store), child_id.clone())?;
+        Ok(self
+            .kept()
+            .children
+            .entry(child_id)
+            .or_insert(child)
+            .clone())
     }
 
     /// When the run was admitted, as the event that opened its stream records
