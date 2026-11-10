@@ -458,8 +458,8 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
                 "missing_behavior": "fail_closed",
             },
         }],
-        "runners": [{
-            "runner_id": "local.default",
+        "automations": [{
+            "automation_id": "local.default",
             "kind": "local",
             "state": "available",
             "allowed_actions": ["issue-intake"],
@@ -473,7 +473,7 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
         }],
         "targets": [{
             "repo": "acme/widgets",
-            "runner_ids": ["local.default"],
+            "automation_ids": ["local.default"],
             "allowed_actions": ["issue-intake"],
             "default_owner_route": "default.route",
             "scafld_required": true,

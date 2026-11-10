@@ -4,11 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAutomationPermissions,
-    OperationalPolicyDedupePolicy, OperationalPolicyError, OperationalPolicyOutcomeCloseMode,
-    OperationalPolicyOwnerRoute, OperationalPolicyPublishMode, OperationalPolicyReadback,
-    OperationalPolicyRunnerReadback, OperationalPolicyRunnerRule, OperationalPolicyRunnerState,
-    OperationalPolicySourceReadback, OperationalPolicySourceRule, OperationalPolicyTargetReadback,
-    OperationalPolicyTargetRule, OperationalPolicyValidationFinding, action_name,
+    OperationalPolicyAutomationReadback, OperationalPolicyAutomationRule,
+    OperationalPolicyAutomationState, OperationalPolicyDedupePolicy, OperationalPolicyError,
+    OperationalPolicyOutcomeCloseMode, OperationalPolicyOwnerRoute, OperationalPolicyPublishMode,
+    OperationalPolicyReadback, OperationalPolicySourceReadback, OperationalPolicySourceRule,
+    OperationalPolicyTargetReadback, OperationalPolicyTargetRule,
+    OperationalPolicyValidationFinding, action_name,
 };
 
 pub fn validate_operational_policy_contract(
@@ -34,7 +35,7 @@ pub fn project_operational_policy_readback(
         valid: findings.is_empty(),
         findings,
         sources: policy.sources.iter().map(source_readback).collect(),
-        runners: policy.runners.iter().map(runner_readback).collect(),
+        automations: policy.automations.iter().map(automation_readback).collect(),
         targets: policy
             .targets
             .iter()
@@ -56,14 +57,16 @@ fn source_readback(source: &OperationalPolicySourceRule) -> OperationalPolicySou
     }
 }
 
-fn runner_readback(runner: &OperationalPolicyRunnerRule) -> OperationalPolicyRunnerReadback {
-    OperationalPolicyRunnerReadback {
-        runner_id: runner.runner_id.to_string(),
-        kind: runner.kind.clone(),
-        state: runner.state,
-        target_repos: runner.target_repos.clone(),
-        allowed_actions: runner.allowed_actions.clone(),
-        scafld_required: runner.scafld_required,
+fn automation_readback(
+    automation: &OperationalPolicyAutomationRule,
+) -> OperationalPolicyAutomationReadback {
+    OperationalPolicyAutomationReadback {
+        automation_id: automation.automation_id.to_string(),
+        kind: automation.kind.clone(),
+        state: automation.state,
+        target_repos: automation.target_repos.clone(),
+        allowed_actions: automation.allowed_actions.clone(),
+        scafld_required: automation.scafld_required,
     }
 }
 
@@ -76,26 +79,30 @@ fn target_readback(
         .iter()
         .find(|route| route.route_id == target.default_owner_route)
         .map_or(0, |route| route.owners.len());
-    let available_runner_count = target
-        .runner_ids
+    let available_automation_count = target
+        .automation_ids
         .iter()
-        .filter_map(|runner_id| {
+        .filter_map(|automation_id| {
             policy
-                .runners
+                .automations
                 .iter()
-                .find(|runner| &runner.runner_id == runner_id)
+                .find(|automation| &automation.automation_id == automation_id)
         })
-        .filter(|runner| runner.state == OperationalPolicyRunnerState::Available)
+        .filter(|automation| automation.state == OperationalPolicyAutomationState::Available)
         .count();
 
     OperationalPolicyTargetReadback {
         repo: target.repo.clone(),
-        runner_ids: target.runner_ids.iter().map(ToString::to_string).collect(),
+        automation_ids: target
+            .automation_ids
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         default_owner_route: target.default_owner_route.to_string(),
         owner_count,
         allowed_actions: target.allowed_actions.clone(),
         scafld_required: target.scafld_required,
-        available_runner_count,
+        available_automation_count,
     }
 }
 
@@ -105,11 +112,11 @@ fn validate_required_shape(
     require_id(&policy.policy_id, "/policy_id", "policy_id")?;
     require_optional_date_time(&policy.created_at, "/created_at")?;
     require_non_empty(&policy.sources, "/sources", "sources")?;
-    require_non_empty(&policy.runners, "/runners", "runners")?;
+    require_non_empty(&policy.automations, "/automations", "automations")?;
     require_non_empty(&policy.owner_routes, "/owner_routes", "owner_routes")?;
     require_non_empty(&policy.targets, "/targets", "targets")?;
     validate_sources(&policy.sources)?;
-    validate_runners(&policy.runners)?;
+    validate_automations(&policy.automations)?;
     validate_owner_routes(&policy.owner_routes)?;
     validate_targets(&policy.targets)?;
     validate_dedupe(&policy.dedupe)?;
@@ -147,23 +154,23 @@ fn validate_sources(
     Ok(())
 }
 
-fn validate_runners(
-    runners: &[OperationalPolicyRunnerRule],
+fn validate_automations(
+    automations: &[OperationalPolicyAutomationRule],
 ) -> Result<(), OperationalPolicyValidationFinding> {
-    for (index, runner) in runners.iter().enumerate() {
+    for (index, automation) in automations.iter().enumerate() {
         require_id(
-            &runner.runner_id,
-            &format!("/runners/{index}/runner_id"),
-            "runner_id",
+            &automation.automation_id,
+            &format!("/automations/{index}/automation_id"),
+            "automation_id",
         )?;
         require_non_empty(
-            &runner.allowed_actions,
-            &format!("/runners/{index}/allowed_actions"),
+            &automation.allowed_actions,
+            &format!("/automations/{index}/allowed_actions"),
             "allowed_actions",
         )?;
         require_repo_items(
-            &runner.target_repos,
-            &format!("/runners/{index}/target_repos"),
+            &automation.target_repos,
+            &format!("/automations/{index}/target_repos"),
             "target_repos",
         )?;
     }
@@ -201,9 +208,9 @@ fn validate_targets(
     for (index, target) in targets.iter().enumerate() {
         require_repo_slug(&target.repo, &format!("/targets/{index}/repo"))?;
         require_string_items(
-            &target.runner_ids,
-            &format!("/targets/{index}/runner_ids"),
-            "runner_ids",
+            &target.automation_ids,
+            &format!("/targets/{index}/automation_ids"),
+            "automation_ids",
         )?;
         require_non_empty(
             &target.allowed_actions,
@@ -275,11 +282,11 @@ fn collect_duplicates(
     );
     duplicate_findings(
         policy
-            .runners
+            .automations
             .iter()
-            .map(|runner| runner.runner_id.as_str()),
-        "runners",
-        "runner_id",
+            .map(|automation| automation.automation_id.as_str()),
+        "automations",
+        "automation_id",
         findings,
     );
     duplicate_findings(
@@ -332,10 +339,10 @@ fn collect_target_findings(
     policy: &OperationalPolicy,
     findings: &mut Vec<OperationalPolicyValidationFinding>,
 ) {
-    let runner_ids = policy
-        .runners
+    let automation_ids = policy
+        .automations
         .iter()
-        .map(|runner| runner.runner_id.as_str())
+        .map(|automation| automation.automation_id.as_str())
         .collect::<BTreeSet<_>>();
     let owner_route_ids = policy
         .owner_routes
@@ -345,7 +352,7 @@ fn collect_target_findings(
 
     for (target_index, target) in policy.targets.iter().enumerate() {
         collect_owner_route_findings(policy, target, target_index, &owner_route_ids, findings);
-        collect_runner_findings(policy, target, target_index, &runner_ids, findings);
+        collect_automation_findings(policy, target, target_index, &automation_ids, findings);
     }
 }
 
@@ -382,11 +389,11 @@ fn collect_owner_route_findings(
     }
 }
 
-fn collect_runner_findings(
+fn collect_automation_findings(
     policy: &OperationalPolicy,
     target: &OperationalPolicyTargetRule,
     target_index: usize,
-    runner_ids: &BTreeSet<&str>,
+    automation_ids: &BTreeSet<&str>,
     findings: &mut Vec<OperationalPolicyValidationFinding>,
 ) {
     let mut coverage = target
@@ -395,54 +402,60 @@ fn collect_runner_findings(
         .map(|action| (*action, false))
         .collect::<BTreeMap<_, _>>();
 
-    for (runner_index, runner_id) in target.runner_ids.iter().enumerate() {
-        let runner = policy
-            .runners
+    for (automation_index, automation_id) in target.automation_ids.iter().enumerate() {
+        let automation = policy
+            .automations
             .iter()
-            .find(|runner| runner.runner_id == *runner_id);
-        if !runner_ids.contains(runner_id.as_str()) {
+            .find(|automation| automation.automation_id == *automation_id);
+        if !automation_ids.contains(automation_id.as_str()) {
             findings.push(finding(
-                "unknown_runner",
-                &format!("/targets/{target_index}/runner_ids/{runner_index}"),
+                "unknown_automation",
+                &format!("/targets/{target_index}/automation_ids/{automation_index}"),
                 &format!(
-                    "target '{}' references unknown runner '{}'.",
-                    target.repo, runner_id
+                    "target '{}' references unknown automation '{}'.",
+                    target.repo, automation_id
                 ),
             ));
             continue;
         }
-        if let Some(runner) = runner {
-            collect_runner_target_findings(target, target_index, runner_index, runner, findings);
-            mark_action_coverage(target, runner, &mut coverage);
+        if let Some(automation) = automation {
+            collect_automation_target_findings(
+                target,
+                target_index,
+                automation_index,
+                automation,
+                findings,
+            );
+            mark_action_coverage(target, automation, &mut coverage);
         }
     }
     collect_action_coverage_findings(target, target_index, coverage, findings);
 }
 
-fn collect_runner_target_findings(
+fn collect_automation_target_findings(
     target: &OperationalPolicyTargetRule,
     target_index: usize,
-    runner_index: usize,
-    runner: &OperationalPolicyRunnerRule,
+    automation_index: usize,
+    automation: &OperationalPolicyAutomationRule,
     findings: &mut Vec<OperationalPolicyValidationFinding>,
 ) {
-    if !runner.target_repos.contains(&target.repo) {
+    if !automation.target_repos.contains(&target.repo) {
         findings.push(finding(
-            "runner_target_mismatch",
-            &format!("/targets/{target_index}/runner_ids/{runner_index}"),
+            "automation_target_mismatch",
+            &format!("/targets/{target_index}/automation_ids/{automation_index}"),
             &format!(
-                "runner '{}' does not allow target repo '{}'.",
-                runner.runner_id, target.repo
+                "automation '{}' does not allow target repo '{}'.",
+                automation.automation_id, target.repo
             ),
         ));
     }
-    if target.scafld_required && !runner.scafld_required {
+    if target.scafld_required && !automation.scafld_required {
         findings.push(finding(
-            "runner_scafld_mismatch",
-            &format!("/targets/{target_index}/runner_ids/{runner_index}"),
+            "automation_scafld_mismatch",
+            &format!("/targets/{target_index}/automation_ids/{automation_index}"),
             &format!(
-                "target '{}' requires scafld but runner '{}' does not.",
-                target.repo, runner.runner_id
+                "target '{}' requires scafld but automation '{}' does not.",
+                target.repo, automation.automation_id
             ),
         ));
     }
@@ -450,14 +463,14 @@ fn collect_runner_target_findings(
 
 fn mark_action_coverage(
     target: &OperationalPolicyTargetRule,
-    runner: &OperationalPolicyRunnerRule,
+    automation: &OperationalPolicyAutomationRule,
     coverage: &mut BTreeMap<OperationalPolicyAction, bool>,
 ) {
-    if runner.state != OperationalPolicyRunnerState::Available {
+    if automation.state != OperationalPolicyAutomationState::Available {
         return;
     }
     for action in &target.allowed_actions {
-        if runner.allowed_actions.contains(action) {
+        if automation.allowed_actions.contains(action) {
             coverage.insert(*action, true);
         }
     }
@@ -472,10 +485,10 @@ fn collect_action_coverage_findings(
     for (action, covered) in coverage {
         if !covered {
             findings.push(finding(
-                "target_action_without_runner",
+                "target_action_without_automation",
                 &format!("/targets/{target_index}/allowed_actions"),
                 &format!(
-                    "target '{}' allows '{}' but no available runner supports it.",
+                    "target '{}' allows '{}' but no available automation supports it.",
                     target.repo,
                     action_name(action)
                 ),

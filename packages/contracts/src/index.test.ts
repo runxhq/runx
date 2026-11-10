@@ -284,8 +284,8 @@ describe("@runxhq/contracts", () => {
           missing_behavior: "fail_closed",
         },
       }],
-      runners: [{
-        runner_id: "local-review",
+      automations: [{
+        automation_id: "local-review",
         kind: "local",
         state: "available",
         allowed_actions: ["issue-to-pr", "merge-assist"],
@@ -299,7 +299,7 @@ describe("@runxhq/contracts", () => {
       }],
       targets: [{
         repo: "example/api",
-        runner_ids: ["local-review"],
+        automation_ids: ["local-review"],
         allowed_actions: ["issue-to-pr", "merge-assist"],
         default_owner_route: "api-owner",
         scafld_required: true,

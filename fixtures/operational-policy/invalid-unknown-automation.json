@@ -1,7 +1,7 @@
 {
   "schema": "runx.operational_policy.v1",
   "schema_version": "runx.operational_policy.v1",
-  "policy_id": "invalid-no-available-runner",
+  "policy_id": "invalid-unknown-automation",
   "sources": [
     {
       "source_id": "github-issues",
@@ -19,11 +19,11 @@
       }
     }
   ],
-  "runners": [
+  "automations": [
     {
-      "runner_id": "local-review",
+      "automation_id": "local-review",
       "kind": "local",
-      "state": "maintenance",
+      "state": "available",
       "allowed_actions": [
         "issue-intake"
       ],
@@ -47,8 +47,8 @@
   "targets": [
     {
       "repo": "example/project",
-      "runner_ids": [
-        "local-review"
+      "automation_ids": [
+        "missing-method"
       ],
       "allowed_actions": [
         "issue-intake"

@@ -19,9 +19,9 @@
       }
     }
   ],
-  "runners": [
+  "automations": [
     {
-      "runner_id": "local-pr-runner",
+      "automation_id": "local-pr-automation",
       "kind": "local",
       "state": "available",
       "allowed_actions": [
@@ -47,8 +47,8 @@
   "targets": [
     {
       "repo": "example/project",
-      "runner_ids": [
-        "local-pr-runner"
+      "automation_ids": [
+        "local-pr-automation"
       ],
       "allowed_actions": [
         "issue-to-pr"

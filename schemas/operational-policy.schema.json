@@ -3,6 +3,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "automations": {
+      "items": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAutomationRule"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
     "created_at": {
       "minLength": 1,
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
@@ -28,13 +35,6 @@
       "minLength": 1,
       "pattern": "^[A-Za-z0-9_.:-]+$",
       "type": "string"
-    },
-    "runners": {
-      "items": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyRunnerRule"
-      },
-      "minItems": 1,
-      "type": "array"
     },
     "schema": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicySchema"
@@ -62,7 +62,7 @@
     "schema_version",
     "policy_id",
     "sources",
-    "runners",
+    "automations",
     "owner_routes",
     "targets",
     "dedupe",

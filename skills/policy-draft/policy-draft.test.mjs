@@ -15,9 +15,9 @@ const policy = {
       minimum_confidence: 0.7,
     },
   ],
-  runners: [
+  automations: [
     {
-      runner_id: "review",
+      automation_id: "review",
       kind: "local",
       state: "available",
       allowed_actions: ["issue-intake"],
@@ -29,7 +29,7 @@ const policy = {
   targets: [
     {
       repo: "test/repo",
-      runner_ids: ["review"],
+      automation_ids: ["review"],
       allowed_actions: ["issue-intake"],
       default_owner_route: "maintainers",
       scafld_required: true,
@@ -56,7 +56,7 @@ const run = (next, existing = policy) =>
       success_checkpoint: {},
     },
   }).policy_context;
-test("known review, observation, runner and publication controls cannot weaken", () => {
+test("known review, observation, automation and publication controls cannot weaken", () => {
   for (const mutate of [
     (p) => (p.sources[0].source_thread.required = false),
     (p) => (p.targets[0].scafld_required = false),
@@ -70,10 +70,10 @@ test("known review, observation, runner and publication controls cannot weaken",
   }
   for (const state of ["disabled", "maintenance"]) {
     const stopped = structuredClone(policy);
-    stopped.runners[0].state = state;
+    stopped.automations[0].state = state;
     const context = run(policy, stopped);
     assert.equal(context.decision, "reject");
-    assert.deepEqual(context.attenuation_findings.map((finding) => finding.path), ["runner.review.state"]);
+    assert.deepEqual(context.attenuation_findings.map((finding) => finding.path), ["automation.review.state"]);
     assert.equal(run(stopped, stopped).path, "lint");
   }
 });

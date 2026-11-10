@@ -1,4 +1,4 @@
-//! Operational policy contracts for governed source, runner, target, and owner routing.
+//! Operational policy contracts for governed source, automation, target, and owner routing.
 //
 // Type definitions live here; the validation, admission, and readback projection
 // logic lives in the private `evaluate` submodule.
@@ -58,13 +58,13 @@ impl fmt::Display for OperationalPolicyAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "lowercase")]
-pub enum OperationalPolicyRunnerState {
+pub enum OperationalPolicyAutomationState {
     Available,
     Disabled,
     Maintenance,
 }
 
-impl fmt::Display for OperationalPolicyRunnerState {
+impl fmt::Display for OperationalPolicyAutomationState {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::Available => "available",
@@ -131,7 +131,7 @@ pub struct OperationalPolicy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<IsoDateTime>,
     pub sources: Vec<OperationalPolicySourceRule>,
-    pub runners: Vec<OperationalPolicyRunnerRule>,
+    pub automations: Vec<OperationalPolicyAutomationRule>,
     pub owner_routes: Vec<OperationalPolicyOwnerRoute>,
     pub targets: Vec<OperationalPolicyTargetRule>,
     pub dedupe: OperationalPolicyDedupePolicy,
@@ -169,12 +169,12 @@ pub struct OperationalPolicySourceThreadPolicy {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct OperationalPolicyRunnerRule {
-    pub runner_id: NonEmptyString,
-    /// Open runner kind identifier. Any value an adapter publishes is accepted
+pub struct OperationalPolicyAutomationRule {
+    pub automation_id: NonEmptyString,
+    /// Open automation kind identifier. Any value an adapter publishes is accepted
     /// on the wire.
     pub kind: NonEmptyString,
-    pub state: OperationalPolicyRunnerState,
+    pub state: OperationalPolicyAutomationState,
     pub allowed_actions: Vec<OperationalPolicyAction>,
     pub target_repos: Vec<String>,
     pub scafld_required: bool,
@@ -196,7 +196,7 @@ pub struct OperationalPolicyOwnerRoute {
 #[serde(deny_unknown_fields)]
 pub struct OperationalPolicyTargetRule {
     pub repo: String,
-    pub runner_ids: Vec<NonEmptyString>,
+    pub automation_ids: Vec<NonEmptyString>,
     pub allowed_actions: Vec<OperationalPolicyAction>,
     pub default_owner_route: NonEmptyString,
     pub scafld_required: bool,
@@ -247,8 +247,8 @@ impl RunxSchema for OperationalPolicy {
                     true,
                 ),
                 Property::new(
-                    "runners",
-                    non_empty_array(OperationalPolicyRunnerRule::json_schema()),
+                    "automations",
+                    non_empty_array(OperationalPolicyAutomationRule::json_schema()),
                     true,
                 ),
                 Property::new(
@@ -286,7 +286,7 @@ impl RunxSchema for OperationalPolicy {
         if record_named(named, "OperationalPolicy", Self::json_schema) {
             OperationalPolicySchema::named_schemas(named);
             OperationalPolicySourceRule::named_schemas(named);
-            OperationalPolicyRunnerRule::named_schemas(named);
+            OperationalPolicyAutomationRule::named_schemas(named);
             OperationalPolicyOwnerRoute::named_schemas(named);
             OperationalPolicyTargetRule::named_schemas(named);
             OperationalPolicyDedupePolicy::named_schemas(named);
@@ -334,13 +334,17 @@ impl RunxSchema for OperationalPolicySourceRule {
     }
 }
 
-impl RunxSchema for OperationalPolicyRunnerRule {
+impl RunxSchema for OperationalPolicyAutomationRule {
     fn json_schema() -> Value {
         let schema = object_schema(
             vec![
-                Property::new("runner_id", id_schema(), true),
+                Property::new("automation_id", id_schema(), true),
                 Property::new("kind", NonEmptyString::json_schema(), true),
-                Property::new("state", OperationalPolicyRunnerState::json_schema(), true),
+                Property::new(
+                    "state",
+                    OperationalPolicyAutomationState::json_schema(),
+                    true,
+                ),
                 Property::new(
                     "allowed_actions",
                     non_empty_array(OperationalPolicyAction::json_schema()),
@@ -352,12 +356,12 @@ impl RunxSchema for OperationalPolicyRunnerRule {
             true,
             None,
         );
-        titled(schema, "OperationalPolicyRunnerRule")
+        titled(schema, "OperationalPolicyAutomationRule")
     }
 
     fn named_schemas(named: &mut NamedSchemas) {
-        if record_named(named, "OperationalPolicyRunnerRule", Self::json_schema) {
-            OperationalPolicyRunnerState::named_schemas(named);
+        if record_named(named, "OperationalPolicyAutomationRule", Self::json_schema) {
+            OperationalPolicyAutomationState::named_schemas(named);
             OperationalPolicyAction::named_schemas(named);
         }
     }
@@ -393,7 +397,7 @@ impl RunxSchema for OperationalPolicyTargetRule {
         let schema = object_schema(
             vec![
                 Property::new("repo", repo_slug_schema(), true),
-                Property::new("runner_ids", non_empty_array(id_schema()), true),
+                Property::new("automation_ids", non_empty_array(id_schema()), true),
                 Property::new(
                     "allowed_actions",
                     non_empty_array(OperationalPolicyAction::json_schema()),
@@ -552,7 +556,7 @@ pub struct OperationalPolicyReadback {
     pub valid: bool,
     pub findings: Vec<OperationalPolicyValidationFinding>,
     pub sources: Vec<OperationalPolicySourceReadback>,
-    pub runners: Vec<OperationalPolicyRunnerReadback>,
+    pub automations: Vec<OperationalPolicyAutomationReadback>,
     pub targets: Vec<OperationalPolicyTargetReadback>,
     pub outcomes: OperationalPolicyOutcomePolicy,
     pub permissions: OperationalPolicyAutomationPermissions,
@@ -571,10 +575,10 @@ pub struct OperationalPolicySourceReadback {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OperationalPolicyRunnerReadback {
-    pub runner_id: String,
+pub struct OperationalPolicyAutomationReadback {
+    pub automation_id: String,
     pub kind: NonEmptyString,
-    pub state: OperationalPolicyRunnerState,
+    pub state: OperationalPolicyAutomationState,
     pub target_repos: Vec<String>,
     pub allowed_actions: Vec<OperationalPolicyAction>,
     pub scafld_required: bool,
@@ -584,12 +588,12 @@ pub struct OperationalPolicyRunnerReadback {
 #[serde(deny_unknown_fields)]
 pub struct OperationalPolicyTargetReadback {
     pub repo: String,
-    pub runner_ids: Vec<String>,
+    pub automation_ids: Vec<String>,
     pub default_owner_route: String,
     pub owner_count: usize,
     pub allowed_actions: Vec<OperationalPolicyAction>,
     pub scafld_required: bool,
-    pub available_runner_count: usize,
+    pub available_automation_count: usize,
 }
 
 fn action_name(action: OperationalPolicyAction) -> &'static str {

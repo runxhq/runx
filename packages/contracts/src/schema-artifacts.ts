@@ -5324,6 +5324,101 @@ export const runxSchemaArtifacts = {
         "title": "OperationalPolicyAutomationPermissions",
         "type": "object"
       },
+      "OperationalPolicyAutomationReadback": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_actions": {
+            "items": {
+              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAction"
+            },
+            "type": "array"
+          },
+          "automation_id": {
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "scafld_required": {
+            "type": "boolean"
+          },
+          "state": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAutomationState"
+          },
+          "target_repos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "automation_id",
+          "kind",
+          "state",
+          "target_repos",
+          "allowed_actions",
+          "scafld_required"
+        ],
+        "title": "OperationalPolicyAutomationReadback",
+        "type": "object"
+      },
+      "OperationalPolicyAutomationRule": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_actions": {
+            "items": {
+              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAction"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "automation_id": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "scafld_required": {
+            "type": "boolean"
+          },
+          "state": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAutomationState"
+          },
+          "target_repos": {
+            "items": {
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "automation_id",
+          "kind",
+          "state",
+          "allowed_actions",
+          "target_repos",
+          "scafld_required"
+        ],
+        "title": "OperationalPolicyAutomationRule",
+        "type": "object"
+      },
+      "OperationalPolicyAutomationState": {
+        "enum": [
+          "available",
+          "disabled",
+          "maintenance"
+        ],
+        "title": "OperationalPolicyAutomationState",
+        "type": "string"
+      },
       "OperationalPolicyDedupePolicy": {
         "additionalProperties": false,
         "properties": {
@@ -5466,6 +5561,12 @@ export const runxSchemaArtifacts = {
       "OperationalPolicyReadback": {
         "additionalProperties": false,
         "properties": {
+          "automations": {
+            "items": {
+              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAutomationReadback"
+            },
+            "type": "array"
+          },
           "findings": {
             "items": {
               "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyValidationFinding"
@@ -5480,12 +5581,6 @@ export const runxSchemaArtifacts = {
           },
           "policy_id": {
             "type": "string"
-          },
-          "runners": {
-            "items": {
-              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyRunnerReadback"
-            },
-            "type": "array"
           },
           "schema_version": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicySchema"
@@ -5512,108 +5607,13 @@ export const runxSchemaArtifacts = {
           "valid",
           "findings",
           "sources",
-          "runners",
+          "automations",
           "targets",
           "outcomes",
           "permissions"
         ],
         "title": "OperationalPolicyReadback",
         "type": "object"
-      },
-      "OperationalPolicyRunnerReadback": {
-        "additionalProperties": false,
-        "properties": {
-          "allowed_actions": {
-            "items": {
-              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAction"
-            },
-            "type": "array"
-          },
-          "kind": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "runner_id": {
-            "type": "string"
-          },
-          "scafld_required": {
-            "type": "boolean"
-          },
-          "state": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyRunnerState"
-          },
-          "target_repos": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "runner_id",
-          "kind",
-          "state",
-          "target_repos",
-          "allowed_actions",
-          "scafld_required"
-        ],
-        "title": "OperationalPolicyRunnerReadback",
-        "type": "object"
-      },
-      "OperationalPolicyRunnerRule": {
-        "additionalProperties": false,
-        "properties": {
-          "allowed_actions": {
-            "items": {
-              "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAction"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "kind": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "runner_id": {
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9_.:-]+$",
-            "type": "string"
-          },
-          "scafld_required": {
-            "type": "boolean"
-          },
-          "state": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyRunnerState"
-          },
-          "target_repos": {
-            "items": {
-              "minLength": 3,
-              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "runner_id",
-          "kind",
-          "state",
-          "allowed_actions",
-          "target_repos",
-          "scafld_required"
-        ],
-        "title": "OperationalPolicyRunnerRule",
-        "type": "object"
-      },
-      "OperationalPolicyRunnerState": {
-        "enum": [
-          "available",
-          "disabled",
-          "maintenance"
-        ],
-        "title": "OperationalPolicyRunnerState",
-        "type": "string"
       },
       "OperationalPolicySchema": {
         "enum": [
@@ -5744,7 +5744,13 @@ export const runxSchemaArtifacts = {
             },
             "type": "array"
           },
-          "available_runner_count": {
+          "automation_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "available_automation_count": {
             "minimum": 0,
             "type": "integer"
           },
@@ -5758,24 +5764,18 @@ export const runxSchemaArtifacts = {
           "repo": {
             "type": "string"
           },
-          "runner_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "scafld_required": {
             "type": "boolean"
           }
         },
         "required": [
           "repo",
-          "runner_ids",
+          "automation_ids",
           "default_owner_route",
           "owner_count",
           "allowed_actions",
           "scafld_required",
-          "available_runner_count"
+          "available_automation_count"
         ],
         "title": "OperationalPolicyTargetReadback",
         "type": "object"
@@ -5786,6 +5786,15 @@ export const runxSchemaArtifacts = {
           "allowed_actions": {
             "items": {
               "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAction"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "automation_ids": {
+            "items": {
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.:-]+$",
+              "type": "string"
             },
             "minItems": 1,
             "type": "array"
@@ -5804,22 +5813,13 @@ export const runxSchemaArtifacts = {
             "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
             "type": "string"
           },
-          "runner_ids": {
-            "items": {
-              "minLength": 1,
-              "pattern": "^[A-Za-z0-9_.:-]+$",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
           "scafld_required": {
             "type": "boolean"
           }
         },
         "required": [
           "repo",
-          "runner_ids",
+          "automation_ids",
           "allowed_actions",
           "default_owner_route",
           "scafld_required"
@@ -11842,6 +11842,13 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
+      "automations": {
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyAutomationRule"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
       "created_at": {
         "minLength": 1,
         "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
@@ -11867,13 +11874,6 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "pattern": "^[A-Za-z0-9_.:-]+$",
         "type": "string"
-      },
-      "runners": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicyRunnerRule"
-        },
-        "minItems": 1,
-        "type": "array"
       },
       "schema": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OperationalPolicySchema"
@@ -11901,7 +11901,7 @@ export const runxSchemaArtifacts = {
       "schema_version",
       "policy_id",
       "sources",
-      "runners",
+      "automations",
       "owner_routes",
       "targets",
       "dedupe",

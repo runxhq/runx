@@ -1,7 +1,7 @@
 [
   {"query": "Compare this grant with our verified receipts and show which scopes were never recorded.", "should_trigger": false},
   {"query": "Add the new acme/billing repository to our existing runx policy.", "should_trigger": false},
-  {"query": "Plan the steps to roll the new runner out across our repos.", "should_trigger": false},
+  {"query": "Plan the steps to roll the new automation out across our repos.", "should_trigger": false},
   {"query": "Write an information security policy document for our SOC 2 audit.", "should_trigger": false},
   {"query": "Write our company's remote work policy.", "should_trigger": false},
   {"query": "Configure an AWS IAM policy for read-only S3 access.", "should_trigger": false},
@@ -10,13 +10,13 @@
   {"query": "Check whether this purchase fits our procurement policy.", "should_trigger": false},
   {"query": "Set up CODEOWNERS for the repo.", "should_trigger": false},
   {"query": "Author a fail-closed Runx issue-flow policy from this governance brief.", "should_trigger": true},
-  {"query": "Draft a runx operational policy that lets the triage runner work only on acme/api issues, with owner routing to the platform team.", "should_trigger": true},
-  {"query": "Tighten our existing runx policy so the release runner can no longer push to main.", "should_trigger": true},
+  {"query": "Draft a runx operational policy that lets the triage automation work only on acme/api issues, with owner routing to the platform team.", "should_trigger": true},
+  {"query": "Tighten our existing runx policy so the release automation can no longer push to main.", "should_trigger": true},
   {"query": "Lint this runx.operational_policy.v1 draft with the native policy engine and tell me what fails.", "should_trigger": true},
   {"query": "Here's our governance brief. Turn it into the smallest runx policy that admits exactly this work, with everything else denied.", "should_trigger": true},
-  {"query": "Attenuate this operational policy: keep the same repos and runners, but require a human gate on merges.", "should_trigger": true},
-  {"query": "Write a runx repository policy for acme/web and acme/docs, with the local runner and the docs-owners route.", "should_trigger": true},
-  {"query": "We need a policy for which sources and runners can open PRs. Draft it and validate it before I review it.", "should_trigger": true},
+  {"query": "Attenuate this operational policy: keep the same repos and automations, but require a human gate on merges.", "should_trigger": true},
+  {"query": "Write a runx repository policy for acme/web and acme/docs, with the local automation and the docs-owners route.", "should_trigger": true},
+  {"query": "We need a policy for which sources and automations can open PRs. Draft it and validate it before I review it.", "should_trigger": true},
   {"query": "Narrow the actions in this existing runx policy to read-only, on the sources it already names.", "should_trigger": true},
-  {"query": "Design a runx operational policy for our new runner, and ask me if any repository, source or owner is still unresolved.", "should_trigger": true}
+  {"query": "Design a runx operational policy for our new automation, and ask me if any repository, source or owner is still unresolved.", "should_trigger": true}
 ]

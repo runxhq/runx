@@ -148,16 +148,16 @@ pub use native_packets::{
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAutomationPermissions,
-    OperationalPolicyDedupePolicy, OperationalPolicyDedupeStrategy,
-    OperationalPolicyDuplicateBehavior, OperationalPolicyError, OperationalPolicyMissingBehavior,
-    OperationalPolicyOutcomeCloseMode, OperationalPolicyOutcomePolicy, OperationalPolicyOwnerRoute,
-    OperationalPolicyPublishMode, OperationalPolicyReadback, OperationalPolicyRunnerReadback,
-    OperationalPolicyRunnerRule, OperationalPolicyRunnerState, OperationalPolicySchema,
-    OperationalPolicySourceReadback, OperationalPolicySourceRule,
-    OperationalPolicySourceThreadPolicy, OperationalPolicyTargetReadback,
-    OperationalPolicyTargetRule, OperationalPolicyValidationFinding,
-    lint_operational_policy_contract, project_operational_policy_readback,
-    validate_operational_policy_contract,
+    OperationalPolicyAutomationReadback, OperationalPolicyAutomationRule,
+    OperationalPolicyAutomationState, OperationalPolicyDedupePolicy,
+    OperationalPolicyDedupeStrategy, OperationalPolicyDuplicateBehavior, OperationalPolicyError,
+    OperationalPolicyMissingBehavior, OperationalPolicyOutcomeCloseMode,
+    OperationalPolicyOutcomePolicy, OperationalPolicyOwnerRoute, OperationalPolicyPublishMode,
+    OperationalPolicyReadback, OperationalPolicySchema, OperationalPolicySourceReadback,
+    OperationalPolicySourceRule, OperationalPolicySourceThreadPolicy,
+    OperationalPolicyTargetReadback, OperationalPolicyTargetRule,
+    OperationalPolicyValidationFinding, lint_operational_policy_contract,
+    project_operational_policy_readback, validate_operational_policy_contract,
 };
 pub use orchestrator_handoff::{
     OrchestratorExecutionContext, OrchestratorHandoffBinding, OrchestratorHandoffContext,

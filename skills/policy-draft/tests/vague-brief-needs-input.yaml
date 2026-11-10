@@ -9,12 +9,12 @@ host:
       policy_proposal:
         decision: needs_input
         policy: null
-        rationale: The brief names neither repositories, trusted source locators, owners, nor a runner binding.
+        rationale: The brief names neither repositories, trusted source locators, owners, nor a automation binding.
         blockers: []
         needs_input:
           - Which repositories should the policy govern?
           - Which source locators are trusted?
-          - Who owns each target and which runner is available?
+          - Who owns each target and which automation is available?
         success_checkpoint:
           milestone: awaiting_governance_inputs
           description: Stop before drafting an unbounded policy.

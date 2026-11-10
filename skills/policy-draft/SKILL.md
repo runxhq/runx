@@ -1,6 +1,6 @@
 ---
 name: policy-draft
-description: Draft or tighten a Runx operational policy from a governance brief, then validate the exact runx.operational_policy.v1 contract with the native policy engine. Use for repository/source/runner/owner policy design, fail-closed policy linting, or authority attenuation; never use this lane to widen an existing policy.
+description: Draft or tighten a Runx operational policy from a governance brief, then validate the exact runx.operational_policy.v1 contract with the native policy engine. Use for repository/source/automation/owner policy design, fail-closed policy linting, or authority attenuation; never use this lane to widen an existing policy.
 ---
 
 # Policy Draft
@@ -12,12 +12,12 @@ exact in-memory result is a valid Runx policy.
 ## Workflow
 
 1. Require concrete target repositories, source locators, owner routes, and an
-   available runner. Return `needs_input` when any are unresolved.
+   available automation. Return `needs_input` when any are unresolved.
 2. Draft the smallest `runx.operational_policy.v1` that admits the stated work.
    Unspecified work remains denied.
-3. When `existing_policy` is supplied, preserve its target/source/runner set and
+3. When `existing_policy` is supplied, preserve its target/source/automation set and
    only attenuate authority. Do not add locators, actions, targets, sources, or
-   runners; do not lower confidence or weaken human gates.
+   automations; do not lower confidence or weaken human gates.
 4. Pass the draft to the deterministic validation step. Never author or trust an
    agent-supplied lint verdict.
 5. Native `data.compare` checks retained identity, provider/kind, owner routing,
@@ -44,8 +44,8 @@ sources:
       publish_mode: reply | comment | none
       missing_behavior: fail_closed
     minimum_confidence: number     # optional
-runners:
-  - runner_id: string
+automations:
+  - automation_id: string
     kind: string
     state: available | disabled | maintenance
     allowed_actions: [string]
@@ -57,7 +57,7 @@ owner_routes:
     target_repos: [owner/repo]
 targets:
   - repo: owner/repo
-    runner_ids: [string]
+    automation_ids: [string]
     allowed_actions: [string]
     default_owner_route: string
     scafld_required: boolean
@@ -79,7 +79,7 @@ permissions:
 
 ## Stop conditions
 
-- Missing repository, locator, runner, or owner evidence: `needs_input` with
+- Missing repository, locator, automation, or owner evidence: `needs_input` with
   `policy: null`; native lint is not run.
 - Proposed widening of an existing policy: `reject` before lint and identify the
   widened path.
@@ -107,9 +107,9 @@ success_checkpoint: object
 ```
 
 The host supplies the actual current native-valid baseline; this is not authority
-to replace a different installed policy. Existing sources, targets and runners
+to replace a different installed policy. Existing sources, targets and automations
 may be removed or their declared action/target sets narrowed. Confidence, required
-review and verification cannot weaken, and a disabled or maintenance runner
+review and verification cannot weaken, and a disabled or maintenance automation
 cannot become available. Owner-route roster reordering is immaterial, but
 changing its membership or unknown provider settings needs a separate explicit
 policy decision.
@@ -122,6 +122,6 @@ install the policy.
 Draft one policy proposal using the exact runx.operational_policy.v1 contract described by the
 skill. Return decision, policy, rationale, blockers, needs_input, and success_checkpoint. Do not
 author a lint verdict: the next deterministic step invokes native `policy.lint`. If required
-repos, source locators, owners, or runner bindings are missing, return needs_input with policy
-null. When existing_policy is supplied, never add authority, targets, sources, runners,
+repos, source locators, owners, or automation bindings are missing, return needs_input with policy
+null. When existing_policy is supplied, never add authority, targets, sources, automations,
 locators, or actions; only tighten permissions, confidence, routing, and outcomes.

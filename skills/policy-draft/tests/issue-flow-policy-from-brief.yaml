@@ -40,8 +40,8 @@ host:
                 publish_mode: reply
                 missing_behavior: fail_closed
               minimum_confidence: 0.82
-          runners:
-            - runner_id: local-review
+          automations:
+            - automation_id: local-review
               kind: local
               state: available
               allowed_actions:
@@ -67,7 +67,7 @@ host:
                 - acme/app
           targets:
             - repo: acme/acme
-              runner_ids:
+              automation_ids:
                 - local-review
               allowed_actions:
                 - issue-intake
@@ -77,7 +77,7 @@ host:
               scafld_required: true
               base_branch: main
             - repo: acme/api
-              runner_ids:
+              automation_ids:
                 - local-review
               allowed_actions:
                 - issue-intake
@@ -87,7 +87,7 @@ host:
               scafld_required: true
               base_branch: main
             - repo: acme/app
-              runner_ids:
+              automation_ids:
                 - local-review
               allowed_actions:
                 - issue-intake
@@ -112,7 +112,7 @@ host:
             auto_merge: false
             mutate_target_repo: true
             require_human_merge_gate: true
-        rationale: The policy binds every source, target, runner, and owner while keeping mutation behind human review.
+        rationale: The policy binds every source, target, automation, and owner while keeping mutation behind human review.
         blockers: []
         needs_input: []
         success_checkpoint:
