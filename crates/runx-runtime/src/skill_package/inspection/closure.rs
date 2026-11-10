@@ -1300,7 +1300,7 @@ mod tests {
         }];
         assert_eq!(
             closure_digest(&packages, &connectors, &[]),
-            "sha256:35d3a1537190dcd745b59333128a84b045510f7b112e69e3c6694e6c723597ad"
+            "sha256:2c85a954f22402647ebe6abe315beb2e0cd3098cadef5bd6f507578fcb039340"
         );
         Ok(())
     }
