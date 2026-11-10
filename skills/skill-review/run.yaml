@@ -318,7 +318,8 @@ methods:
     inputs:
       skill:
         type: string
-        description: Workspace-relative path of the package whose eval_queries.json is measured.
+        pattern: ^[^/@\s]+/[^/@\s]+@[^@\s]+$
+        description: Registry reference, <publisher>/<name>@<version>, of the released package whose eval queries are measured, served by the registry the run reaches.
       repeats:
         type: integer
         minimum: 1
@@ -338,7 +339,7 @@ methods:
           repeats: $input.repeats
         calls:
           skills: [../agent#read]
-          tools: [fs.read, run.read]
+          tools: [run.read]
         max_calls: 900
         outputs:
           evidence: {packet: runx.eval_evidence.v1}
@@ -347,7 +348,8 @@ methods:
     inputs:
       skill:
         type: string
-        description: Workspace-relative path of the package whose evals/evals.json is run.
+        pattern: ^[^/@\s]+/[^/@\s]+@[^@\s]+$
+        description: Registry reference, <publisher>/<name>@<version>, of the released package whose evals are run, served by the registry the run reaches.
       repeats:
         type: integer
         minimum: 1
@@ -367,7 +369,7 @@ methods:
           repeats: $input.repeats
         calls:
           skills: [../agent#write, .#grade]
-          tools: [fs.read, run.read, verdict.criteria, verdict.decide]
+          tools: [run.read, verdict.criteria, verdict.decide]
         max_calls: 900
         outputs:
           evidence: {packet: runx.eval_evidence.v1}

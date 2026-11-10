@@ -54,17 +54,38 @@ execution evidence may require more evidence; they are not permission to fetch.
 7. Recommend `adopt`, `adopt_with_caveats`, `improve`, or `reject`,
    naming the evidence and blocking gaps behind the decision.
 
+## Measuring a released package
+
+`triggers` and `evals` measure a released package, named by its registry
+reference, `<publisher>/<name>@<version>`, from the registry the run reaches
+(`RUNX_REGISTRY_URL`). The package is read into runx's cache, never into the
+workspace, and its eval queries and evals come from its inspection. The
+evidence pins the package by its distribution digest, the one digest every
+published, bundled or served copy of it carries, which a source directory
+doesn't have: a measurement of anything but a released copy is refused.
+
+To measure a package under development, publish it to a local catalog
+registry first. From a runx checkout, this publishes every package under
+`<repository>/skills` as `catalog/<name>` and prints the environment a run
+reaching it takes:
+
+```sh
+cargo run --manifest-path crates/Cargo.toml -p runx-runtime --example runx-catalog-registry -- --root <repository>
+```
+
+Then measure `catalog/<name>@<version>` with that environment.
+
 ## Measuring selection
 
-`triggers` measures how often a host selects one package for each request in
-its `eval_queries.json`. Each request is worked by fresh turns of the `agent`
+`triggers` measures how often a host selects the package for each request in
+its eval queries. Each request is worked by fresh turns of the `agent`
 skill's `read` method, `repeats` of them (3 when absent), on whatever host and
 model work this run's turns: run it with `--drive` and the model you name in
 `runx config`, or from a host attached to the run. A turn selected the package
 when the run's record shows a load in that turn that bound the package's
-exact digest, whether the load completed or waits on the person's trust. What
-a turn says it did is never the evidence, and a load of another package
-doesn't count.
+distribution digest, whether the load completed or waits on the person's
+trust. What a turn says it did is never the evidence, and a load of another
+package, or of another copy with other bytes, doesn't count.
 
 A request passes when the package is selected at least half the time and it
 should be, or less than half the time and it shouldn't. The result is each
@@ -77,11 +98,11 @@ description is what's measured.
 
 ## Running evals
 
-`evals` runs each eval in `evals/evals.json`, `repeats` times (once when
-absent), in a fresh turn of the `agent` skill's `write` method under this
-run's authority. No eval writes to the world: a scripted model's run uses
-provider fixtures, and a real model's runs under `effects: none`, with its
-reads live and recorded as live, so a write is refused at any depth.
+`evals` runs each of the package's evals, `repeats` times (once when absent),
+in a fresh turn of the `agent` skill's `write` method under this run's
+authority. No eval writes to the world: a scripted model's run uses provider
+fixtures, and a real model's runs under `effects: none`, with its reads live
+and recorded as live, so a write is refused at any depth.
 
 Each attempt is judged by `grade`, a fresh turn given the eval, the attempt as
 its record holds it (its outcome, the calls it made and how each ended, its
@@ -89,10 +110,11 @@ receipt), and the eval's criteria set: its expected output, then each of its
 expectations, every one required, made by a deterministic step, never by the
 attempt or the grader. The grader returns a `runx.verdict.v1`, and the runtime
 names `grade` as its evaluator. The run decides each verdict by the one rule
-against the package at its digest and that criteria set: `met`, `not_met`, or
-`inconclusive` when a required check is left unanswered. A verdict that judges
-something else, answers another set, or names another evaluator is refused,
-and a refused verdict answers nothing, which isn't `inconclusive`.
+against the package at its distribution digest and that criteria set: `met`,
+`not_met`, or `inconclusive` when a required check is left unanswered. A
+verdict that judges something else, answers another set, or names another
+evaluator is refused, and a refused verdict answers nothing, which isn't
+`inconclusive`.
 
 ## Stop conditions
 

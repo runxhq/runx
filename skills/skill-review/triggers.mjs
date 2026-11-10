@@ -1,11 +1,12 @@
 import { byHost, childRuns, readRecord, started, turnOf, within } from "./record.mjs";
+import { released } from "./released.mjs";
 
-// How often a host selects one package for each of its eval queries. Each
-// query is worked by fresh turns of the agent skill's read method, one child
-// run each, and a turn selected the package when the run's record shows a load
-// in that turn's run that bound the package's exact digest, whether the load
-// completed or waits on the person's trust. What a turn says it did is never
-// the evidence.
+// How often a host selects one released package for each of its eval
+// queries. Each query is worked by fresh turns of the agent skill's read
+// method, one child run each, and a turn selected the package when the run's
+// record shows a load in that turn's run that bound the package's
+// distribution digest, whether the load completed or waits on the person's
+// trust. What a turn says it did is never the evidence.
 
 // A query passes when the package is selected in at least half its runs for
 // a request that should select it, and in fewer than half for one that
@@ -19,8 +20,8 @@ const HOST = "../agent#read";
 
 export default async function triggers(ctx, { subject, repeats }) {
   const runs = repeats ?? DEFAULT_REPEATS;
-  const digest = subject.inspect.package_digest;
-  const queries = await evalQueries(ctx, subject.resolved_path);
+  const pinned = released(subject);
+  const queries = evalQueries(subject);
   const turns = [];
   for (const [query, entry] of queries.entries()) {
     for (let turn = 0; turn < runs; turn += 1) {
@@ -30,12 +31,12 @@ export default async function triggers(ctx, { subject, repeats }) {
   }
   const record = await readRecord(ctx);
   const children = childRuns(record, HOST, turns.length);
-  const selected = selections(record, digest, children);
+  const selected = selections(record, pinned.revision, children);
   const measured = turns.map((query, turn) => ({ query, run: children[turn], selected: selected[turn] }));
   return {
     evidence: {
       schema: "runx.eval_evidence.v1",
-      package: { ref: subject.resolved_path, revision: digest },
+      package: pinned,
       ...started(record),
       repeats: runs,
       hosts: byHost(measured, ({ run }) => turnOf(record, run)).map(({ host, models, items }) => ({
@@ -68,20 +69,15 @@ function selection(queries, measured) {
   };
 }
 
-// The package's eval_queries.json, read whole.
-async function evalQueries(ctx, packagePath) {
-  const { file_read } = await ctx.tool("fs.read", { path: `${packagePath}/eval_queries.json` });
-  const read = await ctx.read(file_read);
-  if (read.truncated) {
-    throw new Error(`${packagePath}/eval_queries.json is longer than one read`);
-  }
-  const queries = JSON.parse(read.contents);
-  if (!Array.isArray(queries) || queries.length === 0) {
-    throw new Error(`${packagePath}/eval_queries.json holds no queries`);
+// The package's eval queries, as its inspection carries them.
+function evalQueries(subject) {
+  const queries = subject.inspect.eval_queries ?? [];
+  if (queries.length === 0) {
+    throw new Error(`${subject.resolved_path} declares no eval queries`);
   }
   if (queries.length > MAX_QUERIES) {
     throw new Error(
-      `${packagePath}/eval_queries.json holds ${queries.length} queries, past the ${MAX_QUERIES} one measurement takes`,
+      `${subject.resolved_path} declares ${queries.length} eval queries, past the ${MAX_QUERIES} one measurement takes`,
     );
   }
   return queries;

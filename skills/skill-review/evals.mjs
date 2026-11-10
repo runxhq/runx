@@ -1,4 +1,5 @@
 import { byHost, childRuns, readRecord, started, turnOf, within } from "./record.mjs";
+import { released } from "./released.mjs";
 
 // A package's evals, run and judged. Each eval is worked by fresh turns of the
 // agent skill's write method, one child run each, under this run's authority,
@@ -14,23 +15,25 @@ const HOST = "../agent#write";
 
 export default async function evals(ctx, { subject, repeats }) {
   const runs = repeats ?? DEFAULT_REPEATS;
-  const packagePath = subject.resolved_path;
-  const judged = { ref: packagePath, revision: subject.inspect.package_digest };
-  const file = await readJson(ctx, `${packagePath}/evals/evals.json`);
+  const judged = released(subject);
+  const declared = subject.inspect.evals ?? [];
+  if (declared.length === 0) {
+    throw new Error(`${judged.ref} declares no evals`);
+  }
   const cases = [];
-  for (const entry of file.evals) {
+  for (const entry of declared) {
     const { criteria } = await ctx.tool("verdict.criteria", { criteria: checks(entry) });
     const set = await ctx.read(criteria);
     cases.push({
       entry,
       criteria: set,
-      criteria_set: { ref: `${packagePath}/evals/evals.json#${entry.id}`, revision: set.revision },
+      criteria_set: { ref: `${judged.ref}/evals/evals.json#${entry.id}`, revision: set.revision },
     });
   }
   const attempts = [];
   for (const kase of cases) {
     for (let attempt = 0; attempt < runs; attempt += 1) {
-      const settled = await settle(ctx.skill(HOST, { act: act(kase.entry, packagePath) }));
+      const settled = await settle(ctx.skill(HOST, { act: act(kase.entry, judged.ref) }));
       attempts.push({ kase, settled });
     }
   }
@@ -97,14 +100,12 @@ function checks(entry) {
 }
 
 // The act an attempt is given: the eval's prompt, and the files it names, as
-// paths in the workspace.
-function act(entry, packagePath) {
+// files of the released package.
+function act(entry, reference) {
   const files = entry.files ?? [];
   return {
     purpose: entry.prompt,
-    ...(files.length === 0
-      ? {}
-      : { reason: `Files: ${files.map((file) => `${packagePath}/${file}`).join(", ")}` }),
+    ...(files.length === 0 ? {} : { reason: `Files of ${reference}: ${files.join(", ")}` }),
   };
 }
 
@@ -147,15 +148,6 @@ async function judge(ctx, judged, { kase, settled, evidence }) {
     criteria: kase.criteria,
   });
   return { decision: await ctx.read(decision), evaluator: read.evaluator };
-}
-
-async function readJson(ctx, path) {
-  const { file_read } = await ctx.tool("fs.read", { path });
-  const read = await ctx.read(file_read);
-  if (read.truncated) {
-    throw new Error(`${path} is longer than one read`);
-  }
-  return JSON.parse(read.contents);
 }
 
 // What an attempt's run did, as its record holds it: each call it made and

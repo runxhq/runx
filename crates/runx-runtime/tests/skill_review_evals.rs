@@ -16,6 +16,8 @@ use tempfile::tempdir;
 
 use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
 
+use crate::registry_fixture::LoopbackRegistry;
+
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// The first-party `skill-review` package.
@@ -23,8 +25,7 @@ fn skill_review() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/skill-review")
 }
 
-/// A package of the workspace at `root`, `skills/<name>`, that digests a
-/// value.
+/// A package at `root/skills/<name>`, version 1.0.0, that digests a value.
 fn digest_package(root: &Path, name: &str, description: &str) -> TestResult<PathBuf> {
     let dir = root.join("skills").join(name);
     crate::support::write_test_skill_package(
@@ -32,35 +33,127 @@ fn digest_package(root: &Path, name: &str, description: &str) -> TestResult<Path
         &format!(
             "---\nname: {name}\ndescription: {description}\n---\n# {name}\n\nDigest the value.\n"
         ),
-        "minimum_runx: 0.12.0\nmethods:\n  digest:\n    description: Digest one value.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "version: 1.0.0\nminimum_runx: 0.12.0\nmethods:\n  digest:\n    description: Digest one value.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
     Ok(dir)
 }
 
-/// Run `skill-review#<method>` with `inputs` in the workspace at `root`,
-/// every turn worked by the scripted model at `endpoint`, under `authority`
-/// when one is given.
-fn review(
+/// Publish the package at `dir`, written outside any workspace under
+/// `source`, to `registry` as acme's, as `runx registry publish` sends it,
+/// and return its distribution digest, the one a load of it binds.
+fn release(registry: &LoopbackRegistry, source: &Path, dir: &Path) -> TestResult<String> {
+    let env = registry.env()?;
+    registry.publish_directory(dir, "acme", &env, source)?;
+    let subject = dir.to_string_lossy();
+    Ok(runx_runtime::registry::prepare_registry_publish_package(
+        runx_runtime::registry::RegistryPublishPackageRequest {
+            subject: &subject,
+            env: &env,
+            cwd: source,
+        },
+    )?
+    .into_parts()
+    .package_digest()?)
+}
+
+/// The environment of a run in the workspace at `root` that reaches
+/// `registry`, its turns worked by the scripted model at `endpoint`.
+fn eval_env(
     root: &Path,
-    method: &str,
-    inputs: Value,
+    registry: &LoopbackRegistry,
     endpoint: &str,
-    authority: Option<Value>,
-) -> TestResult<Value> {
-    let mut env = BTreeMap::from([
+) -> TestResult<BTreeMap<String, String>> {
+    let mut env = registry.env()?;
+    env.extend([
         ("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned()),
         (
             "RUNX_HOME".to_owned(),
             root.join(".home").to_string_lossy().into_owned(),
         ),
-        // Nothing listens here, so no turn reaches a registry.
-        (
-            "RUNX_REGISTRY_URL".to_owned(),
-            "http://127.0.0.1:9".to_owned(),
-        ),
+        ("RUNX_REGISTRY_URL".to_owned(), registry.url.clone()),
     ]);
     env.extend(managed_agent_env(endpoint, "fixture-model"));
     crate::support::insert_test_signing_env(&mut env);
+    Ok(env)
+}
+
+/// The person states their trust in `reference` ahead of a measurement, as
+/// a person does: a turn of the agent skill's read method loads it, the load
+/// waits on their trust, and they give it. Their trust is recorded in the
+/// home for the package's closure, so a measurement's loads of it bind
+/// without waiting.
+fn trust_ahead(root: &Path, registry: &LoopbackRegistry, reference: &'static str) -> TestResult {
+    let model = ScriptedModel::serve(move |request| {
+        if loaded(request) {
+            return tool_call(
+                "call-final",
+                "turn_complete",
+                &json!({"summary": "Trusted it."}),
+            );
+        }
+        tool_call("call-load", "load", &json!({"skill": reference}))
+    })?;
+    let env = eval_env(root, registry, model.endpoint())?;
+    let agent = skill_review().join("../agent");
+    let orchestrator = LocalOrchestrator::default();
+    let started = orchestrator.run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: Some(serde_json::from_value(
+                json!({"purpose": "Load it, to trust it."}),
+            )?),
+            skill_path: agent,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(4)?,
+        },
+        Some("read"),
+        None,
+        None,
+    );
+    let started = serde_json::to_value(&started?.output)?;
+    let run_id = started["run_id"].as_str().ok_or("the run has an id")?;
+    let trusted = orchestrator.resume(&runx_runtime::ResumeRequest {
+        run_id: run_id.to_owned(),
+        answers: crate::support::bind_resume(
+            &env,
+            root,
+            run_id,
+            json!({"approvals": {"read/0/trust": true}}),
+        )?,
+        receipt_dir: Some(root.join("receipts")),
+        env,
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(4)?,
+        package_digest: None,
+        closure_digest: None,
+    });
+    model.finish()?;
+    let trusted = serde_json::to_value(&trusted?.output)?;
+    if trusted["status"] != "sealed" {
+        return Err(format!("the trust run seals once trusted: {trusted}").into());
+    }
+    Ok(())
+}
+
+/// Run `skill-review#<method>` with `inputs` in the workspace at `root`,
+/// reaching `registry`, every turn worked by the scripted model at
+/// `endpoint`, under `authority` when one is given.
+fn review(
+    root: &Path,
+    registry: &LoopbackRegistry,
+    method: &str,
+    inputs: Value,
+    endpoint: &str,
+    authority: Option<Value>,
+) -> TestResult<Value> {
+    let env = eval_env(root, registry, endpoint)?;
     let Value::Object(inputs) = inputs else {
         return Err("inputs are an object".into());
     };
@@ -115,7 +208,10 @@ fn loaded(request: &Value) -> bool {
 fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
-    let subject = digest_package(root, "subject", "Digests a value for the person.")?;
+    let source = tempdir()?;
+    let registry = LoopbackRegistry::serve()?;
+    // The candidate is released, and the workspace holds no copy of it.
+    let subject = digest_package(source.path(), "subject", "Digests a value for the person.")?;
     digest_package(root, "other", "Digests something else.")?;
     fs::write(
         subject.join("eval_queries.json"),
@@ -128,10 +224,8 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
         ])
         .to_string(),
     )?;
-    let digest = runx_runtime::load_validated_skill_package(&subject)?
-        .package
-        .package_digest
-        .clone();
+    let digest = release(&registry, source.path(), &subject)?;
+    trust_ahead(root, &registry, "acme/subject@1.0.0")?;
     // How many turns each query has started.
     let started = Arc::new(Mutex::new(BTreeMap::<&'static str, u32>::new()));
     let seen = Arc::clone(&started);
@@ -154,26 +248,46 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
         };
         let load = |skill: &str| tool_call("call-load", "load", &json!({"skill": skill}));
         match (marker, turn) {
-            ("Always", _) | ("Twice", 1 | 3) | ("Once", 1) => load("skills/subject"),
+            ("Always", _) | ("Twice", 1 | 3) | ("Once", 1) => load("acme/subject@1.0.0"),
             ("Elsewhere", _) => load("skills/other"),
             // A turn's own claim is never the evidence.
-            _ => complete("I loaded skills/subject and used it."),
+            _ => complete("I loaded acme/subject@1.0.0 and used it."),
         }
     })?;
 
     let output = review(
         root,
+        &registry,
         "triggers",
-        json!({"skill": "skills/subject"}),
+        json!({"skill": "acme/subject@1.0.0"}),
+        model.endpoint(),
+        None,
+    );
+    // A workspace path names a source directory, which has no one identity
+    // to measure, so it is never measured.
+    let unreleased = review(
+        root,
+        &registry,
+        "triggers",
+        json!({"skill": "skills/other"}),
         model.endpoint(),
         None,
     );
     model.finish()?;
+    let refused = unreleased.err().ok_or("a workspace path is refused")?;
+    assert!(
+        refused.to_string().contains("pattern"),
+        "the input names a registry reference: {refused}"
+    );
     let output = output?;
     assert_eq!(output["status"], "sealed", "{output}");
     let evidence = &output["result"]["evidence"];
     assert_eq!(evidence["schema"], "runx.eval_evidence.v1", "{output}");
-    assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
+    assert_eq!(
+        evidence["package"],
+        json!({"ref": "acme/subject@1.0.0", "revision": digest}),
+        "{output}"
+    );
     assert_eq!(evidence["repeats"], 3, "{evidence}");
     assert_eq!(evidence["ran_on"], "local", "{evidence}");
     // One host answered every turn, the managed agent through the scripted
@@ -261,7 +375,9 @@ fn eval_marker(request: &Value) -> Option<&'static str> {
 fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
-    let subject = digest_package(root, "subject", "Digests a value for the person.")?;
+    let source = tempdir()?;
+    let registry = LoopbackRegistry::serve()?;
+    let subject = digest_package(source.path(), "subject", "Digests a value for the person.")?;
     let evals = json!([
         {"id": 1, "prompt": "Meets: digest proof.", "expected_output": "The digest of proof.", "files": [], "expectations": ["It names the digest."]},
         {"id": 2, "prompt": "Misses: digest proof.", "expected_output": "The digest of proof.", "files": []},
@@ -275,10 +391,7 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         subject.join("evals/evals.json"),
         json!({"skill_name": "subject", "evals": evals}).to_string(),
     )?;
-    let digest = runx_runtime::load_validated_skill_package(&subject)?
-        .package
-        .package_digest
-        .clone();
+    let digest = release(&registry, source.path(), &subject)?;
     let pinned = |reference: &str, revision: &str| json!({"ref": reference, "revision": revision});
     let mut sets = BTreeMap::new();
     for eval in evals.as_array().into_iter().flatten() {
@@ -289,7 +402,7 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         sets.insert(
             marker.to_owned(),
             pinned(
-                &format!("skills/subject/evals/evals.json#{}", eval["id"]),
+                &format!("acme/subject@1.0.0/evals/evals.json#{}", eval["id"]),
                 criteria_of(eval)?.revision.as_str(),
             ),
         );
@@ -318,7 +431,7 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         let mut verdict = json!({
             "schema": "runx.verdict.v1",
             "verdict": "met",
-            "subject": pinned("skills/subject", &judged),
+            "subject": pinned("acme/subject@1.0.0", &judged),
             "criteria_set": sets[marker],
             "assessments": [met("expected_output")],
         });
@@ -344,8 +457,9 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
 
     let output = review(
         root,
+        &registry,
         "evals",
-        json!({"skill": "skills/subject"}),
+        json!({"skill": "acme/subject@1.0.0"}),
         model.endpoint(),
         Some(json!({"effects": "none"})),
     );
