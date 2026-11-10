@@ -126,10 +126,7 @@ function parseDetections(value, source, allowedClasses) {
     if (selector.all === true && selector.occurrence !== undefined)
       throw new Error("Choose all occurrences or one occurrence, not both.");
     const matches = [];
-    let at = 0;
-    while (at <= source.length - selector.quote.length) {
-      const start = source.indexOf(selector.quote, at);
-      if (start < 0) break;
+    for (const start of quoteStarts(source, selector.quote)) {
       const end = start + selector.quote.length;
       if (
         (selector.prefix === undefined ||
@@ -138,7 +135,6 @@ function parseDetections(value, source, allowedClasses) {
           source.startsWith(selector.suffix, end))
       )
         matches.push([start, end]);
-      at = start + 1;
     }
     const selected =
       selector.all === true
@@ -169,6 +165,21 @@ function parseDetections(value, source, allowedClasses) {
     if (parsed[i].span[0] < parsed[i - 1].span[1])
       throw new Error("Selected personal-data spans overlap.");
   return parsed;
+}
+
+// Every place `quote` starts in `source`, overlapping ones included, in
+// order. The search runs from the last back: the worker's lastIndexOf walks
+// down from the position it's given, while its indexOf from a position first
+// walks up to it from the string's start, so a forward search from each match
+// cost the square of the source's length and this one costs its length.
+function quoteStarts(source, quote) {
+  const starts = [];
+  let at = source.lastIndexOf(quote);
+  while (at >= 0) {
+    starts.push(at);
+    at = at === 0 ? -1 : source.lastIndexOf(quote, at - 1);
+  }
+  return starts.reverse();
 }
 
 function applyDetections(source, detections, treatment) {

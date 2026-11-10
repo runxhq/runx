@@ -123,6 +123,51 @@ test("selected text stays private and never appears in the public detection reco
   ]);
   assert.ok(!JSON.stringify(out).includes("Alice"));
 });
+// The positions a search visits, counted as the worker's engine visits them:
+// its indexOf from a position first walks up to that position from the
+// string's start, its lastIndexOf walks down from the position it's given,
+// and startsWith and endsWith at a position compare only the search.
+function positionsVisited(run) {
+  const { indexOf, lastIndexOf, startsWith, endsWith } = String.prototype;
+  let visited = 0;
+  String.prototype.indexOf = function (search, from = 0) {
+    const found = indexOf.call(this, search, from);
+    visited += (found < 0 ? this.length : found) + 1;
+    return found;
+  };
+  String.prototype.lastIndexOf = function (search, from = Infinity) {
+    const found = lastIndexOf.call(this, search, from);
+    visited += Math.min(from, this.length) - (found < 0 ? -1 : found);
+    return found;
+  };
+  String.prototype.startsWith = function (search, at) {
+    visited += String(search).length;
+    return startsWith.call(this, search, at);
+  };
+  String.prototype.endsWith = function (search, at) {
+    visited += String(search).length;
+    return endsWith.call(this, search, at);
+  };
+  try {
+    run();
+  } finally {
+    Object.assign(String.prototype, { indexOf, lastIndexOf, startsWith, endsWith });
+  }
+  return visited;
+}
+test("selecting every mention visits each position a bounded number of times", () => {
+  const perMention = [1000, 2000, 5000].map((count) => {
+    const source = Array(count).fill("Alice").join(" ");
+    const visited = positionsVisited(() =>
+      scrub(source, [detection("Alice", { all: true })], { mode: "tokenize" }),
+    );
+    return visited / count;
+  });
+  assert.ok(
+    perMention.every((visited) => visited <= 2 * "Alice ".length),
+    `positions visited per mention at 1,000, 2,000 and 5,000: ${perMention}`,
+  );
+});
 test("one-pass replacement remains exact at two materially different match counts", () => {
   for (const count of [200, 5000]) {
     const source = Array(count).fill("Alice").join(" ");
