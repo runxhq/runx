@@ -41,5 +41,5 @@ expect:
   step_outputs:
     hold:
       subset:
-        outreach_review: {decision: hold, draft_status: withheld, draft: null, draft_packet_digest: null, delivery_status: not_sent}
+        outreach_review: {data: {decision: hold, draft_status: withheld, draft: null, draft_packet_digest: null, delivery_status: not_sent}}
   receipt: {schema: runx.receipt.v1}

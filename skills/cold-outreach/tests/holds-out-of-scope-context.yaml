@@ -72,8 +72,9 @@ expect:
     review:
       subset:
         outreach_review:
-          decision: hold
-          draft_status: withheld
-          draft: null
-          delivery_status: not_sent
+          data:
+            decision: hold
+            draft_status: withheld
+            draft: null
+            delivery_status: not_sent
   receipt: {schema: runx.receipt.v1}

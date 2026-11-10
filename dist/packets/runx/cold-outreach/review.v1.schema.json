@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/cold-outreach/review/v1.json",
+  "x-runx-packet-id": "runx/cold-outreach.review.v1",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "properties": {
+          "draft": {
+            "type": "null"
+          },
+          "draft_packet_digest": {
+            "type": "null"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "ready_for_review"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "draft": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "draft_packet_digest": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "blockers": {
+      "items": {
+        "maxLength": 1000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "ready_for_review",
+        "hold"
+      ]
+    },
+    "delivery_status": {
+      "const": "not_sent"
+    },
+    "draft": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "subject": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "body"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "draft_packet_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "draft_status": {
+      "enum": [
+        "prepared",
+        "withheld"
+      ]
+    },
+    "policy_evidence_ids": {
+      "items": {
+        "maxLength": 1000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "policy_id": {
+      "maxLength": 1000,
+      "type": "string"
+    },
+    "recipient": {
+      "format": "email",
+      "maxLength": 320,
+      "type": "string"
+    },
+    "sender": {
+      "additionalProperties": false,
+      "properties": {
+        "from_address": {
+          "format": "email",
+          "maxLength": 320,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reply_to": {
+          "format": "email",
+          "maxLength": 320,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "from_address",
+        "reply_to"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "sender",
+    "recipient",
+    "policy_id",
+    "policy_evidence_ids",
+    "draft_status",
+    "delivery_status",
+    "blockers",
+    "draft",
+    "draft_packet_digest"
+  ],
+  "type": "object"
+}

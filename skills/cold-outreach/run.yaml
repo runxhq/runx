@@ -188,63 +188,7 @@ methods:
       tool: {module: cold-outreach.mjs, export: finalizeReview}
       inputs: {contact_brief: $steps.admit.contact_brief}
       outputs:
-        outreach_review:
-          type: object
-          additionalProperties: false
-          required:
-          - decision
-          - sender
-          - recipient
-          - policy_id
-          - policy_evidence_ids
-          - draft_status
-          - delivery_status
-          - blockers
-          - draft
-          - draft_packet_digest
-          properties:
-            decision: {enum: [ready_for_review, hold]}
-            sender:
-              type: object
-              additionalProperties: false
-              required: [name, from_address, reply_to]
-              properties:
-                name: {type: string, minLength: 1, maxLength: 200}
-                from_address: {type: string, format: email, maxLength: 320}
-                reply_to: {type: string, format: email, maxLength: 320}
-            recipient: {type: string, format: email, maxLength: 320}
-            policy_id: {type: string, maxLength: 1000}
-            policy_evidence_ids:
-              type: array
-              maxItems: 20
-              uniqueItems: true
-              items: {type: string, minLength: 1, maxLength: 1000}
-            draft_status: {enum: [prepared, withheld]}
-            delivery_status: {const: not_sent}
-            blockers:
-              type: array
-              maxItems: 32
-              items: {type: string, minLength: 1, maxLength: 1000}
-            draft:
-              type: [object, 'null']
-              additionalProperties: false
-              required: [subject, body]
-              properties:
-                subject: {type: string, minLength: 1, maxLength: 500}
-                body: {type: string, minLength: 1, maxLength: 100000}
-            draft_packet_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
-          allOf:
-          - if:
-              properties:
-                decision: {const: ready_for_review}
-            then:
-              properties:
-                draft: {type: object}
-                draft_packet_digest: {type: string}
-            else:
-              properties:
-                draft: {type: 'null'}
-                draft_packet_digest: {type: 'null'}
+        outreach_review: {type: object, packet: runx/cold-outreach.review.v1}
     - id: memory
       when: {value: $steps.admit.memory_search.path, equals: search}
       skill: runx/memory#search
@@ -377,63 +321,7 @@ methods:
         content_draft_packet: $steps.verify.content_draft_packet
         draft_packet_digest: $steps.digest-draft.digest_result.digest
       outputs:
-        outreach_review:
-          type: object
-          additionalProperties: false
-          required:
-          - decision
-          - sender
-          - recipient
-          - policy_id
-          - policy_evidence_ids
-          - draft_status
-          - delivery_status
-          - blockers
-          - draft
-          - draft_packet_digest
-          properties:
-            decision: {enum: [ready_for_review, hold]}
-            sender:
-              type: object
-              additionalProperties: false
-              required: [name, from_address, reply_to]
-              properties:
-                name: {type: string, minLength: 1, maxLength: 200}
-                from_address: {type: string, format: email, maxLength: 320}
-                reply_to: {type: string, format: email, maxLength: 320}
-            recipient: {type: string, format: email, maxLength: 320}
-            policy_id: {type: string, maxLength: 1000}
-            policy_evidence_ids:
-              type: array
-              maxItems: 20
-              uniqueItems: true
-              items: {type: string, minLength: 1, maxLength: 1000}
-            draft_status: {enum: [prepared, withheld]}
-            delivery_status: {const: not_sent}
-            blockers:
-              type: array
-              maxItems: 32
-              items: {type: string, minLength: 1, maxLength: 1000}
-            draft:
-              type: [object, 'null']
-              additionalProperties: false
-              required: [subject, body]
-              properties:
-                subject: {type: string, minLength: 1, maxLength: 500}
-                body: {type: string, minLength: 1, maxLength: 100000}
-            draft_packet_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
-          allOf:
-          - if:
-              properties:
-                decision: {const: ready_for_review}
-            then:
-              properties:
-                draft: {type: object}
-                draft_packet_digest: {type: string}
-            else:
-              properties:
-                draft: {type: 'null'}
-                draft_packet_digest: {type: 'null'}
+        outreach_review: {type: object, packet: runx/cold-outreach.review.v1}
   batch:
     description: For each lead, enrich its supplied sources, qualify it against the criteria and prepare its first contact, collecting every lead's outcome with the key its send is made under. Sends nothing.
     inputs:

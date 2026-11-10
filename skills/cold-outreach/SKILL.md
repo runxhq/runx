@@ -80,8 +80,9 @@ belongs to. Brand and taste packets apply only when their declared scope names
 that audience and the email channel, and they keep their structured profiles,
 evidence bindings and stop conditions through ghostwrite's admission.
 
-The result includes an `outreach_review` with the exact sender, recipient and
-draft status. A ready result includes the exact subject/body and the native digest
+The result includes an `outreach_review`, a `runx/cold-outreach.review.v1`
+packet, with the exact sender, recipient and draft status. A ready result
+includes the exact subject/body and the native digest
 of its validated ghostwrite source packet; a hold exposes no usable email payload.
 Route the ready payload through a compatible mail capability. Delivery admission must bind sender,
 recipient and complete content to native approval and provider execution.
