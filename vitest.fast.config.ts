@@ -19,6 +19,7 @@ export default defineConfig({
       "tests/client-native.test.ts",
       "tests/least-privilege-scope.test.ts",
       "tests/scope-policy-differential.test.ts",
+      "tests/eval-binaries-read-one-document.test.ts",
       "tests/runtime-architecture.test.ts",
       "tests/core-skill-inventory.test.ts",
       "tests/policy-draft-validation.test.ts",

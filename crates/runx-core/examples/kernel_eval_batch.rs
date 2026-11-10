@@ -3,6 +3,10 @@
 //! Reads a JSON array of kernel documents on stdin and writes one result per
 //! document: `{"status":"success","result":…}` or
 //! `{"status":"error","code":…,"message":…}`.
+//!
+//! It reads the array to its end and no further, never waiting for stdin to
+//! close, so a parent that holds stdin open past a complete request, as one
+//! whose descriptor another process inherited does, still gets its answer.
 
 use std::io;
 
@@ -10,7 +14,10 @@ use runx_core::kernel_eval::evaluate_kernel_document_str;
 use serde_json::{Value, json};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let inputs: Vec<Value> = serde_json::from_reader(io::stdin().lock())?;
+    let inputs: Vec<Value> = serde_json::Deserializer::from_reader(io::stdin().lock())
+        .into_iter()
+        .next()
+        .ok_or("stdin holds no array of kernel documents")??;
     let outputs = inputs
         .iter()
         .map(
