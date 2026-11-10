@@ -69,6 +69,8 @@ methods:
           search_evidence: $input.search_evidence
           analytics_evidence: $input.analytics_evidence
           site_evidence: $input.site_evidence
+        outputs:
+          organic_growth_packet: {type: object, packet: runx/organic-growth.brief.v1, optional: true}
       - id: collect
         when: {value: $steps.select-evidence.comparison.equal, equals: true}
         agent: organic-growth-collect
@@ -98,6 +100,8 @@ methods:
           analytics_evidence: $steps.collect.analytics_evidence
           site_evidence: $steps.collect.site_evidence
           collection_notes: $steps.collect.collection_notes
+        outputs:
+          organic_growth_packet: {type: object, packet: runx/organic-growth.brief.v1, optional: true}
 
   analyze:
     description: "Interpret supplied search, analytics and site evidence without collecting the same sources again."
@@ -182,7 +186,7 @@ methods:
           source_records: $steps.admit.growth_context.source_records
           fallback_source: $steps.admit.growth_context
         outputs:
-          organic_growth_packet: {optional: true}
+          organic_growth_packet: {type: object, packet: runx/organic-growth.brief.v1, optional: true}
 
       - id: analyze
         when:
@@ -396,4 +400,4 @@ methods:
           authoritative_source: $steps.admit.growth_context
           fallback_source: $steps.admit.growth_context
         outputs:
-          organic_growth_packet: {optional: true}
+          organic_growth_packet: {type: object, packet: runx/organic-growth.brief.v1, optional: true}

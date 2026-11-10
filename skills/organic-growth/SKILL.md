@@ -10,10 +10,10 @@ organic discovery: technical search health, content demand, landing-page
 performance, conversion quality, or the clarity and citeability that can help a
 page appear in answer engines.
 
-The output is a decision packet, not a bag of SEO tips. It separates what the
-evidence shows from what the analyst infers, ranks the next actions by expected
-impact, confidence, and effort, and says how each action should be measured. No
-action is executed by this skill.
+The output is a brief, a `runx/organic-growth.brief.v1` packet, not a bag of SEO
+tips. It separates what the evidence shows from what the analyst infers, ranks
+the next actions by expected impact, confidence, and effort, and says how each
+action should be measured. No action is executed by this skill.
 
 ## Direct collection and reuse
 
@@ -126,9 +126,9 @@ citations and no basis for guaranteeing inclusion. Treat answer-engine
 visibility as an observed channel that needs its own evidence, not as a mystical
 ranking score.
 
-## Action packet
+## The brief
 
-A ready packet contains:
+A ready brief contains:
 
 - an executive summary and bounded analysis scope;
 - evidence-bound observations and explicit hypotheses;

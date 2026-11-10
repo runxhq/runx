@@ -146,6 +146,10 @@
       "digest": "sha256:a0830db633ef6bf028161aff001d3510d5b302800ed49c1ea44ba791562b96f4"
     },
     {
+      "id": "runx/organic-growth.brief.v1",
+      "digest": "sha256:9d757781eb35b6c244779efede7ae6fe84b2e017311e30b1746bc5c406412148"
+    },
+    {
       "id": "runx/policy-draft.proposal.v1",
       "digest": "sha256:fda93dfbf6e4cbbdd211b6ecb89a966d4c9efd82abfd90dd47776cff43eb12c0"
     },

@@ -50,7 +50,8 @@ expect:
     finalize:
       subset:
         organic_growth_packet:
-          decision: needs_more_evidence
-          validation: {status: fail}
-          external_status: not_executed
+          data:
+            decision: needs_more_evidence
+            validation: {status: fail}
+            external_status: not_executed
   receipt: {schema: runx.receipt.v1}

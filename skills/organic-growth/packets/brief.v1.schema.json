@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/organic-growth/brief/v1.json",
+  "x-runx-packet-id": "runx/organic-growth.brief.v1",
+  "if": {
+    "properties": {
+      "decision": {
+        "pattern": "^ready"
+      }
+    }
+  },
+  "properties": {
+    "analysis_scope": {
+      "additionalProperties": false,
+      "properties": {
+        "analytics_rows_exposed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "complete_source_packets_bound_by_digest": {
+          "type": "boolean"
+        },
+        "max_rows_per_provider_packet": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "search_rows_exposed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_count",
+        "source_kinds",
+        "search_rows_exposed",
+        "analytics_rows_exposed",
+        "max_rows_per_provider_packet",
+        "complete_source_packets_bound_by_digest"
+      ],
+      "type": "object"
+    },
+    "claims": {
+      "items": {
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "source_digests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "decision": {
+      "type": "string"
+    },
+    "executive_summary": {
+      "type": "string"
+    },
+    "external_status": {
+      "type": "string"
+    },
+    "geo_review": {
+      "properties": {
+        "assessment": {
+          "type": "string"
+        },
+        "source_digests": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "hypotheses": {
+      "items": {
+        "properties": {
+          "epistemic_status": {
+            "type": "string"
+          },
+          "source_digests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "statement": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "input_caveats": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "measurement_plan": {
+      "properties": {
+        "baseline": {
+          "type": "string"
+        },
+        "business_outcomes": {
+          "type": "string"
+        },
+        "comparison_window": {
+          "type": "string"
+        },
+        "leading_signals": {
+          "type": "string"
+        },
+        "reconsideration_trigger": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "missing_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "observations": {
+      "items": {
+        "properties": {
+          "epistemic_status": {
+            "type": "string"
+          },
+          "source_digests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "statement": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "opportunities": {
+      "items": {
+        "properties": {
+          "rationale": {
+            "type": "string"
+          },
+          "source_digests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "recommended_actions": {
+      "items": {
+        "properties": {
+          "confidence": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string"
+          },
+          "expected_signal": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "owner_type": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "source_digests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stop_condition": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "verification": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "risks": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "site_url": {
+      "type": "string"
+    },
+    "source_evidence": {
+      "description": "Each admitted source, by kind and digest, with what admission recorded of it.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "property": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_status": {
+            "type": "string"
+          },
+          "source_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "source_status": {
+            "type": "string"
+          },
+          "source_uri": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "source_digest"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "findings"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "source_evidence",
+    "analysis_scope",
+    "input_caveats",
+    "validation"
+  ],
+  "then": {
+    "required": [
+      "objective",
+      "site_url",
+      "executive_summary",
+      "observations",
+      "hypotheses",
+      "opportunities",
+      "recommended_actions",
+      "geo_review",
+      "measurement_plan",
+      "claims",
+      "risks",
+      "missing_evidence",
+      "external_status"
+    ]
+  },
+  "type": "object"
+}
