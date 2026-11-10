@@ -10,10 +10,11 @@ This file applies to the OSS workspace under `oss/`. It complements
 
 Governed runtime artifacts use the run spine:
 
-- `test`: governed execution boundary with attenuated authority.
-- `act`: contained payload with `intent`, `form`, and `closure`.
-- `receipt`: sealed proof of a test node.
-- `decision`: accountable test lifecycle choice.
+- `run`: governed execution boundary with attenuated authority.
+- `act`: one governed call's purpose and record: its `intent`, `form` and
+  `reason`.
+- `receipt`: sealed proof of a run node.
+- `decision`: accountable run lifecycle choice.
 - `signal`: world-before-action input.
 
 Do not introduce compatibility aliases, `.v2` contract ids, or retired central
@@ -58,8 +59,9 @@ Names follow these rules:
   ended in its `ending`, and why in its `ending_reason`, at its top level.
 - A field that holds a project artifact is `<thing>_artifact`; a list of them
   is `artifacts`.
-- A run is a run and an act is an act. `execution` names a boundary, a
-  closure or a location; the program a binding names is its `executor`.
+- A run is a run and an act is an act. `execution` names a boundary or a
+  location; the program a binding names is its `executor`. A package's
+  closure is its `closure`.
 
 `runx.receipt.v1` is the wire runx 0.11 signs, and its issuer names the
 `runx_version` that signed it. A receipt issued before 0.11 verifies with the
@@ -84,7 +86,7 @@ CLI, host-adapter, filesystem, network, or subprocess concerns.
 The public TypeScript invocation path is integrations → `@runxhq/client` →
 `@runxhq/contracts`. The client root owns only finite native command invocation;
 its `./adapters` export owns portable response formatting and must remain Node-free.
-The client never imports private Cloud features, framework tests or CLI
+The client never imports private Cloud features, agent frameworks or CLI
 internals. Products own persistence, agent loops and scheduling.
 
 ## Connector and Tenant Neutrality
