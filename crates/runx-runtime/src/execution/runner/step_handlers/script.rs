@@ -324,7 +324,7 @@ where
             }
             Err(refusal) => return Ok(Err(refusal)),
         };
-        match ledger.admit(host, call.position, target, input)? {
+        match ledger.admit(host, call.position, target, input, reuse(&call.target))? {
             Admission::Settled(result) => {
                 if let TurnCallOutcome::Pending { waiting: requests } = result.outcome {
                     waiting.push((call.position, requests));
@@ -726,6 +726,24 @@ fn outstanding(calls: &[ScriptCall], recorded: &[RecordedCall]) -> Option<u32> {
         .map(|call| call.position)
 }
 
+/// What a skill call asked of reuse, and what it was answered. No source is
+/// indexed yet, so a call that asks finds no candidate, runs, and says so.
+fn reuse(target: &ScriptCallTarget) -> Option<runx_contracts::RunCallReuse> {
+    let ScriptCallTarget::Skill {
+        reuse: Some(ask), ..
+    } = target
+    else {
+        return None;
+    };
+    Some(runx_contracts::RunCallReuse {
+        max_age_seconds: ask.max_age_seconds,
+        model: ask.model.as_deref().map(Into::into),
+        decision: runx_contracts::ReuseDecision::Recomputed {
+            reason: runx_contracts::RecomputeReason::NoCandidate,
+        },
+    })
+}
+
 fn diverged(step_id: &str, position: u32, why: &str) -> RuntimeError {
     RuntimeError::ContinuationRejected {
         reason: format!(
@@ -743,7 +761,9 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObje
             .map_err(|error| format!("a call's inputs are a JSON object: {error}"))
     };
     Ok(Some(match target {
-        ScriptCallTarget::Skill { reference, inputs } => (
+        ScriptCallTarget::Skill {
+            reference, inputs, ..
+        } => (
             CallTarget::Skill {
                 skill: reference.as_str().into(),
                 method: None,

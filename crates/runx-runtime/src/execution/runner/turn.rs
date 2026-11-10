@@ -474,6 +474,9 @@ struct Made {
     standing: Option<runx_contracts::StandingApproval>,
     /// Its host cancelled it, which every later record of it keeps.
     cancelled: bool,
+    /// What it asked of reuse and what it was answered, which its first
+    /// record keeps, once.
+    reuse: Option<runx_contracts::RunCallReuse>,
 }
 
 impl Made {
@@ -485,6 +488,7 @@ impl Made {
             input: call.input.clone(),
             standing: call.standing.clone(),
             cancelled: call.cancelled,
+            reuse: None,
         }
     }
 }
@@ -588,6 +592,7 @@ fn script_call(index: u32, target: CallTarget) -> Made {
         input: JsonObject::new(),
         standing: None,
         cancelled: false,
+        reuse: None,
     }
 }
 
@@ -981,6 +986,7 @@ where
         index: u32,
         target: CallTarget,
         input: JsonObject,
+        reuse: Option<runx_contracts::RunCallReuse>,
     ) -> Result<Admission, RuntimeError> {
         self.admit_at(
             &mut AnsweringHost::new(host, None),
@@ -991,6 +997,7 @@ where
                 input,
                 standing: None,
                 cancelled: false,
+                reuse,
             },
         )
     }
@@ -1226,8 +1233,10 @@ where
         cancelled: bool,
     ) -> Result<TurnCallResult, RuntimeError> {
         let newly = cancelled && !made.cancelled;
+        // Its claim recorded what it asked of reuse.
         let made = Made {
             cancelled: made.cancelled || cancelled,
+            reuse: None,
             ..made
         };
         match (ran, claim) {
@@ -1409,7 +1418,7 @@ where
             answers,
             cancelled: made.cancelled,
             inline_bound,
-            reuse: None,
+            reuse: made.reuse.as_ref(),
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.
@@ -2292,6 +2301,7 @@ where
             input,
             standing: None,
             cancelled: false,
+            reuse: None,
         };
         self.ledger
             .admit_made(&mut AnsweringHost::new(host, None), made)

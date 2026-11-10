@@ -223,10 +223,13 @@ pub struct ScriptCall {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScriptCallTarget {
-    /// `ctx.skill(reference, inputs)`: a method, `skill#method`, as a child run.
+    /// `ctx.skill(reference, inputs, { reuse })`: a method, `skill#method`,
+    /// as a child run, or a result it may reuse.
     Skill {
         reference: String,
         inputs: serde_json::Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reuse: Option<ReuseAsk>,
     },
     /// `ctx.tool(name, inputs)`: a catalog tool.
     Tool {
@@ -248,6 +251,17 @@ pub enum ScriptCallTarget {
     /// `ctx.read(reference)`, of a reference a call's result gave the
     /// script, by its artifact's digest. It resolves to the value.
     Read { digest: String },
+}
+
+/// What a skill call asks of reuse (reuse, D32): a result made at most
+/// `max_age_seconds` ago, counted from its original source, and, when it
+/// names one, only by `model`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReuseAsk {
+    pub max_age_seconds: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 /// How a pass ended.

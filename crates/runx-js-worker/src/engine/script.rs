@@ -28,7 +28,7 @@ use super::{
     EngineError, WorkerHost, configure_context, engine_failure, parse_modules, settle_module,
 };
 use crate::protocol::{
-    InvocationLimits, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding,
+    InvocationLimits, ReuseAsk, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding,
     ScriptReference, ScriptSettlement, WorkerFailureCode,
 };
 
@@ -410,7 +410,7 @@ fn take_calls(ledger: &Shared) -> Vec<ScriptCall> {
 /// `ctx`: `skill`, `tool`, `operation`, `now`, `wait` and `read`, frozen.
 fn script_context(ledger: &Shared, context: &mut Context) -> Result<JsValue, EngineError> {
     let functions: [(&str, usize, CallFn); 6] = [
-        ("skill", 2, skill),
+        ("skill", 3, skill),
         ("tool", 2, tool),
         ("operation", 3, operation),
         ("now", 0, now),
@@ -451,11 +451,47 @@ fn skill(
 ) -> JsResult<JsValue> {
     let reference = text(arguments.get_or_undefined(0), "ctx.skill", "a skill#method")?;
     let inputs = inputs(arguments.get_or_undefined(1), "ctx.skill", context)?;
+    let reuse = reuse(arguments.get_or_undefined(2), context)?;
     call(
         ledger,
-        ScriptCallTarget::Skill { reference, inputs },
+        ScriptCallTarget::Skill {
+            reference,
+            inputs,
+            reuse,
+        },
         context,
     )
+}
+
+/// `ctx.skill`'s options, `{ reuse: { max_age_seconds, model } }`: how old a
+/// result it may reuse is, in whole seconds, and the model that made it,
+/// when it names one. Any other key is refused.
+fn reuse(value: &JsValue, context: &mut Context) -> JsResult<Option<ReuseAsk>> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Options {
+        reuse: Option<ReuseAsk>,
+    }
+    if value.is_undefined() {
+        return Ok(None);
+    }
+    let refused = |why: String| {
+        JsError::from(JsNativeError::typ().with_message(format!("ctx.skill's options: {why}")))
+    };
+    let options = match value.to_json(context)? {
+        Some(options @ serde_json::Value::Object(_)) => options,
+        _ => return Err(refused("they are an object, { reuse }".to_owned())),
+    };
+    let Options { reuse } =
+        serde_json::from_value(options).map_err(|error| refused(error.to_string()))?;
+    if reuse
+        .as_ref()
+        .and_then(|reuse| reuse.model.as_deref())
+        .is_some_and(|model| model.trim().is_empty())
+    {
+        return Err(refused("reuse.model names a model".to_owned()));
+    }
+    Ok(reuse)
 }
 
 fn tool(
@@ -466,6 +502,12 @@ fn tool(
 ) -> JsResult<JsValue> {
     let name = text(arguments.get_or_undefined(0), "ctx.tool", "a tool's name")?;
     let inputs = inputs(arguments.get_or_undefined(1), "ctx.tool", context)?;
+    // A tool is pure computation, so there's nothing to reuse.
+    if !arguments.get_or_undefined(2).is_undefined() {
+        return Err(JsNativeError::typ()
+            .with_message("ctx.tool takes a tool's name and its inputs, and no options")
+            .into());
+    }
     call(ledger, ScriptCallTarget::Tool { name, inputs }, context)
 }
 
@@ -490,6 +532,16 @@ fn operation(
                 .into());
         }
         Some(options) => {
+            // A read is the world read again, so it never takes `reuse`.
+            for key in options.own_property_keys(context)? {
+                if key.to_string() != "idempotency_key" {
+                    return Err(JsNativeError::typ()
+                        .with_message(format!(
+                            "ctx.operation's options take an idempotency_key, not {key}"
+                        ))
+                        .into());
+                }
+            }
             let key = options.get(js_string!("idempotency_key"), context)?;
             if key.is_undefined() {
                 None

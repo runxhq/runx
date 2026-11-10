@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::{Passed, ScriptPass, pass, start};
 use crate::protocol::{
-    InvocationLimits, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
+    InvocationLimits, ReuseAsk, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
     ScriptSettlement,
 };
 
@@ -80,6 +80,71 @@ fn a_pass_reports_each_call_at_its_position_and_waits_on_them() -> Result<(), St
         ScriptCallTarget::Skill {
             reference: ".#draft".to_owned(),
             inputs: json!({"lead": "ada"}),
+            reuse: None,
+        }
+    );
+    Ok(())
+}
+
+/// A skill call states what it asks of reuse: how old a result may be,
+/// and the model that made it, when it names one.
+#[test]
+fn a_skill_call_carries_its_reuse_ask() -> Result<(), String> {
+    let passed = run(
+        r#"export default async function (ctx, { lead }) {
+            return ctx.skill("../lead-qualify#qualify", { lead }, {
+                reuse: { max_age_seconds: 604800, model: "claude-haiku-4-5" },
+            });
+        }"#,
+        &[],
+    )?;
+    assert_eq!(
+        passed.calls[0].target,
+        ScriptCallTarget::Skill {
+            reference: "../lead-qualify#qualify".to_owned(),
+            inputs: json!({"lead": "ada"}),
+            reuse: Some(ReuseAsk {
+                max_age_seconds: 604_800,
+                model: Some("claude-haiku-4-5".to_owned()),
+            }),
+        }
+    );
+    Ok(())
+}
+
+/// Only a skill call takes a reuse ask, and only one it can read: a tool is
+/// pure computation and a read is the world read again, so neither takes
+/// one, and a malformed ask is refused before any call is made.
+#[test]
+fn a_reuse_ask_is_refused_where_it_cant_apply() -> Result<(), String> {
+    let passed = run(
+        r#"export default async function (ctx) {
+            const refused = [];
+            for (const attempt of [
+                () => ctx.skill(".#q", {}, { reuse: { max_age_seconds: -1 } }),
+                () => ctx.skill(".#q", {}, { reuse: { max_age_seconds: 1.5 } }),
+                () => ctx.skill(".#q", {}, { reuse: { max_age_seconds: 60, maybe: 1 } }),
+                () => ctx.skill(".#q", {}, { reuse: { max_age_seconds: 60, model: "" } }),
+                () => ctx.skill(".#q", {}, { cache: true }),
+                () => ctx.tool("t", {}, { reuse: { max_age_seconds: 60 } }),
+                () => ctx.operation("c/o", {}, { idempotency_key: "k", reuse: { max_age_seconds: 60 } }),
+            ]) {
+                try {
+                    attempt();
+                    refused.push(false);
+                } catch (error) {
+                    refused.push(error instanceof TypeError);
+                }
+            }
+            return { refused };
+        }"#,
+        &[],
+    )?;
+    assert!(passed.calls.is_empty(), "{:?}", passed.calls);
+    assert_eq!(
+        passed.ending,
+        ScriptEnding::Returned {
+            output: json!({"refused": [true, true, true, true, true, true, true]}),
         }
     );
     Ok(())
@@ -99,6 +164,7 @@ fn a_script_returns_once_its_record_settles_every_call() -> Result<(), String> {
         ScriptCallTarget::Skill {
             reference: ".#draft".to_owned(),
             inputs: json!({"lead": "ada", "checked": {"passed": true}}),
+            reuse: None,
         }
     );
     let done = run(

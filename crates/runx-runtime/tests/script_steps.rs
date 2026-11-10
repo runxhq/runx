@@ -1730,3 +1730,59 @@ fn a_returned_local_only_descriptor_no_call_of_the_step_returned_fails_the_step(
     );
     Ok(())
 }
+
+/// A skill call that asks to reuse a result records what it asked, and
+/// that it ran again with no candidate, once, on the call it made. A call
+/// that asks for nothing records nothing, and both run their child as
+/// before.
+#[test]
+fn a_skill_call_records_its_reuse_ask_once_and_runs() -> TestResult {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("digest-child"),
+        "---\nname: digest-child\ndescription: Digests a value.\n---\n# Digest child\n\nDigest it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  digest:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: $input.value, encoding: utf8_text}\n",
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../digest-child]\n        max_calls: 2\n        outputs:\n          asked: {type: integer}\n          plain: {type: integer}\n",
+        r#"export default async function (ctx, { value }) {
+  const asked = await ctx.skill("../digest-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  const plain = await ctx.skill("../digest-child", { value });
+  return { asked: Object.keys(asked).length, plain: Object.keys(plain).length };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let run_id = text(output, "run_id").ok_or("missing run_id")?;
+    let read = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), run_id, None)?;
+    let asked = |wanted: u32| {
+        read.events
+            .iter()
+            .filter(|record| record.stream.as_str() == run_id)
+            .filter_map(|record| match &record.event {
+                RunEventFact::Call { index, reuse, .. } if *index == wanted => Some(reuse.clone()),
+                _ => None,
+            })
+            .flatten()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        asked(0),
+        [runx_contracts::RunCallReuse {
+            max_age_seconds: 604_800,
+            model: None,
+            decision: runx_contracts::ReuseDecision::Recomputed {
+                reason: runx_contracts::RecomputeReason::NoCandidate,
+            },
+        }],
+        "recorded once, on the call that asked"
+    );
+    assert!(
+        asked(1).is_empty(),
+        "a call that asks for nothing records nothing"
+    );
+    Ok(())
+}
