@@ -1206,7 +1206,7 @@ pub(super) fn when_skipped_steps(
         for step in &workflow.steps {
             let condition_source = step.when.as_ref().and_then(|when| when.value.step());
             if step
-                .reads()
+                .needs()
                 .into_iter()
                 .chain(condition_source)
                 .any(|source| skipped.contains(source))
@@ -1519,5 +1519,49 @@ methods:
                 .contains("guard '$input.approved' is unresolved"),
             "{error}"
         );
+    }
+
+    /// A turn whose context reads a step that was skipped runs with none
+    /// of that step's entries, rather than being skipped with it.
+    #[test]
+    fn a_turn_runs_without_the_entries_of_a_skipped_step() {
+        let workflow = crate::execution::workflow::testing::method_workflow(
+            "skipped-context",
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: recall
+        when: {value: $input.mode, equals: recall}
+        tool: data.digest
+        inputs: {value: $input.levels}
+      - id: answer
+        agent: answer
+        context:
+          entries: [$steps.recall.entries]
+"#,
+        )
+        .expect("fixture method should validate");
+        let workflow = crate::execution::workflow::bind_run_inputs(
+            workflow,
+            &runx_contracts::JsonObject::new(),
+            None,
+            "run",
+            None,
+        )
+        .expect("the run input binds");
+
+        assert_eq!(
+            when_skipped_steps(&workflow, &[], &BTreeSet::new()),
+            BTreeSet::from(["recall".to_owned()])
+        );
+        let positions = std::collections::BTreeMap::new();
+        let entries = crate::execution::workflow::materialize_step_context_entries_with_index(
+            &workflow.steps[1],
+            &super::PriorRunIndex::from_positions(&[], &positions),
+        )
+        .expect("a skipped step gives no entries");
+        assert!(entries.is_empty());
     }
 }

@@ -174,7 +174,7 @@ fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), Validatio
             continue;
         }
         if let Some(source) = step
-            .reads()
+            .needs()
             .into_iter()
             .find(|source| gated.contains(source))
         {

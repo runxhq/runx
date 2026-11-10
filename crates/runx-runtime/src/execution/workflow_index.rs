@@ -138,6 +138,11 @@ impl<'a> PriorRunIndex<'a> {
         }
     }
 
+    /// Whether `step_id` ran: a step the plan skipped didn't.
+    pub(crate) fn ran(&self, step_id: &str) -> bool {
+        self.run(step_id).is_some()
+    }
+
     fn run(&self, step_id: &str) -> Option<&'a StepRun> {
         self.positions
             .get(step_id)

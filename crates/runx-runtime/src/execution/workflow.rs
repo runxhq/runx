@@ -990,8 +990,18 @@ pub(crate) fn materialize_step_context_entries_with_index(
     let mut entries = Vec::new();
     for source in &task.context_entries {
         let Source::Step { step: from, path } = source else {
-            continue;
+            return Err(RuntimeError::EngineInvariant {
+                context: "giving a turn its context entries",
+                message: format!(
+                    "context.entries reads {}, and the parser takes only an earlier step's output",
+                    source.reference()
+                ),
+            });
         };
+        // A skipped step gives the turn no entries.
+        if !prior_run_index.ran(from) {
+            continue;
+        }
         let value = prior_run_index.output(&step.id, "context.entries", from, path)?;
         let mut listed = value
             .deserialize_into::<Vec<runx_contracts::ContextEntry>>()
@@ -1036,9 +1046,11 @@ fn binding_label(binding: &Binding) -> String {
     }
 }
 
+/// The earlier steps a step waits on: those it needs. A step its turn's
+/// context comes from is one it runs without when the plan skips it.
 fn context_from(step: &WorkflowStep) -> Option<Vec<String>> {
-    let reads = step.reads();
-    (!reads.is_empty()).then(|| reads.into_iter().map(str::to_owned).collect())
+    let needs = step.needs();
+    (!needs.is_empty()).then(|| needs.into_iter().map(str::to_owned).collect())
 }
 
 /// A test's workflow, written the one way a workflow is written: as a
@@ -1072,6 +1084,37 @@ mod tests {
 
     fn object(json: serde_json::Value) -> JsonObject {
         serde_json::from_value(json).unwrap_or_default()
+    }
+
+    /// A turn waits on the steps it needs, never on the step its context
+    /// comes from, which it runs without when the plan skips it.
+    #[test]
+    fn a_turn_waits_on_what_it_needs_and_not_its_context() -> Result<(), String> {
+        let workflow = workflow(
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: recall
+        when: {value: $input.mode, equals: recall}
+        tool: data.digest
+        inputs: {value: $input.mode}
+      - id: brief
+        tool: data.digest
+        inputs: {value: brief}
+      - id: answer
+        agent: answer
+        inputs: {brief: $steps.brief.digest_result}
+        context:
+          entries: [$steps.recall.entries]
+"#,
+        )?;
+        assert_eq!(
+            super::context_from(&workflow.steps[2]),
+            Some(vec!["brief".to_owned()])
+        );
+        Ok(())
     }
 
     /// The user's own copy of a registry skill, `skills/<publisher>/<name>/`

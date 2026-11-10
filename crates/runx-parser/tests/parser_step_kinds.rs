@@ -269,8 +269,10 @@ fn an_agent_step_is_given_context_entries_only_from_an_earlier_steps_output() ->
             path: vec!["entries".to_owned()],
         }]
     );
-    // The step it reads from is one the workflow waits on.
+    // The step it reads from is one the workflow waits on, and one it can
+    // run without: a skipped step gives it no entries.
     assert_eq!(answer.reads(), ["recall"]);
+    assert!(answer.needs().is_empty(), "{:?}", answer.needs());
     for (entries, refusal) in [
         (
             "[$input.entries]",

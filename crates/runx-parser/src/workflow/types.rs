@@ -304,11 +304,25 @@ impl WorkflowStep {
     /// them: a condition selects the step, it is not its input.
     #[must_use]
     pub fn reads(&self) -> Vec<&str> {
-        let mut steps = Vec::new();
+        let mut steps = self.needs();
         let entries = match &self.kind {
             StepKind::Agent(task) => task.context_entries.as_slice(),
             _ => &[],
         };
+        for step in entries.iter().filter_map(Source::step) {
+            if !steps.contains(&step) {
+                steps.push(step);
+            }
+        }
+        steps
+    }
+
+    /// The earlier steps this step can't run without: what it reads, less
+    /// the steps its turn's context entries come from, since a skipped step
+    /// gives a turn no entries and the turn runs with none from it.
+    #[must_use]
+    pub fn needs(&self) -> Vec<&str> {
+        let mut steps = Vec::new();
         let reason = match &self.kind {
             StepKind::Ask(AskGate {
                 reason: AskReason::Step { step, .. },
@@ -321,7 +335,6 @@ impl WorkflowStep {
             .iter()
             .chain(self.act.iter().flat_map(|act| &act.bindings))
             .map(|binding| &binding.source)
-            .chain(entries)
             .filter_map(Source::step)
             .chain(reason)
         {
