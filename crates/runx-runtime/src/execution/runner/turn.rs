@@ -1414,6 +1414,7 @@ where
             answers,
             cancelled: made.cancelled,
             inline_bound,
+            reuse: None,
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.

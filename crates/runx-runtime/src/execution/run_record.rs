@@ -294,6 +294,10 @@ struct CallEvent {
     /// each field past it reached the script by reference to its artifact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     inline_bound: Option<u64>,
+    /// What it asked of reuse and what it was answered, recorded once so
+    /// recovery reads the same choice and never decides again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reuse: Option<runx_contracts::RunCallReuse>,
     /// A turn's call leaves its run paused at the turn: the turn's calls that
     /// still wait once it is recorded, itself among them while it waits, in
     /// order, so what the turn waits on is read from its latest call alone.
@@ -581,6 +585,8 @@ pub(crate) struct CallRecord<'a> {
     pub cancelled: bool,
     /// The most a field of its result holds inline as it reaches a script.
     pub inline_bound: Option<u64>,
+    /// What it asked of reuse and what it was answered.
+    pub reuse: Option<&'a runx_contracts::RunCallReuse>,
 }
 
 /// How a run began.
@@ -1475,6 +1481,7 @@ impl RunLog {
                 .collect(),
             cancelled: call.cancelled,
             inline_bound: call.inline_bound,
+            reuse: call.reuse.cloned(),
             waiting,
         };
         blobs.extend(values);

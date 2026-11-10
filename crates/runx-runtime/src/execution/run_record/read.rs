@@ -279,6 +279,7 @@ fn project(
                 standing: call.standing.map(Box::new),
                 outcome: Box::new(outcome),
                 cancelled: call.cancelled,
+                reuse: call.reuse,
             }
         }
         RunEvent::Clock(read) => RunEventFact::Clock {

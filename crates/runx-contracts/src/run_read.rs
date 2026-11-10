@@ -173,6 +173,10 @@ pub enum RunEventFact {
         /// actually ended.
         #[serde(default, skip_serializing_if = "crate::schema::is_default")]
         cancelled: bool,
+        /// What the call asked of reuse, and what it was answered. Absent
+        /// when it asked for none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reuse: Option<RunCallReuse>,
     },
     /// A script read the clock: what `ctx.now()` returned at its position
     /// in its step, in milliseconds since the epoch, so its replay returns
@@ -355,4 +359,47 @@ mod tests {
         );
         Ok(())
     }
+}
+
+/// What a call that asked to reuse a result asked, and what it was answered
+/// (reuse, D32): the source it settled from, or why it ran again, so reuse
+/// that never fires shows up.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunCallReuse {
+    /// How old a result it reused could be, counted from its original
+    /// source, in seconds.
+    pub max_age_seconds: u64,
+    /// Only a result this model made, when the call named one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<NonEmptyString>,
+    pub decision: ReuseDecision,
+}
+
+/// Whether a call that asked to reuse a result reused one.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ReuseDecision {
+    /// It settled from the source run whose receipt this is.
+    Reused { from: NonEmptyString },
+    /// It ran again, for this reason.
+    Recomputed { reason: RecomputeReason },
+}
+
+/// Why a call that asked to reuse a result ran again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RecomputeReason {
+    /// No source holds a result for what it asked.
+    NoCandidate,
+    /// Its source's record can't show all it did and saw.
+    Ineligible,
+    /// The run's authority doesn't allow a read its source made.
+    NotAllowed,
+    /// What a step or turn of its source was given has changed.
+    Changed,
+    /// Its source is older than it allows.
+    TooOld,
+    /// Its source's model isn't the one it named, or names none.
+    OtherModel,
 }

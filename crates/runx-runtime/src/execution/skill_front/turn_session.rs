@@ -549,6 +549,7 @@ mod tests {
             answers: &[],
             cancelled: false,
             inline_bound: None,
+            reuse: None,
         })?;
         Ok((run_id, log))
     }

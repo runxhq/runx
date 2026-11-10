@@ -563,6 +563,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             answers: &[],
             cancelled: false,
             inline_bound: None,
+            reuse: None,
         })
         .unwrap();
     }
@@ -601,6 +602,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         answers: &[],
         cancelled: false,
         inline_bound: None,
+        reuse: None,
     })
     .unwrap();
     let calls = log.calls("answer", 1).unwrap();
@@ -628,6 +630,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         answers: &[],
         cancelled: false,
         inline_bound: None,
+        reuse: None,
     })
     .unwrap();
     assert!(matches!(
@@ -685,6 +688,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             answers: &[],
             cancelled: false,
             inline_bound: None,
+            reuse: None,
         })
         .unwrap();
     log.record_call(&CallRecord {
@@ -705,6 +709,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         answers: &[],
         cancelled: false,
         inline_bound: None,
+        reuse: None,
     })
     .unwrap();
 
@@ -1173,6 +1178,7 @@ fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
                 answers: &[],
                 cancelled: false,
                 inline_bound: None,
+                reuse: None,
             })
             .unwrap();
         };
@@ -1247,4 +1253,58 @@ fn a_driving_process_reads_as_driven() {
             .run
             .driven
     );
+}
+
+/// A call that asked to reuse a result records what it asked and what it
+/// was answered, once, and the run's read shows it, so reuse that never
+/// fires shows up; a call that asked for none shows none.
+#[test]
+fn a_calls_reuse_decision_is_recorded_once_and_read_back() {
+    let workspace = tempfile::tempdir().unwrap();
+    let (env, store) = project_env(&workspace);
+    let log = RunLog::open(Arc::clone(&store), "run_reuse_1").unwrap();
+    start(&log, &JsonObject::new());
+    let target = CallTarget::Tool {
+        tool: "data.digest".into(),
+    };
+    let input = JsonObject::from([("value".to_owned(), JsonValue::String("a".to_owned()))]);
+    let reuse = runx_contracts::RunCallReuse {
+        max_age_seconds: 604_800,
+        model: None,
+        decision: runx_contracts::ReuseDecision::Recomputed {
+            reason: runx_contracts::RecomputeReason::TooOld,
+        },
+    };
+    for (index, reuse) in [(0, Some(&reuse)), (1, None)] {
+        log.record_call(&CallRecord {
+            step_id: "batch",
+            attempt: 1,
+            turn: None,
+            index,
+            call_id: None,
+            target: &target,
+            input: &input,
+            outcome: &CallOutcome::Completed(Box::new(step(
+                "run_reuse_1",
+                &format!("batch/{index}"),
+            ))),
+            outputs: &[],
+            standing: None,
+            answers: &[],
+            cancelled: false,
+            inline_bound: None,
+            reuse,
+        })
+        .unwrap();
+    }
+    let read = read_run(&env, workspace.path(), "run_reuse_1", None).unwrap();
+    let shown = read
+        .events
+        .iter()
+        .filter_map(|record| match &record.event {
+            runx_contracts::RunEventFact::Call { reuse, .. } => Some(reuse.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(shown, [Some(reuse), None]);
 }
