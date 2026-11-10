@@ -231,9 +231,14 @@ const PINNED = {
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'ref_type: "harness"', why: "a receipt subject's ref type: 0.12's receipt schema still writes harness" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: 'type: "harness",', why: "a receipt ref's type, the same wire value" },
     { file: "packages/api/src/receipts/notary-projection.test.ts", literal: "runx:harness:poisoned-secret-locator", why: "that ref's uri, and the secret the test proves is scrubbed from it" },
-    // A retired schema's own URL, which the release check refuses by name: its
-    // retired_by and why say what took its place.
+    // Retired schemas' entries, which the release check refuses by their
+    // published URLs: each URL, and the record of what took its place.
     { file: "scripts/site-release.ts", literal: '"https://schemas.runx.ai/runx/control/harness-context/v1.json"', why: "a retired schema's URL, which the release check names to refuse it" },
+    {
+      file: "scripts/site-release.ts",
+      literal: '"https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." }',
+      why: "a retired schema's URL and its record of what replaced it, which name the old schema as published",
+    },
     // spec.md's canonical receipts are OSS's fixtures/contracts/canonical-receipts, made by its
     // generator. Only the governed call's carries an old word, its runx:harness: readback, so it
     // alone is pinned, by its own id: the id and digest cover every byte.

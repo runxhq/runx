@@ -534,7 +534,8 @@ const cloudPin = {
   "packages/api/src/payments/leases-postgres.ts": 'export const label = "purchase-holdings";\n',
   "packages/api/src/receipts/notary-projection.test.ts": 'export const subject = { ref_type: "harness" };\nexport const ref = { type: "harness", uri: "runx:harness:poisoned-secret-locator" };\n',
   "spec/spec.md": cloudSpec,
-  "scripts/site-release.ts": 'export const retired = { "https://schemas.runx.ai/runx/control/harness-context/v1.json": {} };\n',
+  "scripts/site-release.ts":
+    'export const retired = {\n  "https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." },\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": {},\n};\n',
 };
 
 test("a pinned block in Markdown comes out byte-exact, while the rest of its file renames", (t) => {
@@ -545,9 +546,9 @@ test("a pinned block in Markdown comes out byte-exact, while the rest of its fil
   assert.equal(read(root, "packages/api/src/receipts/notary-projection.test.ts"), cloudPin["packages/api/src/receipts/notary-projection.test.ts"]);
 });
 
-test("a pinned literal keeps its bytes and lands on nothing, though its file already holds the name the table renames it to", (t) => {
+test("a pinned literal keeps its bytes, its phrases among them, and lands on nothing, though its file already holds the name the table renames it to", (t) => {
   const leases = 'export const label = "purchase-holdings";\nexport const table = "leases";\n';
-  const release = 'export const retired = {\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": { why: "The 0.12 rename made it runx/control/run-context/v1." },\n};\n';
+  const release = 'export const retired = {\n  "https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." },\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": { why: "The 0.12 rename made it runx/control/run-context/v1." },\n};\n';
   const root = tree(t, { ...cloudPin, "packages/api/src/payments/leases-postgres.ts": leases, "scripts/site-release.ts": release });
   const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
   assert.equal(status, 0, out);

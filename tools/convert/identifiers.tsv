@@ -67,7 +67,7 @@ cloud	runner_names	80	runner	method_names		apps/web/src/components/skills/Packag
 cloud	closure	73	closure	?	a bare word: code or prose, read in place	README.md docs/hosted-platform.md
 cloud	runners	61	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
 cloud	harness_cases	42	harness	test_cases	the test sense	packages/api/src/native-runtime.test.ts packages/api/src/public/site-data.test.ts
-cloud	execution_closure_digest	41	closure	closure_digest	stored: Cloud's 0096_closure_names.sql renames the column execution_closure_digest to closure_digest on runs, run_summaries, private_execution_packages and private_execution_package_references, keeping their rows; closure is the one name for a package's closure (rename ruling 3)	packages/api/src/hosted-execution-composition.ts packages/api/src/registry/verified-runs.test.ts
+cloud	execution_closure_digest	41	closure	closure_digest	stored: Cloud's 0096_closure_names.sql renames the column execution_closure_digest to closure_digest on runs and run_summaries, keeping their rows; the private-package tables keep theirs until Stage 6 decides their drop; closure is the one name for a package's closure (rename ruling 3)	packages/api/src/hosted-execution-composition.ts packages/api/src/registry/verified-runs.test.ts
 cloud	test-closure	37	closure	test-closure	a package's closure, closure's one meaning	packages/api/src/governance/operations.test.ts packages/api/src/index.test.ts
 cloud	publishHarnessValidator	34	harness	publishTestValidator	the test sense	packages/api/src/app.ts packages/api/src/app/route-options.ts
 cloud	PublishHarnessSummary	28	harness	PublishTestSummary	the test sense	packages/api/src/registry/native-harness.ts packages/api/src/registry/publication.ts
@@ -103,7 +103,7 @@ cloud	requestHarness	11	harness	requestTest	the test sense	packages/auth/src/pro
 cloud	Harness	10	harness	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillEvidence.astro packages/api/src/admin/service.test.ts
 cloud	heldBy	10	hold	heldBy	English, or a skill's own word: stays	packages/db/src/registry-store.ts packages/registry/src/memory-store.ts
 cloud	validatePublishHarness	10	harness	validatePublishTest	the test sense	packages/api/src/index.test.ts packages/api/src/native-runtime.test.ts
-cloud	agent-act-invocation	9	agent_act	agent-act-invocation		packages/api/src/protocol-control-artifacts.test.ts packages/api/src/public/protocol/model.ts
+cloud	agent-act-invocation	9	agent_act	turn-invocation	the turn invocation's schema file, as OSS's turn-invocation.schema.json is; the retired URL's entry in scripts/site-release.ts is pinned	packages/api/src/protocol-control-artifacts.test.ts packages/api/src/public/protocol/model.ts
 cloud	closure_digest	9	closure	closure_digest	a package's closure, closure's one meaning	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-store.test.ts
 cloud	execution-closure	9	closure	closure	stored: only in the words of an old run's error, which 0024_run_execution_closure_binding.sql wrote and nothing reads, so the rows keep them as their record; closure is the one name for a package's closure (rename ruling 3)	README.md docs/hosted-platform.md
 cloud	holdPurchaseOf	9	hold	leasePurchaseOf	the lease family	packages/api/src/payments/holdings.ts packages/api/src/payments/purchases/receipts.ts
@@ -1776,3 +1776,4 @@ cloud	ClosureInspection		decided	ClosureInspection	a package's closure, closure'
 cloud	runs_closure_binding_required		decided	runs_closure_binding_required	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
 cloud	run_summaries_closure_binding_required		decided	run_summaries_closure_binding_required	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
 ausca	TestRevisionsBindTheSchemaClosureTheyAreServedWith	1	closure	TestRevisionsBindTheSchemaClosureTheyAreServedWith	a package's closure, or English: stays	internal/catalogcompiler/history_test.go
+cloud	turn-invocation		decided	turn-invocation	a renamed name lands here: the turn invocation	
