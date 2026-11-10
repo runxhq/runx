@@ -755,13 +755,14 @@ impl KernelStore {
             let (version, event_type, data, stored_chain, committed_at) =
                 row.map_err(|source| self.database("reading a stream", source))?;
             crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
-            #[cfg(feature = "probe-fixtures")]
-            crate::work_counts::stream_event_read(kind, key, version);
             if version != expected {
                 return Err(integrity(version));
             }
             expected += 1;
+            // The anchor of a ranged read is checked, never read again.
             if !(anchored && version == after) {
+                #[cfg(feature = "probe-fixtures")]
+                crate::work_counts::stream_event_read(kind, key, version);
                 if chain_link(&chain, &event_type, &data) != stored_chain {
                     return Err(integrity(version));
                 }
