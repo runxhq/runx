@@ -680,6 +680,133 @@ methods:
     Ok(())
 }
 
+/// A packet output follows its declaration's `optional`, as every output
+/// does: an optional packet a step doesn't return is allowed, one it returns
+/// is checked against its packet, and a required one must be returned. A
+/// skill step that returns its child's result declares the packet as its
+/// child does.
+#[test]
+fn an_optional_packet_may_be_absent_and_a_required_one_may_not()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("optional-packet");
+    fs::create_dir_all(skill_dir.join("packets"))?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: optional-packet\ndescription: Return a plan packet, a malformed one, or none.\n---\n# Optional packet\n",
+    )?;
+    // The run's method is the package's default, so each case names it.
+    let profile = |method: &str| {
+        format!(
+            r#"
+minimum_runx: 0.12.0
+default_method: {method}
+methods:
+  relay:
+    description: Return plan's result, its packet optional.
+    inputs:
+      shape: {{type: string}}
+    steps:
+      - id: relay
+        skill: .#plan
+        inputs: {{shape: $input.shape}}
+        outputs:
+          note: {{type: string}}
+          plan: {{type: object, packet: acme/optional-packet.plan.v1, optional: true}}
+  relay-required:
+    description: Return plan's result, its packet required.
+    inputs:
+      shape: {{type: string}}
+    steps:
+      - id: relay
+        skill: .#plan
+        inputs: {{shape: $input.shape}}
+        outputs:
+          note: {{type: string}}
+          plan: {{type: object, packet: acme/optional-packet.plan.v1}}
+  plan:
+    description: Return a plan of the shape asked for, or none.
+    inputs:
+      shape: {{type: string}}
+    steps:
+      - id: plan
+        tool: {{module: domain.mjs}}
+        inputs: {{shape: $input.shape}}
+        outputs:
+          note: {{type: string}}
+          plan: {{type: object, packet: acme/optional-packet.plan.v1, optional: true}}
+"#
+        )
+    };
+    fs::write(
+        skill_dir.join("domain.mjs"),
+        "export default ({ shape }) => shape === \"none\"\n  ? { note: \"no plan\" }\n  : { note: \"a plan\", plan: { decision: shape === \"bad\" ? 42 : \"ready\" } };\n",
+    )?;
+    fs::write(
+        skill_dir.join("packets/plan.v1.schema.json"),
+        r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/acme/optional-packet/plan/v1.json",
+  "x-runx-packet-id": "acme/optional-packet.plan.v1",
+  "type": "object",
+  "required": ["decision"],
+  "properties": { "decision": { "type": "string" } },
+  "additionalProperties": false
+}"#,
+    )?;
+    let run = |method: &str, shape: &str| -> Result<JsonValue, Box<dyn std::error::Error>> {
+        fs::write(skill_dir.join("run.yaml"), profile(method))?;
+        let result = run_skill(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir.clone(),
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("shape".to_owned(), JsonValue::String(shape.to_owned()))]),
+            env: path_env(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        })?;
+        Ok(result.output)
+    };
+    let failure = |output: &JsonValue| -> Option<String> {
+        let output = output.as_object()?;
+        (string_field(output, "outcome") == Some("failed"))
+            .then(|| {
+                object_field(output, "result").and_then(|result| string_field(result, "message"))
+            })
+            .flatten()
+            .map(str::to_owned)
+    };
+
+    let absent = run("relay", "none")?;
+    let absent_output = object(&absent, "an optional packet left out")?;
+    assert_eq!(
+        string_field(absent_output, "outcome"),
+        Some("completed"),
+        "{absent:?}"
+    );
+    let result = object_field(absent_output, "result").ok_or("missing result")?;
+    assert_eq!(string_field(result, "note"), Some("no plan"));
+    assert!(!result.contains_key("plan"), "{result:?}");
+
+    let malformed = run("relay", "bad")?;
+    assert!(
+        failure(&malformed).is_some_and(|message| message.contains("output violates schema")),
+        "{malformed:?}"
+    );
+
+    let required = run("relay-required", "none")?;
+    assert!(
+        failure(&required).is_some_and(|message| message.contains("\"plan\" was not returned")),
+        "{required:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn native_javascript_method_rejects_a_packet_schema_violation()
 -> Result<(), Box<dyn std::error::Error>> {

@@ -91,31 +91,29 @@ struct PacketBinding {
     value: JsonValue,
 }
 
+/// Each packet output the step holds, with its packet. Whether an output must
+/// be returned is its declaration's `optional` to say, as for every output,
+/// and the output contract refuses a required one that wasn't: a packet
+/// output absent here is an optional one the step didn't return.
 fn packet_bindings(
     held: &JsonObject,
     artifacts: Option<&OutputArtifacts>,
 ) -> Result<Vec<PacketBinding>, RuntimeError> {
-    let mut bindings = Vec::new();
-    for (output, packet) in artifacts
+    artifacts
         .into_iter()
         .flat_map(|artifacts| &artifacts.packets)
-    {
-        bindings.push(projected_binding(held, output, packet)?);
-    }
-    Ok(bindings)
+        .filter_map(|(output, packet)| {
+            held.get(output)
+                .map(|envelope| projected_binding(output, packet, envelope))
+        })
+        .collect()
 }
 
 fn projected_binding(
-    projection: &JsonObject,
     output: &str,
     packet: &PacketId,
+    envelope: &JsonValue,
 ) -> Result<PacketBinding, RuntimeError> {
-    let envelope = projection
-        .get(output)
-        .ok_or_else(|| RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: format!("named packet output '{output}' was not returned"),
-        })?;
     let value = envelope
         .as_object()
         .and_then(|object| object.get("data"))
