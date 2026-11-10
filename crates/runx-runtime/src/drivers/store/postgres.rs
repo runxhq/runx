@@ -401,6 +401,10 @@ fn record_at(row: &Row, offset: usize) -> Result<EventRecord, StoreError> {
         data: serde_json::from_str::<JsonObject>(&data)
             .map_err(|error| StoreError::corrupt(format!("a stored event is not JSON: {error}")))?,
         writer,
+        // A `store` event is never standing or dated; only `private`'s are,
+        // and `private` is never kept in Postgres.
+        standing: false,
+        valid_until: None,
     })
 }
 

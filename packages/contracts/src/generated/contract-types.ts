@@ -3435,13 +3435,17 @@ export type StoreEventContract = {
   readonly data: {
     readonly [key: string]: unknown;
   };
-  /** Covers the writer, the type and the data. */
+  /** Covers the writer, the type and the data, and whether the event is standing and its end date when it states them. */
   readonly digest: string;
   /** A length-delimited encoding of stream, key and version. */
   readonly id: string;
   readonly idempotency_key: string;
+  /** On `private`, whether its key is standing while this is its newest event: a listing or a search reads the standing keys apart from the others. */
+  readonly standing?: true;
   /** Declared by the writer, never guessed. */
   readonly type: string;
+  /** On `private`, the last date this event is valid: a listing or a search valid at a later date passes over its key while this is its newest event. */
+  readonly valid_until?: string;
   readonly version: number;
   /** The package that wrote it and the digest of the exact bytes it ran from, set by the runtime: every event records one. */
   readonly writer: StoreWriterContract;

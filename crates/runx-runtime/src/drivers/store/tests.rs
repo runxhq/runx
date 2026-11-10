@@ -439,6 +439,8 @@ fn an_events_digest_covers_its_writer() {
         idempotency_key: "k".to_owned(),
         committed_at: "2026-10-07T00:00:00.000Z".to_owned(),
         writer,
+        standing: false,
+        valid_until: None,
     };
     let writer = |digest: &str| Writer {
         package: OWNER.to_owned(),
@@ -588,13 +590,12 @@ fn store_and_private_never_open_each_others_file() {
     assert!(refused.contains("not a private store"), "{refused}");
 }
 
-/// `keys.search` ranks one stream's keys by their newest event, quotes its
-/// query, pages in score order with ties by key, filters by type, and is
-/// `private`'s alone.
-/// A key listing walks the keys' recency index in the order it returns
-/// them: no scan, and no sort, so the rows it visits are the rows it steps.
+/// A key listing walks an index in the order it returns its keys: no scan,
+/// and no sort, so the rows it visits are the rows it steps. A listing of
+/// every key walks the recency index, and a listing of the standing keys or
+/// of the others walks the standing index, so neither visits the other's.
 #[test]
-fn a_key_listing_walks_the_recency_index_with_no_scan_and_no_sort() {
+fn a_key_listing_walks_its_index_with_no_scan_and_no_sort() {
     let root = tempfile::tempdir().unwrap();
     let private = Test::private(root.path());
     let kept = private
@@ -603,30 +604,465 @@ fn a_key_listing_walks_the_recency_index_with_no_scan_and_no_sort() {
     assert_eq!(kept.text("status"), "committed");
     let file = crate::paths::RunxPaths::resolve(&private.env, root.path()).private_store();
     let connection = rusqlite::Connection::open(file).unwrap();
-    for after_cursor in [false, true] {
-        let sql = super::sqlite::keys_query(after_cursor);
-        let mut statement = connection
-            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
-            .unwrap();
-        let parameters = 1 + if after_cursor { 3 } else { 0 };
-        let values = vec![rusqlite::types::Value::Text("x".to_owned()); parameters];
-        let plan = statement
-            .query_map(rusqlite::params_from_iter(values.iter()), |row| {
-                row.get::<_, String>(3)
-            })
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        assert!(
-            plan.iter().any(|step| step.contains("store_keys_recent"))
-                && plan
-                    .iter()
-                    .all(|step| !step.starts_with("SCAN") && !step.contains("TEMP B-TREE")),
-            "after a cursor {after_cursor}: {plan:?}"
-        );
+    for (standing, index) in [
+        (None, "store_keys_recent"),
+        (Some(true), "store_keys_standing_recent"),
+        (Some(false), "store_keys_standing_recent"),
+    ] {
+        for after_cursor in [false, true] {
+            let sql = super::sqlite::keys_query(standing.is_some(), after_cursor);
+            let mut statement = connection
+                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .unwrap();
+            let mut values = vec![rusqlite::types::Value::Text("x".to_owned())];
+            if let Some(standing) = standing {
+                values.push(rusqlite::types::Value::Integer(i64::from(standing)));
+            }
+            if after_cursor {
+                values.extend(vec![rusqlite::types::Value::Text("x".to_owned()); 3]);
+            }
+            let plan = statement
+                .query_map(rusqlite::params_from_iter(values.iter()), |row| {
+                    row.get::<_, String>(3)
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            assert!(
+                plan.iter().any(|step| step.contains(index))
+                    && plan
+                        .iter()
+                        .all(|step| !step.starts_with("SCAN") && !step.contains("TEMP B-TREE")),
+                "standing {standing:?}, after a cursor {after_cursor}: {plan:?}"
+            );
+        }
     }
 }
 
+/// An append on `items` in `private` whose event is `standing` and valid
+/// until `valid_until`, when each is given.
+fn kept(
+    idempotency: &str,
+    key: &str,
+    expected: u64,
+    text: &str,
+    standing: bool,
+    valid_until: Option<&str>,
+) -> serde_json::Value {
+    let mut call = append(idempotency, key, expected, text);
+    call["data"] = serde_json::json!({"text": text});
+    if standing {
+        call["standing"] = true.into();
+    }
+    if let Some(until) = valid_until {
+        call["valid_until"] = until.into();
+    }
+    call
+}
+
+/// Keep `text` under `key` on `items` in `private`'s file under `root`,
+/// committed at second `second` of 2026, through the backend's own append,
+/// so a test orders commits exactly rather than by the clock.
+fn keep_at(
+    root: &std::path::Path,
+    key: &str,
+    expected_version: u64,
+    text: &str,
+    standing: bool,
+    valid_until: Option<&str>,
+    second: u32,
+) {
+    use super::Backend as _;
+    let env = Test::private(root).env;
+    let path = crate::paths::RunxPaths::resolve(&env, root).private_store();
+    let mut store = super::sqlite::Sqlite::open(&path, super::Kind::Private).unwrap();
+    let data = JsonObject::from([("text".to_owned(), JsonValue::String(text.to_owned()))]);
+    let idempotency_key = format!("{key}:{expected_version}");
+    let append = super::request::Append {
+        at: super::request::Key {
+            stream: "project:board/items",
+            key,
+        },
+        expected_version,
+        idempotency_key: &idempotency_key,
+        event_type: "item.labelled",
+        data: &data,
+        writer: super::model::Writer {
+            package: OWNER.to_owned(),
+            digest: format!("sha256:{}", "b".repeat(64)),
+        },
+        standing,
+        valid_until,
+    };
+    let appended = store
+        .append(&append, &format!("2026-01-01T00:00:{second:02}.000Z"))
+        .unwrap();
+    assert!(matches!(appended, super::model::Appended::Committed { .. }));
+}
+
+/// A `private` event can be standing and can say the date it stops being
+/// valid. Both are the event's own, beside its type: an event that names
+/// either holds it, its digest covers it, and an event that names neither
+/// reads as it always has.
+#[test]
+fn a_private_event_carries_its_standing_and_its_end_date() {
+    let root = tempfile::tempdir().unwrap();
+    let private = Test::private(root.path());
+    let rule = private
+        .call(
+            "events.append",
+            kept(
+                "k1",
+                "rule",
+                0,
+                "Sign off as Kam.",
+                true,
+                Some("2026-12-31"),
+            ),
+        )
+        .unwrap();
+    assert_eq!(rule.text("status"), "committed");
+    assert!(rule.confirmed());
+    let plain = private
+        .call(
+            "events.append",
+            kept("k2", "plain", 0, "Sign off as Kam.", false, None),
+        )
+        .unwrap();
+    let inspect = |key: &str| {
+        private
+            .call(
+                "key.inspect",
+                serde_json::json!({"stream": "items", "key": key}),
+            )
+            .unwrap()
+            .field("last_event")
+            .as_object()
+            .unwrap()
+            .clone()
+    };
+    let rule_event = inspect("rule");
+    assert_eq!(rule_event["standing"], JsonValue::Bool(true));
+    assert_eq!(
+        rule_event["valid_until"],
+        JsonValue::String("2026-12-31".to_owned())
+    );
+    let plain_event = inspect("plain");
+    assert!(!plain_event.contains_key("standing"), "{plain_event:?}");
+    assert!(!plain_event.contains_key("valid_until"), "{plain_event:?}");
+    // The same data, type and writer: only what the event itself says
+    // differs, and the digest covers it.
+    assert_ne!(rule_event["digest"], plain_event["digest"]);
+    assert_ne!(
+        rule.field("event").as_object().unwrap()["digest"],
+        plain.field("event").as_object().unwrap()["digest"]
+    );
+    // A history read returns them too.
+    let read = private
+        .call(
+            "events.read",
+            serde_json::json!({"stream": "items", "key": "rule"}),
+        )
+        .unwrap();
+    let events = read.field("events").as_array().unwrap();
+    assert_eq!(
+        events[0].as_object().unwrap()["standing"],
+        JsonValue::Bool(true)
+    );
+}
+
+/// An event that names neither digests exactly as it did before either was
+/// named, so every chain already kept still verifies.
+#[test]
+fn an_event_naming_neither_digests_as_it_always_has() {
+    use super::model::{EventRecord, Writer, event_digest};
+    let data = JsonObject::from([("label".to_owned(), JsonValue::String("one".to_owned()))]);
+    let writer = Writer {
+        package: OWNER.to_owned(),
+        digest: format!("sha256:{}", "1".repeat(64)),
+    };
+    let event = EventRecord {
+        id: String::new(),
+        version: 1,
+        event_type: "item.labelled".to_owned(),
+        data: data.clone(),
+        digest: String::new(),
+        idempotency_key: "k".to_owned(),
+        committed_at: "2026-10-07T00:00:00.000Z".to_owned(),
+        writer: writer.clone(),
+        standing: false,
+        valid_until: None,
+    };
+    let before = super::model::digest(&JsonValue::Object(JsonObject::from([
+        ("data".to_owned(), JsonValue::Object(data)),
+        (
+            "type".to_owned(),
+            JsonValue::String("item.labelled".to_owned()),
+        ),
+        (
+            "writer".to_owned(),
+            JsonValue::Object(JsonObject::from([
+                ("package".to_owned(), JsonValue::String(writer.package)),
+                ("digest".to_owned(), JsonValue::String(writer.digest)),
+            ])),
+        ),
+    ])))
+    .unwrap();
+    assert_eq!(event_digest(&event).unwrap(), before);
+    let standing = EventRecord {
+        standing: true,
+        ..event.clone()
+    };
+    let ending = EventRecord {
+        valid_until: Some("2026-12-31".to_owned()),
+        ..event
+    };
+    assert_ne!(event_digest(&standing).unwrap(), before);
+    assert_ne!(event_digest(&ending).unwrap(), before);
+    assert_ne!(
+        event_digest(&standing).unwrap(),
+        event_digest(&ending).unwrap()
+    );
+}
+
+/// A listing that names `standing` reads only the standing keys, or only
+/// the others, each newest commit first; one that doesn't reads every key.
+/// A key is standing while its newest event is, so a later event that isn't
+/// moves it to the others.
+#[test]
+fn a_listing_reads_the_standing_keys_apart_from_the_others() {
+    let root = tempfile::tempdir().unwrap();
+    keep_at(
+        root.path(),
+        "rule",
+        0,
+        "Always sign off as Kam.",
+        true,
+        None,
+        1,
+    );
+    keep_at(root.path(), "tea", 0, "Tea, black.", false, None, 2);
+    keep_at(
+        root.path(),
+        "habit",
+        0,
+        "Reply within a day.",
+        true,
+        None,
+        3,
+    );
+    keep_at(
+        root.path(),
+        "coffee",
+        0,
+        "Coffee before noon.",
+        false,
+        None,
+        4,
+    );
+    let private = Test::private(root.path());
+    let list = |standing: Option<bool>| {
+        let mut call = serde_json::json!({"stream": "items"});
+        if let Some(standing) = standing {
+            call["standing"] = standing.into();
+        }
+        private.call("keys.list", call).unwrap().keys("keys")
+    };
+    assert_eq!(list(Some(true)), vec!["habit", "rule"]);
+    assert_eq!(list(Some(false)), vec!["coffee", "tea"]);
+    assert_eq!(list(None), vec!["coffee", "habit", "tea", "rule"]);
+    // The rule's next event isn't standing, so it's one of the others now.
+    keep_at(
+        root.path(),
+        "rule",
+        1,
+        "Sign off as Kam, usually.",
+        false,
+        None,
+        5,
+    );
+    assert_eq!(list(Some(true)), vec!["habit"]);
+    assert_eq!(list(Some(false)), vec!["rule", "coffee", "tea"]);
+    // Pages of one partition follow its own order.
+    let first = private
+        .call(
+            "keys.list",
+            serde_json::json!({"stream": "items", "standing": false, "limit": 2}),
+        )
+        .unwrap();
+    assert_eq!(first.keys("keys"), vec!["rule", "coffee"]);
+    let cursor = first.text("next_cursor").to_owned();
+    let second = private
+        .call(
+            "keys.list",
+            serde_json::json!({"stream": "items", "standing": false, "limit": 2, "cursor": cursor}),
+        )
+        .unwrap();
+    assert_eq!(second.keys("keys"), vec!["tea"]);
+    assert_eq!(second.field("next_cursor"), &JsonValue::Null);
+}
+
+/// A listing or a search valid at a date passes over a key whose newest
+/// event stopped being valid before it: one that ends on that date is still
+/// valid on it. One that names no date reads every key.
+#[test]
+fn a_listing_and_a_search_valid_at_a_date_pass_over_what_ended_before_it() {
+    let root = tempfile::tempdir().unwrap();
+    for (second, key, text, standing, until) in [
+        (
+            1,
+            "ended",
+            "The tea shop opens late.",
+            false,
+            Some("2026-05-31"),
+        ),
+        (
+            2,
+            "ends",
+            "The tea shop opens early.",
+            false,
+            Some("2026-06-01"),
+        ),
+        (
+            3,
+            "later",
+            "The tea shop opens at nine.",
+            false,
+            Some("2027-01-01"),
+        ),
+        (4, "always", "The tea shop is on the corner.", false, None),
+        (5, "rule", "Buy tea on Mondays.", true, Some("2026-01-01")),
+    ] {
+        keep_at(root.path(), key, 0, text, standing, until, second);
+    }
+    let private = Test::private(root.path());
+    let list = |extra: serde_json::Value| {
+        let mut call = serde_json::json!({"stream": "items"});
+        call.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        private.call("keys.list", call).unwrap().keys("keys")
+    };
+    assert_eq!(
+        list(serde_json::json!({"valid_at": "2026-06-01"})),
+        vec!["always", "later", "ends"]
+    );
+    assert_eq!(
+        list(serde_json::json!({"valid_at": "2026-06-01", "standing": true})),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        list(serde_json::json!({})),
+        vec!["rule", "always", "later", "ends", "ended"]
+    );
+    let search = |extra: serde_json::Value| {
+        let mut call = serde_json::json!({"stream": "items", "query": "tea"});
+        call.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let mut found = private.call("keys.search", call).unwrap().keys("matches");
+        found.sort();
+        found
+    };
+    assert_eq!(
+        search(serde_json::json!({"valid_at": "2026-06-01", "standing": false})),
+        vec!["always", "ends", "later"]
+    );
+    assert_eq!(search(serde_json::json!({"standing": true})), vec!["rule"]);
+    assert_eq!(
+        search(serde_json::json!({})),
+        vec!["always", "ended", "ends", "later", "rule"],
+        "a search that names no date reads what ended too"
+    );
+    // A date is a calendar date.
+    assert!(
+        private
+            .call(
+                "keys.list",
+                serde_json::json!({"stream": "items", "valid_at": "2026-02-30"})
+            )
+            .is_err()
+    );
+    assert!(
+        private
+            .call(
+                "events.append",
+                kept("k6", "bad", 0, "Never kept.", false, Some("next week"))
+            )
+            .is_err()
+    );
+}
+
+/// Standing keys and end dates are `private`'s: `store` refuses an append
+/// or a listing that names them, and keeps nothing.
+#[test]
+fn store_refuses_standing_and_end_dates() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Test::workspace(root.path());
+    for call in [
+        kept("k1", "rule", 0, "Sign off as Kam.", true, None),
+        kept("k2", "tea", 0, "Tea, black.", false, Some("2026-12-31")),
+    ] {
+        let refused = store.call("events.append", call).err().unwrap();
+        assert!(refused.contains("private"), "{refused}");
+    }
+    for extra in [
+        serde_json::json!({"standing": true}),
+        serde_json::json!({"valid_at": "2026-06-01"}),
+    ] {
+        let mut call = serde_json::json!({"stream": "items"});
+        call.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let refused = store.call("keys.list", call).err().unwrap();
+        assert!(refused.contains("private"), "{refused}");
+    }
+    assert!(
+        store
+            .call("keys.list", serde_json::json!({"stream": "items"}))
+            .unwrap()
+            .keys("keys")
+            .is_empty()
+    );
+}
+
+/// A search ranks by score, and among equal scores the newest commit first,
+/// then by key, page by page.
+#[test]
+fn a_searchs_equal_scores_go_newest_first() {
+    let root = tempfile::tempdir().unwrap();
+    // The same words, so the same score, kept one after another, and two
+    // kept at the same moment, which go by key.
+    for (second, key) in [(1, "b"), (2, "a"), (3, "d"), (3, "c")] {
+        keep_at(root.path(), key, 0, "tea black", false, None, second);
+    }
+    let private = Test::private(root.path());
+    let all = private
+        .call(
+            "keys.search",
+            serde_json::json!({"stream": "items", "query": "tea"}),
+        )
+        .unwrap();
+    assert_eq!(all.keys("matches"), vec!["c", "d", "a", "b"]);
+    let mut paged = Vec::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let mut call = serde_json::json!({"stream": "items", "query": "tea", "limit": 1});
+        if let Some(cursor) = &cursor {
+            call["cursor"] = cursor.clone().into();
+        }
+        let page = private.call("keys.search", call).unwrap();
+        paged.extend(page.keys("matches"));
+        match page.field("next_cursor") {
+            JsonValue::String(next) => cursor = Some(next.clone()),
+            _ => break,
+        }
+    }
+    assert_eq!(paged, vec!["c", "d", "a", "b"]);
+}
+
+/// `keys.search` ranks one stream's keys by their newest event, quotes its
+/// query, pages in score order, filters by type, and is `private`'s alone.
 #[test]
 fn private_searches_one_streams_current_entries() {
     let root = tempfile::tempdir().unwrap();

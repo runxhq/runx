@@ -37,6 +37,10 @@ pub(super) struct Append<'a> {
     pub event_type: &'a str,
     pub data: &'a JsonObject,
     pub writer: Writer,
+    /// On `private`, whether the event makes its key standing.
+    pub standing: bool,
+    /// On `private`, the last date the event is valid, `YYYY-MM-DD`.
+    pub valid_until: Option<&'a str>,
 }
 
 pub(super) struct ReadEvents<'a> {
@@ -45,9 +49,30 @@ pub(super) struct ReadEvents<'a> {
     pub after_version: Option<u64>,
 }
 
+/// Which keys of a stream a listing or a search reads, by their newest
+/// event: the standing ones or the others, or every key, and only those
+/// still valid at a date, or every one.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Selection<'a> {
+    pub standing: Option<bool>,
+    /// `YYYY-MM-DD`: a key whose newest event's `valid_until` is before it is
+    /// passed over.
+    pub valid_at: Option<&'a str>,
+}
+
+impl Selection<'_> {
+    /// Whether a key whose newest event ends on `valid_until` had ended
+    /// before the date this selection is valid at. Dates in their one form
+    /// order as text.
+    pub(super) fn ended(&self, valid_until: Option<&str>) -> bool {
+        matches!((self.valid_at, valid_until), (Some(at), Some(until)) if until < at)
+    }
+}
+
 pub(super) struct ListKeys<'a> {
     pub stream: &'a str,
     pub types: Vec<&'a str>,
+    pub selection: Selection<'a>,
     pub limit: usize,
     pub cursor: Option<&'a str>,
 }
@@ -56,8 +81,25 @@ pub(super) struct SearchKeys<'a> {
     pub stream: &'a str,
     pub query: &'a str,
     pub types: Vec<&'a str>,
+    pub selection: Selection<'a>,
     pub limit: usize,
     pub cursor: Option<&'a str>,
+}
+
+impl Request<'_> {
+    /// Whether the call names what only `private` keeps: a standing event,
+    /// an end date, or a selection by either.
+    pub(super) fn is_private(&self) -> bool {
+        let selects = |selection: &Selection<'_>| {
+            selection.standing.is_some() || selection.valid_at.is_some()
+        };
+        match self {
+            Self::Append(append) => append.standing || append.valid_until.is_some(),
+            Self::List(list) => selects(&list.selection),
+            Self::Search(search) => selects(&search.selection),
+            Self::Read(_) | Self::Inspect(_) => false,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -69,6 +111,10 @@ pub(super) struct AppendInput {
     #[serde(rename = "type")]
     event_type: String,
     data: JsonObject,
+    #[serde(default)]
+    standing: bool,
+    #[serde(default)]
+    valid_until: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +146,10 @@ pub(super) struct ListInput {
     #[serde(default)]
     types: Vec<String>,
     #[serde(default)]
+    standing: Option<bool>,
+    #[serde(default)]
+    valid_at: Option<String>,
+    #[serde(default)]
     cursor: Option<String>,
     #[serde(default = "list_limit")]
     limit: u64,
@@ -114,6 +164,10 @@ pub(super) struct SearchInput {
     query: String,
     #[serde(default)]
     types: Vec<String>,
+    #[serde(default)]
+    standing: Option<bool>,
+    #[serde(default)]
+    valid_at: Option<String>,
     #[serde(default)]
     cursor: Option<String>,
     #[serde(default = "search_limit")]
@@ -196,6 +250,8 @@ impl Input {
                     event_type: &input.event_type,
                     data: &input.data,
                     writer,
+                    standing: input.standing,
+                    valid_until: date("valid_until", input.valid_until.as_deref())?,
                 })
             }
             Self::Read(input) => {
@@ -222,6 +278,10 @@ impl Input {
             Self::List(input) => Request::List(ListKeys {
                 stream: full_stream(stream, &input.stream, input.package.as_deref())?,
                 types: types(&input.types)?,
+                selection: Selection {
+                    standing: input.standing,
+                    valid_at: date("valid_at", input.valid_at.as_deref())?,
+                },
                 limit: bounded_limit(input.limit, 100)?,
                 cursor: input.cursor.as_deref(),
             }),
@@ -233,6 +293,10 @@ impl Input {
                     stream: full_stream(stream, &input.stream, None)?,
                     query: &input.query,
                     types: types(&input.types)?,
+                    selection: Selection {
+                        standing: input.standing,
+                        valid_at: date("valid_at", input.valid_at.as_deref())?,
+                    },
                     limit: bounded_limit(input.limit, 100)?,
                     cursor: input.cursor.as_deref(),
                 })
@@ -288,6 +352,16 @@ fn types(values: &[String]) -> Result<Vec<&str>, StoreError> {
         }
     }
     Ok(types)
+}
+
+/// `value`, when it's a calendar date, `YYYY-MM-DD`.
+fn date<'a>(field: &str, value: Option<&'a str>) -> Result<Option<&'a str>, StoreError> {
+    match value {
+        Some(value) if runx_contracts::schema::IsoDate::new(value).is_none() => Err(
+            StoreError::invalid(format!("{field} must be a calendar date, YYYY-MM-DD")),
+        ),
+        value => Ok(value),
+    }
 }
 
 fn bounded_limit(value: u64, maximum: usize) -> Result<usize, StoreError> {

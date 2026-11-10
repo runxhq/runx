@@ -1,14 +1,16 @@
 //! Events, a key's state and the answers, the same for every backend
 //! (`store.md`). Every event records its writer, and its digest covers its
-//! writer, its type and its data. A key's `chain_digest` chains its events, its hash input
-//! keeping the field names it always had, so existing chains still verify.
+//! writer, its type and its data, and on `private` whether it's standing and
+//! its end date when it states them. A key's `chain_digest` chains its
+//! events, its hash input keeping the field names it always had, so existing
+//! chains still verify.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue, sha256_prefixed};
 
 use super::StoreError;
-use super::request::{Key, validate_key};
+use super::request::{Append, Key, validate_key};
 
 /// What every answer names as its schema.
 pub(super) const RESULT_SCHEMA: &str = "runx.store.result.v1";
@@ -32,6 +34,11 @@ pub(super) struct EventRecord {
     pub committed_at: String,
     /// The package that wrote it, and the digest of the bytes it ran from.
     pub writer: Writer,
+    /// On `private`, whether its key is standing while it's the key's
+    /// newest event.
+    pub standing: bool,
+    /// On `private`, the last date it's valid, `YYYY-MM-DD`.
+    pub valid_until: Option<String>,
 }
 
 /// One key's state: its version, its newest event, and the digest that
@@ -95,37 +102,50 @@ pub(super) fn event_id(stream: &str, key: &str, version: u64) -> String {
     format!("{}:{stream},{}:{key},{version}", stream.len(), key.len())
 }
 
-/// The event an append proposes at `version`, with its digest.
+/// The event `append` proposes at `version`, with its digest.
 pub(super) fn record(
-    at: Key<'_>,
+    append: &Append<'_>,
     version: u64,
-    idempotency_key: &str,
-    event_type: &str,
-    data: &JsonObject,
-    writer: &Writer,
     committed_at: &str,
 ) -> Result<EventRecord, StoreError> {
     let mut record = EventRecord {
-        id: event_id(at.stream, at.key, version),
+        id: event_id(append.at.stream, append.at.key, version),
         version,
-        event_type: event_type.to_owned(),
-        data: data.clone(),
+        event_type: append.event_type.to_owned(),
+        data: append.data.clone(),
         digest: String::new(),
-        idempotency_key: idempotency_key.to_owned(),
+        idempotency_key: append.idempotency_key.to_owned(),
         committed_at: normalize_time(committed_at)?,
-        writer: writer.clone(),
+        writer: append.writer.clone(),
+        standing: append.standing,
+        valid_until: append.valid_until.map(str::to_owned),
     };
     record.digest = event_digest(&record)?;
     Ok(record)
 }
 
-/// What an event's digest covers: its writer, its type and its data.
+/// What an event's digest covers: its writer, its type and its data, and
+/// whether it's standing and its end date when it states them. An event that
+/// states neither digests as every event did before either was stated.
 pub(super) fn event_digest(record: &EventRecord) -> Result<String, StoreError> {
-    digest(&JsonValue::Object(JsonObject::from([
+    let mut covered = JsonObject::from([
         ("data".to_owned(), JsonValue::Object(record.data.clone())),
         ("type".to_owned(), text(&record.event_type)),
         ("writer".to_owned(), writer_object(&record.writer)),
-    ])))
+    ]);
+    stated(&mut covered, record);
+    digest(&JsonValue::Object(covered))
+}
+
+/// Whether `record` is standing and its end date, into `object`, each only
+/// when it states it.
+fn stated(object: &mut JsonObject, record: &EventRecord) {
+    if record.standing {
+        object.insert("standing".to_owned(), JsonValue::Bool(true));
+    }
+    if let Some(until) = &record.valid_until {
+        object.insert("valid_until".to_owned(), text(until));
+    }
 }
 
 pub(super) fn empty_state() -> Result<KeyState, StoreError> {
@@ -210,7 +230,7 @@ fn writer_object(writer: &Writer) -> JsonValue {
 
 /// An event as every answer and every JSON backend holds it.
 pub(super) fn record_object(record: &EventRecord) -> JsonObject {
-    JsonObject::from([
+    let mut object = JsonObject::from([
         ("id".to_owned(), text(&record.id)),
         ("version".to_owned(), number(record.version)),
         ("type".to_owned(), text(&record.event_type)),
@@ -219,7 +239,9 @@ pub(super) fn record_object(record: &EventRecord) -> JsonObject {
         ("idempotency_key".to_owned(), text(&record.idempotency_key)),
         ("committed_at".to_owned(), text(&record.committed_at)),
         ("writer".to_owned(), writer_object(&record.writer)),
-    ])
+    ]);
+    stated(&mut object, record);
+    object
 }
 
 /// A record back from the object [`record_object`] wrote, as a backend that
@@ -267,6 +289,11 @@ pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, Store
         idempotency_key: field("idempotency_key")?,
         committed_at: field("committed_at")?,
         writer,
+        standing: object.get("standing") == Some(&JsonValue::Bool(true)),
+        valid_until: object
+            .get("valid_until")
+            .and_then(JsonValue::as_str)
+            .map(str::to_owned),
     })
 }
 
@@ -434,7 +461,8 @@ pub(super) fn listed_result(
     sealed(result)
 }
 
-/// The answer to one page of a search, in score order, ties by key.
+/// The answer to one page of a search, in score order, ties newest commit
+/// first, then by key.
 pub(super) fn matched_result(
     backend: &str,
     stream: &str,
@@ -444,6 +472,7 @@ pub(super) fn matched_result(
     let next_cursor = match (has_more, matches.last()) {
         (true, Some(last)) => text(&encode_search_cursor(&SearchCursor {
             score: last.score,
+            committed_at: last.last.committed_at.clone(),
             key: last.key.clone(),
         })?),
         _ => JsonValue::Null,
@@ -481,9 +510,11 @@ pub(super) struct ListCursor {
     pub key: String,
 }
 
-/// Where a page of matches resumes: after this key in (score, key) order.
+/// Where a page of matches resumes: after this key in (score, newest
+/// commit, key) order.
 pub(super) struct SearchCursor {
     pub score: f64,
+    pub committed_at: String,
     pub key: String,
 }
 
@@ -556,8 +587,14 @@ pub(super) fn decode_search_cursor(
             ));
         }
     };
+    let committed_at = cursor
+        .get("committed_at")
+        .and_then(JsonValue::as_str)
+        .filter(|value| runx_core::policy::parse_rfc3339_moment(value).is_some())
+        .ok_or_else(|| StoreError::invalid("cursor must be an opaque search cursor"))?;
     Ok(Some(SearchCursor {
         score,
+        committed_at: committed_at.to_owned(),
         key: cursor_key(&cursor, "search")?,
     }))
 }
@@ -568,6 +605,7 @@ fn encode_search_cursor(cursor: &SearchCursor) -> Result<String, StoreError> {
             "score".to_owned(),
             JsonValue::Number(JsonNumber::F64(cursor.score)),
         ),
+        ("committed_at".to_owned(), text(&cursor.committed_at)),
         ("key".to_owned(), text(&cursor.key)),
     ]))
 }

@@ -46,8 +46,8 @@ pub(crate) enum Work {
     ReceiptIndexEntryWritten,
     /// A row a key listing of the `private` store visited.
     StoreKeyRowVisited,
-    /// A row a key listing visited and passed over, its newest event of a type
-    /// it wasn't asked for.
+    /// A row a key listing visited and passed over: its newest event of a
+    /// type it wasn't asked for, or ended before the date it lists at.
     StoreKeyRowPassedOver,
     /// One page of a stream's search in the `private` store.
     StoreSearchPage,

@@ -4,6 +4,12 @@
 //! order, inspected, and listed newest first; on `private`, a stream's
 //! current entries searched.
 //!
+//! On `private`, an event can also be standing, and can state the last date
+//! it's valid. A listing or a search reads a stream's standing keys apart
+//! from the others, by an index of their own, and one valid at a date passes
+//! over a key whose newest event ended before it. They're `private`'s, so
+//! `store` refuses them.
+//!
 //! A stream belongs to a package. The author writes its own name, and the
 //! runtime places it under the package the call is made from, rendering the
 //! call's target as `<package>/<stream>` (§4.8). So a package reads and
@@ -328,15 +334,7 @@ fn proposed(
     version: u64,
     committed_at: &str,
 ) -> Result<EventRecord, StoreError> {
-    model::record(
-        request.at,
-        version,
-        request.idempotency_key,
-        request.event_type,
-        request.data,
-        &request.writer,
-        committed_at,
-    )
+    model::record(request, version, committed_at)
 }
 
 fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
@@ -366,6 +364,8 @@ pub struct HistoryEvent {
     pub key: String,
     pub event_type: String,
     pub data: JsonObject,
+    pub standing: bool,
+    pub valid_until: Option<String>,
     pub committed_at: String,
     pub writer_package: String,
 }
@@ -419,6 +419,8 @@ pub(crate) fn lay_down_private_history(
                         package: event.writer_package.clone(),
                         digest: sha256_prefixed(event.writer_package.as_bytes()),
                     },
+                    standing: event.standing,
+                    valid_until: event.valid_until.as_deref(),
                 },
                 event.committed_at.clone(),
             )
@@ -445,6 +447,11 @@ impl Store<'_> {
         let writer = self.writer();
         let request =
             input.request(self.call.target, self.call.idempotency_key, writer.as_ref())?;
+        if Kind::of(self.call.connector) != Kind::Private && request.is_private() {
+            return Err(StoreError::invalid(
+                "standing, valid_until and valid_at are private's: a store event is neither standing nor dated",
+            ));
+        }
         let mut backend = open(self.call)?;
         let name = backend.name();
         match request {

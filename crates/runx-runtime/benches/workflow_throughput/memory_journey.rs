@@ -185,6 +185,8 @@ impl Memory {
                     key: key.clone(),
                     event_type: event_type.to_owned(),
                     data: serde_json::from_value(data).unwrap_or_default(),
+                    standing: false,
+                    valid_until: None,
                     committed_at: at(half),
                     writer_package: PACKAGE.to_owned(),
                 });

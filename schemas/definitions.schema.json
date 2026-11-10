@@ -8740,7 +8740,7 @@
           "type": "object"
         },
         "digest": {
-          "description": "Covers the writer, the type and the data.",
+          "description": "Covers the writer, the type and the data, and whether the event is standing and its end date when it states them.",
           "maxLength": 71,
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
@@ -8754,10 +8754,21 @@
           "minLength": 1,
           "type": "string"
         },
+        "standing": {
+          "const": true,
+          "description": "On `private`, whether its key is standing while this is its newest event: a listing or a search reads the standing keys apart from the others.",
+          "type": "boolean"
+        },
         "type": {
           "description": "Declared by the writer, never guessed.",
           "maxLength": 128,
           "minLength": 1,
+          "type": "string"
+        },
+        "valid_until": {
+          "description": "On `private`, the last date this event is valid: a listing or a search valid at a later date passes over its key while this is its newest event.",
+          "format": "date",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
           "type": "string"
         },
         "version": {

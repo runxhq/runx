@@ -44,7 +44,7 @@ operations:
         r###"schema: runx.connector.v1
 name: private
 title: Private
-description: The person's own data, such as memory and people. Its own file in the runx home, or its instance's url. Every call needs a term, only the package that owns a stream writes it, and a stream's current entries can be searched.
+description: The person's own data, such as memory and people. Its own file in the runx home, or its instance's url. Every call needs a term, only the package that owns a stream writes it, a stream's current entries can be searched, and a stream's standing keys are read apart from the others, each as of a date.
 category: agent-tools
 auth:
   none: {}
@@ -69,7 +69,7 @@ placements:
     auth: [none, credentials]
 operations:
   events.append:
-    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended.
+    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended. An event can be standing, and can state the last date it's valid.
     verb: write
     scopes: [store.append]
     credentials: [password]
@@ -84,6 +84,8 @@ operations:
         expected_version: {type: integer, minimum: 0, maximum: 9007199254740990}
         type: {type: string, minLength: 1, maxLength: 128, pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
         data: {type: object}
+        standing: {type: boolean, description: "The key is standing while this is its newest event, so a listing or a search reads it apart from the others."}
+        valid_until: {type: string, format: date, description: "The last date the event is valid: a listing or a search valid at a later date passes over its key while this is its newest event."}
     result_fields: [schema, operation, stream, key, backend, result_digest, status, before_version, version, event, chain_digest]
     implementation:
       store: {}
@@ -122,7 +124,7 @@ operations:
     implementation:
       store: {}
   keys.list:
-    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types.
+    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types, only the standing keys or only the others, and only those still valid at a date.
     verb: read
     scopes: [store.read]
     credentials: [password]
@@ -138,6 +140,8 @@ operations:
           maxItems: 16
           uniqueItems: true
           items: {type: string, minLength: 1, maxLength: 128}
+        standing: {type: boolean, description: "Only the standing keys, or only the others, read by an index of their own. Without it, every key."}
+        valid_at: {type: string, format: date, description: "Pass over a key whose newest event's valid_until is before this date."}
         cursor: {type: string, minLength: 1, maxLength: 1024}
         limit: {type: integer, minimum: 1, maximum: 100, default: 50}
         package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}
@@ -145,7 +149,7 @@ operations:
     implementation:
       store: {}
   keys.search:
-    description: Rank one stream's keys by a full-text match against each key's newest event, in score order with ties by key, one page at a time, optionally only keys whose newest event has one of the given types. It searches what's current, never history. The query is quoted, so its words are plain words.
+    description: Rank one stream's keys by a full-text match against each key's newest event, in score order with ties newest commit first, then by key, one page at a time, optionally only keys whose newest event has one of the given types, only the standing keys or only the others, and only those still valid at a date. It searches what's current, never history. The query is quoted, so its words are plain words.
     verb: read
     scopes: [store.read]
     credentials: [password]
@@ -162,6 +166,8 @@ operations:
           maxItems: 16
           uniqueItems: true
           items: {type: string, minLength: 1, maxLength: 128}
+        standing: {type: boolean, description: "Only the standing keys, or only the others. Without it, every key."}
+        valid_at: {type: string, format: date, description: "Leave out a key whose newest event's valid_until is before this date."}
         cursor: {type: string, minLength: 1, maxLength: 1024}
         limit: {type: integer, minimum: 1, maximum: 100, default: 20}
     result_fields: [schema, operation, stream, backend, result_digest, matches, next_cursor]

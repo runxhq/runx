@@ -1042,9 +1042,90 @@ impl RunxSchema for IsoDateTime {
     }
 }
 
+/// The calendar date pattern the contracts commit to, `YYYY-MM-DD`.
+pub const ISO_DATE_PATTERN: &str = r"^\d{4}-\d{2}-\d{2}$";
+
+/// A calendar date, `YYYY-MM-DD`, that exists: `2026-02-30` is no date.
+/// Emits `{ format: date, pattern, type }`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[serde(transparent)]
+pub struct IsoDate(String);
+
+impl IsoDate {
+    /// `value`, when it is a calendar date in the one form a contract
+    /// writes, `YYYY-MM-DD`.
+    pub fn new(value: impl Into<String>) -> Option<Self> {
+        let value = value.into();
+        is_iso_date(&value).then_some(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for IsoDate {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for IsoDate {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for IsoDate {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value)
+            .ok_or_else(|| serde::de::Error::custom("a date must be a calendar date, YYYY-MM-DD"))
+    }
+}
+
+impl RunxSchema for IsoDate {
+    fn json_schema() -> Value {
+        json!({ "format": "date", "pattern": ISO_DATE_PATTERN, "type": "string" })
+    }
+}
+
+/// Whether `value` is `YYYY-MM-DD` and names a day its month has.
+fn is_iso_date(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let number = |from: usize, to: usize| {
+        bytes
+            .get(from..to)
+            .filter(|run| run.iter().all(u8::is_ascii_digit))
+            .map(|run| {
+                run.iter()
+                    .fold(0_u32, |total, digit| total * 10 + u32::from(digit - b'0'))
+            })
+    };
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return false;
+    }
+    let (Some(year), Some(month), Some(day)) = (number(0, 4), number(5, 7), number(8, 10)) else {
+        return false;
+    };
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{IsoDateTime, RunxSchema};
+    use super::{IsoDate, IsoDateTime, RunxSchema};
 
     /// A list whose items never repeat: decoding refuses a duplicate, and its
     /// schema says `uniqueItems`, in both the wire and the accepted form.
@@ -1115,6 +1196,37 @@ mod tests {
             assert!(IsoDateTime::new(invalid).is_none(), "{invalid}");
             assert!(
                 serde_json::from_value::<IsoDateTime>(invalid.into()).is_err(),
+                "{invalid}"
+            );
+        }
+    }
+
+    /// A date is `YYYY-MM-DD`, and a day its month has.
+    #[test]
+    fn a_date_is_a_calendar_day_in_its_one_form() {
+        for valid in ["2026-11-10", "2028-02-29", "2000-02-29", "2026-12-31"] {
+            assert!(IsoDate::new(valid).is_some(), "{valid}");
+            assert!(
+                serde_json::from_value::<IsoDate>(valid.into()).is_ok(),
+                "{valid}"
+            );
+        }
+        for invalid in [
+            "",
+            "next week",
+            "2026-02-30",
+            "2026-02-29",
+            "1900-02-29",
+            "2026-13-01",
+            "2026-00-10",
+            "2026-11-00",
+            "2026-11-10T00:00:00Z",
+            "2026-1-10",
+            "+026-11-10",
+        ] {
+            assert!(IsoDate::new(invalid).is_none(), "{invalid}");
+            assert!(
+                serde_json::from_value::<IsoDate>(invalid.into()).is_err(),
                 "{invalid}"
             );
         }

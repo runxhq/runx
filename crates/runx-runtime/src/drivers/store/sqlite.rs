@@ -6,7 +6,9 @@
 //! program's file, or the other connector's: a `store` instance naming the
 //! private file is refused, and so is the reverse. `private`'s file also
 //! keeps a full-text index of each key's newest event, which `keys.search`
-//! ranks with BM25 (SQLite FTS5); an append replaces its key's entry.
+//! ranks with BM25 (SQLite FTS5), and an index of each stream's keys by
+//! whether they're standing, which a listing that names `standing` walks;
+//! an append replaces its key's entry in both.
 
 use std::path::Path;
 use std::time::Duration;
@@ -42,6 +44,8 @@ CREATE TABLE store_events (
   committed_at TEXT NOT NULL,
   writer_package TEXT NOT NULL,
   writer_digest TEXT NOT NULL,
+  standing INTEGER NOT NULL DEFAULT 0,
+  valid_until TEXT,
   PRIMARY KEY (stream, key, version),
   UNIQUE (stream, key, idempotency_key)
 );
@@ -57,18 +61,25 @@ CREATE TABLE store_keys (
   committed_at TEXT NOT NULL,
   writer_package TEXT NOT NULL,
   writer_digest TEXT NOT NULL,
+  standing INTEGER NOT NULL DEFAULT 0,
+  valid_until TEXT,
   chain_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key)
 );
 CREATE INDEX store_keys_recent ON store_keys (stream, committed_at DESC, key ASC);
 "#;
 
-/// `private`'s index of each key's newest event, one row per key by the
-/// key's rowid, shared by every stream so scores compare across streams.
-const SEARCH_SCHEMA: &str = "CREATE VIRTUAL TABLE store_search USING fts5(text);";
+/// What only `private`'s file keeps: the full-text index of each key's
+/// newest event, one row per key by the key's rowid, shared by every stream
+/// so scores compare across streams; and each stream's keys by whether
+/// they're standing, newest commit first, so the standing keys and the
+/// others are each walked without visiting the other's.
+const PRIVATE_SCHEMA: &str = r#"
+CREATE VIRTUAL TABLE store_search USING fts5(text);
+CREATE INDEX store_keys_standing_recent ON store_keys (stream, standing, committed_at DESC, key ASC);
+"#;
 
-const EVENT_COLUMNS: &str =
-    "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest";
+const EVENT_COLUMNS: &str = "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest, standing, valid_until";
 
 pub(super) struct Sqlite {
     connection: Connection,
@@ -195,8 +206,8 @@ fn create(transaction: &Transaction<'_>, kind: Kind) -> Result<(), StoreError> {
         .map_err(|error| database("creating the schema", &error))?;
     if kind == Kind::Private {
         transaction
-            .execute_batch(SEARCH_SCHEMA)
-            .map_err(|error| database("creating the search index", &error))?;
+            .execute_batch(PRIVATE_SCHEMA)
+            .map_err(|error| database("creating private's indexes", &error))?;
     }
     Ok(())
 }
@@ -287,14 +298,19 @@ impl Backend for Sqlite {
         Ok((events, has_more))
     }
 
-    /// A page of a stream's keys, newest commit first. The listing steps the
-    /// recency index row by row and keeps the types it was asked for itself,
-    /// so every row it visits is a row it steps and counts, the ones it
-    /// passes over included, and it stops once it holds the page and one more.
+    /// A page of a stream's keys, newest commit first. The listing steps an
+    /// index row by row, the recency index or, when it names `standing`,
+    /// the standing index, and keeps the types it was asked for and the keys
+    /// still valid at its date itself, so every row it visits is a row it
+    /// steps and counts, the ones it passes over included, and it stops once
+    /// it holds the page and one more.
     fn keys(&mut self, request: &ListKeys<'_>) -> Result<(Vec<Listed>, bool), StoreError> {
         let cursor = model::decode_cursor(request.cursor)?;
-        let sql = keys_query(cursor.is_some());
+        let sql = keys_query(request.selection.standing.is_some(), cursor.is_some());
         let mut values = vec![SqlValue::Text(request.stream.to_owned())];
+        if let Some(standing) = request.selection.standing {
+            values.push(SqlValue::Integer(i64::from(standing)));
+        }
         if let Some(cursor) = cursor {
             values.push(SqlValue::Text(cursor.committed_at.clone()));
             values.push(SqlValue::Text(cursor.committed_at));
@@ -316,10 +332,10 @@ impl Backend for Sqlite {
                 break;
             };
             crate::work_counts::count(crate::work_counts::Work::StoreKeyRowVisited);
-            let event_type: String = row
-                .get(3)
-                .map_err(|error| database("reading keys", &error))?;
-            if !request.types.is_empty() && !request.types.contains(&event_type.as_str()) {
+            let last = record_at(row, 1).map_err(|error| database("reading keys", &error))?;
+            if (!request.types.is_empty() && !request.types.contains(&last.event_type.as_str()))
+                || request.selection.ended(last.valid_until.as_deref())
+            {
                 crate::work_counts::count(crate::work_counts::Work::StoreKeyRowPassedOver);
                 continue;
             }
@@ -327,7 +343,7 @@ impl Backend for Sqlite {
                 key: row
                     .get(0)
                     .map_err(|error| database("reading keys", &error))?,
-                last: record_at(row, 1).map_err(|error| database("reading keys", &error))?,
+                last,
             });
         }
         let has_more = keys.len() > request.limit;
@@ -368,14 +384,26 @@ impl Backend for Sqlite {
                     .map(|value| SqlValue::Text((*value).to_owned())),
             );
         }
+        if let Some(standing) = request.selection.standing {
+            sql.push_str(" AND k.standing = ?");
+            values.push(SqlValue::Integer(i64::from(standing)));
+        }
+        if let Some(valid_at) = request.selection.valid_at {
+            sql.push_str(" AND (k.valid_until IS NULL OR k.valid_until >= ?)");
+            values.push(SqlValue::Text(valid_at.to_owned()));
+        }
         let mut sql = format!("SELECT * FROM ({sql})");
         if let Some(cursor) = cursor {
-            sql.push_str(" WHERE score < ? OR (score = ? AND key > ?)");
+            sql.push_str(
+                " WHERE score < ? OR (score = ? AND (committed_at < ? OR (committed_at = ? AND key > ?)))",
+            );
             values.push(SqlValue::Real(cursor.score));
             values.push(SqlValue::Real(cursor.score));
+            values.push(SqlValue::Text(cursor.committed_at.clone()));
+            values.push(SqlValue::Text(cursor.committed_at));
             values.push(SqlValue::Text(cursor.key));
         }
-        sql.push_str(" ORDER BY score DESC, key ASC LIMIT ?");
+        sql.push_str(" ORDER BY score DESC, committed_at DESC, key ASC LIMIT ?");
         values.push(SqlValue::Integer(integer(request.limit as u64 + 1)?));
         let mut statement = self
             .connection
@@ -468,7 +496,7 @@ fn insert_event(
     let (writer_package, writer_digest) = writer_columns(record);
     connection
         .execute(
-            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest, standing, valid_until) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 at.stream,
                 at.key,
@@ -481,6 +509,8 @@ fn insert_event(
                 record.committed_at,
                 writer_package,
                 writer_digest,
+                record.standing,
+                record.valid_until,
             ],
         )
         .map_err(|error| database("inserting the event", &error))?;
@@ -496,7 +526,7 @@ fn upsert_key(
     let (writer_package, writer_digest) = writer_columns(record);
     connection
         .execute(
-            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, chain_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, chain_digest = excluded.chain_digest",
+            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, standing, valid_until, chain_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, standing = excluded.standing, valid_until = excluded.valid_until, chain_digest = excluded.chain_digest",
             params![
                 at.stream,
                 at.key,
@@ -509,6 +539,8 @@ fn upsert_key(
                 record.committed_at,
                 writer_package,
                 writer_digest,
+                record.standing,
+                record.valid_until,
                 state.chain_digest,
             ],
         )
@@ -550,12 +582,15 @@ fn existing(
         .map_err(|error| database("reading the event under the key", &error))
 }
 
-/// The event whose [`EVENT_COLUMNS`] start at `offset`.
-/// The query a page of a stream's keys steps, newest commit first, after a
-/// cursor when it has one. It filters nothing and limits nothing, so the
-/// listing that steps it sees every row it visits.
-pub(super) fn keys_query(after_cursor: bool) -> String {
+/// The query a page of a stream's keys steps, newest commit first, among
+/// its standing keys or the others when `by_standing`, after a cursor when it
+/// has one. It filters nothing else and limits nothing, so the listing that
+/// steps it sees every row it visits.
+pub(super) fn keys_query(by_standing: bool, after_cursor: bool) -> String {
     let mut sql = format!("SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = ?");
+    if by_standing {
+        sql.push_str(" AND standing = ?");
+    }
     if after_cursor {
         sql.push_str(" AND (committed_at < ? OR (committed_at = ? AND key > ?))");
     }
@@ -563,6 +598,7 @@ pub(super) fn keys_query(after_cursor: bool) -> String {
     sql
 }
 
+/// The event whose [`EVENT_COLUMNS`] start at `offset`.
 fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRecord> {
     let corrupt = |index: usize, error: Box<dyn std::error::Error + Send + Sync>| {
         rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, error)
@@ -584,6 +620,8 @@ fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRe
         committed_at: row.get(offset + 5)?,
         data,
         writer,
+        standing: row.get(offset + 9)?,
+        valid_until: row.get(offset + 10)?,
     })
 }
 

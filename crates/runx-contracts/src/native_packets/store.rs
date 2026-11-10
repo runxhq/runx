@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::json::MAX_PORTABLE_INTEGER;
 use crate::schema::{
-    BoundedString, BoundedU64, BoundedVec, IsoDateTime, NonEmptyString, RunxSchema,
+    BoundedString, BoundedU64, BoundedVec, IsoDate, IsoDateTime, NonEmptyString, RunxSchema,
 };
 use crate::{Digest, JsonObject};
 
@@ -131,7 +131,8 @@ pub struct StoreEvent {
     #[serde(rename = "type")]
     pub event_type: StoreEventType,
     pub data: JsonObject,
-    /// Covers the writer, the type and the data.
+    /// Covers the writer, the type and the data, and whether the event is
+    /// standing and its end date when it states them.
     pub digest: Digest,
     pub idempotency_key: NonEmptyString,
     /// When the store committed it; a fact's own date is in its data.
@@ -139,6 +140,16 @@ pub struct StoreEvent {
     /// The package that wrote it and the digest of the exact bytes it ran
     /// from, set by the runtime: every event records one.
     pub writer: StoreWriter,
+    /// On `private`, whether its key is standing while this is its newest
+    /// event: a listing or a search reads the standing keys apart from the
+    /// others.
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub standing: bool,
+    /// On `private`, the last date this event is valid: a listing or a
+    /// search valid at a later date passes over its key while this is its
+    /// newest event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<IsoDate>,
 }
 
 /// An append that committed or replayed.
