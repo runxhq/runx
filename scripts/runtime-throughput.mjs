@@ -943,6 +943,7 @@ function journeyBudgets() {
       name: "Composition",
       budgets: [
         { id: "settlement_flat_at_call_1000", says: "Settling a call costs the same at call 1,000 as at call 1: no replay in normal running. Its record reads, store writes and runs taken whole are the same per call at 10, 100 and 1,000 children.", holds: (m) => ["settle_reads_per_call", "settle_writes_per_call", "settle_replays_per_call"].every((count) => flatAcross(m[count], ["10", "100", "1000"])) },
+        { id: "settlement_flat_at_a_waiting_turn", says: "Settling a call costs the same at call 1,000 as at call 1 at an agent turn waiting on a person: the rows its last call reads are the same at 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.turn_call_rows_read, ["10", "100", "1000"]) },
         { id: "settlement_flat_at_depth_5", says: "Settling a call at depth 5 costs what it does at depth 1: its record reads and store writes are the same per call at depth 1, 3 and 5.", holds: (m) => ["settle_reads_at_depth", "settle_writes_at_depth"].every((count) => flatAcross(m[count], ["1", "3", "5"])) },
         { id: "slow_read_delays_no_other_call", says: "A slow provider read never delays another call recording its result.", holds: (m) => exactly(m.results_delayed_by_slow_read, 0) },
         { id: "concurrency_within_the_runs", says: "Nested concurrency never exceeds the run's max_concurrency.", holds: (m) => atMost(m.peak_concurrency, m.max_concurrency) },

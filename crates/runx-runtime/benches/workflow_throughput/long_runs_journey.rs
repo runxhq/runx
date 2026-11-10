@@ -29,11 +29,12 @@ const RECEIPT_STORES: [(&str, usize); 3] = [("16", 16), ("128", 128), ("1000", 1
 
 #[allow(clippy::expect_used)]
 pub(super) fn register() {
-    crate::record_journey(
-        "4",
-        long_runs().expect("the long-runs journey must read, resume and append at each size"),
-    )
-    .expect("the long-runs journey must be recorded");
+    let (journey, turn_calls) =
+        long_runs().expect("the long-runs journey must read, resume and append at each size");
+    crate::record_journey("4", journey).expect("the long-runs journey must be recorded");
+    // Settling a call at a turn waiting on a person is journey 3's budget.
+    crate::record_journey_measure("3", "turn_call_rows_read", turn_calls)
+        .expect("the rows a turn's last call read must be recorded");
 }
 
 /// The shapes of a long run.
@@ -60,7 +61,9 @@ impl Shape {
     }
 }
 
-fn long_runs() -> Result<JsonValue, Box<dyn Error>> {
+/// Journey 4's measurements, and the rows the last call at a turn of each
+/// size read.
+fn long_runs() -> Result<(JsonValue, JsonValue), Box<dyn Error>> {
     let mut read_rows = JsonObject::new();
     let mut resume_rows = JsonObject::new();
     let mut most_reads_of_one_stream = 0_u64;
@@ -88,7 +91,7 @@ fn long_runs() -> Result<JsonValue, Box<dyn Error>> {
         );
         runs.insert(shape.name().to_owned(), JsonValue::Object(shape_runs));
     }
-    Ok(JsonValue::Object(JsonObject::from([
+    let journey = JsonValue::Object(JsonObject::from([
         (
             "run_read_rows_with_nothing_new".to_owned(),
             JsonValue::Object(read_rows),
@@ -101,13 +104,10 @@ fn long_runs() -> Result<JsonValue, Box<dyn Error>> {
             "recovery_reads_per_stream".to_owned(),
             count(most_reads_of_one_stream),
         ),
-        (
-            "turn_call_rows_read".to_owned(),
-            JsonValue::Object(turn_call_rows),
-        ),
         ("receipt_append".to_owned(), receipt_appends()?),
         ("runs".to_owned(), JsonValue::Object(runs)),
-    ])))
+    ]));
+    Ok((journey, JsonValue::Object(turn_call_rows)))
 }
 
 /// What one run of a shape and size counted.

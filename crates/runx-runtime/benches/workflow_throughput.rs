@@ -115,20 +115,46 @@ fn record_resource_metric(name: &str, metric: JsonValue) -> Result<(), Box<dyn s
     record_resource_metrics(&metrics)
 }
 
-/// Record `measured` as `journey`'s, beside the journeys already recorded.
-fn record_journey(journey: &str, measured: JsonValue) -> Result<(), Box<dyn std::error::Error>> {
+/// The journeys recorded so far, when a capture asks for them.
+fn recorded_journeys() -> Result<Option<JsonObject>, Box<dyn std::error::Error>> {
     let Some(path) = std::env::var_os("RUNX_PERF_RESOURCE_METRICS_PATH") else {
-        return Ok(());
+        return Ok(None);
     };
-    let mut journeys = match fs::read(&path) {
+    Ok(Some(match fs::read(&path) {
         Ok(bytes) => match serde_json::from_slice::<JsonObject>(&bytes)?.remove("journeys") {
             Some(JsonValue::Object(journeys)) => journeys,
             _ => JsonObject::new(),
         },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => JsonObject::new(),
         Err(error) => return Err(error.into()),
+    }))
+}
+
+/// Record `measured` as `journey`'s, beside the journeys already recorded.
+fn record_journey(journey: &str, measured: JsonValue) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(mut journeys) = recorded_journeys()? else {
+        return Ok(());
     };
     journeys.insert(journey.to_owned(), measured);
+    record_resource_metric("journeys", JsonValue::Object(journeys))
+}
+
+/// Record `measured` as `name` among `journey`'s measurements, beside what
+/// its own probe recorded, for a measurement another probe makes.
+fn record_journey_measure(
+    journey: &str,
+    name: &str,
+    measured: JsonValue,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(mut journeys) = recorded_journeys()? else {
+        return Ok(());
+    };
+    let mut measures = match journeys.remove(journey) {
+        Some(JsonValue::Object(measures)) => measures,
+        _ => JsonObject::new(),
+    };
+    measures.insert(name.to_owned(), measured);
+    journeys.insert(journey.to_owned(), JsonValue::Object(measures));
     record_resource_metric("journeys", JsonValue::Object(journeys))
 }
 

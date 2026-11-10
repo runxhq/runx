@@ -274,6 +274,7 @@ function journeys() {
       settle_reads_per_call: { 10: 30, 100: 30, 1000: 30 },
       settle_writes_per_call: { 10: 6, 100: 6, 1000: 6 },
       settle_replays_per_call: { 10: 3, 100: 3, 1000: 3 },
+      turn_call_rows_read: { 10: 64, 100: 64, 1000: 64 },
       settle_reads_at_depth: { 1: 30, 3: 30, 5: 30 },
       settle_writes_at_depth: { 1: 6, 3: 6, 5: 6 },
       results_delayed_by_slow_read: 0,
