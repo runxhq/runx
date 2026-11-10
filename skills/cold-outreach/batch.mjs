@@ -34,8 +34,7 @@ async function outreach(ctx, lead, inputs) {
     });
     stage = "qualify";
     const { lead_qualification } = await ctx.skill("../lead-qualify#qualify", {
-      // .data until a packet reaches a script as its data (plans 5e32b01).
-      enrichment_packet: lead_enrichment_packet.data,
+      enrichment_packet: lead_enrichment_packet,
       criteria: inputs.criteria,
       ...eligibility(lead),
     });
@@ -48,8 +47,7 @@ async function outreach(ctx, lead, inputs) {
       offer: inputs.offer,
       required_footer: inputs.required_footer,
       contact_policy: lead.contact_policy,
-      // .data until a packet reaches a script as its data (plans 5e32b01).
-      qualification: lead_qualification.data,
+      qualification: lead_qualification,
       ...(lead.facts === undefined ? {} : { facts: lead.facts }),
     });
     return outreach_review;
