@@ -144,7 +144,10 @@ pub fn tool_call(id: &str, name: &str, arguments: &Value) -> Value {
 #[must_use]
 pub fn managed_agent_env(endpoint: &str, model: &str) -> Vec<(String, String)> {
     vec![
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_PROVIDER".to_owned(),
+            crate::agent_config::SCRIPTED_PROVIDER.to_owned(),
+        ),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),

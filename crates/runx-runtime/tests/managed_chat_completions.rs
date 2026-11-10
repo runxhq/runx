@@ -231,7 +231,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -316,7 +316,7 @@ fn run_requiring(
             "RUNX_HOME".to_owned(),
             root.join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -431,7 +431,7 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -554,7 +554,7 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -685,7 +685,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -788,7 +788,7 @@ fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -875,7 +875,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -942,7 +942,7 @@ fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -1022,7 +1022,7 @@ fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -1157,7 +1157,7 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -1239,7 +1239,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -1331,7 +1331,7 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -1428,7 +1428,7 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),
@@ -1550,7 +1550,7 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
             "RUNX_CWD".to_owned(),
             temp.path().to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
         (
             "RUNX_AGENT_DIALECT".to_owned(),
             "chat_completions".to_owned(),

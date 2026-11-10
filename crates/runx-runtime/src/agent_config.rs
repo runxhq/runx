@@ -12,6 +12,40 @@ use crate::config::{
 use crate::credentials::SecretString;
 use crate::paths::RunxPaths;
 
+/// The provider a scripted model is served as (`scripted_model`): never a
+/// real model, so evidence a turn it answered gives is never counted. Only a
+/// build with `scripted-model` runs it, and only at a loopback endpoint.
+pub const SCRIPTED_PROVIDER: &str = "scripted";
+
+/// Whether this build runs `provider` at `endpoint`. Every provider runs a
+/// real model but `scripted`, which a build runs only when it was built with
+/// a scripted model (`scripted_model_built`), so a shipped build refuses it
+/// by name.
+fn accepts_provider(
+    provider: &str,
+    endpoint: Option<&str>,
+    scripted_model_built: bool,
+) -> Result<(), ConfigError> {
+    if provider != SCRIPTED_PROVIDER {
+        return Ok(());
+    }
+    if !scripted_model_built {
+        return Err(ConfigError::InvalidAgentSetting {
+            key: "agent.provider",
+            message: "scripted is a scripted model's provider, which only a test build runs",
+        });
+    }
+    match endpoint {
+        Some(endpoint) if crate::http::validate_exact_loopback_agent_endpoint(endpoint).is_ok() => {
+            Ok(())
+        }
+        _ => Err(ConfigError::InvalidAgentSetting {
+            key: "agent.endpoint_url",
+            message: "a scripted model is served at a loopback endpoint",
+        }),
+    }
+}
+
 pub fn load_managed_agent_config(
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -60,6 +94,11 @@ pub fn load_managed_agent_config(
         }
         return Ok(None);
     };
+    accepts_provider(
+        provider.as_str(),
+        endpoint_url.as_deref(),
+        cfg!(feature = "scripted-model"),
+    )?;
     let profile = model_provider(provider.as_str());
     let dialect = match env.get("RUNX_AGENT_DIALECT").or_else(|| {
         config
@@ -202,4 +241,36 @@ pub fn load_managed_agent_config(
         endpoint_url,
         auth_mode,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SCRIPTED_PROVIDER, accepts_provider};
+
+    /// A shipped build refuses `scripted` by name, and a build with a scripted
+    /// model runs it only at a loopback endpoint. Every other provider is a
+    /// real model's, whatever the build.
+    #[test]
+    fn only_a_scripted_model_build_runs_the_scripted_provider_and_only_at_loopback() {
+        let loopback = Some("http://127.0.0.1:4000/v1/chat/completions");
+        let refused = accepts_provider(SCRIPTED_PROVIDER, loopback, false)
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(refused.contains("only a test build"), "{refused}");
+        assert!(accepts_provider(SCRIPTED_PROVIDER, loopback, true).is_ok());
+        assert!(
+            accepts_provider(
+                SCRIPTED_PROVIDER,
+                Some("https://models.example.com/v1/chat/completions"),
+                true
+            )
+            .is_err()
+        );
+        assert!(accepts_provider(SCRIPTED_PROVIDER, None, true).is_err());
+        for built in [false, true] {
+            assert!(accepts_provider("ollama", loopback, built).is_ok());
+            assert!(accepts_provider("anthropic", None, built).is_ok());
+        }
+    }
 }
