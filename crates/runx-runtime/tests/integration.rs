@@ -42,6 +42,7 @@ mod script_steps;
 mod scripted_model;
 mod skill_author_runtime_fixtures;
 mod skill_manual_context;
+mod skill_review_evals;
 mod skill_run;
 mod support;
 mod test_artifacts;

@@ -18,6 +18,12 @@ bounded evidence pack. That phase offers no filesystem or provider tools and doe
 not replay the test. Source references without their contents or meaningful
 execution evidence may require more evidence; they are not permission to fetch.
 
+## Composes
+
+<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+
+- `agent#read`
+
 ## Procedure
 
 1. Resolve a workspace- or owning-skill-relative package path and capture its
@@ -46,6 +52,27 @@ execution evidence may require more evidence; they are not permission to fetch.
    decision. Never upgrade a parse result or prose claim into execution proof.
 7. Recommend `adopt`, `adopt_with_caveats`, `improve`, or `reject`,
    naming the evidence and blocking gaps behind the decision.
+
+## Measuring selection
+
+`triggers` measures how often a host selects one package for each request in
+its `eval_queries.json`. Each request is worked by fresh turns of the `agent`
+skill's `read` method, `repeats` of them (3 when absent), on whatever host and
+model work this run's turns: run it with `--drive` and the model you name in
+`runx config`, or from a host attached to the run. A turn selected the package
+when the run's record shows a load in that turn that bound the package's
+exact digest, whether the load completed or waits on the person's trust. What
+a turn says it did is never the evidence, and a load of another package
+doesn't count.
+
+A request passes when the package is selected at least half the time and it
+should be, or less than half the time and it shouldn't. The result is each
+request's rate and the totals for each kind. A rate belongs to the host and
+model that produced it, and is never blended with another's. The turns compete
+against the whole catalog the host sees: the workspace's packages and the
+registry `RUNX_REGISTRY_URL` names. Matching by digest means a turn that loads
+an older published copy of the package hasn't selected the candidate, whose
+description is what's measured.
 
 ## Stop conditions
 
