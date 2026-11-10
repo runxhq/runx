@@ -62,7 +62,7 @@ nothing.
 The resume packet passes to native unchanged; the client does not assign actors,
 answer approvals, retry a mutation or reinterpret a checkpoint.
 
-When a run returns `needs_agent` on an agent act, the act's request carries its
+When a run returns `needs_agent` on a turn, the turn's request carries its
 `allowance`: the connector operations, tools, child skills and asks the agent
 may call. `turns.server` returns the command, arguments, environment and
 working directory an MCP stdio client starts to serve the run's open turns.

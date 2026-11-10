@@ -41,7 +41,7 @@ use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
 use crate::host::Host;
 
-/// The turn an unanswered agent act holds open, as its host works it.
+/// A turn its host hasn't answered, held open as the host works it.
 pub trait Turn {
     /// The act the turn answers; its id is the turn's address.
     fn invocation(&self) -> &TurnInvocation;

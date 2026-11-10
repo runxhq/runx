@@ -161,7 +161,7 @@ pub fn validate_step(
             }
             if outputs.contains_key("closure") {
                 return Err(validation_error(format!(
-                    "{field}.outputs cannot declare closure: an agent's answer holds none, and says how its act ended in ending."
+                    "{field}.outputs cannot declare closure: an agent's answer holds none, and says how its turn ended in ending."
                 )));
             }
         }

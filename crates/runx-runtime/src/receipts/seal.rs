@@ -184,10 +184,10 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
 }
 
 /// The single step-receipt seal. Every runtime step (regular skill, tool,
-/// approval, agent act, replay, error) seals through here, so the act,
+/// approval, turn, replay, error) seals through here, so the act,
 /// decision, and authority assembly lives in exactly one place. `ending` is
 /// `None` for process-exit steps (the outcome is derived from the output)
-/// and `Some` for steps that carry their own outcome, e.g. an agent act
+/// and `Some` for steps that carry their own outcome, e.g. a turn
 /// that ends `Deferred` on a successful turn.
 pub(crate) struct StepSeal<'a> {
     pub(crate) scope: RunScope<'a>,

@@ -2241,7 +2241,7 @@ methods:
 /// A turn's requirement reaches its host, and is never assumed met: a run
 /// whose answer doesn't say its agent harness met it seals failed, saying
 /// so; one that says so seals completed; and one whose agent harness
-/// couldn't ends the act failed with the requirement named.
+/// couldn't ends the turn failed with the requirement named.
 #[test]
 fn a_turns_requirement_reaches_its_host_and_is_never_assumed_met() -> TestResult {
     let fresh = runx_contracts::TurnRequirement::FreshContext;

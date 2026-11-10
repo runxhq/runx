@@ -32,7 +32,7 @@ fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, Runt
     request
         .executable
         .agent()
-        .ok_or_else(|| invalid_agent_invocation(request, "the invocation is not an agent act"))
+        .ok_or_else(|| invalid_agent_invocation(request, "the invocation is not a turn"))
 }
 
 /// The act `request` asks, under the instructions of `package`, the skill

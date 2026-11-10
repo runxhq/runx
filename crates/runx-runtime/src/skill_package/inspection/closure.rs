@@ -45,7 +45,7 @@ struct ClosureAccumulator {
     profiles: BTreeSet<String>,
     environment_required: BTreeSet<String>,
     environment_optional: BTreeSet<String>,
-    agent_acts: usize,
+    turns: usize,
     declared_artifact: bool,
     /// Who each package the closure binds is, by its package root, when the
     /// walk binds a run (D30).
@@ -117,7 +117,7 @@ struct Closure {
     unresolved_skill_edges: Vec<String>,
     package_bindings: Vec<ExecutionPackageBinding>,
     connector_bindings: Vec<ExecutionConnectorBinding>,
-    agent_acts: u64,
+    turns: u64,
     declared_artifact: bool,
     profiles: Vec<String>,
     #[serde(skip_serializing_if = "EnvironmentRequirements::is_empty")]
@@ -847,7 +847,7 @@ impl<'a> ClosureInspector<'a> {
                     });
                 }
                 StepKind::Agent(agent) => {
-                    walk.closure.agent_acts = walk.closure.agent_acts.saturating_add(1);
+                    walk.closure.turns = walk.closure.turns.saturating_add(1);
                     // The turn may call whatever its allowance names, so the
                     // closure holds it; its child skills are walked below.
                     for tool in &agent.allowance.tools {
@@ -1155,14 +1155,14 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
         ),
         runx_version: crate::RUNX_VERSION.to_owned(),
         fully_bound: unresolved_skill_edges.is_empty(),
-        summary: execution_summary(&components, closure.agent_acts, closure.declared_artifact),
+        summary: execution_summary(&components, closure.turns, closure.declared_artifact),
         components,
         skill_edges: closure.skill_edges.into_iter().collect(),
         direct_external_skill_edges: closure.direct_external_skill_edges.into_iter().collect(),
         unresolved_skill_edges,
         package_bindings,
         connector_bindings,
-        agent_acts: u64::try_from(closure.agent_acts).unwrap_or(u64::MAX),
+        turns: u64::try_from(closure.turns).unwrap_or(u64::MAX),
         declared_artifact: closure.declared_artifact,
         profiles: closure.profiles.into_iter().collect(),
         environment,
@@ -1257,13 +1257,13 @@ fn normalize_relative_path(path: PathBuf) -> Option<String> {
     Some(normalized.join("/"))
 }
 
-fn execution_summary(components: &[String], agent_acts: usize, declared_artifact: bool) -> String {
-    let agent_summary = match (agent_acts, declared_artifact) {
+fn execution_summary(components: &[String], turns: usize, declared_artifact: bool) -> String {
+    let agent_summary = match (turns, declared_artifact) {
         (0, _) => None,
-        (1, true) => Some("1 agent act -> declared artifact".to_owned()),
-        (count, true) => Some(format!("{count} agent acts -> declared artifact")),
-        (1, false) => Some("1 agent act".to_owned()),
-        (count, false) => Some(format!("{count} agent acts")),
+        (1, true) => Some("1 turn -> declared artifact".to_owned()),
+        (count, true) => Some(format!("{count} turns -> declared artifact")),
+        (1, false) => Some("1 turn".to_owned()),
+        (count, false) => Some(format!("{count} turns")),
     };
     match (components.is_empty(), agent_summary) {
         (true, Some(agent)) => agent,

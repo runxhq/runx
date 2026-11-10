@@ -30,7 +30,7 @@ pub struct WorkflowWhen {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepKind {
-    /// An agent act, resolved by the caller or the managed agent loop.
+    /// A turn, resolved by the caller or the managed agent loop.
     Agent(AgentTask),
     /// A catalog tool, a deterministic worker, or a trusted host process.
     Tool(ToolTarget),

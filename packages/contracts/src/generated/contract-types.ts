@@ -304,7 +304,7 @@ export type AuthorityUseLimitContract = {
 
 export type AuthorityVerbContract = "read" | "write" | "comment" | "review" | "merge" | "create" | "update" | "delete" | "execute" | "revoke";
 
-/** An agent's answer to an input request or an agent act. */
+/** An agent's answer to an input request or a turn. */
 export type BoundAnswerContract = {
   /** The digest of the request answered, as the run reported it. */
   readonly request_digest: string;
@@ -3679,7 +3679,7 @@ export type TurnInvocationContract = {
   readonly context_kinds?: readonly string[];
   readonly envelope: AgentContextEnvelopeContract;
   readonly id: string;
-  /** What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the act failed with `unsupported_requirement`. */
+  /** What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the turn failed with `unsupported_requirement`. */
   readonly requires?: readonly TurnRequirementContract[];
   /** The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions. */
   readonly task: string;
@@ -3732,7 +3732,7 @@ export type TurnToolContract = {
   readonly target: CallTargetContract;
 };
 
-/** An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
+/** A turn as its agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
 export type TurnViewContract = {
   /** The kinds of context the turn asks its host to supply. */
   readonly context_kinds?: readonly string[];

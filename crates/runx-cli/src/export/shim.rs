@@ -354,7 +354,7 @@ Interpret the runx JSON result exactly:
 - `status` is lifecycle state; `outcome` says whether the promised operation completed. A sealed blocked or failed run is not success.
 - If `status` is `sealed`, surface the outcome, receipt id, result, and artifact refs.
 - If runx returns `needs_agent` or `needs_approval`, read only the selected digest-bound request artifact and obey its exact output contract and authority. Do not substitute a summary for work that never happened.
-- Read the artifact at its returned path relative to the original workspace and verify its digest. For agent acts, invocation.envelope carries the task, inputs and output_schema.
+- Read the artifact at its returned path relative to the original workspace and verify its digest. For turns, invocation.envelope carries the task, inputs and output_schema.
 - Relay human questions and approval requests. Never fabricate human approval.
 
 For an agent answer, construct RUNX_ANSWERS_JSON with this exact envelope:

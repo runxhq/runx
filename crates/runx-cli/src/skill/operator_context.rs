@@ -40,7 +40,7 @@ pub(super) fn write_operator_context(
     ));
     out.push_str(&format!(
         "  Managed agent: {} act(s), {}\n",
-        report.governance.managed_agent_acts,
+        report.governance.managed_turns,
         match report.governance.managed_agent_max_rounds {
             Some(rounds) => format!("enabled, max {rounds} round(s) per act"),
             None => "off; caller resolves needs_agent".to_owned(),

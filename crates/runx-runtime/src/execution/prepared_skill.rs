@@ -135,7 +135,7 @@ pub struct PreparedGovernanceSummary {
     pub execution_boundaries: Vec<ExecutionBoundaryKind>,
     pub gates: Vec<String>,
     pub idempotency_keys: Vec<String>,
-    pub managed_agent_acts: usize,
+    pub managed_turns: usize,
     pub managed_agent_enabled: bool,
     pub managed_agent_max_rounds: Option<u32>,
 }
@@ -736,7 +736,7 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
         }
         match &definition.kind {
             StepKind::Ask(ask) => summary.gates.push(ask.gate.clone()),
-            StepKind::Agent(_) => summary.managed_agent_acts += 1,
+            StepKind::Agent(_) => summary.managed_turns += 1,
             _ => {}
         }
         // An operation call's key, as its step writes it.
@@ -1055,7 +1055,7 @@ mod tests {
         )?;
 
         assert_ne!(host_driven.report().digest, inline.report().digest);
-        assert_eq!(inline.report().governance.managed_agent_acts, 1);
+        assert_eq!(inline.report().governance.managed_turns, 1);
         assert!(inline.report().governance.managed_agent_enabled);
         assert_eq!(inline.report().governance.managed_agent_max_rounds, Some(3));
         assert_eq!(
@@ -1318,7 +1318,7 @@ methods:
         assert_eq!(governance.conditional_steps, 1);
         assert_eq!(governance.gates, ["release.publish.approval"]);
         assert_eq!(governance.idempotency_keys, ["release-publish-1"]);
-        assert_eq!(governance.managed_agent_acts, 0);
+        assert_eq!(governance.managed_turns, 0);
         Ok(())
     }
 

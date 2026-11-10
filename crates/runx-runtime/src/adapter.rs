@@ -19,7 +19,7 @@ pub enum InvocationStatus {
 }
 
 /// What an invocation runs: a deterministic worker module, a trusted host
-/// process, or an agent act.
+/// process, or a turn.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Executable {
     Worker(WorkerTool),

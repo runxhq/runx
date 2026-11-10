@@ -331,7 +331,7 @@ pub struct TurnInvocation {
     pub allowance: TurnAllowance,
     /// What the turn needs from its agent harness, as its step's `requires`.
     /// An agent harness that meets one says so in its answer's
-    /// `requirements`; one that can't ends the act failed with
+    /// `requirements`; one that can't ends the turn failed with
     /// `unsupported_requirement`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requires: Vec<TurnRequirement>,
@@ -343,7 +343,7 @@ pub struct TurnInvocation {
 }
 
 /// The fields of an agent's answer that are runx's own, beside the outputs
-/// its step declares: how the act ended (`ending`, else completed) and why,
+/// its step declares: how the turn ended (`ending`, else completed) and why,
 /// the model that answered, and the requirements its agent harness met or the
 /// one it couldn't. A step can't declare an output of the same name.
 pub const RESERVED_ANSWER_FIELDS: [&str; 5] = [
@@ -728,7 +728,7 @@ pub struct TurnStatus {
     pub calls: Vec<TurnCallResult>,
 }
 
-/// An agent act as its turn's agent reads it. What the act allows it shows
+/// A turn as its agent reads it. What the act allows it shows
 /// once, as the status's tools, by the names a call takes: the act's declared
 /// allowance names a catalog tool as the catalog does (`fs.read`), which is
 /// not the name a call takes (`fs_read`).

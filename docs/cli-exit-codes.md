@@ -50,7 +50,7 @@ Common fixes:
 
 ## Exit Code 2: Resolution Required
 
-The run needs input, approval, or an agent act before it can continue. CLI JSON
+The run needs input, approval, or a turn before it can continue. CLI JSON
 uses `needs_approval` when every pending request is an approval and
 `needs_agent` for other request sets; both use exit code 2 and the same resume
 protocol. In production mode (`RUNX_PRODUCTION=1`), unresolved cognitive work

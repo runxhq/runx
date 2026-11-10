@@ -117,7 +117,7 @@ or finality logic.
 Agent work is valid for judgment and authorship. It must be isolated from
 deterministic effects and close into a declared artifact packet.
 
-`SKILL.md` is the sole static operating-instruction source for an agent act.
+`SKILL.md` is the sole static operating-instruction source for a turn.
 Runx injects the complete owning document into the agent envelope and rejects
 method or workflow-step `instructions` fields. The envelope's task, typed inputs,
 outputs, allowed tools, and prepared context identify the current act without a
@@ -167,7 +167,7 @@ with the executable profile. Remove prose only when it is false, duplicated, or
 irrelevant. Moving enforcement into native code does not make the explanation
 dispensable: operators still need to understand the boundary and its reason.
 Task contracts belong after the operating guide and may sharpen a bounded
-agent act; they never substitute for the guide.
+turn; they never substitute for the guide.
 
 The catalog audit enforces a deliberately structural anti-stub floor: before
 any agent task contracts, a public guide needs a title, a real section, and

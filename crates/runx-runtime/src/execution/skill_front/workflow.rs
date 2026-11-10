@@ -1161,7 +1161,7 @@ mod tests {
                 &result,
                 Err(RuntimeError::UnsupportedExecutable { kind }) if kind == "agent"
             ),
-            "unexpected agent act result: {result:?}"
+            "unexpected turn result: {result:?}"
         );
     }
 

@@ -66,7 +66,7 @@ impl ManagedAgent {
     }
 
     /// Work `turn` with the configured model; `host` answers what its calls
-    /// ask. Returns the act's answer when the model finishes, and `None` when
+    /// ask. Returns the turn's answer when the model finishes, and `None` when
     /// no model is configured or a call waits on a human.
     pub(crate) fn drive(
         &self,

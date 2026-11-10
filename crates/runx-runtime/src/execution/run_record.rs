@@ -18,7 +18,7 @@
 //! `<parent>/<step>`, that names its parent step. A test evaluation is a
 //! run of its own that is never resumed or listed.
 //!
-//! While a run waits on an agent act, each call the agent makes is a `call`
+//! While a run waits on a turn, each call the agent makes is a `call`
 //! event naming the turn it belongs to. Calls never change where the run
 //! waits: a run whose latest event is a call is still paused at its turn. A
 //! call that runs a child skill links that child run; the child's own stream
@@ -392,7 +392,7 @@ struct ClockEvent {
 #[serde(deny_unknown_fields)]
 struct TurnRequestEvent {
     request_id: String,
-    /// Blob: the agent act request.
+    /// Blob: the turn's request.
     request: String,
     digest: String,
 }

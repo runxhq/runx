@@ -167,7 +167,7 @@ reaches a request that changed after the person saw it, and nothing answers a
 request the run has not asked yet. The pending run's `answers_template` is
 already bound.
 
-`answers` is the agent's lane: agent acts. `approvals` is the person's: an
+`answers` is the agent's lane: turns. `approvals` is the person's: an
 approval takes `approved` and `reason`, a claimed call's retry takes `value:
 {"retry": true}`, and questions take `value: {<question id>: {option?: <label>,
 text?: <string>}}`, each naming one of its question's options or, where it

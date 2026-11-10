@@ -353,7 +353,7 @@ function hasCanonicalClosure(closure) {
     && Array.isArray(closure?.skill_edges)
     && Array.isArray(closure?.direct_external_skill_edges)
     && Array.isArray(closure?.profiles)
-    && Number.isInteger(closure?.agent_acts)
+    && Number.isInteger(closure?.turns)
     && typeof closure?.declared_artifact === "boolean";
 }
 
@@ -590,7 +590,7 @@ function runSelfTests() {
       skill_edges: [],
       direct_external_skill_edges: [],
       profiles: ["run.yaml#default"],
-      agent_acts: 0,
+      turns: 0,
       declared_artifact: false,
     },
   };

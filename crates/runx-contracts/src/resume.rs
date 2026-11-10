@@ -158,7 +158,7 @@ impl StandingApproval {
     }
 }
 
-/// An agent's answer to an input request or an agent act.
+/// An agent's answer to an input request or a turn.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoundAnswer {

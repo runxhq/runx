@@ -15,8 +15,8 @@ pub trait Host {
 
     fn log(&mut self, message: String) -> Result<(), RuntimeError>;
 
-    /// Work the turn an unanswered agent act holds open: settle the calls
-    /// this host now answers, make calls, or hold the act's answer for
+    /// Work a turn its host hasn't answered: settle the calls
+    /// this host now answers, make calls, or hold the turn's answer for
     /// `resolve`. A host that drives no agent leaves the turn as it is.
     fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
         let _ = turn;

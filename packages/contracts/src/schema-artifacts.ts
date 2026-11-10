@@ -1884,7 +1884,7 @@ export const runxSchemaArtifacts = {
       },
       "BoundAnswer": {
         "additionalProperties": false,
-        "description": "An agent's answer to an input request or an agent act.",
+        "description": "An agent's answer to an input request or a turn.",
         "properties": {
           "request_digest": {
             "description": "The digest of the request answered, as the run reported it.",
@@ -10815,7 +10815,7 @@ export const runxSchemaArtifacts = {
       },
       "TurnView": {
         "additionalProperties": false,
-        "description": "An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`).",
+        "description": "A turn as its agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`).",
         "properties": {
           "context_kinds": {
             "description": "The kinds of context the turn asks its host to supply.",
@@ -14407,7 +14407,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "requires": {
-        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the act failed with `unsupported_requirement`.",
+        "description": "What the turn needs from its agent harness, as its step's `requires`. An agent harness that meets one says so in its answer's `requirements`; one that can't ends the turn failed with `unsupported_requirement`.",
         "items": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnRequirement"
         },

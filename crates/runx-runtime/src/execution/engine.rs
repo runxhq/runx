@@ -759,7 +759,7 @@ enum WorkflowTerminalOutcome {
 }
 
 /// A step ending that stops the workflow as an outcome rather than a fault: an
-/// agent act that declined, deferred, blocked, or was superseded.
+/// turn that declined, deferred, blocked, or was superseded.
 pub(crate) const fn is_governed_step_closure(outcome: &RunOutcome) -> bool {
     matches!(
         outcome,

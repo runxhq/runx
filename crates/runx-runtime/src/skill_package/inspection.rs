@@ -861,7 +861,7 @@ operations:
         );
         assert_eq!(
             first.get("summary").and_then(JsonValue::as_str),
-            Some("tool:data.digest; 1 agent act")
+            Some("tool:data.digest; 1 turn")
         );
         assert_eq!(
             first

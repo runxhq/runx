@@ -63,7 +63,7 @@ pub enum RuntimeError {
         /// skill; `None` when the step asked its host itself.
         child: Option<String>,
     },
-    /// A step sealed a governed outcome other than `completed`: an agent act
+    /// A step sealed a governed outcome other than `completed`: a turn
     /// that declined, deferred, blocked, or was superseded. The workflow stops
     /// there with that outcome; it is an outcome, not a fault.
     #[error("workflow step '{step_id}' ended {}: {summary}", outcome.label())]

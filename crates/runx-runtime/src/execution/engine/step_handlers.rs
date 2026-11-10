@@ -1023,7 +1023,7 @@ where
     )
 }
 
-// The close for an agent act: a resolved host response becomes the step's
+// The close for a turn: a resolved host response becomes the step's
 // output, projection, and sealed receipt.
 struct TurnStepSeal<'a> {
     workflow_dir: &'a Path,
@@ -1260,7 +1260,7 @@ where
     let Some(response) = host.resolve(request.clone())? else {
         return Err(RuntimeError::ResolutionPending {
             step_id: step.id.clone(),
-            reason: format!("agent act {request_id} requires resolution"),
+            reason: format!("turn {request_id} requires resolution"),
             request: Box::new(request.clone()),
             child: None,
         });
@@ -1737,8 +1737,8 @@ fn agent_task_output(
         InvocationOutput::runtime_success(response.payload, 0)
     } else {
         let message = match reason {
-            Some(reason) => format!("agent act ended {}: {reason}", outcome.label()),
-            None => format!("agent act ended {}", outcome.label()),
+            Some(reason) => format!("turn ended {}: {reason}", outcome.label()),
+            None => format!("turn ended {}", outcome.label()),
         };
         InvocationOutput::runtime_failure(response.payload, message, 0)
     })

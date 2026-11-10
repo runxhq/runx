@@ -8,18 +8,18 @@ pub(crate) enum OutcomeClaimError {
     #[error("agent answer ending {0:?} is not supported")]
     UnsupportedEnding(String),
     #[error(
-        "agent answer ending {0:?} is the runtime's to observe; an agent ends its act completed, deferred, superseded, declined, blocked or failed"
+        "agent answer ending {0:?} is the runtime's to observe; an agent ends its turn completed, deferred, superseded, declined, blocked or failed"
     )]
     RuntimeObserved(String),
     #[error("agent answer gives an ending_reason and no ending")]
     ReasonWithoutEnding,
     #[error(
-        "agent answer holds a closure: an answer says how its act ended in ending, and why in ending_reason, at its top level"
+        "agent answer holds a closure: an answer says how its turn ended in ending, and why in ending_reason, at its top level"
     )]
     Closure,
 }
 
-/// How an agent's answer says its act ended: its `ending`, or completed when
+/// How an agent's answer says its turn ended: its `ending`, or completed when
 /// it states none.
 pub(crate) fn agent_answer_outcome_or_completed(
     answer: &JsonValue,
@@ -39,7 +39,7 @@ pub(crate) fn agent_answer_outcome_or_completed(
 }
 
 /// Whether an agent's answer meets its turn's requirements. An agent harness that
-/// meets one says so in the answer's `requirements`; one that can't ends the act
+/// meets one says so in the answer's `requirements`; one that can't ends the turn
 /// failed with `unsupported_requirement` naming it. Any other ending that
 /// leaves a requirement unstated is refused, so a turn's requirement is never
 /// assumed met.
@@ -81,7 +81,7 @@ pub(crate) fn check_turn_requirements(
         }
         if outcome != RunOutcome::Failed {
             return Err(format!(
-                "agent answer says its agent harness can't meet {} and ends the act {}; an unmet requirement ends it failed",
+                "agent answer says its agent harness can't meet {} and ends the turn {}; an unmet requirement ends it failed",
                 unsupported.as_str(),
                 outcome.label()
             ));
@@ -96,14 +96,14 @@ pub(crate) fn check_turn_requirements(
         .find(|requirement| !stated.contains(requirement))
     {
         Some(missing) => Err(format!(
-            "the turn requires {}, and its answer doesn't say its agent harness met it: list it in requirements, or end the act failed with unsupported_requirement",
+            "the turn requires {}, and its answer doesn't say its agent harness met it: list it in requirements, or end the turn failed with unsupported_requirement",
             missing.as_str()
         )),
         None => Ok(()),
     }
 }
 
-/// The answer of an act that failed, saying why, and naming the requirement
+/// The answer of a turn that failed, saying why, and naming the requirement
 /// its agent harness couldn't meet, when that's why.
 pub(crate) fn failed_answer(
     reason: String,
@@ -207,7 +207,7 @@ pub(crate) fn stated_model(answer: &JsonValue) -> Result<Option<&str>, String> {
     }
 }
 
-/// How an agent says its act ended. A kill or a timeout is observed by the
+/// How an agent says its turn ended. A kill or a timeout is observed by the
 /// runtime that ran the act, never claimed by the agent's answer.
 fn agent_outcome(ending: &str) -> Result<RunOutcome, OutcomeClaimError> {
     match ending {
@@ -266,7 +266,7 @@ mod tests {
         Ok(())
     }
 
-    /// An agent says how its act ended, and why, at its answer's top level,
+    /// An agent says how its turn ended, and why, at its answer's top level,
     /// beside the outputs its step declares; an answer holding a closure is
     /// refused, since closure names a package's closure.
     #[test]

@@ -253,7 +253,7 @@ methods:
       "## Agent task: inspect-context",
       "",
       "This manual proves that a packaged candidate carries the complete operating",
-      "context into an agent act. The final marker must survive without truncation.",
+      "context into a turn. The final marker must survive without truncation.",
       "",
       contextWitness,
       `## Tail marker`,

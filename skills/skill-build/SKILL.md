@@ -6,7 +6,7 @@ description: Canonical Runx skill-authoring implementation. Use for designing, c
 # Skill Build
 
 Build and improve Runx skills through one authoring surface. Keep judgment in
-bounded agent acts and mechanics in native tools:
+bounded turns and mechanics in native tools:
 
 ```text
 inspect target files, catalog ownership, and native/shared tools
@@ -103,7 +103,7 @@ authoring.
   example when it materially clarifies a non-obvious workflow. Do not force
   ceremonial sections onto a simple facade or internal rail.
 - Put task-specific agent clauses after the human-readable operating guide.
-  They sharpen individual agent acts; they do not replace the guide or carry
+  They sharpen individual turns; they do not replace the guide or carry
   the product's voice by themselves.
 - Explain meaningful upstream and downstream skill relationships naturally in
   the operator guide. Do not maintain a second machine-readable dependency
