@@ -210,7 +210,7 @@ ${operations}    steps:
   assert.match(run, /      - id: plan\n        agent: plan\n        calls:\n          operations: \[web\/page\.read\]\n/);
 });
 
-test("an expectation loses the data envelope of an emit that is a plain output now, and keeps an artifact's", (t) => {
+test("an expectation reads every emit as its data: a plain output's, a packet's and the whole result's", (t) => {
   const dir = tree(t, {
     "SKILL.md": manual("hygiene"),
     "run.yaml": `skill: hygiene
@@ -259,16 +259,85 @@ expect:
     finalize:
       subset:
         result: {decision: {state: suppressed}}
-        receipt: {data: {recorded: true}}
+        receipt: {recorded: true}
     report:
       subset:
-        report: {data: {lines: 1}}
+        report: {lines: 1}
   output:
     subset:
       result: {decision: {state: suppressed}}
 `,
   );
   assert.match(out, /harness\.cases\.suppresses-hard-bounce\.expect\.step_outputs\.finalize\.subset\.result\.data: the envelope's level goes/);
+});
+
+test("an expectation of a method's result reads each packet as its data, an operation's included", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("analysis"),
+    "run.yaml": `skill: analysis
+version: "0.1.0"
+connectors:
+  acme-ops: {operations: [job.read]}
+runners:
+  continue:
+    default: true
+    steps:
+      - id: advance
+        tool: { module: analysis.mjs, export: advance }
+        outputs: { stage_result: object }
+        artifacts:
+          named_emits: { stage_result: stage_result }
+          packets: { stage_result: runx.external_job_stage.result.v1 }
+  read:
+    steps:
+      - id: read
+        operation: acme-ops/job.read
+`,
+    "fixtures/continue-ready.yaml": "name: continue-ready\nexpect:\n  status: sealed\n  output:\n    subset:\n      stage_result:\n        data:\n          status: ready\n",
+    "fixtures/reads-the-job.yaml": "name: reads-the-job\nrunner: read\nexpect:\n  status: sealed\n  output:\n    subset:\n      provider_operation: { data: { result: { status: done } } }\n",
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(read(dir, "tests/continue-ready.yaml"), /  output:\n    subset:\n      stage_result:\n        status: ready\n/);
+  assert.match(read(dir, "tests/reads-the-job.yaml"), /      provider_operation: \{result: \{status: done\}\}\n/);
+});
+
+test("a step calling another package holds what that package's method emits, converted before it or after", (t) => {
+  const child = `skill: provider-operation
+version: "0.1.0"
+runners:
+  read:
+    steps:
+      - id: normalize
+        tool: { module: operation.mjs, export: normalize }
+        outputs: { provider_evidence: object }
+        artifacts:
+          named_emits: { provider_evidence: provider_evidence }
+          packets: { provider_evidence: acme/operator.provider_evidence.v1 }
+`;
+  const parent = `skill: operator
+version: "0.1.0"
+runners:
+  inbox:
+    steps:
+      - id: inbox
+        skill: graph/provider-operation
+        runner: read
+`;
+  const fixture = "name: inbox-ready\nexpect:\n  status: sealed\n  step_outputs:\n    inbox:\n      subset:\n        provider_evidence:\n          data:\n            decision: ready\n";
+  for (const childFirst of [true, false]) {
+    const dir = tree(t, {
+      "SKILL.md": manual("operator"),
+      "run.yaml": parent,
+      "fixtures/inbox-ready.yaml": fixture,
+      "graph/provider-operation/SKILL.md": manual("provider-operation"),
+      "graph/provider-operation/run.yaml": child,
+    });
+    const dirs = childFirst ? [path.join(dir, "graph/provider-operation"), dir] : [dir, path.join(dir, "graph/provider-operation")];
+    const { status, out } = convert("--write", ...dirs);
+    assert.equal(status, 0, out);
+    assert.match(read(dir, "tests/inbox-ready.yaml"), /    inbox:\n      subset:\n        provider_evidence:\n          decision: ready\n/, childFirst ? "child converted first" : "child converted after");
+  }
 });
 
 test("a step's act reads the invoking act as $run.act", (t) => {

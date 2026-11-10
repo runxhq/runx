@@ -169,6 +169,7 @@ function convertStep(doc, step, scope, notes) {
   const where = `${scope.where}.steps.${id}`;
   if (!isMap(step)) refuse(`${where} is not a map`);
   const kind = stepKind(step, where);
+  const held = heldOf(step.toJSON());
   only(step, [...STEP_COMMON, kind, ...STEP_KIND_KEYS[kind]], where);
   take(step, "label");
   take(step, "scopes");
@@ -210,9 +211,54 @@ function convertStep(doc, step, scope, notes) {
   if (kind === "operation") convertOperation(doc, step, scope, where, notes);
   if (kind === "skill" || kind === "operation") convertAct(step, where, notes);
   if (kind === "ask") only(node(step, "ask"), ["gate", "reason", "type"], `${where}.ask`);
-  const emits = convertOutputs(doc, step, where);
-  if (kind === "skill") emits.calls = { from: scope.dir, reference: read(step, "skill") };
+  convertOutputs(doc, step, where);
+  const emits = { held, calls: kind === "skill" ? { from: scope.dir, reference: read(step, "skill") } : undefined };
   if (scope.emits) scope.emits.set(id, emits);
+}
+
+// What a step's record holds in a `{ data }` envelope, which a test's
+// expectations read through and a reader in 0.12 is given the data of: in
+// 0.11 each named emit and wrap_as, and once converted each output with a
+// packet and result_as; an operation's provider_operation and an ask's
+// approval_decision. A skill step holds what the method it calls holds too.
+function heldOf(step) {
+  const held = new Set();
+  for (const name of Object.keys(step?.artifacts?.named_emits ?? {})) held.add(name);
+  if (step?.artifacts?.wrap_as) held.add(step.artifacts.wrap_as);
+  for (const [name, declaration] of Object.entries(step?.outputs ?? {})) {
+    if (declaration && typeof declaration === "object" && declaration.packet) held.add(name);
+  }
+  if (step?.result_as) held.add(step.result_as);
+  if (step && "operation" in step) held.add("provider_operation");
+  if (step && "ask" in step) held.add("approval_decision");
+  return held;
+}
+
+// What a method of the package at `dir` holds, read from its run.yaml as it
+// stands: the 0.11 one, or the 0.12 one when it converted first, where a
+// plain emit has become a plain output. The method is the one named, else
+// the default, else the only one. A package not on disk holds nothing known.
+function heldOfPackage(dir, method, seen = new Set()) {
+  const held = new Set();
+  const file = path.join(dir, "run.yaml");
+  if (!existsSync(file)) return held;
+  const manifest = YAML.parse(readFileSync(file, "utf8")) ?? {};
+  const methods = manifest.runners ?? manifest.methods ?? {};
+  const names = Object.keys(methods);
+  const name = method
+    ?? manifest.default_method
+    ?? names.find((candidate) => methods[candidate]?.default === true)
+    ?? (names.length === 1 ? names[0] : undefined);
+  const key = `${path.resolve(dir)}#${name}`;
+  if (name === undefined || seen.has(key)) return held;
+  seen.add(key);
+  for (const step of methods[name]?.steps ?? []) {
+    for (const output of heldOf(step)) held.add(output);
+    if (typeof step?.skill !== "string") continue;
+    const [reference, called] = step.skill.split("#");
+    for (const output of heldOfPackage(path.resolve(dir, reference), called ?? step.runner, seen)) held.add(output);
+  }
+  return held;
 }
 
 // A step's act keeps its purpose and record. `decision` goes: nothing in runx
@@ -287,8 +333,7 @@ function convertOutputs(doc, step, where) {
   const artifacts = take(step, "artifacts");
   let outputs = node(step, "outputs");
   convertFields(doc, outputs, "output", `${where}.outputs`);
-  const emits = { plain: new Set(), artifact: new Set() };
-  if (artifacts === undefined) return emits;
+  if (artifacts === undefined) return;
   only(artifacts, ["named_emits", "packets", "wrap_as", "packet"], `${where}.artifacts`);
   const named = read(artifacts, "named_emits") ?? {};
   const packets = read(artifacts, "packets") ?? {};
@@ -328,12 +373,6 @@ function convertOutputs(doc, step, where) {
     insertAt(step, indexOf(step, "outputs") + 1, "result_as", new Scalar(wrapAs));
     if (wrapPacket !== undefined) setPacket(wrapped, wrapPacket, wrapAs);
   }
-  // Today every emit is held in a `{ data }` envelope. In 0.12 only an
-  // output with a packet, and the one result_as names, is an artifact and
-  // keeps it; a named emit with no packet is a plain output.
-  for (const name of Object.keys(named)) (packets[name] === undefined && name !== wrapAs ? emits.plain : emits.artifact).add(name);
-  if (wrapAs !== undefined) emits.artifact.add(wrapAs);
-  return emits;
 }
 
 // ---- Offers: what a paid method charges, on the method itself
@@ -637,17 +676,15 @@ function settleTestEnv(test, dir, where, notes) {
   return true;
 }
 
-// A test's expectations read a step's emits as they were held: in their
-// `{ data }` envelope. Where an emit is a plain output now, the envelope's
-// level goes from `step_outputs` and `output`, and an emit that kept its
-// packet keeps it. An expectation setting keys beside `data`, or a name
-// plain in one step and an artifact in another, says what can't be
-// rewritten, so it's refused.
+// A test's expectations read what a step's record held as it was held: in
+// its `{ data }` envelope. In 0.12 every reader is given the data, so the
+// envelope's level goes from `step_outputs` and `output`. An expectation
+// setting keys beside `data` says what can't be rewritten, so it's refused.
 function unwrapEnvelope(pair, where, notes) {
   if (!isMap(pair.value) || !has(pair.value, "data")) return;
-  if (pair.value.items.length !== 1) refuse(`${where} sets keys beside its emit's data envelope, which a plain output doesn't have`);
+  if (pair.value.items.length !== 1) refuse(`${where} sets keys beside its data envelope, which a reader of its data doesn't see`);
   pair.value = node(pair.value, "data");
-  notes.push(`${where}.data: the envelope's level goes, as its emit is a plain output now`);
+  notes.push(`${where}.data: the envelope's level goes, as a reader is given the data`);
 }
 
 function settleExpectedEmits(testCase, steps, where, notes, emitsOfStep) {
@@ -658,21 +695,17 @@ function settleExpectedEmits(testCase, steps, where, notes, emitsOfStep) {
     if (!emits || !isMap(stepPair.value)) continue;
     for (const form of ["exact", "subset"]) {
       for (const pair of node(stepPair.value, form)?.items ?? []) {
-        if (emits.plain.has(keyOf(pair))) unwrapEnvelope(pair, `${where}.expect.step_outputs.${keyOf(stepPair)}.${form}.${keyOf(pair)}`, notes);
+        if (emits.has(keyOf(pair))) unwrapEnvelope(pair, `${where}.expect.step_outputs.${keyOf(stepPair)}.${form}.${keyOf(pair)}`, notes);
       }
     }
   }
   const output = node(expect, "output");
   if (!isMap(output)) return;
-  const all = [...steps.values()].map((emits) => emitsOfStep(emits, `${where}.expect.output`));
-  const plainNames = new Set(all.flatMap((emits) => [...emits.plain]));
-  const artifactNames = new Set(all.flatMap((emits) => [...emits.artifact]));
+  const held = new Set([...steps.values()].flatMap((emits) => [...emitsOfStep(emits, `${where}.expect.output`)]));
   for (const form of ["exact", "subset"]) {
     for (const pair of node(output, form)?.items ?? []) {
       const name = keyOf(pair);
-      if (!plainNames.has(name)) continue;
-      if (artifactNames.has(name)) refuse(`${where}.expect.output.${form}.${name} is a plain output of one step and an artifact of another, so its envelope can't be told`);
-      unwrapEnvelope(pair, `${where}.expect.output.${form}.${name}`, notes);
+      if (held.has(name)) unwrapEnvelope(pair, `${where}.expect.output.${form}.${name}`, notes);
     }
   }
 }
@@ -1040,24 +1073,26 @@ function convertPackage(dir) {
   // The inputs each fixture package's tests pass it.
   const fixtureInputs = new Map();
   // A skill step's output is the result of the method it calls, so a step
-  // calling one of this package's own methods, `.#name` from the package or
-  // `../..#name` from a fixture package, holds that method's emits.
+  // holds what that method holds: one of this package's own, `.#name` from
+  // the package or `../..#name` from a fixture package, as this conversion
+  // reads it; another package's, from its run.yaml on disk.
   emitsOf.ofStep = (emits, where, seen = new Set()) => {
-    const own = { plain: new Set(emits?.plain ?? []), artifact: new Set(emits?.artifact ?? []) };
+    const held = new Set(emits?.held ?? []);
     const call = emits?.calls;
-    if (!call || typeof call.reference !== "string") return own;
+    if (!call || typeof call.reference !== "string") return held;
     const [reference, called] = call.reference.split("#");
-    if (path.resolve(call.from, reference) !== path.resolve(dir)) return own;
+    const target = path.resolve(call.from, reference);
+    if (target !== path.resolve(dir)) {
+      for (const name of heldOfPackage(target, called)) held.add(name);
+      return held;
+    }
     const method = called ?? (methodNames.length === 1 ? methodNames[0] : defaults[0]);
-    if (seen.has(method)) return own;
+    if (seen.has(method)) return held;
     seen.add(method);
     for (const step of methodEmits.get(method)?.values() ?? []) {
-      const inner = emitsOf.ofStep(step, where, seen);
-      for (const name of inner.plain) own.plain.add(name);
-      for (const name of inner.artifact) own.artifact.add(name);
+      for (const name of emitsOf.ofStep(step, where, seen)) held.add(name);
     }
-    for (const name of own.plain) if (own.artifact.has(name)) refuse(`${where}.${name} is a plain output of one step and an artifact of another, so its envelope can't be told`);
-    return own;
+    return held;
   };
   const addTest = (testDoc, where, base) => {
     const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes, dir, emitsOf);
