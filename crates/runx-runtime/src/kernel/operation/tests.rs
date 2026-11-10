@@ -3019,7 +3019,7 @@ fn an_artifact_stored_for_another_principal_settles_failed_and_names_it() {
 fn an_artifact_read_back_for_another_principal_settles_failed_and_names_it() {
     let mut fixture = Fixture::new(&[]);
     fixture.env.insert(
-        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        crate::execution::engine::RUNX_RUN_ID_ENV.to_owned(),
         "run-1".to_owned(),
     );
     *fixture.provider.inspected_owner.lock().unwrap() = Some("someone-else".to_owned());
