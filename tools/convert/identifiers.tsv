@@ -583,7 +583,7 @@ oss	HoldEvent	19	hold	HoldEvent	hold's one meaning, a run waiting on an unknown 
 oss	OperationalPolicyRunnerRule	19	runner	OperationalPolicyRunnerRule	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/lib.rs crates/runx-contracts/src/operational_policy.rs
 oss	validateRunnerManifestYaml	19	runner	validateMethodManifestYaml		crates/runx-parser/src/eval.rs scripts/audit-core-skills.mjs
 oss	$RUNNER_TEMP	18	runner	$RUNNER_TEMP	GitHub's runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
-oss	agent-act-invocation	18	agent_act	agent-act-invocation		crates/runx-contracts/src/schema_artifacts.rs crates/runx-contracts/tests/schema_wire_conformance/covered.rs
+oss	agent-act-invocation	18	agent_act	turn-invocation	the turn invocation's schema file, as its $id names it (vocabulary §4.2, turn)	crates/runx-contracts/src/schema_artifacts.rs crates/runx-contracts/tests/schema_wire_conformance/covered.rs
 oss	GraphClosure	18	closure,graph	WorkflowEnding	how a run ended	crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	sequential-graph	18	graph	sequential-workflow		crates/runx-cli/tests/router.rs crates/runx-core/src/state_machine/types.rs
 oss	StepSealClosure	18	closure	StepSealEnding	how a run ended	crates/runx-runtime/src/execution/prepared_skill.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
@@ -855,7 +855,7 @@ oss	policy_write_graph	4	graph	policy_write_workflow		crates/runx-runtime/tests/
 oss	RawHarnessExpectation	4	harness	RawTestExpectation	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	receipt-query-composes-in-graph	4	graph	receipt-query-composes-in-workflow		crates/runx-runtime/bundled-skills.json
 oss	record_child_hold	4	hold	record_child_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/tests.rs
-oss	resolution-agent-act-request	4	agent_act	resolution-agent-act-request		crates/runx-contracts/tests/host_protocol_fixtures.rs crates/runx-contracts/tests/schema_validation.rs
+oss	resolution-agent-act-request	4	agent_act	resolution-turn-request	the host protocol fixture of a turn's resolution request	crates/runx-contracts/tests/host_protocol_fixtures.rs crates/runx-contracts/tests/schema_validation.rs
 oss	run_harness_case_with_adapter	4	harness	run_test_case_with_adapter	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	runner_makes_calls	4	runner	method_makes_calls		crates/runx-runtime/src/adapters/mcp/server_skill.rs crates/runx-runtime/src/export.rs
 oss	runnerIndex	4	runner	runnerIndex	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	packages/contracts/src/schemas/operational-policy.ts
@@ -876,7 +876,7 @@ oss	write_graph_approval_resume_skill	4	graph	write_workflow_approval_resume_ski
 oss	writes_runner_manifest	4	runner	writes_method_manifest		crates/runx-runtime/src/registry/install.rs
 oss	admit_held	3	hold	admit_held	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	agent_act_resolution_request	3	agent_act	turn_resolution_request		crates/runx-runtime/src/agent_invocation.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
-oss	agent-act	3	agent_act	agent-act		crates/runx-runtime/src/agent_contract.rs packages/contracts/src/index.ts
+oss	agent-act	3	agent_act	turn-invocation	the contracts module of the turn invocation's schema; turn.ts holds the turn's calls	crates/runx-runtime/src/agent_contract.rs packages/contracts/src/index.ts
 oss	agentActInvocation	3	agent_act	turnInvocation		packages/contracts/src/index.test.ts packages/contracts/src/index.ts
 oss	alternate_runners	3	runner	alternate_methods		crates/runx-cli/src/export/shim.rs
 oss	apply_sequential_graph_event_indexed	3	graph	apply_sequential_workflow_event_indexed		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
@@ -1716,3 +1716,5 @@ oss	bound_continuation_rechecks_closure_without_reapproval		decided	bound_contin
 oss	inspect_method_closure		decided	inspect_method_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
 oss	closureFromInspection		decided	closureFromInspection	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	
 oss	an_agent_step_declares_no_output_its_answer_holds_for_runx	1	hold	an_agent_step_declares_no_output_its_answer_holds_for_runx	English: an answer holds its fields	crates/runx-parser/tests/parser_step_kinds.rs
+oss	turn-invocation		decided	turn-invocation	a renamed name lands here: the turn invocation	
+oss	resolution-turn-request		decided	resolution-turn-request	a renamed name lands here: the turn invocation	
