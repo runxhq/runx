@@ -23,8 +23,6 @@ function sendKey(campaign, recipient) {
   return `cold-outreach/${campaign}/${recipient.toLowerCase()}`;
 }
 
-// A packet a call returns arrives in its envelope, and the next call takes
-// its data.
 async function outreach(ctx, lead, inputs) {
   let stage = "enrich";
   try {
@@ -36,6 +34,7 @@ async function outreach(ctx, lead, inputs) {
     });
     stage = "qualify";
     const { lead_qualification } = await ctx.skill("../lead-qualify#qualify", {
+      // .data until a packet reaches a script as its data (plans 5e32b01).
       enrichment_packet: lead_enrichment_packet.data,
       criteria: inputs.criteria,
       ...eligibility(lead),
@@ -49,6 +48,7 @@ async function outreach(ctx, lead, inputs) {
       offer: inputs.offer,
       required_footer: inputs.required_footer,
       contact_policy: lead.contact_policy,
+      // .data until a packet reaches a script as its data (plans 5e32b01).
       qualification: lead_qualification.data,
       ...(lead.facts === undefined ? {} : { facts: lead.facts }),
     });
