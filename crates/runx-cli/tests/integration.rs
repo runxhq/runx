@@ -21,6 +21,7 @@ mod locality;
 mod login;
 mod mcp_dogfood;
 mod memory;
+mod memory_loop;
 mod native_no_ts;
 mod operator_journeys;
 mod process;

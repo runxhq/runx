@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// Read one keyless `POST /v1/chat/completions` and return its JSON body.
 ///
@@ -132,7 +132,7 @@ impl ScriptedModel {
 /// A model answer that makes one tool call.
 #[must_use]
 pub fn tool_call(id: &str, name: &str, arguments: &Value) -> Value {
-    serde_json::json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{
+    json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{
         "id": id,
         "type": "function",
         "function": {"name": name, "arguments": arguments.to_string()},
@@ -156,4 +156,77 @@ pub fn managed_agent_env(endpoint: &str, model: &str) -> Vec<(String, String)> {
         ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint.to_owned()),
     ]
+}
+
+/// A scripted reader of `runx/memory`, for a turn offered memory's search
+/// and read: it searches for the turn's `question` input, reads the best
+/// match by its handle and answers `{answer, found}` with its words, or says
+/// memory holds nothing when the search finds nothing. A reader of words,
+/// never of meaning.
+#[must_use]
+pub fn memory_reader(request: &Value) -> Value {
+    let messages = request["messages"].as_array().cloned().unwrap_or_default();
+    let tool = |ending: &str| {
+        request["tools"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| tool["function"]["name"].as_str())
+            .find(|name| name.ends_with(ending))
+            .unwrap_or(ending)
+            .to_owned()
+    };
+    let answer = |text: &str, found: bool| {
+        tool_call(
+            "call-answer",
+            "turn_complete",
+            &json!({"answer": text, "found": found}),
+        )
+    };
+    let called = messages
+        .iter()
+        .rev()
+        .find(|message| message["role"] == "assistant")
+        .and_then(|message| message["tool_calls"][0]["function"]["name"].as_str())
+        .map(str::to_owned);
+    let result = messages
+        .iter()
+        .rev()
+        .find(|message| message["role"] == "tool")
+        .and_then(|message| message["content"].as_str())
+        .and_then(|content| serde_json::from_str::<Value>(content).ok())
+        .unwrap_or(Value::Null);
+    let output = &result["outcome"]["output"];
+    match called {
+        None => {
+            let question = messages
+                .iter()
+                .find(|message| message["role"] == "user")
+                .and_then(|message| message["content"].as_str())
+                .and_then(|prompt| prompt.split_once("\"question\": "))
+                .and_then(|(_, rest)| {
+                    serde_json::Deserializer::from_str(rest)
+                        .into_iter::<String>()
+                        .next()
+                })
+                .and_then(Result::ok)
+                .unwrap_or_default();
+            tool_call(
+                "call-search",
+                &tool("__search"),
+                &json!({"levels": [{"level": "personal"}], "query": question}),
+            )
+        }
+        Some(name) if name.ends_with("__search") => {
+            match output["entries"][0]["data"]["handle"].as_str() {
+                Some(handle) => tool_call("call-read", &tool("__read"), &json!({"handle": handle})),
+                None => answer("Memory holds nothing about that.", false),
+            }
+        }
+        Some(name) if name.ends_with("__read") => match output["entry"]["data"]["text"].as_str() {
+            Some(text) => answer(text, true),
+            None => answer("Memory holds nothing about that.", false),
+        },
+        Some(_) => answer("Memory holds nothing about that.", false),
+    }
 }

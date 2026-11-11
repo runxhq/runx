@@ -27,7 +27,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use runx_runtime::probe_fixtures::HistoryEvent;
-use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, memory_reader};
 use runx_runtime::{
     HttpMethod, LocalOrchestrator, ManagedAgentPolicy, ReqwestHttpTransport, RuntimeEffectRegistry,
     RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport, SkillRunRequest,
@@ -61,7 +61,7 @@ fn memory_holds_across_the_horizon() -> TestResult {
     let today = today()?;
     let replies = Arc::new(Mutex::new(Replies::default()));
     let model = if model_name == SCRIPTED {
-        ScriptedModel::serve(scripted_reader)?
+        ScriptedModel::serve(memory_reader)?
     } else {
         ScriptedModel::serve(relay(Arc::clone(&replies))?)?
     };
@@ -587,76 +587,6 @@ fn event(
         searchable: Some(vec!["text".to_owned(), "summary".to_owned()]),
         committed_at,
         writer_package: PACKAGE.to_owned(),
-    }
-}
-
-/// The scripted reader: it searches memory for the question, reads the best
-/// match by its handle and answers with its words, or says memory holds
-/// nothing when the search finds nothing. A reader of words, never of
-/// meaning.
-fn scripted_reader(request: &Value) -> Value {
-    let messages = request["messages"].as_array().cloned().unwrap_or_default();
-    let tool = |ending: &str| {
-        request["tools"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|tool| tool["function"]["name"].as_str())
-            .find(|name| name.ends_with(ending))
-            .unwrap_or(ending)
-            .to_owned()
-    };
-    let answer = |text: &str, found: bool| {
-        tool_call(
-            "call-answer",
-            "turn_complete",
-            &json!({"answer": text, "found": found}),
-        )
-    };
-    let called = messages
-        .iter()
-        .rev()
-        .find(|message| message["role"] == "assistant")
-        .and_then(|message| message["tool_calls"][0]["function"]["name"].as_str())
-        .map(str::to_owned);
-    let result = messages
-        .iter()
-        .rev()
-        .find(|message| message["role"] == "tool")
-        .and_then(|message| message["content"].as_str())
-        .and_then(|content| serde_json::from_str::<Value>(content).ok())
-        .unwrap_or(Value::Null);
-    let output = &result["outcome"]["output"];
-    match called {
-        None => {
-            let question = messages
-                .first()
-                .and_then(|message| message["content"].as_str())
-                .and_then(|prompt| prompt.split_once("\"question\": "))
-                .and_then(|(_, rest)| {
-                    serde_json::Deserializer::from_str(rest)
-                        .into_iter::<String>()
-                        .next()
-                })
-                .and_then(Result::ok)
-                .unwrap_or_default();
-            tool_call(
-                "call-search",
-                &tool("__search"),
-                &json!({"levels": [{"level": "personal"}], "query": question}),
-            )
-        }
-        Some(name) if name.ends_with("__search") => {
-            match output["entries"][0]["data"]["handle"].as_str() {
-                Some(handle) => tool_call("call-read", &tool("__read"), &json!({"handle": handle})),
-                None => answer("Memory holds nothing about that.", false),
-            }
-        }
-        Some(name) if name.ends_with("__read") => match output["entry"]["data"]["text"].as_str() {
-            Some(text) => answer(text, true),
-            None => answer("Memory holds nothing about that.", false),
-        },
-        Some(_) => answer("Memory holds nothing about that.", false),
     }
 }
 

@@ -41,6 +41,9 @@ impl<T> ChatCompletionsCaller<T> {
         let mut messages = Vec::new();
         for turn in transcript {
             match turn {
+                AgentTurn::System(content) => {
+                    messages.push(json!({"role":"system","content":content}))
+                }
                 AgentTurn::User(content) => messages.push(json!({"role":"user","content":content})),
                 AgentTurn::AssistantToolUses(uses) => {
                     let tool_calls = uses.iter().map(|use_| {

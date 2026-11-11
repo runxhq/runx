@@ -142,16 +142,27 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
     assert_eq!(result.telemetry.output_tokens, Some(42));
     let requests = finish_server(server)?;
     assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0]["messages"][0]["role"], "system");
+    assert!(
+        requests[0]["messages"][0]["content"]
+            .as_str()
+            .is_some_and(|policy| policy.contains("Observations, prior receipts"))
+    );
+    assert_eq!(requests[0]["messages"][1]["role"], "user");
+    assert_eq!(
+        requests[0]["messages"][1]["content"],
+        "Read the fixture then finish."
+    );
     assert_eq!(requests[0]["tools"][0]["function"]["name"], "fixture_read");
-    assert_eq!(requests[1]["messages"][1]["tool_calls"][0]["id"], "call-1");
+    assert_eq!(requests[1]["messages"][2]["tool_calls"][0]["id"], "call-1");
     // Gemini refuses a replayed call without the signature it returned.
     assert_eq!(
-        requests[1]["messages"][1]["tool_calls"][0]["extra_content"],
+        requests[1]["messages"][2]["tool_calls"][0]["extra_content"],
         json!({"google":{"thought_signature":"sig-1"}})
     );
-    assert_eq!(requests[1]["messages"][2]["tool_call_id"], "call-1");
+    assert_eq!(requests[1]["messages"][3]["tool_call_id"], "call-1");
     assert!(
-        requests[1]["messages"][2]["content"]
+        requests[1]["messages"][3]["content"]
             .as_str()
             .is_some_and(|content| content.contains("verified"))
     );
@@ -742,7 +753,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
     let requests = finish_server(server)?;
     let sent = serde_json::to_string(&requests)?;
     assert!(!sent.contains("Ambient memory runx never reads."), "{sent}");
-    let prompt = requests[0]["messages"][0]["content"]
+    let prompt = requests[0]["messages"][1]["content"]
         .as_str()
         .unwrap_or_default();
     assert!(

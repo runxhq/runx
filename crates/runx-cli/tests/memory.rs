@@ -12,8 +12,8 @@ use serde_json::{Value, json};
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// A workspace holding a copy of the package, and a home of its own.
-struct Memory {
-    root: PathBuf,
+pub(crate) struct Memory {
+    pub(crate) root: PathBuf,
 }
 
 /// The run's authority over memory's streams: `targets` on `private`, read
@@ -43,7 +43,7 @@ fn authority(targets: &[&str]) -> String {
 const EVERY_STREAM: &[&str] = &["said:*", "observed:*"];
 
 impl Memory {
-    fn new(name: &str) -> TestResult<Self> {
+    pub(crate) fn new(name: &str) -> TestResult<Self> {
         let root = crate::support::temp_root(name);
         fs::create_dir_all(root.join("home"))?;
         let package = crate::support::repo_root()?.join("skills/memory");
@@ -90,7 +90,7 @@ impl Memory {
     }
 
     /// The person's words, kept once a resume approves them.
-    fn remember(&self, inputs: Value) -> TestResult<String> {
+    pub(crate) fn remember(&self, inputs: Value) -> TestResult<String> {
         let (result, _) = self.remember_shown(inputs)?;
         Ok(result["handle"].as_str().ok_or("no handle")?.to_owned())
     }
@@ -119,7 +119,7 @@ impl Memory {
     }
 
     /// A change a gate decides, approved on resume.
-    fn approved(&self, method: &str, gate: &str, inputs: Value) -> TestResult<Value> {
+    pub(crate) fn approved(&self, method: &str, gate: &str, inputs: Value) -> TestResult<Value> {
         let paused = self.run(method, inputs, EVERY_STREAM)?;
         assert_eq!(paused["status"], "needs_approval", "{paused}");
         let run_id = paused["run_id"].as_str().ok_or("no run id")?.to_owned();
@@ -147,7 +147,7 @@ impl Memory {
         Ok(kept["handle"].as_str().ok_or("no handle")?.to_owned())
     }
 
-    fn index(&self, max_characters: Option<u64>) -> TestResult<(Vec<Value>, bool)> {
+    pub(crate) fn index(&self, max_characters: Option<u64>) -> TestResult<(Vec<Value>, bool)> {
         let (entries, omitted, _) = self.index_with(json!({}), max_characters)?;
         Ok((entries, omitted))
     }
@@ -232,7 +232,7 @@ fn entries(value: &Value) -> TestResult<Vec<Value>> {
 
 /// The handle of each entry a result shows: a search's or a write's entries
 /// each by its own, and an index's by each entry its groups' data holds.
-fn handles(entries: &[Value]) -> Vec<&str> {
+pub(crate) fn handles(entries: &[Value]) -> Vec<&str> {
     entries
         .iter()
         .flat_map(|entry| match entry["data"]["entries"].as_array() {
@@ -269,7 +269,7 @@ fn words(text: &str) -> Value {
 
 /// The person's words with the line the index shows for them and their
 /// purpose, which supersede no entry.
-fn said(text: &str, summary: &str, purpose: &str) -> Value {
+pub(crate) fn said(text: &str, summary: &str, purpose: &str) -> Value {
     json!({"level": "personal", "text": text, "summary": summary, "purpose": purpose, "date": "2026-11-08", "sources": ["conversation"], "supersedes": "none"})
 }
 

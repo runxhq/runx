@@ -13,8 +13,12 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 fn prompt(request: &Value) -> TestResult<Value> {
-    let text = request["messages"][0]["content"]
-        .as_str()
+    let text = request["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|message| message["role"] == "user")
+        .and_then(|message| message["content"].as_str())
         .ok_or("no prompt")?;
     let marker = "Run context (JSON). Each context entry is a line of an index; turn_read reads its data by its locator:\n";
     let (_, context) = text.split_once(marker).ok_or_else(|| {

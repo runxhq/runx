@@ -28,5 +28,5 @@ methods:
         inputs:
           question: $input.question
         outputs:
-          answer: {type: string, description: The answer, from memory, or what memory lacks.}
+          answer: {type: string, description: "The answer from memory, using the person's current confirmed words for their preferences, or what confirmed memory lacks."}
           found: {type: boolean, description: Whether memory held the answer.}
