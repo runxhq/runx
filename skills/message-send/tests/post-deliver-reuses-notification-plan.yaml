@@ -39,4 +39,33 @@ providers:
 expect:
   status: sealed
   steps: [digest, bind-plan, bind-content, deliver, prepare-readback, readback]
+  step_outputs:
+    bind-plan:
+      subset: {comparison: {equal: true}}
+    bind-content:
+      subset: {comparison: {equal: true}}
+    deliver:
+      subset:
+        provider_operation:
+          status: success
+          provider: slack
+          operation: channel.post
+          target: slack://T123/C456
+          finality: confirmed
+          result:
+            message_locator: slack://T123/C456/1750000000.000001
+            conversation_locator: slack://T123/C456
+            content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+  output:
+    subset:
+      provider_operation:
+        status: success
+        provider: slack
+        operation: channel.post.read
+        target: slack://T123/C456
+        finality: confirmed
+        result:
+          message_locator: slack://T123/C456/1750000000.000001
+          conversation_locator: slack://T123/C456
+          content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}
