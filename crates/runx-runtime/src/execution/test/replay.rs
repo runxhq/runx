@@ -530,7 +530,7 @@ fn granted_closure(
 /// would, and each credential bound to the variable the case sets, as
 /// `runx connector use <connector>` would with that variable set. They are
 /// confirmed from `skill_dir`, the directory of a workflow case's file.
-fn seed_test_instances(
+pub(super) fn seed_test_instances(
     fixture: &TestFixture,
     target_path: &Path,
     skill_dir: &Path,

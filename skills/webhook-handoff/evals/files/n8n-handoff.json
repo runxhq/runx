@@ -1,5 +1,5 @@
 {
-  "about": "Non-live caller context, payload, target and stable event id. tests/default-delivers-n8n.yaml uses these exact inputs with native fixture approval/credential and asserts one exact outgoing envelope. This JSON proves no upstream execution and installs no grant, approval or completed state. The receiver response is acknowledgement only; n8n offers no independent readback of workflow completion.",
+  "about": "Non-live caller context, payload, target and stable event id. tests/default-delivers-n8n.yaml counts one exact outgoing envelope. The native webhook_continuation case materializes a real paused run, resumes its shown approval and proves sealed resume causes no second request. This JSON proves no upstream execution and installs no grant, approval or completed state. The receiver response is acknowledgement only; n8n offers no independent readback of workflow completion.",
   "platform": "n8n",
   "webhook_host": "acme.app.n8n.cloud",
   "event_id": "evt_n8n_demo_001",

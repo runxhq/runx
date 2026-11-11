@@ -9,6 +9,8 @@ mod turns;
 
 #[cfg(test)]
 mod payment_continuation;
+#[cfg(test)]
+mod webhook_continuation;
 
 pub use package::PackageTestReport;
 pub(crate) use package::{run_package_case_with_effects, run_package_test_with_effects};
