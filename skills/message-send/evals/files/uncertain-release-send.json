@@ -1,5 +1,5 @@
 {
-  "about": "The notification plan and exact body of a send whose outcome is uncertain, and the provider message selected to check against it.",
+  "about": "Non-live plan, exact whitespace-sensitive body and selected message for read-only observation. tests/full-message-observation.yaml uses these exact inputs under effects:none with only a read fixture grant. This does not install or recover original uncertain effect custody, approve another send or prove a live Slack message.",
   "notification_plan": {
     "schema": "runx/message-send.notification_plan.v1",
     "decision": "ready_for_provider",
