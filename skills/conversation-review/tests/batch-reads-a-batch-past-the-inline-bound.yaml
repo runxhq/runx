@@ -1,0 +1,72 @@
+name: batch-reads-a-batch-past-the-inline-bound
+method: batch
+# Ten messages of about 4,000 characters in each conversation put the batch
+# past 64 KiB, so each conversation reaches the script as a reference.
+inputs:
+  conversations:
+    - source_locator: nitrosend://example/1/2
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      thread_locator: nitrosend://example/1
+      title: The export keeps timing out
+      body: &long "The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list. The nightly export keeps timing out on the full contact list.."
+      thread:
+        source_locator: nitrosend://example/1/2
+        source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        thread_locator: nitrosend://example/1
+        coverage_incomplete: false
+        messages:
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+      source_complete: true
+    - source_locator: nitrosend://example/2/2
+      source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      thread_locator: nitrosend://example/2
+      title: The export keeps timing out again
+      body: *long
+      thread:
+        source_locator: nitrosend://example/2/2
+        source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        thread_locator: nitrosend://example/2
+        coverage_incomplete: false
+        messages:
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+        - {text: *long}
+      source_complete: true
+host:
+  answers:
+    judge:
+      draft:
+        kind: reply
+        summary: The export times out on the full list.
+        reason: The sender asks for a way to run the export.
+        draft_message: Thanks for the detail. We'll look into the export timeout and come back to you.
+        request_quote: ""
+expect:
+  status: sealed
+  steps: [batch]
+  output:
+    subset:
+      outcomes:
+        - source_locator: nitrosend://example/1/2
+          status: fulfilled
+          conversation_packet: {status: reply, source_locator: nitrosend://example/1/2}
+        - source_locator: nitrosend://example/2/2
+          status: fulfilled
+          conversation_packet: {status: reply, source_locator: nitrosend://example/2/2}
+  receipt: {schema: runx.receipt.v1}

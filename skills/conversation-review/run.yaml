@@ -195,9 +195,9 @@ methods:
     inputs:
       conversations:
         type: array
-        description: The conversations, each exactly as review takes it. One conversation's failure is that conversation's outcome. At most three for now, the most that fit the script worker's 4 MiB input bound at the review schema's largest; once the worker takes a script's inputs by reference, the limit rises to what max_calls and the receipt budget allow.
+        description: The conversations, each exactly as review takes it. One conversation's failure is that conversation's outcome. At most 77, the most whose outcomes fit the script worker's 4 MiB output bound when every review packet is at its largest.
         minItems: 1
-        maxItems: 3
+        maxItems: 77
         items:
           type: object
           description: One conversation's review inputs, which review validates. Its source_locator names its outcome.
@@ -241,8 +241,8 @@ methods:
           conversations: $input.conversations
         calls:
           skills: [.#review]
-        max_calls: 3
-        concurrency: 3
+        max_calls: 154
+        concurrency: 4
         effects: none
         outputs:
           outcomes:

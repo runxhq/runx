@@ -46,11 +46,11 @@ and each on its own, and collects every conversation's outcome in the order
 given: its review packet, or its failure with the reason, named by the
 conversation's `source_locator`. One conversation's failure never stops the
 others or drops from the result. The batch runs under `effects: none` and
-sends nothing. It takes at most three conversations for now, the most that fit
-the script worker's 4 MiB input bound when every field is at the review
-schema's largest. That is the worker's limit, not the batch's design: once the
-worker takes a script's inputs by reference, the limit rises to what
-`max_calls` and the run's receipt budget allow.
+sends nothing. A batch past 64 KiB reaches it a conversation at a time, each
+read as its review starts, so the size of the conversations doesn't bound it.
+It takes at most 77 conversations: every outcome comes back through the script
+worker's 4 MiB output bound, and 77 outcomes fit it when every review packet is
+at its largest.
 
 ## Procedure
 
