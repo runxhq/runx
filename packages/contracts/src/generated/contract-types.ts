@@ -2982,7 +2982,7 @@ export type RunxX402PurchaseExtensionInfoContract = {
 /** Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run. It closes when the receipt is created, so the receipt's `created_at` is its one time. */
 export type SealContract = {
   readonly criteria: readonly CriterionBindingContract[];
-  /** Why a failed step failed. Every failed step's receipt carries it, and no other receipt does. */
+  /** Why a failed step failed. Every failed step's receipt carries it, and no other receipt does: a verifier refuses a failed step's receipt without it and any other receipt with it. */
   readonly failure?: SealFailureContract;
   readonly outcome: RunOutcomeContract;
   /** Why it ended so, where the outcome alone does not say. */

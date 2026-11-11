@@ -8936,7 +8936,7 @@ export const runxSchemaArtifacts = {
           },
           "failure": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SealFailure",
-            "description": "Why a failed step failed. Every failed step's receipt carries it, and no other receipt does."
+            "description": "Why a failed step failed. Every failed step's receipt carries it, and no other receipt does: a verifier refuses a failed step's receipt without it and any other receipt with it."
           },
           "outcome": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunOutcome"
