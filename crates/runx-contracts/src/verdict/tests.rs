@@ -89,6 +89,24 @@ fn every_required_criterion_met_is_met() -> Result<(), String> {
 }
 
 #[test]
+fn a_failed_assessment_with_identical_expected_and_actual_is_refused() -> Result<(), String> {
+    let contradictory = verdict(
+        "not_met",
+        json!([{
+            "id": "every_repository_read", "verdict": "not_met", "evidence": ["call:1"],
+            "failure": {"expected": "No provider was queried.", "actual": "No provider was queried.", "where": "call:1"}
+        }]),
+    )?;
+    assert_eq!(
+        decide(&contradictory)?,
+        Err(VerdictRefused::ContradictoryFailure(id(
+            "every_repository_read"
+        )?))
+    );
+    Ok(())
+}
+
+#[test]
 fn leaving_out_a_failed_required_check_is_inconclusive_never_met() -> Result<(), String> {
     // The evaluator failed window_moved, left it out, and said met.
     let claimed = verdict(

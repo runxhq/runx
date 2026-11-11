@@ -223,6 +223,8 @@ pub enum VerdictRefused {
     UnknownCriterion(CriterionId),
     #[error("criterion {0} is answered more than once")]
     DuplicateAnswer(CriterionId),
+    #[error("criterion {0} claims failure but expected and actual are identical")]
+    ContradictoryFailure(CriterionId),
     #[error("the criteria set can't be digested: {0}")]
     Undigestible(String),
 }
@@ -317,6 +319,11 @@ impl Verdict {
             }
             if answers.insert(id, assessment.answer()).is_some() {
                 return Err(VerdictRefused::DuplicateAnswer(id.clone()));
+            }
+            if let Assessment::NotMet { failure, .. } = assessment
+                && failure.expected.as_str().trim() == failure.actual.as_str().trim()
+            {
+                return Err(VerdictRefused::ContradictoryFailure(id.clone()));
             }
         }
         let mut failed = false;
