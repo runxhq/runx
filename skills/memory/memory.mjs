@@ -325,12 +325,33 @@ function length(text) {
   return [...text].length;
 }
 
-/// How many bytes `text` takes as UTF-8, counted by the engine rather than
-/// character by character, so it costs the same however many words an index
-/// shows: each `%XX` its URI encoding writes is one byte, and every other
-/// character it keeps is ASCII. JSON text holds no lone surrogate.
+/// How many bytes `text` takes as UTF-8, with no copy of it: its UTF-16
+/// length, one more for each character UTF-8 writes in two bytes, two more
+/// for each it writes in three, and two more for each surrogate pair, whose
+/// four bytes its length counts as two. JSON text holds no lone surrogate.
 function bytes(text) {
-  return encodeURIComponent(text).replace(/%[0-9A-F]{2}/g, "x").length;
+  const count = (pattern) => text.match(pattern)?.length ?? 0;
+  return (
+    text.length +
+    count(/[\u0080-\u07ff]/g) +
+    2 * count(/[\u0800-\ud7ff\ue000-\uffff]/g) +
+    2 * count(/[\ud800-\udbff]/g)
+  );
+}
+
+/// The UTF-8 size of `data`'s JSON, `{"entries":[...]}`, counted an entry at
+/// a time, so the whole is never built as one string.
+function dataBytes({ entries }) {
+  return entries.reduce(
+    (sum, entry, at) => sum + bytes(JSON.stringify(entry)) + (at > 0 ? 1 : 0),
+    bytes(JSON.stringify({ entries: [] })),
+  );
+}
+
+/// The digest of `text`'s UTF-8 bytes, taken by the runtime (`data.digest`).
+async function digestOf(ctx, text) {
+  const { digest_result } = await ctx.tool("data.digest", { value: text, encoding: "utf8_text" });
+  return digest_result.digest;
 }
 
 /// What a store event says of its entry, whole: its handle, its words and
@@ -598,13 +619,14 @@ class Lines {
   /// Each group as one context entry: its header and lines as its summary,
   /// its entries whole as its data, labelled with its stream's trust and its
   /// purpose.
-  entries() {
-    return this.groups.map(({ stream, purpose, items }) => {
+  async entries(ctx) {
+    const entries = [];
+    for (const { stream, purpose, items } of this.groups) {
       const kind = kindOf(stream);
       const header = `memory:${stream}`;
       const data = { entries: items.map(({ key, event }) => dataOf({ stream, key, event })) };
       const summary = [header, ...items.map(Lines.text)].join("\n");
-      return {
+      entries.push({
         schema: SCHEMA,
         type: `memory.${kind}`,
         summary,
@@ -618,11 +640,12 @@ class Lines {
           created_at: items.map(({ event }) => event.committed_at).reduce((newest, at) => (at > newest ? at : newest)),
           // What it says, as a single entry's digest is its words': each
           // line names its entry's key and version.
-          digest: `sha256:${sha256(summary)}`,
-          size_bytes: bytes(JSON.stringify(data)),
+          digest: await digestOf(ctx, summary),
+          size_bytes: dataBytes(data),
         },
-      };
-    });
+      });
+    }
+    return entries;
   }
 }
 
@@ -722,7 +745,7 @@ export async function index(ctx, { levels, max_characters = 4096, focus, workspa
   }
   // Rules past the budget lose their summaries newest first.
   for (let at = ruleLines.length - 1; at >= 0 && shown.used > budget; at -= 1) shown.bare(ruleLines[at]);
-  return { entries: shown.entries(), entries_omitted: omitted, over_budget };
+  return { entries: await shown.entries(ctx), entries_omitted: omitted, over_budget };
 }
 
 /// Ranked matches among the current entries of the streams the run may

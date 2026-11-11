@@ -225,3 +225,37 @@ fn a_page_past_the_inline_bound_is_read_whole() -> TestResult {
     assert_eq!(index["result"]["entries_omitted"], true);
     Ok(())
 }
+
+/// An index entry's origin states its data's size, the UTF-8 bytes of its
+/// JSON, and the digest of its summary, which names each line's key and
+/// version: two-, three- and four-byte characters counted as UTF-8 counts
+/// them.
+#[test]
+fn an_index_entry_states_its_datas_size_and_its_summarys_digest() -> TestResult {
+    let memory = Memory::new()?;
+    let keys = ["a", "b", "c"].map(|name| {
+        runx_contracts::sha256_prefixed(name.as_bytes())
+            .trim_start_matches("sha256:")
+            .to_owned()
+    });
+    memory.observe(&[
+        (&keys[0], "Café on the corner opens at seven."),
+        (&keys[1], "The ticket costs 12 €."),
+        (&keys[2], "The team's mascot is 🦘."),
+    ])?;
+    let (completed, index) = memory.run("index", json!({"levels": [{"level": "personal"}]}))?;
+    assert!(completed, "{index}");
+    let entry = &index["result"]["entries"][0];
+    assert_eq!(
+        entry["origin"]["size_bytes"],
+        serde_json::to_string(&entry["data"])?.len(),
+        "{entry}"
+    );
+    let summary = entry["summary"].as_str().ok_or("an entry has a summary")?;
+    assert_eq!(
+        entry["origin"]["digest"],
+        runx_contracts::sha256_prefixed(summary.as_bytes()),
+        "{entry}"
+    );
+    Ok(())
+}

@@ -346,7 +346,8 @@ methods:
         inputs: { levels: $input.levels, max_characters: $input.max_characters, focus: $input.focus, workspace_id: $run.workspace_id }
         calls:
           operations: [private/keys.list, private/keys.search]
-        max_calls: 64
+          tools: [data.digest]
+        max_calls: 96
         effects: none
         outputs:
           entries: { type: array, packet: runx/memory.entries.v1, description: "runx.context_entry.v1 values, one per stream and purpose: its header and lines as its summary, its entries whole as its data." }
