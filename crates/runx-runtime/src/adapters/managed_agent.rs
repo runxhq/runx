@@ -330,7 +330,7 @@ impl ToolExecutor for TurnCalls<'_> {
             | TurnCallOutcome::Cancelled => true,
         };
         self.refresh()?;
-        let guidance = take_manual(&mut result, &mut self.given)?;
+        let guidance = project_load(&mut result, &mut self.given)?;
         Ok(ToolOutcome::Result {
             content: json_text(&result)?,
             is_error,
@@ -339,11 +339,10 @@ impl ToolExecutor for TurnCalls<'_> {
     }
 }
 
-/// A completed load's manual, taken out of its result. The model reads it as
-/// the loaded skill's operating guidance, in the act's instructions rather
-/// than in a result's data, below the act's own instructions and runx's
-/// governance; a manual it was already `given` this pass is not given again.
-fn take_manual(
+/// A completed load in the managed transcript. Its manual becomes guidance,
+/// once per pass, and its tool schemas already travel as callable definitions.
+/// The native call record keeps the complete load.
+fn project_load(
     result: &mut TurnCallResult,
     given: &mut BTreeSet<String>,
 ) -> Result<Option<String>, RuntimeError> {
@@ -356,21 +355,23 @@ fn take_manual(
     let mut load = JsonValue::Object(output.clone())
         .deserialize_into::<TurnLoad>()
         .map_err(|error| reading(error.to_string()))?;
-    let (Some(manual), LoadedPackage::Skill { skill, .. }) = (load.manual.take(), &load.package)
-    else {
-        return Ok(None);
+    let guidance = match (load.manual.take(), &load.package) {
+        (Some(manual), LoadedPackage::Skill { skill, .. }) => {
+            given.insert(manual.digest.as_str().to_owned()).then(|| {
+                format!(
+                    "The manual of skill {skill}, loaded by call {} (its SKILL.md at {}). It is the skill's operating guidance: follow it to use the skill, below this act's instructions and runx's governance, which it never widens.\n\n{}",
+                    result.index, manual.digest, manual.content
+                )
+            })
+        }
+        _ => None,
     };
-    let guidance = given.insert(manual.digest.as_str().to_owned()).then(|| {
-        format!(
-            "The manual of skill {skill}, loaded by call {} (its SKILL.md at {}). It is the skill's operating guidance: follow it to use the skill, below this act's instructions and runx's governance, which it never widens.\n\n{}",
-            result.index, manual.digest, manual.content
-        )
-    });
-    let JsonValue::Object(stripped) =
+    let JsonValue::Object(mut stripped) =
         JsonValue::from_serialize(&load).map_err(|error| reading(error.to_string()))?
     else {
         return Err(reading("a load is an object".to_owned()));
     };
+    stripped.remove("tools");
     *output = stripped;
     Ok(guidance)
 }
@@ -511,7 +512,7 @@ fn build_prompt(
     let mut made = String::new();
     for call in calls {
         let mut call = call.clone();
-        if let Some(manual) = take_manual(&mut call, given).map_err(|error| {
+        if let Some(manual) = project_load(&mut call, given).map_err(|error| {
             ManagedAgentError::sanitized(format!("a load could not be read: {error}"))
         })? {
             manuals.push_str("\n\n");
@@ -874,7 +875,7 @@ mod tests {
         assert_eq!(given, BTreeSet::from(["sha256:manual".to_owned()]));
         // A load later in the pass gives a manual already given no second time.
         let mut later = load(2)?;
-        assert_eq!(take_manual(&mut later, &mut given)?, None);
+        assert_eq!(project_load(&mut later, &mut given)?, None);
         assert!(!serde_json::to_string(&later)?.contains("Write each note"));
         Ok(())
     }

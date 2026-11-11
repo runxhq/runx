@@ -530,6 +530,23 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
         "the manual is never a result's data: {load_result}"
     );
     assert!(load_result.contains("Digest one value."), "{load_result}");
+    let projected: Value = serde_json::from_str(load_result)?;
+    assert!(
+        projected["outcome"]["output"].get("tools").is_none(),
+        "callable schemas are not repeated in the load result"
+    );
+    let callable = requests[1]["tools"]
+        .as_array()
+        .and_then(|tools| {
+            tools
+                .iter()
+                .find(|tool| tool["function"]["name"] == "skill__child__digest")
+        })
+        .ok_or("the loaded method remains callable")?;
+    assert_eq!(
+        callable["function"]["parameters"]["properties"]["value"]["type"],
+        "string"
+    );
     let guidance = &messages[0];
     assert_eq!(guidance["role"], "system");
     assert_eq!(
