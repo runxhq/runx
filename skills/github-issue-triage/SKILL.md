@@ -94,6 +94,7 @@ ids, provider state, promises, or completed work.
 Draft one helpful maintainer response grounded only in the admitted issue
 evidence. Preserve repository, issue number, title, and state exactly. Do not
 claim work is complete unless the snapshot proves it. The draft is not sent.
+Set `response_draft.channel` to `github_issue_comment`.
 
 Prepared-evidence drafting (`respond`) and queue judgment (`discover`) offer no
 provider operations or other tool calls. The default’s workflow owns its one issue

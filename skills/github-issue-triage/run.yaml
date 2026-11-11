@@ -165,6 +165,7 @@ methods:
             properties:
               channel:
                 type: string
+                enum: [github_issue_comment]
               body:
                 type: string
             required:
@@ -325,6 +326,7 @@ methods:
             properties:
               channel:
                 type: string
+                enum: [github_issue_comment]
               body:
                 type: string
             required:
