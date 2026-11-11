@@ -108,7 +108,8 @@ description is what's measured.
 
 `evals` runs each of the package's evals, `repeats` times (once when absent),
 in a fresh turn of the `agent` skill's `write` method under this run's
-authority. No eval writes to the world: a scripted model's run uses provider
+authority. Each file an eval names, such as the prior run it builds on, is
+given to its attempt as a context entry, which its turn reads by locator. No eval writes to the world: a scripted model's run uses provider
 fixtures, and a real model's runs under `effects: none`, with its reads live
 and recorded as live, so a write is refused at any depth.
 

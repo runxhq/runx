@@ -33,7 +33,11 @@ export default async function evals(ctx, { subject, repeats }) {
   const attempts = [];
   for (const kase of cases) {
     for (let attempt = 0; attempt < runs; attempt += 1) {
-      const settled = await settle(ctx.skill(HOST, { act: act(kase.entry, judged.ref) }));
+      const settled = await settle(
+        ctx.skill(HOST, { act: { purpose: kase.entry.prompt } }, {
+          context: given(kase.entry, subject.inspect.eval_files ?? []),
+        }),
+      );
       attempts.push({ kase, settled });
     }
   }
@@ -99,14 +103,17 @@ function checks(entry) {
   ];
 }
 
-// The act an attempt is given: the eval's prompt, and the files it names, as
-// files of the released package.
-function act(entry, reference) {
-  const files = entry.files ?? [];
-  return {
-    purpose: entry.prompt,
-    ...(files.length === 0 ? {} : { reason: `Files of ${reference}: ${files.join(", ")}` }),
-  };
+// The context an attempt is given beside its act, the eval's prompt: each
+// file the eval names, such as the prior run it builds on, as an entry its
+// turn reads by locator, summarized by its path in the package.
+function given(entry, evalFiles) {
+  return (entry.files ?? []).map((path) => {
+    const file = evalFiles.find((candidate) => candidate.path === path);
+    if (!file) {
+      throw new Error(`eval ${entry.id} names ${path}, which the package's inspection doesn't carry`);
+    }
+    return { summary: path, content: file.content };
+  });
 }
 
 // An attempt's settlement, kept whether it resolved or was rejected: either

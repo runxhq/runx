@@ -329,17 +329,22 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     let registry = LoopbackRegistry::serve()?;
     let subject = digest_package(source.path(), "subject", "Digests a value for the person.")?;
     let evals = json!([
-        {"id": 1, "prompt": "Meets: digest proof.", "expected_output": "The digest of proof.", "files": [], "expectations": ["It names the digest."]},
+        {"id": 1, "prompt": "Meets: digest proof.", "expected_output": "The digest of proof.", "files": ["evals/files/prior.json"], "expectations": ["It names the digest."]},
         {"id": 2, "prompt": "Misses: digest proof.", "expected_output": "The digest of proof.", "files": []},
         {"id": 3, "prompt": "Partial: digest proof.", "expected_output": "The digest of proof.", "files": [], "expectations": ["It names the digest."]},
         {"id": 4, "prompt": "Wrong: digest proof.", "expected_output": "The digest of proof.", "files": []},
         {"id": 5, "prompt": "Claims: digest proof.", "expected_output": "The digest of proof.", "files": []},
         {"id": 6, "prompt": "Write: write the digest to a file.", "expected_output": "The digest, written nowhere.", "files": []},
     ]);
-    fs::create_dir_all(subject.join("evals"))?;
+    fs::create_dir_all(subject.join("evals/files"))?;
     fs::write(
         subject.join("evals/evals.json"),
         json!({"skill_name": "subject", "evals": evals}).to_string(),
+    )?;
+    // The prior run the first eval builds on, which its attempt is given.
+    fs::write(
+        subject.join("evals/files/prior.json"),
+        r#"{"prior": "the value is proof"}"#,
     )?;
     let digest = release(&registry, source.path(), &subject)?;
     let pinned = |reference: &str, revision: &str| json!({"ref": reference, "revision": revision});
@@ -359,6 +364,9 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     }
     let written = root.join("written.txt");
     let judged = digest.clone();
+    // Whether the first eval's attempt was given its prior run.
+    let given_prior = Arc::new(Mutex::new(false));
+    let saw_prior = Arc::clone(&given_prior);
     let model = ScriptedModel::serve(move |request| {
         let complete = |answer: Value| tool_call("call-final", "turn_complete", &answer);
         let Some(marker) = eval_marker(request) else {
@@ -366,6 +374,18 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         };
         let sent = request.to_string();
         if !sent.contains("Judge the attempt") {
+            // The first eval's attempt reads the prior run its file holds,
+            // given as a context entry its turn lists by its path.
+            if marker == "Meets" && sent.contains("evals/files/prior.json") {
+                if !sent.contains("call-prior") {
+                    return tool_call("call-prior", "turn_read", &json!({"locator": "current:0"}));
+                }
+                if sent.contains("the value is proof") {
+                    *saw_prior
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+                }
+            }
             // The attempt's turn: the write eval tries to write, and every
             // other one finishes.
             if marker == "Write" && !sent.contains("call-write") {
@@ -416,6 +436,12 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     model.finish()?;
     let output = output?;
     assert_eq!(output["status"], "sealed", "{output}");
+    assert!(
+        *given_prior
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        "the first eval's attempt was given the prior run its file holds"
+    );
     let evidence = &output["result"]["evidence"];
     assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
     let hosts = evidence["hosts"].as_array().ok_or("a host's numbers")?;
