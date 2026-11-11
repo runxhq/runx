@@ -14,15 +14,16 @@ const SEARCH = "../..#search";
 /// resamples ran out.
 const PROSE_ONLY = "managed_agent_empty_turn_budget_exhausted";
 
-export async function sweep(ctx, { subject, memory, phase, repeats, focus }) {
+export async function sweep(ctx, { subject, memory, phase, case_id, repeats, focus }) {
   const judged = { ref: memory, revision: subject.inspect.package_digest };
   const horizon = await readJson(ctx, `${memory}/evals/horizon.json`);
   const cases = [];
-  for (const kase of horizon.cases.filter((candidate) => candidate.phase === phase)) {
+  for (const kase of horizon.cases.filter((candidate) => candidate.phase === phase && (case_id === undefined || candidate.id === case_id))) {
     const { criteria } = await ctx.tool("verdict.criteria", { criteria: checks(kase) });
     const set = await ctx.read(criteria);
     cases.push({ kase, criteria: set, criteria_set: { ref: `${memory}/evals/horizon.json#${kase.id}`, revision: set.revision } });
   }
+  if (cases.length === 0) throw new Error(`phase ${phase} has no case ${case_id ?? "to run"}`);
   const now = ctx.now();
   const attempts = [];
   for (const item of cases) {

@@ -13,6 +13,7 @@ methods:
     inputs:
       memory: {type: string, default: skills/memory, optional: true, description: Workspace-relative path of the memory package whose evaluation this is.}
       phase: {type: integer, minimum: 1, description: The phase whose cases are asked.}
+      case_id: {type: string, optional: true, description: One case to run and judge before returning, or all phase cases when absent.}
       repeats: {type: integer, minimum: 1, maximum: 5, default: 1, optional: true, description: Attempts per case.}
       focus: {type: boolean, default: false, optional: true, description: Whether each attempt's index is focused on its question, for the focus curve.}
     steps:
@@ -27,6 +28,7 @@ methods:
           subject: $steps.subject.skill_validation
           memory: $input.memory
           phase: $input.phase
+          case_id: $input.case_id
           repeats: $input.repeats
           focus: $input.focus
         calls:

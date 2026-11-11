@@ -50,14 +50,20 @@ const LOCAL_MODEL: &str = "http://127.0.0.1:11434/v1/chat/completions";
 const SCRIPTED: &str = "scripted";
 
 #[test]
-fn memory_holds_across_the_horizon() -> TestResult {
+fn memory_reports_horizon_results() -> TestResult {
     let horizon: Value = serde_json::from_str(&fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/memory/evals/horizon.json"),
     )?)?;
     let model_name = std::env::var(MODEL_ENV).unwrap_or_else(|_| SCRIPTED.to_owned());
-    let repeats = horizon["repeats"][model_name.as_str()]
+    let full = std::env::var("RUNX_MEMORY_HORIZON_FULL").is_ok_and(|value| value == "1");
+    let declared_repeats = horizon["repeats"][model_name.as_str()]
         .as_u64()
         .ok_or_else(|| format!("horizon.json names no repeats for {model_name}"))?;
+    let repeats = if model_name != SCRIPTED && !full {
+        1
+    } else {
+        declared_repeats
+    };
     let today = today()?;
     let replies = Arc::new(Mutex::new(Replies::default()));
     let model = if model_name == SCRIPTED {
@@ -73,32 +79,49 @@ fn memory_holds_across_the_horizon() -> TestResult {
         .ok_or("horizon.json has sizes")?;
     let run_sizes = if model_name == SCRIPTED {
         &every_size[..every_size.len().saturating_sub(1)]
-    } else {
+    } else if full {
         &every_size[..]
+    } else {
+        &every_size[every_size.len().saturating_sub(1)..]
+    };
+    let focus_modes: &[bool] = if model_name == SCRIPTED || full {
+        &[false, true]
+    } else {
+        &[true]
     };
     for size in run_sizes {
         let size = usize::try_from(size.as_u64().ok_or("a size is a count")?)?;
         let workspace = Workspace::new(model.endpoint(), &model_name)?;
         let planted = workspace.lay_down(&horizon, size, today)?;
         let mut modes = serde_json::Map::new();
-        for focus in [false, true] {
-            modes.insert(
-                (if focus { "focus" } else { "plain" }).to_owned(),
-                json!([workspace.sweep(1, repeats, focus)?]),
-            );
-        }
-        workspace.correct(&horizon, &planted, today)?;
-        for focus in [false, true] {
-            let mode = if focus { "focus" } else { "plain" };
-            let phase_two = workspace.sweep(2, repeats, focus)?;
-            if let Some(Value::Array(phases)) = modes.get_mut(mode) {
-                phases.push(phase_two);
+        for phase in [1, 2] {
+            if phase == 2 {
+                workspace.correct(&horizon, &planted, today)?;
             }
-        }
-        sizes.insert(size.to_string(), Value::Object(modes));
-        if let Ok(path) = std::env::var(REPORT_ENV) {
-            let partial = report(&horizon, &sizes, today, &model_name, repeats, &replies)?;
-            fs::write(path, serde_json::to_string_pretty(&partial)?)?;
+            for &focus in focus_modes {
+                let mode = if focus { "focus" } else { "plain" };
+                for case in horizon["cases"]
+                    .as_array()
+                    .ok_or("horizon.json has cases")?
+                    .iter()
+                    .filter(|case| case["phase"] == phase)
+                {
+                    let case_id = case["id"].as_str().ok_or("each case has an id")?;
+                    let measured = workspace.sweep(phase, repeats, focus, case_id)?;
+                    modes
+                        .entry(mode.to_owned())
+                        .or_insert_with(|| json!([]))
+                        .as_array_mut()
+                        .ok_or("a mode holds case reports")?
+                        .push(measured);
+                    sizes.insert(size.to_string(), Value::Object(modes.clone()));
+                    if let Ok(path) = std::env::var(REPORT_ENV) {
+                        let partial =
+                            report(&horizon, &sizes, today, &model_name, repeats, &replies)?;
+                        fs::write(path, serde_json::to_string_pretty(&partial)?)?;
+                    }
+                }
+            }
         }
     }
     model.finish()?;
@@ -108,6 +131,22 @@ fn memory_holds_across_the_horizon() -> TestResult {
     }
     if model_name == SCRIPTED {
         retrieval_holds(&report)?;
+    } else {
+        let failed = report["sizes"]
+            .as_object()
+            .into_iter()
+            .flat_map(|sizes| sizes.values())
+            .filter_map(Value::as_object)
+            .flat_map(|modes| modes.values())
+            .filter_map(Value::as_array)
+            .flatten()
+            .filter_map(|case| case["attempts"].as_array())
+            .flatten()
+            .filter(|attempt| attempt["verdict"] != "met")
+            .count();
+        if failed > 0 {
+            return Err(format!("{failed} real-model horizon attempts did not meet their criteria; see the saved report").into());
+        }
     }
     Ok(())
 }
@@ -446,7 +485,7 @@ impl Workspace {
     /// delegation: a term reading the person's words and the observations,
     /// and one writing observations, each covering every package a call is
     /// made from: memory, the routine and the sweep.
-    fn sweep(&self, phase: u64, repeats: u64, focus: bool) -> TestResult<Value> {
+    fn sweep(&self, phase: u64, repeats: u64, focus: bool, case_id: &str) -> TestResult<Value> {
         let packages = [PACKAGE, "project:memory-routine", "project:memory-horizon"];
         let authority = json!({"delegations": [{"connector": "private", "terms": [
             {"verbs": ["read"], "bounds": {"operations": ["private/*"], "scopes": ["store.read"],
@@ -457,7 +496,7 @@ impl Workspace {
         let output = self.run(
             "skills/memory/fixtures/horizon",
             "sweep",
-            json!({"phase": phase, "repeats": repeats, "focus": focus}),
+            json!({"phase": phase, "repeats": repeats, "focus": focus, "case_id": case_id}),
             authority,
             None,
         )?;
