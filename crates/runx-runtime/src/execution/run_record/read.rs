@@ -263,6 +263,9 @@ fn project(
                 CallOutcomeEvent::Failed { reason: why } => RunCallOutcome::Failed {
                     reason: reason(why),
                 },
+                CallOutcomeEvent::RetryDeclined => RunCallOutcome::Failed {
+                    reason: crate::execution::run_record::RETRY_DECLINED.into(),
+                },
                 CallOutcomeEvent::Pending {
                     request_id, digest, ..
                 } => RunCallOutcome::Pending {

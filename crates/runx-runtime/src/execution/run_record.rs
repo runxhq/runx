@@ -101,6 +101,10 @@ const ANSWERED: &str = "answered";
 /// The event type of the answers a step, call or claim consumed.
 const CONSUMED: &str = "consumed";
 
+/// Why a call or step failed whose retry a person answered `{"retry":
+/// false}`, as a host and a script read it.
+pub(crate) const RETRY_DECLINED: &str = "retry_declined";
+
 /// The person's standing approvals, replacing the run's set for every later
 /// step.
 #[derive(Debug, Serialize, Deserialize)]
@@ -362,6 +366,7 @@ impl WaitingCallEvent {
             | CallOutcomeEvent::Refused { .. }
             | CallOutcomeEvent::Declined { .. }
             | CallOutcomeEvent::Failed { .. }
+            | CallOutcomeEvent::RetryDeclined
             | CallOutcomeEvent::Cancelled
             | CallOutcomeEvent::Waited { .. }
             | CallOutcomeEvent::Read { .. }
@@ -422,6 +427,9 @@ enum CallOutcomeEvent {
     Declined { reason: String },
     /// The call could not run.
     Failed { reason: String },
+    /// A person answered the call's retry `{"retry": false}`: it failed,
+    /// and its act stays as custody holds it.
+    RetryDeclined,
     /// The call waits on its own ask or approval.
     Pending {
         request_id: String,
@@ -588,6 +596,9 @@ pub(crate) enum CallOutcome {
     /// A person declined its approval; nothing ran.
     Declined(String),
     Failed(String),
+    /// A person answered its retry `{"retry": false}`: it failed with
+    /// [`RETRY_DECLINED`], its act left as custody holds it.
+    RetryDeclined,
     /// Waits on its own ask or approval.
     Pending(PendingRequest),
     /// Claimed and not settled: waits on its retry.
@@ -1682,6 +1693,7 @@ impl RunLog {
             CallOutcome::Failed(reason) => CallOutcomeEvent::Failed {
                 reason: reason.clone(),
             },
+            CallOutcome::RetryDeclined => CallOutcomeEvent::RetryDeclined,
             CallOutcome::Pending(pending) => {
                 let request = Blob::json(&pending.value)?;
                 let outcome = CallOutcomeEvent::Pending {
@@ -2409,6 +2421,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
         CallOutcomeEvent::Refused { reason } => CallOutcome::Refused(reason.clone()),
         CallOutcomeEvent::Declined { reason } => CallOutcome::Declined(reason.clone()),
         CallOutcomeEvent::Failed { reason } => CallOutcome::Failed(reason.clone()),
+        CallOutcomeEvent::RetryDeclined => CallOutcome::RetryDeclined,
         CallOutcomeEvent::Pending {
             request_id,
             request,

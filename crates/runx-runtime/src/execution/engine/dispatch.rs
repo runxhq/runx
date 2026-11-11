@@ -29,6 +29,8 @@ pub(super) struct LoadedStepExecutionRequest<'a, A: SkillAdapter> {
     /// The floor holds the step's write under `effects: ask`.
     pub(super) held_by_effects: bool,
     pub(super) host: &'a mut dyn Host,
+    /// How a claimed step whose run stopped is taken further, when it is.
+    pub(super) reconciliation: Option<crate::effects::Reconciliation>,
 }
 
 pub(super) fn run_step_with_loaded_skill_index<A>(
@@ -109,6 +111,7 @@ where
         admission_refs,
         held_by_effects,
         host,
+        reconciliation,
     } = request;
     let StepValues {
         inputs,
@@ -133,6 +136,7 @@ where
         context_entries,
         ask_reason,
         given,
+        reconciliation,
     };
     match loaded_skill {
         Some(skill) => super::step_handlers::run_step_with_loaded_skill_inputs(request, skill),

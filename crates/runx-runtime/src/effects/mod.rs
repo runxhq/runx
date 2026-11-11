@@ -7,6 +7,7 @@ pub use crate::kernel::custody::Settlement;
 pub use error::RuntimeEffectError;
 pub use registry::RuntimeEffectRegistry;
 pub use state::EffectAdmission;
+pub(crate) use types::Reconciliation;
 pub use types::{
     EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest, EffectStepRequest,
     EffectToolOutput, EffectToolRequest, ResolvedEffectTarget, RuntimeEffect,
@@ -131,6 +132,7 @@ mod tests {
             held_by_effects: false,
             chain: &[],
             clock: &crate::RunClock::System,
+            reconciliation: None,
         });
         assert!(
             matches!(
@@ -176,6 +178,7 @@ mod tests {
             held_by_effects: false,
             chain: &[],
             clock: &crate::RunClock::System,
+            reconciliation: None,
         });
 
         assert!(
@@ -220,6 +223,7 @@ mod tests {
             held_by_effects: false,
             chain: &[],
             clock: &crate::RunClock::System,
+            reconciliation: None,
         });
 
         assert!(

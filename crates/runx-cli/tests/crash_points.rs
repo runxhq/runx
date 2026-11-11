@@ -541,21 +541,18 @@ const TWO_DIGESTS_AT_ONCE: &str = r#"export default async function (ctx, { value
 
 /// Acknowledge every retry the run waits on, in one resume.
 fn acknowledge_retries(root: &Path) -> TestResult<serde_json::Value> {
-    acknowledge_retries_by(root, unsigned_runx_command_at)
+    answer_retries(root, true)
 }
 
-/// Acknowledge every retry the run waits on, in one resume `command` makes.
-fn acknowledge_retries_by(
-    root: &Path,
-    command: fn(&Path) -> std::process::Command,
-) -> TestResult<serde_json::Value> {
+/// Answer every retry the run waits on `{"retry": retry}`, in one resume.
+fn answer_retries(root: &Path, retry: bool) -> TestResult<serde_json::Value> {
     let read = history(root)?;
     let mut approvals = serde_json::Map::new();
     for waited in read["waiting"].as_array().into_iter().flatten() {
         if let Some(address) = waited["address"].as_str() {
             approvals.insert(
                 address.to_owned(),
-                serde_json::json!({"value": {"retry": true}}),
+                serde_json::json!({"value": {"retry": retry}}),
             );
         }
     }
@@ -565,7 +562,7 @@ fn acknowledge_retries_by(
         crate::support::bind_resume(&read, serde_json::json!({"approvals": approvals}))?
             .to_string(),
     )?;
-    let resumed = command(root)
+    let resumed = unsigned_runx_command_at(root)
         .args(["resume", RUN_ID])
         .arg(&answers)
         .arg("--receipt-dir")
@@ -1240,10 +1237,12 @@ fn a_provider_jobs_run_pauses_on_each_wait_and_checks_only_once_its_due() -> Tes
 }
 
 /// Killed just past its job's start, before its run recorded it, compute-job
-/// recovers with one job started. The start ran, so recovery sends nothing
-/// unasked: it waits on the start's retry. Acknowledged, the retry finds the
-/// start's acknowledgement in custody, so it reads the job back rather than
-/// starting it again, and the run goes on from its wait to the job's end.
+/// recovers with one job started. The start ran and custody holds what it
+/// read back, so recovery reconciles the start from that with nobody asked,
+/// sending nothing again, and the run goes on from its wait to the job's
+/// end. Changed 11 November: recovery waited on the start's retry, and a
+/// person's acknowledgement then read the start back (ruled: runx reconciles
+/// from evidence first, and a person answers only when nothing settles it).
 #[test]
 fn a_kill_just_past_a_provider_jobs_start_recovers_with_one_start() -> TestResult {
     let root = crate::support::temp_root("job-killed-past-start");
@@ -1251,20 +1250,12 @@ fn a_kill_just_past_a_provider_jobs_start_recovers_with_one_start() -> TestResul
     run_job(&root, &skill, 0, Some("after_execution@job/0"))?;
     assert_eq!(provider_lines(&root, "starts")?.len(), 1);
 
-    let held = run_job(&root, &skill, 0, None)?;
-    assert_eq!(held["requests"][0]["id"], "job/0/retry", "{held}");
-    assert_eq!(
-        provider_lines(&root, "requests")?.len(),
-        1,
-        "nothing resent unasked"
-    );
-
-    let paused = acknowledge_retries_by(&root, compute_command)?;
+    let paused = run_job(&root, &skill, 0, None)?;
     assert_eq!(wait_of(&paused).0, "job/2", "{paused}");
     assert_eq!(
         provider_lines(&root, "requests")?.len(),
         1,
-        "the retry read the start back and sent nothing again"
+        "recovery read the start back and sent nothing again"
     );
     assert_eq!(wait_of(&drive(&root)?).0, "job/5");
     let ended = drive(&root)?;
@@ -1395,5 +1386,376 @@ fn a_batch_past_the_input_bound_reaches_a_script_by_reference_and_replays_after_
     let recovered = status(&run_large_batch(&root, &skill, None)?)?;
     assert_eq!(recovered["status"], "sealed", "{recovered}");
     assert_eq!(result_of(&recovered)?["digests"], digests);
+    Ok(())
+}
+
+/// A connector whose one read a process carries out: each read appends the
+/// note it read to `notes/reads` and answers with it.
+const LOCAL_NOTES: &str = r#"schema: runx.connector.v1
+name: fixture/notes
+title: Fixture Notes
+description: Read notes through a process.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  notes.read:
+    description: Read one note.
+    verb: read
+    scopes: [notes.read]
+    target:
+      template: {"$argument": "/note"}
+    result_fields: [note]
+    implementation:
+      process:
+        tool: notes.read
+"#;
+
+const NOTES_READ_TOOL: &str = r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "notes.read",
+  "version": "0.1.0",
+  "description": "Read one note.",
+  "process": {"command": "sh", "args": ["./read.sh"]},
+  "inputs": {"note": {"type": "string", "description": "The note."}}
+}
+"#;
+
+const NOTES_READ: &str = r#"#!/bin/sh
+set -eu
+mkdir -p "$RUNX_CWD/notes"
+printf '%s\n' "$RUNX_INPUT_NOTE" >> "$RUNX_CWD/notes/reads"
+printf '{"note":"%s"}\n' "$RUNX_INPUT_NOTE"
+"#;
+
+/// `notes-demo` reads its note through [`LOCAL_NOTES`] and digests it, each
+/// apart, and says how each went: the read's code when it failed.
+fn notes_project(root: &Path) -> TestResult<PathBuf> {
+    let tool = root.join("connectors/fixture/notes/tools/notes/read");
+    fs::create_dir_all(&tool)?;
+    fs::write(tool.join("manifest.json"), NOTES_READ_TOOL)?;
+    fs::write(tool.join("read.sh"), NOTES_READ)?;
+    fs::write(
+        root.join("connectors/fixture/notes/connector.yaml"),
+        LOCAL_NOTES,
+    )?;
+    let skill = root.join("notes-demo");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: notes-demo\ndescription: Reads a note and digests it.\n---\n# Notes demo\n\nRead, then digest.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  prepare:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: prepare
+        script: {module: prepare.mjs}
+        inputs:
+          value: $input.value
+        calls:
+          operations: [fixture/notes/notes.read]
+          tools: [data.digest]
+        max_calls: 4
+        outputs:
+          read: {type: string}
+          digested: {type: string}
+"#,
+    )?;
+    fs::write(
+        skill.join("prepare.mjs"),
+        r#"export default async function (ctx, { value }) {
+  const [read, digested] = await Promise.allSettled([
+    ctx.operation("fixture/notes/notes.read", { note: value }),
+    ctx.tool("data.digest", { value, encoding: "utf8_text" }),
+  ]);
+  return {
+    read: read.status === "fulfilled" ? read.value.provider_operation.result.note : read.reason.code,
+    digested: digested.status,
+  };
+}
+"#,
+    )?;
+    Ok(skill)
+}
+
+/// The lines `root`'s fixture provider appended to `path`.
+fn lines(root: &Path, path: &str) -> TestResult<Vec<String>> {
+    match fs::read_to_string(root.join(path)) {
+        Ok(lines) => Ok(lines.lines().map(str::to_owned).collect()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// A read a process carries out rests on its author's promise that it only
+/// read, so one in flight at a kill isn't run again unseen: it waits on its
+/// own retry, which says it can't be sent again safely, while the script's
+/// other call goes on, and the run stays open. A person's `{"retry": true}`
+/// reads it again; `{"retry": false}` leaves it failed with
+/// `retry_declined`, which the script catches, and the run seals.
+#[test]
+fn a_process_read_in_flight_at_a_kill_waits_on_its_own_retry_and_the_run_goes_on() -> TestResult {
+    for retry in [true, false] {
+        let root = crate::support::temp_root("process-read-in-flight");
+        let skill = notes_project(&root)?;
+        crashed(&run(&root, &skill, Some("after_execution@prepare/0"))?);
+        assert_eq!(lines(&root, "notes/reads")?, ["hello"]);
+
+        let held = status(&run(&root, &skill, None)?)?;
+        let requests = held["requests"].as_array().cloned().unwrap_or_default();
+        assert!(
+            matches!(&requests[..], [request] if request["id"] == "prepare/0/retry"),
+            "the read waits on its own retry: {held}"
+        );
+        let asked: serde_json::Value = serde_json::from_slice(&fs::read(
+            requests[0]["artifact"]["path"].as_str().unwrap_or_default(),
+        )?)?;
+        assert_eq!(asked["resend"], "unsafe", "{asked}");
+        // The digest went on, and the read ran no further unasked.
+        let read = history(&root)?;
+        assert!(
+            calls(&read, RUN_ID).contains(&pair(1, "completed")),
+            "{read}"
+        );
+        assert_eq!(lines(&root, "notes/reads")?, ["hello"]);
+
+        let ended = answer_retries(&root, retry)?;
+        assert_eq!(ended["status"], "sealed", "{ended}");
+        let result = result_of(&ended)?;
+        assert_eq!(result["digested"], "fulfilled", "{ended}");
+        if retry {
+            assert_eq!(result["read"], "hello", "{ended}");
+            assert_eq!(lines(&root, "notes/reads")?, ["hello", "hello"]);
+        } else {
+            assert_eq!(result["read"], "retry_declined", "{ended}");
+            assert_eq!(lines(&root, "notes/reads")?, ["hello"]);
+        }
+    }
+    Ok(())
+}
+
+/// A local copy of `fixture/mail`, whose process sends from one mailbox. It
+/// doesn't deduplicate: each send it performs appends `<key> <recipient>` to
+/// `mail/sent`, and it refuses a recipient listed in `mail/refuse`. A send's
+/// readback finds the message sent with its key.
+const LOCAL_MAIL: &str = r#"schema: runx.connector.v1
+name: fixture/mail
+title: Fixture Mail
+description: Send messages from one mailbox of a mail fixture.
+auth:
+  credentials:
+    mailbox_key:
+      kind: api_key
+      fields:
+        - {name: token, label: mailbox token}
+      delivery: {env: MAIL_TOKEN}
+      audience: ["*.mail.fixture.invalid"]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  message.send:
+    description: Send one message to one recipient.
+    verb: write
+    scopes: [message.send]
+    credentials: [mailbox_key]
+    target:
+      template: {"$argument": "/to"}
+    result_fields: [message_ref, to]
+    implementation:
+      process:
+        tool: mail.send
+        readback:
+          matches:
+            - expected: {source: argument, path: to}
+              observed: to
+"#;
+
+const MAIL_SEND_TOOL: &str = r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "mail.send",
+  "version": "0.1.0",
+  "description": "Send one message, or read a sent one back by its key.",
+  "process": {"command": "sh", "args": ["./send.sh"]},
+  "inputs": {
+    "to": {"type": "string", "description": "The recipient."},
+    "body": {"type": "string", "description": "The message."},
+    "phase": {"type": "string", "description": "perform or readback."},
+    "idempotency_key": {"type": "string", "description": "The key the message is sent with."},
+    "acknowledgement": {"type": "object", "optional": true, "description": "What the send answered."}
+  }
+}
+"#;
+
+const MAIL_SEND: &str = r#"#!/bin/sh
+set -eu
+mailbox="$RUNX_CWD/mail"
+mkdir -p "$mailbox"
+touch "$mailbox/sent" "$mailbox/refuse"
+key="$RUNX_INPUT_IDEMPOTENCY_KEY"
+if [ "$RUNX_INPUT_PHASE" = readback ]; then
+  while read -r sent to; do
+    if [ "$sent" = "$key" ]; then
+      printf '{"message_ref":"mail://%s","to":"%s"}\n' "$key" "$to"
+      exit 0
+    fi
+  done < "$mailbox/sent"
+  echo "no message was sent with this key" >&2
+  exit 1
+fi
+if grep -qx "$RUNX_INPUT_TO" "$mailbox/refuse"; then
+  printf '{"refused":"the mailbox refuses %s"}\n' "$RUNX_INPUT_TO"
+  exit 0
+fi
+printf '%s %s\n' "$key" "$RUNX_INPUT_TO" >> "$mailbox/sent"
+printf '{"message_ref":"mail://%s","to":"%s"}\n' "$key" "$RUNX_INPUT_TO"
+"#;
+
+/// A project holding `fixtures/skills/send-batch` and [`LOCAL_MAIL`].
+fn mail_project(root: &Path) -> TestResult<PathBuf> {
+    let tool = root.join("connectors/fixture/mail/tools/mail/send");
+    fs::create_dir_all(&tool)?;
+    fs::write(tool.join("manifest.json"), MAIL_SEND_TOOL)?;
+    fs::write(tool.join("send.sh"), MAIL_SEND)?;
+    fs::write(
+        root.join("connectors/fixture/mail/connector.yaml"),
+        LOCAL_MAIL,
+    )?;
+    let skill = root.join("skills/send-batch");
+    crate::support::copy_dir(
+        &crate::support::repo_root()?.join("fixtures/skills/send-batch"),
+        &skill,
+    )?;
+    Ok(skill)
+}
+
+/// Send `body` to each of ann, bob and carol as run `run_id`, crashing at
+/// `crash` when given.
+fn send_batch(root: &Path, skill: &Path, run_id: &str, crash: Option<&str>) -> TestResult<Output> {
+    fs::write(
+        root.join("batch.json"),
+        serde_json::json!({
+            "recipients": ["ann@example.test", "bob@example.test", "carol@example.test"],
+            "body": "The fixture is ready.",
+        })
+        .to_string(),
+    )?;
+    let mut command = unsigned_runx_command_at(root);
+    command
+        .env("MAIL_TOKEN", "local-mailbox-token")
+        .arg("skill")
+        .arg(skill)
+        .args([
+            "--inputs",
+            "batch.json",
+            "--run-id",
+            run_id,
+            "--receipt-dir",
+        ])
+        .arg(root.join("receipts"))
+        .arg("--json");
+    if let Some(crash) = crash {
+        command.env("RUNX_CRASH_AT", crash);
+    }
+    Ok(command.output()?)
+}
+
+/// How many messages the mailbox sent `to`.
+fn sent_to(root: &Path, to: &str) -> TestResult<usize> {
+    Ok(lines(root, "mail/sent")?
+        .iter()
+        .filter(|line| line.split_whitespace().nth(1) == Some(to))
+        .count())
+}
+
+/// Each recipient's status in a sealed batch.
+fn statuses(sealed: &serde_json::Value) -> TestResult<Vec<(String, String)>> {
+    Ok(result_of(sealed)?["sent"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|sent| {
+            (
+                sent["to"].as_str().unwrap_or_default().to_owned(),
+                sent["status"].as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect())
+}
+
+/// The interrupted send (plan §9's revise row). Killed just past bob's send,
+/// before its run recorded it, the batch has sent bob one message, and the
+/// call waits as claimed while custody keeps the attempt unsettled. Driven
+/// again, runx reconciles it from what custody read back, with nobody asked,
+/// so bob is never sent twice, and the batch goes on to carol, whose send the
+/// mailbox refuses. A later run under the same keys sends ann and bob nothing:
+/// each is already done under its key. Carol's refused send is tried again,
+/// and goes.
+#[test]
+fn an_interrupted_send_reconciles_and_the_batch_goes_on() -> TestResult {
+    let root = crate::support::temp_root("interrupted-send");
+    let skill = mail_project(&root)?;
+    fs::create_dir_all(root.join("mail"))?;
+    fs::write(root.join("mail/refuse"), "carol@example.test\n")?;
+
+    crashed(&send_batch(
+        &root,
+        &skill,
+        RUN_ID,
+        Some("after_execution@send/1"),
+    )?);
+    assert_eq!(sent_to(&root, "ann@example.test")?, 1);
+    assert_eq!(sent_to(&root, "bob@example.test")?, 1, "one observed send");
+    // The kill left bob's call claimed: its unknown outcome persisted.
+    let read = history(&root)?;
+    let bob = calls(&read, RUN_ID)
+        .into_iter()
+        .rev()
+        .find(|(index, _)| *index == 1);
+    assert_eq!(bob, Some(pair(1, "claimed")), "{read}");
+
+    let sealed = status(&send_batch(&root, &skill, RUN_ID, None)?)?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    assert_eq!(
+        statuses(&sealed)?,
+        [
+            ("ann@example.test".to_owned(), "sent".to_owned()),
+            ("bob@example.test".to_owned(), "sent".to_owned()),
+            ("carol@example.test".to_owned(), "failed".to_owned()),
+        ]
+    );
+    assert_eq!(
+        sent_to(&root, "bob@example.test")?,
+        1,
+        "reconciled, never resent"
+    );
+    assert!(
+        calls(&history(&root)?, RUN_ID).contains(&pair(1, "completed")),
+        "bob's call completed from what custody read back"
+    );
+
+    // Under the same keys, a later run sends nothing already done, and tries
+    // the refused send again.
+    fs::write(root.join("mail/refuse"), "")?;
+    let again = status(&send_batch(&root, &skill, "interrupted_send_again", None)?)?;
+    assert_eq!(again["status"], "sealed", "{again}");
+    assert_eq!(
+        statuses(&again)?,
+        [
+            ("ann@example.test".to_owned(), "already_done".to_owned()),
+            ("bob@example.test".to_owned(), "already_done".to_owned()),
+            ("carol@example.test".to_owned(), "sent".to_owned()),
+        ]
+    );
+    for to in ["ann@example.test", "bob@example.test", "carol@example.test"] {
+        assert_eq!(sent_to(&root, to)?, 1, "{to}");
+    }
     Ok(())
 }

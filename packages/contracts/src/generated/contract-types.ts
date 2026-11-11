@@ -68,6 +68,12 @@ export type AllowedOperationContract = {
   readonly requirement: string;
 };
 
+/** An act a key had already done: the receipt that sealed it and the plan it was done with, which may not be the plan the later call carried. */
+export type AlreadyDoneContract = {
+  readonly plan_digest: string;
+  readonly receipt_id: string;
+};
+
 export type AmountBindingContract = {
   /** Provider currency/asset code; financial authority uses its canonical uppercase code, so a provider's lowercase `usd` still means USD cents. */
   readonly currency: unknown;
@@ -2150,6 +2156,8 @@ export type ProviderNotCalledContract = "not_called";
 export type ProviderOperationPacketContract = {
   readonly access?: string;
   readonly account_id?: string;
+  /** The act this call's key had already done, which the call returns, acting no further: a key means one intent (D34). */
+  readonly already_done?: AlreadyDoneContract;
   /** What a priced call cost; absent when the operation declares no cost. */
   readonly cost?: CallCostContract;
   readonly finality?: string;

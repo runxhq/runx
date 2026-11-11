@@ -88,7 +88,7 @@ pub(crate) fn only_reads(
 }
 
 /// Whether `step` with its inputs is a safe read (D33): a native tool that
-/// changes nothing, or an operation that is a safe read by
+/// only reads, in runx's own process, or an operation that is a safe read by
 /// [`crate::kernel::operation::safe_read`]. A crash that leaves one
 /// unsettled reruns it with nobody asked, as it does worker compute. Any
 /// other step that reaches the world follows custody: it is claimed, and
@@ -100,7 +100,7 @@ pub(crate) fn safe_read(
 ) -> bool {
     use runx_parser::{StepKind, ToolTarget};
     match &step.kind {
-        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
+        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::safe_read(tool),
         StepKind::Operation(target) => {
             crate::kernel::operation::operation_safe_read(target, &step.inputs, env, workflow_dir)
         }
@@ -108,9 +108,12 @@ pub(crate) fn safe_read(
     }
 }
 
-/// The request a claimed step that never settled waits on. One that can be
-/// sent again is acknowledged with `{"retry": true}`; one that cannot is
-/// never resent, and its run can only be closed with it unconfirmed.
+/// The request a claimed step that never settled waits on, once nothing
+/// its act's evidence holds settles it. A person answers it: `{"retry":
+/// true}` runs it again with the same input, which for one that can't be
+/// sent again unseen is their saying it didn't take effect, and `{"retry":
+/// false}` leaves it failed, its act as custody holds it. Neither closes the
+/// run.
 pub(crate) fn unsettled_retry(
     id: String,
     what: &str,
@@ -118,10 +121,10 @@ pub(crate) fn unsettled_retry(
 ) -> runx_contracts::ResolutionRequest {
     let reason = match resend {
         runx_contracts::RetryResend::Safe => format!(
-            "{what} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
+            "{what} has not settled and may have run; answer {{\"retry\": true}} to run it again with the same input, or {{\"retry\": false}} to leave it failed"
         ),
         runx_contracts::RetryResend::Unsafe => format!(
-            "{what} has not settled and may have run, and sending it again could repeat its effect; check what it did, then close the run"
+            "{what} has not settled and may have run, and sending it again could repeat its effect; check what it did, then answer {{\"retry\": true}} if it didn't take effect, to send it again under the same key, or {{\"retry\": false}} to leave it failed"
         ),
     };
     runx_contracts::ResolutionRequest::Retry {
@@ -129,6 +132,17 @@ pub(crate) fn unsettled_retry(
         reason: reason.into(),
         retry_after_seconds: 0,
         resend,
+    }
+}
+
+/// What a person's answer to a call's or a step's retry says: `true` runs
+/// it again, `false` leaves it failed; none for anything else.
+pub(crate) fn retry_answer(value: &runx_contracts::JsonValue) -> Option<bool> {
+    match value.as_object() {
+        Some(answer) if answer.len() == 1 => answer
+            .get("retry")
+            .and_then(runx_contracts::JsonValue::as_bool),
+        _ => None,
     }
 }
 
@@ -195,6 +209,7 @@ fn operation_resends(
                     .find(|(name, _)| name.as_str() == operation.as_str())
                     .is_some_and(|(_, operation)| {
                         crate::kernel::operation::resends_safely(
+                            &connector.manifest,
                             operation,
                             step.retry_unknown_outcomes,
                         )

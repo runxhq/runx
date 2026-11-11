@@ -169,7 +169,7 @@ already bound.
 
 `answers` is the agent's lane: turns. `approvals` is the person's: an
 approval takes `approved` and `reason`, a claimed call's retry takes `value:
-{"retry": true}`, and questions take `value: {<question id>: {option?: <label>,
+{"retry": true}` or `value: {"retry": false}`, and questions take `value: {<question id>: {option?: <label>,
 text?: <string>}}`, each naming one of its question's options or, where it
 allows free text, words of the person's own, every required question answered;
 each entry is checked against the request it answers. Runx records every decision it admits under `approvals` in
@@ -326,14 +326,29 @@ itself; it is not automatically dereferenced. The child can then open its exact
 retained content through `artifact.open` with the required scope and bounds.
 A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
-A write names its `idempotency_key`, which a retry reuses. A call whose outcome
-runx cannot confirm stays pending on its own retry request, which says whether
-sending it again is safe (`resend`: a documented free read, a journaled file
-change, or a call its provider deduplicates, including billed usage); a safe
-one runs again with the same input when `runx resume`
-answers it under `approvals` with `{"retry": true}`, and an unsafe one is never
-resent: check what it did, then close the run. A bounded retry (one with
-`retry_after_seconds`) is runx's own: the next resume after its delay runs it. A call that needs approval stays pending until `runx resume`
+A write names its `idempotency_key`, which a retry reuses, and a key means one
+intent: a write under a key whose act is already done sends nothing, and
+returns what was done, its packet's `already_done` naming the receipt that
+sealed the act and the `plan_digest` it was done with, which may not be the
+plan the later call carries. A write its provider refused can be tried again
+under the same key. A call whose outcome runx cannot confirm stays pending on
+its own retry request, at `<step>/<n>/retry`, which says whether sending it
+again is safe (`resend`: a free read runx carries out itself, a journaled file
+change, or a call its provider deduplicates, including billed usage; a read a
+process carries out, or a priced read its provider doesn't deduplicate, is
+not). When the run is driven again, runx first reconciles the call from what
+custody holds of its act, with nobody asked: an answer it read back, an
+acknowledgement it reads back, an act already done under its key, or no
+attempt at all, which never reached its provider and so runs. Only when
+nothing settles it does a person answer it, under `approvals`: `{"retry":
+true}` runs it again with the same input, which for an unsafe one is their
+saying it didn't take effect, so it goes again under the same key, and a
+priced read's earlier attempt keeps what it spent while the new one counts
+under the limit; `{"retry": false}` leaves it failed with `retry_declined`,
+which a script catches as its `code`, and its act as custody holds it, so a
+later run trying that key waits on it again. Neither closes the run, and the
+run's other calls go on. A bounded retry (one with `retry_after_seconds`) is
+runx's own: the next resume after its delay runs it. A call that needs approval stays pending until `runx resume`
 answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,
 and the run continues; an act that cannot be done ends with

@@ -33,7 +33,7 @@ use runx_parser::{ConnectorRequirement, OperationStepTarget};
 use super::authority::RunAuthority;
 use super::capability::{self, Capability, CapabilityRequest};
 use super::connectors::{ConnectorScope, LoadedConnector};
-use super::custody::{EffectCustody, Pending};
+use super::custody::{Done, EffectCustody, Pending};
 use super::instances::Instances;
 use super::operation::call::{ApprovalText, OperationCall};
 use super::operation::hosted::HostedClient;
@@ -78,6 +78,8 @@ pub(crate) struct Evaluation<'a> {
     /// When the run observes the call: admission's approvals, derivations
     /// and proofs are stamped at it.
     pub clock: &'a crate::RunClock,
+    /// How a claimed call whose run stopped is taken further, when it is.
+    pub reconciliation: Option<crate::effects::Reconciliation>,
 }
 
 /// Whether an admitted call runs now or waits on an approval. A call that
@@ -123,6 +125,9 @@ pub(crate) struct Admitted {
     /// The act's unsettled attempt of this same intent, which this call
     /// recovers.
     pub pending: Option<Pending>,
+    /// The act its key finalized, which this call returns, acting no
+    /// further (D34).
+    pub done: Option<Done>,
     /// The custody stream's version when this call was admitted; its attempt
     /// appends onto exactly that.
     pub custody_head: u64,
@@ -636,38 +641,74 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                 evaluation.run_id,
             )
         });
-    let (pending, use_key, custody_head) = match &custody {
-        Some(custody) => match custody.custody() {
-            Ok(state) => (
-                state.pending,
-                Some(custody.use_key(state.sequence, intent_digest.as_str())),
-                state.head,
-            ),
-            Err(error) => return Err(AdmitError::State(error.to_string())),
-        },
-        None => (None, None, 0),
-    };
-    if let Some(pending) = &pending {
-        held(pending, intent_digest.as_str(), mandate_ref.as_ref())?;
-    }
     let usage = UsageLedger::new(Arc::clone(evaluation.store));
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
+    // The bounded evidence uses the act's sequence `use_key` takes: one of
+    // each bounded term, however many attempts recover the sequence.
+    let covers = |use_key: &str| -> Result<Vec<UseCover>, UsageError> {
+        let mut covers = Vec::new();
+        for parent in std::iter::once(&capability.term).chain(delegations.iter()) {
+            let Some(limit) = &parent.bounds.uses else {
+                continue;
+            };
+            covers.push(usage.cover(
+                &format!("term:{}", parent.term_id),
+                limit,
+                use_key,
+                intent_digest.as_str(),
+                evaluation.run_id,
+                now,
+            )?);
+        }
+        Ok(covers)
+    };
+    let state = |error: &dyn std::fmt::Display| AdmitError::State(error.to_string());
+    let (pending, done, use_key, custody_head) = match &custody {
+        Some(custody) => {
+            let mut stands = custody.custody().map_err(|error| state(&error))?;
+            if let Some(pending) = &stands.pending {
+                held(pending, intent_digest.as_str(), mandate_ref.as_ref())?;
+            }
+            // A person's retry of an attempt custody holds no evidence of,
+            // when it can't be sent again unseen, is their saying it didn't
+            // take effect: the attempt settles rejected, keeping what it
+            // used and spent, and the call goes again under the same key as
+            // a new attempt, counted anew.
+            if evaluation.reconciliation == Some(crate::effects::Reconciliation::Retried)
+                && stands.pending.as_ref().is_some_and(|pending| {
+                    pending.acknowledgement.is_none() && pending.readback.is_none()
+                })
+                && !super::operation::resends_safely(
+                    manifest,
+                    operation_spec,
+                    evaluation.retry_unknown_outcomes,
+                )
+            {
+                let use_key = custody.use_key(stands.sequence, intent_digest.as_str());
+                let used = covers(&use_key).map_err(|error| state(&error))?;
+                let spent = spend::settle(evaluation.store, evaluation.run_id, &use_key)
+                    .map_err(|error| state(&error))?;
+                custody
+                    .rejected(UNTAKEN.to_owned(), &used, false, spent)
+                    .map_err(|error| state(&error))?;
+                stands = custody.custody().map_err(|error| state(&error))?;
+            }
+            // A key means one intent (D34): an act its key finalized is done,
+            // and a call of it under that key acts no further.
+            let done = stands.done.filter(|_| intent.request_key_digest.is_some());
+            let use_key = custody.use_key(stands.sequence, intent_digest.as_str());
+            (stands.pending, done, Some(use_key), stands.head)
+        }
+        None => (None, None, None, 0),
+    };
     let mut usage_covers = Vec::new();
-    for parent in std::iter::once(&capability.term).chain(delegations.iter()) {
-        let (Some(limit), Some(use_key)) = (&parent.bounds.uses, &use_key) else {
-            continue;
-        };
-        match usage.cover(
-            &format!("term:{}", parent.term_id),
-            limit,
-            use_key,
-            intent_digest.as_str(),
-            evaluation.run_id,
-            now,
-        ) {
-            Ok(cover) => usage_covers.push(cover),
+    if done.is_none()
+        && let Some(use_key) = &use_key
+    {
+        match covers(use_key) {
+            Ok(covered) => usage_covers = covered,
             Err(error @ (UsageError::TotalExhausted | UsageError::DailyExhausted)) => {
                 return Err(reasons.refuse(
                     AdmissionCheck::Delegation,
@@ -703,6 +744,13 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // no limit spends unbounded, as it always has, and records no check.
     let spend = match (limit, charge) {
         (None, _) => None,
+        _ if done.is_some() => {
+            reasons.pass(
+                AdmissionCheck::Cost,
+                "the act is already done under its key, so the call spends nothing",
+            );
+            None
+        }
         (Some(_), Err(detail)) => return Err(reasons.refuse(AdmissionCheck::Cost, detail)),
         (Some(_), Ok(None)) => {
             reasons.pass(
@@ -747,8 +795,16 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         }
     };
 
-    // Approval: the operation's floor or the step's gate.
+    // Approval: the operation's floor or the step's gate. An act already done
+    // under its key is done again by nobody, so nothing is approved.
     let decision = match &approval {
+        Some(_) if done.is_some() => {
+            reasons.pass(
+                AdmissionCheck::Approval,
+                "the act is already done under its key, so nothing is sent to approve",
+            );
+            AdmissionDecision::Admit
+        }
         Some(_) => {
             reasons.push(
                 AdmissionCheck::Approval,
@@ -813,6 +869,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         mandate_ref,
         custody,
         pending,
+        done,
         custody_head,
         usage_covers,
         spend,
@@ -824,6 +881,10 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         clock: evaluation.clock.clone(),
     })
 }
+
+/// The code an attempt settles rejected with when a person's retry says it
+/// didn't take effect.
+const UNTAKEN: &str = "untaken";
 
 /// An unsettled attempt of the act holds a call of any other intent or
 /// mandate.

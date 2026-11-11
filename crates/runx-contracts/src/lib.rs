@@ -181,7 +181,7 @@ pub use paid_skill_listing::{
     PAID_SKILL_LISTING_SCHEMA, PaidSkillListing, PaidSkillMethodOffer, PaidSkillOfferTerms,
     PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PriceChoice, PriceError, RequiredLease,
 };
-pub use provider_operation::ProviderOperationPacket;
+pub use provider_operation::{AlreadyDone, ProviderOperationPacket};
 pub use purchase::{
     BuyerKey, CurrencyCode, EmbeddedOfferVersionBinding, OFFER_VERSION_BINDING_SCHEMA,
     OfferVersionBinding, PURCHASE_READ_SCHEMA, PURCHASE_SCHEMA, PaymentIdempotencyBinding,

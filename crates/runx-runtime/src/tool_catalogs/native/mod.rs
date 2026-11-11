@@ -250,21 +250,27 @@ pub(crate) fn workspace_lock_mode(tool: &str) -> Option<crate::workspace_lock::L
     })
 }
 
-/// Whether a call of core tool `tool` that may have run can run again
-/// unseen: it only reads, or it changes files in runx's own process, where
-/// every change is journaled and bound to what it replaces, so a resend
-/// either finds it rolled back or is refused or repeats the same bytes. A
-/// tool that runs a process cannot.
 /// Whether `tool` is a native tool that only reads.
 pub(crate) fn only_reads(tool: &str) -> bool {
     definition(tool).is_some_and(|capability| !capability.definition().effect.mutating())
 }
 
+/// Whether `tool` is a safe read (D33): a native tool that only reads, in
+/// runx's own process. A crash that leaves one unsettled reruns it with
+/// nobody asked. A read a process carries out isn't one.
+pub(crate) fn safe_read(tool: &str) -> bool {
+    only_reads(tool) && resends_safely(tool)
+}
+
+/// Whether a call of core tool `tool` that may have run can run again
+/// unseen: it runs in runx's own process, where it only reads, or every
+/// change it makes is journaled and bound to what it replaces, so a resend
+/// either finds it rolled back or is refused or repeats the same bytes. A
+/// tool a process carries out cannot, a read included: whether it only read
+/// rests on its author's promise.
 pub(crate) fn resends_safely(tool: &str) -> bool {
     definition(tool).is_some_and(|capability| {
-        !capability.definition().effect.mutating()
-            || capability.execution_boundary()
-                == runx_contracts::ExecutionBoundaryKind::NativeCapability
+        capability.execution_boundary() == runx_contracts::ExecutionBoundaryKind::NativeCapability
     })
 }
 

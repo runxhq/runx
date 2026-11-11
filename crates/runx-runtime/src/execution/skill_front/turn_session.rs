@@ -678,19 +678,21 @@ mod tests {
             "{early}"
         );
         // A person's answer reaches the open session through the run's
-        // inbox, checked as it's delivered: anything but the exact
-        // acknowledgement is refused there (changed 11 November: an open
-        // session refused any answer as a second driver's).
+        // inbox, checked as it's delivered: anything but `{"retry": true}`
+        // or `{"retry": false}` is refused there (changed 11 November: an
+        // open session refused any answer as a second driver's, and then
+        // anything but the acknowledgement, until `{"retry": false}` was
+        // ruled a person's way to leave the call failed).
         let held = answer(
             root,
             &run_id,
             "approvals",
             "answer/0/retry",
-            serde_json::json!({"retry": false}),
+            serde_json::json!({"retry": "again"}),
         )
         .err()
-        .ok_or("only the exact acknowledgement is delivered")?;
-        assert!(held.to_string().contains("acknowledged only"), "{held}");
+        .ok_or("only a retry's answer is delivered")?;
+        assert!(held.to_string().contains(r#"{"retry": false}"#), "{held}");
         drop(session);
 
         let refused = answer(
@@ -698,12 +700,12 @@ mod tests {
             &run_id,
             "approvals",
             "answer/0/retry",
-            serde_json::json!({"retry": false}),
+            serde_json::json!({"retry": "again"}),
         )
         .err()
-        .ok_or("only the exact acknowledgement runs the call again")?;
+        .ok_or("only the acknowledgement runs the call again")?;
         assert!(
-            refused.to_string().contains("acknowledged only"),
+            refused.to_string().contains(r#"{"retry": false}"#),
             "{refused}"
         );
         let agent = answer(

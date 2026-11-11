@@ -286,11 +286,21 @@ where
         // caller's to catch, and the run goes on from the call as it stood.
         // A skill call's child run runs under the call, and heeds its
         // cancel. An effect runs to its end.
+        let reconciliation = made
+            .retried
+            .then_some(crate::effects::Reconciliation::Retried);
         let ran = if !stop.start() || crate::interrupt::caller_cancelled() {
             Ran::Cancelled
         } else if let Some(working) = stop.working() {
             let ran = crate::interrupt::while_reading(Some(working), || {
-                self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)
+                self.run_call_step(
+                    &call,
+                    &made.target,
+                    admitted_by,
+                    held_by_effects,
+                    host,
+                    reconciliation,
+                )
             });
             if stop.cancelled() || crate::interrupt::caller_cancelled() {
                 Ran::Cancelled
@@ -304,11 +314,25 @@ where
             }
         } else if let Some(caller) = stop.caller() {
             crate::interrupt::while_called(caller, || {
-                self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)
+                self.run_call_step(
+                    &call,
+                    &made.target,
+                    admitted_by,
+                    held_by_effects,
+                    host,
+                    reconciliation,
+                )
             })?
         } else {
             crate::interrupt::note_effect();
-            self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?
+            self.run_call_step(
+                &call,
+                &made.target,
+                admitted_by,
+                held_by_effects,
+                host,
+                reconciliation,
+            )?
         };
         Ok(ExecutedCall {
             made,
@@ -322,7 +346,8 @@ where
     /// Run a call as its step; a skill call's act becomes its child run's.
     /// What admitted it on the floor, and the artifacts its inputs were given
     /// by, ride in its receipt; where those inputs came from rides in its
-    /// provenance.
+    /// provenance. A claimed call taken further after its run stopped is
+    /// reconciled as `reconciliation` says.
     fn run_call_step(
         &self,
         call: &CallStep,
@@ -330,6 +355,7 @@ where
         admitted_by: Vec<Reference>,
         held_by_effects: bool,
         host: &mut dyn Host,
+        reconciliation: Option<crate::effects::Reconciliation>,
     ) -> Result<Ran, RuntimeError> {
         let scope = self;
         let step = &call.step;
@@ -353,6 +379,7 @@ where
             context_entries: Vec::new(),
             ask_reason: None,
             given: call.given,
+            reconciliation,
         };
         let result = match target {
             CallTarget::Skill {
@@ -494,6 +521,9 @@ struct Made {
     /// The reuse identity its child is indexed under when it completes, which
     /// each of its records keeps.
     reuse_identity: Option<String>,
+    /// A person answered its retry `{"retry": true}`, so it runs again on
+    /// their word.
+    retried: bool,
 }
 
 impl Made {
@@ -507,6 +537,7 @@ impl Made {
             cancelled: call.cancelled,
             reuse: None,
             reuse_identity: call.reuse_identity.clone(),
+            retried: false,
         }
     }
 }
@@ -612,6 +643,7 @@ fn script_call(index: u32, target: CallTarget) -> Made {
         cancelled: false,
         reuse: None,
         reuse_identity: None,
+        retried: false,
     }
 }
 
@@ -767,24 +799,89 @@ where
             // A safe read left executing reruns with nobody asked: running
             // it again changes nothing (D33).
             CallOutcome::Executing => self.run(AnsweringHost::new(host, None), Made::of(&call)),
-            // A claimed call runs again only on the host's exact
-            // acknowledgement, which its new claim records; with no answer
-            // yet it still waits on its retry.
+            // A claimed call waits on its retry once nothing its act's
+            // evidence holds settles it. With no answer, runx reconciles it
+            // from that evidence with nobody asked; a person's `{"retry":
+            // true}` runs it again on their word, which its new claim
+            // records, and `{"retry": false}` leaves it failed.
             CallOutcome::Claimed(retry) => {
                 let mut answering = AnsweringHost::new(host, Some(&retry));
-                match answering.resolve(resolution_request(&retry)?)? {
-                    None => self.result(&Made::of(&call), &call.outcome, &call.outputs),
-                    Some(response) if response.payload == retry_acknowledgement() => {
-                        self.run(answering, Made::of(&call))
+                let answer = answering.resolve(resolution_request(&retry)?)?;
+                match answer.map(|response| super::retry_answer(&response.payload)) {
+                    None => match self.reconcile(answering, &call)? {
+                        Some(reconciled) => Ok(reconciled),
+                        None => self.result(&Made::of(&call), &call.outcome, &call.outputs),
+                    },
+                    Some(Some(true)) => self.run(
+                        answering,
+                        Made {
+                            retried: true,
+                            ..Made::of(&call)
+                        },
+                    ),
+                    Some(Some(false)) => {
+                        let answers = answering.answers;
+                        self.settled(Made::of(&call), CallOutcome::RetryDeclined, &answers)
                     }
-                    Some(_) => Err(RuntimeError::ContinuationRejected {
+                    Some(None) => Err(RuntimeError::ContinuationRejected {
                         reason: format!(
-                            "call {index} runs again only on the acknowledgement {{\"retry\": true}}"
+                            "call {index} is answered only with {{\"retry\": true}} or {{\"retry\": false}}"
                         ),
                     }),
                 }
             }
             settled => self.result(&Made::of(&call), &settled, &call.outputs),
+        }
+    }
+
+    /// Reconcile claimed call `call` from what custody holds of its act,
+    /// with nobody asked: a cached readback, an acknowledgement read back,
+    /// the act already done under its key, or no attempt of it at all, which
+    /// never reached its provider and so runs now. Only an operation's act is
+    /// in custody, and nothing that may have been sent is sent again. `None`
+    /// when nothing settles it: it still waits on its retry, and its record
+    /// is as it was.
+    fn reconcile(
+        &mut self,
+        mut host: AnsweringHost<'_>,
+        call: &RecordedCall,
+    ) -> Result<Option<TurnCallResult>, RuntimeError> {
+        if !matches!(call.target, CallTarget::Operation { .. }) {
+            return Ok(None);
+        }
+        let made = Made::of(call);
+        let Ok(step) = self.call_step(made.index, &made.target, &made.input) else {
+            return Ok(None);
+        };
+        // The floor admitted it before its claim: it does again, or the call
+        // keeps waiting as it was.
+        let admitted = match super::floor::hold(
+            self.scope.runtime,
+            self.scope.workflow_dir,
+            &step.step,
+            &step.step.inputs,
+            &mut host,
+        ) {
+            Ok(admitted) => admitted,
+            Err(error) if error.is_fatal_step_fault() => return Err(error),
+            Err(_) => return Ok(None),
+        };
+        let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
+        let held_by_effects = admitted == super::floor::Admitted::Held;
+        let ran = self.scope.run_call_step(
+            &step,
+            &made.target,
+            admitted_by,
+            held_by_effects,
+            &mut host,
+            Some(crate::effects::Reconciliation::Evidence),
+        )?;
+        match ran {
+            Ran::Settled(outcome @ CallOutcome::Completed(_)) => {
+                let answers = host.answers;
+                self.settled(made, outcome, &answers).map(Some)
+            }
+            _ => Ok(None),
         }
     }
 
@@ -1039,6 +1136,7 @@ where
                 | CallOutcome::Refused(_)
                 | CallOutcome::Declined(_)
                 | CallOutcome::Failed(_)
+                | CallOutcome::RetryDeclined
                 | CallOutcome::Cancelled
                 | CallOutcome::Waited(_)
                 | CallOutcome::Read(_)
@@ -1152,6 +1250,7 @@ where
                 cancelled: false,
                 reuse,
                 reuse_identity: None,
+                retried: false,
             },
         )
     }
@@ -1363,6 +1462,7 @@ where
                     admitted_by,
                     held_by_effects,
                     host,
+                    None,
                 )?;
                 return match ran {
                     Ran::Settled(outcome) => {
@@ -1550,7 +1650,7 @@ where
         stop.start();
         let mut run = || {
             self.scope
-                .run_call_step(&step, &made.target, Vec::new(), false, &mut answering)
+                .run_call_step(&step, &made.target, Vec::new(), false, &mut answering, None)
         };
         let ran = match stop.caller() {
             Some(caller) => crate::interrupt::while_called(caller, run)?,
@@ -1827,6 +1927,10 @@ where
             },
             CallOutcome::Failed(why) => TurnCallOutcome::Failed {
                 reason: reason(why.clone()),
+                receipt_id: None,
+            },
+            CallOutcome::RetryDeclined => TurnCallOutcome::Failed {
+                reason: crate::execution::run_record::RETRY_DECLINED.into(),
                 receipt_id: None,
             },
             CallOutcome::Pending(request) | CallOutcome::Claimed(request) => {
@@ -2595,6 +2699,7 @@ where
             cancelled: false,
             reuse: None,
             reuse_identity: None,
+            retried: false,
         };
         self.ledger
             .admit_made(&mut AnsweringHost::new(host, None), made)
@@ -2625,14 +2730,6 @@ pub(super) fn resolution_request(
     serde_json::to_value(&request.value)
         .and_then(serde_json::from_value)
         .map_err(|source| RuntimeError::json("reading a pending request", source))
-}
-
-/// The person's acknowledgement that runs a claimed call or step again.
-pub(super) fn retry_acknowledgement() -> JsonValue {
-    JsonValue::Object(JsonObject::from([(
-        "retry".to_owned(),
-        JsonValue::Bool(true),
-    )]))
 }
 
 fn reason(text: String) -> NonEmptyString {

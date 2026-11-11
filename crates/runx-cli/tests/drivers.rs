@@ -102,14 +102,15 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
             .as_bytes(),
     )?;
     // A resume sent while the run's driver lives goes to the run's inbox,
-    // checked as it's delivered: a process step's retry can't be sent again
-    // safely, so its acknowledgement is refused there, and nothing drives
-    // the run but its driver (changed 11 November: it was refused as a
-    // second driver's).
-    let refused = resume.wait_with_output()?;
-    assert!(!refused.status.success(), "the delivery is refused");
-    let refusal = String::from_utf8_lossy(&refused.stdout);
-    assert!(refusal.contains("cannot be sent again safely"), "{refusal}");
+    // checked as it's delivered, and nothing drives the run but its driver:
+    // the step it answers runs on to its end, once (changed 11 November: it
+    // was refused as a second driver's, and then, until a person's retry of
+    // a step that can't be sent again unseen was ruled their word, as
+    // unsafe to resend).
+    let delivered = resume.wait_with_output()?;
+    let accepted: serde_json::Value = serde_json::from_slice(&delivered.stdout)?;
+    assert!(delivered.status.success(), "{accepted}");
+    assert_eq!(accepted["status"], "accepted", "{accepted}");
 
     gate.release(original.id())?;
     let finished = original.wait_with_output()?;

@@ -130,6 +130,8 @@ pub(super) struct StepRunRequest<'a, A> {
     /// Where what the step is given may be shared: its inputs, the artifacts
     /// they name, and the earlier steps' outputs it binds.
     pub(super) given: ArtifactLabels,
+    /// How a claimed step whose run stopped is taken further, when it is.
+    pub(super) reconciliation: Option<crate::effects::Reconciliation>,
 }
 
 struct StepHandlerCtx<'a, A> {
@@ -218,6 +220,7 @@ where
         context_entries,
         ask_reason,
         given,
+        reconciliation,
     } = request;
     // What the step was given, as reuse compares it (D32).
     let input_digest = super::input_digest::of(
@@ -250,6 +253,7 @@ where
         held_by_effects,
         chain: &chain,
         clock: &runtime.options.clock,
+        reconciliation,
     };
     let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
     let authority =

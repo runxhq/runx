@@ -448,9 +448,13 @@ impl Declared {
     }
 }
 
-/// Whether a call that may have reached its provider can be sent again.
-/// Read access and state idempotency do not establish charge idempotency.
+/// Whether a call of `operation` of `manifest` that may have reached its
+/// provider can be sent again unseen. Read access and state idempotency do
+/// not establish charge idempotency, and a read a process carries out rests
+/// on its author's promise that it only read, which runx can't see, so it
+/// isn't sent again unseen either.
 pub(crate) fn resends_safely(
+    manifest: &runx_contracts::connector::ConnectorManifest,
     operation: &runx_contracts::connector::ConnectorOperation,
     retry_unknown_outcomes: bool,
 ) -> bool {
@@ -459,8 +463,10 @@ pub(crate) fn resends_safely(
         // cannot cover an additional provider charge from that reservation.
         return operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced;
     }
-    operation.access() == OperationAccess::Read
-        || mutation_resends_safely(operation, retry_unknown_outcomes)
+    match operation.access() {
+        OperationAccess::Read => !run_by_a_process(manifest, operation),
+        OperationAccess::Mutate => mutation_resends_safely(operation, retry_unknown_outcomes),
+    }
 }
 
 /// An admitted operation step, carried from admission to sealing.
@@ -480,6 +486,8 @@ pub(crate) struct OperationAdmission {
     attempt: Option<AttemptPlan>,
     /// The package the call is made from.
     caller: Option<crate::identity::ChainLink>,
+    /// How a claimed call whose run stopped is taken further, when it is.
+    reconciliation: Option<crate::effects::Reconciliation>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -562,12 +570,27 @@ impl OperationAdmission {
 
     /// The key the provider sees, stable for the intent.
     fn provider_key(&self) -> Option<String> {
+        self.keyed_by(self.admitted.intent_digest().as_str())
+    }
+
+    /// The key the provider saw for the act: this call's, or the one an act
+    /// its key had already done was sent with.
+    fn act_provider_key(&self) -> Option<String> {
+        match &self.admitted.done {
+            Some(done) => self.keyed_by(&done.intent_digest),
+            None => self.provider_key(),
+        }
+    }
+
+    /// The provider's key for the intent `intent_digest`, when the provider
+    /// sees one.
+    fn keyed_by(&self, intent_digest: &str) -> Option<String> {
         (self.mutation()
             || self.admitted.operation().guarantees.provider_idempotency
                 == ProviderIdempotency::Enforced)
             .then(|| {
                 idempotency_key(
-                    self.admitted.intent_digest().as_str(),
+                    intent_digest,
                     self.admitted.operation().idempotency_key_format,
                 )
             })
@@ -577,7 +600,11 @@ impl OperationAdmission {
     /// again: the provider enforces the key, the operation sets a state, or
     /// the step lets recovery retry an unknown outcome.
     fn resend_safe(&self) -> bool {
-        resends_safely(self.admitted.operation(), self.retry_unknown_outcomes)
+        resends_safely(
+            &self.admitted.connector.manifest,
+            self.admitted.operation(),
+            self.retry_unknown_outcomes,
+        )
     }
 
     /// The implementation that runs: any kind locally; only declared
@@ -732,6 +759,7 @@ impl RuntimeEffect for OperationEffect {
                 cwd: request.workflow_dir,
             },
             clock: request.clock,
+            reconciliation: request.reconciliation,
         })
         .map_err(refused)?;
         let verb = admitted.operation().verb.authority_verb();
@@ -761,6 +789,7 @@ impl RuntimeEffect for OperationEffect {
             lanes,
             attempt: None,
             caller: request.chain.last().cloned(),
+            reconciliation: request.reconciliation,
         };
         let admitted = &context.admitted;
         let intent = admitted.intent();
@@ -849,7 +878,7 @@ impl RuntimeEffect for OperationEffect {
         let intent_digest = context.admitted.intent_digest().as_str();
         if field("finality") != Some(context.admitted.operation().finality())
             || field("plan_digest") != Some(intent_digest)
-            || field("idempotency_key").map(str::to_owned) != context.provider_key()
+            || field("idempotency_key").map(str::to_owned) != context.act_provider_key()
         {
             return Err(state("the packet does not match the admitted intent"));
         }
@@ -926,6 +955,10 @@ impl RuntimeEffect for OperationEffect {
         ))
         .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
+        // An act already done stays settled as it was.
+        if context.admitted.done.is_some() {
+            return Ok(None);
+        }
         Ok(Some(
             custody.settlement(
                 request.receipt.id.as_str().to_owned(),
@@ -1121,6 +1154,38 @@ pub(crate) fn execute(
         .term_id
         .as_str();
 
+    // A key means one intent (D34): an act its key finalized is done, and
+    // this call returns it, acting no further.
+    if let Some(done) = &context.admitted.done {
+        let readback = done
+            .readback
+            .clone()
+            .ok_or_else(|| engine("the act its key finalized holds no answer in custody"))?;
+        let produced = effects(context, &readback.result).map_err(unknown)?;
+        return finish(
+            context,
+            readback,
+            implementation_digest.as_deref(),
+            produced,
+            Some(done),
+        );
+    }
+    // Taken further with nobody asked, only what custody holds of the act
+    // settles it: an answer it read back, an acknowledgement to read back,
+    // or no attempt at all, since custody records each before anything is
+    // sent, so the act never reached its provider or its provider refused
+    // it. Anything else waits on its retry, and nothing is sent.
+    let settles = match (&context.admitted.custody, &context.admitted.pending) {
+        (_, Some(pending)) => pending.readback.is_some() || pending.acknowledgement.is_some(),
+        (Some(_), None) => true,
+        (None, None) => false,
+    };
+    if context.reconciliation == Some(crate::effects::Reconciliation::Evidence) && !settles {
+        return Err(unknown(
+            "nothing custody holds of the act settles it, so it waits on its retry".to_owned(),
+        ));
+    }
+
     if let Some(pending) = &context.admitted.pending
         && (pending.authority_term_id != authority_term_id
             || pending.mandate_ref != admitted.mandate_ref)
@@ -1180,6 +1245,7 @@ pub(crate) fn execute(
                 readback,
                 implementation_digest.as_deref(),
                 produced,
+                None,
             );
         }
         if pending.acknowledgement.is_none() && !context.resend_safe() {
@@ -1246,6 +1312,7 @@ pub(crate) fn execute(
                 readback,
                 implementation_digest.as_deref(),
                 produced,
+                None,
             )
             .map(|outcome| OperationOutcome {
                 credential,
@@ -2301,11 +2368,15 @@ fn record_attempt(
     ))
 }
 
+/// The call's outcome from what its provider answered. An act its key had
+/// already `done` says so, with the receipt that sealed it and the plan it
+/// was done with.
 fn finish(
     context: &OperationAdmission,
     readback: Readback,
     implementation_digest: Option<&str>,
     effects: Vec<Reference>,
+    done: Option<&super::custody::Done>,
 ) -> Result<OperationOutcome, RuntimeError> {
     let admitted = &context.admitted;
     let instance = &admitted.instance;
@@ -2334,6 +2405,10 @@ fn finish(
             },
         )
         .map_err(|reason| failed(context, reason))?;
+    packet.already_done = done.map(|done| runx_contracts::AlreadyDone {
+        receipt_id: done.receipt_id.clone(),
+        plan_digest: done.intent_digest.clone(),
+    });
     let ephemeral = packet::split_ephemeral(&mut packet, &context.shape.ephemeral)
         .map_err(|reason| failed(context, reason))?;
     let packet = runx_contracts::JsonValue::from_serialize(&packet)

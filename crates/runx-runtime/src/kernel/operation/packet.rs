@@ -172,6 +172,7 @@ impl Readback {
             operation_digest: Some(seal.operation_digest.to_owned()),
             implementation_digest: seal.implementation_digest.map(str::to_owned),
             cost: seal.cost.clone(),
+            already_done: None,
         })
     }
 }

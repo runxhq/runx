@@ -49,6 +49,19 @@ pub struct ProviderOperationPacket {
     /// What a priced call cost; absent when the operation declares no cost.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<crate::connector::CallCost>,
+    /// The act this call's key had already done, which the call returns,
+    /// acting no further: a key means one intent (D34).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub already_done: Option<AlreadyDone>,
+}
+
+/// An act a key had already done: the receipt that sealed it and the plan
+/// it was done with, which may not be the plan the later call carried.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AlreadyDone {
+    pub receipt_id: String,
+    pub plan_digest: String,
 }
 
 impl ProviderOperationPacket {

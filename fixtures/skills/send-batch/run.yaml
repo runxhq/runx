@@ -1,0 +1,19 @@
+minimum_runx: 0.12.0
+methods:
+  send:
+    inputs:
+      recipients:
+        type: array
+        items: {type: string}
+      body: {type: string}
+    steps:
+      - id: send
+        script: {module: send.mjs}
+        inputs:
+          recipients: $input.recipients
+          body: $input.body
+        calls:
+          operations: [fixture/mail/message.send]
+        max_calls: 20
+        outputs:
+          sent: {type: array}

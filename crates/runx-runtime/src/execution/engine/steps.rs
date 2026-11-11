@@ -513,24 +513,36 @@ impl WorkflowExecution {
             _ => None,
         };
         let mut answering = AnsweringHost::new(&mut *context.host, held);
-        // A step claimed before runs again only on the person's exact
-        // acknowledgement, which its new claim consumes.
+        // A step claimed before runs again on a person's `{"retry": true}`,
+        // on their word, which its new claim consumes, and `{"retry": false}`
+        // leaves it failed, its act as custody holds it.
+        let mut retried = false;
         if let Some((_, retry)) = self
             .claimed
             .take_if(|(step_id, _)| step_id == context.plan.step_id)
         {
-            let acknowledged = answering
+            match answering
                 .resolve(super::turn::resolution_request(&retry)?)?
-                .is_some_and(|response| response.payload == super::turn::retry_acknowledgement());
-            if !acknowledged {
-                return Err(RuntimeError::ContinuationRejected {
-                    reason: format!(
-                        "step {} runs again only on the acknowledgement {{\"retry\": true}}",
-                        context.plan.step_id
-                    ),
-                });
+                .and_then(|response| super::retry_answer(&response.payload))
+            {
+                Some(true) => retried = true,
+                Some(false) => {
+                    return Err(RuntimeError::StepFailed {
+                        step_id: context.plan.step_id.to_owned(),
+                        reason: crate::execution::run_record::RETRY_DECLINED.to_owned(),
+                    });
+                }
+                None => {
+                    return Err(RuntimeError::ContinuationRejected {
+                        reason: format!(
+                            "step {} is answered only with {{\"retry\": true}} or {{\"retry\": false}}",
+                            context.plan.step_id
+                        ),
+                    });
+                }
             }
         }
+        let reconciliation = retried.then_some(crate::effects::Reconciliation::Retried);
         // The floor decides before the claim, so a step waiting on the
         // person is held on its gate, never "may have run".
         let floor = self.floor(
@@ -589,6 +601,7 @@ impl WorkflowExecution {
                             loaded_skill,
                             admission_refs,
                             held_by_effects,
+                            reconciliation,
                         )
                     });
                     if crate::interrupt::caller_cancelled() {
@@ -604,6 +617,7 @@ impl WorkflowExecution {
                         loaded_skill,
                         admission_refs,
                         held_by_effects,
+                        reconciliation,
                     )
                 }
             }
@@ -691,6 +705,7 @@ impl WorkflowExecution {
         loaded_skill: Result<Option<LoadedStepSkill>, RuntimeError>,
         admission_refs: Vec<Reference>,
         held_by_effects: bool,
+        reconciliation: Option<crate::effects::Reconciliation>,
     ) -> Result<StepRun, RuntimeError>
     where
         A: SkillAdapter,
@@ -707,6 +722,7 @@ impl WorkflowExecution {
                 admission_refs,
                 held_by_effects,
                 host,
+                reconciliation,
             },
             &prior_run_index,
         )

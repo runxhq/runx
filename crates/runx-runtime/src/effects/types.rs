@@ -165,6 +165,24 @@ pub struct EffectStepRequest<'a> {
     pub(crate) chain: &'a [crate::identity::ChainLink],
     /// When the run observes the step: what its admission stamps.
     pub clock: &'a crate::RunClock,
+    /// How a claimed step whose run stopped is taken further, when it is.
+    pub(crate) reconciliation: Option<Reconciliation>,
+}
+
+/// How a claimed step that may have reached its provider is taken further
+/// after its run stopped, before anything is sent again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Reconciliation {
+    /// With nobody asked: only what custody holds of its act settles it, a
+    /// cached readback, an acknowledgement read back, an act already done
+    /// under its key, or no attempt of it at all, which never reached its
+    /// provider. Nothing that may have been sent is sent again, and anything
+    /// else leaves it waiting on its retry.
+    Evidence,
+    /// A person answered its retry `{"retry": true}`: what evidence settles
+    /// still does, and an act custody holds with none didn't take effect,
+    /// so it goes again under the same key.
+    Retried,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

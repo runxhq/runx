@@ -497,6 +497,18 @@ fn a_package_dependency_keeps_its_streams_standalone_and_through_two_wrappers() 
 
 /// The store result for `operation` anywhere in what a run printed: a
 /// wrapper's result holds its child's.
+/// The first value at `key` anywhere in `value`.
+fn find_key(value: &Value, key: &str) -> Option<Value> {
+    match value {
+        Value::Object(object) => object
+            .get(key)
+            .cloned()
+            .or_else(|| object.values().find_map(|child| find_key(child, key))),
+        Value::Array(items) => items.iter().find_map(|child| find_key(child, key)),
+        _ => None,
+    }
+}
+
 fn find_store_result(value: &Value, operation: &str) -> Option<Value> {
     match value {
         Value::Object(object) => {
@@ -1297,7 +1309,7 @@ fn the_same_act_through_two_wrappers_gets_one_provider_key() -> TestResult {
     let dependency = "registry:acme/once@1.0.0";
     project.skill("wrap-a", &wrapper(dependency))?;
     project.skill("wrap-b", &wrapper(dependency))?;
-    let bump = |wrapper: &str| -> TestResult<Value> {
+    let bump = |wrapper: &str| -> TestResult<(Value, Value)> {
         let ran = json(
             &project.run(
                 &format!("skills/{wrapper}#bump"),
@@ -1306,15 +1318,22 @@ fn the_same_act_through_two_wrappers_gets_one_provider_key() -> TestResult {
             )?,
             0,
         )?;
-        find_store_result(&ran, "events.append").ok_or_else(|| format!("{ran}").into())
+        let result = find_store_result(&ran, "events.append").ok_or_else(|| format!("{ran}"))?;
+        Ok((result, ran))
     };
-    let first = bump("wrap-a")?;
+    let (first, _) = bump("wrap-a")?;
     assert_eq!(first["status"], "committed", "{first}");
-    // Through the other wrapper the provider sees the first act's key, so it
-    // answers with that event rather than a conflict at version 0.
-    let second = bump("wrap-b")?;
-    assert_eq!(second["status"], "replayed", "{second}");
-    assert_eq!(second["event"], first["event"], "{second}");
+    // Through the other wrapper it's the same act under the same key, which
+    // the first finalized, so it's already done (D34): the call returns that
+    // event, sending nothing, and meets no conflict at version 0. Changed 11
+    // November: the provider was sent it again under the first's key, and
+    // answered replayed.
+    let (second, ran) = bump("wrap-b")?;
+    assert_eq!(second, first, "{second}");
+    assert!(
+        find_key(&ran, "already_done").is_some_and(|done| done["plan_digest"].is_string()),
+        "{ran}"
+    );
 
     let ran = json(
         &project.run("skills/wrap-a#read", &[("key", "k")], None)?,

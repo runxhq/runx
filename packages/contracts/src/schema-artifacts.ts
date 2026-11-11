@@ -1398,6 +1398,24 @@ export const runxSchemaArtifacts = {
         "title": "AllowedOperation",
         "type": "object"
       },
+      "AlreadyDone": {
+        "additionalProperties": false,
+        "description": "An act a key had already done: the receipt that sealed it and the plan it was done with, which may not be the plan the later call carried.",
+        "properties": {
+          "plan_digest": {
+            "type": "string"
+          },
+          "receipt_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "receipt_id",
+          "plan_digest"
+        ],
+        "title": "AlreadyDone",
+        "type": "object"
+      },
       "AmountBinding": {
         "additionalProperties": false,
         "properties": {
@@ -12893,6 +12911,10 @@ export const runxSchemaArtifacts = {
       },
       "account_id": {
         "type": "string"
+      },
+      "already_done": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/AlreadyDone",
+        "description": "The act this call's key had already done, which the call returns, acting no further: a key means one intent (D34)."
       },
       "cost": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallCost",

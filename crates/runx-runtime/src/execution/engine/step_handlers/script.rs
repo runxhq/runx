@@ -656,6 +656,7 @@ fn settled(outcome: &CallOutcome) -> bool {
             | CallOutcome::Refused(_)
             | CallOutcome::Declined(_)
             | CallOutcome::Failed(_)
+            | CallOutcome::RetryDeclined
             | CallOutcome::Cancelled
             | CallOutcome::Waited(_)
             | CallOutcome::Read(_)
@@ -737,6 +738,13 @@ where
         ),
         CallOutcome::Completed(run) => rejected(ScriptRejection::Failed, output_error(run)),
         CallOutcome::Failed(reason) => rejected(ScriptRejection::Failed, reason.clone()),
+        // A person left it failed: the script catches it by its code.
+        CallOutcome::RetryDeclined => ScriptCallOutcome::Rejected {
+            reason: ScriptRejection::Failed,
+            code: crate::execution::run_record::RETRY_DECLINED.to_owned(),
+            message: "a person answered its retry {\"retry\": false}, so it wasn't run again"
+                .to_owned(),
+        },
         CallOutcome::Refused(reason) => rejected(ScriptRejection::Refused, reason.clone()),
         CallOutcome::Declined(reason) => rejected(ScriptRejection::Declined, reason.clone()),
         CallOutcome::Cancelled => rejected(

@@ -406,6 +406,8 @@ struct Fixture {
     run_id: &'static str,
     provider: Provider,
     effect: OperationEffect,
+    /// How a claimed call is taken further, for a test of its recovery.
+    reconciliation: Option<crate::effects::Reconciliation>,
 }
 
 impl Fixture {
@@ -467,6 +469,7 @@ impl Fixture {
             run_id: "run-1",
             provider,
             effect,
+            reconciliation: None,
         };
         fixture.confirm_grant("grant_chat", connector, &scopes);
         fixture
@@ -583,6 +586,7 @@ impl Fixture {
                 held_by_effects,
                 chain,
                 clock: &crate::RunClock::System,
+                reconciliation: self.reconciliation,
             })
             .map(|admission| admission.expect("an operation step is owned by the effect"))
     }
@@ -620,6 +624,7 @@ impl Fixture {
                 cwd: self.root.path(),
             },
             clock: &crate::RunClock::System,
+            reconciliation: None,
         })
     }
 
@@ -2037,6 +2042,106 @@ fn a_definite_rejection_settles_and_the_next_attempt_starts_fresh() {
     assert_eq!(fixture.provider.calls(), 2);
 }
 
+/// Settle the act `admission` admitted as sealed by `receipt_id`, as the run
+/// record does when it records the call.
+fn finalize(admission: &EffectAdmission, receipt_id: &str) {
+    let custody = admission
+        .context::<OperationAdmission>()
+        .and_then(|context| context.admitted.custody.as_ref())
+        .expect("a write is in custody");
+    let appends = custody
+        .settlement(receipt_id.to_owned(), &[], None)
+        .appends(custody.store())
+        .unwrap();
+    custody.store().append(appends).unwrap();
+}
+
+/// A key means one intent (D34): an act its key finalized is done, and a
+/// later call under that key, the same or a revised one, returns it with the
+/// receipt that sealed it and the plan it was done with, sending nothing.
+#[test]
+fn a_finalized_act_is_already_done_under_its_key_and_sends_nothing() {
+    let fixture = Fixture::new(&["channel.post"]);
+    let (admission, outcome) = fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect("posts");
+    let plan = serde_json::to_value(&packet(&outcome)["plan_digest"]).unwrap();
+    assert_eq!(packet(&outcome).get("already_done"), None);
+    finalize(&admission, "receipt-1");
+    let sent = fixture.provider.calls();
+    let done = serde_json::json!({"receipt_id": "receipt-1", "plan_digest": plan});
+    for text in ["hi", "a revised hi"] {
+        let (_, again) = fixture
+            .run("post", &post(text), None)
+            .expect("returns what was done");
+        assert_eq!(
+            serde_json::to_value(&packet(&again)["already_done"]).unwrap(),
+            done,
+            "{text}"
+        );
+        assert_eq!(packet(&again)["result"], packet(&outcome)["result"]);
+    }
+    assert_eq!(fixture.provider.calls(), sent, "nothing is sent again");
+}
+
+/// A write whose outcome is unknown waits on its retry. Taken further with
+/// nobody asked, nothing custody holds settles it, so nothing is sent; a
+/// person's retry is their saying it didn't take effect, and it goes again
+/// under the same key.
+#[test]
+fn a_persons_retry_of_an_unknown_write_sends_it_again_under_its_key() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    fixture.provider.answer(Answer::TimeOut);
+    fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect_err("unknown");
+    fixture.provider.answer(Answer::Succeed);
+    fixture.reconciliation = Some(crate::effects::Reconciliation::Evidence);
+    let waits = fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect_err("nothing settles it");
+    assert!(waits.contains("waits on its retry"), "{waits}");
+    assert_eq!(fixture.provider.calls(), 1);
+    fixture.reconciliation = Some(crate::effects::Reconciliation::Retried);
+    let (_, outcome) = fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect("sent again");
+    let calls = serde_json::to_value(fixture.provider.calls.lock().unwrap().clone()).unwrap();
+    assert_eq!(calls.as_array().map(Vec::len), Some(2));
+    assert_eq!(
+        calls[0]["input"]["idempotency_key"], calls[1]["input"]["idempotency_key"],
+        "the same key"
+    );
+    assert_eq!(packet(&outcome).get("already_done"), None);
+}
+
+/// A person's retry of a priced read whose answer never arrived keeps what
+/// the earlier attempt spent, and the new attempt counts under the limit.
+#[test]
+fn a_persons_retry_of_a_priced_read_keeps_its_earlier_spend() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    price_advisories_per(&fixture, 5_000, "success");
+    let authority = limited(10_000);
+    fixture.provider.answer(Answer::TimeOut);
+    fixture
+        .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+        .expect_err("unknown");
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    fixture.provider.answer(Answer::Succeed);
+    fixture.reconciliation = Some(crate::effects::Reconciliation::Retried);
+    fixture
+        .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+        .expect("read again");
+    assert_eq!(fixture.provider.calls(), 2);
+    // Both attempts spent: nothing priced is left under the limit.
+    fixture.reconciliation = None;
+    assert!(
+        fixture
+            .admit_as("advisories", &advisories("ADV-2"), Some(&authority))
+            .is_err()
+    );
+}
+
 #[test]
 fn the_approval_carries_what_executes_bound_by_its_digest() {
     let fixture = Fixture::new(&["channel.post"]);
@@ -2551,6 +2656,7 @@ methods:
                 held_by_effects: false,
                 chain: &[],
                 clock: &crate::RunClock::System,
+                reconciliation: None,
             })
             .unwrap()
             .unwrap();
@@ -3039,6 +3145,9 @@ fn an_artifact_read_back_for_another_principal_settles_failed_and_names_it() {
     assert!(!error.contains("unknown"), "{error}");
 }
 
+/// A read runx carries out, or a write its provider deduplicates or that
+/// sets a state, can be sent again unseen. A read a process carries out
+/// can't, nor a priced call its provider doesn't deduplicate.
 #[test]
 fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
     let manifest: runx_contracts::connector::ConnectorManifest =
@@ -3048,7 +3157,10 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
             "title": "Notes",
             "description": "Write and read notes.",
             "auth": {"delegated": {"principal": {"url": "https://notes.example/api/me", "id": "id", "login": "login"}}},
-            "placements": {"hosted": {"auth": "delegated"}},
+            "placements": {
+                "hosted": {"auth": "delegated"},
+                "local": {"auth": ["none"]}
+            },
             "operations": {
                 "note.read": {
                     "description": "Read a note.",
@@ -3056,6 +3168,13 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
                     "scopes": ["note.read"],
                     "target": {"template": {"$argument": "/note"}},
                     "provider_scopes": ["notes:read"]
+                },
+                "note.shell": {
+                    "description": "Read a note through a process.",
+                    "verb": "read",
+                    "scopes": ["note.read"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "implementation": {"process": {"tool": "notes.read"}}
                 },
                 "note.post": {
                     "description": "Post a note.",
@@ -3102,26 +3221,37 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
         declared
     };
 
+    let resends = |operation: &runx_contracts::connector::ConnectorOperation, tolerated| {
+        resends_safely(&manifest, operation, tolerated)
+    };
     // With no declared charge, the verb and its guarantees decide, and a
     // zero quote changes nothing.
-    assert!(resends_safely(&operation("note.read"), false));
-    assert!(resends_safely(&with_cost("note.read", 0), false));
+    assert!(resends(&operation("note.read"), false));
+    assert!(resends(&with_cost("note.read", 0), false));
     let mut state_idempotent = operation("note.put");
     state_idempotent.guarantees.provider_idempotency = ProviderIdempotency::Inherent;
-    assert!(resends_safely(&state_idempotent, false));
-    assert!(resends_safely(&operation("note.put"), false));
-    assert!(!resends_safely(&operation("note.post"), false));
-    assert!(resends_safely(&operation("note.post"), true));
-    assert!(resends_safely(&with_cost("note.post", 0), true));
+    assert!(resends(&state_idempotent, false));
+    assert!(resends(&operation("note.put"), false));
+    assert!(!resends(&operation("note.post"), false));
+    assert!(resends(&operation("note.post"), true));
+    assert!(resends(&with_cost("note.post", 0), true));
+
+    // A read a process carries out rests on its author's promise, so it
+    // isn't sent again unseen, as nothing tolerates for a read.
+    assert!(!resends(&operation("note.shell"), false));
+    assert!(!resends(&operation("note.shell"), true));
 
     // A declared charge can land unseen, so only provider deduplication of
     // the whole call covers a resend. Read access, state idempotency and
     // tolerated duplicates all fail to.
-    assert!(!resends_safely(&with_cost("note.read", 5_000), false));
+    assert!(!resends(&with_cost("note.read", 5_000), false));
+    let mut deduplicated_read = with_cost("note.read", 5_000);
+    deduplicated_read.guarantees.provider_idempotency = ProviderIdempotency::Enforced;
+    assert!(resends(&deduplicated_read, false));
     state_idempotent.cost = priced(5_000);
-    assert!(!resends_safely(&state_idempotent, false));
-    assert!(!resends_safely(&with_cost("note.post", 5_000), true));
-    assert!(resends_safely(&with_cost("note.put", 5_000), false));
+    assert!(!resends(&state_idempotent, false));
+    assert!(!resends(&with_cost("note.post", 5_000), true));
+    assert!(resends(&with_cost("note.put", 5_000), false));
 }
 
 /// A safe read reruns by itself after a crash (D33): a read that costs
@@ -3461,6 +3591,7 @@ impl Fixture {
             run_id: "run-1",
             provider,
             effect,
+            reconciliation: None,
         };
         let connector = crate::kernel::connectors::ConnectorScope::at(fixture.root.path())
             .unwrap()

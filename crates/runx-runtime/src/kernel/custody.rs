@@ -180,14 +180,26 @@ pub(crate) enum CustodyError {
     Spend(#[from] super::spend::SpendError),
 }
 
-/// The act's custody as last recorded: its unsettled attempt, if any, the
-/// stream version the attempt's sequence opened from, or the next one opens
-/// from, and the version this read saw.
+/// The act's custody as last recorded: its unsettled attempt, if any, how
+/// its last sequence finalized it, when it did, the stream version the
+/// attempt's sequence opened from, or the next one opens from, and the
+/// version this read saw.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Custody {
     pub pending: Option<Pending>,
+    pub done: Option<Done>,
     pub sequence: u64,
     pub head: u64,
+}
+
+/// An act its last sequence finalized: the receipt that sealed it, the
+/// intent it was done with, and what its provider answered, which a call of
+/// it under the same key returns without acting again (D34).
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Done {
+    pub receipt_id: String,
+    pub intent_digest: String,
+    pub readback: Option<Readback>,
 }
 
 /// The custody stream of one act.
@@ -259,9 +271,14 @@ impl EffectCustody {
             )
         });
         if settled {
-            let head = latest.map_or(0, |last| last.version);
+            let head = latest.as_ref().map_or(0, |last| last.version);
+            let done = match latest.map(|last| last.event) {
+                Some(EffectEvent::Finalized { receipt_id }) => Some(self.done(receipt_id)?),
+                _ => None,
+            };
             return Ok(Custody {
                 pending: None,
+                done,
                 sequence: head,
                 head,
             });
@@ -322,8 +339,41 @@ impl EffectCustody {
         }
         Ok(Custody {
             pending,
+            done: None,
             sequence,
             head,
+        })
+    }
+
+    /// How the act's last sequence, which `receipt_id` finalized, did it:
+    /// the intent its last attempt carried and the answer it read back.
+    fn done(&self, receipt_id: String) -> Result<Done, CustodyError> {
+        let mut intent_digest = String::new();
+        let mut readback = None;
+        // Whether the events read so far ended a sequence, so the next
+        // attempt opens another that owes nothing to it.
+        let mut between = false;
+        for recorded in self.store.read::<EffectEvent>(&self.key)? {
+            match recorded.event {
+                EffectEvent::Attempted {
+                    intent_digest: attempted,
+                    ..
+                } => {
+                    if between {
+                        readback = None;
+                        between = false;
+                    }
+                    intent_digest = attempted;
+                }
+                EffectEvent::ReadBack { readback: answer } => readback = Some(answer),
+                EffectEvent::Rejected { .. } | EffectEvent::Finalized { .. } => between = true,
+                EffectEvent::Acknowledged { .. } | EffectEvent::Unknown { .. } => {}
+            }
+        }
+        Ok(Done {
+            receipt_id,
+            intent_digest,
+            readback,
         })
     }
 

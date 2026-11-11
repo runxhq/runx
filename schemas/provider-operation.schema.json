@@ -10,6 +10,10 @@
     "account_id": {
       "type": "string"
     },
+    "already_done": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/AlreadyDone",
+      "description": "The act this call's key had already done, which the call returns, acting no further: a key means one intent (D34)."
+    },
     "cost": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallCost",
       "description": "What a priced call cost; absent when the operation declares no cost."

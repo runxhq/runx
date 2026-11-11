@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{JsonObject, JsonValue};
 
-use super::{core_capabilities, definition, resends_safely};
+use super::{core_capabilities, definition, resends_safely, safe_read};
 use crate::credentials::CredentialDelivery;
 use crate::effects::RuntimeEffectRegistry;
 
@@ -282,6 +282,20 @@ fn a_read_or_a_journaled_change_can_run_again_and_a_process_cannot() {
         assert!(
             !resends_safely(unsafe_tool),
             "{unsafe_tool} is not resent unseen"
+        );
+    }
+    // Only what runs in runx's own process runs again unseen, and only a
+    // read of that reruns with nobody asked (D33): a process's read rests on
+    // its author's promise that it only read.
+    for capability in core_capabilities() {
+        let tool = capability.definition().id;
+        let in_process = capability.execution_boundary()
+            == runx_contracts::ExecutionBoundaryKind::NativeCapability;
+        assert_eq!(resends_safely(tool), in_process, "{tool}");
+        assert_eq!(
+            safe_read(tool),
+            in_process && !capability.definition().effect.mutating(),
+            "{tool}"
         );
     }
 }

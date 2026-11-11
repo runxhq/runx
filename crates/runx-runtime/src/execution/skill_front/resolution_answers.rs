@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    JsonObject, JsonValue, PurchaseMethod, ResolutionRequest, ResumeDocument, RetryResend,
-    StandingApproval,
+    JsonObject, JsonValue, PurchaseMethod, ResolutionRequest, ResumeDocument, StandingApproval,
 };
 
 use super::{SkillRunError, invalid};
@@ -325,15 +324,15 @@ fn check_lane(
         } if *retry_after_seconds > 0 => Err(invalid(format!(
             "runx runs {address} again itself {retry_after_seconds} seconds after it paused; resume with no entries then"
         ))),
-        ResolutionRequest::Retry {
-            resend: RetryResend::Unsafe,
-            ..
-        } => Err(invalid(format!(
-            "{address} cannot be sent again safely; check what it did, then close the run"
-        ))),
-        ResolutionRequest::Retry { .. } if entry.value != retry_acknowledgement() => Err(invalid(
-            format!("{address} is acknowledged only with value {{\"retry\": true}}"),
-        )),
+        // A person answers a call's wait once nothing its act's evidence
+        // holds settles it: run it again, or leave it failed.
+        ResolutionRequest::Retry { .. }
+            if crate::execution::engine::retry_answer(&entry.value).is_none() =>
+        {
+            Err(invalid(format!(
+                "{address} is answered with value {{\"retry\": true}} to run it again or {{\"retry\": false}} to leave it failed"
+            )))
+        }
         // A purchase is declined, or approved with one of the methods the
         // person was shown (N10).
         ResolutionRequest::Purchase { purchase, .. } => {
@@ -367,13 +366,6 @@ fn check_lane(
         }
         _ => Ok(()),
     }
-}
-
-fn retry_acknowledgement() -> JsonValue {
-    JsonValue::Object(JsonObject::from([(
-        "retry".to_owned(),
-        JsonValue::Bool(true),
-    )]))
 }
 
 #[cfg(test)]
@@ -526,24 +518,24 @@ mod tests {
         assert!(refused(person.clone(), input("ask")).is_err());
         assert!(refused(person.clone(), approval("ask")).is_err());
         assert!(refused(person.clone(), retry("ask", 0, RetryResend::Safe)).is_ok());
-        let unsafe_resend = refused(person.clone(), retry("ask", 0, RetryResend::Unsafe))
-            .err()
-            .ok_or("an unsafe resend is refused")?;
-        assert!(
-            unsafe_resend.contains("cannot be sent again safely"),
-            "{unsafe_resend}"
-        );
+        // A call that can't be sent again unseen still waits on the person,
+        // who runs it again or leaves it failed (ruled 11 November).
+        let declined = serde_json::json!({"approvals": {"ask": {"request_digest": "sha256:a", "value": {"retry": false}}}});
+        for resend in [RetryResend::Safe, RetryResend::Unsafe] {
+            assert!(refused(person.clone(), retry("ask", 0, resend)).is_ok());
+            assert!(refused(declined.clone(), retry("ask", 0, resend)).is_ok());
+        }
         let bounded = refused(person, retry("ask", 300, RetryResend::Safe))
             .err()
             .ok_or("a bounded retry is runx's own")?;
         assert!(bounded.contains("again itself"), "{bounded}");
-        assert!(
-            refused(
-                serde_json::json!({"approvals": {"ask": {"request_digest": "sha256:a", "value": {"retry": false}}}}),
-                retry("ask", 0, RetryResend::Safe)
-            )
-            .is_err()
-        );
+        let unanswered = refused(
+            serde_json::json!({"approvals": {"ask": {"request_digest": "sha256:a", "value": {"retry": "yes"}}}}),
+            retry("ask", 0, RetryResend::Unsafe),
+        )
+        .err()
+        .ok_or("a retry takes true or false")?;
+        assert!(unanswered.contains("{\"retry\": false}"), "{unanswered}");
         assert!(
             answers(serde_json::json!({"approvals": {"ask": {"request_digest": "sha256:a"}}}))
                 .is_err(),
