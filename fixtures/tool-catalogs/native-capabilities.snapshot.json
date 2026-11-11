@@ -60,7 +60,7 @@
         "output": "cli_help",
         "packet": "runx.cli.help.v1"
       },
-      "execution_boundary": "native_capability"
+      "execution_boundary": "trusted_host_process"
     },
     {
       "id": "command.execute",
