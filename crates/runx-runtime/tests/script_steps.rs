@@ -2815,6 +2815,34 @@ fn a_file_read_this_runs_reach_refuses_is_not_allowed() -> TestResult {
     Ok(())
 }
 
+/// A source's reads are checked under the authority its child would hold:
+/// this run's, narrowed by the step that calls it. A script step narrowed to
+/// `reach: workspace` can't reuse a secret file a source read when its step
+/// wasn't narrowed (reuse.md, check 2).
+#[test]
+fn a_read_the_calling_steps_reach_refuses_is_not_allowed() -> TestResult {
+    use runx_contracts::RecomputeReason::{NoCandidate, NotAllowed};
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join(".env"), "TOKEN=kept\n")?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("secret-child"),
+        "---\nname: secret-child\ndescription: Reads a file.\n---\n# Child\n\nRead it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {path: .env}\n",
+    )?;
+    let skill_dir = write_reusing_parent(temp.path(), "secret-child")?;
+    let ran = run_managed(temp.path(), skill_dir.clone())?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NoCandidate));
+    let run_yaml = skill_dir.join("run.yaml");
+    let narrowed = std::fs::read_to_string(&run_yaml)?.replace(
+        "        script: {module: prepare.mjs}\n",
+        "        script: {module: prepare.mjs}\n        reach: workspace\n",
+    );
+    std::fs::write(&run_yaml, narrowed)?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NotAllowed));
+    Ok(())
+}
+
 /// A source whose root no longer exists isn't refused: authority didn't
 /// change, what it read did, so it recomputes as changed (reuse.md, checks
 /// 2 and 3).

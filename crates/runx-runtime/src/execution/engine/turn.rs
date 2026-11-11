@@ -1383,14 +1383,20 @@ where
     }
 
     /// Whether the child `skill` that `call` starts may make again, under
-    /// this run's authority and the chain the child would run under, every
-    /// read its source `source_run_id` made (reuse.md, check 2): each
-    /// operation read as admission authorizes it, with nothing charged or
-    /// counted, and each file read within the reach it had. Anything that
-    /// can't be established, a read that can't be rebuilt included, isn't
-    /// allowed. Nothing is read, so a hit or a miss can't say what changed.
+    /// the authority and the chain the child would run under, every read its
+    /// source `source_run_id` made (reuse.md, check 2): each operation read
+    /// as admission authorizes it, with nothing charged or counted, and each
+    /// file read within the reach its step would have. Anything that can't be
+    /// established, a read that can't be rebuilt included, isn't allowed.
+    /// Nothing is read, so a hit or a miss can't say what changed.
     fn reads_allowed(&self, call: &CallStep, skill: &LoadedStepSkill, source_run_id: &str) -> bool {
         let options = &self.scope.runtime.options;
+        // What the child would hold: this run's authority, narrowed by the
+        // step that calls it and then by its method, as a child run is.
+        let authority = crate::RunAuthority::of_method(
+            crate::RunAuthority::of_step(options.run_authority.clone(), &call.step),
+            &skill.method.workflow,
+        );
         let Ok(chain) = super::step_handlers::child_chain_at(
             options,
             self.scope.workflow_dir,
@@ -1407,28 +1413,25 @@ where
         ) else {
             return false;
         };
-        reads.files_allowed(
-            options.run_authority.as_ref(),
-            &options.env,
-            &skill.directory,
-        ) && reads.operations.iter().all(|step| {
-            options
-                .effects
-                .authorize(crate::effects::EffectStepRequest {
-                    step,
-                    target: crate::effects::ResolvedEffectTarget::default(),
-                    inputs: &step.inputs,
-                    env: &options.env,
-                    workflow_dir: &skill.directory,
-                    run_id: options.run.run_id(),
-                    run_authority: options.run_authority.as_ref(),
-                    held_by_effects: false,
-                    chain: &chain,
-                    clock: &options.clock,
-                    reconciliation: None,
-                })
-                .is_ok()
-        })
+        reads.files_allowed(authority.as_ref(), &options.env, &skill.directory)
+            && reads.operations.iter().all(|step| {
+                options
+                    .effects
+                    .authorize(crate::effects::EffectStepRequest {
+                        step,
+                        target: crate::effects::ResolvedEffectTarget::default(),
+                        inputs: &step.inputs,
+                        env: &options.env,
+                        workflow_dir: &skill.directory,
+                        run_id: options.run.run_id(),
+                        run_authority: authority.as_ref(),
+                        held_by_effects: false,
+                        chain: &chain,
+                        clock: &options.clock,
+                        reconciliation: None,
+                    })
+                    .is_ok()
+            })
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is

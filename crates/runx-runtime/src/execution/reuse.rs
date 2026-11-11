@@ -132,8 +132,8 @@ pub(crate) struct Reads {
     files: Vec<FileRead>,
 }
 
-/// A tool's read of the workspace's files: how its method and step narrow
-/// a run's reach, the tool, and the input it was given.
+/// A tool's read of the workspace's files: how its step narrows its run's
+/// reach, the tool, and the input it was given.
 struct FileRead {
     narrowing: Option<runx_contracts::Reach>,
     tool: String,
@@ -142,8 +142,9 @@ struct FileRead {
 
 impl Reads {
     /// Whether each tool that read files would be let read under what it was
-    /// given again, within the reach its step has under `authority`, by the
-    /// check the tool itself makes before it reads.
+    /// given again, within the reach its step has under `authority`, the
+    /// authority its run would hold, by the check the tool itself makes
+    /// before it reads.
     pub(crate) fn files_allowed(
         &self,
         authority: Option<&crate::RunAuthority>,
@@ -267,10 +268,6 @@ pub(crate) fn reads(
         .map(|(position, run)| (run.step_id.clone(), position))
         .collect::<BTreeMap<_, _>>();
     let prior = super::workflow_index::PriorRunIndex::from_positions(&runs, &positions);
-    let narrowing = |step: &runx_parser::WorkflowStep| match (bound.reach, step.reach) {
-        (Some(method), Some(step)) => Some(method.min(step)),
-        (method, step) => method.or(step),
-    };
     let reads_files =
         |tool: &str| crate::tool_catalogs::native::workspace_lock_mode(tool).is_some();
     let mut reads = Reads {
@@ -299,7 +296,7 @@ pub(crate) fn reads(
             StepKind::Tool(ToolTarget::Catalog(tool)) => {
                 if reads_files(tool) {
                     reads.files.push(FileRead {
-                        narrowing: narrowing(defined),
+                        narrowing: defined.reach,
                         tool: tool.clone(),
                         input: super::workflow::materialize_step_invocation_inputs_with_index(
                             defined, &prior,
@@ -347,7 +344,7 @@ pub(crate) fn reads(
                 }
                 runx_contracts::CallTarget::Tool { tool } if reads_files(tool.as_str()) => {
                     reads.files.push(FileRead {
-                        narrowing: narrowing(defined),
+                        narrowing: defined.reach,
                         tool: tool.as_str().to_owned(),
                         input: call.input.clone(),
                     });
