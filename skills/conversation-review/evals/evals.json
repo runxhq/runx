@@ -12,6 +12,19 @@
       "prompt": "Review each of these grounded conversations and prepare the next response for each.",
       "expected_output": "Return one outcome per conversation in the order given: its unsent review packet, or its failure with the reason, with no conversation dropped and nothing sent.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Continue from the already hydrated email thread.",
+      "expected_output": "Reuse the exact source binding and decide the reply without rereading the mailbox.",
+      "files": [
+        "evals/files/call-request-thread.json"
+      ],
+      "expectations": [
+        "Do not read the provider thread again.",
+        "Do not create a coding change set for ordinary correspondence."
+      ],
+      "method": "review"
     }
   ]
 }

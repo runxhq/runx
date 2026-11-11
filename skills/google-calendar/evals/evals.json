@@ -24,6 +24,30 @@
       "prompt": "Read the next day of events on my selected Google Calendar.",
       "expected_output": "Read exact selected calendar once and return bounded evidence with provider readback and complete coverage.",
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Use the calendar pages already collected for the quarter to plan against complete coverage.",
+      "expected_output": "Validate the cursor chain and combine all instances without another Google call.",
+      "files": [
+        "evals/files/quarter-calendar-pages.json"
+      ],
+      "expectations": [
+        "Do not query Google again."
+      ],
+      "method": "combine-pages"
+    },
+    {
+      "id": 6,
+      "prompt": "Reuse already read Google Calendar evidence for the assistant without another provider call.",
+      "expected_output": "A bounded context packet preserves cancellation and removes private titles; it does not claim fresh provider readback.",
+      "files": [
+        "evals/files/october-4-calendar-read.json"
+      ],
+      "expectations": [
+        "Do not call Google Calendar again."
+      ],
+      "method": "normalize-supplied"
     }
   ]
 }

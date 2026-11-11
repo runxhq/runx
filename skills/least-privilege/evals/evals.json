@@ -6,6 +6,19 @@
       "prompt": "Review the grant without treating replayed authority labels as native proof.",
       "expected_output": "Retain the grant and request verified attributable evidence; unrecorded scopes are not proved removable.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/replayed-authority-evidence.json"
+      ],
+      "method": "audit",
+      "prompt": "Review this grant using the cited receipt projections.",
+      "expected_output": "Reuse the supplied projections without replaying provider operations or claiming successful native verification. Replayed scope labels cannot establish native verification or justify grant attenuation.",
+      "expectations": [
+        "Do not replay the operations that exercised authority.",
+        "Do not infer scope use not present in verified receipts."
+      ]
     }
   ]
 }

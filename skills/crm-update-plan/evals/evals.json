@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Reconcile the transcript and CRM record already captured.",
-      "expected_output": "One reviewable proposal for acct-globex, account_status changed to reflect the stalled rollout and the renewal at risk, and next_action set to sending the Q3 usage report by Friday, each change traced to its quote in the transcript, with nothing written.",
+      "prompt": "Reconcile the transcript and selected record snapshot already captured upstream.",
+      "expected_output": "Return one reviewable proposal without reading the CRM again or writing any field.",
       "files": [
         "evals/files/globex-call-and-record.json"
       ],
       "expectations": [
-        "It does not fetch or look up the CRM record again.",
-        "It applies no write."
+        "Do not fetch or rediscover records.",
+        "Do not apply any write or repeat an earlier write."
       ],
       "method": "reconcile"
     }

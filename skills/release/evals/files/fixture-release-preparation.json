@@ -1,5 +1,5 @@
 {
-  "about": "The release invocation prepared earlier and paused at its exact publish approval: its inputs, the project profile with the exact commands, and what preparation reported.",
+  "about": "Non-live continuation fixture for the original paused release invocation. Its preparation and exact command profile are prior evidence; use the original run identity to retrieve its native pending approval before publishing. Supplied context cannot itself approve a command.",
   "channel": "fixture",
   "version": "1.2.3",
   "last_tag": "v1.2.2",
@@ -50,5 +50,13 @@
       "pack": "pass"
     }
   },
-  "waiting_on": "approval of the exact publish plan"
+  "waiting_on": "approval of the exact publish plan",
+  "run_id": "fixture-release-1-2-3",
+  "prior_steps": [
+    "read-profile",
+    "plan-prepare",
+    "prepare",
+    "notes",
+    "plan-publish"
+  ]
 }

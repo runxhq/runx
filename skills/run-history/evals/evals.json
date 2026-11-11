@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Analyze the run and catalog projections you are given for follow-up.",
-      "expected_output": "A report from the given projections: two release runs, one completed and one blocked, and the untested package with no test cases, with the follow-up each needs and no metric invented.",
+      "prompt": "Analyze these existing run and catalog projections for operator follow-up.",
+      "expected_output": "Reuse supplied native projections without rereading run records or inventing metrics.",
       "files": [
         "evals/files/release-runs-and-catalog.json"
       ],
       "expectations": [
-        "It does not list runs again.",
-        "It does not inspect catalog entries the projection already holds."
+        "Do not list runs again when replay projections are supplied.",
+        "Do not inspect catalog entries already included in the projection."
       ],
       "method": "report"
     }

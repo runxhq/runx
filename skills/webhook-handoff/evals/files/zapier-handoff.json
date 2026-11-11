@@ -1,0 +1,12 @@
+{
+  "about": "A completed Runx operation ready to hand off to a Zapier hook: its execution context, payload and event id.",
+  "platform": "zapier",
+  "event_id": "evt_zapier_demo_001",
+  "execution_context": {
+    "caller": "runx-cli",
+    "workflow": "operator-zap-demo"
+  },
+  "payload": {
+    "hello": "zap"
+  }
+}

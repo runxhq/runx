@@ -1,0 +1,11 @@
+{
+  "about": "The final reply text a completed support decision produced, the exact Slack thread it answers, and the principal it is sent as.",
+  "principal": "user:kam",
+  "thread_locator": "slack://T123ABC/C123ABC/1750000000.000001",
+  "text": "I’ll verify this now.",
+  "provider_context": {
+    "connector": "runx-connect",
+    "workspace": "T123ABC"
+  },
+  "operator_context": "Reply only in the supplied thread and require approval before delivery."
+}

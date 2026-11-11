@@ -24,6 +24,44 @@
       "prompt": "Find release signals mentioning this teammate in the selected operations channel.",
       "expected_output": "Read one bounded exact channel/member query, preserving provider evidence and no send authority.",
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Continue a release-readiness review with the Slack evidence it needs.",
+      "expected_output": "Run one bounded search for the review's exact keywords and hand back the provider evidence for the reviewer to judge.",
+      "files": [
+        "evals/files/release-search-expression.json"
+      ],
+      "expectations": [
+        "Do not search again for a page already read.",
+        "Do not post or reply from a search."
+      ],
+      "method": "search"
+    },
+    {
+      "id": 6,
+      "prompt": "Let the local source scan the selected channel for this teammate without changing the query policy.",
+      "expected_output": "Use the same exact query port and return native conversation-page evidence without posting.",
+      "files": [
+        "evals/files/channel-scan-selectors.json"
+      ],
+      "expectations": [
+        "Do not hydrate unrelated threads or search a previously consumed page."
+      ],
+      "method": "assistant_scan"
+    },
+    {
+      "id": 7,
+      "prompt": "Continue a release-readiness review with the Slack evidence it needs.",
+      "expected_output": "Run one bounded search for the review's exact keywords and hand back the provider evidence for the reviewer to judge.",
+      "files": [
+        "evals/files/release-readiness-keywords.json"
+      ],
+      "expectations": [
+        "Do not search again for a page already read.",
+        "Do not post or reply from a search."
+      ],
+      "method": "search"
     }
   ]
 }

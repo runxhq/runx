@@ -1,0 +1,26 @@
+{
+  "about": "The source-labelled fragments the incident operator already captured for the checkout incident.",
+  "incident_id": "inc-checkout-2026-08-09",
+  "incident_fragments": [
+    {
+      "id": "frag-1",
+      "source": "pagerduty",
+      "text": "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
+    },
+    {
+      "id": "frag-2",
+      "source": "deploy-log",
+      "text": "03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api."
+    },
+    {
+      "id": "frag-3",
+      "source": "slack-incident",
+      "text": "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
+    },
+    {
+      "id": "frag-4",
+      "source": "incident-investigation",
+      "text": "04:20 UTC investigation confirmed the pool maximum was reduced to one connection while 100 workers were active; saturation caused checkout timeouts. platform-oncall owns pool saturation alerting."
+    }
+  ]
+}

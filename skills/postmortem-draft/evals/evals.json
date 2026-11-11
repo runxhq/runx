@@ -6,6 +6,19 @@
       "prompt": "Produce the postmortem for this resolved incident from the collected fragments.",
       "expected_output": "Return a readable source-cited document, a complete known-cause draft and an unexecuted publish proposal; quote checks do not independently prove causality.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Draft from the incident evidence already captured upstream.",
+      "expected_output": "Reuse the exact collected incident fragments without another source scan or any message delivery.",
+      "files": [
+        "evals/files/checkout-incident-fragments.json"
+      ],
+      "expectations": [
+        "Do not fetch logs or incident messages again.",
+        "Do not publish or deliver the report."
+      ],
+      "method": "make"
     }
   ]
 }

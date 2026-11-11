@@ -6,6 +6,17 @@
       "prompt": "Judge this erasure request against policy and record the verdict durably before any downstream action.",
       "expected_output": "Return a sealed eligibility verdict appended to the subject request stream, with no erasure performed.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/recorded-erasure-verdict.json"
+      ],
+      "prompt": "Continue from this recorded verdict into the downstream erasure operator.",
+      "expected_output": "Reuse the sealed verdict and bounded handoff without re-judging the request.",
+      "expectations": [
+        "Do not re-derive the eligibility decision already recorded."
+      ]
     }
   ]
 }

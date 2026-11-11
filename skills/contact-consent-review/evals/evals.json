@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Continue from the contact engagement and consent evidence you are given, without collecting it again.",
-      "expected_output": "It judges the contact decayed under the given policy, 121 days past its 90-day threshold, and reaches the store append of a re-permission transition with the given key, version and idempotency key, refused at admission under no effects, sending nothing.",
+      "prompt": "Continue from the supplied contact engagement and consent evidence without collecting it again.",
+      "expected_output": "Reuse the supplied evidence, record any justified transition once, and leave delivery to the operator-selected mail capability.",
       "files": [
         "evals/files/decayed-contact-evidence.json"
       ],
       "expectations": [
-        "It does not collect engagement evidence again.",
-        "It sends no message."
+        "Do not collect engagement evidence again.",
+        "Do not send a message."
       ],
       "method": "judge"
     }

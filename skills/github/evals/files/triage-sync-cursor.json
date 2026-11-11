@@ -1,0 +1,48 @@
+{
+  "about": "The synchronization cursor and prior sync evidence for open triage issues in runxhq/runx: the store key it lives under, its version, and the idempotency key its next append uses.",
+  "key": "runxhq/runx:triage-open",
+  "expected_version": 1,
+  "idempotency_key": "runxhq/runx:triage-open:pull:v2",
+  "repo": "runxhq/runx",
+  "direction": "pull",
+  "resources": {
+    "kind": "issues",
+    "filters": {
+      "state": "open",
+      "labels": [
+        "triage"
+      ],
+      "limit": 25,
+      "page": 2
+    }
+  },
+  "scope": "read",
+  "prior_cursor": {
+    "key": "runxhq/runx:triage-open",
+    "version": 1,
+    "repo": "runxhq/runx",
+    "direction": "pull",
+    "last_completed_page": 1,
+    "next_page": 2
+  },
+  "prior_provider_evidence": [
+    {
+      "repo": "runxhq/runx",
+      "query": {
+        "state": "open",
+        "labels": [
+          "triage"
+        ],
+        "limit": 25,
+        "page": 1
+      },
+      "complete": false,
+      "items": [
+        {
+          "number": 241,
+          "title": "Sourcey output path is unclear"
+        }
+      ]
+    }
+  ]
+}

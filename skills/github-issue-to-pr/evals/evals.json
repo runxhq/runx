@@ -9,28 +9,27 @@
     },
     {
       "id": 2,
-      "prompt": "Continue issue 442 from the issue evidence and completed host work you are given, up to the pull request boundary.",
-      "expected_output": "It resumes from the given issue evidence and host result, rechecks the candidate the host result names, and holds at the pull request boundary with the scafld finalization, opening nothing and repeating no read, edit, test or finalize.",
+      "prompt": "Continue issue 442 from this prior issue evidence and completed host result to the PR boundary.",
+      "expected_output": "Reuse repository preflight, issue evidence, tested change, and finalization evidence without repeating reads, edits, tests, or finalize.",
       "files": [
         "evals/files/issue-442-finalized-work.json"
       ],
       "expectations": [
-        "It does not fetch issue 442 from GitHub again.",
-        "It does not repeat the host edits or tests.",
-        "It does not call finalize again."
+        "Do not fetch the GitHub issue again.",
+        "Do not repeat host edits or tests.",
+        "Do not call finalize again."
       ],
       "method": "resume"
     },
     {
       "id": 3,
-      "prompt": "Return this already tested ordinary fix locally, without creating a scafld task.",
-      "expected_output": "It verifies the actual checkout candidate the host result names, keeps the checks the host reported, and returns the fix locally, with no GitHub or scafld call.",
+      "prompt": "Return this already tested ordinary fix locally without creating a scafld task.",
+      "expected_output": "Verify the actual checkout candidate, retain host-reported checks and make no GitHub or scafld call.",
       "files": [
         "evals/files/issue-442-tested-change.json"
       ],
       "expectations": [
-        "It does not read the issue again.",
-        "It does not edit, test, commit or finalize again."
+        "Do not reread the issue, edit, test, commit or finalize again."
       ],
       "method": "resume"
     }

@@ -6,6 +6,19 @@
       "prompt": "Generate an SBOM from this repository lockfile.",
       "expected_output": "Return a usable standard CycloneDX document, source-byte provenance and honest coverage.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/completed-inventory.json"
+      ],
+      "method": "from-inventory",
+      "prompt": "Render the completed inventory and pass it to the vulnerability audit without repeating source acquisition.",
+      "expected_output": "Reuse the exact inventory, retaining scope, identities and gaps. Retain the registry alias coordinate, local dependency gap, source-byte digest and all-locked scope.",
+      "expectations": [
+        "Do not read or parse the source again.",
+        "Do not install dependencies or query providers while rendering the SBOM."
+      ]
     }
   ]
 }

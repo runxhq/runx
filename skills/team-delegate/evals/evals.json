@@ -6,6 +6,18 @@
       "prompt": "Divide this bounded documentation task between the supplied researcher and writer.",
       "expected_output": "Return roster-bound assignments with exact targets, input context and acceptance checks; do not start a standing case or claim execution.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Prepare assignments from this existing documentation-drift evidence and selected roster.",
+      "expected_output": "Reuse the supplied evidence and member selection without rereading the source or creating a second work queue.",
+      "files": [
+        "evals/files/docs-drift-roster.json"
+      ],
+      "expectations": [
+        "Do not rediscover the drift or execute a member already completed by the caller."
+      ],
+      "method": "delegate"
     }
   ]
 }

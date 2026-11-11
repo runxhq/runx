@@ -1,0 +1,7 @@
+{
+  "about": "The final comment a completed pull request review produced, with its target and the idempotency key its post uses.",
+  "repository": "runxhq/runx",
+  "pr_number": "42",
+  "body": "The reviewed path is sound; please add the missing test case.",
+  "idempotency_key": "runxhq-runx-pr-42-connect-note-v1"
+}

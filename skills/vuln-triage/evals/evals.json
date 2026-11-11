@@ -6,6 +6,19 @@
       "prompt": "Triage these exact dependency findings and tell me what to fix.",
       "expected_output": "Return concrete recommendations and keep unproven exposure explicit without a fabricated sealed receipt.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/current-risk-review.json"
+      ],
+      "method": "advisory",
+      "prompt": "Draft an advisory from the current review while the parent graph is open.",
+      "expected_output": "Preserve identities, source binding and unknown exposure without rescanning or demanding a yet-unsealed parent receipt. Exposure remains not_established; the open parent has no sealed receipt yet.",
+      "expectations": [
+        "Do not rescan dependencies or call a provider.",
+        "Do not reassess the admitted risk review or fabricate a sealed parent receipt."
+      ]
     }
   ]
 }

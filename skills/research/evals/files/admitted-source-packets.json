@@ -1,0 +1,36 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "objective": "Identify the strongest architectural signal in the supplied Runx evidence.",
+  "domain": "agent infrastructure",
+  "deliverable": "operator brief",
+  "source_packets": [
+    {
+      "final_url": "https://example.com/receipts",
+      "status": 200,
+      "content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "extracted": "Runx receipts bind operator actions to explicit authority and verification evidence.",
+      "provenance": {
+        "fetched_at": "2026-07-17T00:00:00Z",
+        "bytes": 82,
+        "redirects": []
+      }
+    },
+    {
+      "provider_operation": {
+        "data": {
+          "result": {
+            "final_url": "https://example.com/skills",
+            "status": 200,
+            "content_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "extracted": "Portable skill packages separate model judgment from deterministic provider operations.",
+            "provenance": {
+              "fetched_at": "2026-07-17T00:01:00Z",
+              "bytes": 85,
+              "redirects": []
+            }
+          }
+        }
+      }
+    }
+  ]
+}

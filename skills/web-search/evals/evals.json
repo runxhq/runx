@@ -6,6 +6,18 @@
       "prompt": "Find a bounded set of source candidates without fetching pages or claiming completed research.",
       "expected_output": "Return the exact bounded domain result and preserve holds without outward effects.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/bounded-query.json"
+      ],
+      "method": "search",
+      "prompt": "Discover source candidates for the supplied question, retaining the selected query and budget.",
+      "expected_output": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
+      "expectations": [
+        "Do not add a second search or fetch result pages."
+      ]
     }
   ]
 }

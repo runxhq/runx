@@ -1,0 +1,125 @@
+{
+  "about": "Bounded non-live fixture of a completed privacy decision, including its exact handoff. The recorded status and opaque receipt locator are supplied replay evidence, not fresh native verification or authority to execute erasure.",
+  "request_inputs": {
+    "request_packet": {
+      "type": "erasure",
+      "subject_id": "subject:alice",
+      "scope": {
+        "request_id": "dsr-001",
+        "data_classes": [
+          "profile",
+          "activity"
+        ],
+        "requested_scopes": [
+          "profile",
+          "activity"
+        ]
+      }
+    },
+    "requestor_proof": {
+      "identity_provider": "idp:acme",
+      "verified_at": "2026-08-01T10:00:00Z",
+      "assertion": {
+        "subject_id": "subject:alice",
+        "assertion_id": "idp:acme:session:9911",
+        "assertion_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "policy": {
+      "jurisdiction": "GDPR",
+      "trusted_identity_providers": [
+        "idp:acme"
+      ],
+      "lawful_bases": {
+        "erasure": "art17_right_to_erasure"
+      },
+      "scope_bounds": {
+        "data_classes": [
+          "profile",
+          "activity",
+          "billing"
+        ],
+        "erasure_allowed": [
+          "profile",
+          "activity"
+        ],
+        "export_allowed": [
+          "profile"
+        ]
+      }
+    },
+    "key": "subject:alice:dsr-001",
+    "expected_version": 0,
+    "idempotency_key": "dsr-001:verdict:v1"
+  },
+  "recorded_verdict": {
+    "schema": "runx/privacy-request-review.verdict.v1",
+    "request": {
+      "request_id": "dsr-001",
+      "type": "erasure",
+      "subject_id": "subject:alice",
+      "requested_scopes": [
+        "profile",
+        "activity"
+      ],
+      "data_classes": [
+        "profile",
+        "activity"
+      ]
+    },
+    "decision": {
+      "eligible": true,
+      "reason": "Supplied idp:acme assertion metadata matches the subject and configured GDPR policy for 2 data class(es); identity verification remains the upstream owner's responsibility."
+    },
+    "escalation": {
+      "required": false,
+      "lane": "none",
+      "reason": "The supplied policy and assertion bindings pass; this grants no downstream execution authority."
+    },
+    "legal": {
+      "jurisdiction": "GDPR",
+      "lawful_basis": "art17_right_to_erasure"
+    },
+    "requestor": {
+      "identity_provider": "idp:acme",
+      "verified_at": "2026-08-01T10:00:00Z",
+      "assertion_id": "idp:acme:session:9911",
+      "identity_assertion_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "scope_bounds": {
+      "data_classes": [
+        "profile",
+        "activity",
+        "billing"
+      ],
+      "requested_scopes": [
+        "profile",
+        "activity"
+      ]
+    },
+    "handoff": {
+      "subject_id": "subject:alice",
+      "data_classes": [
+        "profile",
+        "activity"
+      ],
+      "scopes": {
+        "request_type": "erasure",
+        "requested_scopes": [
+          "profile",
+          "activity"
+        ],
+        "downstream_operator_required": true
+      },
+      "path": null
+    },
+    "persistence": {
+      "append_status": "committed",
+      "key": "subject:alice:dsr-001",
+      "after_version": 1
+    },
+    "downstream_effect_performed": false
+  },
+  "receipt_locator": "fixture:privacy-verdict:dsr-001",
+  "requested_next_step": "Return only the bounded erasure handoff; no eligibility re-decision or erasure execution."
+}

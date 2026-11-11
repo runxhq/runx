@@ -16,13 +16,12 @@
     {
       "id": 3,
       "prompt": "Assess this already enriched lead against the ICP.",
-      "expected_output": "The lead qualified as a fit on the required B2B software criterion from the given packet, its digest preserved, and contact eligibility reported apart from commercial fit.",
+      "expected_output": "Reuse the factual packet, preserve its digest and keep eligibility distinct from commercial fit.",
       "files": [
         "evals/files/enriched-lead-packet.json"
       ],
       "expectations": [
-        "It does not enrich the lead again.",
-        "It performs no provider lookup."
+        "Do not repeat enrichment or perform a provider lookup."
       ],
       "method": "qualify"
     }

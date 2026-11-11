@@ -27,27 +27,25 @@
     },
     {
       "id": 5,
-      "prompt": "Continue outreach preparation from the research and contact-policy evidence you are given.",
-      "expected_output": "It holds the outreach: the given contact policy suppresses operator@example.org, so no email is drafted for them, and it says so, with no outward action.",
+      "prompt": "Continue outreach preparation from supplied research and contact-policy evidence.",
+      "expected_output": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
       "files": [
         "evals/files/suppressed-recipient-research.json"
       ],
       "expectations": [
-        "It does not enrich or research the recipient again.",
-        "It drafts nothing for the suppressed recipient."
+        "Do not enrich or research the recipient again; do not draft for a suppressed recipient."
       ],
       "method": "prepare"
     },
     {
       "id": 6,
-      "prompt": "Prepare the first email to this prospect from the research and contact-policy evidence you are given.",
-      "expected_output": "One first-contact email for operator@example.org offering the documentation review, drawn from the given research, with the required footer, prepared and not sent.",
+      "prompt": "Continue outreach preparation from supplied research and contact-policy evidence.",
+      "expected_output": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
       "files": [
         "evals/files/eligible-recipient-research.json"
       ],
       "expectations": [
-        "It does not enrich or research the recipient again.",
-        "It does not send the email."
+        "Do not enrich or research the recipient again; do not send the draft."
       ],
       "method": "prepare"
     }

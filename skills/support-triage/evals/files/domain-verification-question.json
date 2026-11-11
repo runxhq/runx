@@ -1,0 +1,14 @@
+{
+  "about": "A customer question and the product guide a prior step supplied for it.",
+  "support_request": {
+    "source": "thread:domain-1",
+    "subject": "How do I verify my sending domain?",
+    "body": "I added the DNS records. What should I check next?"
+  },
+  "product_evidence": [
+    {
+      "source_id": "docs:domain-verification",
+      "text": "Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve."
+    }
+  ]
+}

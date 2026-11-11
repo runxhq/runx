@@ -6,6 +6,19 @@
       "prompt": "Remove names, emails, and phone numbers from this support text before it crosses a trust boundary.",
       "expected_output": "Return usable scrubbed content only after deterministic residual scanning passes.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/existing-private-review.json"
+      ],
+      "method": "from-detections",
+      "prompt": "Apply this existing private PII review to the same admitted support text before any delivery.",
+      "expected_output": "Reuse the exact source and reviewed quote selections; preserve the semantic hold with no released text and no new detector turn.",
+      "expectations": [
+        "Do not run PII detection again.",
+        "Do not fetch the support request or send any text."
+      ]
     }
   ]
 }

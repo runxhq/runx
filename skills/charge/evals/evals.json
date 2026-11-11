@@ -42,6 +42,31 @@
       "prompt": "Collect the Northstar invoice on this Stripe merchant account.",
       "expected_output": "Approve once, submit the exact form, and independently confirm the original account, amount, currency and reference.",
       "files": []
+    },
+    {
+      "id": 8,
+      "files": [
+        "evals/files/quoted-charge.json"
+      ],
+      "method": "charge",
+      "prompt": "Collect this already quoted and authorized payment without preparing another checkout.",
+      "expected_output": "Reuse the supplied quote, buyer authorization and original payment identity, and return settlement readback.",
+      "expectations": [
+        "Do not create another quote or checkout.",
+        "Do not charge again under a new payment identity."
+      ]
+    },
+    {
+      "id": 9,
+      "files": [
+        "evals/files/admitted-charge.json"
+      ],
+      "method": "charge",
+      "prompt": "Continue this admitted charge.",
+      "expected_output": "Reuse the supplied requirements, payload and idempotency evidence.",
+      "expectations": [
+        "Do not settle a second time under a new identity."
+      ]
     }
   ]
 }

@@ -1,0 +1,1961 @@
+{
+  "about": "All 109 prior-evidence operator journeys retained through the 0.12 cutover. Each source binds one native eval; repeated prompts remain distinct source scenarios. This is definition coverage, not model or live-provider success evidence.",
+  "source_commit": "e636cf4ff883d21757a4de0b504b0a766f96319f",
+  "journeys": [
+    {
+      "source": {
+        "file": "skills/agent-session/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Carry on from the previous turn and answer what it left open.",
+        "expected_outcome": "Start from the previous turn's sealed receipt and summary, read only what they did not settle, and end with a summary that says what changed.",
+        "prior_evidence": [
+          "The previous turn's sealed receipt and summary, which the act names."
+        ],
+        "must_not_repeat": [
+          "Do not reread files the previous turn already read unless their digest changed."
+        ]
+      },
+      "eval_file": "skills/agent/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/attention-review/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Reassess the already collected observations and current action states.",
+        "expected_outcome": "Reuse supplied evidence without rereading providers or sending a message.",
+        "prior_evidence": [
+          "The bounded mailbox and chat observations supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not query either provider again.",
+          "Do not repost an earlier notification."
+        ]
+      },
+      "eval_file": "skills/attention-review/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/brand-voice/fixtures/brand-voice-packet.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Turn this approved product contract and rejected copy into reusable writing context.",
+        "expected_outcome": "Reuse the supplied source material and return a voice packet downstream writers can consume without reinterpreting brand claims.",
+        "prior_evidence": [
+          "The approved product contract and rejected launch-copy example supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rediscover product claims outside the supplied evidence.",
+          "Do not make downstream writers reconstruct rejected language or applicability."
+        ]
+      },
+      "eval_file": "skills/brand-voice/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/charge/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "exercises_runner": "charge",
+        "request": "Collect this already quoted and authorized payment without preparing another checkout.",
+        "expected_outcome": "Reuse the supplied quote, buyer authorization and original payment identity, and return settlement readback.",
+        "prior_evidence": [
+          "The original x402 requirements, buyer payload and caller request key."
+        ],
+        "must_not_repeat": [
+          "Do not create another quote or checkout.",
+          "Do not charge again under a new payment identity."
+        ]
+      },
+      "eval_file": "skills/charge/evals/evals.json",
+      "eval_id": 8
+    },
+    {
+      "source": {
+        "file": "skills/charge/fixtures/hosted-contract.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted charge.",
+        "expected_outcome": "Reuse the supplied requirements, payload and idempotency evidence.",
+        "prior_evidence": [
+          "The quoted requirements and payment payload supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not settle a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/charge/evals/evals.json",
+      "eval_id": 9
+    },
+    {
+      "source": {
+        "file": "skills/code-intake/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Bound the request using the supplied source context.",
+        "expected_outcome": "Preserve original source context and return a change set without planning or implementation.",
+        "prior_evidence": [
+          "The exact source context supplied by the upstream reader."
+        ],
+        "must_not_repeat": [
+          "Do not fetch source context again.",
+          "Do not plan or implement the proposed change."
+        ]
+      },
+      "eval_file": "skills/code-intake/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/code-plan/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue planning from this completed code-intake artifact.",
+        "expected_outcome": "Reuse the intake change set and evidence without re-triaging the issue or rediscovering its target.",
+        "prior_evidence": [
+          "The typed code-intake artifact and bounded change set supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not repeat issue intake or triage.",
+          "Do not reacquire target evidence already carried by the intake packet."
+        ]
+      },
+      "eval_file": "skills/code-plan/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/code-plan/run.yaml",
+        "pointer": "/harness/cases/3/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue planning from this completed code-intake artifact.",
+        "expected_outcome": "Reuse the intake change set and evidence without re-triaging the issue or rediscovering its target.",
+        "prior_evidence": [
+          "The typed code-intake artifact and bounded change set supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not repeat issue intake or triage.",
+          "Do not reacquire target evidence already carried by the intake packet."
+        ]
+      },
+      "eval_file": "skills/code-plan/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/cold-outreach/fixtures/holds-suppressed-recipient.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue outreach preparation from supplied research and contact-policy evidence.",
+        "expected_outcome": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
+        "prior_evidence": [
+          "The validated research packet and current recipient suppression state."
+        ],
+        "must_not_repeat": [
+          "Do not enrich or research the recipient again; do not draft for a suppressed recipient."
+        ]
+      },
+      "eval_file": "skills/cold-outreach/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/cold-outreach/fixtures/prepares-approved-context-email.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue outreach preparation from supplied research and contact-policy evidence.",
+        "expected_outcome": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
+        "prior_evidence": [
+          "The validated research packet and current recipient suppression state."
+        ],
+        "must_not_repeat": [
+          "Do not enrich or research the recipient again; do not send the draft."
+        ]
+      },
+      "eval_file": "skills/cold-outreach/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/contact-consent-review/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue from the supplied contact engagement and consent evidence without collecting it again.",
+        "expected_outcome": "Reuse the supplied evidence, record any justified transition once, and leave delivery to the operator-selected mail capability.",
+        "prior_evidence": [
+          "Current bounded engagement, bounce, and consent evidence supplied by the upstream contact review."
+        ],
+        "must_not_repeat": [
+          "Do not collect engagement evidence again.",
+          "Do not send a message."
+        ]
+      },
+      "eval_file": "skills/contact-consent-review/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/content-package/fixtures/default-preparation.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Package this completed research evidence for publication channels.",
+        "expected_outcome": "Reuse the supplied research packet and source bindings without repeating research or publication planning.",
+        "prior_evidence": [
+          "The governed research evidence and source bindings supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun research.",
+          "Do not reacquire cited sources or publish the resulting handoff."
+        ]
+      },
+      "eval_file": "skills/content-package/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/content-package/fixtures/from-research.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Prepare this completed research for the selected content channel.",
+        "expected_outcome": "Write once and package the content without repeat research or inventing a destination.",
+        "prior_evidence": [
+          "Completed source-bound research packet."
+        ],
+        "must_not_repeat": [
+          "Do not collect sources.",
+          "Do not synthesize research again.",
+          "Do not deliver the content."
+        ]
+      },
+      "eval_file": "skills/content-package/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/content-package/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Package this completed research evidence for publication channels.",
+        "expected_outcome": "Reuse the supplied research packet and source bindings without repeating research or publication planning.",
+        "prior_evidence": [
+          "The governed research evidence and source bindings supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun research.",
+          "Do not reacquire cited sources or publish the resulting handoff."
+        ]
+      },
+      "eval_file": "skills/content-package/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/contract-draft/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Draft the agreement from the already admitted versioned template, parties and deal terms.",
+        "expected_outcome": "Return the complete reconciled document and its source bindings without acquiring sources, negotiating terms or sending it.",
+        "prior_evidence": [
+          "The exact approved template, parties and terms supplied by the upstream contract intake."
+        ],
+        "must_not_repeat": [
+          "Do not reacquire the template or party evidence, renegotiate the supplied terms, or send the draft."
+        ]
+      },
+      "eval_file": "skills/contract-draft/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/conversation-review/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue from the already hydrated email thread.",
+        "expected_outcome": "Reuse the exact source binding and decide the reply without rereading the mailbox.",
+        "prior_evidence": [
+          "The source-owning skill already read the complete message and supplied its digest."
+        ],
+        "must_not_repeat": [
+          "Do not read the provider thread again.",
+          "Do not create a coding change set for ordinary correspondence."
+        ]
+      },
+      "eval_file": "skills/conversation-review/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/crm-update-plan/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Reconcile the transcript and selected record snapshot already captured upstream.",
+        "expected_outcome": "Return one reviewable proposal without reading the CRM again or writing any field.",
+        "prior_evidence": [
+          "The original transcript and current selected CRM record snapshots captured upstream."
+        ],
+        "must_not_repeat": [
+          "Do not fetch or rediscover records.",
+          "Do not apply any write or repeat an earlier write."
+        ]
+      },
+      "eval_file": "skills/crm-update-plan/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/cve-audit/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Audit a completed source inventory.",
+        "expected_outcome": "Reuse source-byte identity and selected coordinates without another lockfile read or parse.",
+        "prior_evidence": [
+          "Completed SBOM inventory with native source identity."
+        ],
+        "must_not_repeat": [
+          "Do not read or decode the source in the CVE phase.",
+          "Do not repeat OSV calls as independent verification."
+        ]
+      },
+      "eval_file": "skills/cve-audit/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/diagnose-skill-run/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue from this failed receipt and harness report into a skill improvement diagnosis.",
+        "expected_outcome": "Reuse native receipt detail and supplied harness evidence in a skill-build-ready diagnosis without repeating execution.",
+        "prior_evidence": [
+          "The verified failed receipt detail, harness output, and target skill path supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the failed skill.",
+          "Do not hydrate or rediscover receipt evidence already returned by the native ledger query."
+        ]
+      },
+      "eval_file": "skills/diagnose-skill-run/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/dispute-respond/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "exercises_runner": "from-evidence",
+        "request": "Use the case and original charge just read to prepare and file this approved response.",
+        "expected_outcome": "Reuse both real native provider-read packets, draft once, preserve the prepared evidence through file, and use only the necessary current-state checks before submission.",
+        "prior_evidence": [
+          "The capture child reads the exact merchant case and original charge once and returns their actual native source packets."
+        ],
+        "must_not_repeat": [
+          "Do not acquire the case/payment again during from-evidence.",
+          "Do not repeat drafting or original evidence research inside file.",
+          "Do not accept liability or issue a refund."
+        ]
+      },
+      "eval_file": "skills/dispute-respond/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/extract/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Extract the invoice id, customer and total from this captured document to the supplied JSON schema.",
+        "expected_outcome": "Return the schema-valid invoice fields with exact quotations and input/schema/output digests, without fetching or paying.",
+        "prior_evidence": [
+          "The exact invoice text and schema already supplied by the upstream capture."
+        ],
+        "must_not_repeat": [
+          "Do not fetch the document, redefine its schema or pay the invoice."
+        ]
+      },
+      "eval_file": "skills/extract/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/ghostwrite/fixtures/admit-supplied-facts.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "prior_evidence": [
+          "The actual operator factual statements and writing scope."
+        ],
+        "must_not_repeat": [
+          "Do not invoke research or author the draft inside admission."
+        ],
+        "request": "Admit these already supplied facts for a composing writer.",
+        "expected_outcome": "Return a ready source-bound writing context without writing, researching or claiming independent verification."
+      },
+      "eval_file": "skills/ghostwrite/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/ghostwrite/fixtures/draft-ready.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Turn this completed research brief into an operator-facing draft.",
+        "expected_outcome": "Reuse the research brief and evidence log without repeating research or inventing claims.",
+        "prior_evidence": [
+          "The research brief and evidence log supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun research.",
+          "Do not replace or expand claims beyond the supplied evidence."
+        ]
+      },
+      "eval_file": "skills/ghostwrite/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/github-issue-to-pr/fixtures/composed-pr-flow.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Continue issue 442 from this prior issue evidence and completed host result to the PR boundary.",
+        "expected_outcome": "Reuse repository preflight, issue evidence, tested change, and finalization evidence without repeating reads, edits, tests, or finalize.",
+        "prior_evidence": [
+          "The typed issue evidence, repository preflight, tested host result, and finalization receipt supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not fetch the GitHub issue again.",
+          "Do not repeat host edits or tests.",
+          "Do not call finalize again."
+        ]
+      },
+      "eval_file": "skills/github-issue-to-pr/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/github-issue-to-pr/fixtures/ordinary-local-change.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Return this already tested ordinary fix locally without creating a scafld task.",
+        "expected_outcome": "Verify the actual checkout candidate, retain host-reported checks and make no GitHub or scafld call.",
+        "prior_evidence": [
+          "Selected issue and completed work packet."
+        ],
+        "must_not_repeat": [
+          "Do not reread the issue, edit, test, commit or finalize again."
+        ]
+      },
+      "eval_file": "skills/github-issue-to-pr/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/github-issue-triage/fixtures/preserves-long-source.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Draft the maintainer response from this existing issue snapshot.",
+        "expected_outcome": "Reuse the supplied snapshot and source reference without fetching or reclassifying the issue.",
+        "prior_evidence": [
+          "The typed issue snapshot and source reference supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not fetch the GitHub issue again.",
+          "Do not repeat issue discovery or target resolution."
+        ]
+      },
+      "eval_file": "skills/github-issue-triage/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/github-issue-triage/fixtures/respond-from-snapshot.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Draft the maintainer response from this existing issue snapshot.",
+        "expected_outcome": "Reuse the supplied snapshot and source reference without fetching or reclassifying the issue.",
+        "prior_evidence": [
+          "The typed issue snapshot and source reference supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not fetch the GitHub issue again.",
+          "Do not repeat issue discovery or target resolution."
+        ]
+      },
+      "eval_file": "skills/github-issue-triage/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/github-pr-review/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "exercises_runner": "from-snapshot",
+        "request": "Reuse the exact completed native PR capture for a review, without another PR, comparison or check request.",
+        "expected_outcome": "The parent graph receives useful changed-line findings from the retained immutable source.",
+        "prior_evidence": [
+          "The acquire step produced the exact native snapshot descriptor and complete available file-array reference."
+        ],
+        "must_not_repeat": [
+          "Do not reread the PR or comparison.",
+          "Do not call a provider in from-snapshot or analyze."
+        ]
+      },
+      "eval_file": "skills/github-pr-review/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/github/fixtures/comment-posts-and-verifies.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Post the final comment produced by this completed PR review.",
+        "expected_outcome": "Reuse the supplied final review body and target, create it once, and return readback without repeating review.",
+        "prior_evidence": [
+          "The final review body, repository, pull-request number, and stable idempotency key supplied by the upstream review."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the pull-request review.",
+          "Do not create a second comment when provider readback already proves the mutation."
+        ]
+      },
+      "eval_file": "skills/github/evals/evals.json",
+      "eval_id": 8
+    },
+    {
+      "source": {
+        "file": "skills/github/fixtures/plan-and-append-cursor-sqlite.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Continue this GitHub synchronization from the supplied cursor and prior sync evidence.",
+        "expected_outcome": "Reuse the cursor, target, and prior evidence without repeating completed discovery or provider reads.",
+        "prior_evidence": [
+          "The persisted synchronization cursor and prior provider evidence supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not repeat provider discovery already covered by the cursor.",
+          "Do not reapply completed synchronization mutations."
+        ]
+      },
+      "eval_file": "skills/github/evals/evals.json",
+      "eval_id": 9
+    },
+    {
+      "source": {
+        "file": "skills/github/fixtures/read-feeds-triage.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "exercises_runner": "github",
+        "request": "Read issue 241 once and use it to draft the next maintainer response.",
+        "expected_outcome": "Return the actual source issue to the no-provider triage phase without refetching or posting.",
+        "prior_evidence": [
+          "The common reader step performs the one actual provider read and retains its native packet."
+        ],
+        "must_not_repeat": [
+          "Do not fetch the issue again inside triage.",
+          "Do not post the draft or persist a cursor just to review it."
+        ]
+      },
+      "eval_file": "skills/github/evals/evals.json",
+      "eval_id": 10
+    },
+    {
+      "source": {
+        "file": "skills/google-analytics/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Normalize this connector-returned GA4 report for the growth analysis chain.",
+        "expected_outcome": "Reuse provider evidence without querying GA4 again or hiding thresholding and attribution caveats.",
+        "prior_evidence": [
+          "The compatible connector response, property binding, report request, and measurement metadata supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not call the analytics provider again.",
+          "Do not recompute or discard provider measurement caveats."
+        ]
+      },
+      "eval_file": "skills/google-analytics/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/google-calendar/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Use the calendar pages already collected for the quarter to plan against complete coverage.",
+        "expected_outcome": "Validate the cursor chain and combine all instances without another Google call.",
+        "prior_evidence": [
+          "Two normalized result pages and their read receipts."
+        ],
+        "must_not_repeat": [
+          "Do not query Google again."
+        ]
+      },
+      "eval_file": "skills/google-calendar/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/google-calendar/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/0",
+        "mode": "composed",
+        "request": "Reuse already read Google Calendar evidence for the assistant without another provider call.",
+        "expected_outcome": "A bounded context packet preserves cancellation and removes private titles; it does not claim fresh provider readback.",
+        "prior_evidence": [
+          "An existing calendar read result and its separate receipt."
+        ],
+        "must_not_repeat": [
+          "Do not call Google Calendar again."
+        ]
+      },
+      "eval_file": "skills/google-calendar/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/google-search-console/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Normalize this connector-returned Search Console performance evidence for the growth brief.",
+        "expected_outcome": "Reuse provider evidence without querying Google again or losing property, dimension, and completeness semantics.",
+        "prior_evidence": [
+          "The compatible connector response, site binding, query dimensions, and date range supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not call Search Console again.",
+          "Do not recompute provider metrics or erase incomplete-data caveats."
+        ]
+      },
+      "eval_file": "skills/google-search-console/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/invoice-pay/fixtures/hosted-contract.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue settling this admitted invoice.",
+        "expected_outcome": "Reuse the supplied invoice, authority and retry identity.",
+        "prior_evidence": [
+          "The invoice and payment authority supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not pay the invoice a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/invoice-pay/evals/evals.json",
+      "eval_id": 10
+    },
+    {
+      "source": {
+        "file": "skills/invoice-pay/fixtures/refuses-amount.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue settling this admitted invoice.",
+        "expected_outcome": "Reuse the supplied invoice, authority and retry identity.",
+        "prior_evidence": [
+          "The invoice and payment authority supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not pay the invoice a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/invoice-pay/evals/evals.json",
+      "eval_id": 11
+    },
+    {
+      "source": {
+        "file": "skills/invoice-pay/fixtures/refuses-currency.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue settling this admitted invoice.",
+        "expected_outcome": "Reuse the supplied invoice, authority and retry identity.",
+        "prior_evidence": [
+          "The invoice and payment authority supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not pay the invoice a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/invoice-pay/evals/evals.json",
+      "eval_id": 12
+    },
+    {
+      "source": {
+        "file": "skills/invoice-pay/fixtures/refuses-payee.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue settling this admitted invoice.",
+        "expected_outcome": "Reuse the supplied invoice, authority and retry identity.",
+        "prior_evidence": [
+          "The invoice and payment authority supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not pay the invoice a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/invoice-pay/evals/evals.json",
+      "eval_id": 13
+    },
+    {
+      "source": {
+        "file": "skills/knowledge-router/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Route this source event using the knowledge catalog already attached to the case.",
+        "expected_outcome": "Reuse the supplied catalog and event without broad discovery or inventing owners.",
+        "prior_evidence": [
+          "The knowledge catalog, question, and source event supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not search outside the supplied catalog.",
+          "Do not re-resolve an owner or source already validated in the packet."
+        ]
+      },
+      "eval_file": "skills/knowledge-router/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/lead-enrichment/fixtures/holds-wrong-entity.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Reuse these collected professional observations for the requested lead.",
+        "expected_outcome": "Keep supplied source identity and freshness; reject the other entity rather than invent a match.",
+        "prior_evidence": [
+          "Bounded caller-supplied structured source observations."
+        ],
+        "must_not_repeat": [
+          "Do not fetch the same evidence again or query an enrichment provider."
+        ]
+      },
+      "eval_file": "skills/lead-enrichment/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/lead-qualify/fixtures/qualifies-known-fit.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Assess this already enriched lead against the ICP.",
+        "expected_outcome": "Reuse the factual packet, preserve its digest and keep eligibility distinct from commercial fit.",
+        "prior_evidence": [
+          "An enrichment packet with matched factual observations."
+        ],
+        "must_not_repeat": [
+          "Do not repeat enrichment or perform a provider lookup."
+        ]
+      },
+      "eval_file": "skills/lead-qualify/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/least-privilege/fixtures/replayed-scope-labels-cannot-authorize-attenuation.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Review this grant using the cited receipt projections.",
+        "expected_outcome": "Reuse the supplied projections without replaying provider operations or claiming successful native verification.",
+        "prior_evidence": [
+          "The normalized authority usage, granted scopes, and cited receipt rows supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not replay the operations that exercised authority.",
+          "Do not infer scope use not present in verified receipts."
+        ]
+      },
+      "eval_file": "skills/least-privilege/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/message-send/fixtures/full-message-observation.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Observe this selected message against the original exact plan after an uncertain send.",
+        "expected_outcome": "Read full exact message evidence without sending again; do not change the original native effect status.",
+        "prior_evidence": [
+          "Original notification plan, exact body and selected provider message locator."
+        ],
+        "must_not_repeat": [
+          "Do not post or reconstruct original effect custody from a preview or timestamp heuristic."
+        ]
+      },
+      "eval_file": "skills/message-send/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/message-send/fixtures/post-deliver-reuses-notification-plan.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Deliver this already prepared release notification to the selected Slack channel.",
+        "expected_outcome": "Reuse the exact plan, body, channel, digest, and principal; post once and return provider readback without redrafting.",
+        "prior_evidence": [
+          "The validated runx/message-send.notification_plan.v1 plan and exact message supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not redraft or reclassify the notification.",
+          "Do not repeat delivery after stable readback exists."
+        ]
+      },
+      "eval_file": "skills/message-send/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/message-send/fixtures/thread-plan-reply.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Prepare the final Slack reply from this completed support or operations decision.",
+        "expected_outcome": "Reuse final text and thread locator without rereading the thread or sending it.",
+        "prior_evidence": [
+          "The final reply text, exact thread locator, principal, and provider context supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not reread or re-summarize the Slack thread.",
+          "Do not send the reply from the planning runner."
+        ]
+      },
+      "eval_file": "skills/message-send/evals/evals.json",
+      "eval_id": 8
+    },
+    {
+      "source": {
+        "file": "skills/message-send/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue the admitted reply using the existing source packet and turn.",
+        "expected_outcome": "Reuse the supplied source evidence and turn identity without inventing a second reply.",
+        "prior_evidence": [
+          "The source adapter already supplied the exact thread and occurrence."
+        ],
+        "must_not_repeat": [
+          "Do not choose another thread or account.",
+          "Do not send before native human approval."
+        ]
+      },
+      "eval_file": "skills/message-send/evals/evals.json",
+      "eval_id": 9
+    },
+    {
+      "source": {
+        "file": "skills/moltbook/fixtures/publish-creates-and-reads-back-post.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "confusors": [
+          "message-send",
+          "twitter"
+        ],
+        "request": "Publish this approved Moltbook post packet.",
+        "expected_outcome": "Bind the exact payload digest, publish once after approval, and confirm the created post by reading it back.",
+        "prior_evidence": [
+          "The validated post packet and its payload digest supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not draft the post again.",
+          "Do not publish a second post when the readback already confirms the first."
+        ]
+      },
+      "eval_file": "skills/moltbook/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/moltbook/run.yaml",
+        "pointer": "/harness/cases/2/operator_journeys/0",
+        "mode": "composed",
+        "request": "Prepare the exact Moltbook post from this completed opportunity scan.",
+        "expected_outcome": "Reuse scan evidence and selected opportunity without rescanning or claiming publication.",
+        "prior_evidence": [
+          "The completed Moltbook scan packet and selected opportunity supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not scan the Moltbook feed again.",
+          "Do not publish without exact approval and provider readback."
+        ]
+      },
+      "eval_file": "skills/moltbook/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/nws-weather/fixtures/nws-forecast-washington-monument.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Acquire NWS evidence for the already resolved Washington Monument gridpoint.",
+        "expected_outcome": "Reuse the supplied office and grid coordinates without geocoding again, then return one provider packet.",
+        "prior_evidence": [
+          "The resolved NWS office and grid coordinates supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not resolve the location or gridpoint again.",
+          "Do not fetch the same forecast downstream when the provider packet is present."
+        ]
+      },
+      "eval_file": "skills/nws-weather/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/open-meteo-weather/fixtures/open-meteo-shanghai.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Acquire Open-Meteo evidence for these already resolved Shanghai coordinates.",
+        "expected_outcome": "Reuse supplied coordinates without geocoding again and return one downstream-ready provider packet.",
+        "prior_evidence": [
+          "The resolved Shanghai name, latitude, longitude, and horizon supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not geocode Shanghai again.",
+          "Do not fetch the forecast again downstream when the evidence packet is present."
+        ]
+      },
+      "eval_file": "skills/open-meteo-weather/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/open-meteo-weather/fixtures/place-air-quality.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Resolve this intended place and acquire only its air quality evidence.",
+        "expected_outcome": "Use the returned candidate and native readback; do not call forecast or geocode twice.",
+        "prior_evidence": [
+          "Supplied place/region intent."
+        ],
+        "must_not_repeat": [
+          "Do not call an unrelated weather endpoint.",
+          "Do not repeat geocoding."
+        ]
+      },
+      "eval_file": "skills/open-meteo-weather/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/operations-review/fixtures/operate-from-sqlite-projection.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue operating from this persisted workspace projection and receipt summary.",
+        "expected_outcome": "Reuse local state and receipts without refetching providers or replaying completed actions.",
+        "prior_evidence": [
+          "The operations projection, objective, scope, and receipt summary supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not reacquire provider state already projected locally.",
+          "Do not replay completed actions represented by receipts."
+        ]
+      },
+      "eval_file": "skills/operations-review/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/operations-review/fixtures/payment-status.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Review the already established invoice status and source-owner context.",
+        "expected_outcome": "Reuse supplied operating evidence without refetching providers, replaying payment or claiming an action ran.",
+        "prior_evidence": [
+          "The rejected invoice-intake finding and exact known source-owner paths supplied upstream."
+        ],
+        "must_not_repeat": [
+          "Do not attempt a payment or fetch account state.",
+          "Do not execute the proposed receiver from this review."
+        ]
+      },
+      "eval_file": "skills/operations-review/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/organic-growth/fixtures/default-reuses-sources.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue growth planning from these completed Search Console, analytics, and site evidence packets.",
+        "expected_outcome": "Reuse normalized source packets without rerunning analytics or search acquisition.",
+        "prior_evidence": [
+          "The bounded search, analytics, site, and market packets supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not query Google or crawl the site again.",
+          "Do not renormalize evidence already supplied by connector skills."
+        ]
+      },
+      "eval_file": "skills/organic-growth/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/organic-growth/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue growth planning from these completed Search Console, analytics, and site evidence packets.",
+        "expected_outcome": "Reuse normalized source packets without rerunning analytics or search acquisition.",
+        "prior_evidence": [
+          "The bounded search, analytics, site, and market packets supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not query Google or crawl the site again.",
+          "Do not renormalize evidence already supplied by connector skills."
+        ]
+      },
+      "eval_file": "skills/organic-growth/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/pay/fixtures/hosted-contract.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted payment.",
+        "expected_outcome": "Reuse supplied resource terms, authority, and retry identity.",
+        "prior_evidence": [
+          "The admitted x402 resource terms supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not mint a second x402 payment identity."
+        ]
+      },
+      "eval_file": "skills/pay/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/pay/fixtures/refuses-budget.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted payment.",
+        "expected_outcome": "Reuse supplied resource terms, authority, and retry identity.",
+        "prior_evidence": [
+          "The admitted x402 resource terms supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not mint a second x402 payment identity."
+        ]
+      },
+      "eval_file": "skills/pay/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/pay/fixtures/refuses-currency.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted payment.",
+        "expected_outcome": "Reuse supplied resource terms, authority, and retry identity.",
+        "prior_evidence": [
+          "The admitted x402 resource terms supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not mint a second x402 payment identity."
+        ]
+      },
+      "eval_file": "skills/pay/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/pay/fixtures/refuses-resource.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted payment.",
+        "expected_outcome": "Reuse supplied resource terms, authority, and retry identity.",
+        "prior_evidence": [
+          "The admitted x402 resource terms supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not mint a second x402 payment identity."
+        ]
+      },
+      "eval_file": "skills/pay/evals/evals.json",
+      "eval_id": 8
+    },
+    {
+      "source": {
+        "file": "skills/policy-draft/fixtures/issue-flow-policy-from-brief.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Compile this approved issue-flow governance brief into an operational policy.",
+        "expected_outcome": "Reuse the supplied repositories, trust sources, owners, and merge constraints without re-planning governance.",
+        "prior_evidence": [
+          "The approved governance brief supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rediscover repository ownership.",
+          "Do not weaken or reinterpret the supplied merge and closure constraints."
+        ]
+      },
+      "eval_file": "skills/policy-draft/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/postmortem-draft/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Draft from the incident evidence already captured upstream.",
+        "expected_outcome": "Reuse the exact collected incident fragments without another source scan or any message delivery.",
+        "prior_evidence": [
+          "The exact source-labelled incident fragments already captured by the upstream incident operator."
+        ],
+        "must_not_repeat": [
+          "Do not fetch logs or incident messages again.",
+          "Do not publish or deliver the report."
+        ]
+      },
+      "eval_file": "skills/postmortem-draft/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/prior-art/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this design decision from the supplied repository and catalog evidence.",
+        "expected_outcome": "Reuse the bounded source set and return a prior-art recommendation without broad repository rediscovery.",
+        "prior_evidence": [
+          "The explicit source paths, objective, and catalog evidence supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not enumerate or grep the whole repository again.",
+          "Do not reacquire catalog evidence already included in the bounded source set."
+        ]
+      },
+      "eval_file": "skills/prior-art/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/privacy-request-review/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue from this recorded verdict into the downstream erasure operator.",
+        "expected_outcome": "Reuse the sealed verdict and bounded handoff without re-judging the request.",
+        "prior_evidence": [
+          "The request packet, proof, policy, and sealed verdict supplied by the prior step."
+        ],
+        "must_not_repeat": [
+          "Do not re-derive the eligibility decision already recorded."
+        ]
+      },
+      "eval_file": "skills/privacy-request-review/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/procurement-policy-check/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Check this already captured procurement request against its supplied policy/budget snapshot.",
+        "expected_outcome": "Reuse the exact policy/request evidence without fetching accounts, reserving funds or executing a spend.",
+        "prior_evidence": [
+          "The original procurement terms and policy/budget snapshot selected upstream."
+        ],
+        "must_not_repeat": [
+          "Do not refresh provider accounts or reserve/spend funds inside this policy decision."
+        ]
+      },
+      "eval_file": "skills/procurement-policy-check/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/product-analytics/fixtures/analyzes-activation.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Analyze these supplied product counts and propose the next measurement.",
+        "expected_outcome": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
+        "prior_evidence": [
+          "The supplied source digests, measurement definitions and report counts."
+        ],
+        "must_not_repeat": [
+          "Do not query PostHog again or replace supplied measurement definitions."
+        ]
+      },
+      "eval_file": "skills/product-analytics/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/product-analytics/fixtures/default-reuses-reports.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Analyze these supplied product counts and propose the next measurement.",
+        "expected_outcome": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
+        "prior_evidence": [
+          "The supplied source digests, measurement definitions and report counts."
+        ],
+        "must_not_repeat": [
+          "Do not query PostHog again or replace supplied measurement definitions."
+        ]
+      },
+      "eval_file": "skills/product-analytics/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/receipt-audit/fixtures/clean-run-within-grant.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue governance review from this verified receipt detail.",
+        "expected_outcome": "Reuse the supplied receipt projection and return the same audit without hydrating or replaying the original run.",
+        "prior_evidence": [
+          "The verified receipt row and redacted receipt detail supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the audited operation.",
+          "Do not fetch receipt bodies already present in the native detail projection."
+        ]
+      },
+      "eval_file": "skills/receipt-audit/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/receipt-audit/fixtures/reuses-completed-evidence.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Review already resolved receipt records against this grant baseline.",
+        "expected_outcome": "Reuse completed ledger evidence with a scoped result; no query or original operation repeats.",
+        "prior_evidence": [
+          "The completed ledger packet and exact grant baseline."
+        ],
+        "must_not_repeat": [
+          "Do not resolve ledger evidence again.",
+          "Do not rerun the audited operation."
+        ]
+      },
+      "eval_file": "skills/receipt-audit/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/receipt-query/fixtures/ledger-answer-with-chain-proof.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Answer the audit question from these already bounded receipt rows.",
+        "expected_outcome": "Reuse supplied ledger evidence without querying unrelated history or hydrating full run contexts.",
+        "prior_evidence": [
+          "The bounded receipt rows, filter, and audit question supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not query the wider receipt store.",
+          "Do not re-run or hydrate the matched operations."
+        ]
+      },
+      "eval_file": "skills/receipt-query/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/receipt-query/fixtures/native-seal-evidence-survives-projection.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Give diagnosis the failed native step's evidence without rerunning it.",
+        "expected_outcome": "Preserve the native subject, local issuer and failed seal criterion while keeping replay chain trust unknown.",
+        "prior_evidence": [
+          "The bounded redacted native receipt projection supplied below."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the original operation."
+        ]
+      },
+      "eval_file": "skills/receipt-query/evals/evals.json",
+      "eval_id": 3
+    },
+    {
+      "source": {
+        "file": "skills/redact-pii/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Apply this existing private PII review to the same admitted support text before any delivery.",
+        "expected_outcome": "Reuse the exact source and reviewed quote selections; preserve the semantic hold with no released text and no new detector turn.",
+        "prior_evidence": [
+          "The exact source and existing name selection, class policy and medium semantic residual risk in the composed graph."
+        ],
+        "must_not_repeat": [
+          "Do not run PII detection again.",
+          "Do not fetch the support request or send any text."
+        ],
+        "exercises_runner": "from-detections"
+      },
+      "eval_file": "skills/redact-pii/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/reddit/fixtures/reddit-default-and-publication.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "exercises_runner": "reddit",
+        "request": "Draft from existing thread evidence and account voice.",
+        "expected_outcome": "Return account-specific drafts and evidence without publishing or voting.",
+        "prior_evidence": [
+          "The prior_evidence thread summary and source URL supplied to the default runner."
+        ],
+        "must_not_repeat": [
+          "Do not browse to reacquire this supplied fixture evidence.",
+          "Do not submit from the default runner."
+        ]
+      },
+      "eval_file": "skills/reddit/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/refund/fixtures/approval-denied.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted refund.",
+        "expected_outcome": "Reuse the supplied payment reference and refund idempotency evidence.",
+        "prior_evidence": [
+          "The settled payment reference supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not refund a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/refund/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/refund/fixtures/hosted-contract.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this admitted refund.",
+        "expected_outcome": "Reuse the supplied payment reference and refund idempotency evidence.",
+        "prior_evidence": [
+          "The settled payment reference supplied by the caller."
+        ],
+        "must_not_repeat": [
+          "Do not refund a second time under a new identity."
+        ]
+      },
+      "eval_file": "skills/refund/evals/evals.json",
+      "eval_id": 8
+    },
+    {
+      "source": {
+        "file": "skills/release/fixtures/release-exact-command-readback.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue the original release invocation at its exact publish approval.",
+        "expected_outcome": "Reuse the preparation, notes and native command plans already produced in that invocation, then independently verify the publication.",
+        "prior_evidence": [
+          "The original invocation has prepared its project-owned profile, release notes and exact native publish plan."
+        ],
+        "must_not_repeat": [
+          "Resume the same paused run; do not start a second default release or repeat its preparation.",
+          "Do not rerun an uncertain publish under another request identity."
+        ]
+      },
+      "eval_file": "skills/release/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/research-brief/fixtures/default-question.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue the decision from this completed bounded research collection.",
+        "expected_outcome": "Reuse supplied research evidence and provenance without reacquiring sources or repeating collection.",
+        "prior_evidence": [
+          "The bounded source collection, objective, and provenance supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not refetch or rediscover material sources.",
+          "Do not repeat evidence collection already preserved in the input packet."
+        ]
+      },
+      "eval_file": "skills/research-brief/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/research-brief/fixtures/from-research.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Turn this completed architecture research into an operator memo.",
+        "expected_outcome": "Write once from the original research bindings without collecting or synthesizing research again.",
+        "prior_evidence": [
+          "Completed source-bound research packet."
+        ],
+        "must_not_repeat": [
+          "Do not reacquire sources.",
+          "Do not repeat research synthesis."
+        ]
+      },
+      "eval_file": "skills/research-brief/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/research-brief/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue the decision from this completed bounded research collection.",
+        "expected_outcome": "Reuse supplied research evidence and provenance without reacquiring sources or repeating collection.",
+        "prior_evidence": [
+          "The bounded source collection, objective, and provenance supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not refetch or rediscover material sources.",
+          "Do not repeat evidence collection already preserved in the input packet."
+        ]
+      },
+      "eval_file": "skills/research-brief/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/research-brief/run.yaml",
+        "pointer": "/harness/cases/3/operator_journeys/1",
+        "mode": "composed",
+        "request": "Brief the operator from this already collected ecosystem evidence.",
+        "expected_outcome": "Reuse fresh research packets and source bindings without repeating market discovery.",
+        "prior_evidence": [
+          "The bounded fresh ecosystem sources and research evidence supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rediscover the ecosystem source set.",
+          "Do not refetch evidence already bound into the research packet."
+        ]
+      },
+      "eval_file": "skills/research-brief/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/research/fixtures/research-ready.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "confusors": [
+          "research-brief",
+          "prior-art"
+        ],
+        "request": "Research this bounded question from the supplied governed source packets.",
+        "expected_outcome": "Return a citation-bound packet through the explicit reuse phase.",
+        "prior_evidence": [
+          "The two supplied source packets and their original provenance."
+        ],
+        "must_not_repeat": [
+          "Do not search or fetch those sources again."
+        ]
+      },
+      "eval_file": "skills/research/evals/evals.json",
+      "eval_id": 4
+    },
+    {
+      "source": {
+        "file": "skills/research/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue the decision from these already admitted research sources.",
+        "expected_outcome": "Reuse the supplied source artifacts and provenance without rereading or rediscovering unrelated material.",
+        "prior_evidence": [
+          "The admitted local source artifacts and objective supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not enumerate the repository beyond the admitted paths.",
+          "Do not reacquire source content already present in the evidence packet."
+        ]
+      },
+      "eval_file": "skills/research/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/run-history/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Analyze these existing run and catalog projections for operator follow-up.",
+        "expected_outcome": "Reuse supplied native projections without rereading run records or inventing metrics.",
+        "prior_evidence": [
+          "The bounded run rows and catalog items supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not list runs again when replay projections are supplied.",
+          "Do not inspect catalog entries already included in the projection."
+        ]
+      },
+      "eval_file": "skills/run-history/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/sbom-generate/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Render the completed inventory and pass it to the vulnerability audit without repeating source acquisition.",
+        "expected_outcome": "Reuse the exact inventory, retaining scope, identities and gaps.",
+        "prior_evidence": [
+          "The completed typed inventory and its native source identity."
+        ],
+        "must_not_repeat": [
+          "Do not read or parse the source again.",
+          "Do not install dependencies or query providers while rendering the SBOM."
+        ]
+      },
+      "eval_file": "skills/sbom-generate/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/schema-check/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "exercises_runner": "check",
+        "request": "Assess these prepared local-ref array contracts once, then let the parent retain the resulting verdict.",
+        "expected_outcome": "Native validation and reference-aware inclusion produce the same source-bound proposal as direct use.",
+        "prior_evidence": [
+          "Exact current/proposed schemas, real payload examples and explicit compatibility policy."
+        ],
+        "must_not_repeat": [
+          "Do not fetch schemas or publish the proposal.",
+          "The parent consumes the verdict rather than checking the same pair again."
+        ]
+      },
+      "eval_file": "skills/schema-check/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/sign-receipt/fixtures/attest-external-refund.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Preserve this already-completed manual refund as typed evidence for the downstream dispute and reconciliation chain.",
+        "expected_outcome": "Return a reusable attestation packet and receipt without reissuing the refund or fetching the provider evidence again.",
+        "prior_evidence": [
+          "provider refund locator and digest",
+          "console approval locator and digest"
+        ],
+        "must_not_repeat": [
+          "the external refund operation",
+          "collection of the supplied evidence"
+        ]
+      },
+      "eval_file": "skills/sign-receipt/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/skill-adopt/fixtures/adopts-local-package.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Adopt from previously captured upstream source without fetching it again.",
+        "expected_outcome": "Reuse captured source and author a complete local package through the same canonical builder.",
+        "prior_evidence": [
+          "The captured upstream manual and selected destination."
+        ],
+        "must_not_repeat": [
+          "Do not refetch the upstream repository or replay the upstream operational workflow."
+        ]
+      },
+      "eval_file": "skills/skill-adopt/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/skill-build/fixtures/no-change-skips-write.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Improve this skill from the supplied failed-run diagnosis.",
+        "expected_outcome": "Weak prior evidence is reused and returns unchanged without speculative package mutation.",
+        "prior_evidence": [
+          "The supplied failure_packet from the prior diagnosis."
+        ],
+        "must_not_repeat": [
+          "Do not replay the failed external operation.",
+          "Do not rediscover the already inspected package state."
+        ]
+      },
+      "eval_file": "skills/skill-build/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/skill-review/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Assess this skill from the native evidence already collected by the catalog review.",
+        "expected_outcome": "Reuse inspection and harness evidence without rerunning provider effects or rebuilding the skill.",
+        "prior_evidence": [
+          "The native package inspection, harness result, objective, and test constraints supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun live provider operations.",
+          "Do not rediscover package contracts already present in native inspection."
+        ]
+      },
+      "eval_file": "skills/skill-review/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/slack/fixtures/advanced-expression.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue a release-readiness review with the Slack evidence it needs.",
+        "expected_outcome": "Run one bounded search for the review's exact keywords and hand back the provider evidence for the reviewer to judge.",
+        "prior_evidence": [
+          "The review's exact keywords, channel types and page limit, supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not search again for a page already read.",
+          "Do not post or reply from a search."
+        ]
+      },
+      "eval_file": "skills/slack/evals/evals.json",
+      "eval_id": 5
+    },
+    {
+      "source": {
+        "file": "skills/slack/fixtures/assistant-scan-query-policy.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Let the local source scan the selected channel for this teammate without changing the query policy.",
+        "expected_outcome": "Use the same exact query port and return native conversation-page evidence without posting.",
+        "prior_evidence": [
+          "Selected channel/member IDs and configured source policy."
+        ],
+        "must_not_repeat": [
+          "Do not hydrate unrelated threads or search a previously consumed page."
+        ]
+      },
+      "eval_file": "skills/slack/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/slack/fixtures/default-searches-messages.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue a release-readiness review with the Slack evidence it needs.",
+        "expected_outcome": "Run one bounded search for the review's exact keywords and hand back the provider evidence for the reviewer to judge.",
+        "prior_evidence": [
+          "The review's exact keywords, channel types and page limit, supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not search again for a page already read.",
+          "Do not post or reply from a search."
+        ]
+      },
+      "eval_file": "skills/slack/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/sql-analysis/fixtures/composed-plan.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Choose a qualified-trial read from this supplied query catalog.",
+        "expected_outcome": "Return a bound plan without a catalog or database read.",
+        "prior_evidence": [
+          "The supplied source query catalog."
+        ],
+        "must_not_repeat": [
+          "Do not reacquire metadata or execute a query."
+        ]
+      },
+      "eval_file": "skills/sql-analysis/evals/evals.json",
+      "eval_id": 6
+    },
+    {
+      "source": {
+        "file": "skills/sql-analysis/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Plan against this already obtained query catalog.",
+        "expected_outcome": "Reuse supplied source semantics and validate parameters without querying the database again.",
+        "prior_evidence": [
+          "The upstream source query catalog."
+        ],
+        "must_not_repeat": [
+          "Do not reacquire the catalog or execute SQL."
+        ]
+      },
+      "eval_file": "skills/sql-analysis/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/support-triage/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Triage this customer domain-verification question using the supplied product guide and draft a supported reply.",
+        "expected_outcome": "Return a source-bound support route and unsent draft, keeping operator checks outside customer copy.",
+        "prior_evidence": [
+          "The customer thread and current domain-verification guide supplied in this case."
+        ],
+        "must_not_repeat": [
+          "Do not reread the help desk or deliver the reply."
+        ]
+      },
+      "eval_file": "skills/support-triage/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/taste-profile/fixtures/taste-profile-packet.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Turn these collected preference examples into reusable design context.",
+        "expected_outcome": "Preserve the supplied evidence and return a profile downstream UI work can consume without re-eliciting taste.",
+        "prior_evidence": [
+          "The liked and disliked design examples supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not ask for preferences already present in the evidence.",
+          "Do not invent aesthetic rules unsupported by the examples."
+        ]
+      },
+      "eval_file": "skills/taste-profile/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/team-delegate/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Prepare assignments from this existing documentation-drift evidence and selected roster.",
+        "expected_outcome": "Reuse the supplied evidence and member selection without rereading the source or creating a second work queue.",
+        "prior_evidence": [
+          "The supplied documentation drift and fixed researcher/writer roster."
+        ],
+        "must_not_repeat": [
+          "Do not rediscover the drift or execute a member already completed by the caller."
+        ]
+      },
+      "eval_file": "skills/team-delegate/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/twitter/fixtures/account-stop.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Inspect continuation after the provider rejects the account credential.",
+        "expected_outcome": "Return a review stop, zero processed acts and no automatic next input.",
+        "prior_evidence": [
+          "The reviewed exact two-post plan and native outcomes."
+        ],
+        "must_not_repeat": [
+          "Do not retry an account refusal or count an unsent act as failed terminal work."
+        ]
+      },
+      "eval_file": "skills/twitter/evals/evals.json",
+      "eval_id": 9
+    },
+    {
+      "source": {
+        "file": "skills/twitter/fixtures/continue-saved-plan.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "confusors": [
+          "message-send",
+          "moltbook"
+        ],
+        "request": "Continue this approved update and account work across separate bounded runs.",
+        "expected_outcome": "Save the exact plan once, continue a partial thread without reposting it, then follow and unfollow with exact approvals, ending in a read-only complete status.",
+        "prior_evidence": [
+          "The exact plan, native digest, saved account and confirmed partial thread."
+        ],
+        "must_not_repeat": [
+          "Do not resend the first thread segment or supply the full plan after the first batch.",
+          "Do not ask the host to construct provider calls, progress versions or idempotency keys."
+        ]
+      },
+      "eval_file": "skills/twitter/evals/evals.json",
+      "eval_id": 10
+    },
+    {
+      "source": {
+        "file": "skills/twitter/fixtures/execute-post-publishes-and-reads-back.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "standalone",
+        "confusors": [
+          "message-send",
+          "moltbook"
+        ],
+        "request": "Run the next batch of this approved posting plan.",
+        "expected_outcome": "Publish the next post alone under its own approval, confirm it by reading it back, and advance the cursor past it.",
+        "prior_evidence": [
+          "The approved plan, its digest, and the empty execution ledger supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not publish the post again once the readback confirms it.",
+          "Do not take the following like into the same batch."
+        ]
+      },
+      "eval_file": "skills/twitter/evals/evals.json",
+      "eval_id": 11
+    },
+    {
+      "source": {
+        "file": "skills/twitter/fixtures/execute-unfollow-batch-stops-at-rate-limit.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "confusors": [
+          "message-send",
+          "moltbook"
+        ],
+        "request": "Run the next batch of this approved unfollow plan.",
+        "expected_outcome": "Unfollow the contiguous run of accounts under one approval, settle each act, stop at the provider's rate limit, and record the cursor and reset time.",
+        "prior_evidence": [
+          "The approved plan, its digest, and the empty execution ledger supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not send an act the provider has already settled.",
+          "Do not send more acts after the provider rate limits the account."
+        ]
+      },
+      "eval_file": "skills/twitter/evals/evals.json",
+      "eval_id": 12
+    },
+    {
+      "source": {
+        "file": "skills/twitter/fixtures/failure-continuation.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Continue this reviewed cleanup after one post is refused.",
+        "expected_outcome": "Later success does not erase the failed act; processed, succeeded and failed remain distinct.",
+        "prior_evidence": [
+          "The reviewed exact two-post plan and native outcomes."
+        ],
+        "must_not_repeat": [
+          "Do not retry a refused terminal act or erase its failure after later success."
+        ]
+      },
+      "eval_file": "skills/twitter/evals/evals.json",
+      "eval_id": 13
+    },
+    {
+      "source": {
+        "file": "skills/twitter/fixtures/read-archive-audit.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue account analysis from this admitted X archive artifact.",
+        "expected_outcome": "Reuse the local archive and query without refetching the live account or renormalizing downstream.",
+        "prior_evidence": [
+          "The admitted archive file, query, and item limit supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not query the live X provider.",
+          "Do not reread the archive downstream when its digest-bound result exists."
+        ]
+      },
+      "eval_file": "skills/twitter/evals/evals.json",
+      "eval_id": 14
+    },
+    {
+      "source": {
+        "file": "skills/vuln-triage/fixtures/composes-in-graph.yaml",
+        "pointer": "/operator_journeys/0",
+        "mode": "composed",
+        "request": "Draft an advisory from the current review while the parent graph is open.",
+        "expected_outcome": "Preserve identities, source binding and unknown exposure without rescanning or demanding a yet-unsealed parent receipt.",
+        "prior_evidence": [
+          "Exact source findings and the validated source-bound risk review."
+        ],
+        "must_not_repeat": [
+          "Do not rescan dependencies or call a provider.",
+          "Do not reassess the admitted risk review or fabricate a sealed parent receipt."
+        ]
+      },
+      "eval_file": "skills/vuln-triage/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/web-fetch/fixtures/fetch-text-within-allowlist.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Acquire the supplied RFC source for the downstream extraction job.",
+        "expected_outcome": "Reuse the supplied target URL, fetch once with the default public-host policy, and return a source packet downstream steps can consume without refetching.",
+        "prior_evidence": [
+          "The target URL, extraction mode, and byte ceiling supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rediscover the target host or manufacture a second allowlist input.",
+          "Do not fetch the same source again downstream when the digest-bound artifact is present."
+        ]
+      },
+      "eval_file": "skills/web-fetch/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/web-search/fixtures/bounded-discovery.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Discover source candidates for the supplied question, retaining the selected query and budget.",
+        "expected_outcome": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
+        "prior_evidence": [
+          "The supplied query, domain/date constraints and result limit."
+        ],
+        "must_not_repeat": [
+          "Do not add a second search or fetch result pages."
+        ]
+      },
+      "eval_file": "skills/web-search/evals/evals.json",
+      "eval_id": 2
+    },
+    {
+      "source": {
+        "file": "skills/webhook-handoff/fixtures/default-delivers-n8n.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this completed Runx operation into the selected n8n workflow.",
+        "expected_outcome": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.",
+        "prior_evidence": [
+          "The validated Runx execution context, payload, workflow target, and event id supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the upstream Runx operation.",
+          "Do not deliver the webhook again after its response is receipted."
+        ]
+      },
+      "eval_file": "skills/webhook-handoff/evals/evals.json",
+      "eval_id": 7
+    },
+    {
+      "source": {
+        "file": "skills/webhook-handoff/fixtures/default-delivers-zapier.yaml",
+        "pointer": "/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this completed Runx operation into the selected Zapier workflow.",
+        "expected_outcome": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating hook delivery.",
+        "prior_evidence": [
+          "The validated Runx execution context, payload, hook target, and event id supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the upstream Runx operation.",
+          "Do not deliver the hook again after its response is receipted."
+        ]
+      },
+      "eval_file": "skills/webhook-handoff/evals/evals.json",
+      "eval_id": 8
+    },
+    {
+      "source": {
+        "file": "skills/webhook-handoff/run.yaml",
+        "pointer": "/harness/cases/0/operator_journeys/1",
+        "mode": "composed",
+        "request": "Continue this completed Runx operation into the selected n8n workflow.",
+        "expected_outcome": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.",
+        "prior_evidence": [
+          "The validated Runx execution context, payload, workflow target, and idempotency key supplied in the fixture."
+        ],
+        "must_not_repeat": [
+          "Do not rerun the upstream Runx operation.",
+          "Do not deliver the webhook again after stable receipt evidence exists."
+        ]
+      },
+      "eval_file": "skills/webhook-handoff/evals/evals.json",
+      "eval_id": 9
+    }
+  ]
+}

@@ -11,13 +11,13 @@
     {
       "id": 2,
       "prompt": "Continue the original release invocation at its exact publish approval.",
-      "expected_output": "It continues the given release of 1.2.3 on fixture with the prepared publish plan unchanged, and under no effects the release is refused at admission, before any command runs, starting no second release and preparing nothing again.",
+      "expected_output": "Reuse the preparation, notes and native command plans already produced in that invocation, then independently verify the publication.",
       "files": [
         "evals/files/fixture-release-preparation.json"
       ],
       "expectations": [
-        "It does not start a second release or prepare again.",
-        "It does not run the publish under another request identity."
+        "Resume the same paused run; do not start a second default release or repeat its preparation.",
+        "Do not rerun an uncertain publish under another request identity."
       ],
       "method": "release"
     }

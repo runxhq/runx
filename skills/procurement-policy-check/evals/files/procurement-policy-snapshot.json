@@ -1,0 +1,19 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "procurement_request": {
+    "payee": "sourcey",
+    "amount": 125,
+    "currency": "USD",
+    "purpose": "generate public llms.txt docs for a maintained OSS project"
+  },
+  "procurement_policy": {
+    "currency": "USD",
+    "remaining_budget": 300,
+    "request_cap": 200,
+    "approved_payees": [
+      "sourcey",
+      "runx"
+    ],
+    "approval_threshold": 200
+  }
+}

@@ -33,14 +33,13 @@
     },
     {
       "id": 6,
-      "prompt": "Enrich the requested lead from the observations already collected.",
-      "expected_output": "It holds the enrichment: the given observations describe lead:another, not lead:example, so it rejects that entity rather than invent a match, keeping the source identity and freshness, with no provider call.",
+      "prompt": "Reuse these collected professional observations for the requested lead.",
+      "expected_output": "Keep supplied source identity and freshness; reject the other entity rather than invent a match.",
       "files": [
         "evals/files/collected-lead-observations.json"
       ],
       "expectations": [
-        "It does not fetch the evidence again.",
-        "It calls no enrichment provider."
+        "Do not fetch the same evidence again or query an enrichment provider."
       ],
       "method": "enrich"
     }

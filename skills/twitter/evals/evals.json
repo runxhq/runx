@@ -51,79 +51,77 @@
     },
     {
       "id": 9,
-      "prompt": "Continue the reviewed cleanup after the provider refused the account credential.",
-      "expected_output": "It stops for review: the given outcome shows the provider refused the credential before any delete was sent, so no act is processed or retried and no next batch is proposed, with nothing sent.",
+      "prompt": "Inspect continuation after the provider rejects the account credential.",
+      "expected_output": "Return a review stop, zero processed acts and no automatic next input.",
       "files": [
         "evals/files/refused-account-cleanup.json"
       ],
       "expectations": [
-        "It does not retry after the account refusal.",
-        "It does not count the unsent delete as failed terminal work."
+        "Do not retry an account refusal or count an unsent act as failed terminal work."
       ],
       "method": "status"
     },
     {
       "id": 10,
-      "prompt": "Continue this approved update and account work from where it stopped.",
-      "expected_output": "It continues from the given progress, the thread second part next and then the follow and the unfollow, each under its own approval and refused at admission under no effects, and never sends the first part again.",
+      "prompt": "Continue this approved update and account work across separate bounded runs.",
+      "expected_output": "Save the exact plan once, continue a partial thread without reposting it, then follow and unfollow with exact approvals, ending in a read-only complete status.",
       "files": [
         "evals/files/partial-thread-plan.json"
       ],
       "expectations": [
-        "It does not send the first thread part again.",
-        "It does not ask the host to build provider calls, progress versions or idempotency keys."
+        "Do not resend the first thread segment or supply the full plan after the first batch.",
+        "Do not ask the host to construct provider calls, progress versions or idempotency keys."
       ],
       "method": "execute"
     },
     {
       "id": 11,
-      "prompt": "Run the next batch of the approved posting plan you are given.",
-      "expected_output": "It runs the next batch of the given plan, the post alone under its own approval, refused at admission under no effects, and leaves the like for a later batch.",
+      "prompt": "Run the next batch of this approved posting plan.",
+      "expected_output": "Publish the next post alone under its own approval, confirm it by reading it back, and advance the cursor past it.",
       "files": [
         "evals/files/release-announcement-plan.json"
       ],
       "expectations": [
-        "It does not publish the post twice.",
-        "It does not take the like into the same batch."
+        "Do not publish the post again once the readback confirms it.",
+        "Do not take the following like into the same batch."
       ],
       "method": "execute"
     },
     {
       "id": 12,
-      "prompt": "Run the next batch of the approved unfollow plan you are given.",
-      "expected_output": "It runs the contiguous run of four unfollows as one batch under one approval, refused at admission under no effects, and leaves the delete for a later batch.",
+      "prompt": "Run the next batch of this approved unfollow plan.",
+      "expected_output": "Unfollow the contiguous run of accounts under one approval, settle each act, stop at the provider's rate limit, and record the cursor and reset time.",
       "files": [
         "evals/files/unfollow-plan.json"
       ],
       "expectations": [
-        "It sends no act the provider has already settled.",
-        "It sends no act after the batch stops."
+        "Do not send an act the provider has already settled.",
+        "Do not send more acts after the provider rate limits the account."
       ],
       "method": "execute"
     },
     {
       "id": 13,
-      "prompt": "Continue this reviewed cleanup after one delete was refused.",
-      "expected_output": "It continues with the second delete under its own approval, refused at admission under no effects, and keeps the first delete failure visible, with processed, succeeded and failed counted apart.",
+      "prompt": "Continue this reviewed cleanup after one post is refused.",
+      "expected_output": "Later success does not erase the failed act; processed, succeeded and failed remain distinct.",
       "files": [
         "evals/files/cleanup-with-a-refused-delete.json"
       ],
       "expectations": [
-        "It does not retry the refused delete.",
-        "It does not erase the earlier failure."
+        "Do not retry a refused terminal act or erase its failure after later success."
       ],
       "method": "execute"
     },
     {
       "id": 14,
-      "prompt": "Continue the account analysis from the X archive already admitted.",
-      "expected_output": "Up to ten posts read from the archive export the package carries, bound to its digest, with no call to the live X account.",
+      "prompt": "Continue account analysis from this admitted X archive artifact.",
+      "expected_output": "Reuse the local archive and query without refetching the live account or renormalizing downstream.",
       "files": [
         "evals/files/archive-posts-query.json"
       ],
       "expectations": [
-        "It does not query the live X account.",
-        "It reads the archive once."
+        "Do not query the live X provider.",
+        "Do not reread the archive downstream when its digest-bound result exists."
       ],
       "method": "read-archive"
     }

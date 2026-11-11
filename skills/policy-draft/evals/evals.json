@@ -6,6 +6,19 @@
       "prompt": "Author a fail-closed Runx issue-flow policy from this governance brief.",
       "expected_output": "Return a native-policy-validated contract covering sources, owners, merge authority, and close-after-verification rules.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/approved-issue-flow-brief.json"
+      ],
+      "method": "author",
+      "prompt": "Compile this approved issue-flow governance brief into an operational policy.",
+      "expected_output": "Reuse the supplied repositories, trust sources, owners, and merge constraints without re-planning governance.",
+      "expectations": [
+        "Do not rediscover repository ownership.",
+        "Do not weaken or reinterpret the supplied merge and closure constraints."
+      ]
     }
   ]
 }

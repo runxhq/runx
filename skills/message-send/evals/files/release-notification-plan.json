@@ -1,0 +1,29 @@
+{
+  "about": "The release notification a prior step planned and validated for Slack: the plan, channel, exact body and the idempotency key its post uses.",
+  "notification_plan": {
+    "schema": "runx/message-send.notification_plan.v1",
+    "decision": "ready_for_provider",
+    "provider": "slack",
+    "principal": "runx:principal:release-bot",
+    "channel": "slack://T123/C456",
+    "content_uri": "inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb",
+    "content_digest": "sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb",
+    "send_plan": {
+      "decision": "ready"
+    },
+    "provider_status": "not_called",
+    "delivery_status": "not_sent",
+    "downstream_handoff": {
+      "skill": "message-send",
+      "method": "post",
+      "state": "ready_for_approval"
+    },
+    "validation": {
+      "status": "pass",
+      "findings": []
+    }
+  },
+  "channel_locator": "slack://T123/C456",
+  "text": "Release 0.8.2 is live.",
+  "idempotency_key": "slack-release-0-8-2-live"
+}

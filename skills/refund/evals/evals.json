@@ -36,6 +36,30 @@
       "prompt": "Refund one dollar of this original Northstar collection.",
       "expected_output": "Approve the exact outgoing amount and independently confirm its original account, payment and currency.",
       "files": []
+    },
+    {
+      "id": 7,
+      "files": [
+        "evals/files/declined-refund.json"
+      ],
+      "method": "refund",
+      "prompt": "Continue this admitted refund.",
+      "expected_output": "Reuse the supplied payment reference and refund idempotency evidence. The original human refusal is final: keep the refund declined and perform no provider write.",
+      "expectations": [
+        "Do not refund a second time under a new identity."
+      ]
+    },
+    {
+      "id": 8,
+      "files": [
+        "evals/files/admitted-refund.json"
+      ],
+      "method": "refund",
+      "prompt": "Continue this admitted refund.",
+      "expected_output": "Reuse the supplied payment reference and refund idempotency evidence.",
+      "expectations": [
+        "Do not refund a second time under a new identity."
+      ]
     }
   ]
 }

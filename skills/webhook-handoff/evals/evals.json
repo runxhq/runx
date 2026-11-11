@@ -36,6 +36,45 @@
       "prompt": "Hand this payload to my n8n workflow.",
       "expected_output": "Refuse before approval, because an n8n handoff names the workspace host its webhook lives on.",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Continue this completed Runx operation into the selected n8n workflow.",
+      "expected_output": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.",
+      "files": [
+        "evals/files/n8n-handoff.json"
+      ],
+      "expectations": [
+        "Do not rerun the upstream Runx operation.",
+        "Do not deliver the webhook again after its response is receipted."
+      ],
+      "method": "send"
+    },
+    {
+      "id": 8,
+      "prompt": "Continue this completed Runx operation into the selected Zapier workflow.",
+      "expected_output": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating hook delivery.",
+      "files": [
+        "evals/files/zapier-handoff.json"
+      ],
+      "expectations": [
+        "Do not rerun the upstream Runx operation.",
+        "Do not deliver the hook again after its response is receipted."
+      ],
+      "method": "send"
+    },
+    {
+      "id": 9,
+      "prompt": "Continue this completed Runx operation into the selected n8n workflow.",
+      "expected_output": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.",
+      "files": [
+        "evals/files/n8n-handoff.json"
+      ],
+      "expectations": [
+        "Do not rerun the upstream Runx operation.",
+        "Do not deliver the webhook again after stable receipt evidence exists."
+      ],
+      "method": "send"
     }
   ]
 }

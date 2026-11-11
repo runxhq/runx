@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Review pull request 42 from the capture already made, without another pull request, comparison or check request.",
-      "expected_output": "Changed-line findings for pull request 42 at head cccc…, drawn from the given context and each bound to a line of the src/client.js patch, saying check coverage is unknown, with nothing posted.",
+      "prompt": "Reuse the exact completed native PR capture for a review, without another PR, comparison or check request.",
+      "expected_output": "The parent graph receives useful changed-line findings from the retained immutable source.",
       "files": [
         "evals/files/pr-42-review-context.json"
       ],
       "expectations": [
-        "It does not read the pull request or its comparison again.",
-        "It calls no provider."
+        "Do not reread the PR or comparison.",
+        "Do not call a provider in from-snapshot or analyze."
       ],
       "method": "analyze"
     }

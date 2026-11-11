@@ -42,6 +42,45 @@
       "prompt": "Open an issue in runxhq/runx titled \"Test cases for issue creation\", labelled triage, using the GitHub account signed in on this machine.",
       "expected_output": "Open the one approved issue and confirm it by reading the new issue back.",
       "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Post the final comment produced by this completed PR review.",
+      "expected_output": "Reuse the supplied final review body and target, create it once, and return readback without repeating review.",
+      "files": [
+        "evals/files/pr-42-final-comment.json"
+      ],
+      "expectations": [
+        "Do not rerun the pull-request review.",
+        "Do not create a second comment when provider readback already proves the mutation."
+      ],
+      "method": "comment"
+    },
+    {
+      "id": 9,
+      "prompt": "Continue this GitHub synchronization from the supplied cursor and prior sync evidence.",
+      "expected_output": "Reuse the cursor, target, and prior evidence without repeating completed discovery or provider reads.",
+      "files": [
+        "evals/files/triage-sync-cursor.json"
+      ],
+      "expectations": [
+        "Do not repeat provider discovery already covered by the cursor.",
+        "Do not reapply completed synchronization mutations."
+      ],
+      "method": "plan_and_append_cursor"
+    },
+    {
+      "id": 10,
+      "prompt": "Read issue 241 once and use it to draft the next maintainer response.",
+      "expected_output": "Return the actual source issue to the no-provider triage phase without refetching or posting.",
+      "files": [
+        "evals/files/issue-241-selection.json"
+      ],
+      "expectations": [
+        "Do not fetch the issue again inside triage.",
+        "Do not post the draft or persist a cursor just to review it."
+      ],
+      "method": "github"
     }
   ]
 }

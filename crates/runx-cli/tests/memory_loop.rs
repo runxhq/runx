@@ -2,7 +2,7 @@
 //! belongs to its host; these fresh CLI runs use that host's exact terms.
 //! The scripted reader proves retrieval and context delivery. The optional
 //! real model also has to honour the correction after receiving a page through
-//! a native read. The harness requests that read so exposure is mandatory.
+//! a native read. The test requests that read so exposure is mandatory.
 
 use crate::memory::{Memory, said};
 use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, memory_reader, tool_call};

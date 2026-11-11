@@ -9,15 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Assess these prepared array contracts once, so the caller can keep the verdict.",
-      "expected_output": "One source-bound verdict on the given pair, checked once with its local references resolved: every instance the current schema accepts stays valid under the proposed one and the sample payloads validate, so the change is compatible under the no-breaking policy.",
+      "prompt": "Assess these prepared local-ref array contracts once, then let the parent retain the resulting verdict.",
+      "expected_output": "Native validation and reference-aware inclusion produce the same source-bound proposal as direct use.",
       "files": [
         "evals/files/local-ref-array-contracts.json"
       ],
       "expectations": [
-        "It does not fetch either schema.",
-        "It does not publish the proposal.",
-        "It checks the pair once."
+        "Do not fetch schemas or publish the proposal.",
+        "The parent consumes the verdict rather than checking the same pair again."
       ],
       "method": "check"
     }

@@ -35,27 +35,25 @@
     },
     {
       "id": 6,
-      "prompt": "Choose the read that answers the question from the query catalog you are given.",
-      "expected_output": "A bound plan for qualified_trials_by_campaign with since set to 2026-10-01, chosen from the given catalog, within its 50 row limit, and no catalog read or query run.",
+      "prompt": "Choose a qualified-trial read from this supplied query catalog.",
+      "expected_output": "Return a bound plan without a catalog or database read.",
       "files": [
         "evals/files/qualified-trials-catalog.json"
       ],
       "expectations": [
-        "It does not read the catalog again.",
-        "It does not run a query."
+        "Do not reacquire metadata or execute a query."
       ],
       "method": "plan"
     },
     {
       "id": 7,
-      "prompt": "Plan the read against the query catalog already obtained, checking its parameters.",
-      "expected_output": "A plan for the declared read with its since parameter validated against the given catalog schema, and the result described as the catalog does, unattributed campaigns not causal, with no SQL run.",
+      "prompt": "Plan against this already obtained query catalog.",
+      "expected_output": "Reuse supplied source semantics and validate parameters without querying the database again.",
       "files": [
         "evals/files/qualified-trials-catalog.json"
       ],
       "expectations": [
-        "It does not obtain the catalog again.",
-        "It runs no SQL."
+        "Do not reacquire the catalog or execute SQL."
       ],
       "method": "plan"
     }

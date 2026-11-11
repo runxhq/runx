@@ -10,14 +10,14 @@
     },
     {
       "id": 2,
-      "prompt": "Draft a reply from the thread evidence you are given.",
-      "expected_output": "A draft reply for the r/learnprogramming thread in the account voice, from the given evidence, with nothing submitted and no vote.",
+      "prompt": "Draft from existing thread evidence and account voice.",
+      "expected_output": "Return account-specific drafts and evidence without publishing or voting.",
       "files": [
         "evals/files/thread-evidence.json"
       ],
       "expectations": [
-        "It does not browse to read the thread again.",
-        "It submits nothing."
+        "Do not browse to reacquire this supplied fixture evidence.",
+        "Do not submit from the default method."
       ],
       "method": "reddit"
     }

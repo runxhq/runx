@@ -6,6 +6,20 @@
       "prompt": "Respond to this Stripe dispute with the delivery evidence and submit after my approval.",
       "expected_output": "Read the merchant, current dispute and original charge; prepare the grounded evidence, require exactly one native approval, submit true and independently read back the new count and exact evidence.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/captured-case-and-charge.json"
+      ],
+      "method": "from-evidence",
+      "prompt": "Use the case and original charge just read to prepare and file this approved response.",
+      "expected_output": "Reuse both real native provider-read packets, draft once, preserve the prepared evidence through file, and use only the necessary current-state checks before submission.",
+      "expectations": [
+        "Do not acquire the case/payment again during from-evidence.",
+        "Do not repeat drafting or original evidence research inside file.",
+        "Do not accept liability or issue a refund."
+      ]
     }
   ]
 }

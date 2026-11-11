@@ -1,0 +1,8 @@
+{
+  "about": "The exact search a release-readiness review asked for: its expression and page limit.",
+  "query": {
+    "expression": "in:<#C123ABC> has:pin \"release\"",
+    "include_bots": false,
+    "limit": 5
+  }
+}

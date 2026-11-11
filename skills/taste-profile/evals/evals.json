@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Turn the preference examples you are given into design context the UI work can reuse.",
-      "expected_output": "A taste profile drawn from the given examples: dense operational surfaces with visible proof preferred, decorative marketing cards that hide the workflow avoided, ready for downstream UI work.",
+      "prompt": "Turn these collected preference examples into reusable design context.",
+      "expected_output": "Preserve the supplied evidence and return a profile downstream UI work can consume without re-eliciting taste.",
       "files": [
         "evals/files/collected-preferences.json"
       ],
       "expectations": [
-        "It does not ask for preferences the examples already state.",
-        "It states no aesthetic rule the examples do not support."
+        "Do not ask for preferences already present in the evidence.",
+        "Do not invent aesthetic rules unsupported by the examples."
       ],
       "method": "profile"
     }

@@ -15,42 +15,41 @@
     },
     {
       "id": 3,
-      "prompt": "Package this completed research evidence for the operator review queue.",
-      "expected_output": "Channel content for the operator brief written from the two given source packets, each claim bound to its digest, with a handoff for the operator review queue prepared and not delivered.",
+      "prompt": "Package this completed research evidence for publication channels.",
+      "expected_output": "Reuse the supplied research packet and source bindings without repeating research or publication planning.",
       "files": [
         "evals/files/research-source-packets.json"
       ],
       "expectations": [
-        "It does not research again.",
-        "It does not fetch the cited sources again.",
-        "It does not publish the handoff."
+        "Do not rerun research.",
+        "Do not reacquire cited sources or publish the resulting handoff."
       ],
       "method": "prepare"
     },
     {
       "id": 4,
-      "prompt": "Compose a draft and its channel package from the research sources you are given.",
-      "expected_output": "A verified brief drafted from the given source packets, every claim cited to one of them, packaged for its channel and bound to its digest, with nothing sent.",
+      "prompt": "Package this completed research evidence for publication channels.",
+      "expected_output": "Reuse the supplied research packet and source bindings without repeating research or publication planning.",
       "files": [
         "evals/files/research-source-packets.json"
       ],
       "expectations": [
-        "It does not research or fetch the sources again.",
-        "It does not deliver the package."
+        "Do not rerun research.",
+        "Do not reacquire cited sources or publish the resulting handoff."
       ],
       "method": "content-package"
     },
     {
       "id": 5,
-      "prompt": "Prepare the completed research you are given for its channel.",
-      "expected_output": "One channel draft written once from the given research packet decision support and evidence log, packaged for its channel with no destination invented, and nothing delivered.",
+      "prompt": "Prepare this completed research for the selected content channel.",
+      "expected_output": "Write once and package the content without repeat research or inventing a destination.",
       "files": [
         "evals/files/completed-research-packet.json"
       ],
       "expectations": [
-        "It does not collect sources.",
-        "It does not synthesize the research again.",
-        "It does not deliver the content."
+        "Do not collect sources.",
+        "Do not synthesize research again.",
+        "Do not deliver the content."
       ],
       "method": "from-research"
     }

@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Turn the approved product contract and the rejected copy you are given into writing context other writers can reuse.",
-      "expected_output": "A voice packet from the given material alone: the receipts claim allowed as the product contract states it, \"autonomous everything with no review\" named as rejected with the reason, each rule bound to its source, ready for downstream writers.",
+      "prompt": "Turn this approved product contract and rejected copy into reusable writing context.",
+      "expected_output": "Reuse the supplied source material and return a voice packet downstream writers can consume without reinterpreting brand claims.",
       "files": [
         "evals/files/approved-and-rejected-copy.json"
       ],
       "expectations": [
-        "It states no product claim beyond the given material.",
-        "It names the rejected language and where it applies, so a writer need not work it out again."
+        "Do not rediscover product claims outside the supplied evidence.",
+        "Do not make downstream writers reconstruct rejected language or applicability."
       ],
       "method": "voice"
     }

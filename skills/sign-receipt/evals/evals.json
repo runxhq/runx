@@ -6,6 +6,19 @@
       "prompt": "Seal an auditable attestation for this manual provider refund without claiming Runx verified the refund itself.",
       "expected_output": "Return a signed Runx receipt that binds the exact claim to opaque evidence locators and states the external proof boundary truthfully.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/manual-refund-evidence.json"
+      ],
+      "method": "sign-receipt",
+      "prompt": "Preserve this already-completed manual refund as typed evidence for the downstream dispute and reconciliation chain.",
+      "expected_output": "Return a reusable attestation packet and receipt without reissuing the refund or fetching the provider evidence again. Attest only the externally claimed action and opaque evidence bindings; do not claim Runx verified the refund.",
+      "expectations": [
+        "the external refund operation",
+        "collection of the supplied evidence"
+      ]
     }
   ]
 }

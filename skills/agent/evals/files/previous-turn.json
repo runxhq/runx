@@ -13,5 +13,13 @@
   ],
   "open": [
     "Whether web-fetch can limit the hosts it fetches from, and how."
+  ],
+  "previously_read_files": [
+    {
+      "path": "README.md",
+      "digest": "sha256:383fea78d4beca108d26c87a9dc800a86b497f90c6d2cd622f7c6563820fa79e",
+      "current_digest": "sha256:383fea78d4beca108d26c87a9dc800a86b497f90c6d2cd622f7c6563820fa79e",
+      "summary": "The project README was read during the prior turn. Its content is unchanged; the remaining question is in the web-fetch method contract."
+    }
   ]
 }

@@ -6,6 +6,32 @@
       "prompt": "Audit this sealed Runx receipt for authority over-reach and approval inconsistency.",
       "expected_output": "Return a governance verdict grounded in verified receipt authority, acts, decisions, and seal evidence.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/bounded-receipt-detail.json"
+      ],
+      "method": "audit",
+      "prompt": "Continue governance review from this verified receipt detail.",
+      "expected_output": "Reuse the supplied receipt projection and return the same audit without hydrating or replaying the original run. Supplied receipt projections are replay evidence; preserve native verification limits rather than independently claiming verification.",
+      "expectations": [
+        "Do not rerun the audited operation.",
+        "Do not fetch receipt bodies already present in the native detail projection."
+      ]
+    },
+    {
+      "id": 3,
+      "files": [
+        "evals/files/completed-ledger-evidence.json"
+      ],
+      "method": "from-evidence",
+      "prompt": "Review already resolved receipt records against this grant baseline.",
+      "expected_output": "Reuse completed ledger evidence with a scoped result; no query or original operation repeats. The completed ledger packet is synthetic replay evidence, not fresh native verification.",
+      "expectations": [
+        "Do not resolve ledger evidence again.",
+        "Do not rerun the audited operation."
+      ]
     }
   ]
 }

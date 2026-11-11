@@ -12,6 +12,32 @@
       "prompt": "Review the remaining invoice-payment gap and choose the next bounded step.",
       "expected_output": "Return one useful existing read-only route with preserved source context and no dispatch or payment.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Continue operating from this persisted workspace projection and receipt summary.",
+      "expected_output": "Reuse local state and receipts without refetching providers or replaying completed actions.",
+      "files": [
+        "evals/files/workspace-projection.json"
+      ],
+      "expectations": [
+        "Do not reacquire provider state already projected locally.",
+        "Do not replay completed actions represented by receipts."
+      ],
+      "method": "operate"
+    },
+    {
+      "id": 4,
+      "prompt": "Review the already established invoice status and source-owner context.",
+      "expected_output": "Reuse supplied operating evidence without refetching providers, replaying payment or claiming an action ran.",
+      "files": [
+        "evals/files/invoice-payment-gap.json"
+      ],
+      "expectations": [
+        "Do not attempt a payment or fetch account state.",
+        "Do not execute the proposed receiver from this review."
+      ],
+      "method": "operate"
     }
   ]
 }

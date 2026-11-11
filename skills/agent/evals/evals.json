@@ -16,12 +16,12 @@
     {
       "id": 3,
       "prompt": "Carry on from the previous turn and answer what it left open.",
-      "expected_output": "It starts from the previous turn summary, reads only what that turn did not settle, web-fetch methods and inputs, and ends with a summary saying web-fetch takes an allowlist of hosts and what changed since the previous turn.",
+      "expected_output": "Start from the previous turn's sealed receipt and summary, read only what they did not settle, and end with a summary that says what changed.",
       "files": [
         "evals/files/previous-turn.json"
       ],
       "expectations": [
-        "It does not search the catalog again for what the previous turn already found."
+        "Do not reread files the previous turn already read unless their digest changed."
       ],
       "method": "read"
     }

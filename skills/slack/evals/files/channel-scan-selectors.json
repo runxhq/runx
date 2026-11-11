@@ -1,0 +1,11 @@
+{
+  "about": "The channel and member a teammate selected for the local source scan, with the configured query policy.",
+  "config": {
+    "query": {
+      "channel_id": "C123ABC",
+      "mentions_external_id": "U456ABC",
+      "limit": 5
+    }
+  },
+  "page_limit": 5
+}

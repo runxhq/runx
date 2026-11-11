@@ -27,27 +27,27 @@
     },
     {
       "id": 5,
-      "prompt": "Publish the approved Moltbook post you are given.",
-      "expected_output": "It reaches publish with the given payload, its digest and the idempotency key unchanged, and under no effects the publish is refused at admission, drafting nothing again and making no second post.",
+      "prompt": "Publish this approved Moltbook post packet.",
+      "expected_output": "Bind the exact payload digest, publish once after approval, and confirm the created post by reading it back.",
       "files": [
         "evals/files/approved-post-packet.json"
       ],
       "expectations": [
-        "It does not draft the post again.",
-        "It does not publish a second post."
+        "Do not draft the post again.",
+        "Do not publish a second post when the readback already confirms the first."
       ],
       "method": "publish"
     },
     {
       "id": 6,
-      "prompt": "Prepare the Moltbook post for the opportunity the completed scan you are given chose.",
-      "expected_output": "A drafted post on moving a Runx skill into a package root, from the given scan outline and evidence, within Moltbook limits, and not posted.",
+      "prompt": "Prepare the exact Moltbook post from this completed opportunity scan.",
+      "expected_output": "Reuse scan evidence and selected opportunity without rescanning or claiming publication.",
       "files": [
         "evals/files/completed-scan.json"
       ],
       "expectations": [
-        "It does not scan the Moltbook feed again.",
-        "It does not publish."
+        "Do not scan the Moltbook feed again.",
+        "Do not publish without exact approval and provider readback."
       ],
       "method": "post"
     }

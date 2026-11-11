@@ -6,6 +6,19 @@
       "prompt": "Fetch RFC 9110 from the supplied public URL and return bounded text with provenance.",
       "expected_output": "Return one digest-bound source artifact with exact URL, content metadata, and bounded extracted text.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/selected-rfc-source.json"
+      ],
+      "method": "web-fetch",
+      "prompt": "Acquire the supplied RFC source for the downstream extraction job.",
+      "expected_output": "Reuse the supplied target URL, fetch once with the default public-host policy, and return a source packet downstream steps can consume without refetching.",
+      "expectations": [
+        "Do not rediscover the target host or manufacture a second allowlist input.",
+        "Do not fetch the same source again downstream when the digest-bound artifact is present."
+      ]
     }
   ]
 }

@@ -18,6 +18,31 @@
       "prompt": "Research this bounded question from the supplied governed source packets.",
       "expected_output": "Return a citation-bound research packet from the default method without rediscovering or reacquiring the sources.",
       "files": []
+    },
+    {
+      "id": 4,
+      "files": [
+        "evals/files/admitted-source-packets.json"
+      ],
+      "method": "research",
+      "prompt": "Research this bounded question from the supplied governed source packets.",
+      "expected_output": "Return a citation-bound packet through the explicit reuse phase.",
+      "expectations": [
+        "Do not search or fetch those sources again."
+      ]
+    },
+    {
+      "id": 5,
+      "files": [
+        "evals/files/admitted-local-source.json"
+      ],
+      "method": "research",
+      "prompt": "Continue the decision from these already admitted research sources.",
+      "expected_output": "Reuse the supplied source artifacts and provenance without rereading or rediscovering unrelated material.",
+      "expectations": [
+        "Do not enumerate the repository beyond the admitted paths.",
+        "Do not reacquire source content already present in the evidence packet."
+      ]
     }
   ]
 }

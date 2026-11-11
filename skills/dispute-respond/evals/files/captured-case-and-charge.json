@@ -1,0 +1,60 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "account_id": "acct_northstar",
+  "dispute_id": "du_case42",
+  "observed_at": "2026-11-04T00:00:00Z",
+  "acquisition": "prior_evidence",
+  "case_evidence": {
+    "data": {
+      "schema": "runx.provider.operation.v1",
+      "provider": "stripe",
+      "operation": "dispute.read",
+      "target": "stripe://acct_northstar/disputes/du_case42",
+      "status": "success",
+      "access": "read",
+      "finality": "confirmed",
+      "result": {
+        "dispute_id": "du_case42",
+        "charge_id": "ch_original42",
+        "payment_id": "pi_original42",
+        "amount_minor": 150,
+        "currency": "usd",
+        "reason": "product_not_received",
+        "status": "needs_response",
+        "due_by": 1893456000,
+        "past_due": false,
+        "has_evidence": false,
+        "submission_count": 0,
+        "evidence": {},
+        "livemode": false
+      }
+    }
+  },
+  "charge_evidence": {
+    "data": {
+      "schema": "runx.provider.operation.v1",
+      "provider": "stripe",
+      "operation": "payment.stripe.charge.read",
+      "target": "stripe://acct_northstar/charges/ch_original42",
+      "status": "success",
+      "access": "read",
+      "finality": "confirmed",
+      "result": {
+        "charge_id": "ch_original42",
+        "payment_id": "pi_original42",
+        "amount_minor": 200,
+        "currency": "usd",
+        "amount_refunded": 0,
+        "status": "succeeded"
+      }
+    }
+  },
+  "evidence": [
+    {
+      "id": "delivery-42",
+      "kind": "delivery",
+      "content": "Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.",
+      "source": "merchant://orders/42/access-log"
+    }
+  ]
+}

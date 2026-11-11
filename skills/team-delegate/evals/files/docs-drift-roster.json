@@ -1,0 +1,28 @@
+{
+  "about": "The documentation drift a caller reported and the researcher and writer roster it selected.",
+  "objective": "Review the reported setup-guide drift before preparing a documentation draft.",
+  "roster": [
+    {
+      "member": "researcher",
+      "skill": "runx/prior-art",
+      "method": "prior-art-agent",
+      "scope_ceiling": [
+        "fs.read"
+      ],
+      "capabilities": "Inspect the operator-selected local source paths and return cited findings or missing evidence. No code edits or provider calls."
+    },
+    {
+      "member": "writer",
+      "skill": "runx/ghostwrite",
+      "method": "draft",
+      "scope_ceiling": [],
+      "capabilities": "Draft only from actual review findings when those are available."
+    }
+  ],
+  "evidence": [
+    {
+      "source_id": "issue:docs-drift",
+      "text": "The operator reports possible setup-guide drift and selects README.md for inspection. Treat the report as a claim; verify the document before asserting an omission."
+    }
+  ]
+}

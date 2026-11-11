@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Assess this skill from the native evidence the catalog review already collected.",
-      "expected_output": "An assessment from the given evidence alone: a read-only package that digests one fixed value, whose test passed, with its stop behaviour and limits stated, and no provider effect run and nothing rebuilt.",
+      "prompt": "Assess this skill from the native evidence already collected by the catalog review.",
+      "expected_output": "Reuse inspection and test evidence without rerunning provider effects or rebuilding the skill.",
       "files": [
         "evals/files/review-subject-evidence.json"
       ],
       "expectations": [
-        "It does not run a live provider operation.",
-        "It does not inspect the package again for contracts the given inspection already shows."
+        "Do not rerun live provider operations.",
+        "Do not rediscover package contracts already present in native inspection."
       ],
       "method": "assess"
     }

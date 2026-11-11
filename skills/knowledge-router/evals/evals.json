@@ -46,6 +46,19 @@
       "files": [
         "evals/files/owner-only-lease.json"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Route this source event using the knowledge catalog already attached to the case.",
+      "expected_output": "Reuse the supplied catalog and event without broad discovery or inventing owners.",
+      "files": [
+        "evals/files/api-key-question-catalog.json"
+      ],
+      "expectations": [
+        "Do not search outside the supplied catalog.",
+        "Do not re-resolve an owner or source already validated in the packet."
+      ],
+      "method": "route"
     }
   ]
 }

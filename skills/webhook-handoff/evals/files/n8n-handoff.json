@@ -1,0 +1,14 @@
+{
+  "about": "A completed Runx operation ready to hand off to an n8n workflow: its execution context, payload, target and event id.",
+  "platform": "n8n",
+  "webhook_host": "acme.app.n8n.cloud",
+  "event_id": "evt_n8n_demo_001",
+  "handoff_audience": "n8n:workflow:runx-governed-effect",
+  "execution_context": {
+    "caller": "runx-cli",
+    "workflow": "n8n-cloud-demo"
+  },
+  "payload": {
+    "hello": "workflow"
+  }
+}

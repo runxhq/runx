@@ -54,6 +54,54 @@
       "prompt": "Pay this invoice.",
       "expected_output": "Check the invoice against the authority and pay it through pay with resource readback.",
       "files": []
+    },
+    {
+      "id": 10,
+      "files": [
+        "evals/files/admitted-invoice.json"
+      ],
+      "method": "invoice-pay",
+      "prompt": "Continue settling this admitted invoice.",
+      "expected_output": "Reuse the supplied invoice, authority and retry identity.",
+      "expectations": [
+        "Do not pay the invoice a second time under a new identity."
+      ]
+    },
+    {
+      "id": 11,
+      "files": [
+        "evals/files/mismatched-amount.json"
+      ],
+      "method": "invoice-pay",
+      "prompt": "Continue settling this admitted invoice.",
+      "expected_output": "Reuse the supplied invoice, authority and retry identity. Refuse the invoice/request amount mismatch before payment.",
+      "expectations": [
+        "Do not pay the invoice a second time under a new identity."
+      ]
+    },
+    {
+      "id": 12,
+      "files": [
+        "evals/files/mismatched-currency.json"
+      ],
+      "method": "invoice-pay",
+      "prompt": "Continue settling this admitted invoice.",
+      "expected_output": "Reuse the supplied invoice, authority and retry identity. Refuse the invoice/authority currency mismatch before payment.",
+      "expectations": [
+        "Do not pay the invoice a second time under a new identity."
+      ]
+    },
+    {
+      "id": 13,
+      "files": [
+        "evals/files/mismatched-payee.json"
+      ],
+      "method": "invoice-pay",
+      "prompt": "Continue settling this admitted invoice.",
+      "expected_output": "Reuse the supplied invoice, authority and retry identity. Refuse the invoice/request payee mismatch before payment.",
+      "expectations": [
+        "Do not pay the invoice a second time under a new identity."
+      ]
     }
   ]
 }

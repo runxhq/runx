@@ -21,14 +21,14 @@
     },
     {
       "id": 4,
-      "prompt": "Continue from the failed receipt and test report you are given into a diagnosis of what to change in the skill.",
-      "expected_output": "A diagnosis ready for skill-build, drawn from the given receipt detail and test output: a context edge read stdout and flattened the structured payload, and the smallest change to skills/skill-build is to pass the named artifact instead, with nothing run again.",
+      "prompt": "Continue from this failed receipt and test report into a skill improvement diagnosis.",
+      "expected_output": "Reuse native receipt detail and supplied test evidence in a skill-build-ready diagnosis without repeating execution.",
       "files": [
         "evals/files/context-flattening-failure.json"
       ],
       "expectations": [
-        "It does not run the failed skill again.",
-        "It works from the receipt detail it is given and does not query or rediscover it in the ledger."
+        "Do not rerun the failed skill.",
+        "Do not hydrate or rediscover receipt evidence already returned by the native ledger query."
       ],
       "method": "from-evidence"
     }

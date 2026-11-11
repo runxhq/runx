@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Improve this skill from the failed-run diagnosis you are given.",
-      "expected_output": "It leaves the package unchanged: the given diagnosis has no receipt or reproducible test output, so it names the sealed reproduction needed before any change and writes nothing.",
+      "prompt": "Improve this skill from the supplied failed-run diagnosis.",
+      "expected_output": "Weak prior evidence is reused and returns unchanged without speculative package mutation.",
       "files": [
         "evals/files/weak-failure-diagnosis.json"
       ],
       "expectations": [
-        "It does not replay the failed external operation.",
-        "It does not inspect the package again for state the diagnosis already settles."
+        "Do not replay the failed external operation.",
+        "Do not rediscover the already inspected package state."
       ],
       "method": "improve"
     }

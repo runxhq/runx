@@ -30,6 +30,57 @@
       "prompt": "Prepare the exact reply for this Slack thread and stop before delivery.",
       "expected_output": "Return a digest-bound reply plan with exact target, body, principal, and approval boundary.",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Observe this selected message against the original exact plan after an uncertain send.",
+      "expected_output": "Read full exact message evidence without sending again; do not change the original native effect status.",
+      "files": [
+        "evals/files/uncertain-release-send.json"
+      ],
+      "expectations": [
+        "Do not post or reconstruct original effect custody from a preview or timestamp heuristic."
+      ],
+      "method": "reconcile_post"
+    },
+    {
+      "id": 7,
+      "prompt": "Deliver this already prepared release notification to the selected Slack channel.",
+      "expected_output": "Reuse the exact plan, body, channel, digest, and principal; post once and return provider readback without redrafting.",
+      "files": [
+        "evals/files/release-notification-plan.json"
+      ],
+      "expectations": [
+        "Do not redraft or reclassify the notification.",
+        "Do not repeat delivery after stable readback exists."
+      ],
+      "method": "post"
+    },
+    {
+      "id": 8,
+      "prompt": "Prepare the final Slack reply from this completed support or operations decision.",
+      "expected_output": "Reuse final text and thread locator without rereading the thread or sending it.",
+      "files": [
+        "evals/files/thread-reply-text.json"
+      ],
+      "expectations": [
+        "Do not reread or re-summarize the Slack thread.",
+        "Do not send the reply from the planning method."
+      ],
+      "method": "plan_reply"
+    },
+    {
+      "id": 9,
+      "prompt": "Continue the admitted reply using the existing source packet and turn.",
+      "expected_output": "Reuse the supplied source evidence and turn identity without inventing a second reply.",
+      "files": [
+        "evals/files/admitted-reply-source.json"
+      ],
+      "expectations": [
+        "Do not choose another thread or account.",
+        "Do not send before native human approval."
+      ],
+      "method": "reply"
     }
   ]
 }

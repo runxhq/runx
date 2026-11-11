@@ -12,6 +12,32 @@
       "prompt": "Turn this bounded issue intake into a dependency-safe Runx work plan.",
       "expected_output": "Return a validated execution plan with evidence preservation, mutation boundaries, and explicit owners.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Continue planning from this completed code-intake artifact.",
+      "expected_output": "Reuse the intake change set and evidence without re-triaging the issue or rediscovering its target.",
+      "files": [
+        "evals/files/abandoned-cart-intake.json"
+      ],
+      "expectations": [
+        "Do not repeat issue intake or triage.",
+        "Do not reacquire target evidence already carried by the intake packet."
+      ],
+      "method": "code-plan-agent"
+    },
+    {
+      "id": 4,
+      "prompt": "Continue planning from this completed code-intake artifact.",
+      "expected_output": "Reuse the intake change set and evidence without re-triaging the issue or rediscovering its target.",
+      "files": [
+        "evals/files/abandoned-cart-intake-without-approval.json"
+      ],
+      "expectations": [
+        "Do not repeat issue intake or triage.",
+        "Do not reacquire target evidence already carried by the intake packet."
+      ],
+      "method": "code-plan-agent"
     }
   ]
 }

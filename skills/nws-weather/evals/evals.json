@@ -15,14 +15,14 @@
     },
     {
       "id": 3,
-      "prompt": "Get the NWS forecast for the gridpoint already resolved for the Washington Monument.",
-      "expected_output": "One NWS provider packet for office LWX at grid 97,71, read from the given gridpoint without locating it again.",
+      "prompt": "Acquire NWS evidence for the already resolved Washington Monument gridpoint.",
+      "expected_output": "Reuse the supplied office and grid coordinates without geocoding again, then return one provider packet.",
       "files": [
         "evals/files/washington-monument-gridpoint.json"
       ],
       "expectations": [
-        "It does not resolve the location or gridpoint again.",
-        "It reads the forecast once."
+        "Do not resolve the location or gridpoint again.",
+        "Do not fetch the same forecast downstream when the provider packet is present."
       ],
       "method": "forecast"
     }

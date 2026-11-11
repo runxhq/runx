@@ -6,6 +6,18 @@
       "prompt": "Decide whether this procurement request is allowed under the procurement policy before any money moves.",
       "expected_output": "Return an approval decision bound to the exact request and policy digests, with no spend executed.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/procurement-policy-snapshot.json"
+      ],
+      "method": "decide",
+      "prompt": "Check this already captured procurement request against its supplied policy/budget snapshot.",
+      "expected_output": "Reuse the exact policy/request evidence without fetching accounts, reserving funds or executing a spend.",
+      "expectations": [
+        "Do not refresh provider accounts or reserve/spend funds inside this policy decision."
+      ]
     }
   ]
 }

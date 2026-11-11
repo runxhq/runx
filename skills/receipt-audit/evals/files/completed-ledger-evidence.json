@@ -1,0 +1,52 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "receipt_id": "receipt-test",
+  "granted_scopes": [
+    "repo:read"
+  ],
+  "receipt_evidence": {
+    "ledger_answer": {
+      "decision": "answered",
+      "question": "Review recorded authority only.",
+      "query": {
+        "principal": "",
+        "skill": "",
+        "outcome": [],
+        "time_range": {
+          "from": "",
+          "to": ""
+        },
+        "receipt_ids": [
+          "receipt-test"
+        ]
+      }
+    },
+    "matched_receipts": [
+      {
+        "receipt_id": "receipt-test"
+      }
+    ],
+    "receipt_details": [
+      {
+        "id": "receipt-test",
+        "verification": {
+          "status": "verified"
+        },
+        "authority": {
+          "exercised_scopes": [
+            {
+              "scope": "repo:read",
+              "source": "scope_ref"
+            }
+          ]
+        }
+      }
+    ],
+    "chain_verification": {
+      "checked": true,
+      "intact": true,
+      "breaks": []
+    },
+    "summary": "Synthetic completed ledger packet for deterministic composition testing; not live proof."
+  }
+}

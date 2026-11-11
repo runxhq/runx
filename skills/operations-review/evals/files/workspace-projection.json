@@ -1,0 +1,20 @@
+{
+  "about": "The workspace state a prior projection holds, with its receipt summary, provider status and the operator policy.",
+  "objective": "Check the workspace and tell me the next safe action.",
+  "scope": "workspace:example",
+  "dashboard_snapshot": {
+    "workspace": "example",
+    "pending_actions": [],
+    "recent_failures": []
+  },
+  "receipt_summary": {
+    "receipts": []
+  },
+  "provider_status": {
+    "runx_api": "ok"
+  },
+  "approval_context": {
+    "approvals": []
+  },
+  "operator_policy": "Route live sends through message-send and money movement through spend or refund."
+}

@@ -6,6 +6,19 @@
       "prompt": "Turn this noisy README bug report into a bounded request.",
       "expected_output": "Return a useful summary, reply and host recommendation without a synthetic provider event.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Bound the request using the supplied source context.",
+      "expected_output": "Preserve original source context and return a change set without planning or implementation.",
+      "files": [
+        "evals/files/readme-request-source.json"
+      ],
+      "expectations": [
+        "Do not fetch source context again.",
+        "Do not plan or implement the proposed change."
+      ],
+      "method": "intake"
     }
   ]
 }

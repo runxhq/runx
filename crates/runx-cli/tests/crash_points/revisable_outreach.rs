@@ -1,4 +1,4 @@
-//! The actual outreach graph, revised while a send has only an acknowledgement.
+//! The actual outreach workflow, revised while a send has only an acknowledgement.
 
 use super::*;
 use runx_runtime::scripted_model::{

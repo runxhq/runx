@@ -24,6 +24,54 @@
       "prompt": "Pay this exact x402 resource.",
       "expected_output": "Require hosted wallet authority and return provider plus resource readback.",
       "files": []
+    },
+    {
+      "id": 5,
+      "files": [
+        "evals/files/admitted-payment.json"
+      ],
+      "method": "pay",
+      "prompt": "Continue this admitted payment.",
+      "expected_output": "Reuse supplied resource terms, authority, and retry identity.",
+      "expectations": [
+        "Do not mint a second x402 payment identity."
+      ]
+    },
+    {
+      "id": 6,
+      "files": [
+        "evals/files/payment-over-budget.json"
+      ],
+      "method": "pay",
+      "prompt": "Continue this admitted payment.",
+      "expected_output": "Reuse supplied resource terms, authority, and retry identity. Refuse the amount above the supplied mandate before requesting funds.",
+      "expectations": [
+        "Do not mint a second x402 payment identity."
+      ]
+    },
+    {
+      "id": 7,
+      "files": [
+        "evals/files/payment-wrong-currency.json"
+      ],
+      "method": "pay",
+      "prompt": "Continue this admitted payment.",
+      "expected_output": "Reuse supplied resource terms, authority, and retry identity. Refuse the non-USD mandate for this USD amount before requesting funds.",
+      "expectations": [
+        "Do not mint a second x402 payment identity."
+      ]
+    },
+    {
+      "id": 8,
+      "files": [
+        "evals/files/payment-wrong-resource.json"
+      ],
+      "method": "pay",
+      "prompt": "Continue this admitted payment.",
+      "expected_output": "Reuse supplied resource terms, authority, and retry identity. Refuse the resource URL outside the supplied mandate before requesting funds.",
+      "expectations": [
+        "Do not mint a second x402 payment identity."
+      ]
     }
   ]
 }

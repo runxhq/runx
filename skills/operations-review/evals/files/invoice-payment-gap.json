@@ -1,0 +1,14 @@
+{
+  "about": "The invoice-payment gap an upstream review established, with the source owners already known.",
+  "objective": "Review the remaining invoice-payment gap and choose the next bounded step.",
+  "scope": "workspace:runx-skill-completion",
+  "dashboard_snapshot": {
+    "invoice_pay": {
+      "structured_settlement": "available",
+      "automatic_intake": "incomplete",
+      "reason": "The rejected candidate trusted an unbound currency exponent and duplicated native exact conversion."
+    }
+  },
+  "project_profile": "Existing source owners: skills/invoice-pay handles invoice matching; skills/pay owns buyer mandate/approval; crates/runx-contracts/src/connector/template.rs owns exact template minor-unit conversion. prior-art#prior-art-agent inspects exact selected local sources.",
+  "operator_policy": "Return one useful read-only proposal. Do not invent execution aliases, payment authority, delivery or a missing primitive."
+}

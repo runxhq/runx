@@ -9,27 +9,25 @@
     },
     {
       "id": 2,
-      "prompt": "Analyze the product counts you are given and propose the next measurement.",
-      "expected_output": "Activation of 75 of 100 signups and day-seven retention of 40 of 80 eligible accounts, calculated from the given reports under their own definitions, with the next measurement proposed and no outward action.",
+      "prompt": "Analyze these supplied product counts and propose the next measurement.",
+      "expected_output": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
       "files": [
         "evals/files/activation-reports.json"
       ],
       "expectations": [
-        "It does not query PostHog again.",
-        "It keeps the given measurement definitions."
+        "Do not query PostHog again or replace supplied measurement definitions."
       ],
       "method": "analyze"
     },
     {
       "id": 3,
-      "prompt": "Review activation from the product reports already collected.",
-      "expected_output": "A review of the activation objective that reuses the given aggregates rather than collecting a PostHog insight, with the funnel and retention rates under the given definitions, the gaps, and the next measurement.",
+      "prompt": "Analyze these supplied product counts and propose the next measurement.",
+      "expected_output": "Reuse the supplied evidence and retain the exact bounded outcome without outward actions.",
       "files": [
         "evals/files/activation-reports.json"
       ],
       "expectations": [
-        "It does not collect a PostHog insight.",
-        "It keeps the given measurement definitions."
+        "Do not query PostHog again or replace supplied measurement definitions."
       ],
       "method": "review"
     }

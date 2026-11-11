@@ -6,6 +6,31 @@
       "prompt": "Which spend runs completed for the ops principal in this ledger slice?",
       "expected_output": "Return the matched receipts and a deterministic verification result for their chain.",
       "files": []
+    },
+    {
+      "id": 2,
+      "files": [
+        "evals/files/bounded-ledger-slice.json"
+      ],
+      "method": "read",
+      "prompt": "Answer the audit question from these already bounded receipt rows.",
+      "expected_output": "Reuse supplied ledger evidence without querying unrelated history or hydrating full run contexts. Supplied rows do not prove an intact cryptographic chain; preserve unknown chain trust.",
+      "expectations": [
+        "Do not query the wider receipt store.",
+        "Do not re-run or hydrate the matched operations."
+      ]
+    },
+    {
+      "id": 3,
+      "files": [
+        "evals/files/failed-native-step.json"
+      ],
+      "method": "read",
+      "prompt": "Give diagnosis the failed native step's evidence without rerunning it.",
+      "expected_output": "Preserve the native subject, local issuer and failed seal criterion while keeping replay chain trust unknown. Preserve the failed output-contract criterion, local issuer, native subject and non-retryable seal failure; replay chain trust remains unknown.",
+      "expectations": [
+        "Do not rerun the original operation."
+      ]
     }
   ]
 }

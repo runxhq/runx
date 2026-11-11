@@ -1,0 +1,24 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "content": "Dana from the north office approved the draft.",
+  "classes": [
+    "name"
+  ],
+  "mode": "redact",
+  "redaction_draft": {
+    "decision": "needs_review",
+    "detected": [
+      {
+        "class": "name",
+        "selector": {
+          "quote": "Dana"
+        },
+        "confidence": 0.7
+      }
+    ],
+    "residual_risk": {
+      "level": "medium",
+      "reason_code": "ambiguous_semantics"
+    }
+  }
+}

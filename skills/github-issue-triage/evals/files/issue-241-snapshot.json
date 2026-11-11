@@ -1,0 +1,12 @@
+{
+  "about": "The snapshot of issue 241 a prior read captured, and the objective for the response.",
+  "issue_snapshot": {
+    "repository": "runxhq/runx",
+    "number": "241",
+    "title": "Sourcey output path is unclear",
+    "state": "open",
+    "body": "The docs mention two different output directories.",
+    "source_locator": "github:runxhq/runx/issues/241"
+  },
+  "objective": "Draft the next helpful maintainer response."
+}

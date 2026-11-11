@@ -1,0 +1,17 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "connector": "coinbase/cdp",
+  "request": {
+    "resource": "https://seller.example/v1/reports/launch",
+    "payment_id": "x402pay_test_001",
+    "amount_minor": 125,
+    "currency": "USD",
+    "reason": "The report was not delivered."
+  },
+  "idempotency_seed": "refund-test-0000001",
+  "prior_human_decision": {
+    "gate": "confirm",
+    "decision": "declined",
+    "source": "fixture:original-refund-run"
+  }
+}

@@ -9,14 +9,14 @@
     },
     {
       "id": 2,
-      "prompt": "Continue this design decision from the repository and catalog evidence you are given: what should we reuse to add a Moltbook opportunity scan?",
-      "expected_output": "A prior-art recommendation from the given sources: moltbook already scans for an opportunity, with scan-provider for a live feed and scan for a captured one, so the pipeline reuses it rather than building a new scan, citing skills/moltbook/run.yaml.",
+      "prompt": "Continue this design decision from the supplied repository and catalog evidence.",
+      "expected_output": "Reuse the bounded source set and return a prior-art recommendation without broad repository rediscovery.",
       "files": [
         "evals/files/moltbook-scan-sources.json"
       ],
       "expectations": [
-        "It does not list or search the whole repository again.",
-        "It does not fetch catalog evidence the given source set already holds."
+        "Do not enumerate or grep the whole repository again.",
+        "Do not reacquire catalog evidence already included in the bounded source set."
       ]
     }
   ]

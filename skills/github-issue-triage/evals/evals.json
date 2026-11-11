@@ -18,6 +18,32 @@
       "prompt": "Triage runxhq/runx issue 241 and draft the next helpful maintainer response.",
       "expected_output": "Return a high-signal evidence-bound issue profile and response draft without mutating GitHub.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Draft the maintainer response from this existing issue snapshot.",
+      "expected_output": "Reuse the supplied snapshot and source reference without fetching or reclassifying the issue.",
+      "files": [
+        "evals/files/issue-241-long-snapshot.json"
+      ],
+      "expectations": [
+        "Do not fetch the GitHub issue again.",
+        "Do not repeat issue discovery or target resolution."
+      ],
+      "method": "respond"
+    },
+    {
+      "id": 5,
+      "prompt": "Draft the maintainer response from this existing issue snapshot.",
+      "expected_output": "Reuse the supplied snapshot and source reference without fetching or reclassifying the issue.",
+      "files": [
+        "evals/files/issue-241-snapshot.json"
+      ],
+      "expectations": [
+        "Do not fetch the GitHub issue again.",
+        "Do not repeat issue discovery or target resolution."
+      ],
+      "method": "respond"
     }
   ]
 }

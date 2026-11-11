@@ -18,6 +18,58 @@
       "prompt": "Produce a decision-ready research-brief brief from these bounded sources.",
       "expected_output": "Return a rigorous brief with material claims bound to source evidence and no publication claim.",
       "files": []
+    },
+    {
+      "id": 4,
+      "files": [
+        "evals/files/collected-source-packets.json"
+      ],
+      "method": "research-brief",
+      "prompt": "Continue the decision from this completed bounded research collection.",
+      "expected_output": "Reuse supplied research evidence and provenance without reacquiring sources or repeating collection.",
+      "expectations": [
+        "Do not refetch or rediscover material sources.",
+        "Do not repeat evidence collection already preserved in the input packet."
+      ]
+    },
+    {
+      "id": 5,
+      "files": [
+        "evals/files/completed-architecture-research.json"
+      ],
+      "method": "from-research",
+      "prompt": "Turn this completed architecture research into an operator memo.",
+      "expected_output": "Write once from the original research bindings without collecting or synthesizing research again.",
+      "expectations": [
+        "Do not reacquire sources.",
+        "Do not repeat research synthesis."
+      ]
+    },
+    {
+      "id": 6,
+      "files": [
+        "evals/files/collected-source-packets-default.json"
+      ],
+      "method": "research-brief",
+      "prompt": "Continue the decision from this completed bounded research collection.",
+      "expected_output": "Reuse supplied research evidence and provenance without reacquiring sources or repeating collection.",
+      "expectations": [
+        "Do not refetch or rediscover material sources.",
+        "Do not repeat evidence collection already preserved in the input packet."
+      ]
+    },
+    {
+      "id": 7,
+      "files": [
+        "evals/files/fresh-ecosystem-evidence.json"
+      ],
+      "method": "ecosystem",
+      "prompt": "Brief the operator from this already collected ecosystem evidence.",
+      "expected_output": "Reuse fresh research packets and source bindings without repeating market discovery.",
+      "expectations": [
+        "Do not rediscover the ecosystem source set.",
+        "Do not refetch evidence already bound into the research packet."
+      ]
     }
   ]
 }

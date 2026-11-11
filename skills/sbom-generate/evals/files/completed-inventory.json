@@ -1,0 +1,53 @@
+{
+  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "inventory": {
+    "components": [
+      {
+        "development": false,
+        "direct": true,
+        "ecosystem": "npm",
+        "exact_version": true,
+        "licenses": [
+          "MIT"
+        ],
+        "location": "/packages/node_modules~1alias",
+        "name": "@scope/real",
+        "source_kind": "registry",
+        "version": "1.2.3"
+      },
+      {
+        "development": false,
+        "direct": true,
+        "ecosystem": "npm",
+        "exact_version": false,
+        "licenses": [],
+        "location": "/packages/node_modules~1local",
+        "name": "local",
+        "source_kind": "local",
+        "version": null
+      }
+    ],
+    "coverage": {
+      "basis": "lockfile",
+      "complete": true,
+      "installed_state_verified": false,
+      "package_visibility_verified": false
+    },
+    "gaps": [],
+    "lockfile": {
+      "type": "package-lock",
+      "version": 3
+    },
+    "project": {
+      "name": "fixture-project"
+    },
+    "schema": "runx/sbom-generate.inventory.v1",
+    "scope": "all-locked",
+    "source": {
+      "bytes": 511,
+      "digest": "sha256:9624001d7921dd6df136463723f7d9aae6ab17746ef4e0431224dbf0bdb52eea",
+      "digest_encoding": "source_bytes",
+      "label": "sbom-inventory-package-lock.json"
+    }
+  }
+}

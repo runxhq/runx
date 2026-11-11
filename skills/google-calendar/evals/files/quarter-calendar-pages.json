@@ -1,0 +1,51 @@
+{
+  "about": "The two calendar result pages already read for the quarter, linked by their cursor: the first incomplete and pointing to the second.",
+  "calendar_id": "primary",
+  "time_min": "2026-10-01T00:00:00Z",
+  "time_max": "2027-01-01T00:00:00Z",
+  "kind": "events",
+  "pages": [
+    {
+      "calendar_id": "primary",
+      "time_min": "2026-10-01T00:00:00Z",
+      "time_max": "2027-01-01T00:00:00Z",
+      "fetched_at": "2026-11-04T00:00:00Z",
+      "page_token": "",
+      "next_page_token": "next",
+      "complete": false,
+      "events": [
+        {
+          "event_id": "e1",
+          "status": "confirmed",
+          "visibility": "default",
+          "revision": "r1",
+          "summary": "Planning",
+          "all_day": false,
+          "start": "2026-11-04T01:00:00Z",
+          "end": "2026-11-04T02:00:00Z"
+        }
+      ]
+    },
+    {
+      "calendar_id": "primary",
+      "time_min": "2026-10-01T00:00:00Z",
+      "time_max": "2027-01-01T00:00:00Z",
+      "fetched_at": "2026-11-04T00:00:00Z",
+      "page_token": "next",
+      "next_page_token": "",
+      "complete": true,
+      "events": [
+        {
+          "event_id": "e2",
+          "status": "confirmed",
+          "visibility": "default",
+          "revision": "r1",
+          "summary": "Quarterly review",
+          "all_day": false,
+          "start": "2026-12-10T01:00:00Z",
+          "end": "2026-12-10T02:00:00Z"
+        }
+      ]
+    }
+  ]
+}

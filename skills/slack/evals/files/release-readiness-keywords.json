@@ -1,0 +1,11 @@
+{
+  "about": "The exact keywords, channel types and limit a release-readiness review asked for.",
+  "query": {
+    "keywords": "release readiness",
+    "channel_types": [
+      "public_channel",
+      "private_channel"
+    ],
+    "limit": 20
+  }
+}

@@ -15,27 +15,26 @@
     },
     {
       "id": 3,
-      "prompt": "Admit the facts you are given for a writer to compose from.",
-      "expected_output": "A ready writing context binding the given fact and scope by digest, with no draft written, no research done, and no claim that the fact was independently verified.",
+      "prompt": "Admit these already supplied facts for a composing writer.",
+      "expected_output": "Return a ready source-bound writing context without writing, researching or claiming independent verification.",
       "files": [
         "evals/files/operator-facts.json"
       ],
       "expectations": [
-        "It does not invoke research.",
-        "It does not write the draft."
+        "Do not invoke research or author the draft inside admission."
       ],
       "method": "admit"
     },
     {
       "id": 4,
-      "prompt": "Turn the completed research brief you are given into a draft for operators.",
-      "expected_output": "An operator brief drawn from the given research brief, every claim bound to the evidence log, and nothing claimed beyond it.",
+      "prompt": "Turn this completed research brief into an operator-facing draft.",
+      "expected_output": "Reuse the research brief and evidence log without repeating research or inventing claims.",
       "files": [
         "evals/files/research-brief-evidence.json"
       ],
       "expectations": [
-        "It does not research again.",
-        "It makes no claim beyond the given evidence."
+        "Do not rerun research.",
+        "Do not replace or expand claims beyond the supplied evidence."
       ],
       "method": "draft"
     }

@@ -1,0 +1,101 @@
+{
+  "about": "Prior source-bound risk review captured from an isolated native scan using the composed workflow test's assessment. The source findings are synthetic; native binding does not establish actual deployment exposure. This advisory eval receives the completed review, not the advisory draft.",
+  "triage_packet": {
+    "advisories": [
+      {
+        "advisory_id": "GHSA-example-1234",
+        "affected": [
+          {
+            "package": {
+              "ecosystem": "npm",
+              "name": "example-lib"
+            },
+            "ranges": [
+              {
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.2.4"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "assessment": {
+          "confidence": "medium",
+          "evidence_status": "source_bound",
+          "exposure": "not_established",
+          "exposure_evidence": [],
+          "fixed_version": "1.2.4",
+          "priority": "high",
+          "rationale": "The source matches the exact dependency version, but no call-site or runtime trace establishes reachability.",
+          "recommendation": "Test the advisory-declared fixed version, then verify deployment and vulnerable call sites."
+        },
+        "dependency": "example-lib",
+        "dependency_paths": [
+          "node_modules/example-lib"
+        ],
+        "ecosystem": "npm",
+        "exact_version": "1.2.3",
+        "finding_key": "[\"npm\",\"example-lib\",\"1.2.3\",\"GHSA-example-1234\"]",
+        "summary": "Synthetic exact-version fixture advisory."
+      }
+    ],
+    "decision": "remediate",
+    "escalation_criteria": [
+      {
+        "action": "human_remediation_review",
+        "advisory_id": "GHSA-example-1234",
+        "finding_key": "[\"npm\",\"example-lib\",\"1.2.3\",\"GHSA-example-1234\"]",
+        "trigger": "priority_high_or_urgent"
+      },
+      {
+        "action": "human_remediation_review",
+        "advisory_id": "GHSA-example-1234",
+        "finding_key": "[\"npm\",\"example-lib\",\"1.2.3\",\"GHSA-example-1234\"]",
+        "trigger": "exposure_not_established"
+      }
+    ],
+    "evidence_binding": {
+      "analysis_complete": false,
+      "assurance": "source_bound_not_independently_verified",
+      "components_artifact": null,
+      "continuation": null,
+      "coverage": {},
+      "evidence_digest": "sha256:18ef8d4889e6b100773c85e12efa8e16fb9e9aa078a4e452ec56175715ea4b23",
+      "inventory_artifact": null,
+      "inventory_digest": null,
+      "kind": "provided_findings",
+      "previous_result_part": null,
+      "result_part": null,
+      "scan_status": null
+    },
+    "exposure_evidence": [],
+    "operator_summary": {
+      "summary": "Prioritize a tested dependency update; verify actual deployment exposure.",
+      "verdict": "remediate"
+    },
+    "publication_status": "not_published",
+    "remediation_plan": [
+      {
+        "finding_key": "[\"npm\",\"example-lib\",\"1.2.3\",\"GHSA-example-1234\"]",
+        "fixed_version": "1.2.4",
+        "recommendation": "Test the advisory-declared fixed version, then verify deployment and vulnerable call sites."
+      }
+    ],
+    "schema": "runx/vuln-triage.scan.v1",
+    "target": "example/service",
+    "validation": {
+      "findings": [],
+      "status": "pass"
+    }
+  },
+  "parent": {
+    "status": "open",
+    "sealed_receipt": null
+  },
+  "audience": "affected_users"
+}

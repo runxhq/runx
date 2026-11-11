@@ -15,27 +15,27 @@
     },
     {
       "id": 3,
-      "prompt": "Continue growth planning from the Search Console, analytics and site evidence you are given.",
-      "expected_output": "Prioritized organic-growth work for the Runx guides from the given evidence, with the earlier source-read gaps kept, and no query, crawl or renormalization.",
+      "prompt": "Continue growth planning from these completed Search Console, analytics, and site evidence packets.",
+      "expected_output": "Reuse normalized source packets without rerunning analytics or search acquisition.",
       "files": [
         "evals/files/growth-source-evidence.json"
       ],
       "expectations": [
-        "It does not query Google or crawl the site again.",
-        "It does not normalize evidence the connector skills already normalized."
+        "Do not query Google or crawl the site again.",
+        "Do not renormalize evidence already supplied by connector skills."
       ],
       "method": "review"
     },
     {
       "id": 4,
-      "prompt": "Prioritize the organic growth work from the evidence you are given across its sources.",
-      "expected_output": "Cross-source priorities for the Runx guides, each bound to the given search, analytics or site evidence behind it, with no source collected again.",
+      "prompt": "Continue growth planning from these completed Search Console, analytics, and site evidence packets.",
+      "expected_output": "Reuse normalized source packets without rerunning analytics or search acquisition.",
       "files": [
         "evals/files/growth-source-evidence-analysis.json"
       ],
       "expectations": [
-        "It does not query Google or crawl the site again.",
-        "It does not normalize evidence the connector skills already normalized."
+        "Do not query Google or crawl the site again.",
+        "Do not renormalize evidence already supplied by connector skills."
       ],
       "method": "analyze"
     }
