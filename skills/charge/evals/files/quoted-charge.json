@@ -1,5 +1,5 @@
 {
-  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "about": "Non-live prior quote, buyer payload and stable caller payment identity. The native composed case in tests/composes-in-workflow.yaml supplies isolated merchant binding, exact approval and settlement/readback fixtures. This JSON supplies none of that authority and is not live payment or cryptographic verification evidence.",
   "connector": "coinbase/cdp",
   "request": {
     "resource": "https://seller.example/v1/reports/launch",

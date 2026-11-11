@@ -1,5 +1,37 @@
 name: charge-composes-in-workflow
 package: fixtures/composed
+inputs:
+  connector: coinbase/cdp
+  request:
+    resource: https://seller.example/v1/reports/launch
+    amount_minor: 125
+    currency: USD
+    payment_payload:
+      x402Version: 2
+      accepted:
+        scheme: exact
+        network: eip155:8453
+        amount: "1250000"
+        payTo: "0x0000000000000000000000000000000000000002"
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        maxTimeoutSeconds: 300
+      resource:
+        url: https://seller.example/v1/reports/launch
+      payload:
+        signature: 0xsigned
+        authorization:
+          from: "0x0000000000000000000000000000000000000001"
+          to: "0x0000000000000000000000000000000000000002"
+          value: "1250000"
+    payment_requirements:
+      scheme: exact
+      network: eip155:8453
+      amount: "1250000"
+      payTo: "0x0000000000000000000000000000000000000002"
+      asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      maxTimeoutSeconds: 300
+    request_binding_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  idempotency_seed: charge-test-0000001
 host:
   approvals:
     charge#settle: true
@@ -45,5 +77,24 @@ providers:
           settled_at: 2026-10-15T00:00:00.000Z
 expect:
   status: sealed
+  steps: [charge, digest]
+  output:
+    subset:
+      provider_operation:
+        provider: coinbase/cdp
+        operation: payment.x402.merchant.read
+        target: https://seller.example/v1/reports/launch
+        access: read
+        status: success
+        finality: confirmed
+        result:
+          payment_id: x402pay_test_001
+          resource: https://seller.example/v1/reports/launch
+          amount_minor: 125
+          currency: USD
+          status: settled
+          settlement_id: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   receipt:
     schema: runx.receipt.v1
+    outcome: completed
+    child_receipt_count: 2
