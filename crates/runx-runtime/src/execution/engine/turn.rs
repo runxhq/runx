@@ -2531,16 +2531,59 @@ where
     }
 
     /// A listed child skill's tool, named for the skill.
-    fn skill_tool(&self, target: CallTarget, name: String) -> Result<TurnTool, RuntimeError> {
+    /// The tool a step's call to a child skill is offered as, named from the
+    /// package it loads, as a load of that package names it.
+    fn skill_tool(&self, target: CallTarget) -> Result<TurnTool, RuntimeError> {
+        let describing =
+            |reason: String| RuntimeError::effect_state("describing a child skill", reason);
         let call = self
             .call_step(0, &target, &JsonObject::new(), &[])
-            .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
+            .map_err(describing)?;
         let loaded = load_step_skill(
             self.scope.workflow_dir,
             &call.step,
             StepSkillLoadOptions::of_run(&self.scope.runtime.options),
         )?;
-        skill_descriptor(&name, loaded.description, &loaded.method, target)
+        // Its registry name, or its directory in the workspace, as a load
+        // names it; a package a step reaches outside the workspace, which no
+        // load reaches, goes by its directory's own name.
+        let package = match &loaded.registry {
+            Some(registry) => registry.signed.name.clone(),
+            None => {
+                let directory = std::fs::canonicalize(&loaded.directory).map_err(|error| {
+                    describing(format!("{}: {error}", loaded.directory.display()))
+                })?;
+                let paths = crate::paths::RunxPaths::resolve(
+                    &self.scope.runtime.options.env,
+                    self.scope.workflow_dir,
+                );
+                let workspace = std::fs::canonicalize(paths.workspace()).ok();
+                match workspace.and_then(|workspace| {
+                    directory
+                        .strip_prefix(workspace)
+                        .ok()
+                        .map(Path::to_path_buf)
+                }) {
+                    Some(relative) => relative.to_string_lossy().into_owned(),
+                    None => directory
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .ok_or_else(|| {
+                            describing(format!("{} names no package", directory.display()))
+                        })?,
+                }
+            }
+        };
+        let CallTarget::Skill { skill, .. } = &target else {
+            return Err(describing("a child skill's call names a skill".to_owned()));
+        };
+        let method = crate::execution::workflow::turn_skill_target(skill.as_str()).method;
+        skill_descriptor(
+            &package_tool_name(&package, method.as_deref()),
+            loaded.description,
+            &loaded.method,
+            target,
+        )
     }
 
     /// The loads this turn completed, in order.
@@ -2754,14 +2797,11 @@ where
             }
         }
         for skill in allowance.named_skills() {
-            tools.push(self.ledger.skill_tool(
-                CallTarget::Skill {
-                    skill: skill.clone(),
-                    method: None,
-                    bound: None,
-                },
-                format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
-            )?);
+            tools.push(self.ledger.skill_tool(CallTarget::Skill {
+                skill: skill.clone(),
+                method: None,
+                bound: None,
+            })?);
         }
         if allowance.rules().next().is_some() {
             tools.push(offered(
@@ -3079,12 +3119,18 @@ fn load_target(input: &JsonObject) -> Result<LoadTarget, String> {
     }
 }
 
-/// A loaded method's tool name: its package, without its version, and its
-/// method.
-pub(super) fn loaded_tool_name(package: &str, method: &str) -> String {
+/// The name a package's method is offered by, whether the turn's step calls
+/// it or the turn loads it, so one method has one name:
+/// `skill__<package>__<method>`, or `skill__<package>` for a call that names
+/// no method. The package is its registry name, without its version, or its
+/// directory in the workspace, without `skills/`.
+pub(super) fn package_tool_name(package: &str, method: Option<&str>) -> String {
     let name = package.split_once('@').map_or(package, |(name, _)| name);
     let name = name.strip_prefix("skills/").unwrap_or(name);
-    format!("skill__{name}__{method}")
+    match method {
+        Some(method) => format!("skill__{name}__{method}"),
+        None => format!("skill__{name}"),
+    }
 }
 
 /// A load's input: a skill with an optional method, or a connector by

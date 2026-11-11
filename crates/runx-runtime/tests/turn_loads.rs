@@ -780,6 +780,49 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
     Ok(())
 }
 
+/// A package's method is offered by one name, `skill__<package>__<method>`,
+/// whether the turn's step calls it or the turn loads it, and a call that
+/// names no method by `skill__<package>`: its package by its directory in
+/// the workspace, `skills/` dropped, never by the path the step wrote.
+#[test]
+fn a_packages_method_is_offered_by_one_name_whether_called_or_loaded() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    for (directory, name) in [("skills/notes", "notes"), ("skills/tools/clip", "clip")] {
+        crate::support::write_test_skill_package(
+            &project.root.join(directory),
+            &format!("---\nname: {name}\ndescription: Digests a value.\n---\n# {name}\n"),
+            "minimum_runx: 0.12.0\nmethods:\n  jot:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        )?;
+    }
+    let calling = project.root.join("calling");
+    crate::support::write_test_skill_package(
+        &calling,
+        "---\nname: calling\ndescription: Calls the notes.\n---\n# Calling\n\n## Agent task: work\n\nCall the notes, then summarize.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: work\n        agent: work\n        calls:\n          skills: [../skills/notes#jot, ../skills/tools/clip]\n        inputs: $input\n        outputs:\n          summary: {type: string}\n",
+    )?;
+    let called = tool_names(&project.open(&project.start(calling)?)?)?;
+    assert!(
+        called.contains(&"skill__notes__jot".to_owned())
+            && called.contains(&"skill__tools_clip".to_owned()),
+        "{called:?}"
+    );
+    let turn =
+        project.open(&project.start(project.session(serde_json::json!([{"project": true}]))?)?)?;
+    loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "skills/notes", "method": "jot"}))?,
+    )?)?;
+    let loaded_names = tool_names(&turn)?;
+    assert!(
+        loaded_names.contains(&"skill__notes__jot".to_owned()),
+        "{loaded_names:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_rule_admits_only_the_origin_it_names() -> TestResult {
     let temp = tempdir()?;

@@ -281,7 +281,7 @@ fn bind_skill(
         }
         tools.push(
             super::super::turn::skill_descriptor(
-                &super::super::turn::loaded_tool_name(&package_name, method),
+                &super::super::turn::package_tool_name(&package_name, Some(method)),
                 description.clone(),
                 &manifest.methods[method],
                 CallTarget::Skill {
