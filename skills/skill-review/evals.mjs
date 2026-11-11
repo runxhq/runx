@@ -13,10 +13,17 @@ import { released } from "./released.mjs";
 const DEFAULT_REPEATS = 1;
 const HOST = "../agent#write";
 
-export default async function evals(ctx, { subject, repeats }) {
+export default async function evals(ctx, { subject, repeats, eval_ids }) {
   const runs = repeats ?? DEFAULT_REPEATS;
   const judged = released(subject);
-  const declared = subject.inspect.evals ?? [];
+  let declared = subject.inspect.evals ?? [];
+  if (eval_ids !== undefined) {
+    const known = new Set(declared.map((entry) => entry.id));
+    const missing = eval_ids.filter((id) => !known.has(id));
+    if (missing.length) throw new Error(`unknown eval IDs: ${missing.join(", ")}`);
+    const selected = new Set(eval_ids);
+    declared = declared.filter((entry) => selected.has(entry.id));
+  }
   if (declared.length === 0) {
     throw new Error(`${judged.ref} declares no evals`);
   }

@@ -106,7 +106,9 @@ description is what's measured.
 
 ## Running evals
 
-`evals` runs each of the package's evals, `repeats` times (once when absent),
+`evals` runs each of the package's evals, `repeats` times (once when absent).
+Supply `eval_ids` to run only those exact declared cases; unknown IDs are refused.
+Each attempt runs
 in a fresh turn of the `agent` skill's `write` method under this run's
 authority. Each file an eval names, such as the prior run it builds on, is
 given to its attempt as a context entry, which its turn reads by locator. No eval writes to the world: a scripted model's run uses provider
