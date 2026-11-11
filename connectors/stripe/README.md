@@ -64,8 +64,7 @@ This connector does not advertise buyer-wallet capabilities. Link authorization,
 SPT acceptance and MPP charging require their own completed integration and are
 not implied by the Stripe mark or by these direct-payment operations.
 
-Run this package's explicit contract checks after building Runx and the contract
-package:
+Run this package's contract checks after building Runx:
 
 ```sh
 node --test connectors/stripe/tests/connector.test.mjs
@@ -73,7 +72,8 @@ node --test connectors/stripe/tests/connector.test.mjs
 
 These checks inspect the actual connector through the native CLI and verify
 its provider requests. They are deterministic contract tests, not sandbox
-transactions, and are separate from OSS core test gates.
+transactions, and `pnpm test:skills` runs them with every skill's and
+connector's tests in `verify:fast`.
 
 For an explicit provider proof, set `STRIPE_TEST_SECRET_KEY` in an ignored env
 file and run:

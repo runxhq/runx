@@ -1,4 +1,5 @@
-// Explicit connector integration proof. This is not part of OSS core CI.
+// Connector integration proof through the real runtime, with a stand-in for
+// the provider's CLI. `pnpm test:skills` runs it in verify:fast.
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,rmSync} from 'node:fs';

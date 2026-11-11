@@ -48,6 +48,16 @@ For one file:
 pnpm vitest run tests/examples/hello-world.test.ts
 ```
 
+Each skill's and connector's own tests run under Node's test runner:
+
+```bash
+pnpm test:skills
+```
+
+The connector checks inspect connectors through the built CLI, which
+`RUNX_RUST_CLI_BIN` names, and render their requests through the contracts
+package's source. `pnpm verify:fast` runs them after it builds the binaries.
+
 ## Full Suite
 
 Use this before review or when changing CLI packaging, dist output, package

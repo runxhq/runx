@@ -1,4 +1,6 @@
-// Explicit provider-package checks, separate from OSS core CI.
+// Provider-package checks: the connector as the native CLI inspects it, and the
+// requests a cold caller renders from that inspection. `pnpm test:skills` runs
+// them in verify:fast.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";

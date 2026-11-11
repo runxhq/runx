@@ -55,14 +55,15 @@ This is a merchant connector. It does not advertise PayPal buyer-wallet
 capabilities or permit app credentials to spend from an arbitrary buyer.
 Marketplace posting, fees, transfers and funding policy are separate concerns.
 
-Run the package checks explicitly after building the native CLI and contracts:
+Run the package checks after building the native CLI:
 
 ```sh
 node --test connectors/paypal/tests/connector.test.mjs
 ```
 
-Package checks are separate from OSS core CI. Real sandbox proof is a separate,
-opt-in provider exercise and requires valid PayPal sandbox app and buyer access.
+`pnpm test:skills` runs them with every skill's and connector's tests in
+`verify:fast`. Real sandbox proof is a separate, opt-in provider exercise and
+requires valid PayPal sandbox app and buyer access.
 The request shapes and money precision follow the [Orders and Payments
 specifications](https://github.com/paypal/paypal-rest-api-specifications) and
 [PayPal currency reference](https://developer.paypal.com/api/codes/currency).

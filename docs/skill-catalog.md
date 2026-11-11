@@ -53,7 +53,8 @@ their original bound closure.
 
 Repository CI tests the ten skills bundled into the CLI. Optional skill
 packages and their packet contracts are checked at registry publication; their
-product tests, `pnpm test:product`, run offline in `pnpm verify:fast`. The repository-wide
+product tests, `pnpm test:product`, and every skill's and connector's own tests,
+`pnpm test:skills`, run offline in `pnpm verify:fast`. The repository-wide
 packet generator remains a local catalog-maintenance command, not a core CI gate.
 Core public contracts are checked from Rust and bundled skill packages retain
 their native package, schema and test proofs.

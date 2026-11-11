@@ -85,6 +85,9 @@ if (rustBuild.status === 0) {
       ]),
       step("codex export", "pnpm", ["codex-export:check"]),
       step("test:fast", "pnpm", ["test:fast"]),
+      // Every skill's and connector's own tests. The connector checks inspect
+      // through the binary built above.
+      step("test:skills", "pnpm", ["test:skills"]),
       // Offline and deterministic: the product journeys run on every loop,
       // so they cannot drift unseen.
       step("test:product", "pnpm", ["test:product"]),

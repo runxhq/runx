@@ -16,6 +16,7 @@ for (const forbidden of [
   "rust:crate-graph",
   "build rust binaries",
   "test:fast",
+  "test:skills",
   "test:product",
 ]) {
   if (parallelSourceGroup.includes(forbidden)) {
@@ -32,6 +33,7 @@ for (const required of [
   'step("deterministic module engine decision"',
   'step("core skill version drift"',
   'step("docs:api:check"',
+  'step("test:skills"',
   'step("test:product"',
   'await runSerialGroup("rust structure checks"',
   'step("build rust binaries"',
