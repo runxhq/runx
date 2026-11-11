@@ -441,18 +441,13 @@ function streamsOf(levels, workspace_id) {
   return streams;
 }
 
-/// What a reference to an artifact names as its schema: a field of a call's
-/// result past the inline bound reaches a script as one.
-const ARTIFACT_SCHEMA = "runx.artifact.v1";
-
 /// A store call's result, as its operation packet holds it. A packet past
 /// the inline bound reaches the script as a reference to the artifact the
-/// call recorded it in, which holds what it would have held inline, so it's
-/// read whole: a page of keys, whatever its size, is never read as empty.
+/// call recorded it in, and `ctx.read` reads it whole, as it gives an inline
+/// one back as it is: a page of keys, whatever its size, is never read as
+/// empty.
 async function resultOf(ctx, value) {
-  const held = value?.provider_operation;
-  const packet = held?.schema === ARTIFACT_SCHEMA ? await ctx.read(held) : held;
-  return packet?.result;
+  return (await ctx.read(value?.provider_operation))?.result;
 }
 
 /// Whether a call was refused admission: a stream the run's authority
