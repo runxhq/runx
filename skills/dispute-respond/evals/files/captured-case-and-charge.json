@@ -1,5 +1,5 @@
 {
-  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "about": "Non-live case/charge examples and supplied fulfillment evidence. The native composed test captures actual native read packets from isolated Stripe HTTP fixtures, drafts once, submits under exact native approval and independently reads back the filing. These JSON examples are not verified native receipt, provider freshness or approval evidence.",
   "account_id": "acct_northstar",
   "dispute_id": "du_case42",
   "observed_at": "2026-11-04T00:00:00Z",

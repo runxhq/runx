@@ -3,26 +3,32 @@ catalog:
   visibility: internal
 methods:
   run:
+    inputs:
+      account_id: {type: string}
+      dispute_id: {type: string}
+      evidence: {type: array}
+    result_from: [file]
     steps:
       - id: capture
         skill: ../..#capture
         inputs:
-          account_id: acct_northstar
-          dispute_id: du_case42
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
           evidence: []
       - id: prepare
         skill: ../..#from-evidence
         inputs:
-          account_id: acct_northstar
-          dispute_id: du_case42
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
           case_evidence: $steps.capture.case_context.case_evidence
           charge_evidence: $steps.capture.case_context.charge_evidence
-          evidence:
-            - id: delivery-42
-              kind: delivery
-              content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
-              source: merchant://orders/42/access-log
+          evidence: $input.evidence
       - id: file
         skill: ../..#file
         inputs:
           prepared_response: $steps.prepare.prepared_response
+      - id: preserve
+        tool: data.compare
+        inputs:
+          actual: $steps.file.filing_result.prepared_response
+          expected: $steps.prepare.prepared_response

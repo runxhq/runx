@@ -1,5 +1,13 @@
 name: dispute-reuses-prior-case-and-charge
 package: fixtures/composed
+inputs:
+  account_id: acct_northstar
+  dispute_id: du_case42
+  evidence:
+    - id: delivery-42
+      kind: delivery
+      content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+      source: merchant://orders/42/access-log
 setup:
   credentials:
     - stripe
@@ -110,11 +118,54 @@ expect:
     - capture
     - prepare
     - file
+    - preserve
   step_outputs:
+    prepare:
+      subset:
+        prepared_response:
+          decision: ready
+          account_id: acct_northstar
+          dispute_id: du_case42
+          acquisition: prior_evidence
+          filing_status: not_attempted
+          sources:
+            - id: delivery-42
+              kind: delivery
+              content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+              source: merchant://orders/42/access-log
+          citations:
+            - field: access_activity_log
+              evidence_id: delivery-42
+              quote: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+          case_evidence:
+            operation: dispute.read
+            target: stripe://acct_northstar/disputes/du_case42
+            finality: confirmed
+          charge_evidence:
+            operation: payment.stripe.charge.read
+            target: stripe://acct_northstar/charges/ch_original42
+            finality: confirmed
+    preserve:
+      subset:
+        comparison:
+          equal: true
     file:
       subset:
         filing_result:
           state: filed
+          account_id: acct_northstar
+          dispute_id: du_case42
+          findings: []
+          provider_evidence:
+            operation: dispute.file
+            finality: confirmed
+            result:
+              dispute_id: du_case42
+              charge_id: ch_original42
+              status: under_review
+              submission_count: 1
+              evidence:
+                access_activity_log: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
   receipt:
     schema: runx.receipt.v1
     state: sealed
