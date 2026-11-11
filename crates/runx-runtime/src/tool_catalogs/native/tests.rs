@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{JsonObject, JsonValue};
 
-use super::{core_capabilities, definition, resends_safely, safe_read};
+use super::{core_capabilities, definition, resends_safely, safe_read, workspace_lock_mode};
 use crate::credentials::CredentialDelivery;
 use crate::effects::RuntimeEffectRegistry;
 
@@ -297,6 +297,18 @@ fn a_read_or_a_journaled_change_can_run_again_and_a_process_cannot() {
             in_process && !capability.definition().effect.mutating(),
             "{tool}"
         );
+    }
+}
+
+/// A tool that reads the workspace shares its lock. Evidence computes over
+/// the packets it's given, a local file's contents among them as an earlier
+/// read returned them, so it reads no file and takes no lock.
+#[test]
+fn an_evidence_tool_takes_no_workspace_lock() {
+    use crate::workspace_lock::LockMode;
+    assert_eq!(workspace_lock_mode("fs.read"), Some(LockMode::Shared));
+    for tool in ["evidence.index_sources", "evidence.verify_artifact"] {
+        assert_eq!(workspace_lock_mode(tool), None, "{tool}");
     }
 }
 
