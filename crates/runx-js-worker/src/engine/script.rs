@@ -28,8 +28,8 @@ use super::{
     EngineError, WorkerHost, configure_context, engine_failure, parse_modules, settle_module,
 };
 use crate::protocol::{
-    InvocationLimits, ReuseAsk, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding,
-    ScriptInputReference, ScriptReference, ScriptSettlement, WorkerFailureCode,
+    InvocationLimits, ReuseAsk, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptContext,
+    ScriptEnding, ScriptInputReference, ScriptReference, ScriptSettlement, WorkerFailureCode,
 };
 
 /// What a script's `ctx` sees of the clock: nothing but `ctx.now()`, which
@@ -498,47 +498,66 @@ fn skill(
 ) -> JsResult<JsValue> {
     let reference = text(arguments.get_or_undefined(0), "ctx.skill", "a skill#method")?;
     let inputs = inputs(arguments.get_or_undefined(1), "ctx.skill", context)?;
-    let reuse = reuse(arguments.get_or_undefined(2), context)?;
+    let SkillOptions {
+        reuse,
+        context: given,
+    } = skill_options(arguments.get_or_undefined(2), context)?;
     call(
         ledger,
         ScriptCallTarget::Skill {
             reference,
             inputs,
             reuse,
+            context: given,
         },
         context,
     )
 }
 
-/// `ctx.skill`'s options, `{ reuse: { max_age_seconds, model } }`: how old a
-/// result it may reuse is, in whole seconds, and the model that made it,
-/// when it names one. Any other key is refused.
-fn reuse(value: &JsValue, context: &mut Context) -> JsResult<Option<ReuseAsk>> {
-    #[derive(serde::Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Options {
-        reuse: Option<ReuseAsk>,
-    }
+/// `ctx.skill`'s options, `{ reuse: { max_age_seconds, model }, context }`:
+/// how old a result it may reuse is, in whole seconds, and the model that
+/// made it, when it names one; and the context its child's turns are given,
+/// each entry's text with a line that says what it is. Any other key is
+/// refused.
+#[derive(Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SkillOptions {
+    reuse: Option<ReuseAsk>,
+    #[serde(default)]
+    context: Vec<ScriptContext>,
+}
+
+fn skill_options(value: &JsValue, context: &mut Context) -> JsResult<SkillOptions> {
     if value.is_undefined() {
-        return Ok(None);
+        return Ok(SkillOptions::default());
     }
     let refused = |why: String| {
         JsError::from(JsNativeError::typ().with_message(format!("ctx.skill's options: {why}")))
     };
     let options = match value.to_json(context)? {
         Some(options @ serde_json::Value::Object(_)) => options,
-        _ => return Err(refused("they are an object, { reuse }".to_owned())),
+        _ => return Err(refused("they are an object, { reuse, context }".to_owned())),
     };
-    let Options { reuse } =
+    let options: SkillOptions =
         serde_json::from_value(options).map_err(|error| refused(error.to_string()))?;
-    if reuse
+    if options
+        .reuse
         .as_ref()
         .and_then(|reuse| reuse.model.as_deref())
         .is_some_and(|model| model.trim().is_empty())
     {
         return Err(refused("reuse.model names a model".to_owned()));
     }
-    Ok(reuse)
+    if options
+        .context
+        .iter()
+        .any(|entry| entry.summary.trim().is_empty())
+    {
+        return Err(refused(
+            "each context entry says what it is in its summary".to_owned(),
+        ));
+    }
+    Ok(options)
 }
 
 fn tool(

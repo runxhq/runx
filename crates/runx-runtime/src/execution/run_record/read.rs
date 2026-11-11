@@ -23,7 +23,7 @@ use runx_contracts::{
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AnswerEvent, CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, driven, input_digest,
+    AnswerEvent, CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, call_input_digest, driven,
     standing, standing_event, validate_run_id, waiting_requests,
 };
 use crate::execution::engine::StepOutcome;
@@ -234,6 +234,12 @@ fn project(
         },
         RunEvent::Call(call) => {
             let input: JsonObject = store.blob_json(&call.input)?;
+            let context: Vec<runx_contracts::javascript_worker::ScriptContext> = call
+                .context
+                .as_deref()
+                .map(|blob| store.blob_json(blob))
+                .transpose()?
+                .unwrap_or_default();
             let loaded = match call.target {
                 CallTarget::Load => loaded(store, paths, stream, &call.outcome)?,
                 _ => None,
@@ -295,7 +301,7 @@ fn project(
                 turn: call.turn.map(|turn| turn.request_id.into()),
                 index: call.index,
                 target: call.target,
-                input_digest: input_digest(&input)?.into(),
+                input_digest: call_input_digest(&input, &context)?.into(),
                 call_id: call.call_id.map(Into::into),
                 standing: call.standing.map(Box::new),
                 outcome: Box::new(outcome),

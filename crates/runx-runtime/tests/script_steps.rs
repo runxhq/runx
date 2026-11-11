@@ -3017,3 +3017,113 @@ fn a_source_that_read_is_eligible_and_one_that_wrote_is_not() -> TestResult {
     );
     Ok(())
 }
+
+/// Each call's recorded input digest, by its index.
+fn input_digests(root: &Path, run_id: &str) -> TestResult<BTreeMap<u32, String>> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    Ok(read
+        .events
+        .into_iter()
+        .filter(|record| of_run(record.stream.as_str(), run_id))
+        .filter_map(|record| match record.event {
+            RunEventFact::Call {
+                index,
+                input_digest,
+                ..
+            } => Some((index, input_digest.as_str().to_owned())),
+            _ => None,
+        })
+        .collect())
+}
+
+/// The context a skill call gives its child is part of the call: a call
+/// given other context records another input digest and asks under another
+/// reuse identity, so it finds no source the same call with other context
+/// made, while the same call given the same context does.
+#[test]
+fn the_context_a_skill_call_gives_is_part_of_its_identity() -> TestResult {
+    use runx_contracts::RecomputeReason::{Ineligible, NoCandidate};
+    let temp = tempdir()?;
+    write_digest_child(temp.path())?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../digest-child]\n        max_calls: 3\n        outputs:\n          done: {type: boolean}\n",
+        r#"export default async function (ctx, { value }) {
+  const reuse = { max_age_seconds: 604800 };
+  const given = (content) => ({ reuse, context: [{ summary: "prior.json", content }] });
+  await ctx.skill("../digest-child", { value }, given("the first prior run"));
+  await ctx.skill("../digest-child", { value }, given("another prior run"));
+  await ctx.skill("../digest-child", { value }, given("the first prior run"));
+  return { done: true };
+}
+"#,
+    )?;
+    let ran = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
+    assert_eq!(
+        reuse_decisions(temp.path(), run_id)?,
+        BTreeMap::from([
+            (0, recomputed(NoCandidate)),
+            (1, recomputed(NoCandidate)),
+            (2, recomputed(Ineligible)),
+        ])
+    );
+    let digests = input_digests(temp.path(), run_id)?;
+    assert_ne!(digests.get(&0), digests.get(&1), "{digests:?}");
+    assert_eq!(digests.get(&0), digests.get(&2), "{digests:?}");
+    Ok(())
+}
+
+/// A skill call's context reaches its child's turns: each entry as runx
+/// makes it, the script's text as an observation of untrusted evidence, its
+/// summary as the script gave it and its digest its text's, after the run's
+/// own context.
+#[test]
+fn a_childs_turn_reads_the_context_a_script_gave_its_call() -> TestResult {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("turn-child"),
+        "---\nname: turn-child\ndescription: Works one turn.\n---\n# Turn child\n\n## Agent task: work\n\nWork from what you're given.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: work\n        agent: work\n        outputs:\n          summary: {type: string}\n",
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../turn-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+        r#"export default async function (ctx) {
+  await ctx.skill("../turn-child", {}, { context: [{ summary: "evals/files/prior.json", content: "{\"value\": \"proof\"}" }] });
+  return { done: true };
+}
+"#,
+    )?;
+    let started = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let waiting = requests(&started)?;
+    assert_eq!(waiting, ["prepare/0#work"], "{:?}", started.output);
+    let turns = LocalOrchestrator::default().open_turns(&runx_runtime::TurnRequest {
+        run_id,
+        receipt_dir: Some(temp.path().join("receipts")),
+        env: env(temp.path()),
+        cwd: temp.path().to_path_buf(),
+    })?;
+    let status = turns.status("prepare/0#work")?;
+    let entries = serde_json::to_value(&status.invocation.envelope.current_context)?;
+    let [entry] = entries.as_array().map(Vec::as_slice).unwrap_or_default() else {
+        return Err(format!("one entry, the script's: {entries}").into());
+    };
+    let content = r#"{"value": "proof"}"#;
+    assert_eq!(entry["summary"], "evals/files/prior.json", "{entry}");
+    assert_eq!(entry["type"], "runx.script.context", "{entry}");
+    assert_eq!(
+        entry["labels"],
+        serde_json::json!({"purpose": "observation", "trust": "untrusted_evidence", "sharing": "configured_model"}),
+        "{entry}"
+    );
+    assert_eq!(entry["size_bytes"], content.len(), "{entry}");
+    // The turn reads the entry's text by its locator.
+    let locator = entry["locator"].as_str().ok_or("the entry has a locator")?;
+    let read = turns.read("prepare/0#work", locator, 0, None)?;
+    assert!(read.text.contains("proof"), "{}", read.text);
+    Ok(())
+}

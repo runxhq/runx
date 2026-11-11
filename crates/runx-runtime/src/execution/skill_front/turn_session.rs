@@ -628,6 +628,7 @@ mod tests {
             target: &CallTarget::Tool {
                 tool: "data.digest".into(),
             },
+            context: &[],
             input: &serde_json::from_value(
                 serde_json::json!({"value": "hello", "encoding": "utf8_text"}),
             )?,

@@ -82,6 +82,7 @@ fn a_pass_reports_each_call_at_its_position_and_waits_on_them() -> Result<(), St
             reference: ".#draft".to_owned(),
             inputs: json!({"lead": "ada"}),
             reuse: None,
+            context: Vec::new(),
         }
     );
     Ok(())
@@ -108,6 +109,34 @@ fn a_skill_call_carries_its_reuse_ask() -> Result<(), String> {
                 max_age_seconds: 604_800,
                 model: Some("claude-haiku-4-5".to_owned()),
             }),
+            context: Vec::new(),
+        }
+    );
+    Ok(())
+}
+
+/// A skill call gives its child run context: each entry's text, with a
+/// line that says what it is. The call carries it as the script gave it.
+#[test]
+fn a_skill_call_carries_the_context_it_gives_its_child() -> Result<(), String> {
+    let passed = run(
+        r#"export default async function (ctx, { lead }) {
+            return ctx.skill("../lead-qualify#qualify", { lead }, {
+                context: [{ summary: "evals/files/prior.json", content: "{\"lead\": \"ada\"}" }],
+            });
+        }"#,
+        &[],
+    )?;
+    assert_eq!(
+        passed.calls[0].target,
+        ScriptCallTarget::Skill {
+            reference: "../lead-qualify#qualify".to_owned(),
+            inputs: json!({"lead": "ada"}),
+            reuse: None,
+            context: vec![runx_contracts::javascript_worker::ScriptContext {
+                summary: "evals/files/prior.json".to_owned(),
+                content: r#"{"lead": "ada"}"#.to_owned(),
+            }],
         }
     );
     Ok(())
@@ -166,6 +195,7 @@ fn a_script_returns_once_its_record_settles_every_call() -> Result<(), String> {
             reference: ".#draft".to_owned(),
             inputs: json!({"lead": "ada", "checked": {"passed": true}}),
             reuse: None,
+            context: Vec::new(),
         }
     );
     let done = run(

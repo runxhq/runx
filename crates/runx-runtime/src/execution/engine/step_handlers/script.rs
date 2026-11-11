@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::panic::AssertUnwindSafe;
 
 use runx_contracts::javascript_worker::{
-    ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptReference,
+    ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptContext, ScriptEnding, ScriptReference,
     ScriptRejection, ScriptSettlement,
 };
 use runx_contracts::{ArtifactLabels, CallTarget, JsonObject, JsonValue, TurnCallOutcome};
@@ -350,7 +350,7 @@ where
     let mut made = Vec::with_capacity(new.len());
     for call in new {
         match ledger_call(&call.target) {
-            Ok(Some((target, input))) => made.push((call, target, input)),
+            Ok(Some((target, input, context))) => made.push((call, target, input, context)),
             Ok(None) => {
                 return Err(RuntimeError::EngineInvariant {
                     context: "making a script's calls",
@@ -361,8 +361,15 @@ where
         }
     }
     let mut admitted = Vec::new();
-    for (call, target, input) in made {
-        match ledger.admit(host, call.position, target, input, reuse(&call.target))? {
+    for (call, target, input, context) in made {
+        match ledger.admit(
+            host,
+            call.position,
+            target,
+            input,
+            context,
+            reuse(&call.target),
+        )? {
             Admission::Settled(result) => {
                 if let TurnCallOutcome::Pending { waiting: requests } = result.outcome {
                     waiting.push((call.position, requests));
@@ -792,7 +799,7 @@ fn matches_record(
     recorded: &[RecordedCall],
     clock: &BTreeMap<u32, i64>,
 ) -> Result<(), RuntimeError> {
-    let digest = crate::execution::run_record::input_digest;
+    let digest = crate::execution::run_record::call_input_digest;
     for call in calls {
         let read = clock.get(&call.position);
         match (&call.target, read) {
@@ -817,8 +824,9 @@ fn matches_record(
             continue;
         };
         let same = match ledger_call(&call.target) {
-            Ok(Some((target, input))) => {
-                known.target == target && digest(&known.input)? == digest(&input)?
+            Ok(Some((target, input, context))) => {
+                known.target == target
+                    && digest(&known.input, &known.context)? == digest(&input, &context)?
             }
             Ok(None) | Err(_) => false,
         };
@@ -873,17 +881,22 @@ fn diverged(step_id: &str, position: u32, why: &str) -> RuntimeError {
     }
 }
 
-/// A script's call as the ledger records it: what it names and its input.
-/// `None` for `ctx.now()`, which isn't a call the ledger makes; an error for
-/// a call the ledger can't name.
-fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObject)>, String> {
+/// A script's call as the ledger records it: what it names, its input, and
+/// the context a skill call gives its child. `None` for `ctx.now()`, which
+/// isn't a call the ledger makes; an error for a call the ledger can't name.
+fn ledger_call(
+    target: &ScriptCallTarget,
+) -> Result<Option<(CallTarget, JsonObject, Vec<ScriptContext>)>, String> {
     let object = |inputs: &serde_json::Value| {
         serde_json::from_value::<JsonObject>(inputs.clone())
             .map_err(|error| format!("a call's inputs are a JSON object: {error}"))
     };
     Ok(Some(match target {
         ScriptCallTarget::Skill {
-            reference, inputs, ..
+            reference,
+            inputs,
+            context,
+            ..
         } => (
             CallTarget::Skill {
                 skill: reference.as_str().into(),
@@ -891,12 +904,14 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObje
                 bound: None,
             },
             object(inputs)?,
+            context.clone(),
         ),
         ScriptCallTarget::Tool { name, inputs } => (
             CallTarget::Tool {
                 tool: name.as_str().into(),
             },
             object(inputs)?,
+            Vec::new(),
         ),
         ScriptCallTarget::Operation {
             operation,
@@ -919,14 +934,20 @@ fn ledger_call(target: &ScriptCallTarget) -> Result<Option<(CallTarget, JsonObje
                     operation: operation.into(),
                 },
                 object(&serde_json::to_value(input).map_err(|error| error.to_string())?)?,
+                Vec::new(),
             )
         }
-        ScriptCallTarget::Wait { until } => (CallTarget::Wait { until: *until }, JsonObject::new()),
+        ScriptCallTarget::Wait { until } => (
+            CallTarget::Wait { until: *until },
+            JsonObject::new(),
+            Vec::new(),
+        ),
         ScriptCallTarget::Read { digest } => (
             CallTarget::Read {
                 digest: digest.as_str().into(),
             },
             JsonObject::new(),
+            Vec::new(),
         ),
         ScriptCallTarget::Now { .. } => return Ok(None),
     }))

@@ -241,13 +241,16 @@ pub struct ScriptCall {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScriptCallTarget {
-    /// `ctx.skill(reference, inputs, { reuse })`: a method, `skill#method`,
-    /// as a child run, or a result it may reuse.
+    /// `ctx.skill(reference, inputs, { reuse, context })`: a method,
+    /// `skill#method`, as a child run, or a result it may reuse, and the
+    /// context its child's turns are given.
     Skill {
         reference: String,
         inputs: serde_json::Value,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reuse: Option<ReuseAsk>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        context: Vec<ScriptContext>,
     },
     /// `ctx.tool(name, inputs)`: a catalog tool.
     Tool {
@@ -269,6 +272,18 @@ pub enum ScriptCallTarget {
     /// `ctx.read(reference)`, of a reference a call's result gave the
     /// script, by its artifact's digest. It resolves to the value.
     Read { digest: String },
+}
+
+/// A context entry a script gives a skill call's child run: text, with a
+/// line that says what it is. runx makes the entry its child's turns read,
+/// with its own labels and origin, so a script states no trust.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptContext {
+    /// What the entry is, in a line, as an index lists it.
+    pub summary: String,
+    /// Its text.
+    pub content: String,
 }
 
 /// What a skill call asks of reuse (reuse, D32): a result made at most

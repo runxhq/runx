@@ -32,6 +32,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub use runx_contracts::RunState;
+use runx_contracts::javascript_worker::ScriptContext;
 use runx_contracts::{
     CallAct, CallTarget, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
     RunCallOutput, RunDriver, RunListEntry, RunOutcome, StandingApproval, UnreadableRun,
@@ -288,6 +289,10 @@ struct CallEvent {
     target: CallTarget,
     /// Blob: the call's input.
     input: String,
+    /// Blob: the context a script gave its skill call's child run, when it
+    /// gave any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    context: Option<String>,
     outcome: CallOutcomeEvent,
     /// The standing approval that admitted it on the approval floor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -572,6 +577,8 @@ pub(crate) struct RecordedCall {
     pub call_id: Option<String>,
     pub target: CallTarget,
     pub input: JsonObject,
+    /// The context a script gave its skill call's child run.
+    pub context: Vec<ScriptContext>,
     pub standing: Option<StandingApproval>,
     pub outcome: CallOutcome,
     /// A completed call's output as project artifacts.
@@ -632,6 +639,8 @@ pub(crate) struct CallRecord<'a> {
     pub call_id: Option<&'a str>,
     pub target: &'a CallTarget,
     pub input: &'a JsonObject,
+    /// The context a script gave its skill call's child run.
+    pub context: &'a [ScriptContext],
     pub outcome: &'a CallOutcome,
     /// A completed call's output, persisted as project artifacts.
     pub outputs: &'a [RunCallOutput],
@@ -1645,8 +1654,13 @@ impl RunLog {
                 digest: turn.digest.clone(),
             });
         let input_digest = input.digest().to_owned();
+        let context = (!call.context.is_empty())
+            .then(|| Blob::json(&call.context))
+            .transpose()?;
+        let context_digest = context.as_ref().map(|blob| blob.digest().to_owned());
         let mut blobs = vec![input];
         blobs.extend(turn);
+        blobs.extend(context);
         let settlement = match call.outcome {
             CallOutcome::Completed(step) => step.settlement.as_ref(),
             _ => None,
@@ -1754,6 +1768,7 @@ impl RunLog {
             call_id: call.call_id.map(str::to_owned),
             target: call.target.clone(),
             input: input_digest,
+            context: context_digest,
             outcome,
             standing: call.standing.cloned(),
             answers: call
@@ -2080,6 +2095,23 @@ pub(crate) fn input_digest(input: &JsonObject) -> Result<String, RunRecordError>
         .map_err(|error| KernelStoreError::Codec(error.to_string()).into())
 }
 
+/// A call's input digest: its input's, and with it the context a script gave
+/// its skill call, when it gave any, so a call given other context is
+/// another call.
+pub(crate) fn call_input_digest(
+    input: &JsonObject,
+    context: &[ScriptContext],
+) -> Result<String, RunRecordError> {
+    if context.is_empty() {
+        return input_digest(input);
+    }
+    runx_contracts::canonical_digest(&serde_json::json!({
+        "input": input,
+        "context": context,
+    }))
+    .map_err(|error| KernelStoreError::Codec(error.to_string()).into())
+}
+
 /// Where a run stands from its latest event: its state, and a sealed run's
 /// outcome and receipt id.
 fn standing(latest: &RunEvent) -> (RunState, Option<RunOutcome>, Option<String>) {
@@ -2382,6 +2414,12 @@ fn recorded_call(
         order,
         outcome: call_outcome(store, &call)?,
         input: store.blob_json(&call.input)?,
+        context: call
+            .context
+            .as_deref()
+            .map(|blob| store.blob_json(blob))
+            .transpose()?
+            .unwrap_or_default(),
         step_id: call.step_id,
         attempt: call.attempt,
         index: call.index,

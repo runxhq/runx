@@ -39,7 +39,7 @@ pub(crate) struct Source {
 
 /// What makes two calls ask for the same result: the method, the closure
 /// it runs over, the implementation that runs it, the act it's given, and
-/// what it's given.
+/// what it's given, the context it gives its child among it.
 #[derive(Serialize)]
 struct Identity<'a> {
     method: &'a str,
@@ -62,6 +62,7 @@ pub(crate) fn identity(
     skill: &LoadedStepSkill,
     inputs: &JsonObject,
     act: Option<&CallAct>,
+    context: &[runx_contracts::ContextEntry],
     env: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let method = &skill.method.name;
@@ -79,7 +80,7 @@ pub(crate) fn identity(
     let input_digest = step_input_digest(&StepGiven {
         inputs,
         act,
-        context: &[],
+        context,
         ask_reason: None,
         environment: None,
     })

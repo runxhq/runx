@@ -461,6 +461,7 @@ where
             skill_directory: &skill.directory,
             admitted: skill.admitted.as_ref(),
             chain,
+            context: &request.context_entries,
         },
     )?;
     // The step closes as its child sealed: a child that stopped short
@@ -549,6 +550,9 @@ struct NestedWorkflow<'a> {
     /// The child run's chain: its parent's, then the package the step
     /// reached.
     chain: Vec<crate::identity::ChainLink>,
+    /// The context the step gives its child: a script's skill call's
+    /// entries, which the child's turns read after its parent's.
+    context: &'a [ContextEntry],
 }
 
 /// The chain of the child run `skill` starts from the step in `request`: the
@@ -647,6 +651,9 @@ where
         child_options.packages = Some(admitted.clone());
     }
     child_options.chain = nested.chain;
+    child_options
+        .current_context
+        .extend(nested.context.iter().cloned());
     let child_adapter: Box<dyn SkillAdapter + '_> =
         Box::new(BorrowedSkillAdapter::new(&runtime.configured_adapter));
     let child_runtime = Runtime::with_native_services(

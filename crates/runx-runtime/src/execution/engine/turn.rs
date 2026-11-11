@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
-use runx_contracts::javascript_worker::ScriptInputReference;
+use runx_contracts::javascript_worker::{ScriptContext, ScriptInputReference};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, CallTarget, InputDefinition,
@@ -410,8 +410,9 @@ where
             host,
             // A turn's call is a tool, operation or skill, never an agent
             // step, so it reads no earlier steps' context entries, and an ask
-            // it makes states its own reason.
-            context_entries: Vec::new(),
+            // it makes states its own reason. A script's skill call gives its
+            // child the context it names.
+            context_entries: call.context.clone(),
             ask_reason: None,
             given: call.given,
             reconciliation,
@@ -546,6 +547,8 @@ struct Made {
     call_id: Option<String>,
     target: CallTarget,
     input: JsonObject,
+    /// The context a script gave its skill call's child run.
+    context: Vec<ScriptContext>,
     /// The standing approval that admitted it on the floor, if one did.
     standing: Option<runx_contracts::StandingApproval>,
     /// Its host cancelled it, which every later record of it keeps.
@@ -568,6 +571,7 @@ impl Made {
             call_id: call.call_id.clone(),
             target: call.target.clone(),
             input: call.input.clone(),
+            context: call.context.clone(),
             standing: call.standing.clone(),
             cancelled: call.cancelled,
             reuse: None,
@@ -588,6 +592,8 @@ struct CallStep {
     /// and has read so far, and its input as it was made, before a reference
     /// is read in place of its packet.
     given: ArtifactLabels,
+    /// The context entries a script's skill call gives its child run.
+    context: Vec<runx_contracts::ContextEntry>,
 }
 
 /// An input given by reference to a packet the project holds: the artifact
@@ -662,6 +668,54 @@ pub(super) fn past_inline_bound(
     Ok(u64::try_from(bytes.len()).unwrap_or(u64::MAX) > bound)
 }
 
+/// The entry a script's skill call gives its child run from `given`: its
+/// text, as an observation of untrusted evidence, shared as far as what the
+/// call was given may be, from the call that gave it. runx makes it, so a
+/// script states no trust and no origin, and its digest is its text's.
+fn script_context_entry(
+    given: &ScriptContext,
+    run_id: &str,
+    call: &str,
+    created_at: &str,
+    sharing: runx_contracts::ContextSharing,
+) -> Result<runx_contracts::ContextEntry, String> {
+    const ENTRY_TYPE: &str = "runx.script.context";
+    let non_empty = |value: &str| {
+        NonEmptyString::new(value.to_owned())
+            .ok_or_else(|| format!("a script's context entry names an empty {value:?}"))
+    };
+    let digest = runx_contracts::sha256_prefixed(given.content.as_bytes());
+    Ok(runx_contracts::ContextEntry {
+        schema: runx_contracts::ContextEntrySchema::V1,
+        r#type: non_empty(ENTRY_TYPE)?,
+        summary: Some(non_empty(&given.summary)?),
+        data: JsonObject::from([(
+            "content".to_owned(),
+            JsonValue::String(given.content.clone()),
+        )]),
+        labels: runx_contracts::ContextLabels {
+            purpose: runx_contracts::ContextPurpose::Observation,
+            trust: runx_contracts::ContextTrust::UntrustedEvidence,
+            sharing,
+        },
+        sources: vec![non_empty(&given.summary)?],
+        origin: runx_contracts::ContextOrigin {
+            artifact_id: non_empty(&runx_contracts::sha256_prefixed(
+                format!("{ENTRY_TYPE}\0{}\0{digest}", given.summary).as_bytes(),
+            ))?,
+            run_id: Some(non_empty(run_id)?),
+            step_id: Some(non_empty(call)?),
+            producer: runx_contracts::ContextProducer {
+                skill: non_empty("runx-runtime")?,
+                method: non_empty("script-context")?,
+            },
+            created_at: non_empty(created_at)?,
+            digest: non_empty(&digest)?,
+            size_bytes: u64::try_from(given.content.len()).unwrap_or(u64::MAX),
+        },
+    })
+}
+
 /// A script's wait at position `index`, as its ledger records it.
 fn waiting(index: u32, until: i64) -> Made {
     script_call(index, CallTarget::Wait { until })
@@ -674,6 +728,7 @@ fn script_call(index: u32, target: CallTarget) -> Made {
         call_id: None,
         target,
         input: JsonObject::new(),
+        context: Vec::new(),
         standing: None,
         cancelled: false,
         reuse: None,
@@ -885,7 +940,7 @@ where
             return Ok(None);
         }
         let made = Made::of(call);
-        let Ok(step) = self.call_step(made.index, &made.target, &made.input) else {
+        let Ok(step) = self.call_step(made.index, &made.target, &made.input, &made.context) else {
             return Ok(None);
         };
         // The floor admitted it before its claim: it does again, or the call
@@ -1272,6 +1327,7 @@ where
         index: u32,
         target: CallTarget,
         input: JsonObject,
+        context: Vec<ScriptContext>,
         reuse: Option<runx_contracts::RunCallReuse>,
     ) -> Result<Admission, RuntimeError> {
         self.admit_at(
@@ -1281,6 +1337,7 @@ where
                 call_id: None,
                 target,
                 input,
+                context,
                 standing: None,
                 cancelled: false,
                 reuse,
@@ -1374,6 +1431,7 @@ where
                 &skill,
                 &call.step.inputs,
                 call.act.as_ref(),
+                &call.context,
                 &options.env,
             ),
             &skill.method.workflow,
@@ -1453,7 +1511,7 @@ where
                 .map(|result| Admission::Settled(Box::new(result)))
         };
         let call = match self.refusal(&made.target)?.map_or_else(
-            || self.call_step(made.index, &made.target, &made.input),
+            || self.call_step(made.index, &made.target, &made.input, &made.context),
             Err,
         ) {
             Ok(call) => call,
@@ -1720,7 +1778,7 @@ where
         }
         let executes = host.executes();
         let step = self
-            .call_step(made.index, &made.target, &made.input)
+            .call_step(made.index, &made.target, &made.input, &made.context)
             .map_err(|reason| RuntimeError::EngineInvariant {
                 context: "entering a skill call",
                 message: reason,
@@ -1876,6 +1934,7 @@ where
             call_id: made.call_id.as_deref(),
             target: &made.target,
             input: &made.input,
+            context: &made.context,
             outcome: &outcome,
             outputs: &outputs,
             standing: made.standing.as_ref(),
@@ -1897,6 +1956,7 @@ where
             call_id: made.call_id.clone(),
             target: made.target.clone(),
             input: made.input.clone(),
+            context: made.context.clone(),
             standing: made.standing.clone(),
             outcome,
             outputs: outputs.clone(),
@@ -2057,7 +2117,11 @@ where
         Ok(TurnCallResult {
             index: made.index,
             target: made.target.clone(),
-            input_digest: crate::execution::run_record::input_digest(&made.input)?.into(),
+            input_digest: crate::execution::run_record::call_input_digest(
+                &made.input,
+                &made.context,
+            )?
+            .into(),
             call_id: made.call_id.clone().map(Into::into),
             outcome,
         })
@@ -2070,6 +2134,7 @@ where
         index: u32,
         target: &CallTarget,
         input: &JsonObject,
+        context: &[ScriptContext],
     ) -> Result<CallStep, String> {
         let step_id = call_step_id(self.scope.step_id, index);
         let mut inputs = input.clone();
@@ -2208,11 +2273,33 @@ where
             ]),
         );
         let fed = self.admit_references(&mut step, target)?;
+        let options = &self.scope.runtime.options;
+        let created_at = match options
+            .run
+            .admitted_at()
+            .map_err(|error| error.to_string())?
+        {
+            Some(admitted_at) => admitted_at,
+            None => options.clock.now(),
+        };
+        let context = context
+            .iter()
+            .map(|entry| {
+                script_context_entry(
+                    entry,
+                    options.run.run_id(),
+                    &step.id,
+                    &created_at,
+                    given.sharing,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(CallStep {
             step,
             act,
             fed,
             given,
+            context,
         })
     }
 
@@ -2446,7 +2533,7 @@ where
     /// A listed child skill's tool, named for the skill.
     fn skill_tool(&self, target: CallTarget, name: String) -> Result<TurnTool, RuntimeError> {
         let call = self
-            .call_step(0, &target, &JsonObject::new())
+            .call_step(0, &target, &JsonObject::new(), &[])
             .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
         let loaded = load_step_skill(
             self.scope.workflow_dir,
@@ -2743,8 +2830,10 @@ where
                 .iter()
                 .find(|known| known.call_id.as_deref() == Some(call_id.as_str()))
             {
-                let digest = crate::execution::run_record::input_digest;
-                if known.target != target || digest(&known.input)? != digest(&input)? {
+                let digest = crate::execution::run_record::call_input_digest;
+                if known.target != target
+                    || digest(&known.input, &known.context)? != digest(&input, &[])?
+                {
                     return Err(RuntimeError::ContinuationRejected {
                         reason: format!(
                             "call_id {call_id} names call {} of the turn, made with another target or input",
@@ -2770,6 +2859,7 @@ where
             call_id,
             target,
             input,
+            context: Vec::new(),
             standing: None,
             cancelled: false,
             reuse: None,
