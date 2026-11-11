@@ -117,7 +117,7 @@ fn envelope(
         historical_context: request.historical_context.clone(),
         provenance: request.provenance.clone(),
         context: profiles::resolve_context_profiles(request)?,
-        voice_profile: Some(profiles::resolve_voice_profile(request)?),
+        voice_profile: profiles::resolve_voice_profile(request)?,
         execution_location: Some(execution_location(&request.skill_directory, &request.env)),
         output: Some(output),
         output_schema: Some(output_schema),

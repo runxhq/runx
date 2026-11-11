@@ -4,15 +4,10 @@ Voice rules are lexical and grammatical. Grammar is the one that matters.
 Models pass word filters easily. Structural patterns are what give AI writing
 away, and they are what this contract targets.
 
-This file is prompt contract, not only review policy. Skill instructions
-reference it so the agent generates better work before any downstream gate
-runs. Runx ships this canonical profile in the native runtime, injects the full
-document into agent contexts as `voice_profile`, and pins its hash in signed
-receipt criteria. An explicit `RUNX_VOICE_PROFILE_PATH` or a workspace profile
-can replace the bundled default for a governed run.
-
-This default applies across users and projects. Project-specific voice belongs
-in an explicit workspace profile.
+This is the Runx project's writing profile. Select it explicitly through
+`RUNX_VOICE_PROFILE_PATH` or a workspace `VOICE.md` when it applies. The runtime
+does not inject a company writing style into portable skill turns. A selected
+profile travels as `voice_profile` with its digest and sharing scope.
 
 ## Lexical Anti-Patterns
 

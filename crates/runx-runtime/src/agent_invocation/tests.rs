@@ -8,7 +8,6 @@ use runx_contracts::{
 use runx_parser::{AgentTask, OutputArtifacts};
 
 use super::build_turn_invocation;
-use super::profiles::{BUNDLED_VOICE_PROFILE_CONTENT, bundled_profile};
 use crate::{CredentialDelivery, Executable, SkillInvocation};
 
 /// The package an invocation's run would admit: its skill as it is.
@@ -69,24 +68,52 @@ fn outputs() -> JsonObject {
 }
 
 #[test]
-fn bundled_voice_profile_has_content_addressed_identity() {
-    let profile = bundled_profile("VOICE.md", BUNDLED_VOICE_PROFILE_CONTENT);
-
-    assert_eq!(profile.content, BUNDLED_VOICE_PROFILE_CONTENT);
-    assert!(profile.digest.as_ref().starts_with("sha256:"));
-    assert_eq!(profile.root_path.as_ref(), "runx://profiles");
-}
-
-#[test]
-fn bundled_voice_profile_matches_canonical_workspace_profile() -> Result<(), std::io::Error> {
-    let canonical = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("skills")
-        .join("VOICE.md");
-    let source = fs::read_to_string(&canonical)?;
-
-    assert_eq!(BUNDLED_VOICE_PROFILE_CONTENT, source);
+fn voice_profiles_are_selected_by_the_workspace_not_the_skill()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let skill = temp_skill("Derive context only from the supplied evidence.")?;
+    fs::write(
+        skill.path().join("VOICE.md"),
+        "A package's unrelated writing style.",
+    )?;
+    let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
+    request.env.insert(
+        "RUNX_CWD".to_owned(),
+        workspace.path().to_string_lossy().into_owned(),
+    );
+    let resolve = |request: &SkillInvocation| {
+        build_turn_invocation(request, &package_of(request)?, None, "agent".to_owned())
+    };
+    assert!(resolve(&request)?.envelope.voice_profile.is_none());
+    fs::write(
+        workspace.path().join("VOICE.md"),
+        "The operator's workspace style.",
+    )?;
+    let selected = resolve(&request)?
+        .envelope
+        .voice_profile
+        .ok_or("workspace voice is selected")?;
+    assert_eq!(selected.content, "The operator's workspace style.");
+    assert_eq!(
+        selected.digest.as_str(),
+        sha256_prefixed(selected.content.as_bytes())
+    );
+    fs::write(
+        workspace.path().join("selected.md"),
+        "The explicitly selected style.",
+    )?;
+    request.env.insert(
+        "RUNX_VOICE_PROFILE_PATH".to_owned(),
+        "selected.md".to_owned(),
+    );
+    assert_eq!(
+        resolve(&request)?
+            .envelope
+            .voice_profile
+            .ok_or("explicit voice is selected")?
+            .content,
+        "The explicitly selected style."
+    );
     Ok(())
 }
 
@@ -106,14 +133,14 @@ fn agent_invocation_requires_declared_outputs() -> Result<(), Box<dyn std::error
 }
 
 #[test]
-fn agent_invocation_pins_voice_and_output_contracts() -> Result<(), Box<dyn std::error::Error>> {
+fn agent_invocation_pins_declared_output_contracts() -> Result<(), Box<dyn std::error::Error>> {
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     let request = invocation(skill.path().to_path_buf(), Some(outputs()));
 
     let resolved =
         build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
 
-    assert!(resolved.envelope.voice_profile.is_some());
+    assert!(resolved.envelope.voice_profile.is_none());
     assert_eq!(
         resolved.envelope.output.as_ref().map(BTreeMap::len),
         Some(1)

@@ -9,17 +9,22 @@ use crate::{RuntimeError, SkillInvocation};
 
 const RUNX_VOICE_PROFILE_PATH_ENV: &str = "RUNX_VOICE_PROFILE_PATH";
 const MAX_PROFILE_BYTES: usize = 128 * 1024;
-pub(super) const BUNDLED_VOICE_PROFILE_CONTENT: &str = include_str!("../../assets/VOICE.md");
 
 pub(super) fn resolve_voice_profile(
     request: &SkillInvocation,
-) -> Result<ProfileFile, RuntimeError> {
-    resolve_profile(
-        request,
-        RUNX_VOICE_PROFILE_PATH_ENV,
-        "VOICE.md",
-        BUNDLED_VOICE_PROFILE_CONTENT,
-    )
+) -> Result<Option<ProfileFile>, RuntimeError> {
+    let paths = crate::RunxPaths::resolve(&request.env, &request.skill_directory);
+    let selected = configured_profile_path(request, RUNX_VOICE_PROFILE_PATH_ENV).or_else(|| {
+        [
+            paths.project_file("VOICE.md"),
+            paths.workspace().join("VOICE.md"),
+        ]
+        .into_iter()
+        .find(|path| path.is_file())
+    });
+    selected
+        .map(|path| read_profile_file(request, &path))
+        .transpose()
 }
 
 /// The project's conventions and instructions an act carries. Memory is its
@@ -109,23 +114,6 @@ fn project_instructions(request: &SkillInvocation) -> Result<Vec<ProfileFile>, R
     Ok(instructions)
 }
 
-fn resolve_profile(
-    request: &SkillInvocation,
-    env_key: &str,
-    file_name: &str,
-    bundled_content: &str,
-) -> Result<ProfileFile, RuntimeError> {
-    if let Some(path) = configured_profile_path(request, env_key) {
-        return read_profile_file(request, &path);
-    }
-    for candidate in profile_candidates(request, file_name) {
-        if candidate.is_file() {
-            return read_profile_file(request, &candidate);
-        }
-    }
-    Ok(bundled_profile(file_name, bundled_content))
-}
-
 fn configured_profile_path(request: &SkillInvocation, env_key: &str) -> Option<PathBuf> {
     let configured = PathBuf::from(request.env.get(env_key)?.trim());
     if configured.as_os_str().is_empty() {
@@ -192,14 +180,4 @@ fn read_profile_file(request: &SkillInvocation, path: &Path) -> Result<ProfileFi
         digest: sha256_prefixed(content.as_bytes()).into(),
         content,
     })
-}
-
-pub(super) fn bundled_profile(file_name: &str, content: &str) -> ProfileFile {
-    ProfileFile {
-        sharing: runx_contracts::ContextSharing::ConfiguredModel,
-        root_path: "runx://profiles".into(),
-        path: file_name.to_owned().into(),
-        digest: sha256_prefixed(content.as_bytes()).into(),
-        content: content.to_owned(),
-    }
 }

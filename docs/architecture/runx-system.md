@@ -97,6 +97,9 @@ manuals in instruction messages. Inputs, context indexes, profiles and earlier
 call results remain data. A successful skill load contributes its manual through
 that same instruction path; ordinary tool results cannot contribute guidance.
 These model roles never grant execution authority or supply human approval.
+Writing profiles are optional operator context, selected by an explicit path
+or the actual workspace's `VOICE.md`. The kernel supplies no bundled voice or
+profile inherited from a skill package's source-tree neighbors.
 
 ## Execution lanes
 

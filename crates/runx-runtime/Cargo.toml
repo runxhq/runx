@@ -10,7 +10,7 @@ homepage.workspace = true
 readme = "README.md"
 keywords = ["runx", "runtime", "agents", "governance", "mcp"]
 categories = ["development-tools"]
-include = ["Cargo.toml", "README.md", "assets/VOICE.md", "bundled-skills.json", "src/**/*.rs"]
+include = ["Cargo.toml", "README.md", "bundled-skills.json", "src/**/*.rs"]
 # Integration tests are compiled as a single binary (tests/integration.rs) so the
 # crate and its heavy deps link once instead of once per test file. Each test file
 # is a module of that binary; see .scafld/specs/active/test-surface-build-consolidation.md.
