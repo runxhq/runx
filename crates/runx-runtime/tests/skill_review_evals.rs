@@ -399,6 +399,8 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     // Whether the first eval's attempt was given its prior run.
     let given_prior = Arc::new(Mutex::new(false));
     let saw_prior = Arc::clone(&given_prior);
+    let graded_prior = Arc::new(Mutex::new(false));
+    let saw_graded_prior = Arc::clone(&graded_prior);
     let graded = Arc::new(Mutex::new(Vec::new()));
     let saw_grade = Arc::clone(&graded);
     let supplied = Arc::new(Mutex::new(Vec::new()));
@@ -473,6 +475,19 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
             }
             return complete(json!({"summary": format!("{marker}: done.")}));
         }
+        if marker == "Meets" {
+            if !sent.contains("call-grade-prior") {
+                return tool_call(
+                    "call-grade-prior",
+                    "turn_read",
+                    &json!({"locator": "current:0"}),
+                );
+            }
+            *saw_graded_prior
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                sent.contains("the value is proof");
+        }
         saw_grade
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -545,6 +560,12 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         "the first eval's attempt was given the prior run its file holds"
     );
     let evidence = &output["result"]["evidence"];
+    assert!(
+        *graded_prior
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        "the grader can compare the original source, not only the reduced call inputs"
+    );
     assert_eq!(evidence["package"]["revision"], digest.as_str(), "{output}");
     let hosts = evidence["hosts"].as_array().ok_or("a host's numbers")?;
     assert_eq!(hosts.len(), 1, "{evidence}");

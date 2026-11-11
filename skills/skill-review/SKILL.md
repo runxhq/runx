@@ -120,7 +120,7 @@ and recorded as live, so a write is refused at any depth.
 Each attempt is judged by `grade`, a fresh turn given the eval, the attempt as
 its record holds it (its outcome, each call's final typed target and outcome,
 recorded steps, verified subject output contents and their artifact and receipt
-references), and the eval's criteria set: its expected output, then each of its
+references), the original admitted source context, and the eval's criteria set: its expected output, then each of its
 expectations, every one required, made by a deterministic step, never by the
 attempt or the grader. The grader returns a `runx.verdict.v1`, and the runtime
 names `grade` as its evaluator. The run decides each verdict by the one rule
@@ -198,7 +198,9 @@ Exercise the package named by input `skill`. Load that exact reference and the
 input `method` when present, or its default method otherwise. Read its manual
 and input contract, then call the selected method to perform input `request`.
 Use the supplied context as evidence and preserve it for the subject's call;
-set that call's act purpose to the request. Do not perform the subject's work
+set that call's act purpose to the request. When constructing inputs, preserve
+complete supplied objects, including extra fields the input schema allows.
+Do not perform the subject's work
 yourself or substitute another skill. End with a summary of the actual call's
 result. If the call is refused or cannot be constructed, report that precisely;
 a summary without the measured call cannot pass the evaluation.
@@ -206,7 +208,10 @@ a summary without the measured call cannot pass the evaluation.
 ## Agent task: grade
 
 Judge the attempt against each criterion in the criteria set, from the
-attempt as its record holds it: its outcome, its result or failure, and each
+original supplied source context as well as the recorded subject result.
+When reuse or preservation is required, compare with that original source;
+accepting reduced caller inputs does not prove the original was preserved.
+Read the attempt as its record holds it: its outcome, its result or failure, and each
 call it made and how that ended. Answer every criterion: `met` when the record
 shows the question answered yes, `not_met` with what was expected, what
 happened and where when it shows no, and `inconclusive` when the record can't

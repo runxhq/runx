@@ -35,6 +35,7 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
     const set = await ctx.read(criteria);
     cases.push({
       entry,
+      context: given(entry, subject.inspect.eval_files ?? []),
       criteria: set,
       criteria_set: { ref: `${judged.ref}/evals/evals.json#${entry.id}`, revision: set.revision },
     });
@@ -49,7 +50,7 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
           request: kase.entry.prompt,
           act: { purpose: `Exercise ${judged.ref}${kase.entry.method ? `#${kase.entry.method}` : ""} for eval ${kase.entry.id}.` },
         }, {
-          context: given(kase.entry, subject.inspect.eval_files ?? []),
+          context: kase.context,
         }),
       );
       attempts.push({ kase, settled });
@@ -179,7 +180,7 @@ async function judge(ctx, judged, { kase, settled, evidence, implementation }) {
         implementation,
         ...(evidence.receipt_id === undefined ? {} : { receipt_id: evidence.receipt_id }),
       },
-    }));
+    }, { context: kase.context }));
   } catch (rejected) {
     return { decision: { status: "refused", reason: rejected.message } };
   }
