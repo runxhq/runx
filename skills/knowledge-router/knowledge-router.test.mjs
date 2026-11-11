@@ -144,7 +144,7 @@ test("limits naming an entry outside the catalog refuse whatever is proposed", (
   ]) {
     const refusal = limitsRefusal({ ...job, constraints }).knowledge_route;
     assert.equal(refusal.verdict, "refused");
-    assert.equal(refusal.route.rationale, "selection limits must reference entries in the supplied catalog");
+    assert.match(refusal.route.rationale, /^selection limits must reference entries in the supplied catalog: \w+ names not-in-catalog, which the catalog doesn't supply$/);
     const invented = structuredClone(proposal);
     invented.route.source_ids.push("invented-docs");
     invented.source_matches.push({ source_id: "invented-docs", matching_signal: "lifetime", reason: "Invented." });
@@ -184,7 +184,7 @@ test("a refused proposal goes back as feedback, and its revision routes", async 
   assert.equal("feedback" in calls[0].inputs, false);
   assert.deepEqual(calls[1].inputs.feedback, {
     proposal: invented,
-    reason: "route contains references outside the supplied catalog",
+    reason: "route contains references outside the supplied catalog, in route.source_ids and source_matches",
     unknown_entries: [{ kind: "source", id: "invented-docs" }],
   });
 });
@@ -198,7 +198,10 @@ test("two retries, and the third refusal is the result", async () => {
   const { knowledge_route } = await route(ctx, routeInputs());
   assert.equal(calls.length, 3);
   assert.equal(knowledge_route.verdict, "refused");
-  assert.equal(knowledge_route.route.rationale, "route violates allowed_sources");
+  assert.equal(
+    knowledge_route.route.rationale,
+    "route violates allowed_sources: route.source_ids selects registry-pages, which it doesn't allow",
+  );
   assert.equal(calls[2].inputs.feedback.proposal.source_matches[0].reason, "Attempt 1");
 });
 test("limits outside the catalog refuse before any proposal", async () => {
@@ -206,5 +209,45 @@ test("limits outside the catalog refuse before any proposal", async () => {
   const { knowledge_route } = await route(ctx, routeInputs({ constraints: { allowed_owners: ["not-in-catalog"] } }));
   assert.equal(calls.length, 0);
   assert.equal(knowledge_route.verdict, "refused");
-  assert.equal(knowledge_route.route.rationale, "selection limits must reference entries in the supplied catalog");
+  assert.equal(
+    knowledge_route.route.rationale,
+    "selection limits must reference entries in the supplied catalog: allowed_owners names not-in-catalog, which the catalog doesn't supply",
+  );
+});
+test("each refusal names the field to change", () => {
+  const changed = (change) => {
+    const p = structuredClone(proposal);
+    change(p);
+    return run(p, {}).route.rationale;
+  };
+  for (const [change, rationale] of [
+    [(p) => { p.next_skill.skill = "invented-skill"; },
+      "route contains references outside the supplied catalog, in next_skill"],
+    [(p) => { p.route.source_ids = []; p.source_matches = []; },
+      "a routed verdict requires at least one validated source reference, and route.source_ids is empty"],
+    [(p) => { p.verdict = "needs_more_context"; p.next_skill = null; },
+      "needs_more_context must not claim a source, owner, or follow-up skill: route.source_ids and source_matches must be empty, and owner_recommendation must be null"],
+    [(p) => { p.verdict = "needs_more_context"; p.route.source_ids = []; p.source_matches = []; p.owner_recommendation = null; },
+      "needs_more_context must not claim a source, owner, or follow-up skill: next_skill must be null"],
+    [(p) => { p.source_matches.pop(); },
+      "source_matches must name each selected route source exactly once: it has no match for author-contract"],
+    [(p) => { p.source_matches.push({ ...p.source_matches[0] }); },
+      "source_matches must name each selected route source exactly once: it names artifact-store twice"],
+    [(p) => { p.route.source_ids.pop(); },
+      "source_matches must name each selected route source exactly once: it names author-contract, which route.source_ids doesn't select"],
+    [(p) => { p.route.domain = "local-runtime"; },
+      "recommended owner does not declare the selected domain: route.domain is local-runtime, which native-runtime doesn't declare"],
+  ]) {
+    assert.equal(changed(change), rationale);
+  }
+  for (const [constraints, rationale] of [
+    [{ excluded_sources: ["artifact-store"] },
+      "route violates excluded_sources: route.source_ids selects artifact-store, which it excludes"],
+    [{ allowed_owners: ["skill-authoring"] },
+      "route violates allowed_owners: owner_recommendation names native-runtime, which it doesn't allow"],
+    [{ allowed_skills: [] },
+      "route violates allowed_skills: next_skill names prior-art, which it doesn't allow"],
+  ]) {
+    assert.equal(run(proposal, constraints).route.rationale, rationale);
+  }
 });

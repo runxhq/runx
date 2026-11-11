@@ -16,8 +16,11 @@ export function limitsRefusal(inputs) {
 function refusedLimits(catalog, inputs) {
   const constraints = inputs.constraints ?? {};
   for (const [field, kind] of Object.entries(LIMITS)) {
-    if (Object.hasOwn(constraints, field) && constraints[field].some(id => !catalog[kind].has(id))) {
-      return rejected("selection limits must reference entries in the supplied catalog", [], inputs.constraints);
+    if (!Object.hasOwn(constraints, field)) continue;
+    const outside = constraints[field].find(id => !catalog[kind].has(id));
+    if (outside !== undefined) {
+      return rejected("selection limits must reference entries in the supplied catalog: " + field + " names " +
+        outside + ", which the catalog doesn't supply", [], inputs.constraints);
     }
   }
   return null;
@@ -31,39 +34,68 @@ function checkedRoute({sources, owners, skills}, inputs) {
   const ownerId = proposal.owner_recommendation?.owner_id;
   const nextSkill = proposal.next_skill?.skill;
   const unknownEntries = [];
-  for (const [kind, index, ids] of [
-    ["source", sources, new Set([...sourceIds, ...matchIds])],
-    ["owner", owners, ownerId ? [ownerId] : []],
-    ["skill", skills, nextSkill ? [nextSkill] : []],
+  const unknownIn = [];
+  for (const [kind, index, field, ids] of [
+    ["source", sources, "route.source_ids", sourceIds],
+    ["source", sources, "source_matches", matchIds],
+    ["owner", owners, "owner_recommendation", ownerId ? [ownerId] : []],
+    ["skill", skills, "next_skill", nextSkill ? [nextSkill] : []],
   ]) {
-    for (const id of ids) if (!index.has(id)) unknownEntries.push({kind, id});
+    const unknown = ids.filter(id => !index.has(id));
+    if (unknown.length) unknownIn.push(field);
+    for (const id of unknown) {
+      if (!unknownEntries.some(entry => entry.kind === kind && entry.id === id)) unknownEntries.push({kind, id});
+    }
   }
   if (unknownEntries.length) {
-    return rejected("route contains references outside the supplied catalog", unknownEntries, inputs.constraints);
+    return rejected("route contains references outside the supplied catalog, in " + listed(unknownIn),
+      unknownEntries, inputs.constraints);
   }
   if (proposal.verdict === "routed" && sourceIds.length === 0) {
-    return rejected("a routed verdict requires at least one validated source reference", [], inputs.constraints);
+    return rejected("a routed verdict requires at least one validated source reference, and route.source_ids is empty",
+      [], inputs.constraints);
   }
-  if (proposal.verdict === "needs_more_context" && (sourceIds.length || matchIds.length || ownerId || nextSkill)) {
-    return rejected("needs_more_context must not claim a source, owner, or follow-up skill", [], inputs.constraints);
+  if (proposal.verdict === "needs_more_context") {
+    const toEmpty = [];
+    if (sourceIds.length) toEmpty.push("route.source_ids");
+    if (matchIds.length) toEmpty.push("source_matches");
+    const toNull = [];
+    if (ownerId) toNull.push("owner_recommendation");
+    if (nextSkill) toNull.push("next_skill");
+    const claims = [toEmpty.length ? listed(toEmpty) + " must be empty" : null,
+      toNull.length ? listed(toNull) + " must be null" : null].filter(Boolean);
+    if (claims.length) {
+      return rejected("needs_more_context must not claim a source, owner, or follow-up skill: " + claims.join(", and "),
+        [], inputs.constraints);
+    }
   }
   const selectedSources = new Set(sourceIds);
-  if (new Set(matchIds).size !== matchIds.length || matchIds.length !== sourceIds.length ||
-      matchIds.some(id => !selectedSources.has(id))) {
-    return rejected("source_matches must name each selected route source exactly once", [], inputs.constraints);
+  const repeated = matchIds.find((id, index) => matchIds.indexOf(id) !== index);
+  const unselected = matchIds.find(id => !selectedSources.has(id));
+  const unmatched = sourceIds.find(id => !matchIds.includes(id));
+  const mismatch = repeated !== undefined ? "it names " + repeated + " twice"
+    : unselected !== undefined ? "it names " + unselected + ", which route.source_ids doesn't select"
+      : unmatched !== undefined ? "it has no match for " + unmatched : null;
+  if (mismatch) {
+    return rejected("source_matches must name each selected route source exactly once: " + mismatch,
+      [], inputs.constraints);
   }
   const selected = {sources: sourceIds, owners: ownerId ? [ownerId] : [], skills: nextSkill ? [nextSkill] : []};
+  const selecting = {sources: "route.source_ids selects", owners: "owner_recommendation names",
+    skills: "next_skill names"};
   for (const [field, kind] of Object.entries(LIMITS)) {
     if (!Object.hasOwn(constraints, field)) continue;
     const ids = new Set(constraints[field]);
-    for (const id of selected[kind]) {
-      if (field === "excluded_sources" ? ids.has(id) : !ids.has(id)) {
-        return rejected("route violates " + field, [], inputs.constraints);
-      }
+    const excluded = field === "excluded_sources";
+    const offending = selected[kind].find(id => excluded ? ids.has(id) : !ids.has(id));
+    if (offending !== undefined) {
+      return rejected("route violates " + field + ": " + selecting[kind] + " " + offending + ", which it " +
+        (excluded ? "excludes" : "doesn't allow"), [], inputs.constraints);
     }
   }
   if (ownerId && !owners.get(ownerId).domains.includes(proposal.route.domain)) {
-    return rejected("recommended owner does not declare the selected domain", [], inputs.constraints);
+    return rejected("recommended owner does not declare the selected domain: route.domain is " +
+      proposal.route.domain + ", which " + ownerId + " doesn't declare", [], inputs.constraints);
   }
   return {knowledge_route: {
     schema: "runx/knowledge-router.route.v1",
@@ -71,6 +103,11 @@ function checkedRoute({sources, owners, skills}, inputs) {
     validation: {valid: true, catalog_digest: inputs.catalog_digest,
       unknown_entries: [], constraints_applied: inputs.constraints ?? null},
   }};
+}
+
+// Fields in prose: "a", "a and b", "a, b and c".
+function listed(fields) {
+  return fields.length < 2 ? fields.join("") : fields.slice(0, -1).join(", ") + " and " + fields.at(-1);
 }
 
 function indexes(catalog) {

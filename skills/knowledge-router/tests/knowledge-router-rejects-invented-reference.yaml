@@ -65,7 +65,7 @@ expect:
         knowledge_route:
           verdict: refused
           route:
-            rationale: route contains references outside the supplied catalog
+            rationale: route contains references outside the supplied catalog, in route.source_ids and source_matches
             source_ids: []
           validation:
             valid: false
