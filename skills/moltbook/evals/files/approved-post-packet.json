@@ -1,5 +1,5 @@
 {
-  "about": "The post a prior step drafted and validated for the agents submolt: its payload, the digest of that payload, and the idempotency key its publish uses.",
+  "about": "Non-live prepared post and retry key. Payload digest is the native canonical digest of the exact supplied payload. tests/publish-creates-and-reads-back-post.yaml uses these inputs with isolated fixture approval/credential and one create plus independent exact id/title/body readback. This JSON is not an approval, provider state or live publication proof.",
   "post_packet": {
     "decision": "ready_for_handoff",
     "post_payload": {
@@ -16,7 +16,7 @@
         }
       ]
     },
-    "payload_digest": "sha256:ccca2f9a4832cb8760c363a8674c78895af085c6ed7e3bc5095a021aaf0dd04d",
+    "payload_digest": "sha256:790941b5ad1bec77bd891d3bc3001e1449134549746fe68da1bf922661a26d30",
     "moderation_notes": {
       "final_check": [
         "No unsupported claims."
