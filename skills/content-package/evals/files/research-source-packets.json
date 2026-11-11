@@ -1,5 +1,5 @@
 {
-  "about": "The research a prior run completed for an operator brief: the objective, audience and channel, the publication target, and the two source packets it read, each with its content digest.",
+  "about": "Non-live captured source pages for an operator brief, with objective, audience, channel and publication target. These are page evidence inputs, not a completed research packet, installed native state or fresh provider proof. prepare/content-package still synthesize and write; source acquisition and delivery must not repeat.",
   "objective": "Identify the strongest architectural signal in the supplied Runx evidence.",
   "audience": "operators",
   "channel": "brief",

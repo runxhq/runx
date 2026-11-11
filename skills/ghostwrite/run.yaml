@@ -459,6 +459,8 @@ methods:
         packet: runx/ghostwrite.publish.v1
         description: Content publication packet from `package`, bound to its payload digest.
       target:
+        type: object
+        additionalProperties: true
         description: Exact downstream target locator.
     steps:
       - id: handoff

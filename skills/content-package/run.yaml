@@ -36,9 +36,7 @@ methods:
         description: Entities to include or compare.
         optional: true
       publication_target:
-        default: {}
-        description: Exact target locator for the later provider delivery lane.
-        optional: true
+        {}
       boundary_kind:
         type: string
         default: external
@@ -106,7 +104,7 @@ methods:
       domain: {type: string, description: Domain context for research interpretation., optional: true}
       operator_context: {type: string, description: Interpretation constraints that do not count as evidence., optional: true}
       target_entities: {description: Bounded caller-owned entity selectors for research., optional: true}
-      publication_target: {default: {}, description: 'Optional provider-neutral destination selector; an empty object skips handoff.', optional: true}
+      publication_target: {}
       boundary_kind: {type: string, default: external, description: Later delivery boundary; this prepares no delivery approval., enum: [internal, external], optional: true}
       brand_context: {}
       taste_context: {}
@@ -176,7 +174,7 @@ methods:
       domain: {type: string, description: Domain context for research interpretation., optional: true}
       operator_context: {type: string, description: Interpretation constraints that do not count as evidence., optional: true}
       target_entities: {description: Bounded caller-owned entity selectors for research., optional: true}
-      publication_target: {default: {}, description: 'Optional provider-neutral destination selector; an empty object skips handoff.', optional: true}
+      publication_target: {}
       boundary_kind: {type: string, default: external, description: Later delivery boundary; this prepares no delivery approval., enum: [internal, external], optional: true}
       brand_context: {}
       taste_context: {}
@@ -219,5 +217,11 @@ methods:
           content_handoff_packet: {packet: runx/ghostwrite.handoff.v1}
 
 shared_inputs:
+  publication_target:
+    type: object
+    additionalProperties: true
+    default: {}
+    optional: true
+    description: Provider-neutral destination metadata for the later delivery lane. An empty object supplies no destination; this method never delivers it.
   brand_context: {packet: runx/brand-voice.context.v1, description: Optional scoped brand voice admitted by the canonical writer., optional: true}
   taste_context: {packet: runx/taste-profile.context.v1, description: Optional scoped taste admitted by the canonical writer., optional: true}

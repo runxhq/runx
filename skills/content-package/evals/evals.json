@@ -15,13 +15,13 @@
     },
     {
       "id": 3,
-      "prompt": "Package this completed research evidence for publication channels.",
-      "expected_output": "Reuse the supplied research packet and source bindings without repeating research or publication planning.",
+      "prompt": "Prepare channel content from these already captured source pages.",
+      "expected_output": "Reuse the supplied source packets without acquiring pages again. Synthesize the captured evidence once, write and package the channel content, and preserve the supplied destination without delivering it.",
       "files": [
         "evals/files/research-source-packets.json"
       ],
       "expectations": [
-        "Do not rerun research.",
+        "Do not repeat source acquisition; the supplied packets are captured pages, not a completed research packet.",
         "Do not reacquire cited sources or publish the resulting handoff."
       ],
       "method": "prepare"
