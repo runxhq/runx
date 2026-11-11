@@ -278,3 +278,36 @@ fn an_admitted_payment_retains_its_original_resource_and_identity()
     );
     Ok(())
 }
+
+#[test]
+fn an_admitted_refund_retains_its_original_payment_and_submits_once()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (given, output, observed) =
+        resume_payment("refund", "admitted-refund.json", "refund", "refund")?;
+    assert_eq!(
+        observed
+            .iter()
+            .map(|call| call["operation"].as_str())
+            .collect::<Vec<_>>(),
+        [
+            Some("payment.x402.merchant.refund"),
+            Some("payment.x402.merchant.refund.read")
+        ]
+    );
+    for (field, value) in given["request"].as_object().ok_or("refund request")? {
+        assert_eq!(
+            &observed[0]["input"][field], value,
+            "refund preserves {field}"
+        );
+    }
+    assert_eq!(observed[1]["input"]["refund_id"], "x402refund_test_001");
+    let result = &output["result"]["provider_operation"];
+    assert_eq!(result["operation"], "payment.x402.merchant.refund.read");
+    assert_eq!(result["finality"], "confirmed");
+    assert_eq!(result["result"]["refund_id"], "x402refund_test_001");
+    for field in ["payment_id", "resource", "amount_minor", "currency"] {
+        assert_eq!(result["result"][field], given["request"][field]);
+    }
+    assert_eq!(result["result"]["status"], "settled");
+    Ok(())
+}

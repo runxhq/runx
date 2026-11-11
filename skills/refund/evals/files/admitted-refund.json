@@ -1,5 +1,5 @@
 {
-  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "about": "Non-live refund inputs. The native payment_continuation case creates a real pending refund approval, resumes its original run, checks one exact refund and independent read, and proves sealed resume sends nothing again. This attachment creates no native state, merchant grant, approval or live settlement evidence.",
   "connector": "coinbase/cdp",
   "request": {
     "resource": "https://seller.example/v1/reports/launch",
