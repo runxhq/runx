@@ -72,7 +72,7 @@
     {
       "id": 9,
       "prompt": "Continue the admitted reply using the existing source packet and turn.",
-      "expected_output": "Reuse the supplied source evidence and turn identity without inventing a second reply.",
+      "expected_output": "Reuse the supplied source evidence and turn identity, return held because thread coverage is incomplete, and send no reply.",
       "files": [
         "evals/files/admitted-reply-source.json"
       ],
