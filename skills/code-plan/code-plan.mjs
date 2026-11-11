@@ -1,11 +1,19 @@
 export default function validateWorkPlan(inputs) {
-  const catalogNames = new Set(records(inputs.catalog_skills).map((entry) => optionalString(entry.name)).filter(Boolean));
+  const catalogNames = new Set(records(inputs.catalog_skills).map((entry) => normalizedSkillName(entry.name)).filter(Boolean));
   const findings = [];
   const draft = record(inputs.work_plan_draft);
+  const sourceChangeSet = sourceChangeSetFromInputs(inputs);
+  const sourceChangeSetPreserved = Boolean(sourceChangeSet) && equalJson(draft.change_set, sourceChangeSet);
+  const inputThread = optionalString(inputs.thread_locator)
+    || optionalString(record(inputs.thread).thread_locator)
+    || optionalString(sourceChangeSet?.thread_locator);
+  const sourceThreadLocatorPreserved = !sourceChangeSet || !inputThread
+    || inputThread === optionalString(record(draft.change_set).thread_locator);
   let normalized = emptyPlan();
 
   try {
-    normalized = validateDraft(draft, { inputs, findings, catalogNames });
+    normalized = validateDraft(draft, { inputs, findings, catalogNames,
+      sourceChangeSet, sourceChangeSetPreserved, sourceThreadLocatorPreserved });
   } catch (error) {
     findings.push({
       code: "draft.invalid_shape",
@@ -26,7 +34,7 @@ export default function validateWorkPlan(inputs) {
   return {
     decision: ready ? "ready" : "blocked",
     plan_kind: normalized.plan_kind,
-    change_set: normalized.change_set,
+    change_set: sourceChangeSet ?? normalized.change_set,
     run_context: isRecord(inputs.run_context) ? inputs.run_context : {},
     objective_summary: normalized.objective_summary,
     workspace_change_plan: ready ? normalized.workspace_change_plan : {},
@@ -34,12 +42,12 @@ export default function validateWorkPlan(inputs) {
     required_skills: normalized.required_skills,
     open_questions: normalized.open_questions,
     evidence: {
-      source_change_set_preserved: normalized.source_change_set_preserved,
-      source_change_set_status: normalized.source_context_available
-        ? (normalized.source_change_set_preserved ? "preserved" : "drifted")
+      source_change_set_preserved: sourceChangeSetPreserved,
+      source_change_set_status: sourceChangeSet
+        ? (sourceChangeSetPreserved ? "preserved" : "drifted")
         : "not_supplied",
-      source_thread_locator_preserved: normalized.source_thread_locator_preserved,
-      source_context_available: normalized.source_context_available,
+      source_thread_locator_preserved: sourceThreadLocatorPreserved,
+      source_context_available: Boolean(sourceChangeSet),
       catalog_skills: normalized.catalog_skills,
     },
     validation: {
@@ -50,12 +58,12 @@ export default function validateWorkPlan(inputs) {
 }
 
 function validateDraft(value, state) {
-  const { inputs, findings, catalogNames } = state;
+  const { inputs, findings, catalogNames,
+    sourceChangeSet, sourceChangeSetPreserved, sourceThreadLocatorPreserved } = state;
   const objective = requiredString(inputs.objective, "objective");
   const decision = enumValue(value.decision, ["ready", "blocked"], "decision");
   const planKind = enumValue(value.plan_kind, ["workspace_change", "skill_package"], "plan_kind");
   const changeSet = requiredRecord(value.change_set, "change_set");
-  const sourceChangeSet = sourceChangeSetFromInputs(inputs);
   const sourceContextExpected = isRecord(inputs.change_set)
     || isRecord(inputs.thread)
     || Boolean(optionalString(inputs.thread_locator));
@@ -66,16 +74,10 @@ function validateDraft(value, state) {
       message: "The caller supplied source context, but no source change set was available to preserve.",
     });
   }
-  const sourceChangeSetPreserved = sourceChangeSet ? equalJson(changeSet, sourceChangeSet) : false;
   if (sourceChangeSet && !sourceChangeSetPreserved) {
     findings.push({ code: "change_set.drift", path: "change_set", message: "A supplied code-intake change set must be preserved exactly." });
   }
 
-  const inputThread = optionalString(inputs.thread_locator)
-    || optionalString(record(inputs.thread).thread_locator)
-    || optionalString(sourceChangeSet?.thread_locator);
-  const changeSetThread = optionalString(changeSet.thread_locator);
-  const sourceThreadLocatorPreserved = !sourceChangeSet || !inputThread || inputThread === changeSetThread;
   if (!sourceThreadLocatorPreserved) {
     findings.push({ code: "thread_locator.drift", path: "change_set.thread_locator", message: "The source thread locator changed during planning." });
   }
@@ -97,7 +99,7 @@ function validateDraft(value, state) {
       });
     }
   }
-  if (planKind === "skill_package" && !steps.some((step) => normalizedSkillName(step.skill) === "skill-build")) {
+  if (planKind === "skill_package" && !steps.some((step) => ["skill-build", "runx/skill-build"].includes(normalizedSkillName(step.skill)))) {
     findings.push({ code: "skill_package.skill_build_required", path: "orchestration_steps", message: "Runx skill-package authoring must use the canonical skill-build lane." });
   }
 
@@ -117,9 +119,6 @@ function validateDraft(value, state) {
     orchestration_steps: steps,
     required_skills: requiredSkills,
     open_questions: openQuestions,
-    source_change_set_preserved: sourceChangeSet ? sourceChangeSetPreserved : false,
-    source_thread_locator_preserved: sourceThreadLocatorPreserved,
-    source_context_available: Boolean(sourceChangeSet),
     catalog_skills: [...new Set(steps.map((step) => normalizedSkillName(step.skill)).filter((name) => name && name !== "approval"))].sort(),
     objective,
   };
@@ -260,10 +259,7 @@ function emptyPlan() {
     orchestration_steps: [],
     required_skills: [],
     open_questions: [],
-    source_change_set_preserved: false,
-    source_thread_locator_preserved: false,
     catalog_skills: [],
-    source_context_available: false,
   };
 }
 
@@ -323,7 +319,7 @@ function registrableSuffix(hostname) {
 }
 
 function normalizedSkillName(value) {
-  return String(value || "").trim().replace(/^\.\.\//u, "").replace(/^skills\//u, "").split("/").at(-1);
+  return String(value || "").trim().replace(/^\.\.\//u, "").replace(/^skills\//u, "").split("#", 1)[0].split("@", 1)[0];
 }
 
 function identifier(value, field) {

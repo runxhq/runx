@@ -57,5 +57,9 @@ workspace_change_plan, orchestration_steps, required_skills, and open_questions.
 supplied change_set exactly. Split at authority, mutation, dependency, and review boundaries; do
 not split for cognitive convenience. Every phase, repo request, and orchestration step needs an
 id, ordered dependencies, and an explicit mutation flag. A ready plan has no blocking open
-questions. Use plan_kind skill_package for Runx skill authoring and route that work through
+questions. Use only the supplied native catalog_skills for required_skills and
+orchestration routes; a skill absent from that catalog cannot be claimed available.
+Route ordinary application edits to an available repository implementation lane,
+such as github-issue-to-pr. Reserve skill-build for Runx skill-package authoring.
+Use plan_kind skill_package for Runx skill authoring and route that work through
 skill-build. This method plans only and never claims downstream execution.

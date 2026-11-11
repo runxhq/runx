@@ -27,6 +27,33 @@ test("removing false authority checks retains source conservation", () => {
   assert.ok(
     actual.validation.findings.some((f) => f.code === "change_set.drift"),
   );
+  assert.deepEqual(actual.change_set, i.change_set);
+  assert.equal(actual.evidence.source_change_set_status, "drifted");
+});
+test("a malformed draft retains the supplied intake and its evidence", () => {
+  const i = inputs();
+  i.work_plan_draft.workspace_change_plan.phases[0].id = "invalid_id";
+  const actual = validate(i);
+  assert.equal(actual.decision, "blocked");
+  assert.deepEqual(actual.workspace_change_plan, {});
+  assert.deepEqual(actual.change_set, i.change_set);
+  assert.equal(actual.evidence.source_context_available, true);
+  assert.equal(actual.evidence.source_change_set_status, "preserved");
+  assert.equal(actual.evidence.source_thread_locator_preserved, true);
+  assert.ok(actual.validation.findings.some((f) => f.code === "draft.invalid_shape"));
+});
+test("catalog identity retains the publisher in matching and output", () => {
+  const i = inputs();
+  i.catalog_skills = [{ name: "runx/github-issue-to-pr" }];
+  for (const skill of i.work_plan_draft.required_skills) skill.name = "runx/github-issue-to-pr";
+  for (const step of i.work_plan_draft.orchestration_steps) step.skill = "runx/github-issue-to-pr@1.2.3#work";
+  const actual = validate(i);
+  assert.equal(actual.decision, "ready", JSON.stringify(actual.validation));
+  assert.equal(actual.required_skills[0].name, "runx/github-issue-to-pr");
+  i.catalog_skills = [{ name: "other/github-issue-to-pr" }];
+  const mismatched = validate(i);
+  assert.equal(mismatched.decision, "blocked");
+  assert.ok(mismatched.validation.findings.some((f) => f.code === "catalog.unknown_skill"));
 });
 test("legacy approval-like source fields never grant or deny planning authority", () => {
   const i = inputs();

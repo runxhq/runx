@@ -27,6 +27,7 @@ methods:
         description: Parent change artifact from code-intake or a workspace supervisor.
         required:
           - change_set_id
+          - target_surfaces
           - shared_invariants
           - success_criteria
         properties:
@@ -49,6 +50,23 @@ methods:
             type: string
             minLength: 1
             maxLength: 2048
+          summary: {type: string}
+          category: {type: string}
+          severity: {type: string}
+          recommended_lane: {type: string}
+          source_digest: {type: string}
+          target_surfaces:
+            type: array
+            maxItems: 100
+            items:
+              type: object
+              required: [surface, kind, mutating, rationale]
+              properties:
+                surface: {type: string, minLength: 1}
+                kind: {type: string}
+                mutating: {type: boolean}
+                rationale: {type: string}
+              additionalProperties: true
           shared_invariants:
             type: array
             maxItems: 100
@@ -160,6 +178,7 @@ methods:
                       properties:
                         id:
                           type: string
+                          pattern: ^[a-z0-9][a-z0-9-]*$
                         name:
                           type: string
                         depends_on:
@@ -175,6 +194,7 @@ methods:
                             properties:
                               id:
                                 type: string
+                                pattern: ^[a-z0-9][a-z0-9-]*$
                               repo:
                                 type: string
                               task_id:
@@ -208,6 +228,7 @@ methods:
                   properties:
                     id:
                       type: string
+                      pattern: ^[a-z0-9][a-z0-9-]*$
                     skill:
                       type: string
                     scopes:
@@ -223,6 +244,7 @@ methods:
                           type: string
                     context_from:
                       type: array
+                      description: Plan references rooted at input, change_set, thread or an earlier orchestration step id, optionally followed by a field path. These are plan dependencies, not turn locators.
                       items:
                         type: string
                     description:
