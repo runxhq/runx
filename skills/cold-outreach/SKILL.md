@@ -120,5 +120,12 @@ repeats the evidence context's `objective`, `audience` and `channel` exactly.
 `draft.title` is the subject and `draft.body` the plain-text email, with
 `required_footer` unchanged. `draft.claims` cites admitted source digests
 for every material claim. Add a review checklist and distribution notes, and
-list in `context_binding.applied` each admitted context's `packet_digest` with
-only the `applied_rules` you used. Never send, schedule or claim delivery.
+list in `context_binding.applied` only packets from
+`evidence_context.writing_contexts`. When that array is empty, return
+`context_binding: {applied: []}`. Factual `source_digests` belong in claims;
+they are never writing-context packet digests. Host writing profiles such as
+`VOICE.md` guide style but are not admitted packets to cite here.
+For each admitted writing context, copy its exact `packet_digest`, select only
+the `rules` you used, and supply `scope_review: {decision, reason}` with decision
+`applies`, `out_of_scope` or `uncertain`. Never invent a packet or rule to fill
+the array. Never send, schedule or claim delivery.

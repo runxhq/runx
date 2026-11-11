@@ -1,4 +1,4 @@
-version: "0.1.9"
+version: "0.1.10"
 minimum_runx: 0.12.0
 default_method: prepare
 catalog:
@@ -226,6 +226,7 @@ methods:
                   type: string
                 body:
                   type: string
+                  description: The plain-text email, including required_footer verbatim. Use only admitted facts; do not invent prior customers, results, or familiarity.
                 claims:
                   type: array
                   items:
@@ -258,11 +259,13 @@ methods:
               properties:
                 applied:
                   type: array
+                  description: Bind only evidence_context.writing_contexts. Return an empty array when writing_contexts is empty. Source digests and host VOICE.md profiles do not belong here.
                   items:
                     type: object
                     properties:
                       packet_digest:
                         type: string
+                        description: Copy the exact packet_digest of an admitted writing_contexts entry, never a factual source_digest.
                       applied_rules:
                         type: array
                         items:
@@ -272,6 +275,7 @@ methods:
                         properties:
                           decision:
                             type: string
+                            enum: [applies, out_of_scope, uncertain]
                           reason:
                             type: string
                         required:

@@ -116,6 +116,7 @@ impl ManagedAgent {
         }
         let mut given = BTreeSet::new();
         let prompt = build_prompt(
+            &turn.invocation().task,
             &TurnViewEnvelope::from(&envelope),
             &turn.calls()?,
             &mut given,
@@ -492,11 +493,12 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
 /// and how to end it. `given` gains the digest of each manual the prompt
 /// gives.
 fn build_prompt(
+    task: &runx_contracts::schema::NonEmptyString,
     envelope: &TurnViewEnvelope,
     calls: &[TurnCallResult],
     given: &mut BTreeSet<String>,
 ) -> Result<String, ManagedAgentError> {
-    let context = pretty(&AgentPromptContext::from(envelope))?;
+    let context = pretty(&AgentPromptContext::new(task, envelope))?;
     let mut manuals = String::new();
     let mut made = String::new();
     for call in calls {
@@ -518,7 +520,8 @@ fn build_prompt(
         )
     };
     Ok(format!(
-        "{}{manuals}\n\n{CONTEXT_POLICY}\n\nRun context (JSON). Each context entry is a line of an \
+        "Complete the selected agent task named by task in the run context. The enclosing method \
+         is already running.\n\n{}{manuals}\n\n{CONTEXT_POLICY}\n\nRun context (JSON). Each context entry is a line of an \
          index; {TURN_READ_TOOL} reads its data by its locator:\n{context}{made}\n\nEach tool call is \
          admitted and recorded by runx. When the task is complete, call {TURN_COMPLETE_TOOL} \
          exactly once with the final payload.",
@@ -569,6 +572,7 @@ fn pretty(value: &impl Serialize) -> Result<String, ManagedAgentError> {
 
 #[derive(Serialize)]
 struct AgentPromptContext<'a> {
+    task: &'a runx_contracts::schema::NonEmptyString,
     run_id: &'a runx_contracts::schema::NonEmptyString,
     step_id: &'a Option<runx_contracts::schema::NonEmptyString>,
     skill: &'a runx_contracts::schema::NonEmptyString,
@@ -597,9 +601,13 @@ struct PromptProfiles<'a> {
     conventions: &'a Option<runx_contracts::ProfileFile>,
 }
 
-impl<'a> From<&'a TurnViewEnvelope> for AgentPromptContext<'a> {
-    fn from(envelope: &'a TurnViewEnvelope) -> Self {
+impl<'a> AgentPromptContext<'a> {
+    fn new(
+        task: &'a runx_contracts::schema::NonEmptyString,
+        envelope: &'a TurnViewEnvelope,
+    ) -> Self {
         Self {
+            task,
             run_id: &envelope.run_id,
             step_id: &envelope.step_id,
             skill: &envelope.skill,
@@ -640,12 +648,14 @@ mod tests {
             JsonValue::String("bug report".to_owned()),
         );
         let prompt = build_prompt(
+            &non_empty("classify"),
             &TurnViewEnvelope::from(&prompt_envelope("Triage", inputs, Vec::new())),
             &[],
             &mut BTreeSet::new(),
         )?;
         assert!(
-            prompt.contains("Triage")
+            prompt.contains("\"task\": \"classify\"")
+                && prompt.contains("Triage")
                 && prompt.contains(TURN_COMPLETE_TOOL)
                 && prompt.contains("issue_title")
                 && prompt.contains("bug report"),
@@ -687,6 +697,7 @@ mod tests {
             tool_roots: Some(vec![non_empty("/workspace/tools")]),
         });
         let prompt = build_prompt(
+            &non_empty("review"),
             &TurnViewEnvelope::from(&envelope),
             &[],
             &mut BTreeSet::new(),
@@ -746,6 +757,7 @@ mod tests {
             },
         };
         let prompt = build_prompt(
+            &non_empty("review"),
             &TurnViewEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
             &[call, long],
             &mut BTreeSet::new(),
@@ -798,6 +810,7 @@ mod tests {
         };
         let mut given = BTreeSet::new();
         let prompt = build_prompt(
+            &non_empty("review"),
             &TurnViewEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
             &[load(0)?, load(1)?],
             &mut given,

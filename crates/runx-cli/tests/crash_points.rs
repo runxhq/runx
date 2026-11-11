@@ -9,6 +9,8 @@ use std::process::Output;
 
 use crate::support::unsigned_runx_command_at;
 
+mod revisable_outreach;
+
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// `confirm-child` digests its value in two steps; `script-demo` makes the

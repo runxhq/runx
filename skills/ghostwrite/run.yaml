@@ -1,4 +1,4 @@
-version: "0.4.8"
+version: "0.4.9"
 minimum_runx: 0.12.0
 default_method: draft
 catalog:
@@ -133,11 +133,13 @@ methods:
                 properties:
                   applied:
                     type: array
+                    description: Bind only evidence_context.writing_contexts. Return an empty array when writing_contexts is empty. Source digests and host VOICE.md profiles do not belong here.
                     items:
                       type: object
                       properties:
                         packet_digest:
                           type: string
+                          description: Copy the exact packet_digest of an admitted writing_contexts entry, never a factual source_digest.
                         applied_rules:
                           type: array
                           items:
@@ -147,6 +149,7 @@ methods:
                           properties:
                             decision:
                               type: string
+                              enum: [applies, out_of_scope, uncertain]
                             reason:
                               type: string
                           required:

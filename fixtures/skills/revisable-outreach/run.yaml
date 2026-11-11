@@ -1,0 +1,19 @@
+version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
+  send:
+    inputs:
+      batch: {type: object, additionalProperties: true}
+    steps:
+      - id: prepare
+        skill: ../cold-outreach#batch
+        inputs: $input.batch
+      - id: send
+        script: {module: send.mjs}
+        inputs:
+          outcomes: $steps.prepare.outcomes
+        calls:
+          operations: [fixture/mail/message.send]
+        max_calls: 300
+        outputs:
+          sent: {type: array}
