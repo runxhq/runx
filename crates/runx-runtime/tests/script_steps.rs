@@ -2815,6 +2815,29 @@ fn a_file_read_this_runs_reach_refuses_is_not_allowed() -> TestResult {
     Ok(())
 }
 
+/// A source whose root no longer exists isn't refused: authority didn't
+/// change, what it read did, so it recomputes as changed (reuse.md, checks
+/// 2 and 3).
+#[test]
+fn a_source_whose_root_is_gone_recomputes_as_changed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    let temp = tempdir()?;
+    std::fs::create_dir_all(temp.path().join("sub"))?;
+    std::fs::write(temp.path().join("sub/notes.txt"), "kept\n")?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("sub-child"),
+        "---\nname: sub-child\ndescription: Reads a file under sub.\n---\n# Sub child\n\nRead it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {repo_root: sub, path: notes.txt}\n",
+    )?;
+    let skill_dir = write_reusing_parent(temp.path(), "sub-child")?;
+    let ran = run_managed(temp.path(), skill_dir.clone())?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NoCandidate));
+    std::fs::remove_dir_all(temp.path().join("sub"))?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(Changed));
+    Ok(())
+}
+
 /// A source's operation read is authorized again under this run's authority
 /// and the chain its child would run under: a delegation that leaves the
 /// store's event read out doesn't allow it, and without one it is

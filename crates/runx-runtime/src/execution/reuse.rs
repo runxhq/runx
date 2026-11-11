@@ -161,7 +161,9 @@ impl Reads {
 /// Whether `read` passes the check its tool makes before it reads, under
 /// `reach`: its root, unless it's the skill's own directory, and each path
 /// it names under the root. A tool that reads beyond the paths it's given
-/// checks only its root, so only its root is checked.
+/// checks only its root, so only its root is checked. A root that no longer
+/// exists isn't refused: what it read changed, which the current check
+/// answers, and authority didn't refuse it.
 fn file_read_allowed(
     read: &FileRead,
     reach: runx_contracts::Reach,
@@ -180,23 +182,23 @@ fn file_read_allowed(
         let workspace = crate::RunxPaths::resolve(env, skill_directory)
             .workspace()
             .to_path_buf();
-        let Ok(workspace) = std::fs::canonicalize(workspace) else {
-            return false;
-        };
-        let Ok(root) = std::fs::canonicalize(if named.is_absolute() {
-            named.to_path_buf()
-        } else {
-            workspace.join(named)
-        }) else {
-            return false;
-        };
-        let root = ReadArgument::Root {
-            named,
-            root: &root,
-            workspace: &workspace,
-        };
-        if admit_read(reach, root).is_err() {
-            return false;
+        let resolved = std::fs::canonicalize(workspace).and_then(|workspace| {
+            let root = if named.is_absolute() {
+                named.to_path_buf()
+            } else {
+                workspace.join(named)
+            };
+            Ok((std::fs::canonicalize(root)?, workspace))
+        });
+        if let Ok((root, workspace)) = resolved {
+            let root = ReadArgument::Root {
+                named,
+                root: &root,
+                workspace: &workspace,
+            };
+            if admit_read(reach, root).is_err() {
+                return false;
+            }
         }
     }
     let named = match read.tool.as_str() {
