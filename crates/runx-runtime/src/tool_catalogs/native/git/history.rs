@@ -110,8 +110,11 @@ pub(super) fn show(
     validate_revision(SHOW, "revision", &inputs.revision)?;
     if let Some(path) = &inputs.path {
         validate_paths(SHOW, std::slice::from_ref(path))?;
-        crate::services::admit_within(invocation.reach, Path::new(path))
-            .map_err(|error| invalid_input(SHOW, error.to_string()))?;
+        crate::services::admit_read(
+            invocation.reach,
+            crate::services::ReadArgument::Named(Path::new(path)),
+        )
+        .map_err(|error| invalid_input(SHOW, error.to_string()))?;
         let object = format!("{}:{path}", inputs.revision);
         let (text, truncated) = run(SHOW, &root, &["show", "--no-color", &object], invocation)?;
         let path = non_empty(SHOW, "path", path.clone())?;

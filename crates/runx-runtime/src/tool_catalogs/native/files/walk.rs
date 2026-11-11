@@ -212,11 +212,12 @@ fn walk_start(
             "path must be a relative path inside the root",
         ));
     }
+    crate::services::admit_read(reach, crate::services::ReadArgument::Named(requested))
+        .map_err(|error| invalid_input(tool, error.to_string()))?;
     let admit = |path: &Path| {
         crate::services::admit_within(reach, path)
             .map_err(|error| invalid_input(tool, error.to_string()))
     };
-    admit(requested)?;
     let start = std::fs::canonicalize(root.join(requested))
         .map_err(|error| invalid_input(tool, format!("path is unavailable: {error}")))?;
     admit(

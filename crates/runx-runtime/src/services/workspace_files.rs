@@ -19,6 +19,57 @@ pub(crate) use artifacts::{
     MAX_ARTIFACT_BYTES,
 };
 
+/// A path a file tool is given, as its check before reading takes it.
+pub(crate) enum ReadArgument<'a> {
+    /// A path named relative to the tool's root: a file, or where a walk
+    /// starts.
+    Named(&'a Path),
+    /// The root the tool reads under, as `named` and resolved, and the
+    /// workspace, resolved.
+    Root {
+        named: &'a Path,
+        root: &'a Path,
+        workspace: &'a Path,
+    },
+}
+
+/// The check a file tool makes of each path it's given before it reads
+/// under it: a named path stays relative and never climbs past its root,
+/// and within `reach: workspace` it's no secret file or runx's own state;
+/// a root within `reach: workspace` is the workspace or a directory in it
+/// that isn't protected. Reuse makes the same check of each path a source's
+/// record shows a tool was given (reuse.md, check 2).
+pub(crate) fn admit_read(
+    reach: Reach,
+    argument: ReadArgument<'_>,
+) -> Result<(), WorkspaceFileError> {
+    match argument {
+        ReadArgument::Named(requested) => {
+            if requested.is_absolute()
+                || requested
+                    .components()
+                    .any(|component| !matches!(component, Component::Normal(_) | Component::CurDir))
+            {
+                return Err(WorkspaceFileError::InvalidPath);
+            }
+            admit_within(reach, requested)
+        }
+        ReadArgument::Root {
+            named,
+            root,
+            workspace,
+        } => {
+            if reach != Reach::Workspace {
+                return Ok(());
+            }
+            let inside = root
+                .strip_prefix(workspace)
+                .map_err(|_| WorkspaceFileError::OutsideWorkspace(named.to_path_buf()))?;
+            admit_within(reach, inside)
+        }
+    }
+}
+
 /// Refuse `relative`, a path inside the workspace, when the run's `reach`
 /// keeps it from the run: within `reach: workspace` a secret file or runx's
 /// own state is never read or written. `reach: inputs` reaches the roots the
@@ -155,7 +206,7 @@ impl WorkspaceFile {
         reach: Reach,
     ) -> Result<Self, WorkspaceFileError> {
         validate_relative_file_path(requested)?;
-        admit_within(reach, requested)?;
+        admit_read(reach, ReadArgument::Named(requested))?;
         let root = std::fs::canonicalize(root).map_err(WorkspaceFileError::RootUnavailable)?;
         let path = std::fs::canonicalize(root.join(requested)).map_err(|source| {
             WorkspaceFileError::Unavailable {
@@ -326,12 +377,14 @@ pub(crate) fn resolve_scoped_root(
     if !root.is_dir() {
         return Err(WorkspaceFileError::RootNotDirectory);
     }
-    if reach == Reach::Workspace {
-        let inside = root
-            .strip_prefix(&workspace)
-            .map_err(|_| WorkspaceFileError::OutsideWorkspace(requested.to_path_buf()))?;
-        admit_within(reach, inside)?;
-    }
+    admit_read(
+        reach,
+        ReadArgument::Root {
+            named: requested,
+            root: &root,
+            workspace: &workspace,
+        },
+    )?;
     Ok(root)
 }
 
