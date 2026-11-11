@@ -1528,9 +1528,10 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
 }
 
 /// A turn runx's managed agent worked from a fresh context, stating the
-/// model that answered, leaves its run an eligible source: a later call that
-/// asks the same finds it and, until its reads are authorized for this run,
-/// recomputes as not allowed rather than ineligible (reuse.md, D2).
+/// model that answered, leaves its run an eligible source, whose reads this
+/// run may make: a later call that asks the same finds it and, until check 3
+/// compares what each step was given, recomputes as changed rather than
+/// ineligible (reuse.md, D2).
 #[test]
 fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -1632,7 +1633,7 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
         decisions,
         [
             recomputed(runx_contracts::RecomputeReason::NoCandidate),
-            recomputed(runx_contracts::RecomputeReason::NotAllowed),
+            recomputed(runx_contracts::RecomputeReason::Changed),
         ]
     );
     Ok(())

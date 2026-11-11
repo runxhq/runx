@@ -55,21 +55,24 @@ const FIELDS: &[CapabilityField] = &[
     },
 ];
 
-static CAPTURE_HELP: TypedNativeCapability<CaptureHelpInput, CliHelp> = TypedNativeCapability::new(
-    CapabilityDefinition {
-        id: "cli.capture_help",
-        source: "runx-runtime/cli",
-        summary: "Capture bounded CLI help through exact argv in a contained directory.",
-        effect: CapabilityEffect::Read,
-        approval: CapabilityApproval::None,
-        artifacts: CapabilityArtifacts::Wrapped {
-            output: "cli_help",
-            packet: "runx.cli.help.v1",
+// It runs the CLI it's given, so it's a read a host process makes.
+static CAPTURE_HELP: TypedNativeCapability<CaptureHelpInput, CliHelp> =
+    TypedNativeCapability::new_with_execution_boundary(
+        CapabilityDefinition {
+            id: "cli.capture_help",
+            source: "runx-runtime/cli",
+            summary: "Capture bounded CLI help through exact argv in a contained directory.",
+            effect: CapabilityEffect::Read,
+            approval: CapabilityApproval::None,
+            artifacts: CapabilityArtifacts::Wrapped {
+                output: "cli_help",
+                packet: "runx.cli.help.v1",
+            },
+            fields: FIELDS,
         },
-        fields: FIELDS,
-    },
-    super::capture_help,
-);
+        super::capture_help,
+        crate::process_invocation::NATIVE_COMMAND_EXECUTION_BOUNDARY,
+    );
 
 pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] =
     &[&CAPTURE_HELP];

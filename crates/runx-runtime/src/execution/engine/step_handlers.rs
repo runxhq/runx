@@ -555,14 +555,29 @@ fn child_chain<A>(
     request: &StepHandlerCtx<'_, A>,
     skill: &LoadedStepSkill,
 ) -> Result<Vec<crate::identity::ChainLink>, RuntimeError> {
-    let options = &request.runtime.options;
-    let mut chain = options.chain_at(request.workflow_dir)?;
+    child_chain_at(
+        &request.runtime.options,
+        request.workflow_dir,
+        request.step,
+        skill,
+    )
+}
+
+/// The chain of the child run `skill` starts from `step` in `workflow_dir`
+/// under `options`: its parent run's, then the child's package as the
+/// step's reference reached it.
+pub(crate) fn child_chain_at(
+    options: &crate::execution::engine::RuntimeOptions,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
+    skill: &LoadedStepSkill,
+) -> Result<Vec<crate::identity::ChainLink>, RuntimeError> {
+    let mut chain = options.chain_at(workflow_dir)?;
     let package = match &skill.admitted {
         Some(admitted) => admitted.get(&skill.directory)?,
         None => options.package(&skill.directory)?,
     };
-    let reference = request
-        .step
+    let reference = step
         .skill()
         .map_or_else(String::new, |target| target.skill.clone());
     let signed = skill.registry.as_ref().map(|registry| &registry.signed);

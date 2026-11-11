@@ -674,6 +674,68 @@ impl OperationAdmission {
     }
 }
 
+/// What admitting or authorizing an operation step reads: the kernel
+/// store, the run's lanes, the connectors in its scope and their instances.
+struct Grounds {
+    store: Arc<KernelStore>,
+    lanes: LaneInputs,
+    scope: ConnectorScope,
+    instances: Instances,
+}
+
+impl Grounds {
+    fn of(
+        request: EffectStepRequest<'_>,
+        target: &runx_parser::OperationStepTarget,
+    ) -> Result<Self, RuntimeEffectError> {
+        let paths = crate::paths::RunxPaths::resolve(request.env, request.workflow_dir);
+        let store = KernelStore::for_project(&paths).map_err(state)?;
+        let lanes = LaneInputs::of(request.run_id, paths.artifacts());
+        let scope = ConnectorScope::of_operation(target, request.workflow_dir, &paths)
+            .map_err(|error| invalid(error.to_string()))?;
+        let instances = Instances::new(Arc::clone(&store));
+        Ok(Self {
+            store,
+            lanes,
+            scope,
+            instances,
+        })
+    }
+}
+
+impl OperationEffect {
+    /// The evaluation of `call` from `target` in `request`'s step, under its
+    /// chain and authority, on `grounds`.
+    fn evaluation<'a>(
+        &'a self,
+        request: EffectStepRequest<'a>,
+        target: &'a runx_parser::OperationStepTarget,
+        call: &'a OperationCall,
+        grounds: &'a Grounds,
+    ) -> Evaluation<'a> {
+        Evaluation {
+            step: target,
+            call,
+            retry_unknown_outcomes: request.step.retry_unknown_outcomes,
+            fixture_stand_in: self.fixture_stand_in,
+            run_authority: request.run_authority,
+            held_by_effects: request.held_by_effects,
+            store: &grounds.store,
+            run_id: &grounds.lanes.run_id,
+            chain: request.chain,
+            context: Context {
+                scope: &grounds.scope,
+                instances: &grounds.instances,
+                hosted: &self.placements.hosted,
+                env: request.env,
+                cwd: request.workflow_dir,
+            },
+            clock: request.clock,
+            reconciliation: request.reconciliation,
+        }
+    }
+}
+
 impl RuntimeEffect for OperationEffect {
     fn family(&self) -> &'static str {
         OPERATION_EFFECT_FAMILY
@@ -716,6 +778,17 @@ impl RuntimeEffect for OperationEffect {
         .map_err(refused)
     }
 
+    fn authorize(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
+        let Some(target) = request.step.operation() else {
+            return Ok(());
+        };
+        let call = OperationCall::decode(request.inputs).map_err(invalid)?;
+        let grounds = Grounds::of(request, target)?;
+        admission::authorize(&self.evaluation(request, target, &call, &grounds))
+            .map(|_| ())
+            .map_err(refused)
+    }
+
     fn admit(
         &self,
         request: EffectStepRequest<'_>,
@@ -725,43 +798,10 @@ impl RuntimeEffect for OperationEffect {
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
         let shape = call.shape().map_err(invalid)?;
-        let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
-            request.env,
-            request.workflow_dir,
-        ))
-        .map_err(state)?;
-        let lanes = LaneInputs::of(
-            request.run_id,
-            crate::paths::RunxPaths::resolve(request.env, request.workflow_dir).artifacts(),
-        );
-        let scope = ConnectorScope::of_operation(
-            target,
-            request.workflow_dir,
-            &crate::paths::RunxPaths::resolve(request.env, request.workflow_dir),
-        )
-        .map_err(|error| invalid(error.to_string()))?;
-        let instances = Instances::new(Arc::clone(&store));
-        let admitted = admission::admit(&Evaluation {
-            step: target,
-            call: &call,
-            retry_unknown_outcomes: request.step.retry_unknown_outcomes,
-            fixture_stand_in: self.fixture_stand_in,
-            run_authority: request.run_authority,
-            held_by_effects: request.held_by_effects,
-            store: &store,
-            run_id: &lanes.run_id,
-            chain: request.chain,
-            context: Context {
-                scope: &scope,
-                instances: &instances,
-                hosted: &self.placements.hosted,
-                env: request.env,
-                cwd: request.workflow_dir,
-            },
-            clock: request.clock,
-            reconciliation: request.reconciliation,
-        })
-        .map_err(refused)?;
+        let grounds = Grounds::of(request, target)?;
+        let admitted = admission::admit(&self.evaluation(request, target, &call, &grounds))
+            .map_err(refused)?;
+        let Grounds { lanes, scope, .. } = grounds;
         let verb = admitted.operation().verb.authority_verb();
         let target_ref = match call.act.as_ref().and_then(|act| act.target.as_ref()) {
             Some(target) => {

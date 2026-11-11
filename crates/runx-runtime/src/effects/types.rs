@@ -63,6 +63,16 @@ pub trait RuntimeEffect: Send + Sync {
         Ok(None)
     }
 
+    /// Whether the step may run again now, under the request's chain and
+    /// authority, as admission authorizes it, with nothing charged, no use
+    /// counted and no attempt prepared: how reuse asks it of each read a
+    /// source made (reuse.md, check 2). A family that admits nothing refuses
+    /// nothing.
+    fn authorize(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
+        let _ = request;
+        Ok(())
+    }
+
     /// Admit what the step declares it may call through this family before
     /// any call is made, from the checks its calls' admission runs, refusing
     /// as the first refused call would be. A family no step declares calls

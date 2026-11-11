@@ -251,6 +251,13 @@ pub(crate) fn workspace_lock_mode(tool: &str) -> Option<crate::workspace_lock::L
 }
 
 /// Whether `tool` is a native tool that only reads.
+/// Whether `tool` is a native tool that runs a host process to do its work.
+pub(crate) fn runs_a_process(tool: &str) -> bool {
+    definition(tool).is_some_and(|capability| {
+        capability.execution_boundary() == runx_contracts::ExecutionBoundaryKind::TrustedHostProcess
+    })
+}
+
 pub(crate) fn only_reads(tool: &str) -> bool {
     definition(tool).is_some_and(|capability| !capability.definition().effect.mutating())
 }

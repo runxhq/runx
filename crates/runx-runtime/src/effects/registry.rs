@@ -102,6 +102,19 @@ impl RuntimeEffectRegistry {
         Ok(None)
     }
 
+    /// Authorize the step as the family that owns it admits it, with nothing
+    /// charged or counted. A step no family owns can't be authorized.
+    pub(crate) fn authorize(
+        &self,
+        request: EffectStepRequest<'_>,
+    ) -> Result<(), RuntimeEffectError> {
+        self.resolved_effect(request)?
+            .ok_or_else(|| RuntimeEffectError::MissingFamily {
+                family: format!("the owner of step {}", request.step.id),
+            })?
+            .authorize(request)
+    }
+
     /// Admit what the step declares it may call, in every family, before any
     /// call is made.
     pub(crate) fn admit_declared(

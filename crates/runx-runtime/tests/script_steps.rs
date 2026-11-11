@@ -2693,6 +2693,15 @@ fn a_child_that_settles_after_a_resume_is_indexed() -> TestResult {
 /// Run `skill_dir` under runx's managed driver, whose turns only runx's
 /// managed agent works, on the kernel's local effects.
 fn run_managed(root: &Path, skill_dir: PathBuf) -> TestResult<RunResult> {
+    run_managed_under(root, skill_dir, None)
+}
+
+/// [`run_managed`], under the host's `run_authority`.
+fn run_managed_under(
+    root: &Path,
+    skill_dir: PathBuf,
+    run_authority: Option<serde_json::Value>,
+) -> TestResult<RunResult> {
     let orchestrator = LocalOrchestrator::with_effects_and_environment(
         runx_runtime::RuntimeEffectRegistry::local()?,
         env(root),
@@ -2701,7 +2710,7 @@ fn run_managed(root: &Path, skill_dir: PathBuf) -> TestResult<RunResult> {
         &SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),
-            run_authority: None,
+            run_authority: run_authority.map(serde_json::from_value).transpose()?,
             act: None,
             skill_path: skill_dir,
             receipt_dir: Some(root.join("receipts")),
@@ -2719,12 +2728,13 @@ fn run_managed(root: &Path, skill_dir: PathBuf) -> TestResult<RunResult> {
 }
 
 /// A source runx drove whose every step it saw whole, a native tool that
-/// only reads, is eligible: a later call asking the same finds it and, until
-/// its reads are authorized for this run, recomputes as not allowed. The same
+/// only reads, is eligible, and one that reads nothing this run may not is
+/// allowed: a later call asking the same finds it and, until check 3
+/// compares what each step was given, recomputes as changed. The same
 /// source under a host's driver isn't eligible (reuse.md, D2).
 #[test]
 fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
-    use runx_contracts::RecomputeReason::{NoCandidate, NotAllowed};
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
     let temp = tempdir()?;
     write_digest_child(temp.path())?;
     let skill_dir = write_one_step(
@@ -2736,13 +2746,109 @@ fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
 }
 "#,
     )?;
-    for expected in [NoCandidate, NotAllowed] {
+    for expected in [NoCandidate, Changed] {
         let ran = run_managed(temp.path(), skill_dir.clone())?;
         let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
         assert_eq!(
             reuse_decisions(temp.path(), run_id)?,
             BTreeMap::from([(0, recomputed(expected))])
         );
+    }
+    Ok(())
+}
+
+/// A parent whose one script step asks to reuse `child`'s result.
+fn write_reusing_parent(root: &Path, child: &str) -> TestResult<PathBuf> {
+    write_one_step(
+        root,
+        &format!(
+            "        inputs:\n          value: $input.value\n        calls:\n          skills: [../{child}]\n        max_calls: 1\n        outputs:\n          done: {{type: boolean}}\n"
+        ),
+        &format!(
+            "export default async function (ctx, {{ value }}) {{\n  await ctx.skill(\"../{child}\", {{ value }}, {{ reuse: {{ max_age_seconds: 604800 }} }});\n  return {{ done: true }};\n}}\n"
+        ),
+    )
+}
+
+/// What the first call at the root of `ran` was answered of reuse.
+fn first_decision(root: &Path, ran: &RunResult) -> TestResult<runx_contracts::ReuseDecision> {
+    let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
+    Ok(reuse_decisions(root, run_id)?
+        .remove(&0)
+        .ok_or("the call was answered nothing of reuse")?)
+}
+
+/// A source's file read is checked as its tool checks a path before it
+/// reads: under `reach: workspace` a secret file the source read under
+/// `inputs` isn't allowed, and a plain file it read still is, though the
+/// reach narrowed (reuse.md, check 2).
+#[test]
+fn a_file_read_this_runs_reach_refuses_is_not_allowed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate, NotAllowed};
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join("notes.txt"), "kept\n")?;
+    std::fs::write(temp.path().join(".env"), "TOKEN=kept\n")?;
+    for (child, path, narrowed) in [
+        ("secret-child", ".env", NotAllowed),
+        ("notes-child", "notes.txt", Changed),
+    ] {
+        crate::support::write_test_skill_package(
+            &temp.path().join(child),
+            &format!("---\nname: {child}\ndescription: Reads a file.\n---\n# Child\n\nRead it.\n"),
+            &format!(
+                "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {{path: {path}}}\n"
+            ),
+        )?;
+        let skill_dir = write_reusing_parent(temp.path(), child)?;
+        for (authority, expected) in [
+            (None, NoCandidate),
+            (Some(serde_json::json!({"reach": "workspace"})), narrowed),
+        ] {
+            let ran = run_managed_under(temp.path(), skill_dir.clone(), authority)?;
+            assert_eq!(
+                first_decision(temp.path(), &ran)?,
+                recomputed(expected),
+                "{child}"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// A source's operation read is authorized again under this run's authority
+/// and the chain its child would run under: a delegation that leaves the
+/// store's event read out doesn't allow it, and without one it is
+/// (reuse.md, check 2).
+#[test]
+fn an_operation_read_this_runs_authority_leaves_out_is_not_allowed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate, NotAllowed};
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("store-child"),
+        "---\nname: store-child\ndescription: Reads the notes.\n---\n# Store child\n\nRead them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: events\n        operation: store/events.read\n        inputs: {stream: notes, key: k}\n",
+    )?;
+    let skill_dir = write_reusing_parent(temp.path(), "store-child")?;
+    let inspect_only = || {
+        Some(
+            serde_json::json!({"delegations": [{"connector": "store", "terms": [{
+                "verbs": ["read"],
+                "bounds": {
+                    "operations": ["store/key.inspect"],
+                    "scopes": ["store.read"],
+                    "targets": ["project:store-child/notes"],
+                    "packages": ["*/*", "project:*"],
+                },
+            }]}]}),
+        )
+    };
+    for (authority, expected) in [
+        (None, NoCandidate),
+        (inspect_only(), NotAllowed),
+        (None, Changed),
+    ] {
+        let ran = run_managed_under(temp.path(), skill_dir.clone(), authority)?;
+        assert_eq!(first_decision(temp.path(), &ran)?, recomputed(expected));
     }
     Ok(())
 }
@@ -2836,11 +2942,12 @@ fn second_ask_of(step: &str, module: Option<&str>) -> TestResult<runx_contracts:
 }
 
 /// A read runx makes itself is eligible: the source whose script read its
-/// own store recomputes as not allowed until its read is authorized for this
-/// run. A source whose step wrote anything isn't eligible (reuse.md, check 1).
+/// own store is, and its read is authorized for this run, so it recomputes
+/// as changed until check 3 compares what each step was given. A source
+/// whose step wrote anything isn't eligible (reuse.md, checks 1 and 2).
 #[test]
 fn a_source_that_read_is_eligible_and_one_that_wrote_is_not() -> TestResult {
-    use runx_contracts::RecomputeReason::{Ineligible, NotAllowed};
+    use runx_contracts::RecomputeReason::{Changed, Ineligible};
     assert_eq!(
         second_ask_of(
             "        script: {module: use.mjs}\n        inputs: {value: $input.value}\n        calls:\n          operations: [store/events.read]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
@@ -2848,7 +2955,7 @@ fn a_source_that_read_is_eligible_and_one_that_wrote_is_not() -> TestResult {
                 "export default async function (ctx, { value }) {\n  await ctx.operation(\"store/events.read\", { stream: \"notes\", key: value, limit: 1 });\n  return { done: true };\n}\n"
             ),
         )?,
-        recomputed(NotAllowed)
+        recomputed(Changed)
     );
     assert_eq!(
         second_ask_of(

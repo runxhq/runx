@@ -213,6 +213,41 @@ pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
 
 const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount", "act"];
 
+/// The step an operation call runs as: its target, the connector the turn
+/// declares or loaded, and its inputs, the call's arguments as the step's
+/// `inputs`. A reuse check builds a recorded call's step the same way.
+pub(crate) fn operation_call_step(
+    requirement: &str,
+    operation: &str,
+    input: &JsonObject,
+    declared: Option<ConnectorRequirement>,
+    loaded: Option<ConnectorBinding>,
+) -> Result<(OperationStepTarget, JsonObject), String> {
+    if let Some(field) = input
+        .keys()
+        .find(|field| !OPERATION_CALL_FIELDS.contains(&field.as_str()))
+    {
+        return Err(format!(
+            "an operation call takes connector, input, idempotency_key, amount and act, not {field}"
+        ));
+    }
+    let mut inputs = input.clone();
+    if let Some(arguments) = inputs.remove("input") {
+        inputs.insert("inputs".to_owned(), arguments);
+    }
+    let target = OperationStepTarget {
+        requirement: requirement.to_owned(),
+        operation: Some(
+            OperationName::new(operation.to_owned())
+                .ok_or_else(|| format!("{operation} is not an operation name"))?,
+        ),
+        from: Vec::new(),
+        loaded,
+        declared,
+    };
+    Ok((target, inputs))
+}
+
 /// The longest call id a host may pin.
 const CALL_ID_BYTES: usize = 200;
 
@@ -1332,8 +1367,9 @@ where
                 });
             }
         };
+        let store = options.run.store();
         crate::execution::reuse::decide(
-            options.run.store(),
+            store,
             crate::execution::reuse::identity(
                 &skill,
                 &call.step.inputs,
@@ -1341,8 +1377,58 @@ where
                 &options.env,
             ),
             &skill.method.workflow,
+            |source| self.reads_allowed(call, &skill, &source.run_id),
         )
         .map_err(|error| RuntimeError::effect_state("reading the reuse index", error.to_string()))
+    }
+
+    /// Whether the child `skill` that `call` starts may make again, under
+    /// this run's authority and the chain the child would run under, every
+    /// read its source `source_run_id` made (reuse.md, check 2): each
+    /// operation read as admission authorizes it, with nothing charged or
+    /// counted, and each file read within the reach it had. Anything that
+    /// can't be established, a read that can't be rebuilt included, isn't
+    /// allowed. Nothing is read, so a hit or a miss can't say what changed.
+    fn reads_allowed(&self, call: &CallStep, skill: &LoadedStepSkill, source_run_id: &str) -> bool {
+        let options = &self.scope.runtime.options;
+        let Ok(chain) = super::step_handlers::child_chain_at(
+            options,
+            self.scope.workflow_dir,
+            &call.step,
+            skill,
+        ) else {
+            return false;
+        };
+        let Ok(reads) = crate::execution::reuse::reads(
+            options.run.store(),
+            source_run_id,
+            &skill.method.workflow,
+            options.workspace.as_ref(),
+        ) else {
+            return false;
+        };
+        reads.files_allowed(
+            options.run_authority.as_ref(),
+            &options.env,
+            &skill.directory,
+        ) && reads.operations.iter().all(|step| {
+            options
+                .effects
+                .authorize(crate::effects::EffectStepRequest {
+                    step,
+                    target: crate::effects::ResolvedEffectTarget::default(),
+                    inputs: &step.inputs,
+                    env: &options.env,
+                    workflow_dir: &skill.directory,
+                    run_id: options.run.run_id(),
+                    run_authority: options.run_authority.as_ref(),
+                    held_by_effects: false,
+                    chain: &chain,
+                    clock: &options.clock,
+                    reconciliation: None,
+                })
+                .is_ok()
+        })
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is
@@ -1995,33 +2081,16 @@ where
                 requirement,
                 operation,
             } => {
-                if let Some(field) = input
-                    .keys()
-                    .find(|field| !OPERATION_CALL_FIELDS.contains(&field.as_str()))
-                {
-                    return Err(format!(
-                        "an operation call takes connector, input, idempotency_key, amount and act, not {field}"
-                    ));
-                }
-                // The call's arguments are its step's `inputs`.
-                if let Some(arguments) = inputs.remove("input") {
-                    inputs.insert("inputs".to_owned(), arguments);
-                }
-                let declared = self
-                    .declared(requirement.as_str())
-                    .map_err(|error| error.to_string())?;
-                let target = OperationStepTarget {
-                    requirement: requirement.as_str().to_owned(),
-                    operation: Some(
-                        OperationName::new(operation.as_str().to_owned())
-                            .ok_or_else(|| format!("{operation} is not an operation name"))?,
-                    ),
-                    from: Vec::new(),
-                    loaded: self
-                        .loaded_binding(requirement.as_str())
+                let (target, arguments) = operation_call_step(
+                    requirement.as_str(),
+                    operation.as_str(),
+                    input,
+                    self.declared(requirement.as_str())
                         .map_err(|error| error.to_string())?,
-                    declared,
-                };
+                    self.loaded_binding(requirement.as_str())
+                        .map_err(|error| error.to_string())?,
+                )?;
+                inputs = arguments;
                 // A turn's own call never writes to store (D19): a stream is
                 // written by a package's deterministic step.
                 if let Some(write) = crate::kernel::operation::operation_write(
