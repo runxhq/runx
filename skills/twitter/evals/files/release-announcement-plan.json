@@ -1,5 +1,5 @@
 {
-  "about": "An approved plan to announce the release and thank the first reviewer, by its digest, with nothing executed yet.",
+  "about": "Non-live initial plan and digest; gates.approval_id is metadata, not native human approval. tests/execute-post-publishes-and-reads-back.yaml uses these exact plan/digest/max_acts inputs, opens its native fixture approval, posts/reads one exact body, and persists the cursor before the following like. The attachment installs no plan, progress, grant or completed provider state.",
   "plan_json": {
     "decision": "ready",
     "objective": "Announce the release and thank the first reviewer.",

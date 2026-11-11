@@ -3,6 +3,7 @@ method: execute
 setup:
   credentials: [twitter]
 inputs:
+  max_acts: 1
   plan_json:
     decision: ready
     objective: Announce the release and thank the first reviewer.
@@ -48,6 +49,14 @@ expect:
   status: sealed
   steps: [saved, resolve, ledger, digest, prepare, remember, self, bind, request, apply, persist]
   step_outputs:
+    remember:
+      subset:
+        provider_operation:
+          result: {status: committed, version: 1, key: "sha256:87a42900aefb308c10af4ce8319a97624cb160444980ce4057d951317b8f6d94"}
+    persist:
+      subset:
+        provider_operation:
+          result: {status: committed, version: 1, key: "sha256:87a42900aefb308c10af4ce8319a97624cb160444980ce4057d951317b8f6d94"}
     request:
       subset:
         provider_operation:
@@ -62,6 +71,7 @@ expect:
       subset:
         twitter_execution:
           decision: partial
+          counts: {processed: 1, succeeded: 1, failed: 0}
           next_act_index: 1
           remaining_count: 1
           results:
