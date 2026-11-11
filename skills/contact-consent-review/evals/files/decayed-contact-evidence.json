@@ -1,8 +1,6 @@
 {
   "about": "The engagement, bounce and consent evidence the upstream contact review collected for a contact who has not engaged in 121 days, with the hygiene policy and the store key its decision is recorded under.",
-  "data_source_uri": "local://contact-consent-review/decay",
-  "resource": "contact_consent_events",
-  "aggregate_id": "contact:decay",
+  "key": "contact:decay",
   "expected_version": 0,
   "idempotency_key": "contact:decay:consent:v1",
   "engagement_evidence": {
