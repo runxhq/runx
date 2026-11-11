@@ -103,6 +103,17 @@ fn a_failed_assessment_with_identical_expected_and_actual_is_refused() -> Result
             "every_repository_read"
         )?))
     );
+    let exact_text = verdict(
+        "not_met",
+        json!([{
+            "id": "every_repository_read", "verdict": "not_met", "evidence": ["call:1"],
+            "failure": {"expected": "token ", "actual": "token", "where": "call:1"}
+        }]),
+    )?;
+    assert_eq!(
+        decide(&exact_text)?.map(|decision| decision.verdict),
+        Ok(VerdictAnswer::NotMet)
+    );
     Ok(())
 }
 

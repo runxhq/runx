@@ -321,7 +321,7 @@ impl Verdict {
                 return Err(VerdictRefused::DuplicateAnswer(id.clone()));
             }
             if let Assessment::NotMet { failure, .. } = assessment
-                && failure.expected.as_str().trim() == failure.actual.as_str().trim()
+                && failure.expected == failure.actual
             {
                 return Err(VerdictRefused::ContradictoryFailure(id.clone()));
             }
