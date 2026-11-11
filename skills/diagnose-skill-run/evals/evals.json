@@ -22,7 +22,7 @@
     {
       "id": 4,
       "prompt": "Continue from this failed receipt and test report into a skill improvement diagnosis.",
-      "expected_output": "Reuse native receipt detail and supplied test evidence in a skill-build-ready diagnosis without repeating execution.",
+      "expected_output": "Reuse the supplied prepared receipt-query answer and test evidence in a skill-build-ready diagnosis without repeating execution; preserve the unchecked signature and chain verification status.",
       "files": [
         "evals/files/context-flattening-failure.json"
       ],
