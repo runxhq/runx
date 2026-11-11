@@ -251,3 +251,12 @@ test("each refusal names the field to change", () => {
     assert.equal(run(proposal, constraints).route.rationale, rationale);
   }
 });
+test("a revision that repeats the proposal it revises ends the loop", async () => {
+  const invented = structuredClone(proposal);
+  invented.route.source_ids = ["artifact-store", "invented-docs"];
+  invented.source_matches.push({ source_id: "invented-docs", matching_signal: "lifetime", reason: "Invented." });
+  const { ctx, calls } = scripted([invented, structuredClone(invented), proposal]);
+  const { knowledge_route } = await route(ctx, routeInputs());
+  assert.equal(calls.length, 2);
+  assert.equal(knowledge_route.verdict, "refused");
+});

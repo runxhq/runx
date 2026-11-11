@@ -1,0 +1,56 @@
+name: ends-when-a-revision-repeats-the-refused-proposal
+inputs:
+  question: Where is the retention policy documented?
+  available_sources:
+    sources:
+      - id: policy-docs
+        kind: docs
+        summary: Product policy documentation.
+    owners: []
+    skills: []
+host:
+  answers:
+    route/0#propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: policy
+          rationale: Use the retention FAQ.
+          source_ids:
+            - retention-faq
+        source_matches:
+          - source_id: retention-faq
+            matching_signal: retention policy
+            reason: An invented source the validator refuses.
+        owner_recommendation: null
+        next_skill: null
+    route/1#propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: policy
+          rationale: Use the retention FAQ.
+          source_ids:
+            - retention-faq
+        source_matches:
+          - source_id: retention-faq
+            matching_signal: retention policy
+            reason: An invented source the validator refuses.
+        owner_recommendation: null
+        next_skill: null
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - digest
+    - route
+  step_outputs:
+    route:
+      subset:
+        knowledge_route:
+          verdict: refused
+          validation:
+            valid: false
+            unknown_entries:
+              - {kind: source, id: retention-faq}
