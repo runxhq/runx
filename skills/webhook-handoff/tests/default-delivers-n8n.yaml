@@ -1,4 +1,5 @@
 name: webhook-handoff-default-delivers-n8n
+method: send
 setup: {credentials: [n8n]}
 inputs:
   platform: n8n
@@ -37,6 +38,7 @@ providers:
         headers: {content-type: application/json}
         body: '{"message":"Workflow was started"}'
 expect:
+  http_request_counts: [1]
   status: sealed
   steps: [terms, build-handoff-context, address, deliver]
   step_outputs:
@@ -46,6 +48,8 @@ expect:
           status: success
           provider: n8n
           operation: handoff.deliver
+          target: https://acme.app.n8n.cloud/webhook/
+          access: mutate
           finality: acknowledged
           result:
             acknowledgement: {message: Workflow was started}
