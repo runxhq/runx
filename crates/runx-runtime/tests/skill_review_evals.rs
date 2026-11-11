@@ -401,6 +401,8 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     let saw_prior = Arc::clone(&given_prior);
     let graded = Arc::new(Mutex::new(Vec::new()));
     let saw_grade = Arc::clone(&graded);
+    let supplied = Arc::new(Mutex::new(Vec::new()));
+    let saw_supplied = Arc::clone(&supplied);
     let model = ScriptedModel::serve(move |request| {
         let complete = |answer: Value| tool_call("call-final", "turn_complete", &answer);
         let Some(marker) = eval_marker(request) else {
@@ -466,6 +468,28 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .push(marker);
+        for message in request["messages"].as_array().into_iter().flatten() {
+            if message["role"] != "user" {
+                continue;
+            }
+            if let Some(text) = message["content"].as_str()
+                && let Some(start) = text.find("\n{")
+                && let Ok(context) = serde_json::from_str::<Value>(&text[start + 1..])
+            {
+                let mut supplied = context["inputs"]["attempt"].clone();
+                supplied["offered_schema"] = request["tools"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|tool| tool["function"]["name"] == "turn_complete")
+                    .map(|tool| tool["function"]["parameters"].clone())
+                    .unwrap_or_default();
+                saw_supplied
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push((marker, supplied));
+            }
+        }
         let met = |id: &str| json!({"verdict": "met", "id": id, "evidence": []});
         let mut verdict = json!({
             "schema": "runx.verdict.v1",
@@ -557,20 +581,49 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     assert_eq!(
-        graded.len(),
+        graded
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
         6,
         "unexercised attempts spend no grading calls: {graded:?}"
+    );
+    let supplied = supplied
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_, actual) = supplied
+        .iter()
+        .find(|(marker, _)| *marker == "Meets")
+        .ok_or("the grader received native evidence")?;
+    let calls = actual["calls"].as_array().ok_or("typed calls")?;
+    assert!(
+        actual["offered_schema"]["properties"]["verdict"]["properties"]
+            .get("evaluator")
+            .is_none(),
+        "the model cannot choose the runtime evaluator: {actual}"
+    );
+    assert_eq!(calls.len(), 2, "one final record per call: {actual}");
+    let call = calls
+        .iter()
+        .find(|call| call["target"]["kind"] == "skill")
+        .ok_or("the subject was called")?;
+    assert_eq!(call["outcome"]["status"], "completed", "{call}");
+    assert_eq!(call["outcome"]["succeeded"], true, "{call}");
+    assert!(
+        actual["outputs"]
+            .as_array()
+            .is_some_and(|outputs| !outputs.is_empty()
+                && outputs
+                    .iter()
+                    .all(|output| output.get("content").is_some()
+                        && output.get("read_error").is_none()))
+            || call["outcome"].get("output").is_some(),
+        "the actual output reaches the grader: {actual}"
     );
     assert!(
         attempt(4)?["decision"]["reason"]
             .as_str()
             .is_some_and(|reason| reason.contains("skills/other")),
-        "{results}"
-    );
-    assert!(
-        attempt(5)?["decision"]["reason"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("runx/other")),
         "{results}"
     );
     // The runtime names the grader as the evaluator, never the turn.

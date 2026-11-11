@@ -12,6 +12,7 @@ import { released } from "./released.mjs";
 
 const DEFAULT_REPEATS = 1;
 const HOST = "../agent#write";
+const OUTPUT_PAGE_BYTES = 16_000;
 
 export default async function evals(ctx, { subject, repeats, eval_ids }) {
   subject = await ctx.read(subject);
@@ -53,7 +54,11 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
   const turns = childRuns(record, HOST, attempts.length);
   for (const [index, attempt] of attempts.entries()) {
     attempt.run = turns[index];
-    attempt.evidence = evidence(record.events, turns[index]);
+    attempt.evidence = await evidence(ctx, record.events, turns[index], judged.revision);
+    attempt.implementation = subject.inspect.method_inspections
+      ?.filter(({ method }) => attempt.evidence.calls.some(({ target }) =>
+        target.kind === "skill" && target.bound?.package_digest === judged.revision && target.method === method.name))
+      .map(({ method, closure }) => ({ method: method.name, closure }));
     attempt.decision = exercised(record.events, turns[index], judged.revision, attempt.kase.entry.method)
       ? await judge(ctx, judged, attempt)
       : { decision: {
@@ -152,7 +157,7 @@ async function settle(call) {
 // The attempt judged: its verdict from `.#grade`, decided against what this
 // run expects. A grade the runtime refused, for a verdict naming another
 // evaluator, answers nothing either.
-async function judge(ctx, judged, { kase, settled, evidence }) {
+async function judge(ctx, judged, { kase, settled, evidence, implementation }) {
   let verdict;
   try {
     ({ verdict } = await ctx.skill(".#grade", {
@@ -164,6 +169,9 @@ async function judge(ctx, judged, { kase, settled, evidence }) {
         status: settled.status,
         ...(settled.status === "fulfilled" ? { result: settled.value } : { failure: settled.message }),
         calls: evidence.calls,
+        steps: evidence.steps,
+        outputs: evidence.outputs,
+        implementation,
         ...(evidence.receipt_id === undefined ? {} : { receipt_id: evidence.receipt_id }),
       },
     }));
@@ -182,27 +190,39 @@ async function judge(ctx, judged, { kase, settled, evidence }) {
 
 // What an attempt's run did, as its record holds it: each call it made and
 // how it ended, and the receipt it sealed.
-function evidence(events, stream) {
-  const calls = events
-    .filter((record) => within(stream, record.stream) && record.event.kind === "call")
-    .map(({ event }) => ({
-      target: target(event.target),
-      outcome: event.outcome.status,
-      ...(event.outcome.reason === undefined ? {} : { reason: event.outcome.reason }),
-    }));
-  const sealed = events.find((record) => record.stream === stream && record.event.kind === "sealed");
-  return { calls, receipt_id: sealed?.event.receipt_id };
-}
-
-function target(called) {
-  switch (called.kind) {
-    case "tool":
-      return called.tool;
-    case "operation":
-      return `${called.requirement}/${called.operation}`;
-    case "skill":
-      return called.method === undefined ? called.skill : `${called.skill}#${called.method}`;
-    default:
-      return called.kind;
+async function evidence(ctx, events, stream, digest) {
+  const latest = new Map();
+  const steps = [];
+  for (const record of events) {
+    if (!within(stream, record.stream)) continue;
+    const { event } = record;
+    if (event.kind === "call") {
+      const outcome = { ...event.outcome };
+      if (event.target.kind === "load") delete outcome.output;
+      latest.set(`${record.stream}:${event.index}`, { stream: record.stream, ...event, outcome });
+    }
+    if (event.kind === "step") steps.push({ stream: record.stream, ...event });
   }
+  const calls = [...latest.values()];
+  const outputs = [];
+  for (const call of calls) {
+    if (call.target.kind !== "skill" || call.target.bound?.package_digest !== digest) continue;
+    for (const part of call.outcome.outputs ?? []) {
+      try {
+        const { artifact } = await ctx.tool("artifact.open", { artifact: part.artifact });
+        const { artifact_page } = await ctx.tool("artifact.read", { ref: artifact.ref, max_bytes: OUTPUT_PAGE_BYTES, encoding: "utf8" });
+        const page = await ctx.read(artifact_page);
+        outputs.push({
+          ...part,
+          receipt_id: call.outcome.receipt_id,
+          partial: !page.eof,
+          ...(page.eof ? { content: JSON.parse(page.data) } : { excerpt: page.data }),
+        });
+      } catch (rejected) {
+        outputs.push({ ...part, read_error: rejected.message });
+      }
+    }
+  }
+  const sealed = events.find((record) => record.stream === stream && record.event.kind === "sealed");
+  return { calls, steps, outputs, receipt_id: sealed?.event.receipt_id };
 }

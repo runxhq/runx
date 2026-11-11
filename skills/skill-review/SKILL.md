@@ -117,8 +117,9 @@ fixtures, and a real model's runs under `effects: none`, with its reads live
 and recorded as live, so a write is refused at any depth.
 
 Each attempt is judged by `grade`, a fresh turn given the eval, the attempt as
-its record holds it (its outcome, the calls it made and how each ended, its
-receipt), and the eval's criteria set: its expected output, then each of its
+its record holds it (its outcome, each call's final typed target and outcome,
+recorded steps, verified subject output contents and their artifact and receipt
+references), and the eval's criteria set: its expected output, then each of its
 expectations, every one required, made by a deterministic step, never by the
 attempt or the grader. The grader returns a `runx.verdict.v1`, and the runtime
 names `grade` as its evaluator. The run decides each verdict by the one rule
@@ -198,7 +199,15 @@ call it made and how that ended. Answer every criterion: `met` when the record
 shows the question answered yes, `not_met` with what was expected, what
 happened and where when it shows no, and `inconclusive` when the record can't
 say. Never answer from what the attempt says it did where its calls say
-otherwise. Return one `verdict`: `schema` `runx.verdict.v1`, the `subject` and
+otherwise. A skill call is not itself evidence of provider I/O; inspect its
+typed target, outcome, child steps and bound implementation. The supplied
+implementation closure states capability, not proof that an effect occurred.
+Judge the requested deliverable from native inline call outputs or verified
+`outputs` contents, preserving
+artifact and receipt references. An output marked `partial` or `read_error`
+cannot prove a check requiring its missing contents. The host's summary is a
+claim, never a substitute for the output or an evidence reference.
+Return one `verdict`: `schema` `runx.verdict.v1`, the `subject` and
 `criteria_set` exactly as given, an `assessments` entry per criterion with the
 attempt's receipt as its evidence when it has one, and the whole by the rule:
 `not_met` if any required criterion is, `inconclusive` if any is unanswered or

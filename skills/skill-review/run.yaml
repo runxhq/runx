@@ -1,4 +1,4 @@
-version: "0.3.14"
+version: "0.3.15"
 minimum_runx: 0.12.0
 default_method: review
 catalog:
@@ -378,7 +378,7 @@ methods:
           eval_ids: $input.eval_ids
         calls:
           skills: [../agent#write, .#grade]
-          tools: [run.read, verdict.criteria, verdict.decide]
+          tools: [run.read, verdict.criteria, verdict.decide, artifact.open, artifact.read]
         max_calls: 900
         outputs:
           evidence: {packet: runx.eval_evidence.v1}

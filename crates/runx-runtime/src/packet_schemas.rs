@@ -199,7 +199,15 @@ fn produced(
     catalog: &PacketSchemaCatalog,
     packet: &PacketId,
 ) -> Result<runx_contracts::JsonObject, RuntimeError> {
-    Ok(as_produced(packet, packet_schema(catalog, packet)?))
+    let mut schema = as_produced(packet, packet_schema(catalog, packet)?);
+    // The model authors the judgment. The native step boundary supplies its
+    // evaluator, so that field is not a choice in the model's tool schema.
+    if packet.as_str() == runx_contracts::VERDICT_SCHEMA
+        && let Some(runx_contracts::JsonValue::Object(properties)) = schema.get_mut("properties")
+    {
+        properties.remove("evaluator");
+    }
+    Ok(schema)
 }
 
 fn packet_schema(
