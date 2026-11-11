@@ -189,7 +189,7 @@ pub fn memory_reader(request: &Value) -> Value {
         });
     let answer = |text: &str, found: bool| {
         let value = if selects {
-            json!({"handle": text, "found": found})
+            json!({"handle": text, "found": found, "as_of": "", "observations": []})
         } else {
             json!({"answer": text, "found": found})
         };

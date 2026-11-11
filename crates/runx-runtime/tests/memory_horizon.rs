@@ -55,6 +55,15 @@ fn memory_reports_horizon_results() -> TestResult {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/memory/evals/horizon.json"),
     )?)?;
     let model_name = std::env::var(MODEL_ENV).unwrap_or_else(|_| SCRIPTED.to_owned());
+    let selected_case = std::env::var("RUNX_MEMORY_HORIZON_CASE").ok();
+    let cases = horizon["cases"]
+        .as_array()
+        .ok_or("horizon.json has cases")?;
+    if let Some(id) = &selected_case
+        && !cases.iter().any(|case| case["id"] == id.as_str())
+    {
+        return Err(format!("horizon.json has no case {id}").into());
+    }
     let full = std::env::var("RUNX_MEMORY_HORIZON_FULL").is_ok_and(|value| value == "1");
     let declared_repeats = horizon["repeats"][model_name.as_str()]
         .as_u64()
@@ -95,17 +104,24 @@ fn memory_reports_horizon_results() -> TestResult {
         let planted = workspace.lay_down(&horizon, size, today)?;
         let mut modes = serde_json::Map::new();
         for phase in [1, 2] {
+            let phase_cases = cases
+                .iter()
+                .filter(|case| {
+                    case["phase"] == phase
+                        && selected_case
+                            .as_ref()
+                            .is_none_or(|id| case["id"] == id.as_str())
+                })
+                .collect::<Vec<_>>();
+            if phase_cases.is_empty() {
+                continue;
+            }
             if phase == 2 {
                 workspace.correct(&horizon, &planted, today)?;
             }
             for &focus in focus_modes {
                 let mode = if focus { "focus" } else { "plain" };
-                for case in horizon["cases"]
-                    .as_array()
-                    .ok_or("horizon.json has cases")?
-                    .iter()
-                    .filter(|case| case["phase"] == phase)
-                {
+                for case in &phase_cases {
                     let case_id = case["id"].as_str().ok_or("each case has an id")?;
                     let measured = workspace.sweep(phase, repeats, focus, case_id)?;
                     modes
