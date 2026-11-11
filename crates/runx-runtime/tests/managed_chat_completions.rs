@@ -497,6 +497,20 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
         "the method the load bound is offered on the next round"
     );
     assert!(!tools(&requests[1]).contains(&"skill__child__other".to_owned()));
+    let locators = |request: &Value| {
+        request["tools"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|tool| tool["function"]["name"] == "turn_read")
+            .map(|tool| tool["function"]["parameters"]["properties"]["locator"]["enum"].clone())
+    };
+    assert!(
+        locators(&requests[0]).is_none(),
+        "the empty turn offers no nonexistent locator"
+    );
+    assert_eq!(locators(&requests[1]), Some(json!(["call:0"])));
+    assert_eq!(locators(&requests[2]), Some(json!(["call:0", "call:1"])));
     let messages = requests[1]["messages"]
         .as_array()
         .ok_or("the second request carries the transcript")?;
