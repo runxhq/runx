@@ -3,15 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import YAML from "../../packages/contracts/node_modules/yaml/dist/index.js";
 import finalize from "./code-intake.mjs";
-const cases = YAML.parse(
-  fs.readFileSync(new URL("./run.yaml", import.meta.url), "utf8"),
-).test.cases;
 const input = (name) => {
-  const c = cases.find((c) => c.name === name);
+  const c = YAML.parse(
+    fs.readFileSync(new URL(`./tests/${name}.yaml`, import.meta.url), "utf8"),
+  );
   return {
     ...structuredClone(c.inputs),
     source_context: structuredClone(c.inputs.source_context || {}),
-    intake_draft: structuredClone(c.caller.answers.intake.intake_draft),
+    intake_draft: structuredClone(c.host.answers.intake.intake_draft),
     input_digest: "sha256:" + "a".repeat(64),
   };
 };

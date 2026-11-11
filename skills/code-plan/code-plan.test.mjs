@@ -4,14 +4,15 @@ import validate from "./code-plan.mjs";
 import fs from "node:fs";
 import YAML from "../../packages/contracts/node_modules/yaml/dist/index.js";
 const fixture = YAML.parse(
-  fs.readFileSync(new URL("./run.yaml", import.meta.url), "utf8"),
-).test.cases.find((c) => c.name === "plans-intake-without-model-approval");
+  fs.readFileSync(
+    new URL("./tests/plans-intake-without-model-approval.yaml", import.meta.url),
+    "utf8",
+  ),
+);
 const inputs = () => ({
   ...structuredClone(fixture.inputs),
   catalog_skills: [{ name: "github-issue-to-pr" }],
-  work_plan_draft: structuredClone(
-    fixture.caller.answers.draft.work_plan_draft,
-  ),
+  work_plan_draft: structuredClone(fixture.host.answers.draft.work_plan_draft),
 });
 test("planning preserves an upstream source without invented authority", () => {
   const actual = validate(inputs());

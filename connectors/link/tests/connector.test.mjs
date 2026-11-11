@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { resolveNativeRunxBinary } from "../../../scripts/lib/native-parser.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 test("the native loader admits the managed Link connector without an operator login", () => {
   const isolated = mkdtempSync(path.join(tmpdir(), "link-connector-inspect-"));
   try {
-    const inspected = JSON.parse(execFileSync(process.env.RUNX_BIN ?? path.join(root, "crates/target/debug/runx"),
+    const inspected = JSON.parse(execFileSync(resolveNativeRunxBinary(),
       ["connector", "inspect", "link", "--json"], { cwd: root, encoding: "utf8",
         env: { PATH: process.env.PATH ?? "/usr/bin:/bin", RUNX_CWD: root, RUNX_PROJECT_DIR: isolated, NO_COLOR: "1" } }));
     assert.equal(inspected.status, "success");

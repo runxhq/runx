@@ -6,8 +6,9 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {test} from 'node:test';
+import {resolveNativeRunxBinary} from '../../../scripts/lib/native-parser.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
-const binary=process.env.RUNX_BIN??path.join(root,'crates/target/debug/runx');
+const binary=resolveNativeRunxBinary();
 const skill=process.env.RUNX_PAY_SKILL??path.join(root,'skills/pay');
 test('native Link payment binds session, exact payment terms, approval and SQLite recovery without exposing credentials',()=>{
  const sandbox=mkdtempSync(path.join(tmpdir(),'runx-link-native-'));

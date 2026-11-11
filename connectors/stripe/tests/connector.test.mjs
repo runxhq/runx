@@ -6,13 +6,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { operationInputError, renderDeclaredRequest } from "../../../packages/contracts/dist/index.js";
+import { tsImport } from "tsx/esm/api";
+import { resolveNativeRunxBinary } from "../../../scripts/lib/native-parser.mjs";
+
+// The declared requests render through the contracts package's source, so
+// they're checked against today's renderer, never a stale build of it.
+const { operationInputError, renderDeclaredRequest } = await tsImport("../../../packages/contracts/src/index.ts", import.meta.url);
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const isolated = mkdtempSync(path.join(tmpdir(), "stripe-connector-inspect-"));
 let manifest;
 try {
-  const inspected = JSON.parse(execFileSync(process.env.RUNX_BIN ?? path.join(root, "crates/target/debug/runx"), ["connector", "inspect", "stripe", "--json"], {
+  const inspected = JSON.parse(execFileSync(resolveNativeRunxBinary(), ["connector", "inspect", "stripe", "--json"], {
     cwd: root,
     env: { PATH: process.env.PATH ?? "/usr/bin:/bin", RUNX_CWD: root, RUNX_PROJECT_DIR: isolated, NO_COLOR: "1" },
     encoding: "utf8",
