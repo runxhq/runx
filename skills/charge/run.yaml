@@ -144,6 +144,8 @@ methods:
         result:
           required:
             - payment_id
+            - idempotency_key
+            - request_binding_digest
             - resource
             - amount_minor
             - currency
@@ -156,6 +158,7 @@ methods:
             - settled_at
           equals:
             status: settled
+            request_binding_digest: $input.request.request_binding_digest
             resource: $input.request.resource
             amount_minor: $input.request.amount_minor
             currency: $input.request.currency
@@ -168,6 +171,8 @@ methods:
         result:
           required:
             - payment_id
+            - idempotency_key
+            - request_binding_digest
             - resource
             - amount_minor
             - currency
@@ -180,6 +185,8 @@ methods:
             - settled_at
           equals:
             payment_id: $steps.settle.provider_operation.result.payment_id
+            idempotency_key: $steps.settle.provider_operation.result.idempotency_key
+            request_binding_digest: $input.request.request_binding_digest
             resource: $input.request.resource
             amount_minor: $input.request.amount_minor
             currency: $input.request.currency

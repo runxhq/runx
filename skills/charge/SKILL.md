@@ -26,7 +26,9 @@ request key, acknowledgement custody and readback. Stripe must independently
 return `succeeded` with the approved amount received; PayPal must independently
 return `COMPLETED` for the original merchant, order, amount and currency. The
 x402 lane retains its separate read of the original settled payment and returns
-the original quote, resource and settlement evidence. Incoming collection does
+the original quote, resource and settlement evidence. Its confirmed readback must
+retain the settlement's provider retry key and the caller's original request
+binding digest; a changed identity is refused. Incoming collection does
 not consume an outgoing spending allowance.
 
 The result remains the selected provider's bounded native operation packet.

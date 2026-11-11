@@ -1,5 +1,5 @@
 {
-  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "about": "Non-live public inputs of the original charge, not a serialized native continuation. The native an_admitted_charge_resumes_its_original_run_and_submits_once case creates the real paused run from these inputs, resumes its exact approval digest with a fresh host, and checks one settlement plus readback using tests/hosted-contract.yaml. This JSON is neither native approval nor verified settlement evidence.",
   "connector": "coinbase/cdp",
   "request": {
     "resource": "https://seller.example/v1/reports/launch",

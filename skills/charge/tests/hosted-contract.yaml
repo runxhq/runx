@@ -50,6 +50,8 @@ providers:
         access: mutate
         result:
           payment_id: x402pay_test_001
+          idempotency_key: $request.idempotency_key
+          request_binding_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
           resource: https://seller.example/v1/reports/launch
           amount_minor: 125
           currency: USD
@@ -65,6 +67,8 @@ providers:
         access: read
         result:
           payment_id: x402pay_test_001
+          idempotency_key: $previous.idempotency_key
+          request_binding_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
           resource: https://seller.example/v1/reports/launch
           amount_minor: 125
           currency: USD
