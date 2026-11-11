@@ -58,8 +58,8 @@
     },
     {
       "id": 9,
-      "prompt": "Continue this GitHub synchronization from the supplied cursor and prior sync evidence.",
-      "expected_output": "Reuse the cursor, target, and prior evidence without repeating completed discovery or provider reads.",
+      "prompt": "Persist the next local GitHub sync plan from the supplied cursor and prior sync evidence.",
+      "expected_output": "Use the supplied current store version and page-2 cursor to append and read back the local plan without GitHub calls. This is local planning, not remote synchronization.",
       "files": [
         "evals/files/triage-sync-cursor.json"
       ],

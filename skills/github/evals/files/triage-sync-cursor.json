@@ -1,5 +1,5 @@
 {
-  "about": "The synchronization cursor and prior sync evidence for open triage issues in runxhq/runx: the store key it lives under, its version, and the idempotency key its next append uses.",
+  "about": "Non-live local planning continuation. This JSON does not install cursor state. The CLI cursor journey first persists version 1, then uses these version-1 inputs to retain the page-2 plan at version 2; repeating its append key leaves version 2 unchanged. prior_cursor and prior_provider_evidence are caller context, not method inputs or native proof. No GitHub discovery, read or mutation is requested by plan_and_append_cursor.",
   "key": "runxhq/runx:triage-open",
   "expected_version": 1,
   "idempotency_key": "runxhq/runx:triage-open:pull:v2",
@@ -13,7 +13,7 @@
         "triage"
       ],
       "limit": 25,
-      "page": 2
+      "cursor": "2"
     }
   },
   "scope": "read",
