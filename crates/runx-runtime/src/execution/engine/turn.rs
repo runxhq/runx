@@ -2416,11 +2416,11 @@ where
             // An input explicitly taking the descriptor's own packet type
             // receives the descriptor as its value. Other packet types use
             // it as a reference to retained content below.
-            if input.packet.as_ref().map(|packet| packet.as_str())
-                == step.inputs[&name]
-                    .as_object()
-                    .and_then(|value| value.get("schema"))
-                    .and_then(JsonValue::as_str)
+            if step.inputs[&name]
+                .as_object()
+                .and_then(|value| value.get("schema"))
+                .and_then(JsonValue::as_str)
+                .is_some_and(|schema| crate::input_contract::takes_descriptor(input, schema))
             {
                 let value = step.inputs[&name].clone();
                 crate::input_contract::admit_input_value(declared_by, &name, input, &value)

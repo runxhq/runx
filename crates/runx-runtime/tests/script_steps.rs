@@ -14,6 +14,53 @@ use tempfile::tempdir;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
+#[test]
+fn a_script_opens_a_typed_artifact_descriptor_and_rejects_tampering() -> TestResult {
+    let temp = tempdir()?;
+    let skill = temp.path().join("artifact-reader");
+    crate::support::write_test_skill_package(
+        &skill,
+        "---\nname: artifact-reader\ndescription: Read a retained result.\n---\n# Artifact reader\n\nOpen the retained result and reject tampering.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  read:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: read
+        script: {module: read.mjs}
+        inputs: $input
+        calls:
+          tools: [artifact.store, artifact.open, artifact.read]
+        max_calls: 4
+        outputs:
+          text: {type: string}
+          rejected: {type: boolean}
+"#,
+    )?;
+    std::fs::write(
+        skill.join("read.mjs"),
+        r#"export default async function (ctx, {value}) {
+      const {artifact} = await ctx.tool("artifact.store", {value: {text: value}});
+      const {artifact: opened} = await ctx.tool("artifact.open", {artifact});
+      const {artifact_page} = await ctx.tool("artifact.read", {ref: opened.ref, encoding: "utf8"});
+      let rejected = false;
+      try { await ctx.tool("artifact.open", {artifact: {...artifact, size_bytes: artifact.size_bytes + 1}}); }
+      catch (error) { rejected = error.message.includes("byte count"); }
+      return {text: JSON.parse(artifact_page.data).text, rejected};
+    };"#,
+    )?;
+    let result = run(temp.path(), skill)?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["outcome"], "completed", "{output}");
+    assert_eq!(
+        output["result"],
+        serde_json::json!({"text": "hello", "rejected": true}),
+        "{output}"
+    );
+    Ok(())
+}
+
 /// A script that digests its value with a catalog tool, then has a child
 /// skill confirm it; the child asks a person first.
 fn write_script_skill(root: &Path, script: &str, outputs: &str) -> TestResult<PathBuf> {

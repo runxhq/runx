@@ -5,6 +5,34 @@ use runx_contracts::JsonNumber;
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::SkillInput;
 
+/// Whether an input explicitly takes the descriptor itself. Native typed
+/// inputs carry their identity in the accepted schema even when they do not
+/// use a manifest packet annotation. An unconstrained JSON input still takes
+/// the referenced content.
+pub(crate) fn takes_descriptor(input: &runx_contracts::InputDefinition, schema: &str) -> bool {
+    if input
+        .packet
+        .as_ref()
+        .is_some_and(|packet| packet.as_str() == schema)
+    {
+        return true;
+    }
+    let identity = input
+        .schema
+        .as_ref()
+        .and_then(|shape| shape.get("properties"))
+        .and_then(JsonValue::as_object)
+        .and_then(|properties| properties.get("schema"))
+        .and_then(JsonValue::as_object);
+    identity.is_some_and(|identity| {
+        identity.get("const").and_then(JsonValue::as_str) == Some(schema)
+            || identity
+                .get("enum")
+                .and_then(JsonValue::as_array)
+                .is_some_and(|values| values.len() == 1 && values[0].as_str() == Some(schema))
+    })
+}
+
 /// Apply manifest defaults without overwriting a value the caller supplied.
 pub(crate) fn apply_defaults(declared: &BTreeMap<String, SkillInput>, inputs: &mut JsonObject) {
     for (name, input) in declared {
