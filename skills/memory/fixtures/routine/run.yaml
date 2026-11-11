@@ -1,0 +1,32 @@
+# A scheduled run that answers from memory: recall the personal index, then a
+# turn answers one question with it, searching, reading and keeping what it
+# observes. It asks no one. Its writes are bounded by the scheduled
+# delegation it runs under (D40), a term reading said:* and one writing
+# observed:*, not by effects, which would refuse the one write it exists to
+# make. memory's horizon evaluation runs it at each size.
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    inputs:
+      question: {type: string, minLength: 1, maxLength: 1000, description: What the run is asked.}
+      focus: {type: string, minLength: 1, maxLength: 512, optional: true, description: What the turn is about to do, which ranks the index's facts.}
+    steps:
+      - id: recall
+        skill: ../..#index
+        inputs:
+          levels: [{level: personal}]
+          focus: $input.focus
+      - id: answer
+        agent: answer
+        requires: [fresh_context]
+        context:
+          entries: [$steps.recall.entries]
+        calls:
+          skills: [../..#search, ../..#read, ../..#observe]
+        inputs:
+          question: $input.question
+        outputs:
+          answer: {type: string, description: The answer, from memory, or what memory lacks.}
+          found: {type: boolean, description: Whether memory held the answer.}

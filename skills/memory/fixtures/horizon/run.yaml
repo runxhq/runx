@@ -1,0 +1,109 @@
+# memory's horizon evaluation at one size and phase, run by its test
+# (memory_horizon.rs), which lays down the history in a fresh home for each
+# size with the run's clock pinned, and corrects an entry between phases.
+# Each of the phase's cases in evals/horizon.json is asked of the routine,
+# each attempt judged by grade, a deterministic step, and decided by the one
+# rule.
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  sweep:
+    description: Ask the routine each case of one phase, repeats times, and judge each attempt, reporting its verdict, how it ended, the model, host and usage its turn stated, and its receipt.
+    inputs:
+      memory: {type: string, default: skills/memory, optional: true, description: Workspace-relative path of the memory package whose evaluation this is.}
+      phase: {type: integer, minimum: 1, description: The phase whose cases are asked.}
+      repeats: {type: integer, minimum: 1, maximum: 5, default: 1, optional: true, description: Attempts per case.}
+      focus: {type: boolean, default: false, optional: true, description: Whether each attempt's index is focused on its question, for the focus curve.}
+    steps:
+      - id: subject
+        tool: runx.skill.validate
+        inputs:
+          skill_path: $input.memory
+          allow_execute_test: false
+      - id: sweep
+        script: {module: horizon.mjs, export: sweep}
+        inputs:
+          subject: $steps.subject.skill_validation
+          memory: $input.memory
+          phase: $input.phase
+          repeats: $input.repeats
+          focus: $input.focus
+        calls:
+          skills: [../routine, ../..#search, .#grade]
+          tools: [fs.read, run.read, receipt.read, verdict.criteria, verdict.decide]
+        max_calls: 600
+        outputs:
+          report: {type: object, description: "Each attempt: its case, category and planted fact, its verdict, how it ended (answered, prose_only, or the reason it sealed with), the model, host and usage its turn stated, and its receipt."}
+  grade:
+    description: Judge one attempt against its case's checks, from the attempt alone, and return a verdict whose evaluator the runtime names.
+    inputs:
+      subject:
+        type: object
+        description: What is judged, the memory package at its digest.
+        required: [ref, revision]
+        additionalProperties: false
+        properties: {ref: {type: string}, revision: {type: string}}
+      criteria_set:
+        type: object
+        description: The ref and revision of the criteria set the verdict answers.
+        required: [ref, revision]
+        additionalProperties: false
+        properties: {ref: {type: string}, revision: {type: string}}
+      criteria:
+        type: object
+        description: The runx.criteria.v1 set, each check a question that must be answered yes.
+        required: [schema, revision, criteria]
+        additionalProperties: false
+        properties:
+          schema: {type: string}
+          revision: {type: string}
+          criteria:
+            type: array
+            items:
+              type: object
+              required: [id, required, question]
+              additionalProperties: false
+              properties: {id: {type: string}, required: {type: boolean}, question: {type: string}}
+      case:
+        type: object
+        description: The case as evals/horizon.json holds it, with what it expects.
+        required: [id, phase, category, question, expect]
+        additionalProperties: false
+        properties:
+          id: {type: string}
+          phase: {type: integer}
+          category: {type: string}
+          planted: {type: string}
+          question: {type: string}
+          expect:
+            type: object
+            additionalProperties: false
+            properties:
+              found: {type: boolean}
+              says: {type: array, items: {type: string}}
+              never: {type: array, items: {type: string}}
+              keeps:
+                type: object
+                required: [kind, says]
+                additionalProperties: false
+                properties: {kind: {type: string}, says: {type: array, items: {type: string}}}
+      attempt:
+        type: object
+        description: How the attempt settled, the routine's result when it answered, and the observations memory holds that its case expects kept.
+        required: [status, kept]
+        additionalProperties: false
+        properties:
+          status: {enum: [fulfilled, rejected]}
+          result:
+            type: object
+            required: [answer, found]
+            additionalProperties: false
+            properties: {answer: {type: string}, found: {type: boolean}}
+          kept: {type: array, items: {type: string}}
+    steps:
+      - id: grade
+        tool: {module: horizon.mjs, export: grade}
+        inputs: $input
+        outputs:
+          verdict: {packet: runx.verdict.v1}

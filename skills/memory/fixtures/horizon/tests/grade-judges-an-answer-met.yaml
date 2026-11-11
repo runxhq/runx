@@ -1,0 +1,29 @@
+name: grade-judges-an-answer-met
+method: grade
+inputs:
+  subject: {ref: skills/memory, revision: "sha256:0000000000000000000000000000000000000000000000000000000000000001"}
+  criteria_set: {ref: "skills/memory/evals/horizon.json#tea", revision: "sha256:0000000000000000000000000000000000000000000000000000000000000002"}
+  criteria:
+    schema: runx.criteria.v1
+    revision: "sha256:0000000000000000000000000000000000000000000000000000000000000002"
+    criteria:
+      - {id: found, required: true, question: Does the answer say memory held the answer?}
+      - {id: says_1, required: true, question: Does the answer say "black"?}
+      - {id: never_1, required: true, question: Does the answer leave out "oat"?}
+  case:
+    id: tea
+    phase: 1
+    category: early_recall
+    planted: tea
+    question: How does the person take their tea?
+    expect: {found: true, says: [black], never: [oat]}
+  attempt:
+    status: fulfilled
+    result: {answer: "Black, with no sugar.", found: true}
+    kept: []
+expect:
+  status: sealed
+  step_outputs:
+    grade:
+      subset:
+        verdict: {verdict: met}
