@@ -10,9 +10,6 @@
 const ROUTINE = "../routine";
 const ROUTINES = [ROUTINE, `${ROUTINE}#draft`];
 const SEARCH = "../..#search";
-/// The seal reason of a turn whose model only wrote prose until its
-/// resamples ran out.
-const PROSE_ONLY = "managed_agent_empty_turn_budget_exhausted";
 
 export async function sweep(ctx, { subject, memory, phase, case_id, repeats, focus }) {
   const judged = { ref: memory, revision: subject.inspect.package_digest };
@@ -40,7 +37,9 @@ export async function sweep(ctx, { subject, memory, phase, case_id, repeats, foc
   for (const [index, attempt] of attempts.entries()) {
     attempt.turn = turnOf(record, runs[index]);
     attempt.receipt_id = sealedIn(record, runs[index]);
-    attempt.ending = await ending(ctx, attempt);
+    attempt.ending = attempt.settled.status === "fulfilled"
+      ? "answered"
+      : attempt.settled.message;
     attempt.decision = await judge(ctx, judged, attempt);
   }
   return {
@@ -100,17 +99,6 @@ async function kept(ctx, kase) {
   if (!kase.expect.keeps) return [];
   const { entries } = await ctx.skill(SEARCH, { levels: [{ level: "personal" }], query: kase.expect.keeps.says.join(" ") });
   return entries.filter((entry) => entry.labels.purpose === "observation").map((entry) => entry.data.text);
-}
-
-/// How an attempt ended, from its receipt: answered, prose_only when its
-/// model only wrote prose until its resamples ran out, or the reason it
-/// sealed with otherwise.
-async function ending(ctx, { settled, receipt_id }) {
-  if (settled.status === "fulfilled") return "answered";
-  if (receipt_id === undefined) return settled.message;
-  const { receipt_read } = await ctx.tool("receipt.read", { receipt_id, json_pointer: "/seal/reason", max_bytes: 256 });
-  const reason = receipt_read.value;
-  return reason === PROSE_ONLY ? "prose_only" : (reason ?? settled.message);
 }
 
 /// One attempt judged by the grade, decided against what this sweep expects

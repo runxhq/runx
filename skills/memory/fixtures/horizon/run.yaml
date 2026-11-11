@@ -33,10 +33,10 @@ methods:
           focus: $input.focus
         calls:
           skills: [../routine, ../routine#draft, ../..#search, .#grade]
-          tools: [fs.read, run.read, receipt.read, verdict.criteria, verdict.decide]
+          tools: [fs.read, run.read, verdict.criteria, verdict.decide]
         max_calls: 600
         outputs:
-          report: {type: object, description: "Each attempt: its case, category and planted fact, its verdict, how it ended (answered, prose_only, or the reason it sealed with), the model, host and usage its turn stated, and its receipt."}
+          report: {type: object, description: "Each attempt: its case, category and planted fact, its verdict, how it ended (answered or its native rejection message), the model, host and usage its turn stated, and its receipt reference."}
   grade:
     description: Judge one attempt against its case's checks, from the attempt alone, and return a verdict whose evaluator the runtime names.
     inputs:
