@@ -1,5 +1,5 @@
 {
-  "about": "An approved plan to unfollow four accounts and delete one post, by its digest, with nothing executed yet.",
+  "about": "Non-live exact plan, digest and four-act batch ceiling. max_acts is 4 because this scenario expects the contiguous account batch to reach its third-request rate limit; 1 cannot exercise that path. tests/execute-unfollow-batch-stops-at-rate-limit.yaml uses these exact inputs with native fixture approval and finite provider exchanges, preserving unsent remainder and reset time. No live X grant, progress or approval is installed.",
   "plan_json": {
     "decision": "ready",
     "objective": "Unfollow accounts that do not follow back.",
@@ -57,6 +57,6 @@
     }
   },
   "plan_digest": "sha256:d36a57ea6b2eb1687879699aca6a5c731f5b726e50821ba58d5233a8f2e76365",
-  "max_acts": 1,
+  "max_acts": 4,
   "outcomes": []
 }

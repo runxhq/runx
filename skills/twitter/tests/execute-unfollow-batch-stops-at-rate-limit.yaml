@@ -3,6 +3,7 @@ method: execute
 setup:
   credentials: [twitter]
 inputs:
+  max_acts: 4
   plan_json:
     decision: ready
     objective: Unfollow accounts that do not follow back.
@@ -58,6 +59,10 @@ expect:
   status: sealed
   steps: [saved, resolve, ledger, digest, prepare, remember, self, bind, request, apply, persist]
   step_outputs:
+    persist:
+      subset:
+        provider_operation:
+          result: {status: committed, version: 1, key: "sha256:d36a57ea6b2eb1687879699aca6a5c731f5b726e50821ba58d5233a8f2e76365"}
     request:
       subset:
         provider_operation:
