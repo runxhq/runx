@@ -17,7 +17,7 @@
       "expectations": [
         "Do not refetch the upstream repository or replay the upstream operational workflow."
       ],
-      "method": "adopt"
+      "method": "from-source"
     }
   ]
 }

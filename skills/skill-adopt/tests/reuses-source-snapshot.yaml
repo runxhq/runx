@@ -36,9 +36,9 @@ inputs:
           one concise recommendation. Do not claim external effects.
         bytes: 718
         truncated: false
-        content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        content_digest: sha256:006aa372ebacbf0e82d9706a757d6807e098b7087fdd5de2b0d2d064c2401258
         start_line: 1
-        total_lines: 23
+        total_lines: 22
     missing: []
   provenance:
     notes: Caller-supplied digest fields are claims, not independently verified source proof.
