@@ -22,21 +22,20 @@ host:
           audience: advanced software builders
           boundaries: [Do not extend claims beyond admitted evidence.]
         brand_voice:
-          voice_principles: [Lead with governed action and proof.]
+          voice_principles:
+            - rule: Lead with governed action and proof.
+              source_ids: [source:1]
           vocabulary:
             use: [receipt, authority, evidence]
             avoid: [magic, autonomous everything]
           cadence: [Concise engineering sentences.]
           claim_rules:
-            safe: [Runx receipts bind operator actions to authority evidence.]
+            safe:
+              - rule: Runx receipts bind operator actions to authority evidence.
+                source_ids: [source:1]
             requires_proof: [Hosted production readiness.]
             forbidden: [Autonomous everything with no review.]
           channel_adjustments: [Homepage copy can be concise but still evidence-bound.]
-        evidence_bindings:
-          - rule: Lead with governed action and proof.
-            source_ids: [source:1]
-          - rule: Runx receipts bind operator actions to authority evidence.
-            source_ids: [source:1]
         redactions: []
         stop_conditions: [Require new evidence before adding a new factual claim.]
 expect:
@@ -47,6 +46,16 @@ expect:
       subset:
         brand_voice_packet:
           decision: ready
+          brand_voice:
+            voice_principles: [Lead with governed action and proof.]
+            claim_rules:
+              safe: [Runx receipts bind operator actions to authority evidence.]
+          evidence:
+            bindings:
+              - rule: Lead with governed action and proof.
+                source_ids: [source:1]
+              - rule: Runx receipts bind operator actions to authority evidence.
+                source_ids: [source:1]
           receipt_notes: {authority: context-only, mutation: false}
           validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

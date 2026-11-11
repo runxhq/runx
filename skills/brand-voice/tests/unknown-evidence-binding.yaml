@@ -13,14 +13,13 @@ host:
         brand: runx
         applicability: {channels: [], audience: "", boundaries: []}
         brand_voice:
-          voice_principles: [Invented principle.]
+          voice_principles:
+            - rule: Invented principle.
+              source_ids: [source:999]
           vocabulary: {use: [], avoid: []}
           cadence: []
           claim_rules: {safe: [], requires_proof: [], forbidden: []}
           channel_adjustments: []
-        evidence_bindings:
-          - rule: Invented principle.
-            source_ids: [source:unknown]
         redactions: []
         stop_conditions: []
 expect:

@@ -14,7 +14,8 @@ host:
             - Do not extend claims beyond admitted evidence.
         brand_voice:
           voice_principles:
-            - Lead with governed action and proof.
+            - rule: Lead with governed action and proof.
+              source_ids: [source:1]
           vocabulary:
             use:
               - receipt
@@ -27,20 +28,14 @@ host:
             - Concise engineering sentences.
           claim_rules:
             safe:
-              - Runx receipts bind operator actions to authority evidence.
+              - rule: Runx receipts bind operator actions to authority evidence.
+                source_ids: [source:1]
             requires_proof:
               - Hosted production readiness.
             forbidden:
               - Autonomous everything with no review.
           channel_adjustments:
             - Public updates stay concise and evidence-bound.
-        evidence_bindings:
-          - rule: Lead with governed action and proof.
-            source_ids:
-              - source:1
-          - rule: Runx receipts bind operator actions to authority evidence.
-            source_ids:
-              - source:1
         redactions: []
         stop_conditions:
           - Require new evidence before adding a new factual claim.

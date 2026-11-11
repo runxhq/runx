@@ -112,10 +112,11 @@ Return `brand_voice_draft` with `decision`, the unchanged `brand`,
 `applicability: {channels, audience, boundaries}`, and
 `brand_voice: {voice_principles, vocabulary: {use, avoid}, cadence,
 claim_rules: {safe, requires_proof, forbidden}, channel_adjustments}`. Those
-rule collections are arrays of strings. Add `evidence_bindings` as
-`{rule, source_ids}` entries using the exact generated `source:N` IDs, plus
-`redactions` and `stop_conditions` arrays. Cite each principle and safe claim;
-use the same rule text in its binding.
+`voice_principles` and `claim_rules.safe` contain `{rule, source_ids}` objects:
+put the source references beside each rule, using the exact generated `source:N`
+IDs. Every other rule collection is an array of strings. Add `redactions` and
+`stop_conditions` arrays. The finalizer derives the released string arrays and
+evidence bindings from these objects; do not repeat rules in a second list.
 
 Pass the released packet itself as `brand_context` to `ghostwrite`
 or `content-package`, together with separate factual evidence. A source-bound

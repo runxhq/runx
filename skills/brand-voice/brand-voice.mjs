@@ -51,6 +51,14 @@ export function finalizeVoice(inputs) {
   const sources = Array.isArray(index.sources) ? index.sources : [];
   const sourcesById = new Map(sources.map((source) => [text(source.source_id), source]));
   const evidenceDigest = text(inputs.evidence_digest);
+  const voice = object(draft.brand_voice);
+  const claims = object(voice.claim_rules);
+  const principles = Array.isArray(voice.voice_principles) ? voice.voice_principles : [];
+  const safeClaims = Array.isArray(claims.safe) ? claims.safe : [];
+  const bindings = [...principles, ...safeClaims].map((item) => ({
+    rule: text(item?.rule),
+    source_ids: strings(item?.source_ids),
+  }));
   const findings = strings(index.blockers).map((message) => ({
     code: "brand_voice.source.invalid",
     message,
@@ -63,26 +71,16 @@ export function finalizeVoice(inputs) {
     if (text(draft.brand) !== brand) {
       findings.push({ code: "brand_voice.brand.changed", message: "draft brand does not match input" });
     }
-    const voice = object(draft.brand_voice);
-    const principles = strings(voice.voice_principles);
-    const safeClaims = strings(object(voice.claim_rules).safe);
-    const bindings = Array.isArray(draft.evidence_bindings) ? draft.evidence_bindings : [];
     if (!isDigest(evidenceDigest)) {
       findings.push({ code: "brand_voice.evidence.unbound", message: "native evidence digest is missing" });
     }
-    const bindingMap = new Map(bindings.map((binding) => [text(binding?.rule), strings(binding?.source_ids)]));
-    for (const rule of [...principles, ...safeClaims]) {
-      const sourceIds = bindingMap.get(rule) || [];
-      if (sourceIds.length === 0 || sourceIds.some((sourceId) => !sourcesById.has(sourceId))) {
+    for (const [position, binding] of bindings.entries()) {
+      const { rule, source_ids: sourceIds } = binding;
+      if (!rule || sourceIds.length === 0 || sourceIds.some((sourceId) => !sourcesById.has(sourceId))) {
         findings.push({ code: "brand_voice.binding.invalid", message: `rule is not bound to admitted evidence: ${rule}` });
       }
-      if (safeClaims.includes(rule) && !sourceIds.some((sourceId) => sourcesById.get(sourceId)?.kind === "approved")) {
+      if (position >= principles.length && !sourceIds.some((sourceId) => sourcesById.get(sourceId)?.kind === "approved")) {
         findings.push({ code: "brand_voice.safe_claim.unapproved", message: `safe claim lacks approved evidence: ${rule}` });
-      }
-    }
-    for (const binding of bindings) {
-      if (strings(binding?.source_ids).some((sourceId) => !sourcesById.has(sourceId))) {
-        findings.push({ code: "brand_voice.binding.unknown", message: "binding cites unknown evidence" });
       }
     }
   }
@@ -97,7 +95,11 @@ export function finalizeVoice(inputs) {
         audience,
         boundaries: [],
       },
-      brand_voice: ready ? object(draft.brand_voice) : {
+      brand_voice: ready ? {
+        ...voice,
+        voice_principles: principles.map((item) => text(item.rule)),
+        claim_rules: { ...claims, safe: safeClaims.map((item) => text(item.rule)) },
+      } : {
         voice_principles: [],
         vocabulary: { use: [], avoid: [] },
         cadence: [],
@@ -111,7 +113,7 @@ export function finalizeVoice(inputs) {
           kind: text(source.kind),
           label: text(source.label),
         })),
-        bindings: ready && Array.isArray(draft.evidence_bindings) ? draft.evidence_bindings : [],
+        bindings: ready ? bindings : [],
       },
       redactions: ready && Array.isArray(draft.redactions) ? draft.redactions : [],
       stop_conditions: ready && Array.isArray(draft.stop_conditions) ? draft.stop_conditions : [],

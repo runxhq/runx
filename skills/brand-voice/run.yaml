@@ -1,4 +1,4 @@
-version: "0.2.9"
+version: "0.2.10"
 minimum_runx: 0.12.0
 catalog:
   visibility: public
@@ -120,7 +120,15 @@ methods:
                   voice_principles:
                     type: array
                     items:
-                      type: string
+                      type: object
+                      additionalProperties: false
+                      required: [rule, source_ids]
+                      properties:
+                        rule: {type: string, minLength: 1}
+                        source_ids:
+                          type: array
+                          minItems: 1
+                          items: {type: string, pattern: '^source:[1-9][0-9]*$'}
                   vocabulary:
                     type: object
                     properties:
@@ -142,7 +150,15 @@ methods:
                       safe:
                         type: array
                         items:
-                          type: string
+                          type: object
+                          additionalProperties: false
+                          required: [rule, source_ids]
+                          properties:
+                            rule: {type: string, minLength: 1}
+                            source_ids:
+                              type: array
+                              minItems: 1
+                              items: {type: string, pattern: '^source:[1-9][0-9]*$'}
                       requires_proof:
                         type: array
                         items:
@@ -155,17 +171,6 @@ methods:
                     type: array
                     items:
                       type: string
-              evidence_bindings:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    rule:
-                      type: string
-                    source_ids:
-                      type: array
-                      items:
-                        type: string
               redactions:
                 type: array
               stop_conditions:
@@ -183,7 +188,6 @@ methods:
                 - brand
                 - applicability
                 - brand_voice
-                - evidence_bindings
                 - redactions
                 - stop_conditions
         inputs:
