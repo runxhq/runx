@@ -7,6 +7,9 @@ use serde_json::Value;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
+#[cfg(unix)]
+mod issue_to_pr;
+
 #[test]
 fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResult {
     let root = crate::support::temp_root("runx-operator-artifact-lifetime");

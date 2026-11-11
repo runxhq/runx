@@ -1,5 +1,5 @@
 {
-  "about": "Issue 442 as a prior read captured it, and the host work that completed it: the tested change, its branch and commit, and the scafld finalization that governs it.",
+  "about": "Non-live template of completed issue work. The native real-checkout operator journey replaces the example commit, tested files and receipt path with an actual isolated Git candidate, and checks a dirty checkout is blocked. Its required verifier is an explicit test process stub, not cryptographic Scafld verification. This JSON installs neither a checkout nor verified governance evidence.",
   "issue_evidence": {
     "schema": "runx/github-issue-to-pr.issue_evidence.v1",
     "repository": "runxhq/runx",
