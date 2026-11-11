@@ -527,8 +527,13 @@ fn build_prompt(
          exactly once with the final payload.",
         envelope.instructions
     );
+    let purpose = envelope
+        .act
+        .as_ref()
+        .map(|act| format!("{}\n\n", act.purpose))
+        .unwrap_or_default();
     let data = format!(
-        "Run context (JSON). Each context entry is a line of an \
+        "{purpose}Run context (JSON). Each context entry is a line of an \
          index; {TURN_READ_TOOL} reads its data by its locator:\n{context}{made}"
     );
     Ok(vec![AgentTurn::System(instructions), AgentTurn::User(data)])
@@ -681,6 +686,14 @@ mod tests {
             JsonValue::String("review product taste".to_owned()),
         );
         let mut envelope = prompt_envelope("Review", inputs, vec![context_entry()]);
+        envelope.act = Some(runx_contracts::CallAct {
+            form: runx_contracts::ActForm::Observation,
+            purpose: non_empty("Review the product using the supplied taste profile."),
+            reason: None,
+            target: None,
+            decision: None,
+            previous: None,
+        });
         envelope.historical_context = vec![context_entry()];
         envelope.provenance = vec![ProvenanceEntry {
             input: non_empty("rubric"),
@@ -715,6 +728,8 @@ mod tests {
         let [AgentTurn::System(instructions), AgentTurn::User(prompt)] = prompt.as_slice() else {
             return Err(ManagedAgentError::sanitized("prompt roles changed"));
         };
+        assert!(prompt.starts_with("Review the product using the supplied taste profile.\n\n"));
+        assert!(!instructions.contains("Review the product using the supplied taste profile."));
         assert!(!instructions.contains("Remember the product constraint."));
         assert!(!instructions.contains("Prefer typed boundaries."));
         assert!(!instructions.contains("Write with direct clarity."));
