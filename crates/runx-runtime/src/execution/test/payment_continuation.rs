@@ -1,4 +1,4 @@
-//! Charge eval 9 needs a real paused run, not a JSON claim that one exists.
+//! Payment continuations need a real paused run, not a JSON claim that one exists.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -36,14 +36,20 @@ impl RuntimeHttpTransport for ObservedProvider {
     }
 }
 
-#[test]
-fn an_admitted_charge_resumes_its_original_run_and_submits_once()
--> Result<(), Box<dyn std::error::Error>> {
+fn resume_payment(
+    package: &str,
+    context: &str,
+    method: &str,
+    approval_address: &str,
+) -> Result<(Value, Value, Vec<Value>), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let skill = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/charge");
+    let skill = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../skills")
+        .join(package);
+    let run_id = format!("{package}-continuation");
     let fixture = super::load_test_fixture(skill.join("tests/hosted-contract.yaml"))?;
     let mut given: Value = serde_json::from_str(&fs::read_to_string(
-        skill.join("evals/files/admitted-charge.json"),
+        skill.join("evals/files").join(context),
     )?)?;
     given
         .as_object_mut()
@@ -69,7 +75,7 @@ fn an_admitted_charge_resumes_its_original_run_and_submits_once()
         act: None,
         skill_path: skill,
         receipt_dir: None,
-        run_id: Some("charge-case-5".to_owned()),
+        run_id: Some(run_id.clone()),
         answers: None,
         inputs: serde_json::from_value(given.clone())?,
         env: env.clone(),
@@ -78,20 +84,20 @@ fn an_admitted_charge_resumes_its_original_run_and_submits_once()
     };
     let start = LocalOrchestrator::with_effects(effects.clone()).run_skill_with_binding(
         &request,
-        Some("charge"),
+        Some(method),
         None,
         None,
     )?;
     assert!(!start.succeeded(), "the native approval must remain open");
-    let read = crate::run_record::read_run(&env, workspace.path(), "charge-case-5", None)?;
+    let read = crate::run_record::read_run(&env, workspace.path(), &run_id, None)?;
     let [waiting] = read.waiting.as_slice() else {
         return Err(format!("expected one native payment approval: {:?}", read.waiting).into());
     };
-    assert_eq!(waiting.address.as_str(), "settle");
+    assert_eq!(waiting.address.as_str(), approval_address);
     let address = waiting.address.to_string();
     let digest = waiting.request_digest.to_string();
     let resume = |answers| ResumeRequest {
-        run_id: "charge-case-5".to_owned(),
+        run_id: run_id.clone(),
         answers,
         receipt_dir: None,
         env: env.clone(),
@@ -115,17 +121,6 @@ fn an_admitted_charge_resumes_its_original_run_and_submits_once()
     let completed = LocalOrchestrator::with_effects(effects.clone()).resume(&resume(approved))?;
     assert!(completed.succeeded(), "{:?}", completed.output);
     let output = serde_json::to_value(&completed.output)?;
-    assert_eq!(output["run_id"], "charge-case-5");
-    let result = &output["result"]["provider_operation"];
-    assert_eq!(result["operation"], "payment.x402.merchant.read");
-    assert_eq!(result["finality"], "confirmed");
-    assert_eq!(result["result"]["payment_id"], "x402pay_test_001");
-    assert_eq!(result["result"]["resource"], given["request"]["resource"]);
-    assert_eq!(
-        result["result"]["amount_minor"],
-        given["request"]["amount_minor"]
-    );
-    assert_eq!(result["result"]["currency"], given["request"]["currency"]);
     let again =
         LocalOrchestrator::with_effects(effects).resume(&resume(ResumeDocument::default()))?;
     assert_eq!(
@@ -139,6 +134,24 @@ fn an_admitted_charge_resumes_its_original_run_and_submits_once()
         .iter()
         .map(|body| serde_json::from_str(body))
         .collect::<Result<_, _>>()?;
+    Ok((given, output, observed))
+}
+
+#[test]
+fn an_admitted_charge_resumes_its_original_run_and_submits_once()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (given, output, observed) =
+        resume_payment("charge", "admitted-charge.json", "charge", "settle")?;
+    let result = &output["result"]["provider_operation"];
+    assert_eq!(result["operation"], "payment.x402.merchant.read");
+    assert_eq!(result["finality"], "confirmed");
+    assert_eq!(result["result"]["payment_id"], "x402pay_test_001");
+    assert_eq!(result["result"]["resource"], given["request"]["resource"]);
+    assert_eq!(
+        result["result"]["amount_minor"],
+        given["request"]["amount_minor"]
+    );
+    assert_eq!(result["result"]["currency"], given["request"]["currency"]);
     assert_eq!(
         observed
             .iter()
@@ -172,5 +185,58 @@ fn an_admitted_charge_resumes_its_original_run_and_submits_once()
         result["result"]["request_binding_digest"],
         given["request"]["request_binding_digest"]
     );
+    Ok(())
+}
+
+#[test]
+fn an_admitted_invoice_resumes_its_original_run_and_pays_once()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (given, output, observed) = resume_payment(
+        "invoice-pay",
+        "admitted-invoice.json",
+        "invoice-pay",
+        "settle/settle#pay",
+    )?;
+    assert_eq!(
+        observed
+            .iter()
+            .map(|call| call["operation"].as_str())
+            .collect::<Vec<_>>(),
+        [Some("payment.x402"), Some("payment.x402.read")]
+    );
+    let input = &observed[0]["input"];
+    assert_eq!(
+        input["parent_payment_authority"],
+        given["parent_payment_authority"]
+    );
+    // The kernel derives the provider key from the admitted call; the public
+    // seed is never used as an unbound provider identity.
+    assert!(
+        input["idempotency_key"]
+            .as_str()
+            .is_some_and(|key| key.starts_with("runx:sha256:"))
+    );
+    assert_eq!(
+        input["payment_signal"]["resource"],
+        given["request"]["resource"]
+    );
+    assert_eq!(
+        input["payment_signal"]["amount_minor"],
+        given["amount_minor"]
+    );
+    assert_eq!(
+        input["payment_signal"]["pay_to"],
+        given["request"]["pay_to"]
+    );
+    let result = &output["result"]["provider_operation"];
+    assert_eq!(result["operation"], "payment.x402.read");
+    assert_eq!(result["finality"], "confirmed");
+    assert_eq!(result["result"]["amount_minor"], given["amount_minor"]);
+    assert_eq!(result["result"]["currency"], given["currency"]);
+    assert_eq!(
+        result["result"]["resource_result"]["invoice_id"],
+        given["invoice_id"]
+    );
+    assert_eq!(result["result"]["resource_result"]["state"], "paid");
     Ok(())
 }
