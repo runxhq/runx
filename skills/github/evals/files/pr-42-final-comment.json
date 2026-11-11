@@ -1,5 +1,5 @@
 {
-  "about": "The final comment a completed pull request review produced, with its target and the idempotency key its post uses.",
+  "about": "Non-live final review body, target and retry key. This JSON does not install provider authority or completed native state. tests/comment-posts-and-verifies.yaml uses these exact inputs with isolated fixture approval/session, one create and independent exact-body readback; no review is repeated.",
   "repository": "runxhq/runx",
   "pr_number": "42",
   "body": "The reviewed path is sound; please add the missing test case.",

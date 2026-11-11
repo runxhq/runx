@@ -47,4 +47,6 @@ expect:
               - status: applied
                 acknowledgement:
                   id: 1001
+                  body: The reviewed path is sound; please add the missing test case.
+                  html_url: https://github.com/runxhq/runx/pull/42#issuecomment-1001
   receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}
