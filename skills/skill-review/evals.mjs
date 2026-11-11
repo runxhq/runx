@@ -14,6 +14,7 @@ const DEFAULT_REPEATS = 1;
 const HOST = "../agent#write";
 
 export default async function evals(ctx, { subject, repeats, eval_ids }) {
+  subject = await ctx.read(subject);
   const runs = repeats ?? DEFAULT_REPEATS;
   const judged = released(subject);
   let declared = subject.inspect.evals ?? [];

@@ -19,6 +19,7 @@ const MAX_QUERIES = 40;
 const HOST = "../agent#read";
 
 export default async function triggers(ctx, { subject, repeats }) {
+  subject = await ctx.read(subject);
   const runs = repeats ?? DEFAULT_REPEATS;
   const pinned = released(subject);
   const queries = evalQueries(subject);
