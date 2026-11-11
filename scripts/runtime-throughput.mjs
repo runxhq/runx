@@ -934,7 +934,7 @@ function journeyBudgets() {
       name: "Warm execution",
       budgets: [
         { id: "constant_store_writes_per_call", says: "A constant number of store writes per call, at 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.store_writes_per_call, ["10", "100", "1000"]) },
-        { id: "constant_durable_writes_per_call", says: "A constant number of durable writes per call, at 10, 100 and 1,000 calls.", holds: (m) => flatAcross(m.durable_writes_per_call, ["10", "100", "1000"]) },
+        { id: "durable_writes_are_the_calls_that_change_the_world_and_the_hosts_answers", says: "A run's durable writes are its calls that change the world plus the points where it answers its host, at 1, 10, 100 and 1,000 calls.", holds: (m) => everyAt(m.runs, ["1", "10", "100", "1000"], (run) => isCount(run?.calls_changing_the_world) && isCount(run?.host_answers) && exactly(run?.durable_writes, run.calls_changing_the_world + run.host_answers)) },
         { id: "no_context_reserialization", says: "No whole-context clone or re-serialization per call.", holds: (m) => exactly(m.context_reserializations_per_call, 0) },
         { id: "no_transaction_spans_a_provider_call", says: "No transaction spans a provider call.", holds: (m) => exactly(m.transactions_spanning_provider_calls, 0) },
       ],

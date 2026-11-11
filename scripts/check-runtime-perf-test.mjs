@@ -77,12 +77,28 @@ try {
     "journey_2.constant_store_writes_per_call",
   );
 
-  const growingDurable = journeys();
-  growingDurable["2"].durable_writes_per_call["1000"] = 5;
+  const syncedPastTheFormula = journeys();
+  syncedPastTheFormula["2"].runs["100"].durable_writes = 101;
   expectFail(
-    runQualityVerification(quality({ journeys: growingDurable })),
-    "durable writes that grow with the run",
-    "journey_2.constant_durable_writes_per_call",
+    runQualityVerification(quality({ journeys: syncedPastTheFormula })),
+    "a durable write past the calls that change the world and the host's answers",
+    "journey_2.durable_writes_are_the_calls_that_change_the_world_and_the_hosts_answers",
+  );
+
+  const unsyncedWorldCall = journeys();
+  unsyncedWorldCall["2"].runs["100"].durable_writes = 99;
+  expectFail(
+    runQualityVerification(quality({ journeys: unsyncedWorldCall })),
+    "a world-changing call without its durable write",
+    "journey_2.durable_writes_are_the_calls_that_change_the_world_and_the_hosts_answers",
+  );
+
+  const answeredHost = journeys();
+  answeredHost["2"].runs["100"].host_answers = 1;
+  answeredHost["2"].runs["100"].durable_writes = 101;
+  expectPass(
+    runQualityVerification(quality({ journeys: answeredHost })),
+    "the exact formula includes a host answer",
   );
 
   const growingResume = journeys();
@@ -283,7 +299,9 @@ function journeys() {
     },
     2: {
       store_writes_per_call: { 10: 2, 100: 2, 1000: 2 },
-      durable_writes_per_call: { 10: 4, 100: 4, 1000: 4 },
+      runs: Object.fromEntries(
+        [1, 10, 100, 1000].map((calls) => [calls, { durable_writes: calls, calls_changing_the_world: calls, host_answers: 0 }]),
+      ),
       context_reserializations_per_call: 0,
       transactions_spanning_provider_calls: 0,
     },

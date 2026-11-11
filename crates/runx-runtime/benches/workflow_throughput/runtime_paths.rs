@@ -353,8 +353,10 @@ impl RuntimePathFixtures {
     /// calls on the warm provider runtime, each call one operation over the
     /// local transport, and what each call past the first cost. A call's
     /// store writes are the run's past the one-call run's, over the calls
-    /// past the first, so a constant cost reads the same at every size, and
-    /// its durable writes are read the same way. A
+    /// past the first, so a constant cost reads the same at every size. A
+    /// run's durable writes are its calls that change the world, each a reply
+    /// sent, plus the points it answers its host, of which a run the engine
+    /// drives for the probe has none. A
     /// run is taken whole when its record is replayed or every call is sealed
     /// into its receipt; a call that did either would show here as more than
     /// none per call.
@@ -379,7 +381,7 @@ impl RuntimePathFixtures {
                 ))
                 .into());
             }
-            measured.push((calls, CallCounts::between(before, after)));
+            measured.push((calls, CallCounts::between(before, after, sent)));
         }
         let (_, base) = measured[0];
         let past_base = &measured[1..];
@@ -398,15 +400,6 @@ impl RuntimePathFixtures {
                 (
                     calls.to_string(),
                     JsonValue::Number(per_call(*calls, counts.store_writes, base.store_writes)),
-                )
-            })
-            .collect::<JsonObject>();
-        let durable_writes_per_call = past_base
-            .iter()
-            .map(|(calls, counts)| {
-                (
-                    calls.to_string(),
-                    JsonValue::Number(per_call(*calls, counts.durable_writes, base.durable_writes)),
                 )
             })
             .collect::<JsonObject>();
@@ -435,10 +428,6 @@ impl RuntimePathFixtures {
                 JsonValue::Object(store_writes_per_call),
             ),
             (
-                "durable_writes_per_call".to_owned(),
-                JsonValue::Object(durable_writes_per_call),
-            ),
-            (
                 "context_reserializations_per_call".to_owned(),
                 JsonValue::Number(context_reserializations_per_call),
             ),
@@ -460,6 +449,8 @@ const WARM_EXECUTION_CALLS: [usize; 4] = [1, 10, 100, 1000];
 struct CallCounts {
     store_writes: u64,
     durable_writes: u64,
+    /// The run's calls that change the world: each reply it sent.
+    calls_changing_the_world: u64,
     packages_read: u64,
     run_materializations: u64,
     provider_calls: u64,
@@ -470,10 +461,12 @@ impl CallCounts {
     fn between(
         before: runx_runtime::work_counts::WorkCounts,
         after: runx_runtime::work_counts::WorkCounts,
+        replies_sent: u64,
     ) -> Self {
         Self {
             store_writes: after.store_writes - before.store_writes,
             durable_writes: after.durable_writes - before.durable_writes,
+            calls_changing_the_world: replies_sent,
             packages_read: after.packages_read - before.packages_read,
             run_materializations: after.run_materializations - before.run_materializations,
             provider_calls: after.provider_calls - before.provider_calls,
@@ -487,6 +480,12 @@ impl CallCounts {
         JsonValue::Object(JsonObject::from([
             ("store_writes".to_owned(), count(self.store_writes)),
             ("durable_writes".to_owned(), count(self.durable_writes)),
+            (
+                "calls_changing_the_world".to_owned(),
+                count(self.calls_changing_the_world),
+            ),
+            // The engine's run answers no host: its caller reads what it ran.
+            ("host_answers".to_owned(), count(0)),
             ("packages_read".to_owned(), count(self.packages_read)),
             (
                 "run_materializations".to_owned(),
