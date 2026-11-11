@@ -1,17 +1,19 @@
-# A scheduled run that answers from memory: recall the personal index, then a
-# turn answers one question with it, searching, reading and keeping what it
-# observes. It asks no one. Its writes are bounded by the scheduled
-# delegation it runs under (D40), a term reading said:* and one writing
-# observed:*, not by effects, which would refuse the one write it exists to
-# make. memory's horizon evaluation runs it at each size.
+# Factual recall selects an entry; the native read supplies its exact words.
+# Drafting is a separate model operation. Both use the caller's delegation.
 minimum_runx: 0.12.0
+default_method: run
 catalog:
   visibility: internal
+shared_inputs:
+  question: {type: string, minLength: 1, maxLength: 1000, description: What the run is asked.}
+  focus: {type: string, minLength: 1, maxLength: 512, optional: true, description: What the turn is about to do, which ranks the index's facts.}
 methods:
   run:
+    description: Select a matching memory entry and return its exact recorded words and source, or state that no entry was selected.
     inputs:
-      question: {type: string, minLength: 1, maxLength: 1000, description: What the run is asked.}
-      focus: {type: string, minLength: 1, maxLength: 512, optional: true, description: What the turn is about to do, which ranks the index's facts.}
+      question: {}
+      focus: {}
+    result_from: [selected, missing]
     steps:
       - id: recall
         skill: ../..#index
@@ -19,7 +21,7 @@ methods:
           levels: [{level: personal}]
           focus: $input.focus
       - id: answer
-        agent: answer
+        agent: select-entry
         requires: [fresh_context]
         context:
           entries: [$steps.recall.entries]
@@ -28,5 +30,48 @@ methods:
         inputs:
           question: $input.question
         outputs:
-          answer: {type: string, description: "The answer from memory, using the person's current confirmed words for their preferences, or what confirmed memory lacks."}
-          found: {type: boolean, description: Whether memory held the answer.}
+          handle: {type: string, description: "The selected entry's exact handle from a native memory read or search; empty when found is false."}
+          found: {type: boolean, description: Whether a matching entry was selected.}
+      - id: read
+        when: {value: $steps.answer.found, equals: true}
+        skill: ../..#read
+        inputs:
+          handle: $steps.answer.handle
+      - id: selected
+        when: {value: $steps.answer.found, equals: true}
+        tool: {module: routine.mjs, export: selected}
+        inputs:
+          entry: $steps.read.entry
+        outputs:
+          answer: {type: string, description: The exact words of the selected admitted entry.}
+          found: {type: boolean}
+          source: {type: object, packet: runx.context_entry.v1}
+      - id: missing
+        when: {value: $steps.answer.found, equals: false}
+        tool: {module: routine.mjs, export: missing}
+        outputs:
+          answer: {type: string}
+          found: {type: boolean}
+  draft:
+    description: Draft text using the person's standing rules and recorded evidence; the draft is model judgment, not a quotation of a memory entry.
+    inputs:
+      question: {}
+      focus: {}
+    steps:
+      - id: recall
+        skill: ../..#index
+        inputs:
+          levels: [{level: personal}]
+          focus: $input.focus
+      - id: answer
+        agent: draft
+        requires: [fresh_context]
+        context:
+          entries: [$steps.recall.entries]
+        calls:
+          skills: [../..#search, ../..#read, ../..#observe]
+        inputs:
+          question: $input.question
+        outputs:
+          answer: {type: string, description: The requested draft following the person's standing rules.}
+          found: {type: boolean, description: Whether memory held the evidence used.}

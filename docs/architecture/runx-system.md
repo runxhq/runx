@@ -92,6 +92,12 @@ until invoked; the invoked skill then supplies its own complete manual. A chain
 must neither hide the target instructions nor preload and duplicate every
 manual.
 
+Managed model adapters keep the runtime's context policy and validated skill
+manuals in instruction messages. Inputs, context indexes, profiles and earlier
+call results remain data. A successful skill load contributes its manual through
+that same instruction path; ordinary tool results cannot contribute guidance.
+These model roles never grant execution authority or supply human approval.
+
 ## Execution lanes
 
 Each target has one meaning and one authority boundary:

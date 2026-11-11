@@ -160,7 +160,8 @@ pub fn managed_agent_env(endpoint: &str, model: &str) -> Vec<(String, String)> {
 
 /// A scripted reader of `runx/memory`, for a turn offered memory's search
 /// and read: it searches for the turn's `question` input, reads the best
-/// match by its handle and answers `{answer, found}` with its words, or says
+/// match by its handle and returns the selected handle or its words, as the
+/// completion schema requests, or says
 /// memory holds nothing when the search finds nothing. A reader of words,
 /// never of meaning.
 #[must_use]
@@ -176,12 +177,23 @@ pub fn memory_reader(request: &Value) -> Value {
             .unwrap_or(ending)
             .to_owned()
     };
+    let selects = request["tools"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|tool| {
+            tool["function"]["name"] == "turn_complete"
+                && tool["function"]["parameters"]["properties"]
+                    .get("handle")
+                    .is_some()
+        });
     let answer = |text: &str, found: bool| {
-        tool_call(
-            "call-answer",
-            "turn_complete",
-            &json!({"answer": text, "found": found}),
-        )
+        let value = if selects {
+            json!({"handle": text, "found": found})
+        } else {
+            json!({"answer": text, "found": found})
+        };
+        tool_call("call-answer", "turn_complete", &value)
     };
     let called = messages
         .iter()
@@ -220,13 +232,22 @@ pub fn memory_reader(request: &Value) -> Value {
         Some(name) if name.ends_with("__search") => {
             match output["entries"][0]["data"]["handle"].as_str() {
                 Some(handle) => tool_call("call-read", &tool("__read"), &json!({"handle": handle})),
-                None => answer("Memory holds nothing about that.", false),
+                None => answer("", false),
             }
         }
         Some(name) if name.ends_with("__read") => match output["entry"]["data"]["text"].as_str() {
-            Some(text) => answer(text, true),
-            None => answer("Memory holds nothing about that.", false),
+            Some(text) => answer(
+                if selects {
+                    output["entry"]["data"]["handle"]
+                        .as_str()
+                        .unwrap_or_default()
+                } else {
+                    text
+                },
+                true,
+            ),
+            None => answer("", false),
         },
-        Some(_) => answer("Memory holds nothing about that.", false),
+        Some(_) => answer("", false),
     }
 }

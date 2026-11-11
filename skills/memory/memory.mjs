@@ -306,17 +306,32 @@ export function change({ entry, current, type, data, valid_until }) {
   if (standing) content.standing = true;
   return {
     reason: describe({ stream: entry.stream, handle, data: content }),
+    expected_version: at,
     idempotency_key: `memory:${sha256(JSON.stringify([type, entry.stream, entry.key, at, content]))}`,
     // Only the person's words have a purpose, which decides it.
     ...(data.purpose === undefined ? {} : { standing }),
   };
 }
 
-/// The handle of the version an append made, once its readback holds it.
+/// A new observation requires an empty key, proved by the append's compare
+/// and swap. Superseding an observation also requires inspecting its current
+/// status, under read authority; a write-only caller cannot supersede it.
+export async function observationChange(ctx, { entry, data, valid_until }) {
+  const current = entry.version > 0
+    ? await resultOf(ctx, await ctx.operation("private/key.inspect", { stream: entry.stream, key: entry.key }))
+    : undefined;
+  return change({ entry, current, type: "memory.observed", data, valid_until });
+}
+
+/// The handle of a committed or replayed append. The native private driver
+/// verifies the event under its idempotency key before returning this result.
+/// An additional inspection, when supplied, must agree with that version.
 export function entryHandle({ entry, appended, readback }) {
   const version = appended?.version;
-  if (!Number.isSafeInteger(version) || readback?.version !== version) {
-    throw new Error(`the append to ${entry.stream}#${entry.key} wasn't read back at its version`);
+  if (!["committed", "replayed"].includes(appended?.status) ||
+      !appended?.event || version !== entry.version + 1 ||
+      (readback !== undefined && readback !== null && readback.version !== version)) {
+    throw new Error(`the append to ${entry.stream}#${entry.key} wasn't committed and verified at its expected version`);
   }
   return { handle: handleOf(entry.stream, entry.key, version) };
 }

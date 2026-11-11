@@ -876,6 +876,33 @@ fn a_write_that_matches_a_current_entry_keeps_nothing_and_shows_it() -> TestResu
     Ok(())
 }
 
+#[test]
+fn an_observation_replay_never_resurrects_or_supersedes_a_disabled_entry() -> TestResult {
+    let memory = Memory::new("runx-memory-observation-replay")?;
+    let inputs = observation("The build runs on Node 26.", "2026-11-09");
+    let first = memory.observe_with(inputs.clone())?;
+    assert_eq!(memory.observe_with(inputs.clone())?, first);
+    let mut next = observation("The build runs on Node 28.", "2026-11-10");
+    next["supersedes"] = first.clone().into();
+    let second = memory.observe_with(next.clone())?;
+    assert_eq!(memory.observe_with(inputs.clone())?, first);
+    assert_eq!(handles(&memory.index(None)?.0), [second.as_str()]);
+
+    let stale = memory.run("observe", next.clone(), EVERY_STREAM)?;
+    assert_eq!(stale["outcome"], "failed", "{stale}");
+    let disabled = memory.approved(
+        "disable",
+        "memory.disable",
+        json!({"handle": second, "reason": "The build no longer exists."}),
+    )?;
+    next["supersedes"] = disabled["handle"].clone();
+    let refused = memory.run("observe", next, EVERY_STREAM)?;
+    assert_eq!(refused["outcome"], "failed", "{refused}");
+    assert_eq!(memory.observe_with(inputs)?, first);
+    assert!(memory.index(None)?.0.is_empty());
+    Ok(())
+}
+
 /// The person's words that name the entry they supersede are that entry's
 /// correction, decided at the correction's own gate, never the person's
 /// words gate a host may answer itself.

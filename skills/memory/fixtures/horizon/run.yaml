@@ -30,7 +30,7 @@ methods:
           repeats: $input.repeats
           focus: $input.focus
         calls:
-          skills: [../routine, ../..#search, .#grade]
+          skills: [../routine, ../routine#draft, ../..#search, .#grade]
           tools: [fs.read, run.read, receipt.read, verdict.criteria, verdict.decide]
         max_calls: 600
         outputs:
@@ -74,6 +74,7 @@ methods:
           id: {type: string}
           phase: {type: integer}
           category: {type: string}
+          method: {enum: [run, draft]}
           planted: {type: string}
           question: {type: string}
           expect:

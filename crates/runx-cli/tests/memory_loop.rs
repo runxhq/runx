@@ -28,7 +28,7 @@ fn scheduled_authority() -> Value {
     ];
     json!({"delegations": [{"connector": "private", "terms": [
         {"verbs": ["read"], "bounds": {"operations": ["private/*"], "scopes": ["store.read"],
-            "targets": ["project:memory/said:*", "project:memory/observed:*"], "packages": packages}},
+            "targets": ["project:memory/said:*"], "packages": packages}},
         {"verbs": ["write"], "bounds": {"operations": ["private/*"], "scopes": ["store.append"],
             "targets": ["project:memory/observed:*"], "packages": packages}},
     ]}]})
@@ -72,6 +72,7 @@ methods:
         outputs:
           answer: {type: string}
           found: {type: boolean}
+          source: {type: object, packet: runx.context_entry.v1, optional: true}
 "#,
     )?;
     fs::write(
@@ -199,6 +200,14 @@ fn scheduled(memory: &Memory, env: &[(String, String)], page: Option<&str>) -> T
         Some(path) => serde_json::from_slice(&fs::read(path)?)?,
         None => ran["result"].clone(),
     };
+    assert_eq!(
+        result["answer"], result["source"]["data"]["text"],
+        "factual output must be the admitted source's words: {result}"
+    );
+    assert_eq!(
+        result["source"]["labels"]["trust"], "person_confirmed",
+        "the scheduled delegation admits only the person's words: {result}"
+    );
     Ok(result["answer"]
         .as_str()
         .ok_or_else(|| format!("routine answered nothing: {ran}"))?

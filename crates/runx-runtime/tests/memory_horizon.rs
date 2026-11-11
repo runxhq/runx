@@ -17,7 +17,7 @@
 //! with its words, so the bar is a deterministic gate on retrieval, at every
 //! size but the largest, which runs on a real model, where the evaluation's
 //! threshold is set. Named
-//! `qwen3-8b-32k`, the turns go to the local Ollama through a loopback relay
+//! `qwen3-8b-32k`, the turns go to a local server through a loopback relay
 //! that counts the replies that only wrote prose. Nothing here reaches a paid
 //! model.
 
@@ -96,6 +96,10 @@ fn memory_holds_across_the_horizon() -> TestResult {
             }
         }
         sizes.insert(size.to_string(), Value::Object(modes));
+        if let Ok(path) = std::env::var(REPORT_ENV) {
+            let partial = report(&horizon, &sizes, today, &model_name, repeats, &replies)?;
+            fs::write(path, serde_json::to_string_pretty(&partial)?)?;
+        }
     }
     model.finish()?;
     let report = report(&horizon, &sizes, today, &model_name, repeats, &replies)?;
@@ -240,7 +244,14 @@ struct Workspace {
 
 impl Workspace {
     fn new(endpoint: &str, model: &str) -> TestResult<Self> {
-        let directory = TempDir::new()?;
+        let directory = if let Ok(root) = std::env::var("RUNX_MEMORY_HORIZON_WORKSPACES") {
+            fs::create_dir_all(&root)?;
+            let mut directory = TempDir::new_in(root)?;
+            directory.disable_cleanup(true);
+            directory
+        } else {
+            TempDir::new()?
+        };
         copy_tree(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/memory"),
             &directory.path().join("skills/memory"),
@@ -264,7 +275,11 @@ impl Workspace {
             env.extend(managed_agent_env(endpoint, "scripted-reader"));
         } else {
             env.extend([
-                ("RUNX_AGENT_PROVIDER".to_owned(), "ollama".to_owned()),
+                (
+                    "RUNX_AGENT_PROVIDER".to_owned(),
+                    std::env::var("RUNX_MEMORY_HORIZON_PROVIDER")
+                        .unwrap_or_else(|_| "ollama".to_owned()),
+                ),
                 (
                     "RUNX_AGENT_DIALECT".to_owned(),
                     "chat_completions".to_owned(),
@@ -600,11 +615,13 @@ struct Replies {
 /// A loopback relay to the local model server that counts the replies that
 /// only wrote prose, calling no tool. Test code only.
 fn relay(replies: Arc<Mutex<Replies>>) -> TestResult<impl FnMut(&Value) -> Value + Send + 'static> {
-    let transport = ReqwestHttpTransport::for_exact_loopback_agent(LOCAL_MODEL)?;
+    let endpoint =
+        std::env::var("RUNX_MEMORY_HORIZON_MODEL_URL").unwrap_or_else(|_| LOCAL_MODEL.to_owned());
+    let transport = ReqwestHttpTransport::for_exact_loopback_agent(&endpoint)?;
     Ok(move |request: &Value| {
         let sent = transport.send(RuntimeHttpRequest {
             method: HttpMethod::Post,
-            url: LOCAL_MODEL.to_owned(),
+            url: endpoint.clone(),
             headers: vec![RuntimeHttpHeader::new("content-type", "application/json")],
             body: Some(request.to_string()),
         });

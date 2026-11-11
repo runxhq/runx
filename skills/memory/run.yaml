@@ -3,9 +3,9 @@
 # contract file: the package the build writes is this file, with its modules,
 # and a difference is a contract change.
 #
-# Every write has one shape: name the entry, inspect its key, decide (`change`
+# A confirmed write names the entry, inspects its key, decides (`change`
 # refuses a handle that isn't current and names the idempotency key and what
-# a gate shows), append at the inspected version, read back. A write after an
+# a gate shows), appends at the inspected version, then reads back. A write after an
 # ask is guarded on that ask's yes, so with no yes nothing is recorded. A new
 # entry's key is the digest of its kind, level and content, so the same words
 # name one entry. A correction and a superseding observation are their entry's
@@ -15,6 +15,9 @@
 # entry's `valid_until` is its event's own too, so the store passes over what
 # has ended, and every write names `text` and `summary` searchable, so a
 # search never matches a confirmation's wording (memory.md, 10 November).
+# A new observation instead appends at expected version zero without a prior
+# read; the native private driver verifies its event before returning. An
+# observation superseding another still inspects its current type and status.
 # An operation step's result is read as $steps.<id>.provider_operation.result.
 # An output that's a contract names its packet. memory.mjs is a worker with no
 # I/O. Only this package writes its streams, and the workspace id comes from
@@ -143,6 +146,7 @@ methods:
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
+          expected_version: { type: integer }
           standing: { type: boolean }
       - id: confirm
         when: { value: $steps.likely.matches, equals: [] }
@@ -195,6 +199,7 @@ methods:
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
+          expected_version: { type: integer }
           standing: { type: boolean }
       - id: confirm
         ask: { gate: memory.correct, reason: $steps.change.reason }
@@ -245,6 +250,7 @@ methods:
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
+          expected_version: { type: integer }
       - id: confirm
         ask: { gate: memory.disable, reason: $steps.change.reason }
         inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, reason: $input.reason }
@@ -298,38 +304,34 @@ methods:
         effects: none
         outputs:
           matches: { type: array, packet: runx/memory.entries.v1, description: "The current observations on the stream whose text best matches this one, best first. When any matches, nothing is kept." }
-      - id: current
-        when: { value: $steps.likely.matches, equals: [] }
-        operation: private/key.inspect
-        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
         when: { value: $steps.likely.matches, equals: [] }
-        tool: { module: memory.mjs, export: change }
-        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.observed, data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }, valid_until: $input.valid_until }
+        script: { module: memory.mjs, export: observationChange }
+        inputs: { entry: $steps.entry, data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }, valid_until: $input.valid_until }
+        calls:
+          operations: [private/key.inspect]
+        max_calls: 1
+        effects: none
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
+          expected_version: { type: integer }
       - id: append
         when: { value: $steps.likely.matches, equals: [] }
         operation: private/events.append
         inputs:
           stream: $steps.entry.stream
           key: $steps.entry.key
-          expected_version: $steps.current.provider_operation.result.version
+          expected_version: $steps.change.expected_version
           type: memory.observed
           data: { text: $input.text, summary: $input.summary, date: $input.date, sources: $input.sources }
           searchable: [text, summary]
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
-      - id: readback
-        when: { value: $steps.likely.matches, equals: [] }
-        operation: private/key.inspect
-        confirms: append
-        inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: handle
         when: { value: $steps.likely.matches, equals: [] }
         tool: { module: memory.mjs, export: entryHandle }
-        inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result, readback: $steps.readback.provider_operation.result }
+        inputs: { entry: $steps.entry, appended: $steps.append.provider_operation.result }
         outputs:
           handle: { type: string }
   index:

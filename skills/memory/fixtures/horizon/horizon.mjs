@@ -8,6 +8,7 @@
 // kept.
 
 const ROUTINE = "../routine";
+const ROUTINES = [ROUTINE, `${ROUTINE}#draft`];
 const SEARCH = "../..#search";
 /// The seal reason of a turn whose model only wrote prose until its
 /// resamples ran out.
@@ -28,12 +29,13 @@ export async function sweep(ctx, { subject, memory, phase, repeats, focus }) {
     const question = dated(item.kase.question, now);
     for (let attempt = 0; attempt < repeats; attempt += 1) {
       const inputs = { question, ...(focus ? { focus: question } : {}) };
-      const settled = await settle(ctx.skill(ROUTINE, inputs));
+      const method = item.kase.method === undefined ? ROUTINE : `${ROUTINE}#${item.kase.method}`;
+      const settled = await settle(ctx.skill(method, inputs));
       attempts.push({ item, settled, kept: await kept(ctx, item.kase) });
     }
   }
   const record = await readRecord(ctx);
-  const runs = childRuns(record, ROUTINE, attempts.length);
+  const runs = childRuns(record, ROUTINES, attempts.length);
   for (const [index, attempt] of attempts.entries()) {
     attempt.turn = turnOf(record, runs[index]);
     attempt.receipt_id = sealedIn(record, runs[index]);
@@ -208,7 +210,7 @@ async function readRecord(ctx) {
 // The child run of each call this run's script made of `host`, in the order
 // it made them. A step's calls are on a stream of their own,
 // `<run>/<step>@<attempt>`, beside the run's.
-function childRuns({ run, events }, host, made) {
+function childRuns({ run, events }, hosts, made) {
   const root = run.run_id;
   const calls = new Map();
   for (const { stream, event } of events) {
@@ -216,7 +218,7 @@ function childRuns({ run, events }, host, made) {
       event.kind === "call" &&
       stream === `${root}/${event.step_id}@${event.attempt}` &&
       event.target?.kind === "skill" &&
-      event.target.skill === host
+      hosts.includes(event.target.skill)
     ) {
       calls.set(event.index, `${event.step_id}/${event.index}`);
     }
@@ -234,7 +236,7 @@ function childRuns({ run, events }, host, made) {
       return stream;
     });
   if (runs.length !== made) {
-    throw new Error(`this run's record holds ${runs.length} calls of ${host}, and this script made ${made}`);
+    throw new Error(`this run's record holds ${runs.length} calls of ${hosts.join(" or ")}, and this script made ${made}`);
   }
   return runs;
 }

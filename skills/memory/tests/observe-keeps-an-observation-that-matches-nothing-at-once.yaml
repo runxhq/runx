@@ -19,4 +19,4 @@ setup:
               packages: [runx/memory, project:memory]
 expect:
   status: sealed
-  steps: [entry, likely, current, change, append, readback, handle]
+  steps: [entry, likely, change, append, handle]
