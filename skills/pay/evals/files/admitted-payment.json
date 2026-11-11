@@ -1,5 +1,5 @@
 {
-  "about": "Bounded prior evidence for this composed eval. External provider and receipt values are non-live fixture data; they are not fresh readback, cryptographic verification, a grant, or native human approval.",
+  "about": "Non-live payment inputs. The native payment_continuation case creates the actual pending approval and resumes its original run, checking zero pre-approval submissions, one payment/readback pair, exact original request/mandate, and no new payment on sealed resume. This attachment creates no native state, authority, approval, live wallet settlement or verified inner receipt.",
   "connector": "wallet/evm",
   "request": {
     "resource": {

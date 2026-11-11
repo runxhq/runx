@@ -240,3 +240,41 @@ fn an_admitted_invoice_resumes_its_original_run_and_pays_once()
     assert_eq!(result["result"]["resource_result"]["state"], "paid");
     Ok(())
 }
+
+#[test]
+fn an_admitted_payment_retains_its_original_resource_and_identity()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (given, output, observed) =
+        resume_payment("pay", "admitted-payment.json", "pay", "settle#pay")?;
+    assert_eq!(
+        observed
+            .iter()
+            .map(|call| call["operation"].as_str())
+            .collect::<Vec<_>>(),
+        [Some("payment.x402"), Some("payment.x402.read")]
+    );
+    assert_eq!(observed[0]["input"]["payment_signal"], given["request"]);
+    assert_eq!(
+        observed[0]["input"]["parent_payment_authority"],
+        given["parent_payment_authority"]
+    );
+    assert_eq!(observed[1]["input"]["payment_id"], "payment_x402_001");
+    assert_eq!(
+        observed[1]["input"]["resource_url"],
+        given["request"]["resource"]["url"]
+    );
+    let result = &output["result"]["provider_operation"];
+    assert_eq!(result["operation"], "payment.x402.read");
+    assert_eq!(result["finality"], "confirmed");
+    assert_eq!(result["result"]["payment_id"], "payment_x402_001");
+    assert_eq!(
+        result["result"]["amount_minor"],
+        given["request"]["amount_minor"]
+    );
+    assert_eq!(result["result"]["pay_to"], given["request"]["pay_to"]);
+    assert_eq!(
+        result["result"]["resource_result"]["invocation"]["state"],
+        "succeeded"
+    );
+    Ok(())
+}
