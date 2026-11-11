@@ -46,6 +46,7 @@ providers:
         headers: {content-type: application/json}
         body: '{"data":{"id":"6001","text":"Runx 0.5 is out.","edit_history_tweet_ids":["6001"]}}'
 expect:
+  http_request_counts: [1, 1, 1]
   status: sealed
   steps: [saved, resolve, ledger, digest, prepare, remember, self, bind, request, apply, persist]
   step_outputs:

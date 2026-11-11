@@ -54,6 +54,13 @@ pub(super) fn assert_expectations(
         assert_list("expect.steps", expected, &actual)?;
     }
     assert_host_answers_replayed(output)?;
+    if let Some(expected) = &output.fixture.expect.http_request_counts {
+        assert_equal(
+            "expect.http_request_counts",
+            format!("{expected:?}"),
+            format!("{:?}", output.http_request_counts),
+        )?;
+    }
     if let Some(expectation) = &output.fixture.expect.output {
         let actual = output
             .skill_output

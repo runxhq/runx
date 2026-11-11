@@ -113,6 +113,7 @@ providers:
           content-type: application/json
         body: '{"id":"du_case42","charge":"ch_original42","payment_intent":"pi_original42","amount":150,"currency":"usd","reason":"product_not_received","status":"under_review","evidence_details":{"due_by":1893456000,"past_due":false,"has_evidence":true,"submission_count":1},"evidence":{"access_activity_log":"Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z."},"livemode":false}'
 expect:
+  http_request_counts: [1, 1, 1, 1, 1, 1, 1, 1, 1]
   status: sealed
   steps:
     - capture

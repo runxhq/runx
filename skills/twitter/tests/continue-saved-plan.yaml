@@ -114,6 +114,7 @@ providers:
         content-type: application/json
       body: '{"data":{"following":false}}'
 expect:
+  http_request_counts: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
   status: sealed
   steps:
   - digest

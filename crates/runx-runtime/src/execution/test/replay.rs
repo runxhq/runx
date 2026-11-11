@@ -125,6 +125,8 @@ pub struct TestReplayOutput {
     pub unanswered: Vec<String>,
     /// The HTTP exchanges the case declares that the run never requested.
     pub unrequested: Vec<String>,
+    /// Actual requests answered by each declared HTTP exchange.
+    pub http_request_counts: Vec<usize>,
 }
 
 #[derive(Debug, Error)]
@@ -329,6 +331,9 @@ where
     match replayed {
         Ok(mut output) => {
             output.unrequested = unrequested;
+            output.http_request_counts = exchanges.request_counts().map_err(|error| {
+                RuntimeError::effect_state("counting the test exchanges", error.to_string())
+            })?;
             Ok(output)
         }
         Err(error) => {
@@ -731,6 +736,7 @@ fn seal_admission_failure(
         replayed_answers: JsonObject::new(),
         unanswered: Vec::new(),
         unrequested: Vec::new(),
+        http_request_counts: Vec::new(),
     })
 }
 
@@ -1003,6 +1009,7 @@ fn replay_output_from_workflow(
         replayed_answers,
         unanswered,
         unrequested: Vec::new(),
+        http_request_counts: Vec::new(),
     }
 }
 

@@ -365,6 +365,11 @@ impl TestExchanges {
             .collect())
     }
 
+    /// Actual requests answered by each exchange, repeats included.
+    pub(crate) fn request_counts(&self) -> Result<Vec<usize>, RuntimeHttpError> {
+        Ok(self.answered()?.clone())
+    }
+
     fn answered(&self) -> Result<std::sync::MutexGuard<'_, Vec<usize>>, RuntimeHttpError> {
         self.answered
             .lock()

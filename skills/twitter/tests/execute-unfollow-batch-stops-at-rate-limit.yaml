@@ -56,6 +56,7 @@ providers:
         headers: {content-type: application/json, x-rate-limit-remaining: "0", x-rate-limit-reset: "1800000000"}
         body: '{"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}'
 expect:
+  http_request_counts: [1, 1, 1, 1]
   status: sealed
   steps: [saved, resolve, ledger, digest, prepare, remember, self, bind, request, apply, persist]
   step_outputs:

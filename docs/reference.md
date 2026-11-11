@@ -1497,7 +1497,10 @@ repeat, so one test can read a resource, change it and read it back. A test
 declares only the exchanges its run makes: one no request asked for fails the
 test, so a declared write is a write the run sent. Any request no exchange
 matches is refused without reaching the network; a test run has no live
-fallback. Connector operations still own their real admission, request
+fallback. Use `expect.http_request_counts: [1, 1]` to require exactly one
+request for each of two declared exchanges. The counts follow declaration
+order and include repeats; declaring an exchange alone does not prove it
+was requested only once. Connector operations still own their real admission, request
 rendering, authentication, decoding, custody and readbacks; only transport
 response bytes come from the test. `providers.mcp` stands in for a connector's
 MCP server the same way, matched on tool, arguments and session headers, and

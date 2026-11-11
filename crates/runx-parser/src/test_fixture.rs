@@ -263,6 +263,8 @@ pub struct TestExpectation {
     pub receipt: Option<ReceiptExpectation>,
     /// The steps that ran, in order, asserted when present.
     pub steps: Option<Vec<String>>,
+    /// Exact requests answered by each HTTP exchange, in declaration order.
+    pub http_request_counts: Option<Vec<usize>>,
     pub output: Option<TestJsonExpectation>,
     pub step_outputs: BTreeMap<String, TestJsonExpectation>,
 }
@@ -320,6 +322,7 @@ struct RawTestExpectation {
     status: Option<TestExpectedStatus>,
     receipt: Option<RawReceiptExpectation>,
     steps: Option<Vec<String>>,
+    http_request_counts: Option<Vec<usize>>,
     output: Option<TestJsonExpectation>,
     #[serde(default)]
     step_outputs: BTreeMap<String, TestJsonExpectation>,
@@ -787,6 +790,7 @@ fn validate_expectation(
             .map(validate_receipt_expectation)
             .transpose()?,
         steps: expectation.steps,
+        http_request_counts: expectation.http_request_counts,
         output: expectation
             .output
             .map(|expectation| validate_json_expectation(expectation, "expect.output"))
