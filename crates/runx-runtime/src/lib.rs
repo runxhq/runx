@@ -110,6 +110,7 @@ pub mod workspace_ids;
 pub use execution::engine;
 pub use execution::engine::CallCancel;
 pub use execution::engine::turn::Turn;
+pub use execution::engine::{StatedTrust, state_trust};
 pub use execution::orchestrator;
 pub use execution::run_record;
 pub use execution::skill_front;

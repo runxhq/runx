@@ -7,6 +7,8 @@ mod output;
 mod script;
 mod verdict;
 
+pub use load::{StatedTrust, state_trust};
+
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;

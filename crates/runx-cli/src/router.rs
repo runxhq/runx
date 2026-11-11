@@ -40,6 +40,7 @@ pub enum RouterAction {
     RunResume(ResumePlan),
     RunSecret(SecretPlan),
     RunWorkspace(WorkspacePlan),
+    RunTrust(crate::trust::TrustPlan),
     RunSkill(Box<SkillPlan>),
     RunTool(ToolPlan),
     PrintHelp,
@@ -206,6 +207,14 @@ fn route_args_with_optional_workspace(
             &args,
             crate::workspace::parse_workspace_plan(&args),
             RouterAction::RunWorkspace,
+        );
+    }
+
+    if first_arg_is(&args, "trust") {
+        return route_parse(
+            &args,
+            crate::trust::parse_trust_plan(&args),
+            RouterAction::RunTrust,
         );
     }
 

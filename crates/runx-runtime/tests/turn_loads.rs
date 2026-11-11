@@ -512,6 +512,89 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     Ok(())
 }
 
+/// The person states their trust ahead of any turn (`runx trust`): it binds
+/// as a load binds and records each closure as their approval would, so a
+/// later load of it binds at once, while a changed package, another closure,
+/// still asks.
+#[test]
+fn a_package_the_person_trusted_ahead_loads_at_once_and_a_changed_one_asks_again() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish("rough", "1.0.0", TrustTier::Community, "")?;
+    project.publish("rough", "1.0.1", TrustTier::Community, "Revised.")?;
+
+    let stated =
+        runx_runtime::state_trust("acme/rough@1.0.0", None, &project.env()?, &project.root)?;
+    let [stated] = stated.as_slice() else {
+        return Err(format!("one closure, of its one method: {stated:?}").into());
+    };
+    assert_eq!(stated.package, "acme/rough@1.0.0");
+    assert_eq!(stated.method, "say");
+    assert_eq!(stated.tier, Some(TrustTier::Community));
+    assert!(stated.connectors.is_empty(), "{stated:?}");
+
+    let session = project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?;
+    let run_id = project.start(session)?;
+    let turn = project.open(&run_id)?;
+    let bound = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/rough@1.0.0"}))?,
+    )?)?;
+    let [tool] = bound.tools.as_slice() else {
+        return Err(format!("one loaded method: {bound:?}").into());
+    };
+    let CallTarget::Skill {
+        bound: Some(closure),
+        ..
+    } = &tool.target
+    else {
+        return Err(format!("a bound method: {tool:?}").into());
+    };
+    assert_eq!(closure.closure_digest.as_str(), stated.closure_digest);
+
+    let revised = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/rough@1.0.1"}))?,
+    )?;
+    trust_gate(&revised, "work/1/trust")?;
+    Ok(())
+}
+
+/// Stating trust is the person's act, so a process a run started, which
+/// carries the workspace lock's token, is refused, and nothing is recorded.
+#[test]
+fn trust_stated_from_inside_a_run_is_refused() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish("rough", "1.0.0", TrustTier::Community, "")?;
+    let mut env = project.env()?;
+    env.insert(
+        "RUNX_WORKSPACE_LOCK_TOKEN".to_owned(),
+        "a-run's-token".to_owned(),
+    );
+
+    let refused = runx_runtime::state_trust("acme/rough@1.0.0", None, &env, &project.root)
+        .err()
+        .ok_or("trust stated inside a run is refused")?;
+    assert!(refused.contains("inside a runx run"), "{refused}");
+
+    let session = project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?;
+    let run_id = project.start(session)?;
+    let turn = project.open(&run_id)?;
+    let held = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/rough@1.0.0"}))?,
+    )?;
+    trust_gate(&held, "work/0/trust")?;
+    Ok(())
+}
+
 /// A signed package's tier is the registry's fresh statement, read only
 /// when a rule asks more than community (D30). A version whose statement has
 /// expired, or whose registry states none, as for one withdrawn, reads

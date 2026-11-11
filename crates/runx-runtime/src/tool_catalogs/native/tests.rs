@@ -10,6 +10,16 @@ use super::{core_capabilities, definition, resends_safely, safe_read, workspace_
 use crate::credentials::CredentialDelivery;
 use crate::effects::RuntimeEffectRegistry;
 
+/// Trust is the person's to state, with `runx trust`: no core tool a turn
+/// calls, through runx's MCP surface or any other, states it.
+#[test]
+fn no_core_tool_states_a_persons_trust() {
+    for capability in core_capabilities() {
+        let id = capability.definition().id;
+        assert!(!id.contains("trust"), "{id} is no way to state trust");
+    }
+}
+
 #[test]
 fn capability_registry_definitions_are_unique_and_valid() {
     let capabilities = core_capabilities().collect::<Vec<_>>();

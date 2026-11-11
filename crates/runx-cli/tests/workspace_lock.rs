@@ -185,6 +185,35 @@ fn a_runx_started_under_a_command_joins_its_lock() -> TestResult {
     Ok(())
 }
 
+/// A command that runs `runx trust`, saying on `err` what runx said, and
+/// answering whether runx refused it.
+const TRUST: &str = "#!/bin/sh\nset -u\nif RUNX_HOME=\"$RUNX_INPUT_HOME\" \"$RUNX_INPUT_RUNX\" trust acme/echo@1.0.0 2> \"$RUNX_INPUT_ERR\"; then printf '{\"done\":false}'; else printf '{\"done\":true}'; fi\n";
+
+/// Trust is the person's statement, so `runx trust` a run's command runs,
+/// which carries the workspace lock's token, is refused, and nothing is
+/// recorded in the home.
+#[test]
+fn runx_trust_inside_a_run_is_refused() -> TestResult {
+    let root = crate::support::temp_root("workspace-lock-trust");
+    fs::create_dir_all(root.join("home"))?;
+    let trust = process_skill(&root, "trust", &["home", "runx", "err"], TRUST)?;
+    let err = root.join("err");
+    let runx = PathBuf::from(env!("CARGO_BIN_EXE_runx"));
+    let output = skill_command(
+        &root,
+        &trust,
+        &[("home", &root.join("home")), ("runx", &runx), ("err", &err)],
+    )?
+    .output()?;
+    sealed(&output)?;
+    let ran: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(ran["result"]["done"], true, "runx trust was refused: {ran}");
+    let said = fs::read_to_string(&err)?;
+    assert!(said.contains("inside a runx run"), "{said}");
+    assert!(!root.join("home/trust").exists(), "nothing is recorded");
+    Ok(())
+}
+
 /// A command that leaves a process running and returns: in a process group
 /// of its own, as job control puts it, so it outlives the command's. The
 /// process waits on `go`, then runs runx under the command's old token,

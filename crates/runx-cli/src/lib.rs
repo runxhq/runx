@@ -22,6 +22,7 @@ pub mod runtime;
 pub mod secret;
 pub mod skill;
 pub mod tool;
+pub mod trust;
 pub mod verify;
 pub mod workspace;
 

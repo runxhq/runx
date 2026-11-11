@@ -360,6 +360,100 @@ fn bind_skill(
     })
 }
 
+/// One closure a person trusted ahead of any turn that loads it (`runx
+/// trust`): the package and the method it is the closure of, the connectors
+/// it binds, which a turn reaches only once it loads them, and the package's
+/// tier.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct StatedTrust {
+    pub package: String,
+    pub method: String,
+    pub closure_digest: String,
+    pub connectors: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tier: Option<TrustTier>,
+}
+
+/// The person trusts the skill `reference`'s `method`, or each method it
+/// declares when they name none, ahead of any turn that loads it. It binds
+/// as a load binds, so its closures are the ones a load of it asks trust
+/// for, and records each in the person's home as their approval of a load's
+/// trust records it, read by the same check. Running it is the person's
+/// statement, so a process a run started, which carries the workspace
+/// lock's token, is refused: an agent working in a run can't state it.
+///
+/// # Errors
+///
+/// Returns why it is refused, why the package doesn't bind, or why the
+/// trust can't be recorded.
+pub fn state_trust(
+    reference: &str,
+    method: Option<&str>,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<Vec<StatedTrust>, String> {
+    if env.contains_key(crate::workspace_lock::RUNX_WORKSPACE_LOCK_TOKEN_ENV) {
+        return Err(
+            "runx trust is the person's statement, and this runs inside a runx run: run it yourself, outside any run"
+                .to_owned(),
+        );
+    }
+    let paths = RunxPaths::resolve(env, cwd);
+    let first = bind_skill(reference, method, &paths, env)?;
+    // A load of a skill of several methods without one binds none, so the
+    // person trusts each method's closure.
+    let bound = if first.closures.is_empty() {
+        first
+            .methods
+            .iter()
+            .map(|declared| bind_skill(reference, Some(declared.name.as_str()), &paths, env))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        vec![first]
+    };
+    let mut stated = Vec::new();
+    for bound in bound {
+        let tier = bound.identity.tier(match &bound.identity {
+            PackageIdentity::Signed(signed) => {
+                Some(crate::registry::tiers::stated_tier(signed, env, &paths))
+            }
+            PackageIdentity::Bundled { .. } | PackageIdentity::Project { .. } => None,
+        });
+        let LoadedPackage::Skill { skill, .. } = &bound.package else {
+            return Err(format!("{reference} is no skill"));
+        };
+        let method = bound
+            .methods
+            .iter()
+            .find(|declared| declared.bound)
+            .map(|declared| declared.name.as_str().to_owned())
+            .ok_or_else(|| format!("{reference} bound no method"))?;
+        let connectors = bound
+            .connectors
+            .iter()
+            .map(|binding| binding.connector.as_str().to_owned())
+            .collect::<Vec<_>>();
+        for closure in &bound.closures {
+            crate::registry::record_trust(
+                &paths,
+                &crate::registry::TrustRecord {
+                    closure_digest: closure.clone(),
+                    package: describe(&bound.package),
+                    tier,
+                },
+            )?;
+            stated.push(StatedTrust {
+                package: skill.as_str().to_owned(),
+                method: method.clone(),
+                closure_digest: closure.clone(),
+                connectors: connectors.clone(),
+                tier,
+            });
+        }
+    }
+    Ok(stated)
+}
+
 /// The connector `name` (or `name@version`) names: one the project holds,
 /// else the version the hosted registry publishes, added to the project.
 fn bind_connector(

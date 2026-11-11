@@ -187,6 +187,16 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &["-j, --json"],
     },
     CommandSpec {
+        name: "trust",
+        top_level_usage: &["runx trust <reference>[#method] [-j|--json]"],
+        usage: &["runx trust <reference>[#method] [-j|--json]"],
+        notes: &[
+            "You state your trust in a package ahead of any turn that loads it. It binds the package as a load would, with the method you name or each method it declares, and records each closure in your runx home as your approval of a load's trust would, so a later load of it binds at once. A changed package is another closure, and asks again.",
+            "Running it is the statement, so it asks nothing. It prints what it recorded: each closure, its method, the connectors it binds and the package's tier. It's refused inside a runx run, so an agent working in one can't state your trust, and no MCP tool offers it.",
+        ],
+        options: &["-j, --json"],
+    },
+    CommandSpec {
         name: "connector",
         top_level_usage: &["runx connector list|inspect|use|revoke|import-mcp ... [-j|--json]"],
         usage: &[

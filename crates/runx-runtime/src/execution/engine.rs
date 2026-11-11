@@ -50,6 +50,7 @@ pub(crate) use call_pool::CallPool;
 pub use call_stops::CallCancel;
 pub(crate) use call_stops::{CallStop, CallStops, CallWork};
 pub(crate) use receipt_budget::ReceiptTally;
+pub use step_handlers::{StatedTrust, state_trust};
 use steps::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
