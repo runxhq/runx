@@ -503,6 +503,28 @@ pub(crate) fn case_closure_connectors(
     closure::case_closure_connectors(Arc::new(loaded.clone()), target, env)
 }
 
+/// Each file the package's evals name, once, in the order they name them,
+/// with its digest and text. The parser holds each as text it validated.
+fn eval_files(
+    package: &runx_parser::ValidatedSkillPackage,
+) -> Vec<runx_contracts::package_evals::EvalFile> {
+    let mut seen = std::collections::BTreeSet::new();
+    package
+        .evals
+        .iter()
+        .flat_map(|eval| &eval.files)
+        .filter(|path| seen.insert(path.as_str()))
+        .filter_map(|path| {
+            let bytes = package.source.files.get(path.as_str())?;
+            Some(runx_contracts::package_evals::EvalFile {
+                path: path.clone(),
+                digest: runx_contracts::connector::Digest::of(bytes),
+                content: std::str::from_utf8(bytes).ok()?.to_owned(),
+            })
+        })
+        .collect()
+}
+
 fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, SkillInspectionError> {
     let package = &loaded.package;
     let manifest = loaded.manifest();
@@ -516,6 +538,7 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, Skill
         distribution_digest: None,
         eval_queries: package.eval_queries.clone(),
         evals: package.evals.clone(),
+        eval_files: eval_files(package),
         description: package.skill.description.clone(),
         version: manifest.and_then(|manifest| manifest.version.clone()),
         catalog: manifest
@@ -683,7 +706,8 @@ methods:
     }
 
     /// An inspection carries the package's eval queries and evals as the
-    /// parser validated them, so a reader never reads the files.
+    /// parser validated them, and each file an eval names, with its digest,
+    /// so a reader never reads the files.
     #[test]
     fn an_inspection_carries_the_packages_eval_queries_and_evals()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -697,8 +721,11 @@ methods:
             {"query": "What's the weather?", "should_trigger": false}
         ]);
         let evals = serde_json::json!([
-            {"id": 1, "prompt": "Digest proof.", "expected_output": "Its digest.", "expectations": ["It digests once."]}
+            {"id": 1, "prompt": "Digest proof.", "expected_output": "Its digest.", "files": ["evals/files/prior.json"], "expectations": ["It digests once."]}
         ]);
+        let prior = r#"{"value": "proof"}"#;
+        fs::create_dir_all(root.join("evals/files"))?;
+        fs::write(root.join("evals/files/prior.json"), prior)?;
         fs::write(root.join("eval_queries.json"), queries.to_string())?;
         fs::write(
             root.join("evals/evals.json"),
@@ -708,6 +735,14 @@ methods:
         let inspected = super::inspect_skill_package(&root, None, None)?;
         assert_eq!(serde_json::to_value(&inspected.eval_queries)?, queries);
         assert_eq!(serde_json::to_value(&inspected.evals)?, evals);
+        assert_eq!(
+            serde_json::to_value(&inspected.eval_files)?,
+            serde_json::json!([{
+                "path": "evals/files/prior.json",
+                "digest": runx_contracts::sha256_prefixed(prior.as_bytes()),
+                "content": prior,
+            }])
+        );
         Ok(())
     }
 

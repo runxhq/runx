@@ -134,6 +134,24 @@ fn validate_eval_files(
     if let Some(contents) = source.files.get(EVALS_FILE) {
         files.evals = validate_evals(text_file(EVALS_FILE, contents)?, skill)?;
         files.paths.insert(EVALS_FILE.to_owned());
+        // The files an eval names are the package's own, as text, and
+        // distribute with it.
+        for eval in &files.evals {
+            for path in &eval.files {
+                let path = path.as_str();
+                let Some(contents) = source.files.get(path) else {
+                    return Err(SkillPackageError::invalid(
+                        EVALS_FILE,
+                        format!(
+                            "eval {} names {path}, which the package doesn't hold",
+                            eval.id
+                        ),
+                    ));
+                };
+                text_file(path, contents)?;
+                files.paths.insert(path.to_owned());
+            }
+        }
     }
     if let Some(contents) = source.files.get(EVAL_QUERIES_FILE) {
         files.queries = validate_eval_queries(text_file(EVAL_QUERIES_FILE, contents)?)?;

@@ -34,6 +34,14 @@
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EnvironmentReadiness",
       "description": "The environment the method reads, by name and availability, never by value."
     },
+    "eval_files": {
+      "description": "Each file its evals name, with its digest and text: what an attempt at an eval is given to work from.",
+      "items": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalFile"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
     "eval_queries": {
       "description": "The queries a host should or shouldn't select the package for, from its `eval_queries.json`, as the parser validated them.",
       "items": {

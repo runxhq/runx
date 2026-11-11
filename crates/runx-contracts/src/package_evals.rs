@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::connector::Digest;
 use crate::schema::{NonEmptyString, RunxSchema};
 
 /// One query of `eval_queries.json`.
@@ -47,4 +48,17 @@ pub struct PackageEval {
     /// The package's method the eval is of, when it names one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<NonEmptyString>,
+}
+
+/// A file an eval names, as the package holds it: what an attempt at the
+/// eval is given to work from, such as the prior run it builds on.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvalFile {
+    /// Its path in the package, as the eval names it.
+    pub path: NonEmptyString,
+    /// The digest of its bytes.
+    pub digest: Digest,
+    /// Its text.
+    pub content: String,
 }

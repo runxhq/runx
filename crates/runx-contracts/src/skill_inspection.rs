@@ -49,6 +49,10 @@ pub struct SkillInspection {
     /// Its evals, from its `evals/evals.json`, as the parser validated them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evals: Vec<crate::package_evals::PackageEval>,
+    /// Each file its evals name, with its digest and text: what an attempt
+    /// at an eval is given to work from.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub eval_files: Vec<crate::package_evals::EvalFile>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

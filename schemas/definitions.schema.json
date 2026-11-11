@@ -2252,6 +2252,34 @@
       "title": "EvalEvidenceSchema",
       "type": "string"
     },
+    "EvalFile": {
+      "additionalProperties": false,
+      "description": "A file an eval names, as the package holds it: what an attempt at the eval is given to work from, such as the prior run it builds on.",
+      "properties": {
+        "content": {
+          "description": "Its text.",
+          "type": "string"
+        },
+        "digest": {
+          "description": "The digest of its bytes.",
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Its path in the package, as the eval names it.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "digest",
+        "content"
+      ],
+      "title": "EvalFile",
+      "type": "object"
+    },
     "EvalQuery": {
       "additionalProperties": false,
       "description": "One query of `eval_queries.json`.",

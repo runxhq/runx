@@ -3514,6 +3514,34 @@ export const runxSchemaArtifacts = {
         "title": "EvalEvidenceSchema",
         "type": "string"
       },
+      "EvalFile": {
+        "additionalProperties": false,
+        "description": "A file an eval names, as the package holds it: what an attempt at the eval is given to work from, such as the prior run it builds on.",
+        "properties": {
+          "content": {
+            "description": "Its text.",
+            "type": "string"
+          },
+          "digest": {
+            "description": "The digest of its bytes.",
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "path": {
+            "description": "Its path in the package, as the eval names it.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "digest",
+          "content"
+        ],
+        "title": "EvalFile",
+        "type": "object"
+      },
       "EvalQuery": {
         "additionalProperties": false,
         "description": "One query of `eval_queries.json`.",
@@ -14569,6 +14597,14 @@ export const runxSchemaArtifacts = {
       "environment": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EnvironmentReadiness",
         "description": "The environment the method reads, by name and availability, never by value."
+      },
+      "eval_files": {
+        "description": "Each file its evals name, with its digest and text: what an attempt at an eval is given to work from.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/EvalFile"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "eval_queries": {
         "description": "The queries a host should or shouldn't select the package for, from its `eval_queries.json`, as the parser validated them.",

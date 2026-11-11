@@ -948,6 +948,16 @@ export type EvalEvidenceKindContract = "selection" | "evals";
 
 export type EvalEvidenceSchemaContract = "runx.eval_evidence.v1";
 
+/** A file an eval names, as the package holds it: what an attempt at the eval is given to work from, such as the prior run it builds on. */
+export type EvalFileContract = {
+  /** Its text. */
+  readonly content: string;
+  /** The digest of its bytes. */
+  readonly digest: string;
+  /** Its path in the package, as the eval names it. */
+  readonly path: string;
+};
+
 /** One query of `eval_queries.json`. */
 export type EvalQueryContract = {
   /** A request, as a person would make it. */
@@ -3312,6 +3322,8 @@ export type SkillInspectionContract = {
   };
   /** The environment the method reads, by name and availability, never by value. */
   readonly environment?: EnvironmentReadinessContract;
+  /** Each file its evals name, with its digest and text: what an attempt at an eval is given to work from. */
+  readonly eval_files?: readonly EvalFileContract[];
   /** The queries a host should or shouldn't select the package for, from its `eval_queries.json`, as the parser validated them. */
   readonly eval_queries?: readonly EvalQueryContract[];
   /** Its evals, from its `evals/evals.json`, as the parser validated them. */

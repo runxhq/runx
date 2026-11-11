@@ -442,6 +442,33 @@ fn evals_json_states_the_packages_evals_under_its_name() {
     }
 }
 
+/// A file an eval names is the package's own: it must be there, as text,
+/// and it is part of what the package distributes.
+#[test]
+fn an_evals_files_are_the_packages_own() {
+    let evals = r#"{"skill_name": "triggered", "evals": [
+        {"id": 1, "prompt": "Build on the prior run.", "expected_output": "It reuses it.", "files": ["evals/files/prior.json"]}
+    ]}"#;
+    let validated = validate_skill_package(package([
+        ("SKILL.md", manual("triggered")),
+        ("evals/evals.json", evals.to_owned()),
+        ("evals/files/prior.json", r#"{"query": "proof"}"#.to_owned()),
+    ]))
+    .expect("an eval with its file validates");
+    assert!(validated.consumed_files.contains("evals/files/prior.json"));
+
+    let error = validate_skill_package(package([
+        ("SKILL.md", manual("triggered")),
+        ("evals/evals.json", evals.to_owned()),
+    ]))
+    .expect_err("an eval naming a file the package lacks is refused")
+    .to_string();
+    assert_eq!(
+        error,
+        "evals/evals.json: eval 1 names evals/files/prior.json, which the package doesn't hold"
+    );
+}
+
 #[test]
 fn skill_package_qualifies_nested_package_errors() {
     let source = package([
