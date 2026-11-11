@@ -34,7 +34,7 @@ providers:
         method: POST
         url: https://api.stripe.com/v1/payment_intents
         body:
-          text: amount=150&automatic_payment_methods%5Ballow_redirects%5D=never&automatic_payment_methods%5Benabled%5D=true&confirm=true&currency=usd&metadata%5Brunx_effect_key%5D=runx%3Asha256%3A3e5ae372499e1e9d01050130513e924e8c67a8ae3777e65d4bd9358a3716640d&metadata%5Brunx_reference%5D=invoice-42&payment_method=pm_northstar
+          text: amount=150&automatic_payment_methods%5Ballow_redirects%5D=never&automatic_payment_methods%5Benabled%5D=true&confirm=true&currency=usd&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Adaa03d9d32413fe041fefb38bc39fd120ae3b16c869541f2fd2c3821111a2a86&metadata%5Brunx_reference%5D=invoice-42&payment_method=pm_northstar
       response:
         status: 200
         headers:

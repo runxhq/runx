@@ -344,7 +344,12 @@ impl Authorized {
         &self.target
     }
 
-    /// The digest of the call's intent, which its provider key derives from.
+    /// The exact intent this call was authorized as.
+    pub(crate) fn intent(&self) -> &OperationIntent {
+        &self.intent
+    }
+
+    /// The digest of the authorized intent.
     pub(crate) fn intent_digest(&self) -> &Digest {
         &self.intent_digest
     }

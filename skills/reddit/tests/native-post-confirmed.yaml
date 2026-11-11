@@ -33,7 +33,7 @@ providers:
         account: example_builder
         profile: reddit-builder
       phase: perform
-      idempotency_key: runx:sha256:285b4b0accb8dc7496eeb51efb05798eb6e0abc05f3edcfd73baa68e4f9fd3fd
+      idempotency_key: runx:sha256:4205c9fdc9b3caac2d216e0a80588d64ff40c02df658f69ccf283c07a3ac7dca
       title: How do you trace a request across services?
     result:
       account_id: example_builder
@@ -54,7 +54,7 @@ providers:
         account: example_builder
         profile: reddit-builder
       phase: readback
-      idempotency_key: runx:sha256:285b4b0accb8dc7496eeb51efb05798eb6e0abc05f3edcfd73baa68e4f9fd3fd
+      idempotency_key: runx:sha256:4205c9fdc9b3caac2d216e0a80588d64ff40c02df658f69ccf283c07a3ac7dca
       title: How do you trace a request across services?
       acknowledgement:
         account_id: example_builder

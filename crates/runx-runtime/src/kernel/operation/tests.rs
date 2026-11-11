@@ -2247,6 +2247,43 @@ fn a_persons_retry_of_an_unknown_write_sends_it_again_under_its_key() {
     assert_eq!(packet(&outcome).get("already_done"), None);
 }
 
+/// A key means one intent (D34): the same act, under its caller's request
+/// key, reaches its provider under one key from any workspace and whatever
+/// was revised, so a provider that deduplicates catches a second workspace
+/// too. Another request key is another act, under another key.
+#[test]
+fn the_same_request_key_reaches_the_provider_under_one_key_from_any_workspace() {
+    let sent_key = |fixture: &Fixture| {
+        serde_json::to_value(fixture.provider.calls.lock().unwrap().clone()).unwrap()[0]
+            ["input"]["idempotency_key"]
+            .clone()
+    };
+    let first = Fixture::new(&["channel.post"]);
+    first
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect("posts");
+    let second = Fixture::new(&["channel.post"]);
+    second
+        .run(
+            "post",
+            &post("a revised hi"),
+            Some(ResolutionResponseActor::Human),
+        )
+        .expect("posts");
+    assert!(sent_key(&first).is_string());
+    assert_eq!(sent_key(&first), sent_key(&second));
+    let other = Fixture::new(&["channel.post"]);
+    let mut keyed = post("hi");
+    keyed.insert(
+        "idempotency_key".to_owned(),
+        JsonValue::String("post-2".to_owned()),
+    );
+    other
+        .run("post", &keyed, Some(ResolutionResponseActor::Human))
+        .expect("posts");
+    assert_ne!(sent_key(&first), sent_key(&other));
+}
+
 /// An unsettled attempt of another intent under the same key holds a call:
 /// it waits on its retry, nothing sent, while that attempt stands unsettled,
 /// with nobody asked as with a person's retry. A person's retry of an attempt

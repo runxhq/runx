@@ -345,7 +345,11 @@ the host receives its answer, even while the turn stays open.
 A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses, and a key means one
-intent: a write under a key whose act is already done sends nothing, and
+intent. Its provider key combines the caller's key with the connector,
+operation and target, so revisions of the payload and calls from another
+workspace reach the provider under the same key. A provider that deduplicates
+can therefore catch a second workspace's attempt too. A write under a key
+whose act is already done sends nothing, and
 returns what was done, its packet's `already_done` naming the receipt that
 sealed the act and the `plan_digest` it was done with, which may not be the
 plan the later call carries. That recorded result is returned only under the

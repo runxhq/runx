@@ -42,7 +42,7 @@ providers:
         method: POST
         url: https://api.stripe.com/v1/refunds
         body:
-          text: amount=100&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Ad692ee5e0e032de2f25121b3e3c7343c9df3a5332a761ca921706c4c0b6c341f&payment_intent=pi_northstar
+          text: amount=100&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Afe2e369c51652e005cf7af4f3d3ac778e2c5cddcbeb24f9ed09ead2965da2121&payment_intent=pi_northstar
       response:
         status: 200
         headers:

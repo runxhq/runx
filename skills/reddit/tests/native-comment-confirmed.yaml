@@ -33,7 +33,7 @@ providers:
         account: example_builder
         profile: reddit-builder
       phase: perform
-      idempotency_key: runx:sha256:e5de9985582957de62fa5d34585c19b5ecb23dca906515c34b506bad76a4c06f
+      idempotency_key: runx:sha256:55353d2b20a7c1aee23f42fa7205f7d9cac024cf7ea1b34c258fe164fbaf9b86
     result:
       account_id: example_builder
       profile: reddit-builder
@@ -53,7 +53,7 @@ providers:
         account: example_builder
         profile: reddit-builder
       phase: readback
-      idempotency_key: runx:sha256:e5de9985582957de62fa5d34585c19b5ecb23dca906515c34b506bad76a4c06f
+      idempotency_key: runx:sha256:55353d2b20a7c1aee23f42fa7205f7d9cac024cf7ea1b34c258fe164fbaf9b86
       acknowledgement:
         account_id: example_builder
         profile: reddit-builder

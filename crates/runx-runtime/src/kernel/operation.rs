@@ -589,24 +589,13 @@ impl OperationAdmission {
         })
     }
 
-    /// The key the provider sees, stable for the intent.
+    /// The provider's key, shared by every revision of this requested act.
     fn provider_key(&self) -> Option<String> {
-        self.keyed_by(self.admitted.intent_digest().as_str())
-    }
-
-    /// The key the provider saw for the act: this call's, or the one an act
-    /// its key had already done was sent with.
-    fn act_provider_key(&self) -> Option<String> {
-        match &self.admitted.done {
-            Some(done) => self.keyed_by(&done.intent_digest),
-            None => self.provider_key(),
-        }
-    }
-
-    /// The provider's key for the intent `intent_digest`, when the provider
-    /// sees one.
-    fn keyed_by(&self, intent_digest: &str) -> Option<String> {
-        provider_key(self.admitted.operation(), intent_digest)
+        provider_key(
+            self.admitted.operation(),
+            self.admitted.intent(),
+            self.admitted.intent_digest().as_str(),
+        )
     }
 
     /// Whether a request that may have reached the provider can be sent
@@ -850,7 +839,11 @@ impl RuntimeEffect for OperationEffect {
             }
         }
         let arguments = JsonValue::Object(call.inputs.clone());
-        let provider_key = provider_key(operation, authorized.intent_digest().as_str());
+        let provider_key = provider_key(
+            operation,
+            authorized.intent(),
+            authorized.intent_digest().as_str(),
+        );
         let made = AdmittedCall {
             connector: authorized.connector().manifest.name.as_str(),
             operation: authorized.operation_name().as_str(),
@@ -1019,7 +1012,7 @@ impl RuntimeEffect for OperationEffect {
         let intent_digest = context.admitted.intent_digest().as_str();
         if field("finality") != Some(context.admitted.operation().finality())
             || field("plan_digest") != Some(intent_digest)
-            || field("idempotency_key").map(str::to_owned) != context.act_provider_key()
+            || field("idempotency_key").map(str::to_owned) != context.provider_key()
         {
             return Err(state("the packet does not match the admitted intent"));
         }
@@ -2896,18 +2889,34 @@ fn human(
     }
 }
 
-/// The key a call of `operation` with intent `intent_digest` gives its
-/// provider: a write's, and a read's whose provider deduplicates by it.
-fn provider_key(operation: &ConnectorOperation, intent_digest: &str) -> Option<String> {
+/// A caller's key names one act, scoped to its connector, operation and
+/// target, from every run and workspace, independent of a revised payload.
+/// An unkeyed read whose provider deduplicates uses its exact intent instead.
+fn provider_key(
+    operation: &ConnectorOperation,
+    intent: &runx_contracts::OperationIntent,
+    intent_digest: &str,
+) -> Option<String> {
     (operation.access() == OperationAccess::Mutate
         || operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced)
-        .then(|| idempotency_key(intent_digest, operation.idempotency_key_format))
+        .then(|| {
+            let basis = match &intent.request_key_digest {
+                Some(request_key) => runx_contracts::sha256_prefixed(
+                    format!(
+                        "provider-key\0{}\0{}\0{}\0{request_key}",
+                        intent.connector, intent.operation, intent.target
+                    )
+                    .as_bytes(),
+                ),
+                None => intent_digest.to_owned(),
+            };
+            idempotency_key(&basis, operation.idempotency_key_format)
+        })
 }
 
-/// `runx:<intent digest>`, or a UUID derived from it where the provider
-/// requires one.
-fn idempotency_key(intent_digest: &str, format: IdempotencyKeyFormat) -> String {
-    match (format, intent_digest.strip_prefix("sha256:")) {
+/// `runx:<basis>`, or a UUID derived from that digest when required.
+fn idempotency_key(basis: &str, format: IdempotencyKeyFormat) -> String {
+    match (format, basis.strip_prefix("sha256:")) {
         (IdempotencyKeyFormat::Uuid, Some(hex)) if hex.len() == 64 => format!(
             "{}-{}-4{}-8{}-{}",
             &hex[..8],
@@ -2916,7 +2925,7 @@ fn idempotency_key(intent_digest: &str, format: IdempotencyKeyFormat) -> String 
             &hex[17..20],
             &hex[20..32]
         ),
-        _ => format!("runx:{intent_digest}"),
+        _ => format!("runx:{basis}"),
     }
 }
 

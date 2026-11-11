@@ -39,7 +39,7 @@ providers:
             intent: CAPTURE
             purchase_units:
               - reference_id: invoice-42
-                custom_id: 464d26cc-c594-40a0-8f36-e23d87ab4a89
+                custom_id: a4f89c63-43c8-4618-8bd5-92d399b5f33a
                 payee:
                   merchant_id: YXZY75W2GKDQE
                 amount:
