@@ -2,7 +2,7 @@ import { byHost, childRuns, readRecord, started, turnOf, within } from "./record
 import { released } from "./released.mjs";
 
 // A package's evals, run and judged. Each eval is worked by fresh turns of the
-// agent skill's write method, one child run each, under this run's authority,
+// bounded attempt method, one child run each, under this run's authority,
 // so a run under `effects: none` writes nothing at any depth. Each attempt is
 // then judged by `.#grade` against the eval's criteria set, made by a
 // deterministic step from what the eval expects, and its verdict is decided
@@ -11,7 +11,7 @@ import { released } from "./released.mjs";
 // refused verdict answers nothing.
 
 const DEFAULT_REPEATS = 1;
-const HOST = "../agent#write";
+const HOST = ".#attempt";
 const OUTPUT_PAGE_BYTES = 16_000;
 
 export default async function evals(ctx, { subject, repeats, eval_ids }) {
@@ -43,7 +43,12 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
   for (const kase of cases) {
     for (let attempt = 0; attempt < runs; attempt += 1) {
       const settled = await settle(
-        ctx.skill(HOST, { act: { purpose: `${kase.entry.prompt} Use ${judged.ref}${kase.entry.method ? `#${kase.entry.method}` : ""} for this task.` } }, {
+        ctx.skill(HOST, {
+          skill: judged.ref,
+          method: kase.entry.method,
+          request: kase.entry.prompt,
+          act: { purpose: `Exercise ${judged.ref}${kase.entry.method ? `#${kase.entry.method}` : ""} for eval ${kase.entry.id}.` },
+        }, {
           context: given(kase.entry, subject.inspect.eval_files ?? []),
         }),
       );

@@ -108,10 +108,11 @@ description is what's measured.
 
 `evals` runs each of the package's evals, `repeats` times (once when absent).
 Supply `eval_ids` to run only those exact declared cases; unknown IDs are refused.
-Each attempt runs
-in a fresh turn of the `agent` skill's `write` method under this run's
-authority. Its task names the measured package and the eval's method, when
-declared; selection across the catalog belongs to `triggers`. Each file an eval names, such as the prior run it builds on, is
+Each attempt runs in a fresh `attempt` turn under this run's authority. It
+receives the exact measured package, optional method and caller request. It
+offers loading and calling that subject, with no general file or search tools
+that could perform the task in its place. Selection across the catalog belongs
+to `triggers`. Each file an eval names, such as the prior run it builds on, is
 given to its attempt as a context entry, which its turn reads by locator. No eval writes to the world: a scripted model's run uses provider
 fixtures, and a real model's runs under `effects: none`, with its reads live
 and recorded as live, so a write is refused at any depth.
@@ -190,6 +191,17 @@ missing. Copy native evidence identifiers rather than inventing them. Do not use
 `adopt_with_caveats` to hide a missing advertised core capability. A useful local
 draft or analysis may be a complete job without a provider write, but its value
 must be visible in the artifact and caller journey.
+
+## Agent task: attempt
+
+Exercise the package named by input `skill`. Load that exact reference and the
+input `method` when present, or its default method otherwise. Read its manual
+and input contract, then call the selected method to perform input `request`.
+Use the supplied context as evidence and preserve it for the subject's call;
+set that call's act purpose to the request. Do not perform the subject's work
+yourself or substitute another skill. End with a summary of the actual call's
+result. If the call is refused or cannot be constructed, report that precisely;
+a summary without the measured call cannot pass the evaluation.
 
 ## Agent task: grade
 

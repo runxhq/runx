@@ -344,7 +344,7 @@ methods:
         outputs:
           evidence: {packet: runx.eval_evidence.v1}
   evals:
-    description: Run a package's evals, each worked by a fresh turn of the agent skill's write method under the run's authority, and judge each attempt with a verdict the run decides by the one rule.
+    description: Run a package's evals, each worked by a fresh bounded attempt that calls the measured subject under the run's authority, and judge each attempt from its native evidence.
     inputs:
       skill:
         type: string
@@ -377,11 +377,37 @@ methods:
           repeats: $input.repeats
           eval_ids: $input.eval_ids
         calls:
-          skills: [../agent#write, .#grade]
+          skills: [.#attempt, .#grade]
           tools: [run.read, verdict.criteria, verdict.decide, artifact.open, artifact.read]
         max_calls: 900
         outputs:
           evidence: {packet: runx.eval_evidence.v1}
+  attempt:
+    description: Load and call the measured package for one functional evaluation, using its supplied request and context.
+    inputs:
+      skill:
+        type: string
+        pattern: ^[^/@\s]+/[^/@\s]+@[^@\s]+$
+        description: Exact registry reference of the measured package.
+      method:
+        type: string
+        optional: true
+        description: Exact measured method; use the package default when absent.
+      request:
+        type: string
+        minLength: 1
+        description: The caller request the measured method must perform.
+    steps:
+      - id: attempt
+        agent: attempt
+        calls:
+          load: [{catalog: {trust: verified}}]
+          ask: true
+        inputs: $input
+        outputs:
+          summary:
+            type: string
+            description: The measured call's actual result or the reason it could not run.
   grade:
     description: Judge one eval attempt against its criteria set, from the attempt's record, and return a verdict whose evaluator the runtime names.
     inputs:

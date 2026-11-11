@@ -422,16 +422,25 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
                         .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
                 }
             }
-            // The attempt's turn: the write eval tries to write, and every
-            // other one finishes.
-            if marker == "Write" && !sent.contains("call-write") {
-                return tool_call(
-                    "call-write",
-                    "fs_write",
-                    &json!({"path": "written.txt", "contents": "proof", "create": true}),
+            // Functional callers cannot do the subject's job with general
+            // tools. Only the measured loaded method performs that work.
+            if request["tools"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|tool| {
+                    matches!(
+                        tool["function"]["name"].as_str(),
+                        Some("fs_write" | "fs_read" | "registry_search")
+                    )
+                })
+            {
+                return complete(
+                    json!({"summary": "The evaluation caller incorrectly offers general task tools."}),
                 );
             }
-            if marker == "Meets" && !sent.contains("Use acme/subject@1.0.0#digest for this task.") {
+            if marker == "Meets" && !sent.contains("Exercise acme/subject@1.0.0#digest for eval 1.")
+            {
                 return complete(json!({"summary": "No measured method was supplied."}));
             }
             if marker == "Uncalled" {
@@ -636,28 +645,7 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
             .is_some_and(|run| run.starts_with(run_id) && run != run_id),
         "{evaluator}"
     );
-    // The write eval's attempt wrote nothing: the run's authority refuses
-    // every write, at any depth.
+    // The attempt has no independent write capability.
     assert!(!written.exists(), "an eval writes nothing to the world");
-    let mut env = BTreeMap::from([("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned())]);
-    env.insert(
-        "RUNX_HOME".to_owned(),
-        root.join(".home").to_string_lossy().into_owned(),
-    );
-    let read = serde_json::to_value(runx_runtime::run_record::read_run(
-        &env, root, run_id, None,
-    )?)?;
-    assert!(
-        read["events"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .any(|record| {
-                record["event"]["kind"] == "call"
-                    && record["event"]["target"]["tool"] == "fs.write"
-                    && record["event"]["outcome"]["status"] == "refused"
-            }),
-        "{read}"
-    );
     Ok(())
 }
