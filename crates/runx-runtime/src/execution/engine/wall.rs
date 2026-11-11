@@ -4,6 +4,8 @@
 //! that changes something, a script's own listed calls, and the same in the
 //! closure of each method a step lists. A run that reaches one is refused as
 //! it starts, so it runs no step at all.
+//! Conditional steps and the methods behind them are not certain; the
+//! selected step's admission decides them after its condition is resolved.
 //!
 //! A change is an operation that writes, a core tool that changes the
 //! workspace or runs a command, and a tool that runs a command. A read a
@@ -15,7 +17,7 @@
 //! `none` (`floor.rs`). So is an append to `private`'s events, which keeps the
 //! person's own words only when the call's stream is theirs (D22).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -45,9 +47,12 @@ where
         runtime,
         scopes: BTreeMap::new(),
         vouched: BTreeMap::new(),
+        visited: BTreeSet::new(),
     };
     for step in &workflow.steps {
-        if crate::kernel::authority::step_effects(authority, step) != Effects::None {
+        if step.when.is_some()
+            || crate::kernel::authority::step_effects(authority, step) != Effects::None
+        {
             continue;
         }
         let mut found = Vec::new();
@@ -56,10 +61,47 @@ where
             wall.listed(workflow_dir, &listed, &mut found)?;
         }
         if !found.is_empty() {
-            return Ok(Some(refused(step, found)));
+            return Ok(Some(refused(step, found, "before the run starts")));
         }
     }
     Ok(None)
+}
+
+/// D33 at an actually selected operation step. A conditional process read was
+/// not certain at the run's start; it still needs a vouched-for connector
+/// before any process runs. The floor already owns writes and local tools.
+pub(super) fn process_read_refusal<A>(
+    runtime: &Runtime<A>,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
+    inputs: &runx_contracts::JsonObject,
+) -> Result<Option<RuntimeError>, RuntimeError> {
+    let StepKind::Operation(target) = &step.kind else {
+        return Ok(None);
+    };
+    let Some((connector, name)) = crate::kernel::operation::operation_process_read(
+        target,
+        inputs,
+        &runtime.options.env,
+        workflow_dir,
+    ) else {
+        return Ok(None);
+    };
+    let mut wall = Wall {
+        runtime,
+        scopes: BTreeMap::new(),
+        vouched: BTreeMap::new(),
+        visited: BTreeSet::new(),
+    };
+    let mut found = Vec::new();
+    wall.operation(
+        workflow_dir,
+        &connector,
+        name.as_str(),
+        &format!("step {}", step.id),
+        &mut found,
+    )?;
+    Ok((!found.is_empty()).then(|| refused(step, found, "before the step runs")))
 }
 
 /// One change a step under `none` would make, and where.
@@ -71,7 +113,7 @@ struct Change {
 }
 
 /// The run's refusal for `found`, beneath `step`.
-fn refused(step: &WorkflowStep, found: Vec<Change>) -> RuntimeError {
+fn refused(step: &WorkflowStep, found: Vec<Change>, boundary: &str) -> RuntimeError {
     let mut unique = Vec::new();
     for change in found {
         if !unique.contains(&change) {
@@ -96,7 +138,7 @@ fn refused(step: &WorkflowStep, found: Vec<Change>) -> RuntimeError {
         verb,
         step_id: step.id.clone(),
         reason: format!(
-            "the run's effects are none, so it changes nothing: {what}{} refused before the run starts",
+            "the run's effects are none, so it changes nothing: {what}{} refused {boundary}",
             if found.len() == 1 {
                 ", is"
             } else {
@@ -114,12 +156,11 @@ struct Wall<'a, A> {
     /// Whether each connector a process carries out a read for is verified
     /// or trusted, by its implementation's digest.
     vouched: BTreeMap<String, bool>,
+    /// Only unconditional method edges are followed; cycles are visited once.
+    visited: BTreeSet<(std::path::PathBuf, String)>,
 }
 
-impl<A> Wall<'_, A>
-where
-    A: SkillAdapter,
-{
+impl<A> Wall<'_, A> {
     fn env(&self) -> &BTreeMap<String, String> {
         &self.runtime.options.env
     }
@@ -156,28 +197,24 @@ where
                         .unwrap_or_else(|| "default".to_owned()),
                 })?;
         let method =
-            crate::execution::workflow::select_step_method(manifest, target.method.as_deref())?
-                .name
-                .clone();
-        let methods = crate::skill_package::reached_methods(package, &method, self.env()).map_err(
-            |error| match error {
-                crate::skill_package::SkillInspectionError::Runtime(error) => *error,
-                other => RuntimeError::effect_state(
-                    "walking a listed method's closure",
-                    other.to_string(),
-                ),
-            },
-        )?;
-        for (package, method) in methods {
-            let Some(definition) = package
-                .manifest()
-                .and_then(|manifest| manifest.methods.get(&method))
-            else {
+            crate::execution::workflow::select_step_method(manifest, target.method.as_deref())?;
+        if !self
+            .visited
+            .insert((package.directory.clone(), method.name.clone()))
+        {
+            return Ok(());
+        }
+        for step in &method.workflow.steps {
+            if step.when.is_some() {
                 continue;
-            };
-            for step in &definition.workflow.steps {
-                let at = format!("{}#{method}'s step {}", package.package.skill.name, step.id);
-                self.step(&package.directory, step, &at, found)?;
+            }
+            let at = format!(
+                "{}#{}'s step {}",
+                package.package.skill.name, method.name, step.id
+            );
+            self.step(&package.directory, step, &at, found)?;
+            for listed in crate::execution::workflow::child_skill_steps(step) {
+                self.listed(&package.directory, &listed, found)?;
             }
         }
         Ok(())

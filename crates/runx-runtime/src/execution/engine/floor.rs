@@ -159,6 +159,12 @@ pub(super) fn hold<A>(
     if effects == Effects::Allow {
         return Ok(Admitted::Free);
     }
+    if effects == Effects::None
+        && let Some(refusal) =
+            super::wall::process_read_refusal(runtime, workflow_dir, step, inputs)?
+    {
+        return Err(refusal);
+    }
     let Some(change) = change(runtime, workflow_dir, step, inputs, effects)? else {
         return Ok(Admitted::Free);
     };

@@ -360,6 +360,24 @@ pub(crate) fn operation_reads(
         })
 }
 
+/// The selected read a process carries out, if any. Resolve the call through
+/// the same requirement as admission, rather than every operation it allows.
+pub(crate) fn operation_process_read(
+    target: &runx_parser::OperationStepTarget,
+    inputs: &JsonObject,
+    env: &BTreeMap<String, String>,
+    workflow_dir: &Path,
+) -> Option<(
+    Arc<crate::kernel::connectors::LoadedConnector>,
+    runx_contracts::connector::OperationName,
+)> {
+    let declared = Declared::of(target, inputs, env, workflow_dir)?;
+    let operation = declared.operation()?;
+    (operation.access() == OperationAccess::Read
+        && run_by_a_process(&declared.connector.manifest, operation))
+    .then_some((declared.connector, declared.name))
+}
+
 /// Whether `operation` is always kept in custody: a mutation, or a call with
 /// a price. Its attempt is recorded durably before it reaches the provider,
 /// with what it reserves of the run's limit.

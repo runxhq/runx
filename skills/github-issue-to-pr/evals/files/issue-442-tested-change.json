@@ -1,5 +1,5 @@
 {
-  "about": "Issue 442 as a prior read captured it, and the host work that completed a routine fix for it, under the repository own checks rather than scafld.",
+  "about": "Non-live template of completed ordinary issue work. The native operator journey supplies an actual isolated Git commit and checkout and exercises resume under effects:none. It checks clean work succeeds, dirty work is blocked, publication stays unrequested, and no governance verifier is invoked. This context file itself establishes none of that checkout state.",
   "issue_evidence": {
     "schema": "runx/github-issue-to-pr.issue_evidence.v1",
     "repository": "runxhq/runx",

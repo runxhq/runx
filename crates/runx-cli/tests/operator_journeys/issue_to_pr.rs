@@ -11,6 +11,15 @@ use super::{TestResult, assert_json, output_with_stdin};
 
 #[test]
 fn completed_issue_work_checks_the_real_checkout_before_its_required_verifier() -> TestResult {
+    resume_issue_case("issue-442-finalized-work.json", true)
+}
+
+#[test]
+fn ordinary_issue_work_checks_the_real_checkout_without_a_governance_gate() -> TestResult {
+    resume_issue_case("issue-442-tested-change.json", false)
+}
+
+fn resume_issue_case(source: &str, requires_verifier: bool) -> TestResult {
     let root = crate::support::temp_root("runx-issue-composed-real-checkout");
     let checkout = root.join("checkout");
     let home = root.join("home");
@@ -83,7 +92,8 @@ printf '%s\n' '{"ok":true,"command":"verify"}'
     fs::set_permissions(&verifier, fs::Permissions::from_mode(0o755))?;
     let repo = crate::support::repo_root()?;
     let mut input: Value = serde_json::from_str(&fs::read_to_string(
-        repo.join("skills/github-issue-to-pr/evals/files/issue-442-finalized-work.json"),
+        repo.join("skills/github-issue-to-pr/evals/files")
+            .join(source),
     )?)?;
     input
         .as_object_mut()
@@ -94,8 +104,10 @@ printf '%s\n' '{"ok":true,"command":"verify"}'
     input["host_result"]["tests"] = json!([{
         "command": "git diff --cached --check", "status": "passed", "evidence": "host:fixture-check"
     }]);
-    input["host_result"]["governance"]["receipt_path"] = json!(".scafld/receipts/fixture.json");
-    let run = || -> TestResult<Value> {
+    if requires_verifier {
+        input["host_result"]["governance"]["receipt_path"] = json!(".scafld/receipts/fixture.json");
+    }
+    let run = |read_only: bool| -> TestResult<Value> {
         let mut command = super::command(&checkout);
         command
             .env("RUNX_HOME", &home)
@@ -113,28 +125,59 @@ printf '%s\n' '{"ok":true,"command":"verify"}'
             .arg("--inputs")
             .arg("-")
             .arg("--json");
-        assert_json(&output_with_stdin(&mut command, &input.to_string())?, 0)
+        if read_only {
+            command.arg("--run-authority").arg("{\"effects\":\"none\"}");
+        }
+        assert_json(
+            &output_with_stdin(&mut command, &input.to_string())?,
+            i32::from(requires_verifier && read_only),
+        )
     };
-    let complete = run()?;
+    let complete = run(!requires_verifier)?;
     let result = &complete["result"]["issue_to_pr_result"];
     assert_eq!(result["status"], "completed", "{complete}");
     assert_eq!(result["commit"], head);
     assert_eq!(result["publication"]["status"], "not_requested");
-    assert_eq!(result["governance"]["status"], "verified");
     assert_eq!(
-        fs::read_to_string(checkout.join(".scafld/verifier-calls"))?,
-        format!("{head}\n")
+        result["governance"]["status"],
+        if requires_verifier {
+            "verified"
+        } else {
+            "not_required"
+        }
     );
+    let assert_verifier = || -> TestResult {
+        let calls = checkout.join(".scafld/verifier-calls");
+        if requires_verifier {
+            assert_eq!(fs::read_to_string(calls)?, format!("{head}\n"));
+        } else {
+            assert!(
+                !calls.exists(),
+                "ordinary repository work never invokes the verifier"
+            );
+        }
+        Ok(())
+    };
+    assert_verifier()?;
+    if requires_verifier {
+        let denied = run(true)?;
+        assert!(
+            denied.to_string().contains("before the step runs"),
+            "{denied}"
+        );
+        assert!(
+            denied.to_string().contains("neither verified nor trusted"),
+            "{denied}"
+        );
+        assert_verifier()?;
+    }
     fs::write(checkout.join("README.md"), "An uncommitted change.\n")?;
-    let dirty = run()?;
+    let dirty = run(!requires_verifier)?;
     assert_eq!(
         dirty["result"]["issue_to_pr_result"]["status"], "blocked",
         "{dirty}"
     );
-    assert_eq!(
-        fs::read_to_string(checkout.join(".scafld/verifier-calls"))?,
-        format!("{head}\n")
-    );
+    assert_verifier()?;
     fs::remove_dir_all(&root)?;
     Ok(())
 }

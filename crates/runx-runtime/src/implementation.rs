@@ -46,7 +46,8 @@ pub(crate) struct Start {
 ///
 /// A child of a step already under `none` (`under_none`) isn't checked for
 /// what it would change: its run's start checked it with that step's
-/// closure, or it's the step's agent's choice, which admission decides.
+/// unconditional closure. Conditional steps and an agent's choices are
+/// decided by their own admission when selected.
 pub(crate) fn start<A>(
     runtime: &crate::Runtime<A>,
     workflow_dir: &std::path::Path,
