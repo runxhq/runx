@@ -153,13 +153,23 @@ pub fn call_input_schema(
                 continue;
             }
             if let Some(packet) = properties.remove(name) {
-                properties.insert(
-                    name.clone(),
-                    JsonValue::Object(JsonObject::from([(
-                        "anyOf".to_owned(),
-                        JsonValue::Array(vec![packet, reference.clone()]),
-                    )])),
-                );
+                let common_type = packet
+                    .as_object()
+                    .and_then(|schema| schema.get("type"))
+                    .filter(|kind| {
+                        reference.as_object().and_then(|schema| schema.get("type")) == Some(*kind)
+                    })
+                    .cloned();
+                let mut accepted = JsonObject::from([(
+                    "anyOf".to_owned(),
+                    JsonValue::Array(vec![packet, reference.clone()]),
+                )]);
+                // Preserve a type shared by both alternatives. Tool transports
+                // can then decode an object without resolving the whole union.
+                if let Some(kind) = common_type {
+                    accepted.insert("type".to_owned(), kind);
+                }
+                properties.insert(name.clone(), JsonValue::Object(accepted));
             }
         }
     }
@@ -168,7 +178,9 @@ pub fn call_input_schema(
 
 #[cfg(test)]
 mod tests {
-    use super::{InputDefinition, JsonValue};
+    use std::collections::BTreeMap;
+
+    use super::{InputDefinition, JsonValue, call_input_schema};
 
     fn declared(input_type: &str) -> InputDefinition {
         InputDefinition {
@@ -205,6 +217,28 @@ mod tests {
                 expected,
                 "{input_type} {text}"
             );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn packet_calls_preserve_only_the_type_both_alternatives_accept()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for input_type in ["object", "string", "json"] {
+            let mut input = declared(input_type);
+            input.packet = Some(serde_json::from_str(r#""runx.source_packet.v1""#)?);
+            let schema = serde_json::to_value(call_input_schema(&BTreeMap::from([(
+                "source".to_owned(),
+                input,
+            )]))?)?;
+            let source = &schema["properties"]["source"];
+            assert_eq!(source["anyOf"].as_array().map(Vec::len), Some(2));
+            assert_eq!(source["anyOf"][1]["type"], "object");
+            if input_type == "object" {
+                assert_eq!(source["type"], "object");
+            } else {
+                assert!(source.get("type").is_none(), "{source}");
+            }
         }
         Ok(())
     }
