@@ -3,71 +3,20 @@ catalog:
   visibility: internal
 methods:
   run:
+    inputs:
+      plan_json: {type: object}
+    result_from: [complete]
     steps:
     - id: digest
       tool: data.digest
       inputs:
-        value:
-          decision: ready
-          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
-          principal: account:@example
-          acts:
-          - act_id: act-thread-1
-            kind: thread
-            params:
-              texts:
-              - First part.
-              - Second part.
-            consequence: public_send
-            rationale: Exact operator-approved update.
-          - act_id: act-follow-1
-            kind: follow
-            params:
-              target_user_id: '3001'
-            consequence: live_mutation
-            rationale: Reviewed account requested by the operator.
-          - act_id: act-unfollow-1
-            kind: unfollow
-            params:
-              target_user_id: '3002'
-            consequence: live_mutation
-            rationale: Old account selected by the operator.
-          gates:
-            human_approval_required: true
-            approval_id: null
+        value: $input.plan_json
     - id: batch1
       skill: ../..#execute
       inputs:
         plan_digest: $steps.digest.digest_result.digest
         max_acts: 1
-        plan_json:
-          decision: ready
-          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
-          principal: account:@example
-          acts:
-          - act_id: act-thread-1
-            kind: thread
-            params:
-              texts:
-              - First part.
-              - Second part.
-            consequence: public_send
-            rationale: Exact operator-approved update.
-          - act_id: act-follow-1
-            kind: follow
-            params:
-              target_user_id: '3001'
-            consequence: live_mutation
-            rationale: Reviewed account requested by the operator.
-          - act_id: act-unfollow-1
-            kind: unfollow
-            params:
-              target_user_id: '3002'
-            consequence: live_mutation
-            rationale: Old account selected by the operator.
-          gates:
-            human_approval_required: true
-            approval_id: null
+        plan_json: $input.plan_json
     - id: status1
       skill: ../..#status
       inputs:

@@ -1,5 +1,5 @@
 {
-  "about": "An approved plan, by its digest, partway through: the first part of its thread is confirmed posted, and the second part, the follow and the unfollow remain.",
+  "about": "Non-live plan and illustrative prior outcome; this JSON installs no saved plan, progress or approval. tests/continue-saved-plan.yaml accepts this exact plan, natively confirms first segment6001, then continues from only its digest in later bounded runs. It confirms second reply, follow/unfollow, complete status and final no-op with finite provider exchanges. No live X work is claimed.",
   "plan_json": {
     "decision": "ready",
     "objective": "Publish a two-part update, follow the reviewed account, then unfollow the old account.",
@@ -48,7 +48,7 @@
       "act_id": "act-thread-1",
       "part": 1,
       "status": "succeeded",
-      "post_id": "9101"
+      "post_id": "6001"
     }
   ]
 }
