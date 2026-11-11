@@ -20,6 +20,7 @@ const provider = [
   "import path from 'node:path';",
   `const prepareStatus = ${JSON.stringify(prepareStatus)};`,
   "const phase = process.argv[2];",
+  "fs.appendFileSync(path.join(process.cwd(), 'phase-calls'), phase + '\\n');",
   `const exactArgument = ${JSON.stringify(exactArgument)};`,
   `const verifyVersionSuffix = ${JSON.stringify(verifyVersionSuffix)};`,
   "if (exactArgument !== null && process.argv[3] !== exactArgument) throw new Error('exact argument was changed');",

@@ -10,6 +10,7 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 mod github;
 #[cfg(unix)]
 mod issue_to_pr;
+mod release;
 
 #[test]
 fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResult {
