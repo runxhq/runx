@@ -1,4 +1,5 @@
 name: webhook-handoff-default-delivers-zapier
+method: send
 setup: {credentials: [zapier]}
 inputs:
   platform: zapier
@@ -35,6 +36,7 @@ providers:
         headers: {content-type: application/json}
         body: '{"attempt":"0192a1b2-0000-7000-8000-000000000001","id":"0192a1b2-0000-7000-8000-000000000002","request_id":"0192a1b2-0000-7000-8000-000000000003","status":"success"}'
 expect:
+  http_request_counts: [1]
   status: sealed
   steps: [terms, build-handoff-context, address, deliver]
   step_outputs:
@@ -44,6 +46,9 @@ expect:
           status: success
           provider: zapier
           operation: handoff.deliver
+          target: https://hooks.zapier.com/hooks/catch/
+          access: mutate
+          operation_id: 0192a1b2-0000-7000-8000-000000000003
           finality: acknowledged
           result:
             acknowledgement: {status: success, request_id: 0192a1b2-0000-7000-8000-000000000003}

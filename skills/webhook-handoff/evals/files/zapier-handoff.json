@@ -1,5 +1,5 @@
 {
-  "about": "A completed Runx operation ready to hand off to a Zapier hook: its execution context, payload and event id.",
+  "about": "Non-live caller context, payload and stable event id. tests/default-delivers-zapier.yaml uses these exact inputs with native fixture approval/credential and counts one exact outgoing envelope. This JSON proves no upstream execution or installed native state/authority. The response request_id is receiver acknowledgement, not independent proof of downstream workflow completion.",
   "platform": "zapier",
   "event_id": "evt_zapier_demo_001",
   "execution_context": {
