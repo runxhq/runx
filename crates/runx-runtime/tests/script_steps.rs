@@ -2610,6 +2610,45 @@ fn a_call_that_asks_indexes_its_child_and_a_plain_call_does_not() -> TestResult 
     Ok(())
 }
 
+/// Only a child that completed is a source: one that failed leaves the
+/// index as it was, so the call after it that asks still finds no candidate
+/// rather than a failed run.
+#[test]
+fn a_child_that_failed_is_not_indexed() -> TestResult {
+    use runx_contracts::RecomputeReason::NoCandidate;
+    let temp = tempdir()?;
+    let child = temp.path().join("fault-child");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: fault-child\ndescription: Fails.\n---\n# Fault child\n\nFail.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  fail:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: fault\n        tool: {module: fault.mjs}\n        outputs: {done: {type: boolean}}\n",
+    )?;
+    std::fs::write(
+        child.join("fault.mjs"),
+        "export default function () { throw new Error(\"the child failed\"); }\n",
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../fault-child]\n        max_calls: 2\n        outputs:\n          done: {type: boolean}\n",
+        r#"export default async function (ctx, { value }) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await ctx.skill("../fault-child", { value }, { reuse: { max_age_seconds: 604800 } });
+    } catch {}
+  }
+  return { done: true };
+}
+"#,
+    )?;
+    let ran = run(temp.path(), skill_dir)?;
+    let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
+    assert_eq!(
+        reuse_decisions(temp.path(), run_id)?,
+        BTreeMap::from([(0, recomputed(NoCandidate)), (1, recomputed(NoCandidate))])
+    );
+    Ok(())
+}
+
 /// A child that settles after a resume is indexed as one that ran straight
 /// through is: its call's identity is on its record, so the driver that
 /// settles it needn't be the one that started it.

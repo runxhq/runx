@@ -1757,9 +1757,12 @@ where
             CallOutcome::Completed(run) => self.output_artifacts(made, run, inline_bound)?,
             _ => Vec::new(),
         };
-        // A call that asked to reuse a result and ran its child makes that
-        // child its identity's newest source.
-        if let (CallOutcome::Completed(run), Some(identity)) = (&outcome, &made.reuse_identity) {
+        // A call that asked to reuse a result and ran its child to completion
+        // makes that child its identity's newest source. A child that failed
+        // settles its call too, and is no source.
+        if let (CallOutcome::Completed(run), Some(identity)) = (&outcome, &made.reuse_identity)
+            && run.outcome.succeeded()
+        {
             let options = &self.scope.runtime.options;
             crate::execution::reuse::index(
                 options.run.store(),
