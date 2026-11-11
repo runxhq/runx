@@ -1,0 +1,16 @@
+{
+  "about": "The design preferences a prior session collected from the maintainer: what they liked and what they disliked.",
+  "subject": "runx maintainer",
+  "surface": "developer-tool product UI",
+  "audience": "advanced software builders",
+  "evidence": [
+    {
+      "kind": "liked",
+      "content": "Dense operational surfaces with visible proof."
+    },
+    {
+      "kind": "disliked",
+      "content": "Decorative marketing cards that hide the workflow."
+    }
+  ]
+}

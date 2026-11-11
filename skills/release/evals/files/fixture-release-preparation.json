@@ -1,0 +1,54 @@
+{
+  "about": "The release invocation prepared earlier and paused at its exact publish approval: its inputs, the project profile with the exact commands, and what preparation reported.",
+  "channel": "fixture",
+  "version": "1.2.3",
+  "last_tag": "v1.2.2",
+  "operator_context": "Fixture release proves exact-command publication and separate readback.",
+  "project_root": ".runx/cache/test/release-fixture-project",
+  "profile_path": "release-profile.json",
+  "profile": {
+    "schema": "runx/release.profile.v1",
+    "id": "fixture/local-release",
+    "channel": "fixture",
+    "commands": {
+      "prepare": {
+        "argv": [
+          "node",
+          "./provider.mjs",
+          "prepare"
+        ],
+        "cwd": ".",
+        "timeout_ms": 10000
+      },
+      "publish": {
+        "argv": [
+          "node",
+          "./provider.mjs",
+          "publish"
+        ],
+        "cwd": ".",
+        "timeout_ms": 10000
+      },
+      "verify": {
+        "argv": [
+          "node",
+          "./provider.mjs",
+          "verify"
+        ],
+        "cwd": ".",
+        "timeout_ms": 3600000
+      }
+    }
+  },
+  "preparation": {
+    "status": "ready",
+    "version": "1.2.3",
+    "channel": "fixture",
+    "commit": "fixture-commit",
+    "checks": {
+      "tests": "pass",
+      "pack": "pass"
+    }
+  },
+  "waiting_on": "approval of the exact publish plan"
+}

@@ -1,0 +1,60 @@
+{
+  "about": "The prepared review context a prior capture of example/project pull request 42 produced: its pinned head, its changed-line patch, its checks and what the selection admitted.",
+  "review_context": {
+    "schema": "runx/github-pr-review.context.v1",
+    "decision": "ready",
+    "repository": "example/project",
+    "number": 42,
+    "base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+    "diff_base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "title": "Use account token",
+    "description": "Authenticate the request with its account token.",
+    "observed_at": "2026-10-20T00:00:00Z",
+    "files": [
+      {
+        "path": "src/client.js",
+        "previous_path": null,
+        "status": "modified",
+        "blob_sha": "dddddddddddddddddddddddddddddddddddddddd",
+        "patch": "@@ -8,9 +8,9 @@ export async function request(account, path) {\n   const url = new URL(path, account.baseUrl);\n   const response = await fetch(url, {\n     headers: {\n-      authorization: `Bearer ${process.env.API_TOKEN}`,\n+      authorization: `Bearer ${account.token}`,\n       accept: \"application/json\",\n     },\n   });\n   return response.json();"
+      }
+    ],
+    "checks": [],
+    "checks_complete": false,
+    "checks_source": null,
+    "coverage": "available_pr_patches_only",
+    "blockers": [],
+    "limitations": [
+      "No check runs were captured with this context, so check coverage is unknown."
+    ],
+    "sources": {
+      "pull": {
+        "provider": "github",
+        "read": "pulls/42",
+        "head_sha": "cccccccccccccccccccccccccccccccccccccccc"
+      },
+      "comparison": {
+        "provider": "github",
+        "read": "compare",
+        "base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "head_sha": "cccccccccccccccccccccccccccccccccccccccc"
+      },
+      "files": null
+    },
+    "selection": {
+      "expected_changed_files": 1,
+      "observed_files": 1,
+      "selected_files": 1,
+      "excluded_files": 0,
+      "gap_count": 0,
+      "gap_preview": [],
+      "gap_preview_omitted": 0,
+      "scan_complete": true,
+      "admitted_characters": 347,
+      "patch_char_limit": 60000,
+      "paths": [],
+      "method": "source-before-tests-docs-generated"
+    }
+  }
+}

@@ -1512,3 +1512,16 @@ fn searchable_names_distinct_fields_of_the_data() {
         "committed"
     );
 }
+
+#[test]
+fn a_sqlite_store_syncs_its_commits_and_checkpoints_with_the_full_flush() {
+    let root = tempfile::tempdir().unwrap();
+    for kind in [super::Kind::Store, super::Kind::Private] {
+        let store =
+            super::sqlite::Sqlite::open(&root.path().join(format!("{kind:?}.sqlite")), kind)
+                .unwrap();
+        for pragma in ["fullfsync", "checkpoint_fullfsync"] {
+            assert_eq!(store.pragma(pragma), 1, "{kind:?} {pragma}");
+        }
+    }
+}

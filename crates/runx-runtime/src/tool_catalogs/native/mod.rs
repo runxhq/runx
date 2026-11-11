@@ -261,6 +261,12 @@ pub(crate) fn only_reads(tool: &str) -> bool {
     definition(tool).is_some_and(|capability| !capability.definition().effect.mutating())
 }
 
+/// An input-only computation has no mutable state to reread. Every other
+/// native read, including a new capability, must compare through its owner.
+pub(crate) fn reads_only_inputs(tool: &str) -> bool {
+    definition(tool).is_some_and(|capability| capability.reads_only_inputs())
+}
+
 /// Whether `tool` is a safe read (D33): a native tool that only reads, in
 /// runx's own process. A crash that leaves one unsettled reruns it with
 /// nobody asked. A read a process carries out isn't one.

@@ -3,10 +3,10 @@
 //! from this read alone, without a checkpoint reader or an output stream.
 use serde::{Deserialize, Serialize};
 
-use crate::Artifact;
 use crate::host_protocol::{CallTarget, LoadedPackage, ResolutionRequest, ResolutionResponseActor};
 use crate::receipt::RunOutcome;
 use crate::schema::{NonEmptyString, RunxSchema};
+use crate::{Artifact, JsonObject};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum RunReadSchema {
@@ -305,8 +305,12 @@ pub enum RunCallOutcome {
     Completed {
         succeeded: bool,
         receipt_id: NonEmptyString,
-        /// The call's output as project artifacts of its run: one per
-        /// packet output, and one for the rest.
+        /// The call's output its record holds: every field but those
+        /// `outputs` names.
+        #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
+        output: JsonObject,
+        /// The call's output a project artifact of its run holds, one each:
+        /// each packet output, and a script's field past its inline bound.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         outputs: Vec<RunCallOutput>,
         /// Why a call that ran did not succeed.
@@ -361,14 +365,12 @@ pub enum RunCallOutcome {
     },
 }
 
-/// A project artifact holding part of a call's output.
+/// A project artifact holding one field of a call's output.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunCallOutput {
-    /// The packet output it holds; absent on the artifact of the call's
-    /// other outputs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output: Option<NonEmptyString>,
+    /// The output field it holds.
+    pub output: NonEmptyString,
     pub artifact: Artifact,
 }
 

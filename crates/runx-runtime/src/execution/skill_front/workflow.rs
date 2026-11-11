@@ -33,7 +33,6 @@ use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
-use super::method_manifest::write_skill_receipt;
 use super::resolution_answers::ResolutionAnswers;
 
 /// How many times a run waits for an independent provider readback before
@@ -278,20 +277,31 @@ impl BoundRun {
                 Hold::Retry { due_at, .. } if !is_due(due_at.as_deref()) => {
                     return self.paused(&log);
                 }
-                // A claimed step runs again only on the person's
-                // acknowledgement, which its lane checked.
-                Hold::Claimed(retry) if host.answers.get(&retry.id, &retry.digest).is_none() => {
+                // A claimed step runs again on a person's answer, which its
+                // lane checked. An operation's is first reconciled from what
+                // custody holds of its act, with nobody asked.
+                Hold::Claimed(retry)
+                    if host.answers.get(&retry.id, &retry.digest).is_none()
+                        && !workflow.steps.iter().any(|step| {
+                            step.id == suspension.step_id
+                                && matches!(step.kind, runx_parser::StepKind::Operation(_))
+                        }) =>
+                {
                     return self.paused(&log);
                 }
                 Hold::Retry { .. } | Hold::Claimed(_) => {}
                 // Nothing new to continue with: the run still waits on what
                 // only a host can answer. A run that waits on nothing, a child
                 // that sealed before its parent step was recorded, goes on,
-                // and so does one with a wait that's due, which is runx's own.
+                // and so does one with a wait that's due, which is runx's own,
+                // or a claimed call's retry, which runx reconciles from what
+                // custody holds of its act before anyone is asked.
                 Hold::Request(_) | Hold::Child(_)
                     if host.is_idle()
                         && !waiting.is_empty()
-                        && !waiting.iter().any(is_due_wait) =>
+                        && !waiting
+                            .iter()
+                            .any(|request| is_due_wait(request) || is_claims_retry(request)) =>
                 {
                     return self.paused(&log);
                 }
@@ -340,6 +350,9 @@ impl BoundRun {
             // The method recorded the exact claimed step before dispatch.
             // Return that pending workflow, not an anonymous CLI failure.
             Err(RuntimeError::ProviderEffectUnknown { .. }) => self.paused(&log),
+            // Nothing custody holds settled the claimed step it reconciled:
+            // it still waits on its retry.
+            Err(RuntimeError::Unsettled { .. }) => self.paused(&log),
             Err(error) => run.seal_stopped(error),
         }
     }
@@ -532,7 +545,13 @@ impl BoundRun {
             .ok_or_else(|| invalid("the run has no seal"))?;
         let workflow = self.workflow(&record.inputs, record.act.as_ref(), log.run_id())?;
         let run = sealed_workflow_run(workflow, record, log.store())?;
-        write_workflow_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
+        write_workflow_receipts(
+            &self.request,
+            &self.workspace,
+            &self.receipts,
+            &run,
+            log.store(),
+        )?;
         let result = match sealed.terminal_result {
             Some(result) => result,
             None => workflow_run_result(&run)?,
@@ -617,7 +636,17 @@ impl Driven<'_> {
         let bound = self.bound;
         let result = workflow_run_result(&run)?;
         self.log.record_sealed(&run.receipt, None)?;
-        write_workflow_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
+        #[cfg(feature = "crash-points")]
+        crate::crash::at("after_seal", self.log.run_id());
+        write_workflow_receipts(
+            &bound.request,
+            &bound.workspace,
+            &bound.receipts,
+            &run,
+            self.log.store(),
+        )?;
+        #[cfg(feature = "crash-points")]
+        crate::crash::at("after_receipts", self.log.run_id());
         let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest.skill,
@@ -646,7 +675,13 @@ impl Driven<'_> {
                 .seal_stop(self.workflow.clone(), error, &mut host)?;
         let refusal = run.refusal.clone();
         self.log.record_sealed(&run.receipt, Some(&result))?;
-        write_workflow_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
+        write_workflow_receipts(
+            &bound.request,
+            &bound.workspace,
+            &bound.receipts,
+            &run,
+            self.log.store(),
+        )?;
         let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest.skill,
@@ -1014,6 +1049,12 @@ fn answer_from(
 }
 
 impl Host for RunHost {
+    /// A session's pass hands its agent what it recorded: each call's
+    /// result as it settles.
+    fn answers_each_call(&self) -> bool {
+        self.act.is_some()
+    }
+
     /// Only a managed agent at a loopback endpoint is known to run here; a
     /// host that works the run's turns from outside may run its model anywhere.
     fn reads_local_only(&self) -> bool {
@@ -1138,6 +1179,18 @@ fn is_due_wait(request: &PendingRequest) -> bool {
     }
 }
 
+/// Whether `request` is the retry a claimed call waits on, which nothing but
+/// its act's evidence or a person settles; a bounded retry is runx's own.
+fn is_claims_retry(request: &PendingRequest) -> bool {
+    matches!(
+        serde_json::to_value(&request.value).and_then(serde_json::from_value),
+        Ok(ResolutionRequest::Retry {
+            retry_after_seconds: 0,
+            ..
+        })
+    )
+}
+
 fn is_turn(request: &PendingRequest) -> bool {
     request
         .value
@@ -1157,19 +1210,26 @@ fn resolution_request_id(request: &ResolutionRequest) -> &str {
     }
 }
 
+/// Write the receipts `run` sealed, each a copy of its record's in `record`.
 fn write_workflow_receipts(
     request: &SkillRunRequest,
     workspace: &WorkspaceEnv,
     receipts: &ReceiptServices,
     run: &WorkflowRun,
+    record: &std::sync::Arc<KernelStore>,
 ) -> Result<(), SkillRunError> {
-    for step in &run.steps {
-        for receipt in &step.nested_receipts {
-            write_skill_receipt(request, workspace, receipts, receipt)?;
-        }
-        write_skill_receipt(request, workspace, receipts, &step.receipt)?;
-    }
-    write_skill_receipt(request, workspace, receipts, &run.receipt)
+    let sealed = run
+        .steps
+        .iter()
+        .flat_map(|step| step.nested_receipts.iter().chain([&step.receipt]))
+        .chain([&run.receipt]);
+    receipts
+        .write_sealed_receipts(
+            sealed,
+            &workspace.receipt_path(request.receipt_dir.as_deref()),
+            record,
+        )
+        .map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -1423,7 +1483,7 @@ methods:
             };
             let workspace = WorkspaceEnv::new(Default::default(), temp.path().to_path_buf())?;
             let receipts = ReceiptServices::from_signature_config(signature.clone());
-            write_workflow_receipts(&request, &workspace, &receipts, &run)?;
+            write_workflow_receipts(&request, &workspace, &receipts, &run, log.store())?;
             let store = LocalReceiptStore::new(&receipt_dir);
             let listing = list_receipts(
                 &store,

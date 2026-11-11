@@ -1,0 +1,197 @@
+{
+  "about": "The research and contact-policy evidence a prior step validated for one prospect, whom the policy allows contacting.",
+  "sender": {
+    "name": "Example team",
+    "from_address": "hello@example.com",
+    "reply_to": "hello@example.com"
+  },
+  "prospect": {
+    "email": "operator@example.org",
+    "company": "Example"
+  },
+  "audience": "documentation maintainers",
+  "purpose": "Offer a useful documentation review",
+  "offer": "A bounded review of public docs",
+  "required_footer": "Example team. Reply to opt out.",
+  "contact_policy": {
+    "recipient": "operator@example.org",
+    "status": "eligible",
+    "suppressed": false,
+    "policy_id": "policy:outreach",
+    "evidence_ids": [
+      "decision:recipient-1"
+    ]
+  },
+  "evidence_pack": {
+    "decision": "ready",
+    "research_brief": {
+      "objective": "Explain the strongest Runx architecture signal.",
+      "scope": "agent infrastructure",
+      "summary": "The recipient published a guide about receipts binding actions to authority evidence. The sender offers a bounded public documentation review.",
+      "open_questions": []
+    },
+    "evidence_log": [
+      {
+        "claim": "The recipient published a guide about receipts binding actions to authority evidence; the sender offers a bounded public documentation review.",
+        "source_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "confidence": "verified",
+        "relevance": "Supports the governance claim."
+      }
+    ],
+    "decision_support": [],
+    "risks": [],
+    "source_evidence": [
+      {
+        "evidence_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source_uri": "https://example.com/evidence",
+        "source_kind": "fetch",
+        "provenance": {
+          "observed_at": "2026-07-17T00:00:00Z",
+          "bytes": 0,
+          "status": 200,
+          "redirects": []
+        }
+      }
+    ],
+    "index_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "validation": {
+      "status": "pass",
+      "findings": []
+    }
+  },
+  "brand_context": {
+    "decision": "ready",
+    "brand": "Example team",
+    "applicability": {
+      "channels": [
+        "email"
+      ],
+      "audience": "documentation maintainers",
+      "boundaries": [
+        "Do not extend claims beyond admitted evidence."
+      ]
+    },
+    "brand_voice": {
+      "voice_principles": [
+        "Lead with the reader's own work."
+      ],
+      "vocabulary": {
+        "use": [
+          "review"
+        ],
+        "avoid": [
+          "synergy"
+        ]
+      },
+      "cadence": [
+        "Short plain sentences."
+      ],
+      "claim_rules": {
+        "safe": [],
+        "requires_proof": [],
+        "forbidden": [
+          "Guaranteed outcomes."
+        ]
+      },
+      "channel_adjustments": [
+        "Email stays short with one ask."
+      ]
+    },
+    "evidence": {
+      "evidence_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "sources": [
+        {
+          "source_id": "source:1",
+          "kind": "approved",
+          "label": "Approved outreach example"
+        }
+      ],
+      "bindings": [
+        {
+          "rule": "Lead with the reader's own work.",
+          "source_ids": [
+            "source:1"
+          ]
+        },
+        {
+          "rule": "Short plain sentences.",
+          "source_ids": [
+            "source:1"
+          ]
+        }
+      ]
+    },
+    "redactions": [],
+    "stop_conditions": [
+      "Require new evidence before adding a new factual claim."
+    ],
+    "receipt_notes": {
+      "authority": "context-only",
+      "mutation": false
+    },
+    "validation": {
+      "status": "pass",
+      "findings": []
+    }
+  },
+  "taste_context": {
+    "decision": "ready",
+    "subject": "Example team outreach",
+    "applicability": {
+      "surfaces": [
+        "email"
+      ],
+      "audience": "documentation maintainers",
+      "expires_when": [
+        "Preferences change."
+      ]
+    },
+    "taste_profile": {
+      "principles": [
+        "Be specific about the reader's work."
+      ],
+      "likes": [
+        "One concrete next step."
+      ],
+      "dislikes": [
+        "Generic compliments."
+      ],
+      "decision_rules": [
+        "Prefer a question to an assumption."
+      ],
+      "examples_to_emulate": [],
+      "examples_to_avoid": []
+    },
+    "evidence": {
+      "evidence_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "sources": [
+        {
+          "source_id": "source:1",
+          "kind": "liked",
+          "label": "Liked outreach example"
+        }
+      ],
+      "bindings": [
+        {
+          "rule": "Prefer a question to an assumption.",
+          "source_ids": [
+            "source:1"
+          ],
+          "confidence": "explicit"
+        }
+      ]
+    },
+    "redactions": [],
+    "stop_conditions": [],
+    "receipt_notes": {
+      "authority": "context-only",
+      "mutation": false
+    },
+    "validation": {
+      "status": "pass",
+      "findings": []
+    }
+  }
+}

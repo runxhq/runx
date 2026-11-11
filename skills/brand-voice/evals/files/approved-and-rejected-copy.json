@@ -1,0 +1,18 @@
+{
+  "about": "The source material a prior step collected for the homepage: the approved product contract, and launch copy that was rejected.",
+  "brand": "runx",
+  "channel": "homepage",
+  "audience": "advanced software builders",
+  "source_material": [
+    {
+      "kind": "approved",
+      "label": "product contract",
+      "content": "Runx receipts bind operator actions to explicit authority evidence."
+    },
+    {
+      "kind": "rejected",
+      "label": "rejected launch copy",
+      "content": "Autonomous everything with no review."
+    }
+  ]
+}

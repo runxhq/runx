@@ -95,6 +95,18 @@ pub fn turn_input_digest(invocation: &TurnInvocation) -> Result<String, Canonica
     digest(value)
 }
 
+/// What a step's output holds, as one digest: what a later step given it
+/// would be given, so a read made again can be compared with what a source
+/// read. Where its artifacts are held, when, and what made them are left
+/// out, as they are from every input.
+///
+/// # Errors
+///
+/// Returns an error when the output can't be encoded.
+pub fn output_digest(output: &JsonObject) -> Result<String, CanonicalJsonError> {
+    digest(encoded(output)?)
+}
+
 fn encoded<T: Serialize + ?Sized>(value: &T) -> Result<JsonValue, CanonicalJsonError> {
     JsonValue::from_serialize(value).map_err(|error| CanonicalJsonError::Serialization {
         message: error.to_string(),

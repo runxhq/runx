@@ -31,6 +31,9 @@ pub(crate) enum Work {
     PackageRead,
     /// A write transaction the kernel store committed.
     StoreWrite,
+    /// A write made durable before anything relies on it: a store's commit
+    /// synced to the disk, or a file synced where it lies.
+    DurableWrite,
     /// An operation dispatched to its provider.
     ProviderCall,
     /// A run taken whole: its record replayed from its stream, or every one
@@ -64,6 +67,7 @@ static NETWORK_REQUESTS: AtomicU64 = AtomicU64::new(0);
 static PACKAGES_READ: AtomicU64 = AtomicU64::new(0);
 static PACKAGE_VERIFICATIONS: AtomicU64 = AtomicU64::new(0);
 static STORE_WRITES: AtomicU64 = AtomicU64::new(0);
+static DURABLE_WRITES: AtomicU64 = AtomicU64::new(0);
 static PROVIDER_CALLS: AtomicU64 = AtomicU64::new(0);
 static TRANSACTIONS_SPANNING_PROVIDER_CALLS: AtomicU64 = AtomicU64::new(0);
 static RUN_MATERIALIZATIONS: AtomicU64 = AtomicU64::new(0);
@@ -133,6 +137,7 @@ pub(crate) fn count_many(work: Work, units: usize) {
         Work::NetworkRequest => &NETWORK_REQUESTS,
         Work::PackageRead => &PACKAGES_READ,
         Work::StoreWrite => &STORE_WRITES,
+        Work::DurableWrite => &DURABLE_WRITES,
         Work::ProviderCall => &PROVIDER_CALLS,
         Work::RunMaterialization => &RUN_MATERIALIZATIONS,
         Work::StoreRowRead => &STORE_ROWS_READ,
@@ -222,6 +227,9 @@ pub struct WorkCounts {
     pub most_verifications_of_one_package: u64,
     /// Write transactions the kernel store committed.
     pub store_writes: u64,
+    /// Writes made durable before anything relied on them: store commits
+    /// synced to the disk, and files synced where they lie.
+    pub durable_writes: u64,
     /// Operations dispatched to their providers.
     pub provider_calls: u64,
     /// Provider calls a store transaction was held open across.
@@ -285,6 +293,7 @@ pub fn snapshot() -> WorkCounts {
         package_verifications: PACKAGE_VERIFICATIONS.load(Ordering::Relaxed),
         most_verifications_of_one_package,
         store_writes: STORE_WRITES.load(Ordering::Relaxed),
+        durable_writes: DURABLE_WRITES.load(Ordering::Relaxed),
         provider_calls: PROVIDER_CALLS.load(Ordering::Relaxed),
         transactions_spanning_provider_calls: TRANSACTIONS_SPANNING_PROVIDER_CALLS
             .load(Ordering::Relaxed),

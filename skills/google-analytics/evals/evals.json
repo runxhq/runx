@@ -18,6 +18,19 @@
       "prompt": "Show which organic landing pages produced engaged sessions and conversions in this GA4 property.",
       "expected_output": "Query the configured GA4 property once and return a normalized evidence packet with verified provider readback.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Normalize the GA4 report you are given for the growth analysis.",
+      "expected_output": "The given report normalized, /guides/runx from Organic Search with 120 sessions, 9 key events and AUD 450.25 of revenue, keeping the property time zone, currency and every thresholding or attribution caveat the metadata states, with no new query.",
+      "files": [
+        "evals/files/june-landing-pages-report.json"
+      ],
+      "expectations": [
+        "It does not call GA4 again.",
+        "It keeps every measurement caveat the report states."
+      ],
+      "method": "normalize-report"
     }
   ]
 }

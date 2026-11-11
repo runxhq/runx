@@ -9,9 +9,9 @@ use super::{BUSY_TIMEOUT, KernelStoreError};
 /// `RUNK`: marks a kernel store. A `store` connector's database never carries it.
 const APPLICATION_ID: i64 = 0x5255_4e4b;
 /// 0.12 raised it from 2 when `kernel_streams` and its `kind` became
-/// `kernel_keys` and `stream`, so a released runx refuses the store it opens.
-/// A store from before 0.12 is never read.
-const SCHEMA_VERSION: i64 = 3;
+/// `kernel_keys` and `stream`, and from 3 when `kernel_receipts` indexed
+/// each receipt by its id. A store from an earlier runx is never read.
+const SCHEMA_VERSION: i64 = 4;
 
 /// `sequence` is the store's commit order: one number per event across every
 /// stream, assigned at commit, so it only grows and no two events share one.
@@ -50,6 +50,14 @@ CREATE TABLE kernel_blobs (
   digest TEXT NOT NULL PRIMARY KEY,
   data BLOB NOT NULL
 );
+
+CREATE TABLE kernel_receipts (
+  receipt_id TEXT NOT NULL PRIMARY KEY,
+  tree TEXT NOT NULL,
+  digest TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX kernel_receipts_tree ON kernel_receipts (tree, receipt_id);
 ";
 
 pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
@@ -73,7 +81,7 @@ pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
         .map_err(database("reading the schema version"))?;
     match (application_id, version) {
         (APPLICATION_ID, SCHEMA_VERSION) => {}
-        (APPLICATION_ID, 1 | 2) => {
+        (APPLICATION_ID, 1..=3) => {
             return Err(KernelStoreError::BeforeThisRunx {
                 path: path.to_path_buf(),
             });
@@ -88,10 +96,12 @@ pub(super) fn open(path: &Path) -> Result<Connection, KernelStoreError> {
     connection
         .pragma_update(None, "journal_mode", "WAL")
         .map_err(database("enabling WAL"))?;
-    // Durable before acknowledged: a commit survives power loss.
+    // Durable before acknowledged: a commit survives power loss, synced
+    // with the full flush every store uses.
     connection
         .pragma_update(None, "synchronous", "FULL")
         .map_err(database("requiring durable commits"))?;
+    crate::durable::sync_in_full(&connection).map_err(database("syncing in full"))?;
     Ok(connection)
 }
 
@@ -139,7 +149,11 @@ fn initialize(connection: &mut Connection, path: &Path) -> Result<(), KernelStor
         .map_err(database("sealing the schema version"))?;
     transaction
         .commit()
-        .map_err(database("committing the schema"))
+        .map_err(database("committing the schema"))?;
+    crate::work_counts::count(crate::work_counts::Work::DurableWrite);
+    #[cfg(feature = "crash-points")]
+    crate::crash::store_synced(path);
+    Ok(())
 }
 
 #[cfg(unix)]

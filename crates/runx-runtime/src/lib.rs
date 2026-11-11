@@ -23,6 +23,7 @@ mod crash;
 pub mod credentials;
 pub mod doctor;
 mod drivers;
+mod durable;
 pub mod effects;
 pub mod error;
 pub mod execution;

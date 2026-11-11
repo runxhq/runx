@@ -13,8 +13,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    CallCost, CostPayer, IdempotencyKeyFormat, Implementation, OperationAccess, Placement,
-    ProviderIdempotency, implementation_digest,
+    CallCost, ConnectorOperation, CostPayer, IdempotencyKeyFormat, Implementation, OperationAccess,
+    Placement, ProviderIdempotency, implementation_digest,
 };
 use runx_contracts::schema::IsoDateTime;
 use runx_contracts::{
@@ -360,6 +360,27 @@ pub(crate) fn operation_reads(
         })
 }
 
+/// Whether `operation` is always kept in custody: a mutation, or a call with
+/// a price. Its attempt is recorded durably before it reaches the provider,
+/// with what it reserves of the run's limit.
+pub(crate) fn kept_in_custody(operation: &runx_contracts::connector::ConnectorOperation) -> bool {
+    operation.access() == OperationAccess::Mutate || operation.is_metered()
+}
+
+/// Whether the operation step `target` with `inputs` is always kept in
+/// custody ([`kept_in_custody`]).
+pub(crate) fn operation_kept_in_custody(
+    target: &runx_parser::OperationStepTarget,
+    inputs: &JsonObject,
+    env: &BTreeMap<String, String>,
+    workflow_dir: &Path,
+) -> bool {
+    Declared::of(target, inputs, env, workflow_dir)
+        .as_ref()
+        .and_then(Declared::operation)
+        .is_some_and(kept_in_custody)
+}
+
 /// Whether the operation step `target` with `inputs` is a safe read, which
 /// reruns by itself if a crash leaves it unsettled (D33).
 pub(crate) fn operation_safe_read(
@@ -585,15 +606,7 @@ impl OperationAdmission {
     /// The provider's key for the intent `intent_digest`, when the provider
     /// sees one.
     fn keyed_by(&self, intent_digest: &str) -> Option<String> {
-        (self.mutation()
-            || self.admitted.operation().guarantees.provider_idempotency
-                == ProviderIdempotency::Enforced)
-            .then(|| {
-                idempotency_key(
-                    intent_digest,
-                    self.admitted.operation().idempotency_key_format,
-                )
-            })
+        provider_key(self.admitted.operation(), intent_digest)
     }
 
     /// Whether a request that may have reached the provider can be sent
@@ -610,36 +623,11 @@ impl OperationAdmission {
     /// The implementation that runs: any kind locally; only declared
     /// requests on the hosted placement, whose private drivers are opaque.
     fn implementation_digest(&self) -> Option<String> {
-        let operation = self.admitted.operation();
-        let implementation = match self.admitted.instance.placement {
-            Placement::Local => operation.implementation.as_ref()?,
-            Placement::Hosted => self
-                .admitted
-                .connector
-                .manifest
-                .hosted_http(operation)
-                .and(operation.implementation.as_ref())?,
-        };
-        let server = self
-            .admitted
-            .connector
-            .manifest
-            .placements
-            .local
-            .as_ref()
-            .and_then(|local| local.mcp_server.as_ref());
-        let tool = match implementation {
-            Implementation::Process(process) => self
-                .admitted
-                .connector
-                .tools
-                .get(process.tool.as_str())
-                .map(|tool| &tool.digest),
-            _ => None,
-        };
-        implementation_digest(implementation, server, tool)
-            .ok()
-            .map(|digest| digest.as_str().to_owned())
+        operation_implementation_digest(
+            &self.admitted.connector,
+            self.admitted.operation(),
+            self.admitted.instance.placement,
+        )
     }
 
     /// The installed copy of the tool a local process operation runs: the
@@ -787,6 +775,119 @@ impl RuntimeEffect for OperationEffect {
         admission::authorize(&self.evaluation(request, target, &call, &grounds))
             .map(|_| ())
             .map_err(refused)
+    }
+
+    /// Compare a recorded read under today's authorized binding. Provider
+    /// reads keep their age bound only when binding, implementation and
+    /// credential match. Store reads also run again through their driver.
+    /// Nothing is admitted, counted, dispatched to a provider or recorded.
+    fn read_unchanged(
+        &self,
+        request: EffectStepRequest<'_>,
+        recorded_identity: &str,
+        recorded_result: &str,
+    ) -> Result<bool, RuntimeEffectError> {
+        let target = request
+            .step
+            .operation()
+            .ok_or_else(|| invalid("only an operation step reads through an operation"))?;
+        let call = OperationCall::decode(request.inputs).map_err(invalid)?;
+        let shape = call.shape().map_err(invalid)?;
+        let grounds = Grounds::of(request, target)?;
+        let authorized = admission::authorize(&self.evaluation(request, target, &call, &grounds))
+            .map_err(refused)?;
+        let operation = authorized.operation();
+        if operation.access() != OperationAccess::Read {
+            return Err(denied("a write is never made again to compare it"));
+        }
+        let connector = authorized.connector();
+        let instance = authorized.instance();
+        // Resolving a credential for comparison never dispatches a provider
+        // request. A session whose credential is opaque cannot prove identity.
+        let secret = match &instance.authority {
+            InstanceAuthority::Secret { .. } => Some(
+                credentials::from_secret(request.env, request.workflow_dir, connector, instance)
+                    .map_err(denied)?,
+            ),
+            InstanceAuthority::Environment {
+                credential,
+                variable,
+                ..
+            } => Some(
+                credentials::from_environment(request.env, connector, credential, variable)
+                    .map_err(denied)?,
+            ),
+            _ => None,
+        };
+        let credential = presented_locally(
+            &instance.authority,
+            secret.as_ref(),
+            request.env,
+            request.workflow_dir,
+        );
+        let implementation_digest =
+            operation_implementation_digest(connector, operation, instance.placement);
+        let identity = read_identity(
+            instance,
+            implementation_digest.as_deref(),
+            credential.as_deref(),
+        );
+        if identity.as_deref() != Some(recorded_identity) {
+            return Ok(false);
+        }
+        let implementation = operation
+            .implementation
+            .as_ref()
+            .ok_or_else(|| denied("the operation has no implementation here"))?;
+        // Provider reads use the caller's age bound only after their exact
+        // binding, implementation and presented credential match. Every
+        // implementation added later must choose its freshness explicitly.
+        match implementation {
+            Implementation::Http(_) | Implementation::Web(_) => return Ok(true),
+            Implementation::Store(_) => {}
+            Implementation::Artifact(_) | Implementation::Process(_) | Implementation::Mcp(_) => {
+                return Ok(false);
+            }
+        }
+        let arguments = JsonValue::Object(call.inputs.clone());
+        let provider_key = provider_key(operation, authorized.intent_digest().as_str());
+        let made = AdmittedCall {
+            connector: authorized.connector().manifest.name.as_str(),
+            operation: authorized.operation_name().as_str(),
+            implementation: implementation.kind(),
+            target: authorized.target(),
+            arguments: &arguments,
+            parameters: &authorized.instance().parameters,
+            idempotency_key: provider_key.as_deref(),
+            credential: None,
+            session_principal: None,
+            env: request.env,
+            held: Vec::new(),
+            writer: request.chain.last(),
+            withheld: &shape.ephemeral,
+            access: operation.access(),
+            _sealed: Sealed,
+        };
+        let recovery = confirm::Recovery {
+            acknowledged: None,
+            resend_safe: true,
+            may_charge: false,
+        };
+        let Implementation::Store(_) = implementation else {
+            return Err(denied("only a read of the project's store is made again"));
+        };
+        let driver = crate::drivers::store::Store { call: &made };
+        let readback = confirm::run(
+            &driver,
+            &made,
+            &Checks::default(),
+            recovery,
+            &mut |_| Ok(()),
+        )
+        .map_err(|failure| state(failure.reason()))?;
+        runx_contracts::connector::stable_digest(&readback.result)
+            .map(|digest| digest.as_str() == recorded_result)
+            .map_err(state)
     }
 
     fn admit(
@@ -989,12 +1090,8 @@ impl RuntimeEffect for OperationEffect {
         let Some(custody) = &context.admitted.custody else {
             return Ok(None);
         };
-        crate::receipts::store::LocalReceiptStore::new(receipt_root(
-            request.env,
-            request.workflow_dir,
-        ))
-        .write_receipt(request.receipt, request.signature_policy)
-        .map_err(|error| state(error.to_string()))?;
+        // The step's record holds its receipt, which the run's receipt files
+        // copy as it seals.
         // An act already done stays settled as it was.
         if context.admitted.done.is_some() {
             return Ok(None);
@@ -1060,9 +1157,9 @@ pub(crate) struct OperationOutcome {
     pub value: JsonValue,
     pub ephemeral: Option<JsonValue>,
     pub effects: Vec<Reference>,
-    /// The credential the call presented, as reuse compares it
-    /// ([`presented`]).
-    pub credential: Option<String>,
+    /// Confirmed binding, implementation and presented credential, captured
+    /// together by the operation owner for reuse comparison.
+    pub read_identity: Option<String>,
 }
 
 /// What a call that presents no credential records as its credential.
@@ -1079,14 +1176,79 @@ fn presented(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Option<String> {
-    match (&context.admitted.instance.authority, session) {
-        (InstanceAuthority::Public, Session::Local(None)) => Some(NO_CREDENTIAL.to_owned()),
+    match session {
+        Session::Local(secret) => presented_locally(
+            &context.admitted.instance.authority,
+            secret.as_ref(),
+            env,
+            cwd,
+        ),
+        _ => None,
+    }
+}
+
+/// Credential comparison uses exactly the same local credential material as
+/// execution. Opaque sessions and unkeyed homes provide no identity proof.
+fn presented_locally(
+    authority: &InstanceAuthority,
+    secret: Option<&credentials::CredentialSecret>,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Option<String> {
+    match (authority, secret) {
+        (InstanceAuthority::Public, None) => Some(NO_CREDENTIAL.to_owned()),
         (
             InstanceAuthority::Secret { .. } | InstanceAuthority::Environment { .. },
-            Session::Local(Some(secret)),
+            Some(secret),
         ) => secret.fingerprint(&crate::paths::RunxPaths::resolve(env, cwd)),
         _ => None,
     }
+}
+
+/// The identity of a read, captured with its result and compared by the
+/// operation owner: confirmed binding, exact implementation and credential.
+fn read_identity(
+    instance: &runx_contracts::ConnectorInstance,
+    implementation: Option<&str>,
+    credential: Option<&str>,
+) -> Option<String> {
+    runx_contracts::canonical_json::canonical_digest(&(
+        instance.binding_digest().ok()?,
+        implementation?,
+        credential?,
+    ))
+    .ok()
+}
+
+/// The implementation pin shared by execution and read comparison.
+fn operation_implementation_digest(
+    connector: &super::connectors::LoadedConnector,
+    operation: &ConnectorOperation,
+    placement: Placement,
+) -> Option<String> {
+    let implementation = match placement {
+        Placement::Local => operation.implementation.as_ref()?,
+        Placement::Hosted => connector
+            .manifest
+            .hosted_http(operation)
+            .and(operation.implementation.as_ref())?,
+    };
+    let server = connector
+        .manifest
+        .placements
+        .local
+        .as_ref()
+        .and_then(|local| local.mcp_server.as_ref());
+    let tool = match implementation {
+        Implementation::Process(process) => connector
+            .tools
+            .get(process.tool.as_str())
+            .map(|tool| &tool.digest),
+        _ => None,
+    };
+    implementation_digest(implementation, server, tool)
+        .ok()
+        .map(|digest| digest.as_str().to_owned())
 }
 
 /// What the kernel handed an implementation it runs itself when it invoked
@@ -1197,6 +1359,18 @@ pub(crate) fn execute(
     // A key means one intent (D34): an act its key finalized is done, and
     // this call returns it, acting no further.
     if let Some(done) = &context.admitted.done {
+        if done.instance_binding != instance_binding.as_str() {
+            return Err(failed(
+                context,
+                "the instance was confirmed again with another account or credential since the finalized attempt; its recorded result belongs to the original binding".to_owned(),
+            ));
+        }
+        if done.implementation_digest != implementation_digest {
+            return Err(failed(
+                context,
+                "the implementation changed since the finalized attempt; its recorded result belongs to the original implementation".to_owned(),
+            ));
+        }
         let readback = done
             .readback
             .clone()
@@ -1274,6 +1448,11 @@ pub(crate) fn execute(
     };
     let session = prepare(context, env, cwd, tools).map_err(preflight)?;
     let credential = presented(context, &session, env, cwd);
+    let read_identity = read_identity(
+        &admitted.instance,
+        implementation_digest.as_deref(),
+        credential.as_deref(),
+    );
     let tool = context.process_tool(env, cwd).map_err(preflight)?;
     if let Some(pending) = &context.admitted.pending {
         // Readback is provider evidence, not permission to settle under a
@@ -1355,7 +1534,7 @@ pub(crate) fn execute(
                 None,
             )
             .map(|outcome| OperationOutcome {
-                credential,
+                read_identity,
                 ..outcome
             })
         }
@@ -2436,10 +2615,15 @@ fn finish(
                 intent_digest: admitted.intent_digest().as_str(),
                 operation_digest: admitted.intent().operation_digest.as_str(),
                 implementation_digest,
-                // An answer the operation accepts is billable on either basis.
+                // The original execution owns its charge. Returning its
+                // finalized result makes no provider call and costs zero.
                 cost: operation.cost.as_ref().map(|cost| CallCost {
                     quoted_usd_micro: cost.usd_micro,
-                    settled_usd_micro: cost.usd_micro,
+                    settled_usd_micro: if done.is_some() {
+                        Some(0)
+                    } else {
+                        cost.usd_micro
+                    },
                     payer: CostPayer::ProviderAccount,
                 }),
             },
@@ -2468,7 +2652,7 @@ fn finish(
             )]))
         }),
         effects,
-        credential: None,
+        read_identity: None,
     })
 }
 
@@ -2712,6 +2896,14 @@ fn human(
     }
 }
 
+/// The key a call of `operation` with intent `intent_digest` gives its
+/// provider: a write's, and a read's whose provider deduplicates by it.
+fn provider_key(operation: &ConnectorOperation, intent_digest: &str) -> Option<String> {
+    (operation.access() == OperationAccess::Mutate
+        || operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced)
+        .then(|| idempotency_key(intent_digest, operation.idempotency_key_format))
+}
+
 /// `runx:<intent digest>`, or a UUID derived from it where the provider
 /// requires one.
 fn idempotency_key(intent_digest: &str, format: IdempotencyKeyFormat) -> String {
@@ -2753,10 +2945,6 @@ fn failed(context: &OperationAdmission, reason: String) -> RuntimeError {
     }
 }
 
-pub(crate) fn receipt_root(env: &BTreeMap<String, String>, cwd: &Path) -> std::path::PathBuf {
-    crate::paths::RunxPaths::resolve(env, cwd).receipts()
-}
-
 fn verification(uri: String, provider: &str, proof_kind: ProofKind) -> Reference {
     Reference {
         provider: Some(provider.to_owned().into()),
@@ -2783,6 +2971,16 @@ fn refused(error: AdmitError) -> RuntimeEffectError {
             verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
         },
         AdmitError::State(message) => state(message),
+        AdmitError::Held {
+            plan_digest,
+            idempotency_key,
+            reason,
+        } => RuntimeEffectError::Held {
+            family: OPERATION_EFFECT_FAMILY.to_owned(),
+            plan_digest,
+            idempotency_key,
+            message: reason,
+        },
     }
 }
 

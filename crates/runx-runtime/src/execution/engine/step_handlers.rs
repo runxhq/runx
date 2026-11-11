@@ -73,6 +73,8 @@ struct RegularSkillStepOutput {
 struct StepReceiptLineage {
     direct_children: Vec<Receipt>,
     descendants: Vec<Receipt>,
+    /// The source run's receipt a reused call settled with.
+    reused_from: Option<String>,
 }
 
 impl StepReceiptLineage {
@@ -86,6 +88,17 @@ impl StepReceiptLineage {
         Self {
             direct_children: vec![receipt],
             descendants,
+            reused_from: None,
+        }
+    }
+
+    /// A reused call's lineage: no child of its own, and the source run's
+    /// receipt it settled with, which names that run and verifies on its own.
+    fn reused(receipt_id: String) -> Self {
+        Self {
+            direct_children: Vec::new(),
+            descendants: Vec::new(),
+            reused_from: Some(receipt_id),
         }
     }
 
@@ -98,6 +111,7 @@ impl StepReceiptLineage {
                 .iter()
                 .flat_map(|call| call.nested_receipts.iter().cloned())
                 .collect(),
+            reused_from: None,
         }
     }
 
@@ -134,6 +148,9 @@ pub(super) struct StepRunRequest<'a, A> {
     pub(super) given: ArtifactLabels,
     /// How a claimed step whose run stopped is taken further, when it is.
     pub(super) reconciliation: Option<crate::effects::Reconciliation>,
+    /// The source a skill call that reused a result settles with, in place
+    /// of the child run it would start (reuse, D32).
+    pub(super) reused: Option<crate::execution::reuse::Source>,
 }
 
 struct StepHandlerCtx<'a, A> {
@@ -152,6 +169,7 @@ struct StepHandlerCtx<'a, A> {
     context_entries: Vec<ContextEntry>,
     ask_reason: Option<String>,
     given: ArtifactLabels,
+    reused: Option<crate::execution::reuse::Source>,
 }
 
 struct RegularSkillSeal<'a, A> {
@@ -223,6 +241,7 @@ where
         ask_reason,
         given,
         reconciliation,
+        reused,
     } = request;
     // What the step was given, as reuse compares it (D32).
     let input_digest = super::input_digest::of(
@@ -281,6 +300,7 @@ where
         context_entries,
         ask_reason,
         given,
+        reused,
     })?;
     drop(place);
     // What the step made is labelled by everything it was given, everything
@@ -338,10 +358,21 @@ where
         }
         return run_purchase_step(paid, StepHandlerCtx { inputs, ..request });
     }
-    let mut env = request.runtime.options.env.clone();
-    merge_inferred_tool_roots(&mut env, &skill.directory);
+    let env = child_env(&request.runtime.options, &skill);
     crate::execution_environment::resolve_environment(&skill.environment, &env, &skill.directory)?;
     run_nested_workflow_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
+}
+
+/// The environment the child run of `skill` runs in under `options`: its
+/// parent's, with the tool roots its package infers. The child runs only
+/// once the environment its package declares resolves in it.
+pub(crate) fn child_env(
+    options: &crate::execution::engine::RuntimeOptions,
+    skill: &LoadedStepSkill,
+) -> BTreeMap<String, String> {
+    let mut env = options.env.clone();
+    merge_inferred_tool_roots(&mut env, &skill.directory);
+    env
 }
 
 /// A call that reaches a method the registry sells: the kernel buys it
@@ -446,24 +477,35 @@ where
 {
     let skill_name = skill.method.name.clone();
     let admission_refs = request.admission_refs.clone();
-    let chain = child_chain(&request, &skill)?;
-    let run = execute_nested_workflow(
-        request.runtime,
-        request.host,
-        NestedWorkflow {
-            step: request.step,
-            skill: &skill_name,
-            workflow: skill.method.workflow,
-            inputs: &request.inputs,
-            act: request.child_act.as_ref(),
-            provenance: &request.provenance,
-            env: &env,
-            skill_directory: &skill.directory,
-            admitted: skill.admitted.as_ref(),
-            chain,
-            context: &request.context_entries,
-        },
-    )?;
+    // A call that reused a result settles with its source's sealed run, and
+    // starts no child.
+    let reused_from = request
+        .reused
+        .as_ref()
+        .map(|source| source.receipt_id.clone());
+    let run = match &request.reused {
+        Some(source) => reused_workflow_run(request.runtime, skill.method.workflow, source)?,
+        None => {
+            let chain = child_chain(&request, &skill)?;
+            execute_nested_workflow(
+                request.runtime,
+                request.host,
+                NestedWorkflow {
+                    step: request.step,
+                    skill: &skill_name,
+                    workflow: skill.method.workflow,
+                    inputs: &request.inputs,
+                    act: request.child_act.as_ref(),
+                    provenance: &request.provenance,
+                    env: &env,
+                    skill_directory: &skill.directory,
+                    admitted: skill.admitted.as_ref(),
+                    chain,
+                    context: &request.context_entries,
+                },
+            )?
+        }
+    };
     // The step closes as its child sealed: a child that stopped short
     // stops its step with the same ending, carrying every receipt it made.
     let child_seal = &run.receipt.seal;
@@ -506,7 +548,10 @@ where
     }
     let refusal = run.refusal.clone();
     let read = super::workflow_run_labels(&run);
-    let receipt_lineage = StepReceiptLineage::from_workflow(run);
+    let receipt_lineage = match reused_from {
+        Some(receipt_id) => StepReceiptLineage::reused(receipt_id),
+        None => StepReceiptLineage::from_workflow(run),
+    };
     seal_regular_skill_step(
         RegularSkillSeal {
             runtime: request.runtime,
@@ -528,6 +573,41 @@ where
             read,
         },
     )
+}
+
+/// The sealed run of `source`, a run of `workflow` whose result a reused
+/// call settles with, as its record holds it.
+fn reused_workflow_run<A>(
+    runtime: &Runtime<A>,
+    workflow: runx_parser::Workflow,
+    source: &crate::execution::reuse::Source,
+) -> Result<WorkflowRun, RuntimeError> {
+    let log = crate::execution::run_record::RunLog::open(
+        std::sync::Arc::clone(runtime.options.run.store()),
+        &source.run_id,
+    )?;
+    let record = log.load()?.ok_or_else(|| RuntimeError::EngineInvariant {
+        context: "settling a reused call",
+        message: format!("its source {} has no record", source.run_id),
+    })?;
+    let workflow = bind_run_inputs(
+        workflow,
+        &record.inputs,
+        record.act.as_ref(),
+        &source.run_id,
+        runtime.options.workspace.as_ref(),
+    )?;
+    let run = super::sealed_workflow_run(workflow, record, log.store())?;
+    if run.receipt.id.as_str() != source.receipt_id {
+        return Err(RuntimeError::EngineInvariant {
+            context: "settling a reused call",
+            message: format!(
+                "its source {} sealed another receipt than the index names",
+                source.run_id
+            ),
+        });
+    }
+    Ok(run)
 }
 
 /// A child skill's workflow and what it runs with.
@@ -641,10 +721,12 @@ where
     }
     let mut child_options = runtime.options.as_ref().clone();
     // A child holds what its parent step does, narrowed by its own method.
-    child_options.run_authority = crate::RunAuthority::of_method(
-        crate::RunAuthority::of_step(child_options.run_authority.take(), nested.step),
-        &workflow,
-    );
+    child_options.run_authority =
+        crate::RunAuthority::of_child(child_options.run_authority.take(), nested.step, &workflow);
+    let reach = child_options
+        .run_authority
+        .as_ref()
+        .map_or_else(runx_contracts::Reach::default, |authority| authority.reach);
     child_options.env = nested.env.clone();
     child_options.run = log.clone();
     if let Some(admitted) = nested.admitted {
@@ -701,6 +783,7 @@ where
             .as_ref()
             .map_or(&runtime_alone, |start| &start.implementation),
         must_match: start.as_ref().is_some_and(|start| start.refusal.is_none()),
+        reach,
         created_at: &runtime.options.clock.now(),
     })?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
@@ -876,6 +959,7 @@ where
             admission_refs: context.admission_refs,
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
+            reused_from: receipt_lineage.reused_from.as_deref(),
             ending: context.ending,
         },
         context.runtime.options.signature_policy(),
@@ -927,7 +1011,7 @@ where
         settlement,
         labels: read,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 
@@ -1013,6 +1097,7 @@ where
         admission_refs,
         context_entries: _,
         given: _,
+        reused: _,
     } = request;
     let executable = match &step.kind {
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
@@ -1153,6 +1238,7 @@ fn seal_turn_step<A>(
             admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
+            reused_from: None,
             ending: Some(StepSealEnding {
                 outcome,
                 reason: None,
@@ -1179,33 +1265,62 @@ fn seal_turn_step<A>(
         settlement: None,
         labels: read,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 
-// Function rationale: agent-task execution is one
-// request/resolve/seal trust-boundary path.
-fn run_agent_task<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
-where
-    A: SkillAdapter,
-{
-    let StepHandlerCtx {
-        runtime,
-        workflow_dir,
-        workflow_name,
+/// What an agent step asks its host from: the run that asks and what the
+/// step is given.
+pub(crate) struct TurnAsk<'a> {
+    pub step: &'a WorkflowStep,
+    pub workflow_dir: &'a Path,
+    /// The authority of the run that asks, its environment and the context
+    /// its caller supplied.
+    pub run_authority: Option<&'a crate::RunAuthority>,
+    pub env: &'a BTreeMap<String, String>,
+    pub current_context: &'a [ContextEntry],
+    pub historical_context: &'a [ContextEntry],
+    /// When its run was admitted, which dates the act's context skills.
+    pub admitted_at: &'a str,
+    /// The package its run admitted, whose manual instructs the act.
+    pub package: &'a crate::LoadedSkillPackage,
+    /// The act its run was stated, which carries why the run exists.
+    pub act: Option<&'a CallAct>,
+    /// Where the request is addressed in its run.
+    pub address: String,
+    pub inputs: JsonObject,
+    pub provenance: Vec<ProvenanceEntry>,
+    /// The context entries its earlier steps produced.
+    pub context_entries: Vec<ContextEntry>,
+    /// How what it's given is labelled.
+    pub given: &'a ArtifactLabels,
+    /// Whether its host can say its model runs on this machine.
+    pub reads_local_only: bool,
+}
+
+/// The turn an agent step asks its host, and how the context entries the
+/// turn is given are labelled. A step given what's labelled `local_only` is
+/// refused when its host can't say its model runs on this machine.
+pub(crate) fn ask_turn(
+    ask: TurnAsk<'_>,
+) -> Result<(ResolutionRequest, ArtifactLabels), RuntimeError> {
+    let TurnAsk {
         step,
-        attempt,
+        workflow_dir,
+        run_authority,
+        env,
+        current_context,
+        historical_context,
+        admitted_at,
+        package,
+        act,
+        address,
         inputs,
-        child_act: _,
-        ask_reason: _,
         provenance,
-        host,
-        authority: _,
-        loaded_skill: _,
-        admission_refs: _,
         context_entries,
         given,
-    } = request;
+        reads_local_only,
+    } = ask;
     let StepKind::Agent(agent) = &step.kind else {
         return Err(RuntimeError::StepFailed {
             step_id: step.id.clone(),
@@ -1214,14 +1329,8 @@ where
     };
     let executable = Executable::Agent(agent.clone());
     let environment = step_environment(&executable);
-    // The act's context skills are dated by the run's admission, so the act
-    // a step asks again when the run is driven again is the one it waits on.
-    let admitted_at = match runtime.options.run.admitted_at()? {
-        Some(admitted_at) => admitted_at,
-        None => runtime.options.clock.now(),
-    };
-    let invocation = SkillInvocation {
-        reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
+    let mut invocation = SkillInvocation {
+        reach: crate::kernel::authority::step_reach(run_authority, step),
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
@@ -1235,25 +1344,24 @@ where
             &step.id,
             workflow_dir,
             &step.context_skills,
-            &runtime.options.env,
-            &admitted_at,
+            env,
+            admitted_at,
         )?,
         provenance,
         skill_directory: workflow_dir.to_path_buf(),
-        env: runtime.options.env.clone(),
+        env: env.clone(),
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
-    let mut invocation = invocation;
     // Then the entries its earlier steps produced, each with its own labels,
     // then what the run's caller supplied.
     invocation.current_context.extend(context_entries);
     invocation
         .current_context
-        .extend(runtime.options.current_context.clone());
-    invocation.historical_context = runtime.options.historical_context.clone();
+        .extend(current_context.iter().cloned());
+    invocation.historical_context = historical_context.to_vec();
     // A `local_only` entry never reaches a model that may run elsewhere: a
     // turn whose host can't say its model runs here is given none.
-    if !host.reads_local_only() {
+    if !reads_local_only {
         // Nor is what's labelled `local_only`: an artifact among its inputs,
         // or an earlier step's output made from one. An input isn't dropped,
         // since the act would then ask something else: the step is refused.
@@ -1281,12 +1389,68 @@ where
             .collect::<Vec<_>>()
             .iter(),
     );
+    let request = turn_resolution_request(&invocation, package, act, address)?;
+    Ok((request, context))
+}
+
+// Function rationale: agent-task execution is one
+// request/resolve/seal trust-boundary path.
+fn run_agent_task<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let StepHandlerCtx {
+        runtime,
+        workflow_dir,
+        workflow_name,
+        step,
+        attempt,
+        inputs,
+        child_act: _,
+        ask_reason: _,
+        provenance,
+        host,
+        authority: _,
+        loaded_skill: _,
+        admission_refs: _,
+        context_entries,
+        given,
+        reused: _,
+    } = request;
+    let StepKind::Agent(agent) = &step.kind else {
+        return Err(RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: "not an agent step".to_owned(),
+        });
+    };
+    // The act's context skills are dated by the run's admission, so the act
+    // a step asks again when the run is driven again is the one it waits on.
+    let admitted_at = match runtime.options.run.admitted_at()? {
+        Some(admitted_at) => admitted_at,
+        None => runtime.options.clock.now(),
+    };
     let request_id = runtime.options.run.address(&step.id);
     // The act's instructions are the manual its run admitted.
-    let package = runtime.options.package(&invocation.skill_directory)?;
+    let package = runtime.options.package(workflow_dir)?;
     // The act carries why its run exists.
     let act = runtime.options.run.act()?;
-    let request = turn_resolution_request(&invocation, &package, act.as_ref(), request_id.clone())?;
+    let (request, context) = ask_turn(TurnAsk {
+        step,
+        workflow_dir,
+        run_authority: runtime.options.run_authority.as_ref(),
+        env: &runtime.options.env,
+        current_context: &runtime.options.current_context,
+        historical_context: &runtime.options.historical_context,
+        admitted_at: &admitted_at,
+        package: &package,
+        act: act.as_ref(),
+        address: request_id.clone(),
+        inputs,
+        provenance,
+        context_entries,
+        given: &given,
+        reads_local_only: host.reads_local_only(),
+    })?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
         data: Some(resolution_event_data(step, &request)?),
@@ -1305,6 +1469,7 @@ where
             effects: step.effects,
             reach: step.reach,
             reads_local_only: host.reads_local_only(),
+            answers_each_call: host.answers_each_call(),
             given: ArtifactLabels::derived_from([&given, &context]),
         },
         &request,
@@ -1394,6 +1559,7 @@ where
         loaded_skill: _,
         context_entries: _,
         given,
+        reused: _,
     } = request;
     let tool = step
         .catalog_tool()
@@ -1480,6 +1646,80 @@ where
     )
 }
 
+/// What the native read `step` returns now, given `inputs` under `reach`
+/// in an environment `env`, as its step's contract: its tool resolved, run
+/// under the workspace's lock and projected as a tool step's is, with no
+/// admission, record or receipt. Reuse compares it with what a source read
+/// (reuse.md, check 3). A read that fails, or returns a verdict, is an
+/// error.
+pub(crate) fn read_now(
+    options: &crate::execution::engine::RuntimeOptions,
+    local_artifacts: &crate::services::LocalArtifactService,
+    env: &BTreeMap<String, String>,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
+    reach: runx_contracts::Reach,
+) -> Result<JsonObject, RuntimeError> {
+    let tool = step
+        .catalog_tool()
+        .ok_or_else(|| RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: "only a tool step reads through a tool".to_owned(),
+        })?;
+    let lock = crate::tool_catalogs::native::workspace_lock_mode(tool)
+        .map(|mode| options.workspace_lock(workflow_dir, mode))
+        .transpose()?;
+    let env = lock
+        .as_ref()
+        .map_or_else(|| env.clone(), |lock| lock.environment(env));
+    let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
+        tool: Cow::Borrowed(tool),
+        inputs: Cow::Borrowed(&step.inputs),
+        resolved_inputs: Cow::Owned(JsonObject::new()),
+        env: &env,
+        skill_directory: workflow_dir,
+        credential_delivery: &crate::credentials::CredentialDelivery::none(),
+        local_artifacts,
+        skill_name: tool,
+        allow_explicit_manifest_path: true,
+        effect_admission: None,
+        reach,
+        call: None,
+    };
+    let tool_result =
+        crate::tool_catalogs::dispatch::resolve_tool_result(&tool_request, &options.effects)?;
+    let output = crate::tool_catalogs::dispatch::dispatch_tool(
+        tool_request,
+        &options.effects,
+        &options.clock.now(),
+        Instant::now(),
+    )?;
+    drop(lock);
+    if !output.succeeded() {
+        return Err(RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: output
+                .failure_message()
+                .unwrap_or_else(|| format!("{tool} failed")),
+        });
+    }
+    // A read names no verdict, so none is named here.
+    let no_verdict = || {
+        Err(RuntimeError::EngineInvariant {
+            context: "reading again",
+            message: "a read returned a verdict".to_owned(),
+        })
+    };
+    build_step_output_projection(
+        step,
+        &output,
+        tool_result.outputs.as_ref(),
+        tool_result.artifacts.as_ref(),
+        &Evaluating::Step(&no_verdict),
+    )
+    .map(|projection| projection.outputs)
+}
+
 /// Everything a step owned by an effect seals with.
 struct EffectStepSeal<'a, A> {
     runtime: &'a Runtime<A>,
@@ -1558,6 +1798,7 @@ where
             admission_refs,
             child_receipts: &[],
             descendant_receipts: &[],
+            reused_from: None,
             ending: None,
         },
         runtime.options.signature_policy(),
@@ -1605,7 +1846,7 @@ where
         settlement,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 
@@ -1748,12 +1989,12 @@ where
         }
     }
     let mut effects = Vec::new();
-    let mut credential_fingerprint = None;
+    let mut operation_read_identity = None;
     let mut failure = None;
     let output = match outcome {
         Ok(outcome) => {
             effects = outcome.effects;
-            credential_fingerprint = outcome.credential;
+            operation_read_identity = outcome.read_identity;
             let mut output = crate::adapter_pipeline::AdapterProjection::from_started(started)
                 .runtime_output(
                     crate::adapter::InvocationStatus::Success,
@@ -1804,7 +2045,7 @@ where
         Some(&artifacts),
     )
     .map(|run| StepRun {
-        credential_fingerprint,
+        operation_read_identity,
         failure,
         ..run
     })
@@ -1963,6 +2204,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
+            reused_from: None,
             ending: None,
         },
         runtime.options.signature_policy(),
@@ -1986,7 +2228,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 
@@ -2121,6 +2363,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
+            reused_from: None,
             ending: None,
         },
         runtime.options.signature_policy(),
@@ -2144,7 +2387,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 
@@ -2316,6 +2559,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
+            reused_from: None,
             ending,
         },
         runtime.options.signature_policy(),
@@ -2342,7 +2586,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 

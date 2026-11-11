@@ -6,6 +6,19 @@
       "prompt": "Build a Runx homepage voice packet from these approved and rejected examples.",
       "expected_output": "Return a scoped voice packet with evidence-bound rules, safe claims, and explicit anti-patterns.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Turn the approved product contract and the rejected copy you are given into writing context other writers can reuse.",
+      "expected_output": "A voice packet from the given material alone: the receipts claim allowed as the product contract states it, \"autonomous everything with no review\" named as rejected with the reason, each rule bound to its source, ready for downstream writers.",
+      "files": [
+        "evals/files/approved-and-rejected-copy.json"
+      ],
+      "expectations": [
+        "It states no product claim beyond the given material.",
+        "It names the rejected language and where it applies, so a writer need not work it out again."
+      ],
+      "method": "voice"
     }
   ]
 }

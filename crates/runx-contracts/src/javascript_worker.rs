@@ -37,7 +37,12 @@ pub const MAX_SCRIPT_CALLS: u32 = 10_000;
 
 pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_INPUT_BYTES: usize = 4 * 1024 * 1024;
+/// The most of an invocation's output its answer carries, in bytes of its
+/// JSON. A tool's past it is refused; a script's past it comes in parts.
 pub const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
+/// The most of a script's output one part carries, in bytes of its JSON: a
+/// part ends on a character, so it may carry a few bytes less.
+pub const MAX_OUTPUT_PART_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_FRAME_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_STDERR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_JOBS: u32 = 4_096;
@@ -162,6 +167,18 @@ pub struct ScriptSettleRequest {
     pub settled: Vec<ScriptSettlement>,
     /// What a `ctx.now()` read from here reads.
     pub now: i64,
+}
+
+/// A part of the output a pass's script returned past what its answer
+/// carries: the JSON from `offset` bytes in, at most
+/// [`MAX_OUTPUT_PART_BYTES`] of it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptOutputPartRequest {
+    pub protocol_version: u16,
+    /// The pass whose script returned it.
+    pub invocation_id: String,
+    pub offset: u64,
 }
 
 /// How the call at `position` settled.
@@ -303,6 +320,9 @@ pub struct ReuseAsk {
 pub enum ScriptEnding {
     /// The function returned `output`.
     Returned { output: serde_json::Value },
+    /// The function returned an output of `size_bytes` of JSON, past what an
+    /// answer carries: the host reads it in parts, with `OutputPart`.
+    ReturnedInParts { size_bytes: u64 },
     /// The function threw, or its promise rejected.
     Threw { message: String },
     /// The function waits on calls that haven't settled.
@@ -324,6 +344,7 @@ pub enum WorkerRequest {
     /// settlement.
     Pass(Box<ScriptPassRequest>),
     Settle(Box<ScriptSettleRequest>),
+    OutputPart(Box<ScriptOutputPartRequest>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -347,6 +368,12 @@ pub enum WorkerResponse {
         invocation_id: String,
         calls: Vec<ScriptCall>,
         ending: ScriptEnding,
+    },
+    /// A part of a script's output, as `OutputPart` asked for it.
+    OutputPart {
+        protocol_version: u16,
+        invocation_id: String,
+        json: String,
     },
     Failure {
         protocol_version: u16,

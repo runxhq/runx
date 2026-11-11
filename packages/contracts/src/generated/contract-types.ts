@@ -2703,7 +2703,11 @@ export type ReuseDecisionContract = {
 
 /** How a call stood when this event recorded it. */
 export type RunCallOutcomeContract = {
-  /** The call's output as project artifacts of its run: one per packet output, and one for the rest. */
+  /** The call's output its record holds: every field but those `outputs` names. */
+  readonly output?: {
+    readonly [key: string]: unknown;
+  };
+  /** The call's output a project artifact of its run holds, one each: each packet output, and a script's field past its inline bound. */
   readonly outputs?: readonly RunCallOutputContract[];
   /** Why a call that ran did not succeed. */
   readonly reason?: string;
@@ -2746,11 +2750,11 @@ export type RunCallOutcomeContract = {
   readonly status: "too_large";
 };
 
-/** A project artifact holding part of a call's output. */
+/** A project artifact holding one field of a call's output. */
 export type RunCallOutputContract = {
   readonly artifact: ArtifactContract;
-  /** The packet output it holds; absent on the artifact of the call's other outputs. */
-  readonly output?: string;
+  /** The output field it holds. */
+  readonly output: string;
 };
 
 /** What a call that asked to reuse a result asked, and what it was answered (reuse, D32): the source it settled from, or why it ran again, so reuse that never fires shows up. */

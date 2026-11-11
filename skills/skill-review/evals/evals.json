@@ -6,6 +6,19 @@
       "prompt": "Review the review-subject skill for capability, trust, and operator readiness.",
       "expected_output": "Collect native inspection and test evidence, then return a bounded adoption or improvement recommendation.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Assess this skill from the native evidence the catalog review already collected.",
+      "expected_output": "An assessment from the given evidence alone: a read-only package that digests one fixed value, whose test passed, with its stop behaviour and limits stated, and no provider effect run and nothing rebuilt.",
+      "files": [
+        "evals/files/review-subject-evidence.json"
+      ],
+      "expectations": [
+        "It does not run a live provider operation.",
+        "It does not inspect the package again for contracts the given inspection already shows."
+      ],
+      "method": "assess"
     }
   ]
 }

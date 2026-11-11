@@ -161,7 +161,7 @@ fn write_temporary_file(
                 )
             })?;
     }
-    file.sync_all()
+    crate::durable::sync_file(&file)
         .map_err(|source| RuntimeError::io(format!("syncing {}", path.display()), source))
 }
 

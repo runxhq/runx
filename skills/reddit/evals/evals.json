@@ -7,6 +7,19 @@
       "expected_output": "Return account-specific drafts and evidence without publishing or voting.",
       "files": [],
       "method": "reddit"
+    },
+    {
+      "id": 2,
+      "prompt": "Draft a reply from the thread evidence you are given.",
+      "expected_output": "A draft reply for the r/learnprogramming thread in the account voice, from the given evidence, with nothing submitted and no vote.",
+      "files": [
+        "evals/files/thread-evidence.json"
+      ],
+      "expectations": [
+        "It does not browse to read the thread again.",
+        "It submits nothing."
+      ],
+      "method": "reddit"
     }
   ]
 }

@@ -38,7 +38,7 @@ mod call_pool;
 mod call_stops;
 mod dispatch;
 pub(crate) mod floor;
-mod input_digest;
+pub(crate) mod input_digest;
 mod receipt_budget;
 mod step_handlers;
 mod steps;
@@ -51,6 +51,7 @@ pub use call_stops::CallCancel;
 pub(crate) use call_stops::{CallStop, CallStops, CallWork};
 pub(crate) use receipt_budget::ReceiptTally;
 pub use step_handlers::{StatedTrust, state_trust};
+pub(crate) use step_handlers::{TurnAsk, ask_turn, read_now};
 use steps::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
@@ -106,6 +107,32 @@ pub(crate) fn safe_read(
             crate::kernel::operation::operation_safe_read(target, &step.inputs, env, workflow_dir)
         }
         _ => false,
+    }
+}
+
+/// How durable the claim of `step` is before it reaches the world: ordered
+/// for an operation always kept in custody, whose attempt the effect ledger
+/// records durably after the claim and before the provider, syncing the
+/// claim with it; durable for anything else, whose claim is the last record
+/// before the world.
+pub(crate) fn claim_durability(
+    step: &runx_parser::WorkflowStep,
+    workflow_dir: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> crate::kernel::store::Durability {
+    use runx_parser::StepKind;
+    match &step.kind {
+        StepKind::Operation(target)
+            if crate::kernel::operation::operation_kept_in_custody(
+                target,
+                &step.inputs,
+                env,
+                workflow_dir,
+            ) =>
+        {
+            crate::kernel::store::Durability::Ordered
+        }
+        _ => crate::kernel::store::Durability::Durable,
     }
 }
 
@@ -250,10 +277,7 @@ impl RunClock {
     /// `ctx.now()` reads it; none for a pinned instant that isn't a time.
     #[must_use]
     pub fn now_millis(&self) -> Option<i64> {
-        let (days, seconds, nanos) = runx_core::policy::parse_rfc3339_moment(&self.now())?;
-        days.checked_mul(86_400_000)?
-            .checked_add(seconds.checked_mul(1_000)?)?
-            .checked_add(i64::from(nanos / 1_000_000))
+        crate::time::millis_of(&self.now())
     }
 }
 
@@ -684,10 +708,9 @@ pub struct StepRun {
     /// all be digested, such as an environment it declares with no runx home
     /// the operator owns to fingerprint it with.
     pub input_digest: Option<String>,
-    /// The credential the step's operation call presented, as reuse compares
-    /// it: `none` for a call that presents none, a fingerprint keyed by the
-    /// runx home, or nothing when it can't be fingerprinted.
-    pub credential_fingerprint: Option<String>,
+    /// The operation owner's digest of the confirmed binding, implementation
+    /// and presented credential. None when any pin cannot be established.
+    pub operation_read_identity: Option<String>,
 }
 
 impl StepRun {
@@ -2124,7 +2147,7 @@ mod tests {
             settlement: None,
             labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
             input_digest: None,
-            credential_fingerprint: None,
+            operation_read_identity: None,
         })
     }
 

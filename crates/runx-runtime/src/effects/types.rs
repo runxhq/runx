@@ -73,6 +73,21 @@ pub trait RuntimeEffect: Send + Sync {
         Ok(())
     }
 
+    /// Whether a source read's identity and result are current. The owning
+    /// family compares its recorded pins under today's authorization and
+    /// rereads local state through its own driver, admitting, counting and
+    /// recording nothing. Unknown families fail closed.
+    fn read_unchanged(
+        &self,
+        request: EffectStepRequest<'_>,
+        _recorded_identity: &str,
+        _recorded_result: &str,
+    ) -> Result<bool, RuntimeEffectError> {
+        Err(RuntimeEffectError::MissingFamily {
+            family: format!("a family that reads step {} again", request.step.id),
+        })
+    }
+
     /// Admit what the step declares it may call through this family before
     /// any call is made, from the checks its calls' admission runs, refusing
     /// as the first refused call would be. A family no step declares calls

@@ -55,6 +55,8 @@ struct StepReceiptSeal<'a> {
     admission_refs: Vec<Reference>,
     child_receipts: &'a [Receipt],
     descendant_receipts: &'a [Receipt],
+    /// The source run's receipt a reused call settled with.
+    reused_from: Option<&'a str>,
     authority: SealAuthority,
     call: Option<SealedCall>,
     signature_policy: RuntimeReceiptSignaturePolicy<'a>,
@@ -96,6 +98,7 @@ pub(crate) fn step_receipt_with_declared_claim_and_policy(
         admission_refs: Vec::new(),
         child_receipts: &[],
         descendant_receipts: &[],
+        reused_from: None,
         authority: SealAuthority::default(),
         call: None,
         signature_policy,
@@ -111,6 +114,7 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
         admission_refs,
         child_receipts,
         descendant_receipts,
+        reused_from,
         authority,
         call,
         signature_policy,
@@ -174,6 +178,7 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
         .observations
         .boundary
         .map(|kind| ExecutionBoundaryObservation { kind });
+    receipt.as_mut().lineage.reused_from = reused_from.map(Into::into);
     let receipt = receipt.seal(signature_policy)?;
     if !child_receipts.is_empty() {
         validate_receipt_tree_with_policy(
@@ -268,6 +273,9 @@ pub(crate) struct StepSeal<'a> {
     /// All receipts below `child_receipts`, supplied only to resolve and
     /// validate the complete tree. They are not direct children of this step.
     pub(crate) descendant_receipts: &'a [Receipt],
+    /// The source run's receipt a reused call settled with, which its
+    /// receipt names as `reused_from` (reuse, D32); none for any other step.
+    pub(crate) reused_from: Option<&'a str>,
     pub(crate) ending: Option<StepSealEnding>,
 }
 
@@ -306,6 +314,7 @@ pub(crate) fn seal_step(
         admission_refs,
         child_receipts,
         descendant_receipts,
+        reused_from,
         ending,
     } = params;
     let StepSealEnding { outcome, reason } =
@@ -324,6 +333,7 @@ pub(crate) fn seal_step(
         admission_refs,
         child_receipts,
         descendant_receipts,
+        reused_from,
         authority,
         call,
         signature_policy,
@@ -1045,6 +1055,7 @@ mod tests {
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
+            reused_from: None,
             authority: SealAuthority::default(),
             call: Some(SealedCall {
                 operation_intent: None,
@@ -1189,6 +1200,7 @@ mod tests {
                 admission_refs: Vec::new(),
                 child_receipts: &[],
                 descendant_receipts: &[],
+                reused_from: None,
                 authority: SealAuthority::default(),
                 call: None,
                 signature_policy: fixture()?.signature_policy(),
@@ -1259,6 +1271,7 @@ mod tests {
                 admission_refs: Vec::new(),
                 child_receipts: std::slice::from_ref(child),
                 descendant_receipts: &[],
+                reused_from: None,
                 authority: SealAuthority::default(),
                 call: None,
                 signature_policy: signature.signature_policy(),

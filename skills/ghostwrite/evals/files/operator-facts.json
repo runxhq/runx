@@ -1,0 +1,9 @@
+{
+  "about": "The facts and writing scope the operator supplied for a status update.",
+  "objective": "Write a short fixture-project status update.",
+  "audience": "maintainers",
+  "channel": "brief",
+  "facts": [
+    "The fixture project updated its setup guidance."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "about": "The native evidence the catalog review already collected for one subject package: its inspection and its test.",
+  "skill": "review-subject",
+  "objective": "Decide whether the subject has bounded evidence and stop behavior",
+  "test_constraints": "Run only local read-only tests.",
+  "inspection": {
+    "name": "review-subject",
+    "description": "A bounded read-only sample skill that skill-review reviews.",
+    "methods": [
+      "default"
+    ],
+    "closure": "tool:data.digest",
+    "execution": "read"
+  },
+  "test": {
+    "case": "review-subject-digests",
+    "method": "default",
+    "status": "passed",
+    "outcome": "sealed"
+  }
+}

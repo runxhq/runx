@@ -144,6 +144,17 @@ impl RunAuthority {
         Self::narrowed(authority, step.effects, step.reach)
     }
 
+    /// What the child run of `method` that `step` starts holds under its
+    /// parent's `authority`: narrowed by the step, then by the method.
+    #[must_use]
+    pub(crate) fn of_child(
+        authority: Option<Self>,
+        step: &WorkflowStep,
+        method: &Workflow,
+    ) -> Option<Self> {
+        Self::of_method(Self::of_step(authority, step), method)
+    }
+
     /// `authority` with its effects and reach narrowed where `effects` and
     /// `reach` are narrower, never wider. A run no host gave an authority
     /// gains one only when something narrows it.

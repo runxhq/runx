@@ -152,6 +152,13 @@ struct StepStatus {
     outcome: StepOutcome,
 }
 
+/// The part of a call's record a read reports beside its outcome: its
+/// output, every field the record holds.
+#[derive(Deserialize)]
+struct CallOutput {
+    contract: JsonObject,
+}
+
 /// The part of a receipt a read reports.
 #[derive(Deserialize)]
 struct ReceiptId {
@@ -252,9 +259,15 @@ fn project(
                     ..
                 } => {
                     let (outcome, receipt_id) = step(&record, &receipt)?;
+                    let CallOutput { mut contract } = store.blob_json(&record)?;
+                    // A field an artifact holds is the artifact's alone.
+                    for part in &outputs {
+                        contract.remove(part.output.as_str());
+                    }
                     RunCallOutcome::Completed {
                         succeeded: outcome.succeeded(),
                         receipt_id,
+                        output: contract,
                         outputs,
                         reason: (!outcome.succeeded())
                             .then(|| reason(outcome.failure_message().unwrap_or_default())),

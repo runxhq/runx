@@ -18,6 +18,19 @@
       "prompt": "Show page-level Google Search performance for this verified property and date range.",
       "expected_output": "Query the configured property once and return normalized Search Console evidence with provider readback.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Normalize the Search Console performance you are given for the growth brief.",
+      "expected_output": "The given June performance normalized for https://example.com/, the guide page with 42 clicks from 600 impressions at position 4.2, keeping the property, page dimension, final data state and completeness as given, with no new query.",
+      "files": [
+        "evals/files/june-page-performance.json"
+      ],
+      "expectations": [
+        "It does not call Search Console again.",
+        "It keeps the metrics and completeness caveats as the result states them."
+      ],
+      "method": "normalize-performance"
     }
   ]
 }

@@ -213,9 +213,16 @@ pub(crate) struct Spending {
 pub(crate) enum AdmitError {
     /// A check refused it.
     Refused(Refusal),
-    /// The kernel's state holds it: the act has an unsettled attempt the
-    /// call cannot recover, or the state cannot be read.
+    /// The kernel's state can't be read or written.
     State(String),
+    /// An unsettled attempt of the act, of another intent or mandate, holds
+    /// the call: it waits on its retry while that attempt, `plan_digest`
+    /// sent with `idempotency_key`, settles (D34).
+    Held {
+        plan_digest: String,
+        idempotency_key: String,
+        reason: String,
+    },
 }
 
 /// A refusal: the reasons up to and including the check that failed.
@@ -309,6 +316,38 @@ pub(crate) struct Authorized {
     /// delegation together.
     term: AuthorityTerm,
     derivation: AuthorityDerivation,
+}
+
+impl Authorized {
+    /// The connector the call is made on.
+    pub(crate) fn connector(&self) -> &LoadedConnector {
+        &self.connector
+    }
+
+    /// The operation's name on its connector.
+    pub(crate) fn operation_name(&self) -> &OperationName {
+        &self.operation
+    }
+
+    /// The operation, as its connector declares it.
+    pub(crate) fn operation(&self) -> &ConnectorOperation {
+        &self.connector.manifest.operations[&self.operation]
+    }
+
+    /// The instance the call runs under.
+    pub(crate) fn instance(&self) -> &ConnectorInstance {
+        &self.instance
+    }
+
+    /// What the call reaches at its provider.
+    pub(crate) fn target(&self) -> &str {
+        &self.target
+    }
+
+    /// The digest of the call's intent, which its provider key derives from.
+    pub(crate) fn intent_digest(&self) -> &Digest {
+        &self.intent_digest
+    }
 }
 
 /// Authorize one exact call.
@@ -629,8 +668,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // unsettled attempt of its own intent and is held by any other; a
     // bounded call takes the use of the attempt sequence it joins.
     let spends = matches!(charge, Ok(Some(_)));
-    let custody = (operation_spec.access() == OperationAccess::Mutate
-        || operation_spec.is_metered()
+    let custody = (crate::kernel::operation::kept_in_custody(operation_spec)
         || !use_limits(&capability, &delegations).is_empty()
         || spends)
         .then(|| {
@@ -645,9 +683,10 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
-    // The bounded evidence uses the act's sequence `use_key` takes: one of
-    // each bounded term, however many attempts recover the sequence.
-    let covers = |use_key: &str| -> Result<Vec<UseCover>, UsageError> {
+    // The bounded evidence uses the act's sequence `use_key` takes for the
+    // intent `attempted`: one of each bounded term, however many attempts
+    // recover the sequence.
+    let covers = |use_key: &str, attempted: &str| -> Result<Vec<UseCover>, UsageError> {
         let mut covers = Vec::new();
         for parent in std::iter::once(&capability.term).chain(delegations.iter()) {
             let Some(limit) = &parent.bounds.uses else {
@@ -657,7 +696,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                 &format!("term:{}", parent.term_id),
                 limit,
                 use_key,
-                intent_digest.as_str(),
+                attempted,
                 evaluation.run_id,
                 now,
             )?);
@@ -668,32 +707,51 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let (pending, done, use_key, custody_head) = match &custody {
         Some(custody) => {
             let mut stands = custody.custody().map_err(|error| state(&error))?;
-            if let Some(pending) = &stands.pending {
-                held(pending, intent_digest.as_str(), mandate_ref.as_ref())?;
+            if let Some(pending) = stands.pending.clone() {
+                let other = held(&pending, intent_digest.as_str(), mandate_ref.as_ref());
+                // A person's retry of an attempt custody holds no evidence
+                // of is their saying it didn't take effect, when it's another
+                // intent's or this one can't be sent again unseen: the
+                // attempt settles rejected, keeping what it used and spent,
+                // and the call goes under the same key as a new attempt,
+                // counted anew. Evidence comes first: an attempt that read
+                // back or was acknowledged settles by its own recovery.
+                if evaluation.reconciliation == Some(crate::effects::Reconciliation::Retried)
+                    && pending.acknowledgement.is_none()
+                    && pending.readback.is_none()
+                    && (other.is_some()
+                        || !super::operation::resends_safely(
+                            manifest,
+                            operation_spec,
+                            evaluation.retry_unknown_outcomes,
+                        ))
+                {
+                    let use_key = custody.use_key(stands.sequence, &pending.intent_digest);
+                    let used =
+                        covers(&use_key, &pending.intent_digest).map_err(|error| state(&error))?;
+                    let spent = spend::settle(evaluation.store, evaluation.run_id, &use_key)
+                        .map_err(|error| state(&error))?;
+                    custody
+                        .rejected(UNTAKEN.to_owned(), &used, false, spent)
+                        .map_err(|error| state(&error))?;
+                    stands = custody.custody().map_err(|error| state(&error))?;
+                } else if let Some(reason) = other {
+                    return Err(AdmitError::Held {
+                        plan_digest: pending.intent_digest,
+                        idempotency_key: pending.idempotency_key,
+                        reason: reason.to_owned(),
+                    });
+                }
             }
-            // A person's retry of an attempt custody holds no evidence of,
-            // when it can't be sent again unseen, is their saying it didn't
-            // take effect: the attempt settles rejected, keeping what it
-            // used and spent, and the call goes again under the same key as
-            // a new attempt, counted anew.
-            if evaluation.reconciliation == Some(crate::effects::Reconciliation::Retried)
-                && stands.pending.as_ref().is_some_and(|pending| {
-                    pending.acknowledgement.is_none() && pending.readback.is_none()
-                })
-                && !super::operation::resends_safely(
-                    manifest,
-                    operation_spec,
-                    evaluation.retry_unknown_outcomes,
-                )
+            // Another call may have attempted it since.
+            if let Some(pending) = &stands.pending
+                && let Some(reason) = held(pending, intent_digest.as_str(), mandate_ref.as_ref())
             {
-                let use_key = custody.use_key(stands.sequence, intent_digest.as_str());
-                let used = covers(&use_key).map_err(|error| state(&error))?;
-                let spent = spend::settle(evaluation.store, evaluation.run_id, &use_key)
-                    .map_err(|error| state(&error))?;
-                custody
-                    .rejected(UNTAKEN.to_owned(), &used, false, spent)
-                    .map_err(|error| state(&error))?;
-                stands = custody.custody().map_err(|error| state(&error))?;
+                return Err(AdmitError::Held {
+                    plan_digest: pending.intent_digest.clone(),
+                    idempotency_key: pending.idempotency_key.clone(),
+                    reason: reason.to_owned(),
+                });
             }
             // A key means one intent (D34): an act its key finalized is done,
             // and a call of it under that key acts no further.
@@ -707,7 +765,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     if done.is_none()
         && let Some(use_key) = &use_key
     {
-        match covers(use_key) {
+        match covers(use_key, intent_digest.as_str()) {
             Ok(covered) => usage_covers = covered,
             Err(error @ (UsageError::TotalExhausted | UsageError::DailyExhausted)) => {
                 return Err(reasons.refuse(
@@ -886,24 +944,24 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
 /// didn't take effect.
 const UNTAKEN: &str = "untaken";
 
-/// An unsettled attempt of the act holds a call of any other intent or
-/// mandate.
+/// Why an unsettled attempt of the act holds a call: one of any other intent
+/// or mandate does, and the call waits on its retry while it settles.
 fn held(
     pending: &Pending,
     intent_digest: &str,
     mandate_ref: Option<&Reference>,
-) -> Result<(), AdmitError> {
+) -> Option<&'static str> {
     if pending.intent_digest != intent_digest {
-        return Err(AdmitError::State(
-            "an unsettled attempt of this act carries another intent; reconcile it before running a different call".to_owned(),
-        ));
+        return Some(
+            "an unsettled attempt of this act carries another intent, so this call waits on its retry until that attempt settles",
+        );
     }
     if pending.mandate_ref.as_ref() != mandate_ref {
-        return Err(AdmitError::State(
-            "an unsettled attempt of this act was admitted under another mandate; reconcile it before resuming".to_owned(),
-        ));
+        return Some(
+            "an unsettled attempt of this act was admitted under another mandate, so this call waits on its retry until that attempt settles",
+        );
     }
-    Ok(())
+    None
 }
 
 /// The readiness of every operation a skill's connectors block lists, from

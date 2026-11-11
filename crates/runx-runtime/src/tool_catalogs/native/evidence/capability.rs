@@ -227,7 +227,8 @@ static INDEX: TypedNativeCapability<EvidenceIndexInput, EvidenceIndexOutput> =
             fields: INDEX_FIELDS,
         },
         super::index_sources,
-    );
+    )
+    .reading_only_inputs();
 
 static VERIFY: TypedNativeCapability<EvidenceVerifyInput, EvidenceVerifyOutput> =
     TypedNativeCapability::new(

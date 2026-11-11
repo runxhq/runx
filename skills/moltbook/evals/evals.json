@@ -24,6 +24,32 @@
       "prompt": "Scan Moltbook for current credible opportunities relevant to Runx builders.",
       "expected_output": "Read the configured feed once and return a fresh evidence-bound opportunity packet without posting.",
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Publish the approved Moltbook post you are given.",
+      "expected_output": "It reaches publish with the given payload, its digest and the idempotency key unchanged, and under no effects the publish is refused at admission, drafting nothing again and making no second post.",
+      "files": [
+        "evals/files/approved-post-packet.json"
+      ],
+      "expectations": [
+        "It does not draft the post again.",
+        "It does not publish a second post."
+      ],
+      "method": "publish"
+    },
+    {
+      "id": 6,
+      "prompt": "Prepare the Moltbook post for the opportunity the completed scan you are given chose.",
+      "expected_output": "A drafted post on moving a Runx skill into a package root, from the given scan outline and evidence, within Moltbook limits, and not posted.",
+      "files": [
+        "evals/files/completed-scan.json"
+      ],
+      "expectations": [
+        "It does not scan the Moltbook feed again.",
+        "It does not publish."
+      ],
+      "method": "post"
     }
   ]
 }

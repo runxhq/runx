@@ -1639,11 +1639,22 @@ fn mail_project(root: &Path) -> TestResult<PathBuf> {
 /// Send `body` to each of ann, bob and carol as run `run_id`, crashing at
 /// `crash` when given.
 fn send_batch(root: &Path, skill: &Path, run_id: &str, crash: Option<&str>) -> TestResult<Output> {
+    send_batch_of(root, skill, run_id, "The fixture is ready.", crash)
+}
+
+/// [`send_batch`], sending `body`.
+fn send_batch_of(
+    root: &Path,
+    skill: &Path,
+    run_id: &str,
+    body: &str,
+    crash: Option<&str>,
+) -> TestResult<Output> {
     fs::write(
         root.join("batch.json"),
         serde_json::json!({
             "recipients": ["ann@example.test", "bob@example.test", "carol@example.test"],
-            "body": "The fixture is ready.",
+            "body": body,
         })
         .to_string(),
     )?;
@@ -1757,5 +1768,410 @@ fn an_interrupted_send_reconciles_and_the_batch_goes_on() -> TestResult {
     for to in ["ann@example.test", "bob@example.test", "carol@example.test"] {
         assert_eq!(sent_to(&root, to)?, 1, "{to}");
     }
+    Ok(())
+}
+
+/// `send-one` sends ann one message from a fixed step, under one key.
+fn write_send_one(root: &Path) -> TestResult<PathBuf> {
+    let skill = root.join("send-one");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: send-one\ndescription: Sends ann one message.\n---\n# Send one\n\nSend it.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+methods:
+  send:
+    steps:
+      - id: send
+        operation: fixture/mail/message.send
+        idempotency_key: send-one:ann
+        inputs:
+          to: ann@example.test
+          body: The fixture is ready.
+"#,
+    )?;
+    Ok(skill)
+}
+
+/// A fixed step reconciles from custody as a call does, with nobody asked.
+/// Killed after its send ran, its answer is in custody and settles it, so
+/// nothing is sent again; killed before custody recorded an attempt, it never
+/// reached the mailbox, so it sends now. Either way the run seals with one
+/// message sent and no retry asked of a person.
+#[test]
+fn a_fixed_operation_step_in_flight_at_a_kill_reconciles_from_custody() -> TestResult {
+    for crash in ["after_execution@send", "after_admission@send"] {
+        let root = crate::support::temp_root("fixed-send-in-flight");
+        mail_project(&root)?;
+        let skill = write_send_one(&root)?;
+        let mut killed = unsigned_runx_command_at(&root);
+        killed
+            .env("MAIL_TOKEN", "local-mailbox-token")
+            .env("RUNX_CRASH_AT", crash)
+            .arg("skill")
+            .arg(&skill)
+            .args(["--run-id", RUN_ID, "--receipt-dir"])
+            .arg(root.join("receipts"))
+            .arg("--json");
+        crashed(&killed.output()?);
+
+        let mut recovered = unsigned_runx_command_at(&root);
+        recovered
+            .env("MAIL_TOKEN", "local-mailbox-token")
+            .arg("skill")
+            .arg(&skill)
+            .args(["--run-id", RUN_ID, "--receipt-dir"])
+            .arg(root.join("receipts"))
+            .arg("--json");
+        let sealed = status(&recovered.output()?)?;
+        assert_eq!(sealed["status"], "sealed", "{crash}: {sealed}");
+        assert_eq!(sealed["outcome"], "completed", "{crash}: {sealed}");
+        assert_eq!(sent_to(&root, "ann@example.test")?, 1, "{crash}");
+    }
+
+    // A read a process carries out is in no custody, so nothing settles it:
+    // driven again, it waits on its retry as it was, read once.
+    let root = crate::support::temp_root("fixed-read-in-flight");
+    notes_project(&root)?;
+    let skill = root.join("read-one");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: read-one\ndescription: Reads one note.\n---\n# Read one\n\nRead it.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        operation: fixture/notes/notes.read\n        inputs:\n          note: $input.value\n",
+    )?;
+    crashed(&run(&root, &skill, Some("after_execution@read"))?);
+    for _ in 0..2 {
+        let held = status(&run(&root, &skill, None)?)?;
+        let requests = held["requests"].as_array().cloned().unwrap_or_default();
+        assert!(
+            matches!(&requests[..], [request] if request["id"] == "read/retry"),
+            "{held}"
+        );
+    }
+    assert_eq!(lines(&root, "notes/reads")?, ["hello"]);
+    Ok(())
+}
+
+/// Drive run `run_id` again, answering nothing, with the mailbox's token.
+fn drive_mail(root: &Path, run_id: &str) -> TestResult<serde_json::Value> {
+    let nothing = root.join("nothing.json");
+    fs::write(&nothing, "{}")?;
+    status(
+        &unsigned_runx_command_at(root)
+            .env("MAIL_TOKEN", "local-mailbox-token")
+            .args(["resume", run_id])
+            .arg(&nothing)
+            .arg("--receipt-dir")
+            .arg(root.join("receipts"))
+            .arg("--json")
+            .output()?,
+    )
+}
+
+/// The hold (D34): an act whose attempt of another intent is unsettled holds
+/// a call of it as a wait on that call alone. Killed just past bob's send, a
+/// batch leaves bob's attempt unsettled. A batch with another body then finds
+/// ann already done, sends carol, and waits on bob's retry, sending him
+/// nothing, since his first attempt read back what it sent. That attempt
+/// settles by its own run's recovery, and the waiting batch, driven again,
+/// finds bob's act done under his key and seals. Each recipient got one
+/// message.
+#[test]
+fn another_bodys_unsettled_send_holds_that_call_while_the_others_go_on() -> TestResult {
+    let root = crate::support::temp_root("held-send");
+    let skill = mail_project(&root)?;
+    crashed(&send_batch(
+        &root,
+        &skill,
+        RUN_ID,
+        Some("after_execution@send/1"),
+    )?);
+
+    let revised = "The fixture is ready, and so is the guide.";
+    let held = status(&send_batch_of(&root, &skill, "held_batch", revised, None)?)?;
+    let requests = held["requests"].as_array().cloned().unwrap_or_default();
+    assert!(
+        matches!(&requests[..], [request] if request["id"] == "send/1/retry"),
+        "only bob's call waits: {held}"
+    );
+    assert_eq!(
+        sent_to(&root, "bob@example.test")?,
+        1,
+        "bob is sent nothing"
+    );
+    assert_eq!(sent_to(&root, "carol@example.test")?, 1, "carol goes on");
+    // Driven again with nothing settled, it still waits on bob alone.
+    let still = drive_mail(&root, "held_batch")?;
+    assert_eq!(still["requests"][0]["id"], "send/1/retry", "{still}");
+
+    let first = status(&send_batch(&root, &skill, RUN_ID, None)?)?;
+    assert_eq!(first["status"], "sealed", "{first}");
+    let sealed = drive_mail(&root, "held_batch")?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    assert_eq!(
+        statuses(&sealed)?,
+        [
+            ("ann@example.test".to_owned(), "already_done".to_owned()),
+            ("bob@example.test".to_owned(), "already_done".to_owned()),
+            ("carol@example.test".to_owned(), "sent".to_owned()),
+        ]
+    );
+    for to in ["ann@example.test", "bob@example.test", "carol@example.test"] {
+        assert_eq!(sent_to(&root, to)?, 1, "{to}");
+    }
+    Ok(())
+}
+
+/// A power cut, as against a kill: what the crash's sync points left. The run
+/// is killed at `crash` with `RUNX_POWER_LOSS_IMAGE` set, so each sync records
+/// what a cut then leaves on the disk; the cut puts each store back as its
+/// last sync left it, and of the receipt and artifact files keeps those a
+/// sync made durable, as that sync left them. Any other is lost, or left torn
+/// as a cut can leave a file it was writing.
+fn power_cut_at(root: &Path, skill: &Path, crash: &str, torn: bool) -> TestResult {
+    let image = root.join("power-loss-image");
+    let mut command = unsigned_runx_command_at(root);
+    command.args([
+        "skill",
+        skill.to_str().ok_or("non-utf8 skill dir")?,
+        "-i",
+        "value=hello",
+        "--run-id",
+        RUN_ID,
+        "--receipt-dir",
+        root.join("receipts")
+            .to_str()
+            .ok_or("non-utf8 receipt dir")?,
+        "--json",
+    ]);
+    command
+        .env("RUNX_CRASH_AT", crash)
+        .env("RUNX_POWER_LOSS_IMAGE", &image);
+    crashed(&command.output()?);
+    restore_power_loss_image(root, &image, torn)
+}
+
+/// Restore exactly what the test's last full flushes made durable.
+pub(super) fn restore_power_loss_image(root: &Path, image: &Path, torn: bool) -> TestResult {
+    if let Ok(failed) = fs::read_to_string(image.join("failed")) {
+        return Err(failed.into());
+    }
+    let manifest = fs::read_to_string(image.join("manifest"))?;
+    let mut stores = std::collections::BTreeMap::new();
+    let mut synced = std::collections::BTreeMap::new();
+    for line in manifest.lines() {
+        match line.split('\t').collect::<Vec<_>>().as_slice() {
+            ["store", name, database] => {
+                stores.insert(PathBuf::from(database), (*name).to_owned());
+            }
+            ["file", name, path] => {
+                synced.insert(canonical(Path::new(path))?, (*name).to_owned());
+            }
+            _ => return Err(format!("the image's manifest holds {line:?}").into()),
+        }
+    }
+    let beside = |path: &Path, suffix: &str| PathBuf::from(format!("{}{suffix}", path.display()));
+    for (database, name) in &stores {
+        let copy = image.join("stores").join(name);
+        fs::copy(&copy, database)?;
+        if beside(&copy, "-wal").exists() {
+            fs::copy(beside(&copy, "-wal"), beside(database, "-wal"))?;
+        } else if beside(database, "-wal").exists() {
+            fs::remove_file(beside(database, "-wal"))?;
+        }
+        if beside(database, "-shm").exists() {
+            fs::remove_file(beside(database, "-shm"))?;
+        }
+    }
+    for directory in [root.join("receipts"), root.join(".runx").join("artifacts")] {
+        for file in files_under(&directory)? {
+            // A synced file is as its last sync left it.
+            if let Some(name) = synced.get(&canonical(&file)?) {
+                fs::copy(image.join("files").join(name), &file)?;
+                continue;
+            }
+            if torn {
+                fs::File::create(&file)?;
+            } else {
+                fs::remove_file(&file)?;
+            }
+        }
+    }
+    fs::remove_dir_all(image)?;
+    Ok(())
+}
+
+/// `path` with its directory resolved, so two spellings of one file match.
+fn canonical(path: &Path) -> TestResult<PathBuf> {
+    let directory = path
+        .parent()
+        .ok_or("a file has a directory")?
+        .canonicalize()?;
+    Ok(directory.join(path.file_name().ok_or("a file has a name")?))
+}
+
+/// Every file under `directory`, at any depth; none when it isn't there.
+fn files_under(directory: &Path) -> TestResult<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    if !directory.is_dir() {
+        return Ok(files);
+    }
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            files.extend(files_under(&path)?);
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(files)
+}
+
+/// A write is claimed durably before it reaches the world, so a power cut
+/// while it runs leaves its claim, and recovery waits on its retry rather
+/// than send it again unseen.
+#[test]
+fn a_power_cut_with_a_write_in_flight_leaves_its_claim_and_recovery_waits_on_its_retry()
+-> TestResult {
+    let root = crate::support::temp_root("power-cut-write");
+    let skill = write_skills(
+        &root,
+        WRITE_THEN_DIGEST,
+        "          digested: {type: array}\n",
+    )?;
+    power_cut_at(&root, &skill, "after_execution@prepare/0", false)?;
+    let read = history(&root)?;
+    assert_eq!(calls(&read, RUN_ID), [pair(0, "claimed")]);
+
+    let recovered = status(&run(&root, &skill, None)?)?;
+    assert_eq!(
+        recovered["requests"][0]["id"], "prepare/0/retry",
+        "{recovered}"
+    );
+    let resumed = acknowledge_retries(&root)?;
+    assert_eq!(resumed["status"], "sealed", "{resumed}");
+    Ok(())
+}
+
+/// A safe read a power cut catches in flight, or just after it settled,
+/// reruns on recovery with nobody asked (D33), and the run seals with it
+/// completed once.
+#[test]
+fn a_power_cut_around_a_safe_read_reruns_it_and_the_run_seals() -> TestResult {
+    for crash in ["after_execution@prepare/0", "before_admission@prepare/1"] {
+        let root = crate::support::temp_root("power-cut-read");
+        let skill = write_skills(&root, TWO_DIGESTS, "          digested: {type: array}\n")?;
+        power_cut_at(&root, &skill, crash, false)?;
+        let recovered = status(&run(&root, &skill, None)?)?;
+        assert_eq!(recovered["status"], "sealed", "{crash}: {recovered}");
+        let settled = calls(&history(&root)?, RUN_ID);
+        for index in [0, 1] {
+            assert_eq!(
+                settled
+                    .iter()
+                    .filter(|call| **call == pair(index, "completed"))
+                    .count(),
+                1,
+                "{crash}: {settled:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// A sealed run's receipts are its record's: a power cut after the seal,
+/// before its receipt files were written, leaves a run that, run again,
+/// returns what it sealed and writes each receipt whole.
+#[test]
+fn a_power_cut_after_the_seal_leaves_a_run_whose_receipts_its_record_restores() -> TestResult {
+    let root = crate::support::temp_root("power-cut-seal");
+    let skill = write_skills(&root, TWO_DIGESTS, "          digested: {type: array}\n")?;
+    power_cut_at(&root, &skill, &format!("after_seal@{RUN_ID}"), false)?;
+    verify_sealed_again(&root, &skill)
+}
+
+/// A run's receipt files are a copy of its sealed record, written without a
+/// sync of their own, so a power cut after they were written can lose or
+/// tear them. A read by a receipt's id restores its run's from the record,
+/// before the run is ever run again, and the run run again returns what it
+/// sealed with each receipt whole.
+#[test]
+fn a_power_cut_after_the_receipts_were_written_loses_none_a_read_by_id_finds() -> TestResult {
+    for torn in [false, true] {
+        let other = crate::support::temp_root("power-cut-receipts");
+        let skill = write_skills(&other, TWO_DIGESTS, "          digested: {type: array}\n")?;
+        power_cut_at(&other, &skill, &format!("after_receipts@{RUN_ID}"), torn)?;
+        // The run's record holds its seal, which names its receipt.
+        let receipt = history(&other)?["events"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|record| record["stream"] == RUN_ID && record["event"]["kind"] == "sealed")
+            .and_then(|record| record["event"]["receipt_id"].as_str())
+            .ok_or("the record holds the run's seal")?
+            .to_owned();
+        let lost = files_under(&other.join("receipts"))?
+            .iter()
+            .filter(|file| {
+                file.extension()
+                    .is_some_and(|extension| extension == "json")
+            })
+            .filter(|file| fs::metadata(file).is_ok_and(|metadata| metadata.len() > 0))
+            .count();
+        assert_eq!(lost, 0, "torn {torn}: the cut left no receipt whole");
+        assert_eq!(
+            verified(&other, &receipt)?,
+            Ok(()),
+            "torn {torn}: a read by id restores the run's receipts"
+        );
+        verify_sealed_again(&other, &skill)?;
+    }
+    Ok(())
+}
+
+/// Whether `runx verify` verifies `receipt` in `root`'s receipt directory,
+/// or what it said.
+fn verified(root: &Path, receipt: &str) -> TestResult<Result<(), String>> {
+    let verified = unsigned_runx_command_at(root)
+        .args(["verify", receipt, "--receipt-dir"])
+        .arg(root.join("receipts"))
+        .arg("--json")
+        .output()?;
+    Ok(if verified.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{}{}",
+            String::from_utf8_lossy(&verified.stdout),
+            String::from_utf8_lossy(&verified.stderr)
+        ))
+    })
+}
+
+/// Run `skill` again, which a sealed run answers with what it sealed, and
+/// verify the receipt it names.
+fn verify_sealed_again(root: &Path, skill: &Path) -> TestResult {
+    let sealed = status(&run(root, skill, None)?)?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    let receipt = sealed["receipt_id"]
+        .as_str()
+        .ok_or("a sealed run names its receipt")?;
+    let verified = unsigned_runx_command_at(root)
+        .args(["verify", receipt, "--receipt-dir"])
+        .arg(root.join("receipts"))
+        .arg("--json")
+        .output()?;
+    assert!(
+        verified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
     Ok(())
 }

@@ -873,8 +873,14 @@ fn spawn_runx_stdio(
     if let Some(runx_cwd) = runx_cwd {
         command.env("RUNX_CWD", runx_cwd);
     }
+    command.args(args);
+    spawn_stdio(command)
+}
+
+fn spawn_stdio(
+    mut command: std::process::Command,
+) -> Result<McpProcess, Box<dyn std::error::Error>> {
     let mut child = command
-        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -1128,4 +1134,94 @@ impl Drop for TestTempDir {
     fn drop(&mut self) {
         let _ignored = fs::remove_dir_all(&self.path);
     }
+}
+
+/// A call's answer is durable before an attached host receives it, even
+/// while the same turn stays open. A power cut here loses every ordered
+/// write since the last sync, with no shutdown or subsequent host answer.
+#[test]
+fn an_attached_calls_result_survives_a_power_cut_before_the_turn_finishes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = TestTempDir::new("attached-call-power-cut")?;
+    let root = temp.path();
+    let skill = root.join("answer");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: answer\ndescription: Digest a value.\n---\n# Answer\n\n## Agent task: answer\n\nDigest the value, then answer.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest]\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let run = "attached_power_cut";
+    let image = root.join("power-loss-image");
+    let started = crate::support::unsigned_runx_command_at(root)
+        .env("RUNX_POWER_LOSS_IMAGE", &image)
+        .arg("skill")
+        .arg(&skill)
+        .args(["--run-id", run, "--receipt-dir"])
+        .arg(root.join("receipts"))
+        .arg("--json")
+        .output()?;
+    let started: Value = serde_json::from_slice(&started.stdout)?;
+    assert_eq!(started["status"], "needs_agent", "{started}");
+    let mut command = crate::support::unsigned_runx_command_at(root);
+    command
+        .env("RUNX_POWER_LOSS_IMAGE", &image)
+        .args(["mcp", "--run", run, "--receipt-dir"])
+        .arg(root.join("receipts"));
+    let mut server = spawn_stdio(command)?;
+    write_frame(server.stdin_mut()?, &initialize_request(1))?;
+    server.read_response("initialize")?;
+    write_frame(server.stdin_mut()?, &initialized_notification())?;
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            2,
+            "tools/call",
+            json!({
+                "name": "turn_call", "arguments": {"turn": "answer", "tool": "data_digest",
+                    "call_id": "kept", "input": {"value": "kept", "encoding": "utf8_text"}}
+            }),
+        ),
+    )?;
+    let answered = server.read_response("completed call")?;
+    let outcome = &answered["result"]["structuredContent"]["outcome"];
+    assert_eq!(outcome["status"], "completed", "{answered}");
+    let receipt = outcome["receipt_id"]
+        .as_str()
+        .ok_or("completed call has a receipt")?
+        .to_owned();
+    server.child.kill()?;
+    server.child.wait()?;
+    drop(server);
+
+    crate::crash_points::restore_power_loss_image(root, &image, false)?;
+    let read = crate::support::unsigned_runx_command_at(root)
+        .args(["history", run, "--json"])
+        .output()?;
+    let read: Value = serde_json::from_slice(&read.stdout)?;
+    assert!(
+        read["events"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|record| record["event"]["kind"] == "call"
+                && record["event"]["call_id"] == "kept"
+                && record["event"]["outcome"]["status"] == "completed"
+                && record["event"]["outcome"]["receipt_id"] == receipt),
+        "the caller's completed answer survived the cut: {read}"
+    );
+    let verified = crate::support::unsigned_runx_command_at(root)
+        .args(["verify", &receipt, "--receipt-dir"])
+        .arg(root.join("receipts"))
+        .arg("--json")
+        .output()?;
+    let verified: Value = serde_json::from_slice(&verified.stdout)?;
+    assert_eq!(verified["valid"], true, "{verified}");
+    let store = LocalReceiptStore::new(root.join("receipts"));
+    let recovered = store.read_exact_without_proof(&receipt)?;
+    assert_eq!(recovered.id.as_str(), receipt);
+    Ok(())
 }

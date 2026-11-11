@@ -237,12 +237,7 @@ fn recorded_edits(
         };
         let artifact = outputs
             .iter()
-            .find(|output| {
-                output
-                    .output
-                    .as_ref()
-                    .is_some_and(|name| name.as_str() == *packet)
-            })
+            .find(|output| output.output.as_str() == *packet)
             .ok_or_else(|| refused(format!("call {call_id} recorded no {packet}")))?;
         let output = match crate::services::read_json_artifact(&artifacts, &artifact.artifact)
             .map_err(|message| refused(format!("call {call_id}: {message}")))?

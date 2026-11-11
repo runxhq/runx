@@ -1,0 +1,35 @@
+{
+  "about": "An approved plan to announce the release and thank the first reviewer, by its digest, with nothing executed yet.",
+  "plan_json": {
+    "decision": "ready",
+    "objective": "Announce the release and thank the first reviewer.",
+    "principal": "account:@example",
+    "acts": [
+      {
+        "act_id": "act-post-1",
+        "kind": "post",
+        "params": {
+          "text": "Runx 0.5 is out."
+        },
+        "consequence": "public_send",
+        "rationale": "Release announcement."
+      },
+      {
+        "act_id": "act-like-1",
+        "kind": "like",
+        "params": {
+          "post_id": "5001"
+        },
+        "consequence": "live_mutation",
+        "rationale": "Thank the first reviewer."
+      }
+    ],
+    "gates": {
+      "human_approval_required": true,
+      "approval_id": "approval:granted"
+    }
+  },
+  "plan_digest": "sha256:87a42900aefb308c10af4ce8319a97624cb160444980ce4057d951317b8f6d94",
+  "max_acts": 1,
+  "outcomes": []
+}

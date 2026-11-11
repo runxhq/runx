@@ -28,14 +28,27 @@ memory gave it. With no levels named, nothing is recalled.
 `batch` prepares first contact for each lead of one campaign. Each lead's
 supplied sources go through `lead-enrichment#enrich`, the lead is qualified
 against the criteria by `lead-qualify#qualify`, with its contact policy as its
-contact eligibility, and `prepare` drafts from that qualification. Leads run
-side by side and every lead's outcome is collected: a hold or a failure is that
-lead's alone, and a failure names the stage it stopped at. Each outcome carries
+contact eligibility, and `prepare` drafts from that qualification. Four leads
+run side by side, each lane taking the next lead when its last is done, so a
+batch holds at most four leads at once however many it has, and every lead's
+outcome is collected in the order given: a hold or a failure is that lead's
+alone, and a failure names the stage it stopped at. Reading the lead is its
+first stage, and a lead past the 4 MiB a script reads is rejected there,
+named by its place in the outcomes since its id was never read. Each outcome carries
 the `idempotency_key` its send is made under, made from the campaign and the
 recipient and never the draft, so a revised batch never sends a lead twice. The
 batch runs under `effects: none` and sends nothing: a mail capability sends each
 approved draft under its key. Memory levels it's given go to each lead's
 `prepare`.
+
+A lead's qualification is reused for up to a week (604,800 seconds). A
+revised batch, say with a new offer, then keeps each lead's fit and drafts
+again. Qualifying reads nothing of its own: it judges only the enrichment
+packet, criteria and contact eligibility it's given, and reuse matches those
+exactly. A changed fact, criterion or policy therefore qualifies the lead
+again at once. The age bounds only how long the judgment itself stands.
+A week covers the revisions of one campaign, and a qualification older than
+that is made again.
 
 ## Composes
 

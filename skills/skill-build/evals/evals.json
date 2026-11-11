@@ -6,6 +6,19 @@
       "prompt": "Create a bounded decision-note skill without package-local runtime code.",
       "expected_output": "A validated declarative skill package is applied with a useful manual and tests that prove it.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Improve this skill from the failed-run diagnosis you are given.",
+      "expected_output": "It leaves the package unchanged: the given diagnosis has no receipt or reproducible test output, so it names the sealed reproduction needed before any change and writes nothing.",
+      "files": [
+        "evals/files/weak-failure-diagnosis.json"
+      ],
+      "expectations": [
+        "It does not replay the failed external operation.",
+        "It does not inspect the package again for state the diagnosis already settles."
+      ],
+      "method": "improve"
     }
   ]
 }

@@ -12,6 +12,32 @@
       "prompt": "Ghostwrite an operator brief from this evidence pack and objective.",
       "expected_output": "Return publication-ready draft copy whose claims and caveats remain bound to supplied evidence.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Admit the facts you are given for a writer to compose from.",
+      "expected_output": "A ready writing context binding the given fact and scope by digest, with no draft written, no research done, and no claim that the fact was independently verified.",
+      "files": [
+        "evals/files/operator-facts.json"
+      ],
+      "expectations": [
+        "It does not invoke research.",
+        "It does not write the draft."
+      ],
+      "method": "admit"
+    },
+    {
+      "id": 4,
+      "prompt": "Turn the completed research brief you are given into a draft for operators.",
+      "expected_output": "An operator brief drawn from the given research brief, every claim bound to the evidence log, and nothing claimed beyond it.",
+      "files": [
+        "evals/files/research-brief-evidence.json"
+      ],
+      "expectations": [
+        "It does not research again.",
+        "It makes no claim beyond the given evidence."
+      ],
+      "method": "draft"
     }
   ]
 }

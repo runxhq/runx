@@ -2282,6 +2282,7 @@ fn a_pinned_call_runs_once_and_its_outcome_is_on_the_runs_record() -> TestResult
     );
     let RunCallOutcome::Completed {
         succeeded: true,
+        output: held,
         outputs,
         reason: None,
         ..
@@ -2292,9 +2293,12 @@ fn a_pinned_call_runs_once_and_its_outcome_is_on_the_runs_record() -> TestResult
     let TurnCallOutcome::Completed { output, .. } = &first.outcome else {
         return Err("the first call completed".into());
     };
-    // The artifacts rebuild the output the agent read: a packet's data under
-    // its name, and the rest as it is.
-    let mut rebuilt = serde_json::Map::new();
+    // The record and its artifacts rebuild the output the agent read: each
+    // field the record holds as it is, and a packet's data, from its
+    // artifact, under its name.
+    let serde_json::Value::Object(mut rebuilt) = serde_json::to_value(held)? else {
+        return Err("a call's output is an object".into());
+    };
     for part in outputs {
         assert_eq!(part.artifact.media_type, "application/json");
         let value: serde_json::Value = serde_json::from_slice(&std::fs::read(
@@ -2303,12 +2307,7 @@ fn a_pinned_call_runs_once_and_its_outcome_is_on_the_runs_record() -> TestResult
                 .as_deref()
                 .ok_or("the output names its path")?,
         )?)?;
-        match &part.output {
-            Some(name) => {
-                rebuilt.insert(name.as_str().to_owned(), value);
-            }
-            None => rebuilt.extend(value.as_object().cloned().unwrap_or_default()),
-        }
+        rebuilt.insert(part.output.as_str().to_owned(), value);
     }
     assert!(!outputs.is_empty());
     assert_eq!(

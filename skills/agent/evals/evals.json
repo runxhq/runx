@@ -12,6 +12,18 @@
       "prompt": "Fix the typo in the README and tell me what you changed.",
       "expected_output": "Change the workspace through approved calls and end the turn with a summary of the change.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Carry on from the previous turn and answer what it left open.",
+      "expected_output": "It starts from the previous turn summary, reads only what that turn did not settle, web-fetch methods and inputs, and ends with a summary saying web-fetch takes an allowlist of hosts and what changed since the previous turn.",
+      "files": [
+        "evals/files/previous-turn.json"
+      ],
+      "expectations": [
+        "It does not search the catalog again for what the previous turn already found."
+      ],
+      "method": "read"
     }
   ]
 }

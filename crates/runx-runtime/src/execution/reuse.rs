@@ -95,32 +95,505 @@ pub(crate) fn identity(
     .map_err(|error| error.to_string())
 }
 
+/// What a call that asked to reuse a result was answered: its decision, the
+/// identity the child it runs is indexed under, and, on a hit, the source it
+/// settles with in place of a child.
+#[derive(Debug)]
+pub(crate) struct Decided {
+    pub decision: runx_contracts::ReuseDecision,
+    pub identity: Option<String>,
+    pub source: Option<Source>,
+}
+
 /// What a call that asked to reuse a result is answered, given its
-/// `identity` or why it has none, and the identity its child is indexed
-/// under. A call whose identity can't be made recomputes as no identity: it
-/// runs as a plain call would, and indexes nothing. A source that isn't
-/// eligible recomputes as ineligible, and one whose reads this run may not
-/// make again, as `allowed` decides, recomputes as not allowed (reuse.md,
-/// checks 1 and 2). Until check 3 compares what each step was given, an
-/// allowed source isn't shown current, so it recomputes as changed.
+/// `identity` or why it has none. A call whose identity can't be made
+/// recomputes as no identity: it runs as a plain call would, and indexes
+/// nothing. A source that isn't eligible recomputes as ineligible, one whose
+/// reads this run may not make again, as `allowed` decides, as not allowed,
+/// and one `current` gives a reason for, for that reason (reuse.md, checks
+/// 1, 2 and 3). A call that recomputes runs its child, indexed under its
+/// identity. A current source is reused: the call settles with it, starts no
+/// child and indexes nothing.
 pub(crate) fn decide(
     store: &std::sync::Arc<KernelStore>,
     identity: Result<String, String>,
     workflow: &runx_parser::Workflow,
     allowed: impl FnOnce(&Source) -> bool,
-) -> Result<(runx_contracts::ReuseDecision, Option<String>), super::run_record::RunRecordError> {
+    current: impl FnOnce(&Source) -> Option<runx_contracts::RecomputeReason>,
+) -> Result<Decided, super::run_record::RunRecordError> {
     use runx_contracts::RecomputeReason;
-    let recomputed = |reason| runx_contracts::ReuseDecision::Recomputed { reason };
+    let recompute = |reason, identity| Decided {
+        decision: runx_contracts::ReuseDecision::Recomputed { reason },
+        identity,
+        source: None,
+    };
     let Ok(identity) = identity else {
-        return Ok((recomputed(RecomputeReason::NoIdentity), None));
+        return Ok(recompute(RecomputeReason::NoIdentity, None));
     };
     let reason = match head(store, &identity)? {
         None => RecomputeReason::NoCandidate,
         Some(source) if !eligible(store, &source.run_id, workflow)? => RecomputeReason::Ineligible,
         Some(source) if !allowed(&source) => RecomputeReason::NotAllowed,
-        Some(_) => RecomputeReason::Changed,
+        Some(source) => match current(&source) {
+            Some(reason) => reason,
+            None => {
+                return Ok(Decided {
+                    decision: runx_contracts::ReuseDecision::Reused {
+                        from: source.receipt_id.as_str().into(),
+                    },
+                    identity: None,
+                    source: Some(source),
+                });
+            }
+        },
     };
-    Ok((recomputed(reason), Some(identity)))
+    Ok(recompute(reason, Some(identity)))
+}
+
+/// The child a call that asked to reuse a result would start, as this run
+/// would give it now: the run it's called from, the package it runs, the
+/// act it's stated, and the run id, authority, environment and chain it
+/// would run under, with the provenance its steps would inherit from the
+/// call and whether its host's model runs on this machine.
+pub(crate) struct Today<'a> {
+    pub options: &'a crate::execution::engine::RuntimeOptions,
+    pub local_artifacts: &'a crate::services::LocalArtifactService,
+    pub skill: &'a LoadedStepSkill,
+    pub act: Option<&'a CallAct>,
+    pub current_context: Vec<runx_contracts::ContextEntry>,
+    pub run_id: String,
+    pub authority: Option<crate::RunAuthority>,
+    pub env: BTreeMap<String, String>,
+    pub chain: Vec<crate::identity::ChainLink>,
+    pub inherited: BTreeMap<String, Vec<runx_contracts::ProvenanceEntry>>,
+    pub reads_local_only: bool,
+}
+
+impl Today<'_> {
+    /// The reach the child's tools have: its authority's.
+    fn reach(&self) -> runx_contracts::Reach {
+        self.authority
+            .as_ref()
+            .map_or_else(runx_contracts::Reach::default, |authority| authority.reach)
+    }
+
+    /// `step` of the child, as an effect is asked about it.
+    fn request<'s>(
+        &'s self,
+        step: &'s runx_parser::WorkflowStep,
+    ) -> crate::effects::EffectStepRequest<'s> {
+        crate::effects::EffectStepRequest {
+            step,
+            target: crate::effects::ResolvedEffectTarget::default(),
+            inputs: &step.inputs,
+            env: &self.env,
+            workflow_dir: &self.skill.directory,
+            run_id: self.options.run.run_id(),
+            run_authority: self.authority.as_ref(),
+            held_by_effects: false,
+            chain: &self.chain,
+            clock: &self.options.clock,
+            reconciliation: None,
+        }
+    }
+}
+
+/// What a call asked of reuse, at the time it asks.
+pub(crate) struct Asked<'a> {
+    pub max_age_seconds: u64,
+    pub model: Option<&'a str>,
+    pub now: &'a str,
+}
+
+/// Whether the child `today` describes may make again every read the source
+/// `run_id` of `workflow` made (reuse.md, check 2): each operation read as
+/// admission authorizes it, with nothing charged or counted, and each file
+/// read within the reach its step would have. Anything that can't be
+/// established, a read that can't be rebuilt included, isn't allowed.
+/// Nothing is read, so a hit or a miss can't say what changed.
+pub(crate) fn allowed(
+    store: &std::sync::Arc<KernelStore>,
+    run_id: &str,
+    workflow: &runx_parser::Workflow,
+    today: &Today<'_>,
+) -> bool {
+    let Ok(reads) = reads(store, run_id, workflow, today.options.workspace.as_ref()) else {
+        return false;
+    };
+    reads.files_allowed(today.authority.as_ref(), &today.env, &today.skill.directory)
+        && reads
+            .operations
+            .iter()
+            .all(|step| today.options.effects.authorize(today.request(step)).is_ok())
+}
+
+/// Why the source `run_id` of `workflow` recomputes for the call `asked`,
+/// whose child `today` describes, or none when it's current (reuse.md,
+/// check 3). Its turns' model is the one the call named, when it named one;
+/// it's no older than the call allows, counted from when it started; and
+/// what each of its steps and turns was given, and what each read of the
+/// workspace or of runx's own storage returned, is what it would be now. A
+/// provider's read is current for as long as the call allows its result to
+/// be old. Anything that can't be established, or can't run now,
+/// recomputes as changed.
+pub(crate) fn current(
+    store: &std::sync::Arc<KernelStore>,
+    run_id: &str,
+    workflow: &runx_parser::Workflow,
+    today: &Today<'_>,
+    asked: &Asked<'_>,
+) -> Option<runx_contracts::RecomputeReason> {
+    use runx_contracts::RecomputeReason;
+    let Ok(log) = super::run_record::RunLog::open(std::sync::Arc::clone(store), run_id) else {
+        return Some(RecomputeReason::Changed);
+    };
+    let Ok(Some(record)) = log.load() else {
+        return Some(RecomputeReason::Changed);
+    };
+    if !made_by(&record, asked.model) {
+        return Some(RecomputeReason::OtherModel);
+    }
+    if !young_enough(&record.created_at, asked.now, asked.max_age_seconds) {
+        return Some(RecomputeReason::TooOld);
+    }
+    match unchanged(&log, &record, workflow, today) {
+        Ok(true) => None,
+        Ok(false) | Err(_) => Some(RecomputeReason::Changed),
+    }
+}
+
+/// Whether `model` made the run `record` holds, when a call names one: it
+/// has a turn, and runx's managed agent stated `model` answered each.
+fn made_by(record: &super::run_record::RunRecord, model: Option<&str>) -> bool {
+    let Some(model) = model else {
+        return true;
+    };
+    let mut turns = record
+        .answers
+        .iter()
+        .filter(|answer| !answer.human)
+        .peekable();
+    turns.peek().is_some()
+        && turns.all(|answer| super::outcome::stated_model(&answer.value) == Ok(Some(model)))
+}
+
+/// Whether a run that started at `started` is at most `max_age_seconds` old
+/// `now`. A time that can't be read isn't.
+fn young_enough(started: &str, now: &str, max_age_seconds: u64) -> bool {
+    let (Some(started), Some(now)) = (crate::time::millis_of(started), crate::time::millis_of(now))
+    else {
+        return false;
+    };
+    let max = i64::try_from(max_age_seconds)
+        .ok()
+        .and_then(|seconds| seconds.checked_mul(1_000));
+    now.checked_sub(started)
+        .zip(max)
+        .is_some_and(|(age, max)| age <= max)
+}
+
+/// The native reads whose result depends on the reach they ran under, not
+/// only on the paths they're given: a file listing or search, which skips
+/// what reach keeps out as it walks, and a git history read that shows more
+/// than one named file, which leaves out what reach keeps out. For each,
+/// the reach under its root is one of its inputs.
+fn filters_by_reach(tool: &str, input: &JsonObject) -> bool {
+    match tool {
+        "fs.list" | "fs.search" | "git.log" | "git.diff" => true,
+        "git.show" => input
+            .get("path")
+            .and_then(runx_contracts::JsonValue::as_str)
+            .is_none(),
+        _ => false,
+    }
+}
+
+/// Whether what each step of the source `record`, whose log is `log`, was
+/// given, and what each of its reads of the workspace and of runx's own
+/// storage returned, is what it would be for the child `today` describes:
+/// each step's `input_digest` and each turn's, worked out again from what
+/// its earlier steps returned, the act and the environment, and each such
+/// read made again.
+fn unchanged(
+    log: &super::run_record::RunLog,
+    record: &super::run_record::RunRecord,
+    workflow: &runx_parser::Workflow,
+    today: &Today<'_>,
+) -> Result<bool, crate::RuntimeError> {
+    use super::run_record::{CallOutcome, Origin, Replayed, call_step_id};
+    use runx_contracts::CallTarget;
+    use runx_parser::{StepKind, ToolTarget};
+    let Origin::Child(started) = &record.origin else {
+        return Ok(false);
+    };
+    // A child whose package's environment doesn't resolve now can't run.
+    if crate::execution_environment::resolve_environment(
+        &today.skill.environment,
+        &today.env,
+        &today.skill.directory,
+    )
+    .is_err()
+    {
+        return Ok(false);
+    }
+    let bound = super::workflow::bind_run_inputs(
+        workflow.clone(),
+        &record.inputs,
+        record.act.as_ref(),
+        &today.run_id,
+        today.options.workspace.as_ref(),
+    )?;
+    let runs = record
+        .facts
+        .iter()
+        .filter_map(|fact| match fact {
+            Replayed::Step(step) => Some(step.as_ref().clone()),
+            Replayed::Skipped(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let positions = runs
+        .iter()
+        .enumerate()
+        .map(|(position, run)| (run.step_id.clone(), position))
+        .collect::<BTreeMap<_, _>>();
+    let prior = super::workflow_index::PriorRunIndex::from_positions(&runs, &positions);
+    let native_read = |step: &runx_parser::WorkflowStep, tool: &str, recorded: &JsonObject| {
+        native_read_unchanged(step, tool, recorded, started.reach, today)
+    };
+    for run in &runs {
+        let defined = bound
+            .steps
+            .iter()
+            .find(|defined| defined.id == run.step_id)
+            .ok_or_else(|| crate::RuntimeError::StepMissing {
+                step_id: run.step_id.clone(),
+            })?;
+        let step = runx_parser::WorkflowStep {
+            inputs: super::workflow::materialize_step_invocation_inputs_with_index(
+                defined, &prior,
+            )?,
+            ..defined.clone()
+        };
+        let context_entries =
+            super::workflow::materialize_step_context_entries_with_index(defined, &prior)?;
+        let ask_reason = super::workflow::materialize_ask_reason_with_index(defined, &prior)?;
+        let given = super::engine::input_digest::of(
+            defined,
+            &super::engine::input_digest::Given {
+                inputs: &step.inputs,
+                act: None,
+                context: &context_entries,
+                ask_reason: ask_reason.as_deref(),
+            },
+            &today.env,
+            &today.skill.directory,
+        );
+        if given.is_none() || given != run.input_digest {
+            return Ok(false);
+        }
+        let same = match &defined.kind {
+            StepKind::Agent(_) => {
+                turn_unchanged(log, record, &step, &prior, context_entries, today)?
+            }
+            StepKind::Tool(ToolTarget::Catalog(tool)) => native_read(&step, tool, &run.contract)?,
+            StepKind::Operation(_) => storage_read_unchanged(&step, run, today)?,
+            _ => true,
+        };
+        if !same {
+            return Ok(false);
+        }
+        let connectors = match &defined.kind {
+            StepKind::Agent(agent) => Some(&agent.connectors),
+            StepKind::Script(script) => Some(&script.connectors),
+            _ => None,
+        };
+        let (calls, _) = log.step_calls(&run.step_id, run.attempt)?;
+        for call in &calls {
+            let made = |kind, inputs| runx_parser::WorkflowStep {
+                id: call_step_id(&run.step_id, call.index),
+                kind,
+                artifacts: None,
+                outputs: None,
+                inputs,
+                bindings: Vec::new(),
+                act: None,
+                context_skills: Vec::new(),
+                when: None,
+                guard: Vec::new(),
+                retry_unknown_outcomes: false,
+                effects: defined.effects,
+                reach: defined.reach,
+            };
+            let same = match (&call.target, &call.outcome) {
+                (CallTarget::Tool { tool }, CallOutcome::Completed(ran)) => {
+                    let kind = StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned()));
+                    native_read(
+                        &made(kind, call.input.clone()),
+                        tool.as_str(),
+                        &ran.contract,
+                    )?
+                }
+                (
+                    CallTarget::Operation {
+                        requirement,
+                        operation,
+                    },
+                    CallOutcome::Completed(ran),
+                ) => {
+                    let declared = connectors
+                        .and_then(|connectors| connectors.get(requirement.as_str()))
+                        .cloned();
+                    let (target, inputs) = super::engine::turn::operation_call_step(
+                        requirement.as_str(),
+                        operation.as_str(),
+                        &call.input,
+                        declared,
+                        None,
+                    )
+                    .map_err(|reason| crate::RuntimeError::StepFailed {
+                        step_id: call_step_id(&run.step_id, call.index),
+                        reason,
+                    })?;
+                    storage_read_unchanged(&made(StepKind::Operation(target), inputs), ran, today)?
+                }
+                // A read the source made that didn't complete can't be
+                // shown to come out the same.
+                (CallTarget::Tool { .. }, _) => false,
+                (CallTarget::Operation { .. }, _) => false,
+                _ => true,
+            };
+            if !same {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// Whether the agent step `step`, given what it was given from `prior` and
+/// `context_entries`, would ask its host what the source `record` shows each
+/// answer to its turn was asked, by the turn's `input_digest`.
+fn turn_unchanged(
+    log: &super::run_record::RunLog,
+    record: &super::run_record::RunRecord,
+    step: &runx_parser::WorkflowStep,
+    prior: &super::workflow_index::PriorRunIndex<'_>,
+    context_entries: Vec<runx_contracts::ContextEntry>,
+    today: &Today<'_>,
+) -> Result<bool, crate::RuntimeError> {
+    let mut provenance =
+        super::workflow::materialize_step_invocation_provenance_with_index(step, prior)?;
+    provenance.extend(today.inherited.get(&step.id).into_iter().flatten().cloned());
+    let given = runx_contracts::ArtifactLabels::derived_from([
+        &today
+            .local_artifacts
+            .labels_of(&runx_contracts::JsonValue::Object(step.inputs.clone())),
+        &super::workflow::bound_step_labels(step, prior),
+    ]);
+    let package = match &today.skill.admitted {
+        Some(admitted) => admitted.get(&today.skill.directory)?,
+        None => today.options.package(&today.skill.directory)?,
+    };
+    let (request, _) = super::engine::ask_turn(super::engine::TurnAsk {
+        step,
+        workflow_dir: &today.skill.directory,
+        run_authority: today.authority.as_ref(),
+        env: &today.env,
+        current_context: &today.current_context,
+        historical_context: &today.options.historical_context,
+        admitted_at: &today.options.clock.now(),
+        package: &package,
+        act: today.act,
+        address: format!("{}/{}", today.run_id, step.id),
+        inputs: step.inputs.clone(),
+        provenance,
+        context_entries,
+        given: &given,
+        reads_local_only: today.reads_local_only,
+    })?;
+    let runx_contracts::ResolutionRequest::Turn { invocation, .. } = &request else {
+        return Ok(false);
+    };
+    let asked = runx_contracts::input_digest::turn_input_digest(invocation).map_err(|error| {
+        crate::RuntimeError::EngineInvariant {
+            context: "digesting a turn's request",
+            message: error.to_string(),
+        }
+    })?;
+    let address = log.address(&step.id);
+    let mut answers = record
+        .answers
+        .iter()
+        .filter(|answer| answer.request_id == address)
+        .peekable();
+    Ok(answers.peek().is_some()
+        && answers.all(|answer| answer.input_digest.as_deref() == Some(asked.as_str())))
+}
+
+/// Whether the native read `step` of `tool` returns now what it returned
+/// to the source, `recorded`: under the reach the child would give its step,
+/// and, for a tool whose result depends on reach, only when that reach is
+/// the one the source's step had, whose run held `reach_then`.
+fn native_read_unchanged(
+    step: &runx_parser::WorkflowStep,
+    tool: &str,
+    recorded: &JsonObject,
+    reach_then: runx_contracts::Reach,
+    today: &Today<'_>,
+) -> Result<bool, crate::RuntimeError> {
+    if crate::tool_catalogs::native::reads_only_inputs(tool) {
+        return Ok(true);
+    }
+    let reach_now = today.reach().narrowed(step.reach);
+    if filters_by_reach(tool, &step.inputs) && reach_then.narrowed(step.reach) != reach_now {
+        return Ok(false);
+    }
+    let now = super::engine::read_now(
+        today.options,
+        today.local_artifacts,
+        &today.env,
+        &today.skill.directory,
+        step,
+        reach_now,
+    )?;
+    let digest = |output: &JsonObject| {
+        runx_contracts::input_digest::output_digest(output).map_err(|error| {
+            crate::RuntimeError::EngineInvariant {
+                context: "digesting a read's output",
+                message: error.to_string(),
+            }
+        })
+    };
+    Ok(digest(&now)? == digest(recorded)?)
+}
+
+/// Ask the operation owner to compare the read `ran` recorded: its confirmed
+/// binding, implementation and presented credential first, then local state.
+/// A provider result keeps its caller's age bound only under identical pins.
+/// Missing identity evidence and unsupported reads always recompute.
+fn storage_read_unchanged(
+    step: &runx_parser::WorkflowStep,
+    ran: &crate::StepRun,
+    today: &Today<'_>,
+) -> Result<bool, crate::RuntimeError> {
+    let Some(runx_contracts::JsonValue::Object(packet)) = ran.output("provider_operation") else {
+        return Ok(false);
+    };
+    let field = |name: &str| packet.get(name).and_then(runx_contracts::JsonValue::as_str);
+    let Some(identity) = ran.operation_read_identity.as_deref() else {
+        return Ok(false);
+    };
+    let Some(then) = field("result_digest") else {
+        return Ok(false);
+    };
+    today
+        .options
+        .effects
+        .read_unchanged(today.request(step), identity, then)
+        .map_err(|error| crate::RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: error.to_string(),
+        })
 }
 
 /// What a source read that a run reusing it would read again: each read
@@ -394,11 +867,16 @@ fn index_at(
     } else {
         Expected::Version(read)
     };
-    match store.append(vec![Append::kernel(
-        identity,
-        expected,
-        &IndexEvent::Indexed(source),
-    )?]) {
+    // An index the run's sources re-derive: a cut that loses it loses a
+    // reuse, never a result, so it's ordered.
+    match store.append_as(
+        vec![Append::kernel(
+            identity,
+            expected,
+            &IndexEvent::Indexed(source),
+        )?],
+        crate::kernel::store::Durability::Ordered,
+    ) {
         Ok(_) | Err(KernelStoreError::Conflict { .. }) => Ok(()),
         Err(error) => Err(error),
     }
@@ -604,20 +1082,21 @@ mod tests {
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: x}\n",
         )
         .unwrap();
-        let (decision, identity) = decide(
+        let decided = decide(
             &store,
             Err("this build doesn't know its worker's sources".to_owned()),
             &workflow,
             |_| true,
+            |_| None,
         )
         .expect("a call that can't be pinned still runs");
         assert_eq!(
-            decision,
+            decided.decision,
             runx_contracts::ReuseDecision::Recomputed {
                 reason: runx_contracts::RecomputeReason::NoIdentity,
             }
         );
-        assert_eq!(identity, None, "nothing is indexed for it");
+        assert_eq!(decided.identity, None, "nothing is indexed for it");
     }
 
     /// A native tool that runs a host process to read isn't seen, as a

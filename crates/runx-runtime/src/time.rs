@@ -14,6 +14,15 @@ pub fn now_iso8601() -> String {
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
 }
 
+/// The milliseconds since the epoch an RFC 3339 time `at` names; none for
+/// one that isn't a time.
+pub(crate) fn millis_of(at: &str) -> Option<i64> {
+    let (days, seconds, nanos) = runx_core::policy::parse_rfc3339_moment(at)?;
+    days.checked_mul(86_400_000)?
+        .checked_add(seconds.checked_mul(1_000)?)?
+        .checked_add(i64::from(nanos / 1_000_000))
+}
+
 pub(crate) fn iso8601_from_unix_seconds(seconds: i64) -> String {
     let (year, month, day, hour, minute, second) = civil_from_unix_seconds(seconds);
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")

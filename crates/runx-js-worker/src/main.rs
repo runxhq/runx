@@ -8,7 +8,7 @@ use runx_js_worker::protocol::JAVASCRIPT_HEAP_BYTES;
 static ALLOCATOR: Cap<alloc::System> = Cap::new(alloc::System, JAVASCRIPT_HEAP_BYTES as usize);
 
 fn main() {
-    if let Err(error) = runx_js_worker::serve() {
+    if let Err(error) = runx_js_worker::serve(|| ALLOCATOR.allocated()) {
         let mut message = error.to_string();
         let mut end = message.len().min(4096);
         while !message.is_char_boundary(end) {

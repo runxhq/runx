@@ -30,6 +30,19 @@
       "prompt": "Enrich this identified person for the requested professional facts.",
       "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Enrich the requested lead from the observations already collected.",
+      "expected_output": "It holds the enrichment: the given observations describe lead:another, not lead:example, so it rejects that entity rather than invent a match, keeping the source identity and freshness, with no provider call.",
+      "files": [
+        "evals/files/collected-lead-observations.json"
+      ],
+      "expectations": [
+        "It does not fetch the evidence again.",
+        "It calls no enrichment provider."
+      ],
+      "method": "enrich"
     }
   ]
 }

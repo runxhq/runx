@@ -111,6 +111,11 @@ fn memory_journey() -> Result<JsonValue, Box<dyn Error>> {
                     JsonValue::Bool(index["entries_omitted"] == true),
                 ),
                 ("index_pages".to_owned(), count(pages)),
+                // A read-only run's durable writes: what it pays to record it.
+                (
+                    "index_durable_writes".to_owned(),
+                    count(counted.durable_writes),
+                ),
                 (
                     "index_rows_visited".to_owned(),
                     count(counted.store_key_rows_visited),
@@ -425,6 +430,7 @@ fn between(before: WorkCounts, after: WorkCounts) -> WorkCounts {
             - before.store_key_rows_passed_over,
         store_search_pages: after.store_search_pages - before.store_search_pages,
         store_event_rows_read: after.store_event_rows_read - before.store_event_rows_read,
+        durable_writes: after.durable_writes - before.durable_writes,
         ..after
     }
 }

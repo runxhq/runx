@@ -1,0 +1,44 @@
+{
+  "about": "The contract pair a prior step prepared: the current and proposed schemas with their local references, real payloads and the compatibility policy.",
+  "current_schema": {
+    "$defs": {
+      "id": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "type": "array",
+    "items": {
+      "$ref": "#/$defs/id"
+    },
+    "minItems": 2,
+    "maxItems": 5
+  },
+  "proposed_schema": {
+    "$defs": {
+      "id": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "type": "array",
+    "items": {
+      "$ref": "#/$defs/id"
+    },
+    "minItems": 1,
+    "maxItems": 10
+  },
+  "sample_payloads": [
+    [
+      1,
+      2
+    ],
+    [
+      3,
+      4
+    ]
+  ],
+  "compatibility_policy": {
+    "breaking_allowed": false
+  }
+}

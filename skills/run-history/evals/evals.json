@@ -6,6 +6,19 @@
       "prompt": "Summarize recent Runx outcomes and catalog test coverage for this project.",
       "expected_output": "Return deterministic bounded run outcomes, paused runs, and catalog coverage facts with truthful follow-ups.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Analyze the run and catalog projections you are given for follow-up.",
+      "expected_output": "A report from the given projections: two release runs, one completed and one blocked, and the untested package with no test cases, with the follow-up each needs and no metric invented.",
+      "files": [
+        "evals/files/release-runs-and-catalog.json"
+      ],
+      "expectations": [
+        "It does not list runs again.",
+        "It does not inspect catalog entries the projection already holds."
+      ],
+      "method": "report"
     }
   ]
 }

@@ -1,0 +1,45 @@
+{
+  "about": "An opportunity scan a prior run completed: the opportunity it chose, the outline for a post, and the evidence behind it.",
+  "scan_packet": {
+    "decision": "ready",
+    "opportunity_report": {
+      "topic": "package skill migration",
+      "rationale": "Current demand supports a practical post.",
+      "source_ids": [
+        "changelog_1"
+      ]
+    },
+    "post_outline": {
+      "headline": "How to move a Runx skill into a package root",
+      "beats": [
+        "What changed",
+        "How to migrate"
+      ],
+      "source_ids": [
+        "changelog_1"
+      ]
+    },
+    "source_evidence": [
+      {
+        "source_id": "changelog_1",
+        "observed_at": "2026-07-16T10:00:00Z"
+      }
+    ],
+    "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "delivery_status": "not_posted",
+    "validation": {
+      "status": "pass",
+      "findings": []
+    }
+  },
+  "outline": {
+    "headline": "How to move a Runx skill into a package root",
+    "beats": [
+      "What changed",
+      "How to migrate"
+    ]
+  },
+  "submolt": "agents",
+  "community_context": "OSS operators.",
+  "operator_guidance": "Keep it factual."
+}

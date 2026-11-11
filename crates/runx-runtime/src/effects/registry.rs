@@ -115,6 +115,21 @@ impl RuntimeEffectRegistry {
             .authorize(request)
     }
 
+    /// Compare a read through its owning family. An unknown owner cannot
+    /// establish freshness.
+    pub(crate) fn read_unchanged(
+        &self,
+        request: EffectStepRequest<'_>,
+        recorded_identity: &str,
+        recorded_result: &str,
+    ) -> Result<bool, RuntimeEffectError> {
+        self.resolved_effect(request)?
+            .ok_or_else(|| RuntimeEffectError::MissingFamily {
+                family: format!("the owner of step {}", request.step.id),
+            })?
+            .read_unchanged(request, recorded_identity, recorded_result)
+    }
+
     /// Admit what the step declares it may call, in every family, before any
     /// call is made.
     pub(crate) fn admit_declared(

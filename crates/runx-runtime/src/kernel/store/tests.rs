@@ -506,7 +506,53 @@ fn a_store_from_before_0_12_refuses_to_open_and_is_left_as_it_was() {
         "{refused}"
     );
     let message = refused.to_string();
-    assert!(message.contains("before runx 0.12"), "{message}");
+    assert!(message.contains("earlier runx"), "{message}");
     assert!(message.contains("move it aside"), "{message}");
     assert_eq!(std::fs::read(&path).unwrap(), before, "nothing is migrated");
+}
+
+#[test]
+fn each_commit_is_one_durable_write_and_a_refused_batch_none() {
+    let test = concat!(
+        module_path!(),
+        "::each_commit_is_one_durable_write_and_a_refused_batch_none"
+    );
+    let durable = crate::work_counts::alone(test, || {
+        let (_root, store) = store();
+        let opened = Ledger::Opened {
+            owner: "kam".to_owned(),
+        };
+        let moved = Ledger::Moved { amount: 5 };
+        let before = crate::work_counts::snapshot().durable_writes;
+        store
+            .append(vec![
+                Append::kernel("a", Expected::Absent, &opened).unwrap(),
+            ])
+            .unwrap();
+        store
+            .append(vec![
+                Append::kernel("a", Expected::Version(1), &moved).unwrap(),
+                Append::kernel("b", Expected::Absent, &opened).unwrap(),
+            ])
+            .unwrap();
+        let refused = store.append(vec![Append::kernel("a", Expected::Absent, &moved).unwrap()]);
+        assert!(refused.is_err());
+        crate::work_counts::snapshot().durable_writes - before
+    });
+    assert_eq!(
+        durable, 2,
+        "two commits, and the refused batch committed nothing"
+    );
+}
+
+#[test]
+fn the_store_syncs_its_commits_and_checkpoints_with_the_full_flush() {
+    let (_root, store) = store();
+    let connection = store.lock();
+    for pragma in ["fullfsync", "checkpoint_fullfsync"] {
+        let on: i64 = connection
+            .pragma_query_value(None, pragma, |row| row.get(0))
+            .unwrap();
+        assert_eq!(on, 1, "{pragma}");
+    }
 }

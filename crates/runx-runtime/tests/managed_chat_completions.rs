@@ -1527,11 +1527,12 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
     Ok(())
 }
 
-/// A turn runx's managed agent worked from a fresh context, stating the
+/// A turn runx's managed agent worked, from a fresh context and stating the
 /// model that answered, leaves its run an eligible source, whose reads this
-/// run may make: a later call that asks the same finds it and, until check 3
-/// compares what each step was given, recomputes as changed rather than
-/// ineligible (reuse.md, D2).
+/// run may make and whose turn would be asked what it was: a later call
+/// that asks the same is reused from it without asking the model again, as
+/// is one that names the model that answered. One that names another model
+/// recomputes as other model, and asks it (reuse.md, D2, checks 1 to 3).
 #[test]
 fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -1554,16 +1555,18 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
     )?;
     fs::write(
         parent.join("run.yaml"),
-        "minimum_runx: 0.12.0\nmethods:\n  ask:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: ask\n        script: {module: ask.mjs}\n        inputs: {value: $input.value}\n        calls:\n          skills: [../answer-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  ask:\n    inputs:\n      value: {type: string}\n      model: {type: string, optional: true}\n    steps:\n      - id: ask\n        script: {module: ask.mjs}\n        inputs: {value: $input.value, model: $input.model}\n        calls:\n          skills: [../answer-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
     )?;
     fs::write(
         parent.join("ask.mjs"),
-        "export default async function (ctx, { value }) {\n  await ctx.skill(\"../answer-child\", { value }, { reuse: { max_age_seconds: 604800 } });\n  return { done: true };\n}\n",
+        "export default async function (ctx, { value, model }) {\n  const reuse = model ? { max_age_seconds: 604800, model } : { max_age_seconds: 604800 };\n  await ctx.skill(\"../answer-child\", { value }, { reuse });\n  return { done: true };\n}\n",
     )?;
 
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
     let done = json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]});
+    // The model is asked twice: by the source, and by the call that names
+    // another model. The calls that reuse a result ask it nothing.
     let server = std::thread::spawn(move || serve_responses(listener, [done.clone(), done]));
     let mut env = BTreeMap::from([
         (
@@ -1585,7 +1588,12 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
     ]);
     crate::support::insert_test_signing_env(&mut env);
     let mut decisions = Vec::new();
-    for _ in 0..2 {
+    let mut sources = Vec::new();
+    for model in [None, None, Some("fixture-model"), Some("other-model")] {
+        let mut inputs = BTreeMap::from([("value".to_owned(), JsonValue::String("x".to_owned()))]);
+        if let Some(model) = model {
+            inputs.insert("model".to_owned(), JsonValue::String(model.to_owned()));
+        }
         let result = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {
                 current_context: Vec::new(),
@@ -1596,7 +1604,7 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
                 receipt_dir: Some(temp.path().join("receipts")),
                 run_id: None,
                 answers: None,
-                inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("x".to_owned()))]),
+                inputs,
                 env: env.clone(),
                 cwd: temp.path().to_path_buf(),
                 managed_agent: ManagedAgentPolicy::inline(3)?,
@@ -1609,33 +1617,47 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
         assert_eq!(output["status"], "sealed", "{output}");
         let run_id = output["run_id"].as_str().ok_or("missing run_id")?;
         let read = runx_runtime::run_record::read_run(&env, temp.path(), run_id, None)?;
-        decisions.extend(
-            read.events
-                .into_iter()
-                .filter_map(|record| match record.event {
-                    runx_contracts::RunEventFact::Call {
-                        reuse: Some(reuse), ..
-                    } if record.stream.as_str() == run_id
-                        || runx_runtime::run_record::is_calls_stream_of(
-                            record.stream.as_str(),
-                            run_id,
-                        ) =>
-                    {
-                        Some(reuse.decision)
-                    }
-                    _ => None,
-                }),
-        );
+        let child = format!("{run_id}/ask/0");
+        for record in read.events {
+            match record.event {
+                runx_contracts::RunEventFact::Call {
+                    reuse: Some(reuse), ..
+                } if record.stream.as_str() == run_id
+                    || runx_runtime::run_record::is_calls_stream_of(
+                        record.stream.as_str(),
+                        run_id,
+                    ) =>
+                {
+                    decisions.push(reuse.decision);
+                }
+                runx_contracts::RunEventFact::Sealed { receipt_id, .. }
+                    if record.stream.as_str() == child =>
+                {
+                    sources.push(receipt_id);
+                }
+                _ => {}
+            }
+        }
     }
-    finish_server(server)?;
+    let asked = finish_server(server)?;
+    assert_eq!(asked.len(), 2, "a reused call asks the model nothing");
     let recomputed = |reason| runx_contracts::ReuseDecision::Recomputed { reason };
+    let reused = runx_contracts::ReuseDecision::Reused {
+        from: sources
+            .first()
+            .ok_or("the source's child didn't seal")?
+            .clone(),
+    };
     assert_eq!(
         decisions,
         [
             recomputed(runx_contracts::RecomputeReason::NoCandidate),
-            recomputed(runx_contracts::RecomputeReason::Changed),
+            reused.clone(),
+            reused,
+            recomputed(runx_contracts::RecomputeReason::OtherModel),
         ]
     );
+    assert_eq!(sources.len(), 2, "only a call that recomputes runs a child");
     Ok(())
 }
 

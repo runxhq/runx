@@ -6,6 +6,20 @@
       "prompt": "Extract the invoice id, customer and total from this captured document to the supplied JSON schema.",
       "expected_output": "Return the schema-valid invoice fields with exact quotations and input/schema/output digests, without fetching or paying.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Extract the invoice id, customer and total from the captured invoice you are given, to its schema.",
+      "expected_output": "Schema-valid fields from the given text, invoice INV-104, customer Northstar and total 125, each bound to its exact quotation, with the input, schema and output digests, and no fetch or payment.",
+      "files": [
+        "evals/files/captured-invoice-104.json"
+      ],
+      "expectations": [
+        "It does not fetch the document.",
+        "It does not change the schema it is given.",
+        "It does not pay the invoice."
+      ],
+      "method": "extract"
     }
   ]
 }

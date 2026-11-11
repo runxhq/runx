@@ -1468,6 +1468,7 @@ methods:
                     admission_refs: Vec::new(),
                     child_receipts: &[],
                     descendant_receipts: &[],
+                    reused_from: None,
                     ending: Some(StepSealEnding {
                         outcome: RunOutcome::Completed,
                         reason: None,

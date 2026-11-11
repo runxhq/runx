@@ -420,13 +420,16 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
         cwd: continuation.cwd.to_path_buf(),
         managed_agent: continuation.managed_agent,
     };
-    for step in &steps {
-        for nested in &step.nested_receipts {
-            method_manifest::write_skill_receipt(&request, &workspace, &receipts, nested)?;
-        }
-        method_manifest::write_skill_receipt(&request, &workspace, &receipts, &step.receipt)?;
-    }
-    method_manifest::write_skill_receipt(&request, &workspace, &receipts, &receipt)?;
+    receipts
+        .write_sealed_receipts(
+            steps
+                .iter()
+                .flat_map(|step| step.nested_receipts.iter().chain([&step.receipt]))
+                .chain([&receipt]),
+            &workspace.receipt_path(request.receipt_dir.as_deref()),
+            log.store(),
+        )
+        .map_err(SkillRunError::from)?;
     Ok(sealed_output(
         &started.skill,
         &started.method,
@@ -914,6 +917,7 @@ fn seal_refusal(
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
+            reused_from: None,
             ending: Some(ending),
         },
         signature_config.signature_policy(),

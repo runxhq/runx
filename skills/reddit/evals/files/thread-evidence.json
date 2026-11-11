@@ -1,0 +1,12 @@
+{
+  "about": "The thread evidence a prior session collected for a reply in r/learnprogramming: the thread and the draft comment.",
+  "action": {
+    "kind": "comment",
+    "subreddit": "learnprogramming",
+    "target_url": "https://www.reddit.com/r/learnprogramming/comments/abc123/example/",
+    "title": "",
+    "body": "does the error happen before the request reaches the server? the network tab should show whether it was sent.",
+    "allow_bare_urls": false,
+    "target_author": ""
+  }
+}

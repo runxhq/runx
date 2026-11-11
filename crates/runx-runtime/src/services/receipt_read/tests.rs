@@ -93,7 +93,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     };
     log.record_step(&step, &[])?;
     Ok(Fixture {
@@ -288,6 +288,9 @@ fn receipt_read_refuses_an_unrelated_valid_retained_receipt_in_the_same_store() 
     Ok(())
 }
 
+/// A receipt a run's record holds is never lost to a missing file: a read
+/// restores it from the record. One no record holds, its file gone, leaves
+/// the original tree incomplete, even when the selected leaf is valid.
 #[test]
 fn receipt_read_requires_the_whole_original_tree_even_when_the_selected_leaf_is_valid() -> TestResult
 {
@@ -301,13 +304,41 @@ fn receipt_read_requires_the_whole_original_tree_even_when_the_selected_leaf_is_
     let paths = RunxPaths::resolve(&fixture.env, fixture.root.path());
     let store = LocalReceiptStore::new(paths.project().join("receipts"));
     std::fs::remove_file(store.receipt_path(other.receipt.id.as_str())?)?;
-    assert_eq!(
-        read(&fixture, "", 4096)?.status,
-        ReceiptReadStatus::Available
-    );
-    let error = read_receipt_claim(
+    let restored = read_receipt_claim(
         fixture.receipt.id.as_str(),
         Some(root.id.as_str()),
+        "",
+        4096,
+        &fixture.env,
+        fixture.root.path(),
+    )?;
+    assert_eq!(restored.status, ReceiptReadStatus::Available);
+    assert!(store.receipt_path(other.receipt.id.as_str())?.is_file());
+
+    let mut unrecorded = other.clone();
+    let signature = RuntimeReceiptSignatureConfig::resolve(&fixture.env, &paths)?;
+    unrecorded.receipt = step_receipt(
+        RunScope {
+            run_id: "run_unrecorded",
+            workflow_name: "unrecorded",
+        },
+        "unrecorded",
+        1,
+        &InvocationOutput::runtime_success(JsonValue::Null, 0),
+        &fixture.claim,
+        "2026-11-04T00:00:00Z",
+        signature.signature_policy(),
+    )?;
+    store.write_receipt(&unrecorded.receipt, signature.signature_policy())?;
+    let incomplete = parent(
+        &fixture,
+        "run_incomplete",
+        &[fixture.step.clone(), unrecorded.clone()],
+    )?;
+    std::fs::remove_file(store.receipt_path(unrecorded.receipt.id.as_str())?)?;
+    let error = read_receipt_claim(
+        fixture.receipt.id.as_str(),
+        Some(incomplete.id.as_str()),
         "",
         4096,
         &fixture.env,

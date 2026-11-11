@@ -6,6 +6,19 @@
       "prompt": "Draft this services agreement from the approved template with every required term bound.",
       "expected_output": "Return a sealed draft where every clause reconciles with the rendered template and delivery stays behind a human gate.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Draft the agreement from the template, parties and terms already admitted.",
+      "expected_output": "The complete Services Agreement between Acme Pty Ltd and Globex LLC, each clause reconciled against the template baseline, with USD 4000 for monthly platform maintenance, its sources bound, and nothing sent.",
+      "files": [
+        "evals/files/admitted-msa-terms.json"
+      ],
+      "expectations": [
+        "It does not fetch the template or party evidence again.",
+        "It does not change the supplied terms.",
+        "It does not send the draft."
+      ]
     }
   ]
 }

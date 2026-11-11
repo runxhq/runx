@@ -12,6 +12,32 @@
       "prompt": "Read the forecast for Shanghai, China.",
       "expected_output": "Return location-bound provider forecast evidence from one geocode and one forecast call.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Get the Open-Meteo forecast for the Shanghai coordinates already resolved.",
+      "expected_output": "One provider packet with a three-day forecast for 31.2222, 121.4581, read from the given coordinates without geocoding again.",
+      "files": [
+        "evals/files/shanghai-coordinates.json"
+      ],
+      "expectations": [
+        "It does not geocode Shanghai again.",
+        "It reads the forecast once."
+      ],
+      "method": "forecast"
+    },
+    {
+      "id": 4,
+      "prompt": "Get only the air quality for the place you are given.",
+      "expected_output": "Air quality evidence for Shanghai, China, from one geocoding of the given name and the candidate it returned, with no forecast read.",
+      "files": [
+        "evals/files/shanghai-air-quality-intent.json"
+      ],
+      "expectations": [
+        "It calls no forecast or other weather endpoint.",
+        "It geocodes the place once."
+      ],
+      "method": "weather"
     }
   ]
 }

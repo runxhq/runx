@@ -137,6 +137,7 @@ where
         ask_reason,
         given,
         reconciliation,
+        reused: None,
     };
     match loaded_skill {
         Some(skill) => super::step_handlers::run_step_with_loaded_skill_inputs(request, skill),

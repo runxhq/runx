@@ -199,6 +199,9 @@ pub(crate) struct Custody {
 pub(crate) struct Done {
     pub receipt_id: String,
     pub intent_digest: String,
+    /// The confirmed identity the completed attempt ran under.
+    pub instance_binding: String,
+    pub implementation_digest: Option<String>,
     pub readback: Option<Readback>,
 }
 
@@ -348,7 +351,7 @@ impl EffectCustody {
     /// How the act's last sequence, which `receipt_id` finalized, did it:
     /// the intent its last attempt carried and the answer it read back.
     fn done(&self, receipt_id: String) -> Result<Done, CustodyError> {
-        let mut intent_digest = String::new();
+        let mut attempted = None;
         let mut readback = None;
         // Whether the events read so far ended a sequence, so the next
         // attempt opens another that owes nothing to it.
@@ -356,23 +359,30 @@ impl EffectCustody {
         for recorded in self.store.read::<EffectEvent>(&self.key)? {
             match recorded.event {
                 EffectEvent::Attempted {
-                    intent_digest: attempted,
+                    intent_digest,
+                    instance_binding,
+                    implementation_digest,
                     ..
                 } => {
                     if between {
                         readback = None;
                         between = false;
                     }
-                    intent_digest = attempted;
+                    attempted = Some((intent_digest, instance_binding, implementation_digest));
                 }
                 EffectEvent::ReadBack { readback: answer } => readback = Some(answer),
                 EffectEvent::Rejected { .. } | EffectEvent::Finalized { .. } => between = true,
                 EffectEvent::Acknowledged { .. } | EffectEvent::Unknown { .. } => {}
             }
         }
+        let (intent_digest, instance_binding, implementation_digest) = attempted.ok_or(
+            CustodyError::Mismatch("a finalized act has no recorded attempt"),
+        )?;
         Ok(Done {
             receipt_id,
             intent_digest,
+            instance_binding,
+            implementation_digest,
             readback,
         })
     }
@@ -460,8 +470,15 @@ impl EffectCustody {
         self.commit(&EffectEvent::Acknowledged { acknowledgement })
     }
 
+    /// The provider's readback, recorded in order: the call that reached the
+    /// world was claimed durably first, so a power cut that loses this leaves
+    /// the attempt unsettled, which holds as an unknown outcome (D34).
     pub(crate) fn read_back(&self, readback: Readback) -> Result<(), CustodyError> {
-        self.commit(&EffectEvent::ReadBack { readback })
+        self.store.append_as(
+            vec![self.append(&EffectEvent::ReadBack { readback })?],
+            crate::kernel::store::Durability::Ordered,
+        )?;
+        Ok(())
     }
 
     pub(crate) fn unknown(&self, reason: String) -> Result<(), CustodyError> {

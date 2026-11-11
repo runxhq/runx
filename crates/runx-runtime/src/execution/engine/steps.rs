@@ -157,6 +157,10 @@ impl Host for AnsweringHost<'_> {
     fn reads_local_only(&self) -> bool {
         self.host.reads_local_only()
     }
+
+    fn answers_each_call(&self) -> bool {
+        self.host.answers_each_call()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -513,26 +517,33 @@ impl WorkflowExecution {
             _ => None,
         };
         let mut answering = AnsweringHost::new(&mut *context.host, held);
-        // A step claimed before runs again on a person's `{"retry": true}`,
-        // on their word, which its new claim consumes, and `{"retry": false}`
-        // leaves it failed, its act as custody holds it.
-        let mut retried = false;
+        // A step claimed before is reconciled from what custody holds of its
+        // act, with nobody asked, when it's an operation's. Otherwise, and
+        // when that settles nothing, a person answers: `{"retry": true}` runs
+        // it again on their word, which its new claim consumes, and
+        // `{"retry": false}` leaves it failed, its act as custody holds it.
+        let mut reconciliation = None;
         if let Some((_, retry)) = self
             .claimed
             .take_if(|(step_id, _)| step_id == context.plan.step_id)
         {
             match answering
                 .resolve(super::turn::resolution_request(&retry)?)?
-                .and_then(|response| super::retry_answer(&response.payload))
+                .map(|response| super::retry_answer(&response.payload))
             {
-                Some(true) => retried = true,
-                Some(false) => {
+                Some(Some(true)) => {
+                    reconciliation = Some(crate::effects::Reconciliation::Retried);
+                }
+                Some(Some(false)) => {
                     return Err(RuntimeError::StepFailed {
                         step_id: context.plan.step_id.to_owned(),
                         reason: crate::execution::run_record::RETRY_DECLINED.to_owned(),
                     });
                 }
-                None => {
+                None if matches!(context.step.kind, StepKind::Operation(_)) => {
+                    reconciliation = Some(crate::effects::Reconciliation::Evidence);
+                }
+                Some(None) | None => {
                     return Err(RuntimeError::ContinuationRejected {
                         reason: format!(
                             "step {} is answered only with {{\"retry\": true}} or {{\"retry\": false}}",
@@ -542,7 +553,9 @@ impl WorkflowExecution {
                 }
             }
         }
-        let reconciliation = retried.then_some(crate::effects::Reconciliation::Retried);
+        // Reconciled with nobody asked, it stands claimed as it was unless
+        // what custody holds settles it.
+        let reconciling = reconciliation == Some(crate::effects::Reconciliation::Evidence);
         // The floor decides before the claim, so a step waiting on the
         // person is held on its gate, never "may have run".
         let floor = self.floor(
@@ -560,7 +573,7 @@ impl WorkflowExecution {
         let result = match floor {
             Err(error) => Err(error),
             Ok(admitted) => {
-                if claimed {
+                if claimed && !reconciling {
                     let retry = log.address(&format!("{}/retry", context.plan.step_id));
                     log.record_claim(
                         context.plan.step_id,
@@ -571,6 +584,7 @@ impl WorkflowExecution {
                             super::resend_of(context.step, workflow_dir, env),
                         ),
                         &std::mem::take(&mut answering.answers),
+                        super::claim_durability(context.step, workflow_dir, env),
                     )?;
                     if !reads {
                         crate::interrupt::note_effect();
@@ -622,6 +636,11 @@ impl WorkflowExecution {
                 }
             }
         };
+        if reconciling && result.is_err() {
+            return Err(RuntimeError::Unsettled {
+                step_id: context.plan.step_id.to_owned(),
+            });
+        }
         let answers = answering.answers;
         let run = match result {
             Err(RuntimeError::ResolutionPending {

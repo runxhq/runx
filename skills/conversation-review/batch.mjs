@@ -1,9 +1,26 @@
-// Review each conversation on its own, all at once up to the step's
-// concurrency, and collect every conversation's outcome in the order given.
-// Each conversation catches its own failure, so one conversation's failure
-// is that conversation's outcome, with its reason, and never stops the rest.
+// How many conversations the batch reviews at once, as many as the step's
+// concurrency runs calls at once. Each lane takes the next conversation when
+// its last is reviewed, so the worker holds at most this many conversations
+// however many the batch holds: a batch read all at once holds more than the
+// worker's 64 MiB once its conversations are large.
+const LANES = 4;
+
+// Review each conversation on its own and collect every conversation's
+// outcome in the order given. Each conversation catches its own failure, so
+// one conversation's failure is that conversation's outcome, with its
+// reason, and never stops the rest.
 export default async function batch(ctx, { conversations }) {
-  return { outcomes: await Promise.all(conversations.map((conversation) => review(ctx, conversation))) };
+  const outcomes = [];
+  let next = 0;
+  const lane = async () => {
+    while (next < conversations.length) {
+      const index = next;
+      next += 1;
+      outcomes[index] = await review(ctx, conversations[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: LANES }, lane));
+  return { outcomes };
 }
 
 // A batch past 64 KiB reaches the script item by item, each conversation a

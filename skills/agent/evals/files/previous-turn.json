@@ -1,0 +1,17 @@
+{
+  "about": "The previous turn of this work, which the act follows: its sealed receipt, its summary, what it already read, and what it left open.",
+  "receipt_id": "sha256:6f1d0c2e9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d",
+  "summary": "Searched the catalog for a skill that fetches one web page and found web-fetch. Did not check whether it can limit the hosts it fetches from.",
+  "read": [
+    {
+      "call": "registry.search",
+      "query": "fetch one web page",
+      "found": [
+        "web-fetch"
+      ]
+    }
+  ],
+  "open": [
+    "Whether web-fetch can limit the hosts it fetches from, and how."
+  ]
+}

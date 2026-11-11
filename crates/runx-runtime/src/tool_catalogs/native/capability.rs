@@ -20,6 +20,9 @@ pub(super) type TypedEffectDescriber<I> =
 pub(super) trait NativeCapability: CapabilityContract {
     fn invoke(&self, invocation: RawNativeInvocation<'_>) -> Result<JsonValue, RuntimeError>;
     fn execution_boundary(&self) -> runx_contracts::ExecutionBoundaryKind;
+    /// Whether this capability reads no state beyond its supplied inputs.
+    /// Its observation stamp attributes the original computation on reuse.
+    fn reads_only_inputs(&self) -> bool;
     /// What a call with these inputs would change or run; none for a tool
     /// that only reads.
     fn local_effect(
@@ -60,6 +63,7 @@ pub(super) struct TypedNativeCapability<I, O> {
     handler: TypedNativeHandler<I, O>,
     execution_boundary: runx_contracts::ExecutionBoundaryKind,
     describe: Option<TypedEffectDescriber<I>>,
+    reads_only_inputs: bool,
 }
 
 impl<I, O> TypedNativeCapability<I, O> {
@@ -73,6 +77,7 @@ impl<I, O> TypedNativeCapability<I, O> {
             handler,
             execution_boundary: runx_contracts::ExecutionBoundaryKind::NativeCapability,
             describe: None,
+            reads_only_inputs: false,
         }
     }
 
@@ -87,6 +92,7 @@ impl<I, O> TypedNativeCapability<I, O> {
             handler,
             execution_boundary,
             describe: None,
+            reads_only_inputs: false,
         }
     }
 
@@ -95,6 +101,16 @@ impl<I, O> TypedNativeCapability<I, O> {
     pub(super) const fn describing(self, describe: TypedEffectDescriber<I>) -> Self {
         Self {
             describe: Some(describe),
+            ..self
+        }
+    }
+
+    /// The owner guarantees that the result depends on supplied inputs,
+    /// with no mutable local or provider state to compare on reuse.
+    #[must_use]
+    pub(super) const fn reading_only_inputs(self) -> Self {
+        Self {
+            reads_only_inputs: true,
             ..self
         }
     }
@@ -144,6 +160,10 @@ where
 {
     fn execution_boundary(&self) -> runx_contracts::ExecutionBoundaryKind {
         self.execution_boundary
+    }
+
+    fn reads_only_inputs(&self) -> bool {
+        self.reads_only_inputs
     }
 
     #[cfg(test)]

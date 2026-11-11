@@ -18,6 +18,19 @@
       "prompt": "Explain this failed invocation from the exact input-contract error.",
       "expected_output": "Diagnose the caller input and make no unrelated receipt lookup or failed-operation replay.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Continue from the failed receipt and test report you are given into a diagnosis of what to change in the skill.",
+      "expected_output": "A diagnosis ready for skill-build, drawn from the given receipt detail and test output: a context edge read stdout and flattened the structured payload, and the smallest change to skills/skill-build is to pass the named artifact instead, with nothing run again.",
+      "files": [
+        "evals/files/context-flattening-failure.json"
+      ],
+      "expectations": [
+        "It does not run the failed skill again.",
+        "It works from the receipt detail it is given and does not query or rediscover it in the ledger."
+      ],
+      "method": "from-evidence"
     }
   ]
 }

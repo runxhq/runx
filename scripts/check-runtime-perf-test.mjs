@@ -77,6 +77,14 @@ try {
     "journey_2.constant_store_writes_per_call",
   );
 
+  const growingDurable = journeys();
+  growingDurable["2"].durable_writes_per_call["1000"] = 5;
+  expectFail(
+    runQualityVerification(quality({ journeys: growingDurable })),
+    "durable writes that grow with the run",
+    "journey_2.constant_durable_writes_per_call",
+  );
+
   const growingResume = journeys();
   growingResume["4"].resume_rows_read.children["1000"] = 33_061;
   expectFail(
@@ -275,6 +283,7 @@ function journeys() {
     },
     2: {
       store_writes_per_call: { 10: 2, 100: 2, 1000: 2 },
+      durable_writes_per_call: { 10: 4, 100: 4, 1000: 4 },
       context_reserializations_per_call: 0,
       transactions_spanning_provider_calls: 0,
     },

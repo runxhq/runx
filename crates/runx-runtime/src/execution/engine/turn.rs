@@ -41,6 +41,7 @@ use super::{CallStop, CallWork, Runtime, StepRun};
 use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
 use crate::host::Host;
+use crate::kernel::store::Durability;
 
 /// A turn its host hasn't answered, held open as the host works it.
 pub trait Turn {
@@ -270,6 +271,9 @@ pub(super) struct TurnScope<'a, A> {
     /// Whether the step's host says its model runs on this machine, so the
     /// turn may be given a `local_only` result.
     pub(super) reads_local_only: bool,
+    /// Whether the step's host hands its agent each call's result as it
+    /// settles, so that record answers the host and is durable first.
+    pub(super) answers_each_call: bool,
     /// Where what the step was given may be shared: its inputs, and a
     /// turn's context entries. Each call the step makes carries it.
     pub(super) given: ArtifactLabels,
@@ -416,6 +420,7 @@ where
             ask_reason: None,
             given: call.given,
             reconciliation,
+            reused: call.reused.clone(),
         };
         let result = match target {
             CallTarget::Skill {
@@ -449,6 +454,9 @@ where
             // reconciles it.
             Err(RuntimeError::ProviderEffectUnknown { .. })
             | Err(RuntimeError::ProviderReadbackPending { .. }) => Ran::Unconfirmed,
+            // A child run's claimed step that nothing in custody settles
+            // still waits on its retry, and so does the call.
+            Err(RuntimeError::Unsettled { .. }) => Ran::Unconfirmed,
             Err(error) if error.is_fatal_step_fault() => return Err(error),
             Err(error) => Ran::Settled(CallOutcome::Failed(error.to_string())),
         })
@@ -594,6 +602,8 @@ struct CallStep {
     given: ArtifactLabels,
     /// The context entries a script's skill call gives its child run.
     context: Vec<runx_contracts::ContextEntry>,
+    /// The source selected during admission, when this call reuses a result.
+    reused: Option<crate::execution::reuse::Source>,
 }
 
 /// An input given by reference to a packet the project holds: the artifact
@@ -1400,13 +1410,16 @@ where
             .address(&call_step_id(self.scope.step_id, index))
     }
 
-    /// What a skill call that asked to reuse a result is answered, and the
-    /// identity its child is indexed under, when it has one.
+    /// What a skill call that asked to reuse a result, as `asked`, is
+    /// answered: its decision, the identity its child is indexed under, and
+    /// on a hit the source it settles with.
     fn reuse_candidate(
         &self,
         call: &CallStep,
         target: &CallTarget,
-    ) -> Result<(runx_contracts::ReuseDecision, Option<String>), RuntimeError> {
+        asked: &runx_contracts::RunCallReuse,
+    ) -> Result<crate::execution::reuse::Decided, RuntimeError> {
+        use crate::execution::reuse;
         let options = &self.scope.runtime.options;
         let skill = match target {
             CallTarget::Skill {
@@ -1425,71 +1438,86 @@ where
             }
         };
         let store = options.run.store();
-        crate::execution::reuse::decide(
+        let workflow = &skill.method.workflow;
+        // The child as this run would start it now. One that can't be worked
+        // out can be shown neither allowed nor current.
+        let today = self.child_today(call, &skill);
+        let now = options.clock.now();
+        reuse::decide(
             store,
-            crate::execution::reuse::identity(
+            reuse::identity(
                 &skill,
                 &call.step.inputs,
                 call.act.as_ref(),
                 &call.context,
                 &options.env,
             ),
-            &skill.method.workflow,
-            |source| self.reads_allowed(call, &skill, &source.run_id),
+            workflow,
+            |source| {
+                today
+                    .as_ref()
+                    .is_ok_and(|today| reuse::allowed(store, &source.run_id, workflow, today))
+            },
+            |source| {
+                let asked = reuse::Asked {
+                    max_age_seconds: asked.max_age_seconds,
+                    model: asked.model.as_deref(),
+                    now: &now,
+                };
+                match &today {
+                    Ok(today) => reuse::current(store, &source.run_id, workflow, today, &asked),
+                    Err(_) => Some(runx_contracts::RecomputeReason::Changed),
+                }
+            },
         )
         .map_err(|error| RuntimeError::effect_state("reading the reuse index", error.to_string()))
     }
 
-    /// Whether the child `skill` that `call` starts may make again, under
-    /// the authority and the chain the child would run under, every read its
-    /// source `source_run_id` made (reuse.md, check 2): each operation read
-    /// as admission authorizes it, with nothing charged or counted, and each
-    /// file read within the reach its step would have. Anything that can't be
-    /// established, a read that can't be rebuilt included, isn't allowed.
-    /// Nothing is read, so a hit or a miss can't say what changed.
-    fn reads_allowed(&self, call: &CallStep, skill: &LoadedStepSkill, source_run_id: &str) -> bool {
+    /// The child `skill` that `call` would start now, as a child run is
+    /// started: its run's authority narrowed by the call's step and then its
+    /// method, its environment, the chain it runs under, and the provenance
+    /// its steps inherit from what the call gave by reference.
+    fn child_today<'s>(
+        &'s self,
+        call: &'s CallStep,
+        skill: &'s LoadedStepSkill,
+    ) -> Result<crate::execution::reuse::Today<'s>, RuntimeError> {
         let options = &self.scope.runtime.options;
-        // What the child would hold: this run's authority, narrowed by the
-        // step that calls it and then by its method, as a child run is.
-        let authority = crate::RunAuthority::of_method(
-            crate::RunAuthority::of_step(options.run_authority.clone(), &call.step),
-            &skill.method.workflow,
-        );
-        let Ok(chain) = super::step_handlers::child_chain_at(
+        let given = call
+            .fed
+            .iter()
+            .filter_map(|fed| fed.edge.clone())
+            .collect::<Vec<_>>();
+        Ok(crate::execution::reuse::Today {
             options,
-            self.scope.workflow_dir,
-            &call.step,
+            local_artifacts: &self.scope.runtime.local_artifacts,
             skill,
-        ) else {
-            return false;
-        };
-        let Ok(reads) = crate::execution::reuse::reads(
-            options.run.store(),
-            source_run_id,
-            &skill.method.workflow,
-            options.workspace.as_ref(),
-        ) else {
-            return false;
-        };
-        reads.files_allowed(authority.as_ref(), &options.env, &skill.directory)
-            && reads.operations.iter().all(|step| {
-                options
-                    .effects
-                    .authorize(crate::effects::EffectStepRequest {
-                        step,
-                        target: crate::effects::ResolvedEffectTarget::default(),
-                        inputs: &step.inputs,
-                        env: &options.env,
-                        workflow_dir: &skill.directory,
-                        run_id: options.run.run_id(),
-                        run_authority: authority.as_ref(),
-                        held_by_effects: false,
-                        chain: &chain,
-                        clock: &options.clock,
-                        reconciliation: None,
-                    })
-                    .is_ok()
-            })
+            act: call.act.as_ref(),
+            current_context: options
+                .current_context
+                .iter()
+                .chain(&call.context)
+                .cloned()
+                .collect(),
+            run_id: options.run.child_id(&call.step.id),
+            authority: crate::RunAuthority::of_child(
+                options.run_authority.clone(),
+                &call.step,
+                &skill.method.workflow,
+            ),
+            env: super::step_handlers::child_env(options, skill),
+            chain: super::step_handlers::child_chain_at(
+                options,
+                self.scope.workflow_dir,
+                &call.step,
+                skill,
+            )?,
+            inherited: crate::execution::workflow::inherited_step_provenance(
+                &skill.method.workflow,
+                &given,
+            ),
+            reads_local_only: self.scope.reads_local_only,
+        })
     }
 
     /// Admit the call `made`. A call outside the allowance, or malformed, is
@@ -1568,25 +1596,33 @@ where
         };
         // A skill call that asks to reuse a result looks for its source now,
         // so its claim records what it was answered (reuse, D32).
-        let made = match made.reuse.take() {
+        let (made, reused) = match made.reuse.take() {
             Some(asked) if matches!(made.target, CallTarget::Skill { .. }) => {
-                let (decision, reuse_identity) = self.reuse_candidate(&call, &made.target)?;
-                Made {
-                    reuse: Some(runx_contracts::RunCallReuse { decision, ..asked }),
-                    reuse_identity,
+                let decided = self.reuse_candidate(&call, &made.target, &asked)?;
+                let made = Made {
+                    reuse: Some(runx_contracts::RunCallReuse {
+                        decision: decided.decision,
+                        ..asked
+                    }),
+                    reuse_identity: decided.identity,
                     ..made
-                }
+                };
+                (made, decided.source)
             }
-            asked => Made {
-                reuse: asked,
-                ..made
-            },
+            asked => (
+                Made {
+                    reuse: asked,
+                    ..made
+                },
+                None,
+            ),
         };
+        let call = CallStep { reused, ..call };
         let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
         let held_by_effects = admitted == super::floor::Admitted::Held;
         let claim = match &made.target {
             _ if super::reaches_world(&call.step.kind) => self.claim(made.index, &call.step)?,
-            CallTarget::Skill { .. } => {
+            CallTarget::Skill { .. } if call.reused.is_none() => {
                 CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
             }
             CallTarget::Wait { .. } | CallTarget::Read { .. } => {
@@ -1598,11 +1634,13 @@ where
                 });
             }
             // A call that reaches nothing holds no claim: it runs now, under
-            // the driver.
+            // the driver. A skill call that reused a result reaches nothing:
+            // it settles with its source's result and starts no child.
             CallTarget::Tool { .. }
             | CallTarget::Operation { .. }
             | CallTarget::Ask
-            | CallTarget::Load => {
+            | CallTarget::Load
+            | CallTarget::Skill { .. } => {
                 let ran = self.scope.run_call_step(
                     &call,
                     &made.target,
@@ -1905,26 +1943,30 @@ where
             _ => Vec::new(),
         };
         // A call that asked to reuse a result and ran its child to completion
-        // makes that child its identity's newest source. A child that failed
-        // settles its call too, and is no source.
+        // makes that child its identity's newest source, known by the receipt
+        // its run sealed. A child that failed settles its call too, and is no
+        // source, as is a call that started no child.
         if let (CallOutcome::Completed(run), Some(identity)) = (&outcome, &made.reuse_identity)
             && run.outcome.succeeded()
         {
             let options = &self.scope.runtime.options;
-            crate::execution::reuse::index(
-                options.run.store(),
-                identity,
-                crate::execution::reuse::Source {
-                    run_id: options
-                        .run
-                        .child_id(&call_step_id(self.scope.step_id, made.index)),
-                    receipt_id: run.receipt.id.as_str().to_owned(),
-                    sealed_at: options.clock.now(),
-                },
-            )
-            .map_err(|error| {
-                RuntimeError::effect_state("indexing a reuse source", error.to_string())
-            })?;
+            let child = options
+                .run
+                .child(&call_step_id(self.scope.step_id, made.index))?;
+            if let Some(sealed) = child.load()?.and_then(|record| record.sealed) {
+                crate::execution::reuse::index(
+                    options.run.store(),
+                    identity,
+                    crate::execution::reuse::Source {
+                        run_id: child.run_id().to_owned(),
+                        receipt_id: sealed.receipt.id.as_str().to_owned(),
+                        sealed_at: options.clock.now(),
+                    },
+                )
+                .map_err(|error| {
+                    RuntimeError::effect_state("indexing a reuse source", error.to_string())
+                })?;
+            }
         }
         self.scope.runtime.options.run.record_call(&CallRecord {
             step_id: self.scope.step_id,
@@ -1943,6 +1985,7 @@ where
             inline_bound,
             reuse: made.reuse.as_ref(),
             reuse_identity: made.reuse_identity.as_deref(),
+            durability: self.durability_of(made, &outcome),
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.
@@ -1970,10 +2013,12 @@ where
         Ok(outputs)
     }
 
-    /// A completed call's output as project artifacts of its run: one per
-    /// packet output, holding the packet's data, and one for the rest. Each
-    /// is content-addressed, so a host reads the call's outcome from the
-    /// run's record alone. Each carries the call step's labels: everything
+    /// The fields of a completed call's output that are project artifacts of
+    /// its run, one each: a packet output, holding the packet's data, and a
+    /// field a script takes by reference, past its inline bound. Each is
+    /// content-addressed and durable before the call's record names it, and
+    /// the record holds its reference, never a second copy. Every other field
+    /// is the record's alone. Each carries the call step's labels: everything
     /// it was given or read, and what it made.
     fn output_artifacts(
         &self,
@@ -1982,8 +2027,12 @@ where
         inline_bound: Option<u64>,
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         let options = &self.scope.runtime.options;
-        let artifacts =
-            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
+        // Beside the run's record, which names them and reads them back.
+        let artifacts = options
+            .run
+            .store()
+            .project_dir()
+            .join(crate::paths::ARTIFACTS_DIR);
         let label = call_step_id(self.scope.step_id, made.index);
         let persist = |label: &str, value: &JsonValue| {
             crate::services::persist_json_artifact(
@@ -1997,31 +2046,48 @@ where
             .map_err(|message| RuntimeError::effect_state("persisting a call's output", message))
         };
         let mut outputs = Vec::new();
-        let mut rest = JsonObject::new();
         for (name, value) in &run.contract {
-            if run.artifact_outputs.contains(name) {
-                let data = run.output(name).unwrap_or(value);
-                outputs.push(RunCallOutput {
-                    output: NonEmptyString::new(name.clone()),
-                    artifact: persist(&format!("{label}-{name}"), data)?,
-                });
+            let held = if run.artifact_outputs.contains(name) {
+                run.output(name).unwrap_or(value)
             } else if past_inline_bound(value, inline_bound)? {
-                // A field a script takes by reference is an artifact of its own.
-                outputs.push(RunCallOutput {
-                    output: NonEmptyString::new(name.clone()),
-                    artifact: persist(&format!("{label}-{name}"), value)?,
-                });
+                value
             } else {
-                rest.insert(name.clone(), value.clone());
-            }
-        }
-        if !rest.is_empty() {
+                continue;
+            };
+            let output = NonEmptyString::new(name.clone()).ok_or_else(|| {
+                RuntimeError::effect_state(
+                    "persisting a call's output",
+                    "an output field held by an artifact has a name",
+                )
+            })?;
             outputs.push(RunCallOutput {
-                output: None,
-                artifact: persist(&label, &JsonValue::Object(rest))?,
+                output,
+                artifact: persist(&format!("{label}-{name}"), held)?,
             });
         }
         Ok(outputs)
+    }
+
+    /// How durable a call's record is: durable where it claims what reaches
+    /// the world ([`super::claim_durability`]) or answers a host, as a result
+    /// a session hands its agent or a turn of the run its host drives that
+    /// stands waiting does; ordered otherwise, made durable by the next
+    /// durable record.
+    fn durability_of(&self, made: &Made, outcome: &CallOutcome) -> Durability {
+        let options = &self.scope.runtime.options;
+        match outcome {
+            CallOutcome::Claimed(_) => self
+                .call_step(made.index, &made.target, &made.input, &made.context)
+                .map_or(Durability::Durable, |call| {
+                    super::claim_durability(&call.step, self.scope.workflow_dir, &options.env)
+                }),
+            CallOutcome::Executing | CallOutcome::Child(_) => Durability::Ordered,
+            _ if self.turn.is_some() && self.scope.answers_each_call => Durability::Durable,
+            CallOutcome::Pending(_) if self.turn.is_some() && options.run.depth() == 0 => {
+                Durability::Durable
+            }
+            _ => Durability::Ordered,
+        }
     }
 
     /// Whether a call's result is withheld from the step that made it: it
@@ -2029,12 +2095,9 @@ where
     /// can't say its model runs on this machine. A `local_only` result
     /// reaches a step, a turn or a script, only where a `local_only` context
     /// entry can.
-    pub(super) fn withholds(&self, outcome: &CallOutcome, outputs: &[RunCallOutput]) -> bool {
-        matches!(outcome, CallOutcome::Completed(run) if run.outcome.succeeded())
+    pub(super) fn withholds(&self, outcome: &CallOutcome) -> bool {
+        matches!(outcome, CallOutcome::Completed(run) if run.outcome.succeeded() && run.labels.is_local_only())
             && !self.scope.reads_local_only
-            && outputs
-                .iter()
-                .any(|part| part.artifact.labels.is_local_only())
     }
 
     /// How a call stands, as its agent reads it. A skill call waits on what
@@ -2047,7 +2110,7 @@ where
         outputs: &[RunCallOutput],
     ) -> Result<TurnCallResult, RuntimeError> {
         let outcome = match outcome {
-            _ if self.withholds(outcome, outputs) => TurnCallOutcome::Refused {
+            _ if self.withholds(outcome) => TurnCallOutcome::Refused {
                 reason: reason(format!(
                     "call {} reads what's labelled local_only, and this turn's host can't say its model runs on this machine",
                     made.index
@@ -2060,11 +2123,7 @@ where
                 receipt_id: run.receipt.id.to_string().into(),
                 artifacts: outputs
                     .iter()
-                    .filter_map(|part| {
-                        part.output
-                            .as_ref()
-                            .map(|name| (name.as_str().to_owned(), part.artifact.clone()))
-                    })
+                    .map(|part| (part.output.as_str().to_owned(), part.artifact.clone()))
                     .collect(),
             },
             CallOutcome::Completed(run) => TurnCallOutcome::Failed {
@@ -2255,7 +2314,7 @@ where
         let recorded = self.recorded().map_err(|error| error.to_string())?;
         let read = recorded
             .iter()
-            .filter(|call| !self.withholds(&call.outcome, &call.outputs))
+            .filter(|call| !self.withholds(&call.outcome))
             .filter_map(|call| match &call.outcome {
                 CallOutcome::Completed(run) => Some(run.labels),
                 CallOutcome::Read(artifact) => Some(artifact.labels),
@@ -2300,6 +2359,7 @@ where
             fed,
             given,
             context,
+            reused: None,
         })
     }
 
@@ -2395,7 +2455,7 @@ where
                 return None;
             };
             call.outputs.iter().find_map(|part| {
-                let output = part.output.as_ref()?;
+                let output = &part.output;
                 (part.artifact.digest == named.digest).then_some((
                     call,
                     run,

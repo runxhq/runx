@@ -167,6 +167,7 @@ where
             admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
+            reused_from: None,
             ending: None,
         },
         runtime.options.signature_policy(),
@@ -190,7 +191,7 @@ where
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     })
 }
 

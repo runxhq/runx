@@ -603,6 +603,154 @@ fn write_one_step(root: &Path, step: &str, script: &str) -> TestResult<PathBuf> 
     Ok(skill_dir)
 }
 
+/// A script's output past what one frame of its worker carries comes to the
+/// host in parts, each a whole number of characters, and the step seals with
+/// it whole: here two million three-byte characters, six million bytes, so a
+/// part's end falls inside one unless the worker cuts it at a character. It
+/// does so whether the script returns in its first pass or once a call has
+/// settled.
+#[test]
+fn an_output_past_the_workers_bound_comes_in_parts_and_seals() -> TestResult {
+    for first in [
+        "",
+        "  await ctx.tool(\"data.digest\", { value: \"first\", encoding: \"utf8_text\" });\n",
+    ] {
+        let temp = tempdir()?;
+        let skill_dir = write_one_step(
+            temp.path(),
+            "        calls:\n          tools: [data.digest]\n        max_calls: 1\n        outputs:\n          text: {type: string}\n",
+            &format!(
+                "export default async function (ctx) {{\n{first}  return {{ text: \"\\u20ac\".repeat(2000000) }};\n}}\n"
+            ),
+        )?;
+        let sealed = run(temp.path(), skill_dir)?;
+        let output = object(&sealed.output)?;
+        let result = object(output.get("result").ok_or("no result")?)?;
+        assert_eq!(
+            text(output, "outcome"),
+            Some("completed"),
+            "{first}: {:?}",
+            text(result, "message")
+        );
+        let returned = text(result, "text").ok_or("no text")?;
+        assert_eq!(returned.chars().count(), 2_000_000, "{first}");
+        assert!(returned.chars().all(|character| character == '\u{20ac}'));
+    }
+    Ok(())
+}
+
+/// A live script's settlements reach it in frames of at most 2 MiB, as a
+/// replay's do: twelve items of a million characters, read at once, settle
+/// together, past the 10 MiB a frame holds whole.
+#[test]
+fn reads_that_settle_together_reach_a_live_script_in_bounded_frames() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("script-reads");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: script-reads\ndescription: Reads a batch at once.\n---\n# Script reads\n\nRead them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    inputs:\n      items: {type: array}\n    steps:\n      - id: prepare\n        script: {module: prepare.mjs}\n        inputs:\n          items: $input.items\n        max_calls: 12\n        outputs:\n          lengths: {type: array}\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("prepare.mjs"),
+        "export default async function (ctx, { items }) {\n  const read = await Promise.all(items.map((item) => ctx.read(item)));\n  return { lengths: read.map((text) => text.length) };\n}\n",
+    )?;
+    let items = (0..12)
+        .map(|_| JsonValue::String("x".repeat(1_000_000)))
+        .collect::<Vec<_>>();
+    let sealed = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("items".to_owned(), JsonValue::Array(items))]),
+            env: env(temp.path()),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let output = object(&sealed.output)?;
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        text(output, "outcome"),
+        Some("completed"),
+        "{:?}",
+        text(result, "message")
+    );
+    assert_eq!(
+        serde_json::to_value(result.get("lengths"))?,
+        serde_json::json!(vec![1_000_000; 12])
+    );
+    Ok(())
+}
+
+/// What a script reads and lets go is collected before it fills the
+/// worker's memory. The JavaScript collector counts only its own objects,
+/// never the strings they hold, so a script reading large items one at a
+/// time kept every item's string until the worker's 64 MiB ran out: here
+/// forty items of 760 KB, read three times each, about 91 MB, pass through a
+/// script that keeps only a count.
+#[test]
+fn what_a_script_reads_and_lets_go_is_collected_before_it_fills_the_worker() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("script-many");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: script-many\ndescription: Reads a batch one item at a time.\n---\n# Script many\n\nRead them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    inputs:\n      items: {type: array}\n    steps:\n      - id: prepare\n        script: {module: prepare.mjs}\n        inputs:\n          items: $input.items\n        max_calls: 120\n        outputs:\n          read: {type: number}\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("prepare.mjs"),
+        "export default async function (ctx, { items }) {\n  let read = 0;\n  for (let round = 0; round < 3; round += 1) {\n    for (const item of items) read += (await ctx.read(item)).text.length > 0 ? 1 : 0;\n  }\n  return { read };\n}\n",
+    )?;
+    let line = "\u{1F600}".repeat(190_000);
+    let items = (0..40)
+        .map(|index| {
+            serde_json::from_value::<JsonValue>(serde_json::json!({ "index": index, "text": line }))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let sealed = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("items".to_owned(), JsonValue::Array(items))]),
+            env: env(temp.path()),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let output = object(&sealed.output)?;
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        text(output, "outcome"),
+        Some("completed"),
+        "{:?}",
+        text(result, "message")
+    );
+    assert_eq!(
+        serde_json::to_value(result.get("read"))?,
+        serde_json::json!(120)
+    );
+    Ok(())
+}
+
 /// After Promise.all rejects, its siblings keep running: the one that
 /// succeeds is still made and recorded, and the script catches the
 /// rejection with its reason.
@@ -991,10 +1139,7 @@ fn call_outputs(root: &Path, run_id: &str, index: u32) -> TestResult<BTreeMap<St
             _ => None,
         })
         .flatten()
-        .filter_map(|part| {
-            part.output
-                .map(|output| (output.to_string(), part.artifact.digest.to_string()))
-        })
+        .map(|part| (part.output.to_string(), part.artifact.digest.to_string()))
         .collect())
 }
 
@@ -2702,9 +2847,19 @@ fn run_managed_under(
     skill_dir: PathBuf,
     run_authority: Option<serde_json::Value>,
 ) -> TestResult<RunResult> {
+    run_managed_in(root, skill_dir, run_authority, env(root))
+}
+
+/// [`run_managed_under`], in the environment `env`.
+fn run_managed_in(
+    root: &Path,
+    skill_dir: PathBuf,
+    run_authority: Option<serde_json::Value>,
+    env: BTreeMap<String, String>,
+) -> TestResult<RunResult> {
     let orchestrator = LocalOrchestrator::with_effects_and_environment(
         runx_runtime::RuntimeEffectRegistry::local()?,
-        env(root),
+        env.clone(),
     );
     Ok(orchestrator.run_skill_with_binding(
         &SkillRunRequest {
@@ -2717,7 +2872,7 @@ fn run_managed_under(
             run_id: None,
             answers: None,
             inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("hello".to_owned()))]),
-            env: env(root),
+            env,
             cwd: root.to_path_buf(),
             managed_agent: ManagedAgentPolicy::inline(2)?,
         },
@@ -2728,33 +2883,23 @@ fn run_managed_under(
 }
 
 /// A source runx drove whose every step it saw whole, a native tool that
-/// only reads, is eligible, and one that reads nothing this run may not is
-/// allowed: a later call asking the same finds it and, until check 3
-/// compares what each step was given, recomputes as changed. The same
-/// source under a host's driver isn't eligible (reuse.md, D2).
+/// only reads, is eligible, one that reads nothing this run may not is
+/// allowed, and one whose every step is given what it was is current: a
+/// later call asking the same is reused from it, starting no child (reuse.md,
+/// D2). The same source under a host's driver isn't eligible.
 #[test]
 fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
-    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    use runx_contracts::RecomputeReason::NoCandidate;
     let temp = tempdir()?;
     write_digest_child(temp.path())?;
-    let skill_dir = write_one_step(
-        temp.path(),
-        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../digest-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
-        r#"export default async function (ctx, { value }) {
-  await ctx.skill("../digest-child", { value }, { reuse: { max_age_seconds: 604800 } });
-  return { done: true };
-}
-"#,
-    )?;
-    for expected in [NoCandidate, Changed] {
-        let ran = run_managed(temp.path(), skill_dir.clone())?;
-        let run_id = text(object(&ran.output)?, "run_id").ok_or("missing run_id")?;
-        assert_eq!(
-            reuse_decisions(temp.path(), run_id)?,
-            BTreeMap::from([(0, recomputed(expected))])
-        );
-    }
-    Ok(())
+    let skill_dir = write_reusing_parent(temp.path(), "digest-child")?;
+    let source = run_managed(temp.path(), skill_dir.clone())?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let reused = run_managed(temp.path(), skill_dir)?;
+    assert_reused_from(temp.path(), &reused, &source)
 }
 
 /// A parent whose one script step asks to reuse `child`'s result.
@@ -2778,40 +2923,276 @@ fn first_decision(root: &Path, ran: &RunResult) -> TestResult<runx_contracts::Re
         .ok_or("the call was answered nothing of reuse")?)
 }
 
+/// The id of the run `ran`.
+fn run_id_of(ran: &RunResult) -> TestResult<String> {
+    Ok(text(object(&ran.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned())
+}
+
+/// The first call at the root of `ran` was reused from the child the first
+/// call of `source` ran: it was answered that child's sealed receipt,
+/// started no child of its own, and its receipt is one node naming that
+/// receipt as `reused_from` (reuse.md, the receipt of the call it settled).
+fn assert_reused_from(root: &Path, ran: &RunResult, source: &RunResult) -> TestResult {
+    let (run_id, source_id) = (run_id_of(ran)?, run_id_of(source)?);
+    let source_child = format!("{source_id}/prepare/0");
+    let from = runx_runtime::run_record::read_run(&env(root), root, &source_id, None)?
+        .events
+        .into_iter()
+        .find_map(|record| match record.event {
+            RunEventFact::Sealed { receipt_id, .. } if record.stream.as_str() == source_child => {
+                Some(receipt_id)
+            }
+            _ => None,
+        })
+        .ok_or("the source's child didn't seal")?;
+    assert_eq!(
+        first_decision(root, ran)?,
+        runx_contracts::ReuseDecision::Reused { from: from.clone() }
+    );
+    let events = runx_runtime::run_record::read_run(&env(root), root, &run_id, None)?.events;
+    let child = format!("{run_id}/prepare/0");
+    assert!(
+        events.iter().all(|record| record.stream.as_str() != child),
+        "a reused call starts no child run"
+    );
+    let receipt_id = events
+        .iter()
+        .find_map(|record| match &record.event {
+            RunEventFact::Call {
+                index: 0, outcome, ..
+            } if of_run(record.stream.as_str(), &run_id) => match outcome.as_ref() {
+                RunCallOutcome::Completed { receipt_id, .. } => Some(receipt_id.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .ok_or("the reused call didn't complete")?;
+    let receipt = runx_runtime::receipts::store::LocalReceiptStore::new(root.join("receipts"))
+        .read_exact_without_proof(receipt_id.as_str())?;
+    assert_eq!(receipt.lineage.reused_from, Some(from));
+    assert!(
+        receipt.lineage.children.is_empty(),
+        "a reused call is one node of its run's receipt tree"
+    );
+    Ok(())
+}
+
+/// A package, `child`, whose one method reads `path` with `fs.read`.
+fn write_file_reader(root: &Path, child: &str, path: &str) -> TestResult {
+    crate::support::write_test_skill_package(
+        &root.join(child),
+        &format!("---\nname: {child}\ndescription: Reads a file.\n---\n# Child\n\nRead it.\n"),
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {{path: {path}}}\n"
+        ),
+    )?;
+    Ok(())
+}
+
 /// A source's file read is checked as its tool checks a path before it
 /// reads: under `reach: workspace` a secret file the source read under
 /// `inputs` isn't allowed, and a plain file it read still is, though the
-/// reach narrowed (reuse.md, check 2).
+/// reach narrowed, and is reused, since `fs.read` reads the path it names
+/// whatever the reach (reuse.md, checks 2 and 3).
 #[test]
 fn a_file_read_this_runs_reach_refuses_is_not_allowed() -> TestResult {
-    use runx_contracts::RecomputeReason::{Changed, NoCandidate, NotAllowed};
+    use runx_contracts::RecomputeReason::{NoCandidate, NotAllowed};
     let temp = tempdir()?;
     std::fs::write(temp.path().join("notes.txt"), "kept\n")?;
     std::fs::write(temp.path().join(".env"), "TOKEN=kept\n")?;
-    for (child, path, narrowed) in [
-        ("secret-child", ".env", NotAllowed),
-        ("notes-child", "notes.txt", Changed),
-    ] {
-        crate::support::write_test_skill_package(
-            &temp.path().join(child),
-            &format!("---\nname: {child}\ndescription: Reads a file.\n---\n# Child\n\nRead it.\n"),
+    let narrowed = || Some(serde_json::json!({"reach": "workspace"}));
+    write_file_reader(temp.path(), "secret-child", ".env")?;
+    let skill_dir = write_reusing_parent(temp.path(), "secret-child")?;
+    let source = run_managed_under(temp.path(), skill_dir.clone(), None)?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed_under(temp.path(), skill_dir, narrowed())?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NotAllowed));
+    write_file_reader(temp.path(), "notes-child", "notes.txt")?;
+    let skill_dir = write_reusing_parent(temp.path(), "notes-child")?;
+    let source = run_managed_under(temp.path(), skill_dir.clone(), None)?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed_under(temp.path(), skill_dir, narrowed())?;
+    assert_reused_from(temp.path(), &ran, &source)
+}
+
+/// A file a source read is read again and compared: while it holds what it
+/// held, the source is reused, and once it holds something else, the call
+/// recomputes as changed (reuse.md, check 3).
+#[test]
+fn a_file_that_holds_something_else_now_recomputes_as_changed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join("notes.txt"), "kept\n")?;
+    write_file_reader(temp.path(), "notes-child", "notes.txt")?;
+    let skill_dir = write_reusing_parent(temp.path(), "notes-child")?;
+    let source = run_managed(temp.path(), skill_dir.clone())?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed(temp.path(), skill_dir.clone())?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+    std::fs::write(temp.path().join("notes.txt"), "revised\n")?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(Changed));
+    Ok(())
+}
+
+/// A listing skips what reach keeps out as it walks, so the reach under its
+/// root is one of its inputs: under the reach its source had it's reused,
+/// and under a narrower one it recomputes as changed, though nothing under
+/// its root changed (reuse.md, check 3).
+#[test]
+fn a_listing_under_another_reach_recomputes_as_changed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    let temp = tempdir()?;
+    std::fs::create_dir_all(temp.path().join("docs"))?;
+    std::fs::write(temp.path().join("docs/a.txt"), "a\n")?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("list-child"),
+        "---\nname: list-child\ndescription: Lists the docs.\n---\n# List child\n\nList them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  list:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: list\n        tool: fs.list\n        inputs: {path: docs}\n",
+    )?;
+    let skill_dir = write_reusing_parent(temp.path(), "list-child")?;
+    let source = run_managed(temp.path(), skill_dir.clone())?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed(temp.path(), skill_dir.clone())?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+    let ran = run_managed_under(
+        temp.path(),
+        skill_dir,
+        Some(serde_json::json!({"reach": "workspace"})),
+    )?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(Changed));
+    Ok(())
+}
+
+/// What a worker reads from the environment it declares is part of what its
+/// step is given: a run given the same value reuses its source, and one
+/// given another recomputes as changed (§9, revise: `REGION=eu` then
+/// `REGION=us`; reuse.md, check 3).
+#[test]
+fn a_worker_given_another_environment_value_recomputes_as_changed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    let temp = tempdir()?;
+    let child = temp.path().join("region-child");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: region-child\ndescription: Reads its region.\n---\n# Region child\n\nRead it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        tool: {module: read.mjs, export: read, environment: {optional: [REGION]}}\n        inputs: {value: $input.value}\n        outputs:\n          value: {type: string}\n",
+    )?;
+    std::fs::write(
+        child.join("read.mjs"),
+        "export function read({ value }) { return { value }; }\n",
+    )?;
+    let skill_dir = write_reusing_parent(temp.path(), "region-child")?;
+    // The values a step's environment gives it are fingerprinted under its
+    // runx home's key.
+    let in_region = |region: &str| {
+        let mut env = env(temp.path());
+        env.insert(
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        );
+        env.insert("REGION".to_owned(), region.to_owned());
+        env
+    };
+    let source = run_managed_in(temp.path(), skill_dir.clone(), None, in_region("eu"))?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed_in(temp.path(), skill_dir.clone(), None, in_region("eu"))?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+    let ran = run_managed_in(temp.path(), skill_dir, None, in_region("us"))?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(Changed));
+    Ok(())
+}
+
+/// A source older than a call allows recomputes as too old, and a call that
+/// names a model recomputes as other model from a source no turn of which
+/// that model answered, here one with no turn at all (reuse.md, check 3).
+#[test]
+fn a_source_too_old_or_of_no_named_model_recomputes() -> TestResult {
+    use runx_contracts::RecomputeReason::{NoCandidate, OtherModel, TooOld};
+    let temp = tempdir()?;
+    write_digest_child(temp.path())?;
+    let parent = |reuse: &str| {
+        write_one_step(
+            temp.path(),
+            "        inputs:\n          value: $input.value\n        calls:\n          skills: [../digest-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
             &format!(
-                "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {{path: {path}}}\n"
+                "export default async function (ctx, {{ value }}) {{\n  await ctx.skill(\"../digest-child\", {{ value }}, {{ reuse: {reuse} }});\n  return {{ done: true }};\n}}\n"
             ),
-        )?;
-        let skill_dir = write_reusing_parent(temp.path(), child)?;
-        for (authority, expected) in [
-            (None, NoCandidate),
-            (Some(serde_json::json!({"reach": "workspace"})), narrowed),
-        ] {
-            let ran = run_managed_under(temp.path(), skill_dir.clone(), authority)?;
-            assert_eq!(
-                first_decision(temp.path(), &ran)?,
-                recomputed(expected),
-                "{child}"
-            );
-        }
-    }
+        )
+    };
+    let skill_dir = parent("{ max_age_seconds: 604800 }")?;
+    let source = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let skill_dir = parent("{ max_age_seconds: 0 }")?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(TooOld));
+    let skill_dir = parent("{ max_age_seconds: 604800, model: \"fixture-model\" }")?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(OtherModel));
+    Ok(())
+}
+
+/// An evidence step computes over the packets it's given, a local file's
+/// contents among them, and stamps when it indexed them: its source's
+/// result, here digested with its stamp, is kept on reuse, not computed
+/// again (reuse.md).
+#[test]
+fn an_evidence_steps_result_is_kept_on_reuse() -> TestResult {
+    use runx_contracts::RecomputeReason::NoCandidate;
+    let temp = tempdir()?;
+    let digest = runx_contracts::sha256_prefixed(b"kept\n");
+    crate::support::write_test_skill_package(
+        &temp.path().join("evidence-child"),
+        "---\nname: evidence-child\ndescription: Indexes a note.\n---\n# Evidence child\n\nIndex it.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  index:\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: index\n        tool: evidence.index_sources\n        inputs:\n          objective: notes\n          source_packets:\n            - {{path: notes.txt, contents: \"kept\\n\", content_digest: \"{digest}\", bytes: 5, truncated: false}}\n        outputs:\n          source_index: {{type: object}}\n      - id: digest\n        tool: data.digest\n        inputs: {{value: $steps.index.source_index}}\n"
+        ),
+    )?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../evidence-child]\n        max_calls: 1\n        outputs:\n          indexed: {type: object}\n",
+        r#"export default async function (ctx, { value }) {
+  const indexed = await ctx.skill("../evidence-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  return { indexed };
+}
+"#,
+    )?;
+    let source = run_managed(temp.path(), skill_dir.clone())?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+    let indexed = |ran: &RunResult| -> TestResult<JsonValue> {
+        Ok(object(&ran.output)?
+            .get("result")
+            .and_then(JsonValue::as_object)
+            .and_then(|result| result.get("indexed"))
+            .cloned()
+            .ok_or("no indexed result")?)
+    };
+    assert_eq!(indexed(&ran)?, indexed(&source)?);
     Ok(())
 }
 
@@ -2868,11 +3249,12 @@ fn a_source_whose_root_is_gone_recomputes_as_changed() -> TestResult {
 
 /// A source's operation read is authorized again under this run's authority
 /// and the chain its child would run under: a delegation that leaves the
-/// store's event read out doesn't allow it, and without one it is
-/// (reuse.md, check 2).
+/// store's event read out doesn't allow it, and without one it is, and the
+/// read, made again, answers what it did, so the source is reused (reuse.md,
+/// checks 2 and 3).
 #[test]
 fn an_operation_read_this_runs_authority_leaves_out_is_not_allowed() -> TestResult {
-    use runx_contracts::RecomputeReason::{Changed, NoCandidate, NotAllowed};
+    use runx_contracts::RecomputeReason::{NoCandidate, NotAllowed};
     let temp = tempdir()?;
     crate::support::write_test_skill_package(
         &temp.path().join("store-child"),
@@ -2893,14 +3275,58 @@ fn an_operation_read_this_runs_authority_leaves_out_is_not_allowed() -> TestResu
             }]}]}),
         )
     };
-    for (authority, expected) in [
-        (None, NoCandidate),
-        (inspect_only(), NotAllowed),
-        (None, Changed),
-    ] {
-        let ran = run_managed_under(temp.path(), skill_dir.clone(), authority)?;
-        assert_eq!(first_decision(temp.path(), &ran)?, recomputed(expected));
-    }
+    let source = run_managed_under(temp.path(), skill_dir.clone(), None)?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed_under(temp.path(), skill_dir.clone(), inspect_only())?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NotAllowed));
+    let ran = run_managed_under(temp.path(), skill_dir, None)?;
+    assert_reused_from(temp.path(), &ran, &source)
+}
+
+/// A store read is made again with the store's own implementation and
+/// compared by its result's digest: while the stream holds what it held,
+/// the source is reused, and once something is appended to it, the call
+/// recomputes as changed (reuse.md, check 3).
+#[test]
+fn a_store_read_that_answers_otherwise_now_recomputes_as_changed() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("store-child"),
+        "---\nname: store-child\ndescription: Reads and writes its notes.\n---\n# Store child\n\nUse them.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  use:\n    inputs:\n      value: {type: string}\n      mode: {type: string}\n    result_from: [events, append]\n    steps:\n      - id: events\n        when: {value: $input.mode, equals: read}\n        operation: store/events.read\n        inputs: {stream: notes, key: k}\n      - id: append\n        when: {value: $input.mode, equals: write}\n        operation: store/events.append\n        idempotency_key: $input.value\n        inputs: {stream: notes, key: k, expected_version: 0, type: note.added, data: {}}\n",
+    )?;
+    let calling = |mode: &str, reuse: &str| {
+        format!(
+            "export default async function (ctx, {{ value }}) {{\n  await ctx.skill(\"../store-child\", {{ value, mode: \"{mode}\" }}{reuse});\n  return {{ done: true }};\n}}\n"
+        )
+    };
+    let step = "        inputs:\n          value: $input.value\n        calls:\n          skills: [../store-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n";
+    let reader = write_one_step(
+        temp.path(),
+        step,
+        &calling("read", ", { reuse: { max_age_seconds: 604800 } }"),
+    )?;
+    let source = run_managed(temp.path(), reader.clone())?;
+    assert_eq!(
+        first_decision(temp.path(), &source)?,
+        recomputed(NoCandidate)
+    );
+    let ran = run_managed(temp.path(), reader.clone())?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+    let writer = write_one_step(temp.path(), step, &calling("write", ""))?;
+    let wrote = run_managed(temp.path(), writer)?;
+    assert_eq!(text(object(&wrote.output)?, "status"), Some("sealed"));
+    let reader = write_one_step(
+        temp.path(),
+        step,
+        &calling("read", ", { reuse: { max_age_seconds: 604800 } }"),
+    )?;
+    let ran = run_managed(temp.path(), reader)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(Changed));
     Ok(())
 }
 
@@ -2993,20 +3419,21 @@ fn second_ask_of(step: &str, module: Option<&str>) -> TestResult<runx_contracts:
 }
 
 /// A read runx makes itself is eligible: the source whose script read its
-/// own store is, and its read is authorized for this run, so it recomputes
-/// as changed until check 3 compares what each step was given. A source
-/// whose step wrote anything isn't eligible (reuse.md, checks 1 and 2).
+/// own store is, its read is authorized for this run, and made again it
+/// answers what it did, so the source is reused. A source whose step wrote
+/// anything isn't eligible (reuse.md, checks 1, 2 and 3).
 #[test]
 fn a_source_that_read_is_eligible_and_one_that_wrote_is_not() -> TestResult {
-    use runx_contracts::RecomputeReason::{Changed, Ineligible};
-    assert_eq!(
-        second_ask_of(
-            "        script: {module: use.mjs}\n        inputs: {value: $input.value}\n        calls:\n          operations: [store/events.read]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
-            Some(
-                "export default async function (ctx, { value }) {\n  await ctx.operation(\"store/events.read\", { stream: \"notes\", key: value, limit: 1 });\n  return { done: true };\n}\n"
-            ),
-        )?,
-        recomputed(Changed)
+    use runx_contracts::RecomputeReason::Ineligible;
+    let read = second_ask_of(
+        "        script: {module: use.mjs}\n        inputs: {value: $input.value}\n        calls:\n          operations: [store/events.read]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+        Some(
+            "export default async function (ctx, { value }) {\n  await ctx.operation(\"store/events.read\", { stream: \"notes\", key: value, limit: 1 });\n  return { done: true };\n}\n",
+        ),
+    )?;
+    assert!(
+        matches!(read, runx_contracts::ReuseDecision::Reused { .. }),
+        "{read:?}"
     );
     assert_eq!(
         second_ask_of(
@@ -3125,5 +3552,344 @@ fn a_childs_turn_reads_the_context_a_script_gave_its_call() -> TestResult {
     let locator = entry["locator"].as_str().ok_or("the entry has a locator")?;
     let read = turns.read("prepare/0#work", locator, 0, None)?;
     assert!(read.text.contains("proof"), "{}", read.text);
+    Ok(())
+}
+
+/// Freshness compares native history through its owner, for both fixed
+/// steps and calls. A selected run that stays unchanged permits reuse; once
+/// it advances, neither its old detail nor its old listing is current.
+#[test]
+fn native_history_reads_are_compared_again_for_fixed_steps_and_calls() -> TestResult {
+    use runx_contracts::RecomputeReason::{Changed, NoCandidate};
+    for tool in ["run.list", "run.read"] {
+        for called in [false, true] {
+            let temp = tempdir()?;
+            let root = temp.path();
+            let target = root.join("history-target");
+            crate::support::write_test_skill_package(
+                &target,
+                "---\nname: history-target\ndescription: Wait for an answer.\n---\n# History target\n\n## Agent task: answer\n\nAnswer.\n",
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        outputs:\n          answer: {type: string}\n",
+            )?;
+            let observed = run(root, target)?;
+            let observed_id = run_id_of(&observed)?;
+            let inputs = if tool == "run.list" {
+                serde_json::json!({"query": "history-target"})
+            } else {
+                serde_json::json!({"run_id": observed_id})
+            };
+            let child = root.join("history-reader");
+            let (step, module) = if called {
+                (
+                    format!(
+                        "      - id: read\n        script: {{module: read.mjs}}\n        calls:\n          tools: [{tool}]\n        max_calls: 1\n        outputs:\n          seen: {{type: object}}\n"
+                    ),
+                    Some(format!(
+                        "export default async function (ctx) {{ return {{ seen: await ctx.tool({tool:?}, {inputs}) }}; }}\n"
+                    )),
+                )
+            } else {
+                (
+                    format!("      - id: read\n        tool: {tool}\n        inputs: {inputs}\n"),
+                    None,
+                )
+            };
+            crate::support::write_test_skill_package(
+                &child,
+                "---\nname: history-reader\ndescription: Read selected history.\n---\n# Reader\n\nRead it.\n",
+                &format!(
+                    "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {{type: string}}\n    steps:\n{step}"
+                ),
+            )?;
+            if let Some(module) = module {
+                std::fs::write(child.join("read.mjs"), module)?;
+            }
+            let parent = write_reusing_parent(root, "history-reader")?;
+            let source = run_managed(root, parent.clone())?;
+            assert_eq!(first_decision(root, &source)?, recomputed(NoCandidate));
+            let same = run_managed(root, parent.clone())?;
+            assert_reused_from(root, &same, &source)?;
+            let completed = resume(
+                root,
+                &observed_id,
+                serde_json::json!({"answers": {"answer": {"answer": "done"}}}),
+            )?;
+            assert_eq!(
+                text(object(&completed.output)?, "status"),
+                Some("sealed"),
+                "{:?}",
+                completed.output
+            );
+            let changed = run_managed(root, parent)?;
+            assert_eq!(
+                first_decision(root, &changed)?,
+                recomputed(Changed),
+                "{tool}, called={called}"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Identical explicit child context reconstructs the identical managed turn
+/// request. Another context computes a different source, without preventing
+/// a subsequent call from reusing the first context's source.
+#[cfg(feature = "scripted-model")]
+#[test]
+fn a_managed_child_reuses_its_result_under_identical_explicit_context() -> TestResult {
+    use runx_contracts::ReuseDecision;
+    use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("context-child"),
+        "---\nname: context-child\ndescription: Work from context.\n---\n# Context child\n\n## Agent task: answer\n\nRead the context and answer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        inputs: {value: $input.value}\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let parent = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../context-child]\n        max_calls: 3\n        outputs:\n          done: {type: boolean}\n",
+        r#"export default async function (ctx, { value }) {
+  for (const content of ["first context", "changed context", "first context"]) {
+    await ctx.skill("../context-child", { value }, {
+      reuse: { max_age_seconds: 604800 }, context: [{ summary: "prior.json", content }],
+    });
+  }
+  return { done: true };
+}
+"#,
+    )?;
+    let model = ScriptedModel::serve(|_| {
+        tool_call(
+            "answer",
+            "turn_complete",
+            &serde_json::json!({"answer": "reviewed"}),
+        )
+    })?;
+    let mut environment = env(temp.path());
+    environment.extend(managed_agent_env(model.endpoint(), "context-reader"));
+    let ran = run_managed_in(temp.path(), parent, None, environment)?;
+    let requests = model.finish()?;
+    assert_eq!(
+        requests.len(),
+        2,
+        "the identical third context must make no model call"
+    );
+    let decisions = reuse_decisions(temp.path(), &run_id_of(&ran)?)?;
+    assert_eq!(
+        decisions.get(&0),
+        Some(&recomputed(runx_contracts::RecomputeReason::NoCandidate))
+    );
+    assert_eq!(
+        decisions.get(&1),
+        Some(&recomputed(runx_contracts::RecomputeReason::NoCandidate))
+    );
+    assert!(
+        matches!(decisions.get(&2), Some(ReuseDecision::Reused { .. })),
+        "{decisions:?}"
+    );
+    Ok(())
+}
+
+/// Reuse follows the confirmed account and parameters, implementation, and
+/// the credential actually presented. The wire alone is fake; instance
+/// confirmation, admission, HTTP dispatch, recording and reuse are real.
+#[test]
+fn provider_read_reuse_compares_the_confirmed_binding_implementation_and_credential() -> TestResult
+{
+    use runx_runtime::{
+        ConnectorScope, Instances, KernelStore, OperationEffect, RuntimeEffectRegistry,
+        RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport, RunxPaths,
+    };
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+    #[derive(Clone)]
+    struct AccountWire {
+        owner: Arc<Mutex<String>>,
+        calls: Arc<AtomicUsize>,
+    }
+    impl RuntimeHttpTransport for AccountWire {
+        fn send(
+            &self,
+            request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RuntimeHttpResponse::new(200, serde_json::json!({
+                "owner": self.owner.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone(),
+                "path": request.url,
+            }).to_string()))
+        }
+    }
+    let temp = tempdir()?;
+    let root = temp.path();
+    let connector_dir = root.join("connectors/fixture/accounts");
+    std::fs::create_dir_all(&connector_dir)?;
+    let manifest_path = connector_dir.join("connector.yaml");
+    std::fs::write(
+        &manifest_path,
+        r#"schema: runx.connector.v1
+name: fixture/accounts
+title: Account fixture
+description: Read the selected account's data.
+auth:
+  credentials:
+    token:
+      kind: api_key
+      fields: [{name: token, label: Fixture token}]
+      delivery: {env: ACCOUNT_TOKEN}
+      audience: [accounts.fixture.invalid]
+parameters:
+  type: object
+  additionalProperties: false
+  required: [region]
+  properties:
+    region: {type: string}
+placements:
+  local:
+    auth: [credentials]
+operations:
+  account.read:
+    description: Read the account-relative data.
+    verb: read
+    scopes: [account.read]
+    credentials: [token]
+    target: {template: self}
+    result_fields: [account]
+    implementation:
+      http:
+        allowed_hosts: [accounts.fixture.invalid]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: account
+            http_method: GET
+            url: {$concat: ['https://accounts.fixture.invalid/', {$parameter: /region}, '/v1']}
+"#,
+    )?;
+    let child = root.join("account-reader");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: account-reader\ndescription: Read the current account.\n---\n# Account reader\n\nRead it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        operation: fixture/accounts/account.read\n        inputs: {}\n",
+    )?;
+    let parent = write_one_step(
+        root,
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../account-reader]\n        max_calls: 1\n        outputs:\n          account: {type: string}\n",
+        "export default async function (ctx, { value }) { const read = await ctx.skill(\"../account-reader\", { value }, { reuse: { max_age_seconds: 604800 } }); return { account: read.provider_operation.result.account.owner }; }\n",
+    )?;
+    let mut environment = env(root);
+    environment.insert(
+        "RUNX_HOME".to_owned(),
+        root.join("home").display().to_string(),
+    );
+    environment.insert("ACCOUNT_TOKEN".to_owned(), "fixture-token-a".to_owned());
+    let instances = Instances::new(KernelStore::for_project(&RunxPaths::resolve(
+        &environment,
+        root,
+    ))?);
+    let confirm = |account: &str, region: &str, at: &str| -> TestResult {
+        let connector = ConnectorScope::at(root)?.connector("fixture/accounts")?;
+        let token = runx_contracts::connector::CredentialName::new("token")
+            .ok_or("valid credential name")?;
+        let credential = runx_contracts::connector::credential_declaration_digest(
+            &connector.manifest.auth.credentials[&token],
+        )?;
+        instances.confirm(serde_json::from_value(serde_json::json!({
+            "schema": "runx.connector_instance.v1", "instance_id": "environment.account-fixture",
+            "connector": connector.name, "manifest_digest": connector.manifest_digest,
+            "connector_digest": connector.connector_digest, "operation_digests": connector.operation_digests,
+            "placement": "local", "principal_uri": format!("fixture:principal:{account}"), "account_id": account,
+            "authority": {"kind": "environment", "credential": "token", "variable": "ACCOUNT_TOKEN", "scopes": ["account.read"]},
+            "parameters": {"region": region}, "credential_declaration_digest": credential, "confirmed_at": at,
+        }))?, true)?;
+        Ok(())
+    };
+    let wire = AccountWire {
+        owner: Arc::new(Mutex::new("account-a".to_owned())),
+        calls: Arc::new(AtomicUsize::new(0)),
+    };
+    let run_account = |environment: BTreeMap<String, String>| -> TestResult<RunResult> {
+        Ok(LocalOrchestrator::with_effects_and_environment(
+            RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(wire.clone()))?,
+            environment.clone(),
+        )
+        .run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: parent.clone(),
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::from([(
+                    "value".to_owned(),
+                    JsonValue::String("hello".to_owned()),
+                )]),
+                env: environment,
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::inline(2)?,
+            },
+            None,
+            None,
+            None,
+        )?)
+    };
+    let result_account = |ran: &RunResult| -> TestResult<String> {
+        Ok(object(&ran.output)?
+            .get("result")
+            .and_then(JsonValue::as_object)
+            .and_then(|result| result.get("account"))
+            .and_then(JsonValue::as_str)
+            .ok_or_else(|| format!("no account result: {:?}", ran.output))?
+            .to_owned())
+    };
+    confirm("account-a", "east", "2026-11-11T00:00:00Z")?;
+    let source = run_account(environment.clone())?;
+    assert_eq!(result_account(&source)?, "account-a");
+    confirm("account-a", "east", "2026-11-11T00:01:00Z")?;
+    let same = run_account(environment.clone())?;
+    assert_reused_from(root, &same, &source)?;
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 1);
+
+    confirm("account-b", "east", "2026-11-11T00:02:00Z")?;
+    *wire.owner.lock().map_err(|_| "wire lock")? = "account-b".to_owned();
+    let changed = run_account(environment.clone())?;
+    assert_eq!(
+        first_decision(root, &changed)?,
+        recomputed(runx_contracts::RecomputeReason::Changed)
+    );
+    assert_eq!(result_account(&changed)?, "account-b");
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 2);
+    let same = run_account(environment.clone())?;
+    assert_reused_from(root, &same, &changed)?;
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 2);
+
+    confirm("account-b", "west", "2026-11-11T00:03:00Z")?;
+    let changed = run_account(environment.clone())?;
+    assert_eq!(
+        first_decision(root, &changed)?,
+        recomputed(runx_contracts::RecomputeReason::Changed)
+    );
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 3);
+    environment.insert("ACCOUNT_TOKEN".to_owned(), "fixture-token-b".to_owned());
+    let changed = run_account(environment.clone())?;
+    assert_eq!(
+        first_decision(root, &changed)?,
+        recomputed(runx_contracts::RecomputeReason::Changed)
+    );
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 4);
+
+    let revised = std::fs::read_to_string(&manifest_path)?.replace("'/v1'", "'/v2'");
+    std::fs::write(&manifest_path, revised)?;
+    confirm("account-b", "west", "2026-11-11T00:04:00Z")?;
+    let changed = run_account(environment)?;
+    assert!(matches!(
+        first_decision(root, &changed)?,
+        runx_contracts::ReuseDecision::Recomputed { .. }
+    ));
+    assert_eq!(result_account(&changed)?, "account-b");
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 5);
     Ok(())
 }

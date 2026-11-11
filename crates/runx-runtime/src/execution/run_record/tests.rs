@@ -97,7 +97,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         settlement: None,
         labels: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         input_digest: None,
-        credential_fingerprint: None,
+        operation_read_identity: None,
     }
 }
 
@@ -308,6 +308,7 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
                 act: None,
                 implementation: &implementation(),
                 must_match: true,
+                reach: runx_contracts::Reach::default(),
                 created_at: "2026-10-09T00:00:00.000Z",
             })
             .unwrap()
@@ -331,10 +332,38 @@ fn a_child_run_holds_the_request_its_parent_step_waits_on() {
             act: None,
             implementation: &implementation(),
             must_match: true,
+            reach: runx_contracts::Reach::default(),
             created_at: "2026-10-09T00:00:00.000Z",
         }),
         Err(RunRecordError::IdentityMismatch { .. })
     ));
+}
+
+/// A child records the reach it runs under, so what it read can be compared
+/// under the reach a later run would read it with.
+#[test]
+fn a_child_records_the_reach_it_runs_under() {
+    let (_root, store) = store();
+    let parent = RunLog::open(Arc::clone(&store), "run_reach").unwrap();
+    start(&parent, &JsonObject::new());
+    let child = parent.child("read").unwrap();
+    child
+        .start_child(ChildStart {
+            parent: "run_reach",
+            step_id: "read",
+            skill: "read",
+            inputs: &JsonObject::new(),
+            act: None,
+            implementation: &implementation(),
+            must_match: true,
+            reach: runx_contracts::Reach::Workspace,
+            created_at: "2026-10-09T00:00:00.000Z",
+        })
+        .unwrap();
+    let Origin::Child(started) = child.load().unwrap().unwrap().origin else {
+        panic!("a child's record starts as a child's");
+    };
+    assert_eq!(started.reach, runx_contracts::Reach::Workspace);
 }
 
 #[test]
@@ -381,6 +410,7 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
             act: None,
             implementation: &implementation(),
             must_match: true,
+            reach: runx_contracts::Reach::default(),
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -572,6 +602,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             inline_bound: None,
             reuse: None,
             reuse_identity: None,
+            durability: crate::kernel::store::Durability::Ordered,
         })
         .unwrap();
     }
@@ -612,6 +643,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         inline_bound: None,
         reuse: None,
         reuse_identity: None,
+        durability: crate::kernel::store::Durability::Ordered,
     })
     .unwrap();
     let calls = log.calls("answer", 1).unwrap();
@@ -643,6 +675,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         inline_bound: None,
         reuse: None,
         reuse_identity: None,
+        durability: crate::kernel::store::Durability::Ordered,
     })
     .unwrap();
     assert!(matches!(
@@ -673,6 +706,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             act: None,
             implementation: &implementation(),
             must_match: true,
+            reach: runx_contracts::Reach::default(),
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -703,6 +737,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             inline_bound: None,
             reuse: None,
             reuse_identity: None,
+            durability: crate::kernel::store::Durability::Ordered,
         })
         .unwrap();
     log.record_call(&CallRecord {
@@ -726,6 +761,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         inline_bound: None,
         reuse: None,
         reuse_identity: None,
+        durability: crate::kernel::store::Durability::Ordered,
     })
     .unwrap();
 
@@ -757,6 +793,7 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
             act: None,
             implementation: &implementation(),
             must_match: true,
+            reach: runx_contracts::Reach::default(),
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -867,7 +904,14 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
         "step send",
         runx_contracts::RetryResend::Safe,
     );
-    log.record_claim("send", 1, &retry, &[]).unwrap();
+    log.record_claim(
+        "send",
+        1,
+        &retry,
+        &[],
+        crate::kernel::store::Durability::Durable,
+    )
+    .unwrap();
 
     // The driver stopped after the claim: the step may have run.
     let record = log.load().unwrap().unwrap();
@@ -1013,6 +1057,7 @@ fn a_read_after_its_cursor_returns_only_new_events_in_every_stream() {
             act: None,
             implementation: &implementation(),
             must_match: true,
+            reach: runx_contracts::Reach::default(),
             created_at: "2026-10-09T00:00:00.000Z",
         })
         .unwrap();
@@ -1132,6 +1177,7 @@ fn a_poll_reads_what_changed_since_its_cursor_not_the_tree() {
                     act: None,
                     implementation: &implementation(),
                     must_match: true,
+                    reach: runx_contracts::Reach::default(),
                     created_at: "2026-10-09T00:00:00.000Z",
                 })
                 .unwrap();
@@ -1198,6 +1244,7 @@ fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
                 inline_bound: None,
                 reuse: None,
                 reuse_identity: None,
+                durability: crate::kernel::store::Durability::Ordered,
             })
             .unwrap();
         };
@@ -1262,6 +1309,7 @@ fn turn_of_calls(store: &Arc<KernelStore>, run_id: &str, calls: u32) -> (RunLog,
                 inline_bound: None,
                 reuse: None,
                 reuse_identity: None,
+                durability: crate::kernel::store::Durability::Ordered,
             })
             .unwrap();
     };
@@ -1416,6 +1464,7 @@ fn a_calls_reuse_decision_is_recorded_once_and_read_back() {
             inline_bound: None,
             reuse,
             reuse_identity: None,
+            durability: crate::kernel::store::Durability::Ordered,
         })
         .unwrap();
     }
@@ -1429,4 +1478,147 @@ fn a_calls_reuse_decision_is_recorded_once_and_read_back() {
         })
         .collect::<Vec<_>>();
     assert_eq!(shown, [Some(reuse), None]);
+}
+
+#[test]
+fn a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host() {
+    let test = concat!(
+        module_path!(),
+        "::a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host"
+    );
+    // The durable writes of a run's progress, of its hold, of a claim before
+    // what reaches the world, and of its seal; then of a child run's hold
+    // and seal, which answer no host of their own.
+    let measured = crate::work_counts::alone(test, || {
+        let (_directory, store) = store();
+        let durable = || crate::work_counts::snapshot().durable_writes;
+        let log = RunLog::open(Arc::clone(&store), "run_synced").unwrap();
+        let mut at = durable();
+        let mut since = || {
+            let now = durable();
+            let counted = now - at;
+            at = now;
+            counted
+        };
+        start(&log, &JsonObject::new());
+        log.record_clock("read", 1, 0, 1_760_000_000_000).unwrap();
+        let read = step("run_synced", "read");
+        log.record_step(&read, &[]).unwrap();
+        let progress = since();
+        log.record_request("ask", 1, &approval("ask")).unwrap();
+        let held = since();
+        let retry = crate::execution::engine::unsettled_retry(
+            log.address("send/retry"),
+            "step send",
+            runx_contracts::RetryResend::Safe,
+        );
+        log.record_claim("send", 1, &retry, &[], Durability::Durable)
+            .unwrap();
+        let claimed = since();
+        log.record_sealed(&read.receipt, None).unwrap();
+        let sealed = since();
+        let child = log.child("nested").unwrap();
+        child
+            .start_child(ChildStart {
+                parent: "run_synced",
+                step_id: "nested",
+                skill: "child",
+                inputs: &JsonObject::new(),
+                act: None,
+                implementation: &implementation(),
+                must_match: false,
+                created_at: "2026-10-09T00:00:00.000Z",
+                reach: runx_contracts::Reach::default(),
+            })
+            .unwrap();
+        child.record_request("ask", 1, &approval("ask")).unwrap();
+        child.record_sealed(&read.receipt, None).unwrap();
+        let child_run = since();
+        (progress, held, claimed, sealed, child_run)
+    });
+    assert_eq!(measured, (0, 1, 1, 1, 0));
+}
+
+#[test]
+fn a_calls_packet_is_written_once_its_artifact_which_the_record_names_and_replay_reads() {
+    let (_directory, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_held").unwrap();
+    start(&log, &JsonObject::new());
+    let mut made = step("run_held", "script/0");
+    let data: JsonValue =
+        serde_json::from_value(serde_json::json!({"lines": ["held once"]})).unwrap();
+    made.contract.insert(
+        "page".to_owned(),
+        serde_json::from_value(serde_json::json!({"schema": "runx.page.v1", "data": data.clone()}))
+            .unwrap(),
+    );
+    made.artifact_outputs = BTreeSet::from(["page".to_owned()]);
+    let artifact = crate::services::persist_json_artifact(
+        &store.project_dir().join(crate::paths::ARTIFACTS_DIR),
+        "run_held",
+        "calls",
+        "script/0-page",
+        &data,
+        made.labels,
+    )
+    .unwrap();
+    let outputs = [runx_contracts::RunCallOutput {
+        output: "page".into(),
+        artifact,
+    }];
+    log.record_call(&CallRecord {
+        step_id: "script",
+        attempt: 1,
+        turn: None,
+        index: 0,
+        call_id: None,
+        target: &CallTarget::Tool {
+            tool: "data.digest".into(),
+        },
+        input: &JsonObject::new(),
+        context: &[],
+        outcome: &CallOutcome::Completed(Box::new(made.clone())),
+        outputs: &outputs,
+        standing: None,
+        answers: &[],
+        cancelled: false,
+        inline_bound: Some(64 * 1024),
+        reuse: None,
+        reuse_identity: None,
+        durability: crate::kernel::store::Durability::Ordered,
+    })
+    .unwrap();
+
+    // The record keeps the packet's place and the field it holds inline.
+    let event = store
+        .read::<RunEvent>(&calls_key("run_held", "script", 1))
+        .unwrap()
+        .remove(0)
+        .event;
+    let RunEvent::Call(call) = event else {
+        panic!("the call's event");
+    };
+    let CallOutcomeEvent::Completed { record, .. } = &call.outcome else {
+        panic!("a completed call");
+    };
+    let held: RecordedStep = store.blob_json(record).unwrap();
+    let page = held.contract.get("page").and_then(JsonValue::as_object);
+    assert_eq!(
+        page.and_then(|page| page.get("data")),
+        Some(&JsonValue::Null)
+    );
+    assert_eq!(
+        held.contract.get("verdict"),
+        Some(&JsonValue::String("ok".to_owned()))
+    );
+
+    // A replay reads the packet back from its artifact.
+    let replayed = RunLog::open(Arc::clone(&store), "run_held")
+        .unwrap()
+        .calls("script", 1)
+        .unwrap();
+    let CallOutcome::Completed(run) = &replayed[0].outcome else {
+        panic!("the call replays completed");
+    };
+    assert_eq!(run.contract, made.contract);
 }

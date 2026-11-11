@@ -166,9 +166,7 @@ impl SnapshotStore {
         {
             return Err(WorkspaceFileError::ArtifactDescriptorMismatch);
         }
-        snapshot
-            .as_file_mut()
-            .sync_all()
+        crate::durable::sync_file(snapshot.as_file())
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
         let manifest = SnapshotManifest {
             format: SNAPSHOT_FORMAT.to_owned(),
@@ -198,9 +196,7 @@ impl SnapshotStore {
         record
             .write_all(&encoded)
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
-        record
-            .as_file()
-            .sync_all()
+        crate::durable::sync_file(record.as_file())
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
         if !publish(record, &root.join(format!("{name}.json")))? {
             let existing = self.resolve(&reference)?;

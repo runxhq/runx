@@ -6,6 +6,19 @@
       "prompt": "Decide whether this contact needs re-permission or suppression before a campaign.",
       "expected_output": "Record only a justified consent-ledger transition, verify the exact event, and leave delivery unattempted.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Continue from the contact engagement and consent evidence you are given, without collecting it again.",
+      "expected_output": "It judges the contact decayed under the given policy, 121 days past its 90-day threshold, and reaches the store append of a re-permission transition with the given key, version and idempotency key, refused at admission under no effects, sending nothing.",
+      "files": [
+        "evals/files/decayed-contact-evidence.json"
+      ],
+      "expectations": [
+        "It does not collect engagement evidence again.",
+        "It sends no message."
+      ],
+      "method": "judge"
     }
   ]
 }

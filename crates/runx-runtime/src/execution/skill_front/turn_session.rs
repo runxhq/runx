@@ -644,6 +644,7 @@ mod tests {
             inline_bound: None,
             reuse: None,
             reuse_identity: None,
+            durability: crate::kernel::store::Durability::Ordered,
         })?;
         Ok((run_id, log))
     }

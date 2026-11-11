@@ -1,0 +1,54 @@
+{
+  "about": "An approved plan, by its digest, partway through: the first part of its thread is confirmed posted, and the second part, the follow and the unfollow remain.",
+  "plan_json": {
+    "decision": "ready",
+    "objective": "Publish a two-part update, follow the reviewed account, then unfollow the old account.",
+    "principal": "account:@example",
+    "acts": [
+      {
+        "act_id": "act-thread-1",
+        "kind": "thread",
+        "params": {
+          "texts": [
+            "First part.",
+            "Second part."
+          ]
+        },
+        "consequence": "public_send",
+        "rationale": "Exact operator-approved update."
+      },
+      {
+        "act_id": "act-follow-1",
+        "kind": "follow",
+        "params": {
+          "target_user_id": "3001"
+        },
+        "consequence": "live_mutation",
+        "rationale": "Reviewed account requested by the operator."
+      },
+      {
+        "act_id": "act-unfollow-1",
+        "kind": "unfollow",
+        "params": {
+          "target_user_id": "3002"
+        },
+        "consequence": "live_mutation",
+        "rationale": "Old account selected by the operator."
+      }
+    ],
+    "gates": {
+      "human_approval_required": true,
+      "approval_id": null
+    }
+  },
+  "plan_digest": "sha256:b4f0874c25a14c567ad89311a257855320eed60fcd0ac2c20d7984d75cae22d5",
+  "max_acts": 1,
+  "outcomes": [
+    {
+      "act_id": "act-thread-1",
+      "part": 1,
+      "status": "succeeded",
+      "post_id": "9101"
+    }
+  ]
+}

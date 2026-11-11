@@ -45,7 +45,8 @@ use super::engine::{StepOutcome, StepRun};
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::custody::Settlement;
 use crate::kernel::store::{
-    Append, Blob, Expected, Head, KernelStore, KernelStoreError, Recorded, StreamEvent,
+    Append, Blob, Durability, Expected, Head, IndexedReceipt, KernelStore, KernelStoreError,
+    Recorded, StreamEvent,
 };
 
 mod claim;
@@ -165,6 +166,9 @@ pub(crate) struct ChildStarted {
     pub act: Option<CallAct>,
     /// What started it, decided from its own method.
     pub implementation: runx_contracts::RunImplementation,
+    /// Where its tools may go: its parent's reach, narrowed by the step that
+    /// started it and then by its method.
+    pub reach: runx_contracts::Reach,
     pub created_at: String,
 }
 
@@ -212,10 +216,9 @@ struct RecordedStep {
     /// What the step was given, as one digest, when it could be made.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     input_digest: Option<String>,
-    /// The credential the step's operation call presented, when it could be
-    /// recorded.
+    /// The operation owner's read identity, when every pin could be recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    credential_fingerprint: Option<String>,
+    operation_read_identity: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -655,6 +658,9 @@ pub(crate) struct CallRecord<'a> {
     pub reuse: Option<&'a runx_contracts::RunCallReuse>,
     /// The reuse identity its child is indexed under, when it asked.
     pub reuse_identity: Option<&'a str>,
+    /// How durable its commit is: durable where it claims what reaches the
+    /// world or answers the host, ordered otherwise.
+    pub durability: Durability,
 }
 
 /// How a run began.
@@ -1278,15 +1284,19 @@ impl RunLog {
     ) -> Result<(), RunRecordError> {
         self.append_call(
             (step_id, attempt),
-            RunEvent::Clock(Box::new(ClockEvent {
-                step_id: step_id.to_owned(),
-                attempt,
-                index,
-                millis,
-            })),
-            Vec::new(),
+            (
+                RunEvent::Clock(Box::new(ClockEvent {
+                    step_id: step_id.to_owned(),
+                    attempt,
+                    index,
+                    millis,
+                })),
+                Vec::new(),
+                Vec::new(),
+            ),
             None,
             None,
+            Durability::Ordered,
         )
     }
 
@@ -1357,6 +1367,7 @@ impl RunLog {
             act,
             implementation,
             must_match,
+            reach,
             created_at,
         } = started;
         let inputs = Blob::json(inputs)?;
@@ -1391,6 +1402,7 @@ impl RunLog {
             inputs: inputs.digest().to_owned(),
             act: act.cloned(),
             implementation: implementation.clone(),
+            reach,
             created_at: created_at.to_owned(),
         };
         self.append_first(RunEvent::ChildStarted(Box::new(event)), vec![inputs])?;
@@ -1412,7 +1424,7 @@ impl RunLog {
             admission_witness: step.admission_witness.clone(),
             labels: step.labels,
             input_digest: step.input_digest.clone(),
-            credential_fingerprint: step.credential_fingerprint.clone(),
+            operation_read_identity: step.operation_read_identity.clone(),
         })?;
         let receipt = Blob::json(&step.receipt)?;
         let nested = step
@@ -1440,6 +1452,7 @@ impl RunLog {
                 .map(|(answer, value)| answer_event(answer, value))
                 .collect(),
         };
+        let receipts = self.indexed(&step.receipt, &receipt, &step.nested_receipts, &nested);
         let mut blobs = vec![record, receipt];
         blobs.extend(nested);
         blobs.extend(values);
@@ -1447,6 +1460,8 @@ impl RunLog {
             RunEvent::Step(Box::new(event)),
             blobs,
             step.settlement.as_ref(),
+            Durability::Ordered,
+            receipts,
         )
     }
 
@@ -1454,7 +1469,11 @@ impl RunLog {
         if step_ids.is_empty() {
             return Ok(());
         }
-        self.append(RunEvent::Skipped(Skipped { step_ids }), Vec::new())
+        self.append(
+            RunEvent::Skipped(Skipped { step_ids }),
+            Vec::new(),
+            Durability::Ordered,
+        )
     }
 
     /// The step waits on its own host request.
@@ -1482,6 +1501,7 @@ impl RunLog {
                 answers: Vec::new(),
             })),
             vec![blob],
+            self.answering(),
         )
     }
 
@@ -1502,6 +1522,7 @@ impl RunLog {
                 answers: Vec::new(),
             })),
             Vec::new(),
+            self.answering(),
         )
     }
 
@@ -1509,12 +1530,16 @@ impl RunLog {
     /// this driver last read, so a second driver is refused before anything
     /// runs and a step that never settles waits on `retry`. A claim that
     /// runs a claimed step again records the acknowledgement it consumed.
+    /// The claim is durable before the step reaches the world, but where
+    /// the effect ledger's attempt follows it, durable itself, which syncs
+    /// the claim with it: `durability` says which.
     pub(crate) fn record_claim(
         &self,
         step_id: &str,
         attempt: u32,
         retry: &ResolutionRequest,
         answers: &[Answer],
+        durability: Durability,
     ) -> Result<(), RunRecordError> {
         let (request_id, blob, digest) = request_blob(retry)?;
         let (answers, values) = answer_events(answers)?;
@@ -1530,6 +1555,7 @@ impl RunLog {
                 answers,
             })),
             std::iter::once(blob).chain(values).collect(),
+            durability,
         )
     }
 
@@ -1569,6 +1595,7 @@ impl RunLog {
                 answers: Vec::new(),
             })),
             vec![blob],
+            self.answering(),
         )
     }
 
@@ -1584,6 +1611,7 @@ impl RunLog {
                 human: answer.human,
             })),
             vec![value],
+            Durability::Ordered,
         )
     }
 
@@ -1598,6 +1626,7 @@ impl RunLog {
                 approvals: approvals.to_vec(),
             })),
             Vec::new(),
+            Durability::Ordered,
         )
     }
 
@@ -1665,18 +1694,24 @@ impl RunLog {
             CallOutcome::Completed(step) => step.settlement.as_ref(),
             _ => None,
         };
+        // The receipts a completed call seals, which the record indexes.
+        let mut indexed = Vec::new();
         let outcome = match call.outcome {
             CallOutcome::Completed(step) => {
                 let record = Blob::json(&RecordedStep {
                     skill: step.skill.clone(),
                     method: step.method.clone(),
-                    contract: step.contract.clone(),
+                    contract: held_by_reference(
+                        &step.contract,
+                        &step.artifact_outputs,
+                        call.outputs,
+                    ),
                     artifact_outputs: step.artifact_outputs.clone(),
                     outcome: step.outcome.clone(),
                     admission_witness: step.admission_witness.clone(),
                     labels: step.labels,
                     input_digest: step.input_digest.clone(),
-                    credential_fingerprint: step.credential_fingerprint.clone(),
+                    operation_read_identity: step.operation_read_identity.clone(),
                 })?;
                 let receipt = Blob::json(&step.receipt)?;
                 let nested = step
@@ -1684,6 +1719,7 @@ impl RunLog {
                     .iter()
                     .map(Blob::json)
                     .collect::<Result<Vec<_>, _>>()?;
+                indexed = self.indexed(&step.receipt, &receipt, &step.nested_receipts, &nested);
                 let outcome = CallOutcomeEvent::Completed {
                     record: record.digest().to_owned(),
                     receipt: receipt.digest().to_owned(),
@@ -1796,10 +1832,10 @@ impl RunLog {
         });
         self.append_call(
             (call.step_id, call.attempt),
-            RunEvent::Call(Box::new(event)),
-            blobs,
+            (RunEvent::Call(Box::new(event)), blobs, indexed),
             consumed,
             settlement,
+            call.durability,
         )
     }
 
@@ -1828,18 +1864,61 @@ impl RunLog {
                 .as_ref()
                 .map(|blob| blob.digest().to_owned()),
         };
+        let receipts = self.indexed(receipt, &receipt_blob, &[], &[]);
         let mut blobs = vec![receipt_blob];
         blobs.extend(terminal_result);
-        self.append(RunEvent::Sealed(Box::new(event)), blobs)
+        self.append_settling(
+            RunEvent::Sealed(Box::new(event)),
+            blobs,
+            None,
+            self.answering(),
+            receipts,
+        )
     }
 
-    /// A run's first event: the stream must not exist yet.
+    /// A run's first event: the stream must not exist yet. A start is
+    /// ordered: no host learns of a run before it holds or seals.
     fn append_first(&self, event: RunEvent, blobs: Vec<Blob>) -> Result<(), RunRecordError> {
         self.append_expected(Expected::Absent, event, blobs)
     }
 
-    fn append(&self, event: RunEvent, blobs: Vec<Blob>) -> Result<(), RunRecordError> {
-        self.append_settling(event, blobs, None)
+    fn append(
+        &self,
+        event: RunEvent,
+        blobs: Vec<Blob>,
+        durability: Durability,
+    ) -> Result<(), RunRecordError> {
+        self.append_settling(event, blobs, None, durability, Vec::new())
+    }
+
+    /// The receipts a commit seals, each by its id, in this run: `receipt`,
+    /// held by `blob`, and each below it, held by its blob in `blobs`.
+    fn indexed(
+        &self,
+        receipt: &Receipt,
+        blob: &Blob,
+        nested: &[Receipt],
+        blobs: &[Blob],
+    ) -> Vec<IndexedReceipt> {
+        std::iter::once((receipt, blob))
+            .chain(nested.iter().zip(blobs))
+            .map(|(receipt, blob)| IndexedReceipt {
+                id: receipt.id.to_string(),
+                run_id: self.0.run_id.clone(),
+                digest: blob.digest().to_owned(),
+            })
+            .collect()
+    }
+
+    /// How durable a hold or a seal is: durable for the run its host drives,
+    /// whose host is answered with it, and ordered for a child run, whose
+    /// parent records its own hold or step after it.
+    fn answering(&self) -> Durability {
+        if self.depth() == 0 {
+            Durability::Durable
+        } else {
+            Durability::Ordered
+        }
     }
 
     /// Record `event`, and settle the effect it consumed in the same
@@ -1849,6 +1928,8 @@ impl RunLog {
         event: RunEvent,
         blobs: Vec<Blob>,
         settlement: Option<&Settlement>,
+        durability: Durability,
+        receipts: Vec<IndexedReceipt>,
     ) -> Result<(), RunRecordError> {
         let expected = match *self.version() {
             0 => {
@@ -1870,7 +1951,7 @@ impl RunLog {
             }
             None => Vec::new(),
         };
-        self.commit(expected, event, blobs, settles)
+        self.commit(expected, event, blobs, settles, durability, receipts)
     }
 
     fn append_expected(
@@ -1879,7 +1960,14 @@ impl RunLog {
         event: RunEvent,
         blobs: Vec<Blob>,
     ) -> Result<(), RunRecordError> {
-        self.commit(expected, event, blobs, Vec::new())
+        self.commit(
+            expected,
+            event,
+            blobs,
+            Vec::new(),
+            Durability::Ordered,
+            Vec::new(),
+        )
     }
 
     fn commit(
@@ -1888,12 +1976,16 @@ impl RunLog {
         event: RunEvent,
         blobs: Vec<Blob>,
         settles: Vec<Append>,
+        durability: Durability,
+        receipts: Vec<IndexedReceipt>,
     ) -> Result<(), RunRecordError> {
         let mut version = self.version();
-        let append = Append::kernel(self.0.run_id.clone(), expected, &event)?.with_blobs(blobs);
+        let append = Append::kernel(self.0.run_id.clone(), expected, &event)?
+            .with_blobs(blobs)
+            .with_receipts(receipts);
         let mut batch = vec![append];
         batch.extend(settles);
-        match self.0.store.append(batch) {
+        match self.0.store.append_as(batch, durability) {
             Ok(versions) => {
                 let before = *version;
                 *version = versions.first().copied().unwrap_or(before + 1);
@@ -1912,10 +2004,10 @@ impl RunLog {
     fn append_call(
         &self,
         (step_id, attempt): (&str, u32),
-        event: RunEvent,
-        blobs: Vec<Blob>,
+        (event, blobs, receipts): (RunEvent, Vec<Blob>, Vec<IndexedReceipt>),
         run_event: Option<RunEvent>,
         settlement: Option<&Settlement>,
+        durability: Durability,
     ) -> Result<(), RunRecordError> {
         let key = calls_key(&self.0.run_id, step_id, attempt);
         let step = (step_id.to_owned(), attempt);
@@ -1932,7 +2024,11 @@ impl RunLog {
             0 => Expected::Absent,
             version => Expected::Version(version),
         };
-        let mut batch = vec![Append::kernel(key, expected, &event)?.with_blobs(blobs)];
+        let mut batch = vec![
+            Append::kernel(key, expected, &event)?
+                .with_blobs(blobs)
+                .with_receipts(receipts),
+        ];
         if let Some(settlement) = settlement {
             batch.extend(settlement.appends(&self.0.store).map_err(|error| {
                 RunRecordError::Invalid {
@@ -1956,7 +2052,7 @@ impl RunLog {
                 run_event,
             )?);
         }
-        match self.0.store.append(batch) {
+        match self.0.store.append_as(batch, durability) {
             Ok(versions) => {
                 if run_event.is_some() {
                     *version = versions.get(run_position).copied().unwrap_or(*version + 1);
@@ -2034,6 +2130,8 @@ pub(crate) struct ChildStart<'a> {
     /// recorded: not when it runs nothing now, sealed already or refused as
     /// it starts.
     pub must_match: bool,
+    /// Where its tools may go, which a new child records.
+    pub reach: runx_contracts::Reach,
     pub created_at: &'a str,
 }
 
@@ -2443,19 +2541,23 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             record,
             receipt,
             nested,
-            ..
-        } => CallOutcome::Completed(Box::new(step_run(
-            store,
-            StepEvent {
-                step_id: call_step_id(&call.step_id, call.index),
-                attempt: 1,
-                record: record.clone(),
-                receipt: receipt.clone(),
-                nested: nested.clone(),
-                answers: Vec::new(),
-            },
-            Nested::Read,
-        )?)),
+            outputs,
+        } => {
+            let mut run = step_run(
+                store,
+                StepEvent {
+                    step_id: call_step_id(&call.step_id, call.index),
+                    attempt: 1,
+                    record: record.clone(),
+                    receipt: receipt.clone(),
+                    nested: nested.clone(),
+                    answers: Vec::new(),
+                },
+                Nested::Read,
+            )?;
+            read_held(store, &mut run, outputs)?;
+            CallOutcome::Completed(Box::new(run))
+        }
         CallOutcomeEvent::Refused { reason } => CallOutcome::Refused(reason.clone()),
         CallOutcomeEvent::Declined { reason } => CallOutcome::Declined(reason.clone()),
         CallOutcomeEvent::Failed { reason } => CallOutcome::Failed(reason.clone()),
@@ -2521,6 +2623,71 @@ pub(crate) fn call_step_id(turn_step: &str, index: u32) -> String {
     format!("{turn_step}/{index}")
 }
 
+/// A call's output as its record holds it: a field a project artifact holds
+/// is that artifact's alone, so the record keeps its place and not its value,
+/// and a packet's envelope everything but its data.
+fn held_by_reference(
+    contract: &JsonObject,
+    artifact_outputs: &BTreeSet<String>,
+    outputs: &[RunCallOutput],
+) -> JsonObject {
+    let mut contract = contract.clone();
+    for part in outputs {
+        let name = part.output.as_str();
+        match contract.get_mut(name) {
+            Some(JsonValue::Object(envelope)) if artifact_outputs.contains(name) => {
+                envelope.insert("data".to_owned(), JsonValue::Null);
+            }
+            Some(value) => *value = JsonValue::Null,
+            None => {}
+        }
+    }
+    contract
+}
+
+/// Put back into a replayed call's output each field its artifact holds, read
+/// from the artifact: it was durable before the record named it.
+fn read_held(
+    store: &KernelStore,
+    run: &mut StepRun,
+    outputs: &[RunCallOutput],
+) -> Result<(), RunRecordError> {
+    read_held_into(store, &mut run.contract, &run.artifact_outputs, outputs).map_err(|reason| {
+        RunRecordError::Invalid {
+            run_id: run.step_id.clone(),
+            reason,
+        }
+    })
+}
+
+/// Put back into `contract`, a call's output as its record holds it, each
+/// field its artifact holds, read from the artifact.
+fn read_held_into(
+    store: &KernelStore,
+    contract: &mut JsonObject,
+    artifact_outputs: &BTreeSet<String>,
+    outputs: &[RunCallOutput],
+) -> Result<(), String> {
+    if outputs.is_empty() {
+        return Ok(());
+    }
+    let artifacts = store.project_dir().join(crate::paths::ARTIFACTS_DIR);
+    for part in outputs {
+        let name = part.output.as_str();
+        let value = crate::services::read_json_artifact(&artifacts, &part.artifact)
+            .map_err(|reason| format!("reading the artifact that holds output {name}: {reason}"))?;
+        match contract.get_mut(name) {
+            Some(JsonValue::Object(envelope)) if artifact_outputs.contains(name) => {
+                envelope.insert("data".to_owned(), value);
+            }
+            _ => {
+                contract.insert(name.to_owned(), value);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// How a step's run reads the receipts below it.
 #[derive(Clone, Copy)]
 enum Nested {
@@ -2565,7 +2732,7 @@ fn step_run(
         settlement: None,
         labels: record.labels,
         input_digest: record.input_digest,
-        credential_fingerprint: record.credential_fingerprint,
+        operation_read_identity: record.operation_read_identity,
     })
 }
 

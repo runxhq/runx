@@ -1,6 +1,8 @@
 //! Exact retained claims, addressed by the receipt that seals them. Reading a
 //! claim never replays a run or resolves its current skill package.
 
+use std::collections::BTreeSet;
+
 use runx_contracts::{JsonObject, Receipt};
 use serde::Deserialize;
 
@@ -9,6 +11,8 @@ use super::{Blob, CallOutcomeEvent, KernelStore, RunEvent, RunRecordError, calls
 #[derive(Deserialize)]
 struct RetainedClaim {
     contract: JsonObject,
+    #[serde(default)]
+    artifact_outputs: BTreeSet<String>,
 }
 
 pub(crate) fn retained_claim(
@@ -69,18 +73,29 @@ fn claim_on(
         }
         for recorded in page {
             after = recorded.version;
-            let record = match recorded.event {
-                RunEvent::Step(step) if step.receipt == receipt_blob.digest() => Some(step.record),
+            let (record, held) = match recorded.event {
+                RunEvent::Step(step) if step.receipt == receipt_blob.digest() => {
+                    (Some(step.record), Vec::new())
+                }
                 RunEvent::Call(call) => match call.outcome {
                     CallOutcomeEvent::Completed {
-                        record, receipt, ..
-                    } if receipt == receipt_blob.digest() => Some(record),
-                    _ => None,
+                        record,
+                        receipt,
+                        outputs,
+                        ..
+                    } if receipt == receipt_blob.digest() => (Some(record), outputs),
+                    _ => (None, Vec::new()),
                 },
-                _ => None,
+                _ => (None, Vec::new()),
             };
             let Some(record) = record else { continue };
-            let claim: RetainedClaim = store.blob_json(&record)?;
+            let mut claim: RetainedClaim = store.blob_json(&record)?;
+            // A call's record names the artifacts that hold its fields.
+            super::read_held_into(store, &mut claim.contract, &claim.artifact_outputs, &held)
+                .map_err(|reason| RunRecordError::Invalid {
+                    run_id: run_id.to_owned(),
+                    reason,
+                })?;
             crate::receipts::seal::validate_step_receipt_claim(receipt, &claim.contract).map_err(
                 |error| RunRecordError::Invalid {
                     run_id: run_id.to_owned(),

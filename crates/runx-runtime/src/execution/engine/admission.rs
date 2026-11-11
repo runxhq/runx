@@ -187,6 +187,18 @@ fn runtime_effect_error(step: &WorkflowStep, source: RuntimeEffectError) -> Runt
             step_id: step.id.clone(),
             reason: message,
         },
+        // Held by another intent's unsettled attempt, the call's act is as
+        // unknown as that attempt's outcome: it waits on its retry.
+        RuntimeEffectError::Held {
+            plan_digest,
+            idempotency_key,
+            message,
+            ..
+        } => RuntimeError::ProviderEffectUnknown {
+            plan_digest,
+            idempotency_key,
+            reason: message,
+        },
         RuntimeEffectError::CostLimitExceeded { message, .. } => RuntimeError::CostLimitExceeded {
             step_id: step.id.clone(),
             reason: message,

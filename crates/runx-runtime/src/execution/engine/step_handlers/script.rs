@@ -57,6 +57,7 @@ where
         context_entries: _,
         ask_reason: _,
         given,
+        reused: _,
     } = request;
     // A script runs the modules its run admitted.
     let package = runtime.options.package(workflow_dir)?;
@@ -74,6 +75,7 @@ where
         effects: step.effects,
         reach: step.reach,
         reads_local_only: host.reads_local_only(),
+        answers_each_call: host.answers_each_call(),
         given,
     });
     // The script passes from the beginning against its record once per drive
@@ -195,6 +197,17 @@ where
                 ));
             }
             ScriptEnding::Threw { message } => break Err(message),
+            // The adapter reads an output past what an answer carries in its
+            // parts, and gives it whole.
+            ScriptEnding::ReturnedInParts { .. } => {
+                return Err(RuntimeError::EngineInvariant {
+                    context: "a script's output",
+                    message: format!(
+                        "script step {} was given its output's size, not the output",
+                        step.id
+                    ),
+                });
+            }
             ScriptEnding::Returned { output } => {
                 // The output counts only once every call the script started
                 // has settled.
@@ -687,7 +700,7 @@ where
 {
     let delivering = |source| RuntimeError::json("delivering a call's result", source);
     Ok(match &call.outcome {
-        outcome if ledger.withholds(outcome, &call.outputs) => rejected(
+        outcome if ledger.withholds(outcome) => rejected(
             ScriptRejection::Refused,
             format!(
                 "call {} reads what's labelled local_only, and this step's host can't say its model runs on this machine",
@@ -711,11 +724,7 @@ where
                 let artifact = call
                     .outputs
                     .iter()
-                    .find(|part| {
-                        part.output
-                            .as_ref()
-                            .is_some_and(|output| output.as_str() == field)
-                    })
+                    .find(|part| part.output.as_str() == field)
                     .map(|part| part.artifact.clone())
                     .ok_or_else(|| RuntimeError::EngineInvariant {
                         context: "delivering a call's result",

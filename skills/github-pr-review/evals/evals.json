@@ -6,6 +6,19 @@
       "prompt": "Review this selected PR for concrete code defects without requiring a user-known head SHA.",
       "expected_output": "Produce a bounded review draft without publishing, modifying code or claiming tests ran.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Review pull request 42 from the capture already made, without another pull request, comparison or check request.",
+      "expected_output": "Changed-line findings for pull request 42 at head cccc…, drawn from the given context and each bound to a line of the src/client.js patch, saying check coverage is unknown, with nothing posted.",
+      "files": [
+        "evals/files/pr-42-review-context.json"
+      ],
+      "expectations": [
+        "It does not read the pull request or its comparison again.",
+        "It calls no provider."
+      ],
+      "method": "analyze"
     }
   ]
 }

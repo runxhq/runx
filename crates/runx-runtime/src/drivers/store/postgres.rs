@@ -177,6 +177,8 @@ impl Backend for Postgres {
         streams.0.commit().map_err(|error| {
             StoreError::uncertain(format!("postgres did not confirm the append: {error}"))
         })?;
+        // The server confirms a commit once it's durable.
+        crate::work_counts::count(crate::work_counts::Work::DurableWrite);
         Ok(appended)
     }
 

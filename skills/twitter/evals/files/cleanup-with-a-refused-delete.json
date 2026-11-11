@@ -1,0 +1,43 @@
+{
+  "about": "A reviewed plan to delete two obsolete posts, by its digest, after its first batch: the provider refused the first delete as terminal.",
+  "plan_json": {
+    "decision": "ready",
+    "objective": "Delete two reviewed obsolete posts; keep failures visible.",
+    "principal": "account:@example",
+    "acts": [
+      {
+        "act_id": "act-delete-1",
+        "kind": "delete_post",
+        "params": {
+          "post_id": "7001"
+        },
+        "consequence": "live_mutation",
+        "rationale": "Reviewed obsolete post."
+      },
+      {
+        "act_id": "act-delete-2",
+        "kind": "delete_post",
+        "params": {
+          "post_id": "7002"
+        },
+        "consequence": "live_mutation",
+        "rationale": "Reviewed obsolete post."
+      }
+    ],
+    "gates": {
+      "human_approval_required": true,
+      "approval_id": null
+    }
+  },
+  "plan_digest": "sha256:772dbf40993d7fd452b6940b817ca1f78926005263b2f2569bbbc18f55c74a84",
+  "max_acts": 1,
+  "outcomes": [
+    {
+      "act_id": "act-delete-1",
+      "status": "failed",
+      "terminal": true,
+      "reason": "refused",
+      "detail": "The provider refused the delete."
+    }
+  ]
+}

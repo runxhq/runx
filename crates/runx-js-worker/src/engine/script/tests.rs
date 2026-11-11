@@ -24,6 +24,7 @@ fn run(source: &str, settled: &[ScriptSettlement]) -> Result<Passed, String> {
         limits: InvocationLimits::default(),
         settled,
         now: NOW,
+        allocated: || 0,
     })
     .map_err(|error| error.message)
 }
@@ -386,6 +387,7 @@ fn a_live_script_takes_its_settlements_as_a_replay_of_them_would() -> Result<(),
         limits: InvocationLimits::default(),
         settled: &[],
         now: NOW,
+        allocated: || 0,
     })
     .map_err(|error| error.message)?;
     let mut live = live.ok_or("a waiting script stays live")?;

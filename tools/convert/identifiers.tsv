@@ -520,24 +520,24 @@ nitrosend	graph	1	graph	?	a bare word: code or prose, read in place	connectors/n
 nitrosend	harness-authored	1	harness	harness-authored	mcp-authoring-quality's evaluation harness, which drives candidate models: the agent-host sense the plan keeps, so it stays	skills/nitrosend/mcp-authoring-quality/SKILL.md
 nitrosend	held	1	hold	?	a bare word: code or prose, read in place	skills/nitrosend/load-drill/tools/nitrosend/lib/sends.mjs
 nitrosend	nskey_test_harness	1	harness	nskey_test_key	the test sense, but nskey_test_test reads as a typo; it is load-drill's fake API key	skills/nitrosend/load-drill/tests/check-reads-readiness.yaml
-oss	holds	845	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml .github/workflows/runtime-quality.yml
-oss	held	587	hold	?	a bare word: code or prose, read in place	CONVENTIONS.md SECURITY.md
-oss	closure	529	closure	?	a bare word: code or prose, read in place	CONVENTIONS.md README.md
-oss	hold	338	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml CONVENTIONS.md
-oss	closure_digest	130	closure	closure_digest	a package's closure, closure's one meaning	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/resume.rs
-oss	holding	94	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/doctor.rs
+oss	holds	1010	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml .github/workflows/runtime-quality.yml
+oss	held	650	hold	?	a bare word: code or prose, read in place	CONVENTIONS.md SECURITY.md
+oss	closure	555	closure	?	a bare word: code or prose, read in place	CONVENTIONS.md README.md
+oss	hold	373	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml CONVENTIONS.md
+oss	closure_digest	141	closure	closure_digest	a package's closure, closure's one meaning	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/resume.rs
+oss	holding	102	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/doctor.rs
+oss	harness	54	harness	?	a bare word: code or prose, read in place	crates/runx-cli/tests/router.rs crates/runx-contracts/src/host_protocol.rs
 oss	Hold	48	hold	Hold	hold's one meaning, a run waiting on an unknown outcome (D34): run_record's Hold, the current word	crates/runx-runtime/src/execution/engine/receipt_budget.rs crates/runx-runtime/src/execution/engine/steps.rs
-oss	harness	46	harness	?	a bare word: code or prose, read in place	crates/runx-cli/tests/router.rs crates/runx-contracts/src/host_protocol.rs
+oss	held_by_effects	42	hold	held_by_effects	English, or a skill's own word: stays	crates/runx-runtime/src/effects/mod.rs crates/runx-runtime/src/effects/types.rs
 oss	closure-digest	41	decided	closure-digest	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/export/shim.rs
-oss	held_by_effects	39	hold	held_by_effects	English, or a skill's own word: stays	crates/runx-runtime/src/effects/mod.rs crates/runx-runtime/src/effects/types.rs
+oss	Held	40	hold	?	a bare word: code or prose, read in place	crates/runx-cli/tests/skill.rs crates/runx-contracts/src/connector_instance.rs
+oss	runner	33	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	expected_closure_digest	31	decided	expected_closure_digest	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-cli/src/resume.rs crates/runx-cli/src/skill.rs
-oss	runner	31	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
-oss	Held	30	hold	?	a bare word: code or prose, read in place	crates/runx-cli/tests/skill.rs crates/runx-contracts/src/connector_instance.rs
 oss	HoldEvent	19	hold	HoldEvent	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
 oss	$RUNNER_TEMP	18	runner	$RUNNER_TEMP	GitHub's runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	closureDigest	18	closure	closureDigest	a package's closure, closure's one meaning	packages/client/src/index.ts packages/client/src/inspection.ts
+oss	graph	17	graph	?	a bare word: code or prose, read in place	crates/deny.toml crates/runx-parser/fuzz/Cargo.toml
 oss	LocalClosure	17	decided	LocalClosure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/registry/publish_package/bundle.rs
-oss	graph	16	graph	?	a bare word: code or prose, read in place	crates/deny.toml crates/runx-parser/fuzz/Cargo.toml
 oss	HELD	11	hold	?	a bare word: code or prose, read in place	crates/runx-runtime/src/registry/tiers.rs scripts/lib/loopback-registry.mjs
 oss	ClosureAccumulator	10	closure	ClosureAccumulator	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	PublishClosureError	10	closure	PublishClosureError	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
@@ -561,11 +561,13 @@ oss	closure_registry_refs	5	closure	closure_registry_refs	a package's closure, c
 oss	GraphQL	5	graph	GraphQL	another graph: stays	connectors/linear/README.md connectors/linear/connector.yaml
 oss	Holds	5	hold	?	a bare word: code or prose, read in place	crates/runx-runtime/src/execution/skill_front/tests.rs skills/dispute-respond/run.yaml
 oss	LangGraph	5	graph	LangGraph	another graph: stays	docs/loop-orchestration.md docs/orchestrator-integrations.md
+oss	run_held	5	hold	run_held	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	run_held_1	5	hold	run_held_1	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	admit_held	4	hold	admit_held	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	check-rust-crate-graph	4	graph	check-rust-crate-graph	a dependency graph: stays	crates/README.md crates/deny.toml
 oss	hold-plan	4	hold	hold-plan	English, or a skill's own word: stays	skills/message-send/run.yaml
 oss	inspect_method_closure	4	decided	inspect_method_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
+oss	inspect_method_closure_methods	4	closure	inspect_method_closure_methods	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	install_registry_closure	4	closure	install_registry_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	local_closure	4	closure	local_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_package.rs
 oss	NotHeld	4	hold	NotHeld	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/registry/resolve/skill.rs
@@ -577,14 +579,15 @@ oss	tier_held	4	hold	tier_held	English, or a skill's own word: stays	crates/runx
 oss	closure_accumulators	3	closure	closure_accumulators	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	ClosureInspection	3	decided	ClosureInspection	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	packages/client/src/index.ts packages/client/src/inspection.ts
 oss	hasCanonicalClosure	3	decided	hasCanonicalClosure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	scripts/audit-core-skills.mjs
+oss	held_batch	3	hold	held_batch	a call wait or retained content: stays	crates/runx-cli/tests/crash_points.rs
 oss	inspect_loaded_local_closure	3	decided	inspect_loaded_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/skill_package.rs
 oss	inspect_local_closure	3	decided	inspect_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
-oss	inspect_method_closure_methods	3	closure	inspect_method_closure_methods	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	InspectedClosureBinding	3	decided	InspectedClosureBinding	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
 oss	into_local_closure	3	decided	into_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	is_governed_step_closure	3	closure	is_governed_step_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/engine.rs crates/runx-runtime/src/execution/engine/steps.rs
 oss	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_closure.rs
 oss	merge_local_closure	3	decided	merge_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/closure.rs
+oss	read_held_into	3	hold	read_held_into	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/claim.rs
 oss	serialize_closure	3	closure	serialize_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	test_runner	3	runner	test_runner	proptest's test_runner module: a test runner, outside runx: stays	crates/runx-contracts/src/canonical_json.rs
 oss	AdmittedClosure	2	closure	AdmittedClosure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
@@ -594,6 +597,8 @@ oss	ClosureMissing	2	closure	ClosureMissing	a package's closure, closure's one m
 oss	ClosureNotFullyBound	2	closure	ClosureNotFullyBound	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
 oss	from_copy_closure_with_captures	2	closure	from_copy_closure_with_captures	a package's closure, closure's one meaning	crates/runx-js-worker/src/engine/globals.rs crates/runx-js-worker/src/engine/script.rs
 oss	granted_closure	2	closure	granted_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/test/replay.rs
+oss	harness_cases	2	harness	test_cases	the test sense	skills/run-history/evals/files/release-runs-and-catalog.json
+oss	held_by_reference	2	hold	held_by_reference	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record.rs
 oss	held_projects	2	hold	held_projects	English, or a skill's own word: stays	crates/runx-runtime/src/execution/engine/turn.rs
 oss	held_types	2	hold	held_types	English, or a skill's own word: stays	crates/runx-contracts-derive/src/lib.rs
 oss	held-source	2	hold	held-source	English, or a skill's own word: stays	skills/github-pr-review/run.yaml
@@ -601,14 +606,17 @@ oss	heldContext	2	hold	heldContext	English, or a skill's own word: stays	skills/
 oss	install_candidate_closure	2	closure	install_candidate_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	not-the-closure	2	closure	not-the-closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
 oss	publish_closure	2	closure	publish_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs
+oss	read_held	2	hold	read_held	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record.rs
 oss	registry_holds_context_skill	2	hold	registry_holds_context_skill	English, or a skill's own word: stays	crates/runx-runtime/src/execution/skill_context.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	registry_holds_step_skill	2	hold	registry_holds_step_skill	English, or a skill's own word: stays	crates/runx-runtime/src/execution/workflow.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
+oss	retrieval_holds	2	hold	retrieval_holds	a call wait or retained content: stays	crates/runx-runtime/tests/memory_horizon.rs
 oss	$RUNNER_OS	1	runner	$RUNNER_OS	GitHub's runner: stays	.github/actions/setup-runx/action.yml
 oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_grant_refuses_a_connector_its_closure_carries_twice	a package's closure, closure's one meaning	crates/runx-cli/tests/registry.rs
 oss	a_changed_act_is_held_by_the_unsettled_attempt_of_another	1	hold	a_changed_act_is_held_by_the_unsettled_attempt_of_another	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	a_child_run_holds_the_request_its_parent_step_waits_on	1	hold	a_child_run_holds_the_request_its_parent_step_waits_on	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	a_closure_digest_leaves_runx_version_out	1	closure	a_closure_digest_leaves_runx_version_out	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	a_directory_others_can_write_holds_no_private_file	1	hold	a_directory_others_can_write_holds_no_private_file	English, or a skill's own word: stays	crates/runx-runtime/src/private_file.rs
+oss	a_file_that_holds_something_else_now_recomputes_as_changed	1	hold	a_file_that_holds_something_else_now_recomputes_as_changed	a call wait or retained content: stays	crates/runx-runtime/tests/script_steps.rs
 oss	a_held_lock_reads_as_driven_and_refuses_a_second_driver	1	hold	a_held_lock_reads_as_driven_and_refuses_a_second_driver	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/driver.rs
 oss	a_held_write_that_may_consume_credits_waits_once_on_a_gate_naming_both_reasons	1	hold	a_held_write_that_may_consume_credits_waits_once_on_a_gate_naming_both_reasons	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	a_hosted_credential_is_seeded_from_one_secret_holding_every_field	1	hold	a_hosted_credential_is_seeded_from_one_secret_holding_every_field	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/connector_setup/tests.rs
@@ -637,6 +645,9 @@ oss	an_effect_the_connector_does_not_declare_holds_the_call	1	hold	an_effect_the
 oss	an_unknown_outcome_holds_and_the_next_pass_sends_the_same_purchase_again	1	hold	an_unknown_outcome_holds_and_the_next_pass_sends_the_same_purchase_again	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/purchase/tests.rs
 oss	an_unknown_outcome_is_held_and_never_resent_blind	1	hold	an_unknown_outcome_is_held_and_never_resent_blind	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	an_unknown_write_is_held_when_its_instance_was_rebound	1	hold	an_unknown_write_is_held_when_its_instance_was_rebound	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
+oss	another_bodys_unsettled_send_holds_that_call_while_the_others_go_on	1	hold	another_bodys_unsettled_send_holds_that_call_while_the_others_go_on	a call wait or retained content: stays	crates/runx-cli/tests/crash_points.rs
+oss	another_intents_attempt_that_read_back_holds_the_call_until_it_finalizes	1	hold	another_intents_attempt_that_read_back_holds_the_call_until_it_finalizes	a call wait or retained content: stays	crates/runx-runtime/src/kernel/operation/tests.rs
+oss	another_intents_unsettled_attempt_holds_the_call_until_a_person_says_it_didnt_take_effect	1	hold	another_intents_unsettled_attempt_holds_the_call_until_a_person_says_it_didnt_take_effect	a call wait or retained content: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	attention-review-holds-invented-source	1	hold	attention-review-holds-invented-source	English, or a skill's own word: stays	skills/attention-review/tests/attention-review-holds-invented-source.yaml
 oss	attention-review-holds-invented-work	1	hold	attention-review-holds-invented-work	English, or a skill's own word: stays	skills/attention-review/tests/attention-review-holds-invented-work.yaml
 oss	bound_continuation_persists_closure_for_resume	1	closure	bound_continuation_persists_closure_for_resume	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
@@ -651,8 +662,12 @@ oss	code-plan-invalid-phase-holds	1	hold	code-plan-invalid-phase-holds	English, 
 oss	conversation-review-holds-incomplete-thread	1	hold	conversation-review-holds-incomplete-thread	English, or a skill's own word: stays	skills/conversation-review/tests/conversation-review-holds-incomplete-thread.yaml
 oss	facts-to-qualified-fit-with-contact-hold	1	hold	facts-to-qualified-fit-with-contact-hold	English, or a skill's own word: stays	skills/lead-enrichment/tests/qualify.yaml
 oss	Graph	1	graph	?	a bare word: code or prose, read in place	skills/run-history/eval_queries.json
+oss	graph_step_failed	1	graph	workflow_step_failed	the plan's name	skills/diagnose-skill-run/evals/files/context-flattening-failure.json
 oss	Harness	1	harness	?	a bare word: code or prose, read in place	docs/composing-skills.md
+oss	harness_output	1	harness	test_output	the test sense	skills/diagnose-skill-run/evals/files/context-flattening-failure.json
+oss	harnesses	1	harness	?	a bare word: code or prose, read in place	skills/skill-review/evals/files/review-subject-evidence.json
 oss	held-account	1	hold	held-account	English, or a skill's own word: stays	skills/attention-review/attention-review.test.mjs
+oss	held-send	1	hold	held-send	a call wait or retained content: stays	crates/runx-cli/tests/crash_points.rs
 oss	holds-changed-head	1	hold	holds-changed-head	English, or a skill's own word: stays	skills/github-pr-review/tests/holds-changed-head.yaml
 oss	holds-identity-conflict	1	hold	holds-identity-conflict	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-identity-conflict.yaml
 oss	holds-invalid-funnel	1	hold	holds-invalid-funnel	English, or a skill's own word: stays	skills/product-analytics/tests/holds-invalid-funnel.yaml
@@ -663,9 +678,11 @@ oss	holds-unknown-contact-policy	1	hold	holds-unknown-contact-policy	English, or
 oss	holds-weak-match	1	hold	holds-weak-match	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-weak-match.yaml
 oss	holds-work-for-a-different-bound-occurrence	1	hold	holds-work-for-a-different-bound-occurrence	English, or a skill's own word: stays	skills/attention-review/tests/holds-work-for-a-different-bound-occurrence.yaml
 oss	holds-wrong-entity	1	hold	holds-wrong-entity	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-wrong-entity.yaml
+oss	memory_holds_across_the_horizon	1	hold	memory_holds_across_the_horizon	a call wait or retained content: stays	crates/runx-runtime/tests/memory_horizon.rs
 oss	mismatched-audit-is-held	1	hold	mismatched-audit-is-held	English, or a skill's own word: stays	skills/receipt-audit/tests/mismatched-audit-is-held.yaml
 oss	missing-source-holds-before-authoring	1	hold	missing-source-holds-before-authoring	English, or a skill's own word: stays	skills/skill-adopt/tests/missing-source-holds.yaml
 oss	native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold	1	hold	native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold	English, or a skill's own word: stays	crates/runx-runtime/tests/skill_run.rs
+oss	next_harness_checks	1	harness	next_test_checks	the test sense	skills/skill-build/evals/files/weak-failure-diagnosis.json
 oss	offer_terms_name_the_lease_a_buyer_holds	1	hold	offer_terms_name_the_lease_a_buyer_holds	English, or a skill's own word: stays	crates/runx-contracts/src/paid_skill_listing.rs
 oss	only_the_runtime_holds_a_network_client	1	hold	only_the_runtime_holds_a_network_client	English, or a skill's own word: stays	crates/runx-cli/tests/locality.rs
 oss	open-graph	1	graph	open-graph	vuln-triage's dependency graph: stays	docs/core-skill-review.md
@@ -966,7 +983,6 @@ oss	graph_run_trace	0	graph	workflow_run_trace
 oss	graph_seal_digest	0	graph	workflow_seal_digest		
 oss	graph_self	0	graph	workflow_self		
 oss	graph_state	0	graph	workflow_state		
-oss	graph_step_failed	0	graph	workflow_step_failed	the plan's name	
 oss	graph_step_id	0	graph	workflow_step_id		
 oss	graph_step_rejects_malformed_artifact_contract	0	graph	workflow_step_rejects_malformed_artifact_contract		
 oss	graph_step_state	0	graph	workflow_step_state		
@@ -1040,7 +1056,6 @@ oss	harness_artifacts	0	harness	test_artifacts	the test sense
 oss	harness_blocks_closure_and_seals_graph_receipt	0	harness,closure,graph	test_blocks_ending_and_seals_workflow_receipt	the test sense; how a run ended	
 oss	harness_case_count	0	harness	test_case_count	the test sense	
 oss	HARNESS_CASE_FIELDS	0	harness	TEST_CASE_FIELDS	the test sense	
-oss	harness_cases	0	harness	test_cases	the test sense	
 oss	harness_context	0	harness	run_context	the run sense	
 oss	HARNESS_CONTEXT	0	harness	RUN_CONTEXT	the run sense	
 oss	harness_env	0	harness	test_env	the test sense	
@@ -1066,7 +1081,6 @@ oss	harness_http_exchanges_reject_unknown_body_fields	0	harness	test_http_exchan
 oss	harness_http_transport_is_exact_limited_and_never_falls_through	0	harness	test_http_transport_is_exact_limited_and_never_falls_through	the test sense	
 oss	harness_id	0	harness	run_id	the run sense: the inbox's harness context, which its events attach to	
 oss	harness_input	0	harness	test_input	the test sense	
-oss	harness_output	0	harness	test_output	the test sense	
 oss	harness_path	0	harness	test_path	the test sense	
 oss	harness_process_results_never_start_a_host_process_or_escape_into_live_runs	0	harness	test_process_results_never_start_a_host_process_or_escape_into_live_runs	the test sense	
 oss	HARNESS_PROVIDER_BASE_URL	0	harness	TEST_PROVIDER_BASE_URL	the test sense	
@@ -1125,7 +1139,6 @@ oss	HarnessContextContract	0	harness	RunContextContract	the run sense
 oss	HarnessContextInput	0	harness	RunContextInput	the run sense	
 oss	HarnessContextOutput	0	harness	RunContextOutput	the run sense	
 oss	harnessEnv	0	harness	testEnv	the test sense	
-oss	harnesses	0	harness	?	a bare word: code or prose, read in place	
 oss	Harnesses	0	harness	?	a bare word: code or prose, read in place	
 oss	HarnessExchanges	0	harness	TestExchanges	the test sense	
 oss	HarnessExpectation	0	harness	TestExpectation	the test sense	
@@ -1317,7 +1330,6 @@ oss	nested_runner	0	runner	nested_method
 oss	nested_runner_projects_its_contract_from_parent_graph_parameters	0	graph,runner	nested_method_projects_its_contract_from_parent_workflow_parameters		
 oss	nested-graph	0	graph	nested-workflow		
 oss	NestedGraph	0	graph	NestedWorkflow		
-oss	next_harness_checks	0	harness	next_test_checks	the test sense	
 oss	nnext_harness_checks	0	harness	nnext_test_checks	the test sense	
 oss	nws-weather-composes-in-graph	0	graph	nws-weather-composes-in-workflow		
 oss	offer_terms_name_what_a_runner_acts_on	0	runner	offer_terms_name_what_a_method_acts_on		

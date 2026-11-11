@@ -329,6 +329,12 @@ pub enum RuntimeError {
     CredentialDelivery(#[from] CredentialDeliveryError),
     #[error("effect state failed while {context}: {message}")]
     EffectState { context: String, message: String },
+    /// A claimed step taken further with nobody asked found nothing that
+    /// settles its act: it waits on its retry as it did.
+    #[error(
+        "step {step_id} has not settled, and nothing custody holds of its act settles it, so it waits on its retry"
+    )]
+    Unsettled { step_id: String },
     #[error(
         "provider effect outcome is unknown for plan {plan_digest} with idempotency key {idempotency_key}: {reason}"
     )]
@@ -444,6 +450,7 @@ impl RuntimeError {
             | Self::EngineFailure { .. }
             | Self::EngineInvariant { .. }
             | Self::EffectState { .. }
+            | Self::Unsettled { .. }
             | Self::ProviderEffectUnknown { .. }
             | Self::ProviderReadbackPending { .. }
             | Self::ReceiptInvalid { .. }

@@ -6,6 +6,19 @@
       "prompt": "Adopt this captured upstream skill for useful local use.",
       "expected_output": "Canonical Skill Build applies the complete validated package, retaining the original source reference.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Adopt the decision-note skill from the upstream source captured earlier, without fetching it again.",
+      "expected_output": "skill-adopt authors a complete local package from the captured manual through its canonical builder, the objective preserved and the destination as given; under no effects, the package write is refused at admission.",
+      "files": [
+        "evals/files/captured-decision-note.json"
+      ],
+      "expectations": [
+        "It does not fetch the upstream repository again.",
+        "It does not run the upstream skill workflow."
+      ],
+      "method": "adopt"
     }
   ]
 }

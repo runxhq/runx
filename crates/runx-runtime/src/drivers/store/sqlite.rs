@@ -86,6 +86,8 @@ const EVENT_COLUMNS: &str = "id, version, type, digest, idempotency_key, committ
 pub(super) struct Sqlite {
     connection: Connection,
     kind: Kind,
+    /// Its database file.
+    path: std::path::PathBuf,
 }
 
 impl Sqlite {
@@ -117,7 +119,9 @@ impl Sqlite {
         streams
             .0
             .commit()
-            .map_err(|error| database("committing the history", &error))
+            .map_err(|error| database("committing the history", &error))?;
+        synced(&self.path);
+        Ok(())
     }
 
     pub(super) fn open(path: &Path, kind: Kind) -> Result<Self, StoreError> {
@@ -133,9 +137,23 @@ impl Sqlite {
         connection
             .busy_timeout(BUSY_TIMEOUT)
             .map_err(|error| database("setting the busy timeout", &error))?;
-        let mut store = Self { connection, kind };
+        crate::durable::sync_in_full(&connection)
+            .map_err(|error| database("syncing in full", &error))?;
+        let mut store = Self {
+            connection,
+            kind,
+            path: path.to_path_buf(),
+        };
         store.ensure_schema(path)?;
         Ok(store)
+    }
+
+    /// The value of `pragma` on this store's connection.
+    #[cfg(test)]
+    pub(super) fn pragma(&self, pragma: &str) -> i64 {
+        self.connection
+            .pragma_query_value(None, pragma, |row| row.get(0))
+            .unwrap_or(-1)
     }
 
     fn application_id(&self) -> i64 {
@@ -198,7 +216,9 @@ impl Sqlite {
         transaction
             .pragma_update(None, "application_id", own)
             .map_err(|error| database("marking the store", &error))?;
-        version(transaction)
+        version(transaction)?;
+        synced(&self.path);
+        Ok(())
     }
 }
 
@@ -221,6 +241,16 @@ fn version(transaction: Transaction<'_>) -> Result<(), StoreError> {
     transaction
         .commit()
         .map_err(|error| database("committing the schema", &error))
+}
+
+/// A commit the store at `database` just made, synced in full: one durable
+/// write.
+fn synced(database: &Path) {
+    crate::work_counts::count(crate::work_counts::Work::DurableWrite);
+    #[cfg(feature = "crash-points")]
+    crate::crash::store_synced(database);
+    #[cfg(not(feature = "crash-points"))]
+    let _ = database;
 }
 
 #[cfg(unix)]
@@ -255,6 +285,7 @@ impl Backend for Sqlite {
             .0
             .commit()
             .map_err(|error| database("committing the append", &error))?;
+        synced(&self.path);
         Ok(appended)
     }
 

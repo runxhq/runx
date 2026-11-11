@@ -4,8 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    InvocationLimits, PROTOCOL_VERSION, ScriptCall, ScriptEnding, ScriptPassRequest,
-    ScriptSettleRequest, ScriptSettlement, WorkerFate, WorkerInvocationRequest, WorkerRequest,
+    InvocationLimits, PROTOCOL_VERSION, ScriptCall, ScriptEnding, ScriptOutputPartRequest,
+    ScriptPassRequest, ScriptSettleRequest, ScriptSettlement, WorkerFate, WorkerInvocationRequest,
+    WorkerRequest,
 };
 
 use crate::RuntimeError;
@@ -51,6 +52,8 @@ pub(super) enum WorkerInvocationResult {
         calls: Vec<ScriptCall>,
         ending: ScriptEnding,
     },
+    /// A part of an output a script returned past what its answer carries.
+    OutputPart(String),
     Failure {
         message: String,
         fate: WorkerFate,
@@ -187,9 +190,9 @@ impl JavaScriptWorkerSupervisor {
         match result {
             Ok(response) => {
                 let fate = match &response {
-                    WorkerInvocationResult::Success(_) | WorkerInvocationResult::Passed { .. } => {
-                        WorkerFate::Reuse
-                    }
+                    WorkerInvocationResult::Success(_)
+                    | WorkerInvocationResult::Passed { .. }
+                    | WorkerInvocationResult::OutputPart(_) => WorkerFate::Reuse,
                     WorkerInvocationResult::Failure { fate, .. } => *fate,
                 };
                 if fate == WorkerFate::Discard {
@@ -258,6 +261,24 @@ impl LiveScript<'_> {
             now,
         }));
         self.exchange(&request)
+    }
+
+    /// The part of the output the script returned from `offset` bytes into
+    /// its JSON. The script has ended, and its worker keeps the output until
+    /// the host asks it for something else.
+    pub(super) fn output_part(&mut self, offset: u64) -> Result<String, RuntimeError> {
+        let request = WorkerRequest::OutputPart(Box::new(ScriptOutputPartRequest {
+            protocol_version: PROTOCOL_VERSION,
+            invocation_id: self.invocation_id.clone(),
+            offset,
+        }));
+        match self.exchange(&request)? {
+            WorkerInvocationResult::OutputPart(json) => Ok(json),
+            WorkerInvocationResult::Failure { message, .. } => Err(worker_error(message)),
+            _ => Err(worker_error(
+                "the worker answered a request for an output's part with something else",
+            )),
+        }
     }
 
     fn exchange(

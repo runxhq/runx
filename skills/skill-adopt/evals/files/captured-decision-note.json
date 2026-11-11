@@ -1,0 +1,9 @@
+{
+  "about": "The upstream decision-note manual captured earlier, and the destination chosen for the adopted package.",
+  "objective": "Adopt this captured decision-note procedure as a runnable local Runx package.",
+  "target_dir": ".runx-tmp/skill-build-fixtures/fixture-decision-note",
+  "upstream": {
+    "path": "fixtures/upstream/decision-note/SKILL.md",
+    "manual": "---\nname: fixture-decision-note\ndescription: Turn one bounded objective into a reviewable decision note.\n---\n\n# Fixture Decision Note\n\nUse this skill when an operator needs one bounded recommendation\nfrom a supplied objective. It preserves the objective, explains\none next action, and stops without mutating any external system.\n\nSupply a concrete objective. If it is missing or too vague to\nsupport a recommendation, stop and request the missing boundary.\nA sealed result is a decision note, not evidence that an external\naction happened.\n\n## Agent task contracts\n\n### `fixture-decision-note`\n\nReturn `decision_note` with the objective preserved exactly and\none concise recommendation. Do not claim external effects."
+  }
+}

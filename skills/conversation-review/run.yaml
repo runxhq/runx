@@ -195,9 +195,9 @@ methods:
     inputs:
       conversations:
         type: array
-        description: The conversations, each exactly as review takes it. One conversation's failure is that conversation's outcome. At most 77, the most whose outcomes fit the script worker's 4 MiB output bound when every review packet is at its largest.
+        description: The conversations, each exactly as review takes it. One conversation's failure is that conversation's outcome. At most 800, the most the script worker's 64 MiB holds the outcomes of when every review packet is at its largest. A run's inputs are at most 64 MiB in all, the most its record holds, so 800 conversations average at most about 80 KB each.
         minItems: 1
-        maxItems: 77
+        maxItems: 800
         items:
           type: object
           description: One conversation's review inputs, which review validates. Its source_locator names its outcome.
@@ -241,7 +241,7 @@ methods:
           conversations: $input.conversations
         calls:
           skills: [.#review]
-        max_calls: 154
+        max_calls: 1600
         concurrency: 4
         effects: none
         outputs:

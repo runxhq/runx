@@ -46,11 +46,13 @@ and each on its own, and collects every conversation's outcome in the order
 given: its review packet, or its failure with the reason, named by the
 conversation's `source_locator`. One conversation's failure never stops the
 others or drops from the result. The batch runs under `effects: none` and
-sends nothing. A batch past 64 KiB reaches it a conversation at a time, each
-read as its review starts, so the size of the conversations doesn't bound it.
-It takes at most 77 conversations: every outcome comes back through the script
-worker's 4 MiB output bound, and 77 outcomes fit it when every review packet is
-at its largest.
+sends nothing. Four conversations are reviewed at once, each lane taking the
+next when its last is done, and a batch past 64 KiB reaches the script a
+conversation at a time, each read as its review starts, so the worker holds
+at most four conversations however large they are. It takes at most 800
+conversations, the most whose outcomes the script worker's 64 MiB holds when
+every review packet is at its largest. A run's inputs are at most 64 MiB in
+all, so 800 conversations average at most about 80 KB each.
 
 ## Procedure
 

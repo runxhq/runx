@@ -353,7 +353,8 @@ impl RuntimePathFixtures {
     /// calls on the warm provider runtime, each call one operation over the
     /// local transport, and what each call past the first cost. A call's
     /// store writes are the run's past the one-call run's, over the calls
-    /// past the first, so a constant cost reads the same at every size. A
+    /// past the first, so a constant cost reads the same at every size, and
+    /// its durable writes are read the same way. A
     /// run is taken whole when its record is replayed or every call is sealed
     /// into its receipt; a call that did either would show here as more than
     /// none per call.
@@ -400,6 +401,15 @@ impl RuntimePathFixtures {
                 )
             })
             .collect::<JsonObject>();
+        let durable_writes_per_call = past_base
+            .iter()
+            .map(|(calls, counts)| {
+                (
+                    calls.to_string(),
+                    JsonValue::Number(per_call(*calls, counts.durable_writes, base.durable_writes)),
+                )
+            })
+            .collect::<JsonObject>();
         let context_reserializations_per_call = past_base
             .iter()
             .map(|(calls, counts)| {
@@ -425,6 +435,10 @@ impl RuntimePathFixtures {
                 JsonValue::Object(store_writes_per_call),
             ),
             (
+                "durable_writes_per_call".to_owned(),
+                JsonValue::Object(durable_writes_per_call),
+            ),
+            (
                 "context_reserializations_per_call".to_owned(),
                 JsonValue::Number(context_reserializations_per_call),
             ),
@@ -445,6 +459,7 @@ const WARM_EXECUTION_CALLS: [usize; 4] = [1, 10, 100, 1000];
 #[derive(Clone, Copy)]
 struct CallCounts {
     store_writes: u64,
+    durable_writes: u64,
     packages_read: u64,
     run_materializations: u64,
     provider_calls: u64,
@@ -458,6 +473,7 @@ impl CallCounts {
     ) -> Self {
         Self {
             store_writes: after.store_writes - before.store_writes,
+            durable_writes: after.durable_writes - before.durable_writes,
             packages_read: after.packages_read - before.packages_read,
             run_materializations: after.run_materializations - before.run_materializations,
             provider_calls: after.provider_calls - before.provider_calls,
@@ -470,6 +486,7 @@ impl CallCounts {
         let count = |value| JsonValue::Number(JsonNumber::U64(value));
         JsonValue::Object(JsonObject::from([
             ("store_writes".to_owned(), count(self.store_writes)),
+            ("durable_writes".to_owned(), count(self.durable_writes)),
             ("packages_read".to_owned(), count(self.packages_read)),
             (
                 "run_materializations".to_owned(),

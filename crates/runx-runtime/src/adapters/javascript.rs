@@ -77,16 +77,66 @@ impl LiveScript<'_> {
             crate::work_counts::Work::ScriptSettlementDelivered,
             settled.len(),
         );
-        script_passed(self.script.settle(settled, now)?)
+        // Settlements reach the script in frames, as a replay's do, while it
+        // waits on them: a batch read at once settles together, and no
+        // frame holds more than a bounded share of it.
+        let mut frames = settlement_frames(settled)?.into_iter();
+        let mut passed = ScriptPassed {
+            calls: Vec::new(),
+            ending: ScriptEnding::Waiting,
+        };
+        while passed.ending == ScriptEnding::Waiting {
+            let Some(frame) = frames.next() else {
+                break;
+            };
+            let more = script_passed(self.script.settle(frame, now)?)?;
+            passed.calls.extend(more.calls);
+            passed.ending = more.ending;
+        }
+        whole(&mut self.script, passed)
     }
 }
 
-/// The most of a record's settlements one frame of a replay holds, in bytes
-/// of their JSON: a settlement past it, a large read, takes a frame alone.
-pub(crate) const REPLAY_FRAME_BYTES: usize = 2 * 1024 * 1024;
+/// `passed`, with an output its script returned past what an answer carries
+/// read from its worker in parts and given whole, as an output within it is.
+fn whole(
+    script: &mut supervisor::LiveScript<'_>,
+    passed: ScriptPassed,
+) -> Result<ScriptPassed, RuntimeError> {
+    let ScriptEnding::ReturnedInParts { size_bytes } = passed.ending else {
+        return Ok(passed);
+    };
+    let size = usize::try_from(size_bytes).map_err(|_| RuntimeError::JavaScriptWorker {
+        message: format!("a script's output of {size_bytes} bytes is past what this host holds"),
+    })?;
+    let mut json = String::with_capacity(size);
+    while json.len() < size {
+        let offset = u64::try_from(json.len()).unwrap_or(u64::MAX);
+        let part = script.output_part(offset)?;
+        if part.is_empty() || json.len().saturating_add(part.len()) > size {
+            return Err(RuntimeError::JavaScriptWorker {
+                message: format!(
+                    "a part of a script's output at byte {offset} doesn't fit its {size_bytes} bytes"
+                ),
+            });
+        }
+        json.push_str(&part);
+    }
+    let output = serde_json::from_str(&json)
+        .map_err(|source| RuntimeError::json("reading a script's output from its parts", source))?;
+    Ok(ScriptPassed {
+        calls: passed.calls,
+        ending: ScriptEnding::Returned { output },
+    })
+}
 
-/// `settled` in the frames a replay delivers it in, in order.
-fn replay_frames(
+/// The most of a script's settlements one frame to its worker holds, in
+/// bytes of their JSON, live or in a replay: a settlement past it, a large
+/// read, takes a frame alone.
+pub(crate) const SETTLEMENT_FRAME_BYTES: usize = 2 * 1024 * 1024;
+
+/// `settled` in the frames it reaches the worker in, in order.
+fn settlement_frames(
     settled: Vec<ScriptSettlement>,
 ) -> Result<Vec<Vec<ScriptSettlement>>, RuntimeError> {
     let mut frames = Vec::new();
@@ -96,7 +146,7 @@ fn replay_frames(
         let size = serde_json::to_vec(&settlement)
             .map_err(|source| RuntimeError::json("measuring a script's settlement", source))?
             .len();
-        if !frame.is_empty() && bytes.saturating_add(size) > REPLAY_FRAME_BYTES {
+        if !frame.is_empty() && bytes.saturating_add(size) > SETTLEMENT_FRAME_BYTES {
             frames.push(std::mem::take(&mut frame));
             bytes = 0;
         }
@@ -119,6 +169,9 @@ fn script_passed(result: supervisor::WorkerInvocationResult) -> Result<ScriptPas
         }
         supervisor::WorkerInvocationResult::Success(_) => Err(RuntimeError::JavaScriptWorker {
             message: "the worker answered a script with a tool's result".to_owned(),
+        }),
+        supervisor::WorkerInvocationResult::OutputPart(_) => Err(RuntimeError::JavaScriptWorker {
+            message: "the worker answered a script's pass with a part of an output".to_owned(),
         }),
     }
 }
@@ -221,7 +274,7 @@ impl JavaScriptAdapter {
     /// The pass starts with the script's inputs, those given by reference in
     /// place, and what its record read of the clock. The record's other
     /// settlements follow in further frames, in the order they settled, at
-    /// most [`REPLAY_FRAME_BYTES`] of them a frame and a larger one alone,
+    /// most [`SETTLEMENT_FRAME_BYTES`] of them a frame and a larger one alone,
     /// while the script waits on them: no frame holds more than a bounded
     /// share of the record, however long it is.
     pub(crate) fn start_script(
@@ -256,7 +309,7 @@ impl JavaScriptAdapter {
                     now,
                 })?;
         let mut passed = script_passed(result)?;
-        let mut frames = replay_frames(settled)?.into_iter();
+        let mut frames = settlement_frames(settled)?.into_iter();
         while passed.ending == ScriptEnding::Waiting {
             let Some(frame) = frames.next() else {
                 break;
@@ -270,7 +323,9 @@ impl JavaScriptAdapter {
         // the replay went another way.
         if matches!(
             passed.ending,
-            ScriptEnding::Returned { .. } | ScriptEnding::Threw { .. }
+            ScriptEnding::Returned { .. }
+                | ScriptEnding::ReturnedInParts { .. }
+                | ScriptEnding::Threw { .. }
         ) && let Some(position) = frames
             .flatten()
             .map(|settlement| settlement.position)
@@ -278,6 +333,7 @@ impl JavaScriptAdapter {
         {
             passed.ending = ScriptEnding::Diverged { position };
         }
+        let passed = whole(&mut script, passed)?;
         Ok((LiveScript { script }, passed))
     }
 
@@ -351,9 +407,12 @@ fn project_worker_outcome(
                 worker_observations(outcome.execution_boundary),
             ),
         ),
-        supervisor::WorkerInvocationResult::Passed { .. } => Err(RuntimeError::JavaScriptWorker {
-            message: "the worker answered a tool with a script pass".to_owned(),
-        }),
+        supervisor::WorkerInvocationResult::Passed { .. }
+        | supervisor::WorkerInvocationResult::OutputPart(_) => {
+            Err(RuntimeError::JavaScriptWorker {
+                message: "the worker answered a tool with a script's answer".to_owned(),
+            })
+        }
     }
 }
 

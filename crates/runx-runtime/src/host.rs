@@ -33,6 +33,13 @@ pub trait Host {
         false
     }
 
+    /// Whether this host's agent is handed each call's result as it settles:
+    /// an attached session's, which answers the call with it. Its record is
+    /// durable before it's handed over.
+    fn answers_each_call(&self) -> bool {
+        false
+    }
+
     /// Whether this pass only records what a call already did. A stop keeps
     /// a driver from admitting any further step or call, never from
     /// recording what one did, so such a pass re-enters the step it is

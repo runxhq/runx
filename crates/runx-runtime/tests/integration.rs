@@ -26,6 +26,7 @@ mod license_boundary;
 mod managed_chat_completions;
 mod mcp_server;
 mod memory_handles;
+mod memory_horizon;
 mod parity;
 mod policy_approval;
 mod process_invocation_contract;

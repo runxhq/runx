@@ -6781,8 +6781,14 @@
         {
           "additionalProperties": false,
           "properties": {
+            "output": {
+              "additionalProperties": {},
+              "description": "The call's output its record holds: every field but those `outputs` names.",
+              "minProperties": 1,
+              "type": "object"
+            },
             "outputs": {
-              "description": "The call's output as project artifacts of its run: one per packet output, and one for the rest.",
+              "description": "The call's output a project artifact of its run holds, one each: each packet output, and a script's field past its inline bound.",
               "items": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutput"
               },
@@ -7029,18 +7035,19 @@
     },
     "RunCallOutput": {
       "additionalProperties": false,
-      "description": "A project artifact holding part of a call's output.",
+      "description": "A project artifact holding one field of a call's output.",
       "properties": {
         "artifact": {
           "$ref": "https://schemas.runx.ai/runx/artifact/v1.json"
         },
         "output": {
-          "description": "The packet output it holds; absent on the artifact of the call's other outputs.",
+          "description": "The output field it holds.",
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
+        "output",
         "artifact"
       ],
       "title": "RunCallOutput",

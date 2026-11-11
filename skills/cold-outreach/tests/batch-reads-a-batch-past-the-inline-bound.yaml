@@ -1,0 +1,127 @@
+name: batch-reads-a-batch-past-the-inline-bound
+# Twenty facts of about 4,000 characters on casey's lead put the batch past
+# 64 KiB, so each lead reaches the script as a reference.
+method: batch
+inputs:
+  campaign: release-review-2026-11
+  sender: {name: Example Ops, from_address: ops@example.com, reply_to: ops@example.com}
+  audience: engineering maintainers
+  purpose: Offer a relevant release-automation review using the supplied fictional fixture facts.
+  offer: A source-bound build notification workflow.
+  required_footer: Example Ops - reply to opt out.
+  criteria:
+  - {id: industry, description: Works for a B2B software company., required: true}
+  requested_fields: [person.name, company.industry]
+  as_of: '2026-11-01T00:00:00Z'
+  leads:
+  - id: morgan
+    subject: {id: 'person:morgan', kind: person}
+    sources:
+    - source_id: crm:morgan
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      subject_id: person:morgan
+      observed_at: '2026-10-30T00:00:00Z'
+      match_confidence: high
+      facts:
+      - {field: person.name, value: Morgan}
+      - {field: company.industry, value: B2B software}
+    prospect: {email: Morgan@Example.org, name: Morgan, company: Example SaaS}
+    contact_policy: {recipient: Morgan@Example.org, status: eligible, suppressed: false, policy_id: fixture:demo, evidence_ids: [fixture:explicit-demo-consent]}
+    facts: [The fictional prospect is evaluating release automation., The fictional product supports source-bound build notifications.]
+  - id: riley
+    subject: {id: 'person:riley', kind: person}
+    sources:
+    - source_id: crm:riley
+      source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      subject_id: person:riley
+      observed_at: '2026-10-30T00:00:00Z'
+      match_confidence: high
+      facts:
+      - {field: company.industry, value: B2B software}
+    prospect: {email: riley@example.net, company: Example Cloud}
+    contact_policy: {recipient: riley@example.net, status: unknown, suppressed: false, policy_id: fixture:demo, evidence_ids: [fixture:no-recorded-consent]}
+    facts: [The fictional prospect publishes release notes.]
+  - id: casey
+    subject: {id: 'person:casey', kind: person}
+    sources:
+    - source_id: crm:casey
+      source_digest: not-a-digest
+      subject_id: person:casey
+      observed_at: '2026-10-30T00:00:00Z'
+      match_confidence: high
+      facts:
+      - {field: company.industry, value: B2B software}
+    prospect: {email: casey@example.com}
+    contact_policy: {recipient: casey@example.com, status: eligible, suppressed: false, policy_id: fixture:demo, evidence_ids: [fixture:explicit-demo-consent]}
+    facts:
+    - &long "The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is evaluating release automation across many teams and services. The fictional prospect is eval."
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+    - *long
+host:
+  answers:
+    assess:
+      assessment_draft:
+        assessments:
+        - {criterion_id: industry, status: met, rationale: The admitted company industry is B2B software., fact_fields: [company.industry]}
+    draft:
+      content_draft:
+        decision: ready
+        content_brief: {objective: Offer a relevant release-automation review using the supplied fictional fixture facts., audience: engineering maintainers, channel: email}
+        draft:
+          title: Source-bound build notifications for your release work
+          body: 'Morgan, you are evaluating release automation. Our workflow sends build notifications bound to their source. Would a short walkthrough help?
+
+
+            Example Ops - reply to opt out.'
+          claims:
+          - claim: The prospect is evaluating release automation, and the product supports source-bound build notifications.
+            source_digests: ['sha256:b181b461c20de4db9d9d93be512dfe728eae6ce10521808bc880f2a6a51a8fba']
+        review_checklist: [Confirm current contact eligibility before any send.]
+        distribution_notes: {primary_channel: email}
+        context_binding: {applied: []}
+expect:
+  status: sealed
+  steps: [batch]
+  output:
+    subset:
+      outcomes:
+      - lead: morgan
+        idempotency_key: cold-outreach/release-review-2026-11/morgan@example.org
+        status: fulfilled
+        outreach_review:
+          decision: ready_for_review
+          recipient: Morgan@Example.org
+          draft_status: prepared
+          draft: {subject: Source-bound build notifications for your release work}
+          delivery_status: not_sent
+      - lead: riley
+        idempotency_key: cold-outreach/release-review-2026-11/riley@example.net
+        status: fulfilled
+        outreach_review:
+          decision: hold
+          draft_status: withheld
+          draft: null
+          delivery_status: not_sent
+          blockers: [lead qualification does not support outreach, contact eligibility is unknown]
+      - lead: casey
+        idempotency_key: cold-outreach/release-review-2026-11/casey@example.com
+        status: rejected
+        rejection: {stage: enrich, reason: failed}
+  receipt: {schema: runx.receipt.v1}

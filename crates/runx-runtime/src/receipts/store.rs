@@ -26,15 +26,54 @@ pub(crate) const STORE_LOCK_FILE_NAME: &str = ".receipt-store.lock";
 const SHA256_RECEIPT_ID_PREFIX: &str = "sha256:";
 const SHA256_RECEIPT_FILE_PREFIX: &str = "sha256-";
 
+/// A directory of receipt files. A run's receipts are a copy of its sealed
+/// record, written as it seals without a sync of their own: the record, its
+/// commits durable, is what holds them. With that record beside it, a read
+/// by a receipt's id restores the files of its run that a power cut lost or
+/// tore, from the record, before it reads. A receipt no run sealed, such as
+/// a refusal before a run began, is durable as its own file.
 #[derive(Clone, Debug)]
 pub struct LocalReceiptStore {
     root: PathBuf,
+    record: Option<std::sync::Arc<crate::kernel::store::KernelStore>>,
 }
 
 impl LocalReceiptStore {
     #[must_use]
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self {
+            root: root.into(),
+            record: None,
+        }
+    }
+
+    /// The receipt directory `root` of the project at `paths`, reading the
+    /// receipts its runs sealed back from their record where it has one.
+    #[must_use]
+    pub fn of_project(root: impl Into<PathBuf>, paths: &crate::paths::RunxPaths) -> Self {
+        let store = Self::new(root);
+        let recorded = paths
+            .project()
+            .join(crate::kernel::store::KERNEL_STORE_FILE)
+            .is_file();
+        match recorded
+            .then(|| crate::kernel::store::KernelStore::for_project(paths))
+            .and_then(Result::ok)
+        {
+            Some(record) => store.with_record(record),
+            None => store,
+        }
+    }
+
+    /// This store, reading the receipts a run sealed back from `record`, the
+    /// kernel store its runs record in, wherever a file is lost or torn.
+    #[must_use]
+    pub(crate) fn with_record(
+        mut self,
+        record: std::sync::Arc<crate::kernel::store::KernelStore>,
+    ) -> Self {
+        self.record = Some(record);
+        self
     }
 
     #[must_use]
@@ -52,8 +91,84 @@ impl LocalReceiptStore {
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<Receipt, ReceiptStoreError> {
         let file_path = self.receipt_path(receipt_id)?;
-        self.ensure_store_dir()?;
-        read_receipt_file(&file_path, receipt_id, signature_policy)
+        let read = || {
+            self.ensure_store_dir()?;
+            read_receipt_file(&file_path, receipt_id, signature_policy)
+        };
+        match read() {
+            Err(_) if self.restore_beside(receipt_id)? => read(),
+            read => read,
+        }
+    }
+
+    /// Write the receipts a run sealed, as a copy of its record: each file
+    /// whole, without a sync of its own, and one a power cut tore written
+    /// again. The store's own mark is durable before the first.
+    pub(crate) fn write_sealed<'a>(
+        &self,
+        receipts: impl IntoIterator<Item = &'a Receipt>,
+        signature_policy: RuntimeReceiptSignaturePolicy<'_>,
+    ) -> Result<(), ReceiptStoreError> {
+        let mut receipts = receipts.into_iter().peekable();
+        if receipts.peek().is_none() {
+            return Ok(());
+        }
+        self.ensure_or_create_store_dir()?;
+        self.ensure_own_store()?;
+        let _lock = self.lock_mutations()?;
+        self.claim_for_write()?;
+        let mut written = BTreeSet::new();
+        let mut index_entries = Vec::new();
+        for receipt in receipts {
+            let receipt_id = receipt.id.to_string();
+            if !written.insert(receipt_id.clone()) {
+                continue;
+            }
+            let file_name = receipt_file_name(&receipt_id)?;
+            let file_path = self.root.join(&file_name);
+            let contents = serde_json::to_vec(receipt).map_err(|source| {
+                ReceiptStoreError::MalformedReceipt {
+                    path: file_path.clone(),
+                    message: source.to_string(),
+                }
+            })?;
+            verify_stored_receipt_proof(&file_path, receipt, signature_policy)?;
+            if fs::read(&file_path).ok().as_deref() != Some(contents.as_slice()) {
+                write_atomic_cache(&self.root, &file_name, &contents)?;
+            }
+            index_entries.push(index_entry(receipt)?);
+        }
+        self.update_index_after_writes(&index_entries)
+    }
+
+    /// Restore, from the record, every receipt file of the run tree that
+    /// sealed `receipt_id` that isn't its record's bytes: lost, or torn,
+    /// whose digest fails. Whether the record holds `receipt_id`.
+    fn restore_beside(&self, receipt_id: &str) -> Result<bool, ReceiptStoreError> {
+        let Some(record) = &self.record else {
+            return Ok(false);
+        };
+        let unreadable =
+            |error: crate::kernel::store::KernelStoreError| ReceiptStoreError::StoreUnreadable {
+                path: self.root.clone(),
+                source: std::io::Error::other(error.to_string()),
+            };
+        let beside = record.receipts_beside(receipt_id).map_err(unreadable)?;
+        if beside.is_empty() {
+            return Ok(false);
+        }
+        self.ensure_or_create_store_dir()?;
+        self.ensure_own_store()?;
+        let _lock = self.lock_mutations()?;
+        self.claim_for_write()?;
+        for (id, digest) in beside {
+            let file_name = receipt_file_name(&id)?;
+            let contents = record.blob(&digest).map_err(unreadable)?;
+            if fs::read(self.root.join(&file_name)).ok().as_deref() != Some(contents.as_slice()) {
+                write_atomic_cache(&self.root, &file_name, &contents)?;
+            }
+        }
+        Ok(true)
     }
 
     pub fn write_receipt(
@@ -219,8 +334,14 @@ impl LocalReceiptStore {
 
     pub fn read_exact_without_proof(&self, receipt_id: &str) -> Result<Receipt, ReceiptStoreError> {
         let file_path = self.receipt_path(receipt_id)?;
-        self.ensure_store_dir()?;
-        read_receipt_file_without_proof(&file_path, receipt_id)
+        let read = || {
+            self.ensure_store_dir()?;
+            read_receipt_file_without_proof(&file_path, receipt_id)
+        };
+        match read() {
+            Err(_) if self.restore_beside(receipt_id)? => read(),
+            read => read,
+        }
     }
 
     pub fn rebuild_index(
@@ -364,8 +485,14 @@ impl LocalReceiptStore {
     }
 
     /// Write the whole index, header and entries, in place of whatever was
-    /// there: a rebuild's, never an append's.
+    /// there: a rebuild's, never an append's. A rebuilt index is a
+    /// projection of the receipts, so it isn't synced.
     fn write_index(&self, index: &ReceiptStoreIndex) -> Result<(), ReceiptStoreError> {
+        write_atomic_cache(&self.root, INDEX_FILE_NAME, &self.index_bytes(index)?)
+    }
+
+    /// The index's bytes: its header, then each entry, a line each.
+    fn index_bytes(&self, index: &ReceiptStoreIndex) -> Result<Vec<u8>, ReceiptStoreError> {
         let malformed = |source: serde_json::Error| ReceiptStoreError::MalformedIndex {
             path: self.index_path(),
             message: source.to_string(),
@@ -387,7 +514,7 @@ impl LocalReceiptStore {
             crate::work_counts::Work::ReceiptIndexEntryWritten,
             index.entries.len(),
         );
-        write_atomic_cache(&self.root, INDEX_FILE_NAME, &contents)
+        Ok(contents)
     }
 
     fn index_path(&self) -> PathBuf {
@@ -449,16 +576,19 @@ impl LocalReceiptStore {
     /// Claim the store for a write, under its lock: one of this runx's own,
     /// checked again now that no other write can change it, whose index a
     /// new one is given before its first receipt, so a reader never finds a
-    /// receipt this runx wrote without the index that marks it.
+    /// receipt this runx wrote without the index that marks it. That index
+    /// is the store's mark, so it's durable before any receipt is: a power
+    /// cut never leaves a receipt without it.
     fn claim_for_write(&self) -> Result<(), ReceiptStoreError> {
         self.ensure_own_store()?;
         if self.index_path().exists() {
             return Ok(());
         }
-        self.write_index(&ReceiptStoreIndex {
+        let marked = self.index_bytes(&ReceiptStoreIndex {
             schema: RECEIPT_STORE_INDEX_SCHEMA.to_owned(),
             entries: Vec::new(),
-        })
+        })?;
+        write_atomic(&self.root, INDEX_FILE_NAME, &marked)
     }
 
     fn ensure_or_create_store_dir(&self) -> Result<(), ReceiptStoreError> {
@@ -691,6 +821,11 @@ impl LocalReceiptStore {
         receipt_id: Option<&str>,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<StoreTreeVerification, ReceiptStoreError> {
+        // The tree of the receipt asked for is read whole, from its record
+        // where a file was lost or torn.
+        if let Some(receipt_id) = receipt_id {
+            self.restore_beside(receipt_id)?;
+        }
         self.ensure_store_dir()?;
         let unreadable_store = |source| ReceiptStoreError::StoreUnreadable {
             path: self.root.clone(),
@@ -1052,10 +1187,15 @@ fn write_atomic_batch(dir: &Path, entries: &[(String, Vec<u8>)]) -> Result<(), R
             });
         }
     }
-    sync_directory(dir).map_err(|source| ReceiptStoreError::StoreUnreadable {
+    crate::durable::sync_directory(dir).map_err(|source| ReceiptStoreError::StoreUnreadable {
         path: dir.to_path_buf(),
         source,
-    })
+    })?;
+    #[cfg(feature = "crash-points")]
+    for (file_name, _) in entries {
+        crate::crash::file_synced(&dir.join(file_name));
+    }
+    Ok(())
 }
 
 fn write_atomic_with(
@@ -1069,13 +1209,23 @@ fn write_atomic_with(
     let final_path = dir.join(file_name);
     let write_result = write_temp_file(&temp_path, contents, durable)
         .and_then(|()| fs::rename(&temp_path, &final_path))
-        .and_then(|()| if durable { sync_directory(dir) } else { Ok(()) });
+        .and_then(|()| {
+            if durable {
+                crate::durable::sync_directory(dir)
+            } else {
+                Ok(())
+            }
+        });
     if let Err(source) = write_result {
         let _ignored = fs::remove_file(&temp_path);
         return Err(ReceiptStoreError::StoreUnreadable {
             path: final_path,
             source,
         });
+    }
+    #[cfg(feature = "crash-points")]
+    if durable {
+        crate::crash::file_synced(&final_path);
     }
     Ok(())
 }
@@ -1092,24 +1242,9 @@ fn write_temp_file(path: &Path, contents: &[u8], durable: bool) -> Result<(), st
     file.write_all(contents)?;
     file.flush()?;
     if durable {
-        file.sync_all()?;
+        crate::durable::sync_file(&file)?;
     }
     Ok(())
-}
-
-fn sync_directory(path: &Path) -> Result<(), std::io::Error> {
-    // On Windows, opening a directory handle and calling sync_all fails with
-    // ERROR_ACCESS_DENIED (os error 5). Receipt bytes are already durable via
-    // file.sync_all() in write_temp_file; skip directory fsync on Windows.
-    #[cfg(windows)]
-    {
-        let _ = path;
-        return Ok(());
-    }
-    #[cfg(not(windows))]
-    {
-        File::open(path)?.sync_all()
-    }
 }
 
 fn temp_file_name(file_name: &str) -> String {

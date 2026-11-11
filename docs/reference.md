@@ -212,7 +212,12 @@ can also go straight into a call's input, where the callee is given its
 content, with no read. A script's output may hold
 references at any depth, each given back as the content it names; one that
 names no artifact a call of the step returned, or no input of the step, fails
-the step, naming where the output holds it. A replay starts the script with its
+the step, naming where the output holds it. An output past the 4 MiB one answer
+of the worker carries comes to runx in parts of at most 2 MiB, each ending on a
+character, and the step keeps it as it keeps any output: the run's record holds
+it by the digest of the step's record, and the receipt by its outcome's
+digest. So a script's output has no size of its own to fit, only the worker's
+64 MiB of memory, which holds the value, its JSON and what built them. A replay starts the script with its
 inputs and the clock its record read, and gives it the rest of its record in
 the frames that follow, at most 2 MiB a frame and a larger read alone, so a
 record of any length replays.
@@ -324,15 +329,32 @@ digest is not its content's, or that leaves the artifact store, is refused.
 An input explicitly typed `runx.artifact.v1` receives the descriptor
 itself; it is not automatically dereferenced. The child can then open its exact
 retained content through `artifact.open` with the required scope and bounds.
+A skill call may request `reuse: {max_age_seconds: 604800}` in its call options.
+An eligible managed source is reused only under the same resolved inputs and
+child context. Native reads of mutable local state, including run history,
+are made again and compared; a capability that only transforms supplied
+evidence retains its original observation stamp. Provider reads keep the
+requested age bound only when their confirmed instance binding,
+implementation and presented credential match. Missing identity evidence
+recomputes the result. The receipt names a reused source, and the record says
+why a candidate recomputed.
+
+An attached call's completed result and receipt are committed durably before
+the host receives its answer, even while the turn stays open.
+
 A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses, and a key means one
 intent: a write under a key whose act is already done sends nothing, and
 returns what was done, its packet's `already_done` naming the receipt that
 sealed the act and the `plan_digest` it was done with, which may not be the
-plan the later call carries. A write its provider refused can be tried again
+plan the later call carries. That recorded result is returned only under the
+same confirmed instance and implementation that produced it; a changed binding
+is refused. An `already_done` call records zero newly settled provider charge.
+A write its provider refused can be tried again
 under the same key. A call whose outcome runx cannot confirm stays pending on
-its own retry request, at `<step>/<n>/retry`, which says whether sending it
+its own retry request, at `<step>/<n>/retry`, or a fixed step's at
+`<step>/retry`, which says whether sending it
 again is safe (`resend`: a free read runx carries out itself, a journaled file
 change, or a call its provider deduplicates, including billed usage; a read a
 process carries out, or a priced read its provider doesn't deduplicate, is
@@ -347,7 +369,13 @@ priced read's earlier attempt keeps what it spent while the new one counts
 under the limit; `{"retry": false}` leaves it failed with `retry_declined`,
 which a script catches as its `code`, and its act as custody holds it, so a
 later run trying that key waits on it again. Neither closes the run, and the
-run's other calls go on. A bounded retry (one with `retry_after_seconds`) is
+run's other calls go on. A call of an act whose attempt of another intent or
+mandate stands unsettled, an earlier body under the same key, is held the
+same way, as a wait on its own retry while the run's other calls go on: it
+goes once that attempt settles, done or refused, and a person's `{"retry":
+true}` says an attempt with no evidence didn't take effect, so this call
+goes instead. An attempt that read back what it did took effect, so it holds
+the call until its own recovery settles it, and the act is then done. A bounded retry (one with `retry_after_seconds`) is
 runx's own: the next resume after its delay runs it. A call that needs approval stays pending until `runx resume`
 answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,

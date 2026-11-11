@@ -3543,19 +3543,15 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
         .receipt_ids
         .first()
         .ok_or("missing workflow receipt")?;
+    // A receipt file is a copy of the sealed record: one whose bytes aren't
+    // the record's, torn or tampered, is written again from the record, and
+    // the sealed run returns what it sealed without running again.
     let receipt_path = LocalReceiptStore::new(&receipt_dir).receipt_path(receipt_id)?;
-    fs::write(receipt_path, b"{}")?;
-    let error = run_skill(request)
-        .err()
-        .ok_or("tampered sealed receipt must hold")?;
-    // The content-addressed store refuses the tampered bytes before recovery
-    // trusts them, so the sealed step holds instead of rerunning.
-    assert!(
-        error
-            .to_string()
-            .contains("receipt already exists with different content"),
-        "{error}"
-    );
+    let sealed = fs::read(&receipt_path)?;
+    fs::write(&receipt_path, b"{}")?;
+    let restored = run_skill(request)?;
+    assert_eq!(restored.output, result.output);
+    assert_eq!(fs::read(&receipt_path)?, sealed);
     assert_eq!(fs::read_to_string(count_file)?, "1");
 
     Ok(())

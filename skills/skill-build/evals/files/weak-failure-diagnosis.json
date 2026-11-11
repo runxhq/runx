@@ -1,0 +1,14 @@
+{
+  "about": "The diagnosis a prior run returned for this skill, which carries no receipt and no reproducible test output.",
+  "objective": "Decide whether weak evidence warrants a package change",
+  "repo_root": ".",
+  "target_dir": "skills/not-present",
+  "failure_packet": {
+    "verdict": "blocked",
+    "failure_summary": "The report has no receipt or reproducible test output.",
+    "improvement_proposals": [],
+    "next_test_checks": [
+      "Reproduce the report with a sealed receipt before changing the package."
+    ]
+  }
+}

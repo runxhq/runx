@@ -1,0 +1,120 @@
+{
+  "about": "The Search Console, analytics, site and market evidence connector skills already normalized for the Runx guides, with the gaps their reads left.",
+  "collection_notes": [
+    "Prior source-read gaps must survive reuse."
+  ],
+  "objective": "Improve qualified organic acquisition for the Runx guides.",
+  "site_url": "https://example.com/",
+  "search_evidence": {
+    "schema": "runx/google-search-console.performance_evidence.v1",
+    "decision": "ready",
+    "provider": "google-search-console",
+    "provider_status": "readback_verified",
+    "source_status": "provider_readback",
+    "property": "https://example.com/",
+    "request": {
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-30",
+      "dimensions": [
+        "page"
+      ],
+      "search_type": "web",
+      "data_state": "final"
+    },
+    "rows": [
+      {
+        "dimensions": {
+          "page": "https://example.com/guides/runx"
+        },
+        "metrics": {
+          "clicks": 42,
+          "impressions": 600,
+          "ctr": 0.07,
+          "position": 4.2
+        }
+      }
+    ],
+    "row_count": 1,
+    "pagination": {
+      "complete": true,
+      "returned_rows": 1
+    },
+    "freshness": {
+      "complete": true,
+      "data_state": "final"
+    },
+    "caveats": [],
+    "validation": {
+      "status": "pass",
+      "findings": []
+    },
+    "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "analytics_evidence": {
+    "schema": "runx/google-analytics.report_evidence.v1",
+    "decision": "ready",
+    "provider": "google-analytics",
+    "provider_status": "readback_verified",
+    "source_status": "provider_readback",
+    "property": "properties/123456",
+    "report_type": "standard",
+    "request": {
+      "date_ranges": [
+        {
+          "start_date": "2026-06-01",
+          "end_date": "2026-06-30"
+        }
+      ],
+      "dimensions": [
+        "landingPagePlusQueryString",
+        "sessionDefaultChannelGroup"
+      ],
+      "metrics": [
+        "sessions",
+        "keyEvents"
+      ]
+    },
+    "rows": [
+      {
+        "dimensions": {
+          "landingPagePlusQueryString": "/guides/runx",
+          "sessionDefaultChannelGroup": "Organic Search"
+        },
+        "metrics": {
+          "sessions": 120,
+          "keyEvents": 9
+        }
+      }
+    ],
+    "row_count": 1,
+    "pagination": {
+      "complete": true,
+      "returned_rows": 1
+    },
+    "measurement": {
+      "time_zone": "Australia/Sydney"
+    },
+    "privacy": {
+      "subject_to_thresholding": false,
+      "data_loss_from_other_row": false
+    },
+    "caveats": [],
+    "validation": {
+      "status": "pass",
+      "findings": []
+    },
+    "evidence_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "site_evidence": [
+    {
+      "source_uri": "https://example.com/guides/runx",
+      "kind": "first_party_page",
+      "content_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "summary": "The guide explains installation but has no direct comparison table, author date, or linked implementation evidence."
+    }
+  ],
+  "business_context": {
+    "primary_outcome": "qualified product evaluation",
+    "audience": "engineering operators"
+  }
+}

@@ -249,6 +249,13 @@ impl WorkerSession {
             } if protocol_version == PROTOCOL_VERSION && response_id == invocation_id => {
                 Ok(WorkerInvocationResult::Passed { calls, ending })
             }
+            WorkerResponse::OutputPart {
+                protocol_version,
+                invocation_id: response_id,
+                json,
+            } if protocol_version == PROTOCOL_VERSION && response_id == invocation_id => {
+                Ok(WorkerInvocationResult::OutputPart(json))
+            }
             WorkerResponse::Failure {
                 protocol_version,
                 invocation_id: Some(response_id),

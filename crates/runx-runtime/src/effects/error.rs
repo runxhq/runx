@@ -18,6 +18,15 @@ pub enum RuntimeEffectError {
     /// A person declined the approval the call waited on.
     #[error("effect family {family}: a person declined: {message}")]
     Declined { family: String, message: String },
+    /// An unsettled attempt of the act, of another intent, holds the call:
+    /// it waits on its retry while that attempt, `plan_digest`, settles.
+    #[error("effect family {family}: the call is held: {message}")]
+    Held {
+        family: String,
+        plan_digest: String,
+        idempotency_key: String,
+        message: String,
+    },
     /// The call would spend more than is left of the run's money limit.
     #[error("effect family {family} refused a call over the run's money limit: {message}")]
     CostLimitExceeded { family: String, message: String },

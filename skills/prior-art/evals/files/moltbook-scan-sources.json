@@ -1,0 +1,38 @@
+{
+  "about": "The bounded source set and catalog evidence a prior step gathered for this design decision.",
+  "objective": "Add a Moltbook opportunity scan to an existing governed pipeline.",
+  "decomposition": {
+    "objective_summary": "Add a Moltbook opportunity scan step.",
+    "orchestration_steps": [
+      {
+        "id": "scan",
+        "skill": "../moltbook",
+        "method": "scan"
+      }
+    ],
+    "required_skills": [
+      {
+        "name": "moltbook",
+        "exists": true
+      }
+    ]
+  },
+  "sources": [
+    {
+      "path": "skills/moltbook/run.yaml",
+      "excerpt": "methods: scan-provider reads Moltbook newest posts and finds at most one opportunity, cited to its posts; scan finds at most one opportunity in a feed snapshot already captured, for replay or offline work, from objective, community_context and feed_snapshot; post drafts a post for the opportunity a scan chose; publish publishes a drafted post once after exact approval."
+    }
+  ],
+  "catalog": [
+    {
+      "skill": "moltbook",
+      "exists": true,
+      "methods": [
+        "scan-provider",
+        "scan",
+        "post",
+        "publish"
+      ]
+    }
+  ]
+}

@@ -6,6 +6,19 @@
       "prompt": "Reconcile this call transcript against the CRM records and propose the field updates.",
       "expected_output": "Return allowlisted field updates, each traced to a verbatim transcript quote, with no CRM write performed.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Reconcile the transcript and CRM record already captured.",
+      "expected_output": "One reviewable proposal for acct-globex, account_status changed to reflect the stalled rollout and the renewal at risk, and next_action set to sending the Q3 usage report by Friday, each change traced to its quote in the transcript, with nothing written.",
+      "files": [
+        "evals/files/globex-call-and-record.json"
+      ],
+      "expectations": [
+        "It does not fetch or look up the CRM record again.",
+        "It applies no write."
+      ],
+      "method": "reconcile"
     }
   ]
 }

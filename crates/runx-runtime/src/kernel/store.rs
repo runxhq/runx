@@ -104,6 +104,16 @@ pub struct Append {
     event_type: &'static str,
     data: Vec<u8>,
     blobs: Vec<Blob>,
+    receipts: Vec<IndexedReceipt>,
+}
+
+/// A receipt a commit seals, by its id: the run it belongs to and the blob
+/// that holds it, so a reader with only the id finds it in the record.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct IndexedReceipt {
+    pub(crate) id: String,
+    pub(crate) run_id: String,
+    pub(crate) digest: String,
 }
 
 impl Append {
@@ -111,6 +121,17 @@ impl Append {
     #[must_use]
     pub fn with_blobs(mut self, blobs: impl IntoIterator<Item = Blob>) -> Self {
         self.blobs.extend(blobs);
+        self
+    }
+
+    /// Index these receipts, each among this append's blobs, by their ids,
+    /// in the commit that seals them.
+    #[must_use]
+    pub(crate) fn with_receipts(
+        mut self,
+        receipts: impl IntoIterator<Item = IndexedReceipt>,
+    ) -> Self {
+        self.receipts.extend(receipts);
         self
     }
 
@@ -143,6 +164,7 @@ impl Append {
             event_type: event.event_type(),
             data,
             blobs: Vec::new(),
+            receipts: Vec::new(),
         })
     }
 }
@@ -205,7 +227,7 @@ pub enum KernelStoreError {
     #[error("kernel store at {path} is not a runx kernel store")]
     Foreign { path: PathBuf },
     #[error(
-        "kernel store at {path} is from before runx 0.12, which 0.12 doesn't read; move it aside to start a new store"
+        "kernel store at {path} is from an earlier runx, which this one doesn't read; move it aside to start a new store"
     )]
     BeforeThisRunx { path: PathBuf },
     #[error("kernel store at {path} failed while {operation}: {source}")]
@@ -226,6 +248,29 @@ pub enum KernelStoreError {
 impl KernelStoreError {
     fn encode(error: serde_json::Error) -> Self {
         Self::Codec(error.to_string())
+    }
+}
+
+/// How durable a commit is when its append returns. A commit nothing
+/// outside the process learns of before the next durable one is ordered: a
+/// run's progress between the points it reaches the world and those it
+/// answers its host, which are durable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Durability {
+    /// On the disk: SQLite syncs its log at the commit, with the full flush.
+    Durable,
+    /// In order: written to the log after every earlier commit, so a power
+    /// cut loses it only with every later one, and durable with the next
+    /// durable commit, which syncs the log through it.
+    Ordered,
+}
+
+impl Durability {
+    fn synchronous(self) -> &'static str {
+        match self {
+            Self::Durable => "FULL",
+            Self::Ordered => "NORMAL",
+        }
     }
 }
 
@@ -300,9 +345,19 @@ impl KernelStore {
         project
     }
 
-    /// Append every event or none. Each stream must still be at the version
-    /// its writer expected; any mismatch refuses the whole batch.
+    /// Append every event or none, durably: the commit is on the disk before
+    /// this returns. Each stream must still be at the version its writer
+    /// expected; any mismatch refuses the whole batch.
     pub(crate) fn append(&self, batch: Vec<Append>) -> Result<Vec<u64>, KernelStoreError> {
+        self.append_as(batch, Durability::Durable)
+    }
+
+    /// Append every event or none, as `durability` says.
+    pub(crate) fn append_as(
+        &self,
+        batch: Vec<Append>,
+        durability: Durability,
+    ) -> Result<Vec<u64>, KernelStoreError> {
         if batch.is_empty() || batch.len() > MAX_BATCH {
             return Err(KernelStoreError::InvalidBatch);
         }
@@ -316,6 +371,11 @@ impl KernelStore {
         }
         let committed_at = crate::time::now_iso8601();
         let mut connection = self.lock();
+        // A connection's sync level holds for each commit it makes after,
+        // and can't change inside a transaction.
+        connection
+            .pragma_update(None, "synchronous", durability.synchronous())
+            .map_err(|source| self.database("choosing the commit's durability", source))?;
         let _open = crate::work_counts::OpenTransaction::begin();
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -398,12 +458,26 @@ impl KernelStore {
                     )
                     .map_err(|source| self.database("storing a blob", source))?;
             }
+            for receipt in &append.receipts {
+                transaction
+                    .execute(
+                        "INSERT INTO kernel_receipts (receipt_id, tree, digest) VALUES (?1, ?2, ?3)
+                         ON CONFLICT (receipt_id) DO NOTHING",
+                        params![receipt.id, tree_of(&receipt.run_id), receipt.digest],
+                    )
+                    .map_err(|source| self.database("indexing a receipt", source))?;
+            }
             versions.push(version);
         }
         transaction
             .commit()
             .map_err(|source| self.database("committing a batch", source))?;
         crate::work_counts::count(crate::work_counts::Work::StoreWrite);
+        if durability == Durability::Durable {
+            crate::work_counts::count(crate::work_counts::Work::DurableWrite);
+            #[cfg(feature = "crash-points")]
+            crate::crash::store_synced(&self.path);
+        }
         Ok(versions)
     }
 
@@ -694,6 +768,42 @@ impl KernelStore {
                 digest: digest.to_owned(),
             }),
         }
+    }
+
+    /// Every receipt the record holds of the run tree the receipt `id`
+    /// belongs to, by id with the blob that holds it; none when the record
+    /// holds no receipt by that id.
+    pub(crate) fn receipts_beside(
+        &self,
+        id: &str,
+    ) -> Result<Vec<(String, String)>, KernelStoreError> {
+        let connection = self.lock();
+        let tree = connection
+            .query_row(
+                "SELECT tree FROM kernel_receipts WHERE receipt_id = ?1",
+                params![id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|source| self.database("finding a receipt", source))?;
+        crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+        let Some(tree) = tree else {
+            return Ok(Vec::new());
+        };
+        let mut statement = connection
+            .prepare("SELECT receipt_id, digest FROM kernel_receipts WHERE tree = ?1 ORDER BY receipt_id")
+            .map_err(|source| self.database("listing a run's receipts", source))?;
+        let rows = statement
+            .query_map(params![tree], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|source| self.database("listing a run's receipts", source))?;
+        let mut receipts = Vec::new();
+        for row in rows {
+            receipts.push(row.map_err(|source| self.database("listing a run's receipts", source))?);
+            crate::work_counts::count(crate::work_counts::Work::StoreRowRead);
+        }
+        Ok(receipts)
     }
 
     /// A blob decoded as JSON.

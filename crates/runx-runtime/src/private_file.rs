@@ -78,7 +78,7 @@ pub(crate) fn replace_private(path: &Path, contents: &[u8]) -> Result<(), Privat
         let _ = std::fs::remove_file(&staged);
     }
     written?;
-    platform::sync_directory(directory)
+    sync_directory(directory)
 }
 
 /// Create `path` with `contents` unless it already exists, in which case
@@ -87,7 +87,7 @@ pub(crate) fn create_private_new(path: &Path, contents: &[u8]) -> Result<bool, P
     match platform::create_private(path) {
         Ok(mut file) => {
             file.write_all(contents)
-                .and_then(|()| file.sync_all())
+                .and_then(|()| crate::durable::sync_file(&file))
                 .map_err(|error| io_fault(&error))?;
             Ok(true)
         }
@@ -100,7 +100,7 @@ pub(crate) fn create_private_new(path: &Path, contents: &[u8]) -> Result<bool, P
 pub(crate) fn write_new(path: &Path, contents: &[u8]) -> Result<(), PrivateFileFault> {
     let mut file = platform::create_private(path)?;
     file.write_all(contents)
-        .and_then(|()| file.sync_all())
+        .and_then(|()| crate::durable::sync_file(&file))
         .map_err(|error| io_fault(&error))
 }
 
@@ -122,7 +122,12 @@ pub(crate) fn staged_path(path: &Path) -> Result<std::path::PathBuf, PrivateFile
     Ok(path.with_file_name(format!(".{name}.{suffix}.tmp")))
 }
 
-pub(crate) use platform::{ensure_private_directory, sync_directory};
+pub(crate) use platform::ensure_private_directory;
+
+/// Make the names `directory` holds durable, as every store does.
+pub(crate) fn sync_directory(directory: &Path) -> Result<(), PrivateFileFault> {
+    crate::durable::sync_directory(directory).map_err(|error| io_fault(&error))
+}
 
 #[cfg(unix)]
 mod platform {
@@ -209,12 +214,6 @@ mod platform {
         }
         Ok(Some(file))
     }
-
-    pub(crate) fn sync_directory(directory: &Path) -> Result<(), PrivateFileFault> {
-        File::open(directory)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|error| io_fault(&error))
-    }
 }
 
 /// Windows: plain files in the user's profile, whose permissions keep them
@@ -267,11 +266,6 @@ mod platform {
             return Err(PrivateFileFault::NotAFile);
         }
         File::open(path).map(Some).map_err(|error| io_fault(&error))
-    }
-
-    /// Windows cannot flush a directory; the file's own flush is what holds.
-    pub(crate) fn sync_directory(_directory: &Path) -> Result<(), PrivateFileFault> {
-        Ok(())
     }
 }
 

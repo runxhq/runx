@@ -32,6 +32,32 @@
       "prompt": "Stop if the declared source cannot support this question or its parameter values.",
       "expected_output": "Retain the rejected plan with executed false and perform no query operation. There is no query fixture to answer an accidental call.",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Choose the read that answers the question from the query catalog you are given.",
+      "expected_output": "A bound plan for qualified_trials_by_campaign with since set to 2026-10-01, chosen from the given catalog, within its 50 row limit, and no catalog read or query run.",
+      "files": [
+        "evals/files/qualified-trials-catalog.json"
+      ],
+      "expectations": [
+        "It does not read the catalog again.",
+        "It does not run a query."
+      ],
+      "method": "plan"
+    },
+    {
+      "id": 7,
+      "prompt": "Plan the read against the query catalog already obtained, checking its parameters.",
+      "expected_output": "A plan for the declared read with its since parameter validated against the given catalog schema, and the result described as the catalog does, unattributed campaigns not causal, with no SQL run.",
+      "files": [
+        "evals/files/qualified-trials-catalog.json"
+      ],
+      "expectations": [
+        "It does not obtain the catalog again.",
+        "It runs no SQL."
+      ],
+      "method": "plan"
     }
   ]
 }

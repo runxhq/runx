@@ -22,10 +22,12 @@ export async function sweep(ctx, { subject, memory, phase, repeats, focus }) {
     const set = await ctx.read(criteria);
     cases.push({ kase, criteria: set, criteria_set: { ref: `${memory}/evals/horizon.json#${kase.id}`, revision: set.revision } });
   }
+  const now = ctx.now();
   const attempts = [];
   for (const item of cases) {
+    const question = dated(item.kase.question, now);
     for (let attempt = 0; attempt < repeats; attempt += 1) {
-      const inputs = { question: item.kase.question, ...(focus ? { focus: item.kase.question } : {}) };
+      const inputs = { question, ...(focus ? { focus: question } : {}) };
       const settled = await settle(ctx.skill(ROUTINE, inputs));
       attempts.push({ item, settled, kept: await kept(ctx, item.kase) });
     }
@@ -58,6 +60,14 @@ export async function sweep(ctx, { subject, memory, phase, repeats, focus }) {
       })),
     },
   };
+}
+
+/// A case's question with each `{days_ago:N}` as the date N days before the
+/// run's clock, as its test laid the history's dates down.
+function dated(question, now) {
+  return question.replace(/\{days_ago:(\d+)\}/g, (_, days) =>
+    new Date(now - Number(days) * 86_400_000).toISOString().slice(0, 10),
+  );
 }
 
 /// The checks a case is judged against, each a question that must be

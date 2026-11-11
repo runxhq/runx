@@ -354,7 +354,7 @@ methods:
       memory: {}
       leads:
         type: array
-        description: The leads, each prepared on its own. One lead's hold or failure is that lead's outcome.
+        description: The leads, each prepared on its own. One lead's hold or failure is that lead's outcome. A run's inputs are at most 64 MiB in all, the most its record holds, so 300 leads average at most about 220 KB each.
         minItems: 1
         maxItems: 300
         items:
@@ -462,7 +462,7 @@ methods:
         leads: $input.leads
       calls:
         skills: [../lead-enrichment#enrich, ../lead-qualify#qualify, .#prepare]
-      max_calls: 900
+      max_calls: 1200
       concurrency: 4
       effects: none
       outputs:
@@ -471,10 +471,10 @@ methods:
           items:
             type: object
             additionalProperties: false
-            required: [lead, idempotency_key, status]
+            required: [status]
             properties:
-              lead: {type: string, minLength: 1, maxLength: 1000}
-              idempotency_key: {type: string, minLength: 1}
+              lead: {type: string, minLength: 1, maxLength: 1000, description: "The lead's id. Absent only for a lead the batch couldn't read, which its place in the outcomes names."}
+              idempotency_key: {type: string, minLength: 1, description: "The key the lead's send is made under. Absent only for a lead the batch couldn't read."}
               status: {enum: [fulfilled, rejected]}
               outreach_review: {type: object, additionalProperties: true}
               rejection:
@@ -482,7 +482,7 @@ methods:
                 additionalProperties: false
                 required: [stage, reason, code, message]
                 properties:
-                  stage: {enum: [enrich, qualify, prepare]}
+                  stage: {enum: [read, enrich, qualify, prepare]}
                   reason: {type: string}
                   code: {type: string}
                   message: {type: string}

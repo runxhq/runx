@@ -2084,6 +2084,138 @@ fn a_finalized_act_is_already_done_under_its_key_and_sends_nothing() {
     assert_eq!(fixture.provider.calls(), sent, "nothing is sent again");
 }
 
+/// Completed evidence stays bound to the account that produced it. An
+/// unchanged reconfirmation may replay it, but a rebind must neither return
+/// the old account's result as the new account's nor dispatch another call.
+#[test]
+fn a_finalized_write_is_refused_when_its_instance_was_rebound() {
+    let mut fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
+    let call: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"target": "objects://media/interview.mp3"},
+        "idempotency_key": "job-1",
+    }))
+    .unwrap();
+    let (admission, original) = fixture.run("job", &call, None).expect("starts");
+    finalize(&admission, "receipt-1");
+
+    fixture.select_grant("grant_chat", "fixture/compute");
+    let (_, same) = fixture.run("job", &call, None).expect("unchanged binding");
+    assert_eq!(packet(&same)["result"], packet(&original)["result"]);
+    assert!(packet(&same).contains_key("already_done"));
+
+    *fixture.provider.principal.lock().unwrap() = "operator-2".to_owned();
+    fixture.select_grant("grant_chat", "fixture/compute");
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    let error = fixture
+        .run("job", &call, None)
+        .expect_err("another account");
+    assert!(error.contains("original binding"), "{error}");
+    assert_eq!(fixture.provider.calls(), 1, "nothing is sent again");
+
+    // Refusing the foreign binding must leave the original custody intact.
+    *fixture.provider.principal.lock().unwrap() = PRINCIPAL_ID.to_owned();
+    fixture.select_grant("grant_chat", "fixture/compute");
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    let (_, restored) = fixture.run("job", &call, None).expect("original account");
+    assert_eq!(packet(&restored)["result"], packet(&original)["result"]);
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+/// The first execution owns the bill. Repeating a finalized write under
+/// the same key spends nothing and leaves the remaining run budget intact.
+#[test]
+fn a_priced_finalized_write_reports_no_new_charge_and_preserves_the_budget() {
+    let fixture = Fixture::new(&["channel.post"]);
+    let path = fixture
+        .root
+        .path()
+        .join("connectors/fixture/chat/connector.yaml");
+    let yaml = std::fs::read_to_string(&path).unwrap().replace(
+        "  channel.post:\n",
+        "  channel.post:\n    cost: {usd_micro: 5000, per: success, source: docs}\n",
+    );
+    std::fs::write(path, yaml).unwrap();
+    // Confirm the modified connector itself, including its quote, rather
+    // than the unmodified shared fixture manifest.
+    let connector = crate::kernel::connectors::ConnectorScope::at(fixture.root.path())
+        .unwrap()
+        .connector("fixture/chat")
+        .unwrap();
+    fixture.provider.grants.lock().unwrap().clear();
+    fixture
+        .provider
+        .grant("grant_chat", &connector, &["channel.post".to_owned()]);
+    let instances = Instances::new(
+        KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+            &fixture.env,
+            fixture.root.path(),
+        ))
+        .unwrap(),
+    );
+    crate::kernel::setup::confirm_grant_over(
+        &instances,
+        &connector,
+        Arc::new(fixture.provider.clone()),
+        "grant_chat",
+        &fixture.env,
+        fixture.root.path(),
+    )
+    .unwrap();
+    let authority = limited(10_000);
+    let (admission, original, _) = fixture
+        .run_under(
+            "post",
+            &post("hi"),
+            Some(ResolutionResponseActor::Human),
+            Some(&authority),
+        )
+        .expect("posts once");
+    assert_eq!(
+        packet(&original)["cost"].as_object().unwrap()["settled_usd_micro"].as_u64(),
+        Some(5_000)
+    );
+    finalize(&admission, "receipt-1");
+    for _ in 0..2 {
+        let (_, repeated, _) = fixture
+            .run_under("post", &post("hi"), None, Some(&authority))
+            .expect("already done");
+        assert!(packet(&repeated).contains_key("already_done"));
+        assert_eq!(
+            packet(&repeated)["cost"].as_object().unwrap()["quoted_usd_micro"].as_u64(),
+            Some(5_000)
+        );
+        assert_eq!(
+            packet(&repeated)["cost"].as_object().unwrap()["settled_usd_micro"].as_u64(),
+            Some(0)
+        );
+    }
+    assert_eq!(fixture.provider.calls(), 1);
+    let mut next = post("another post");
+    next.insert(
+        "idempotency_key".to_owned(),
+        JsonValue::String("post-2".to_owned()),
+    );
+    fixture
+        .run_under(
+            "post",
+            &next,
+            Some(ResolutionResponseActor::Human),
+            Some(&authority),
+        )
+        .expect("the remaining 5000 pays for one new act");
+    assert_eq!(fixture.provider.calls(), 2);
+    next.insert(
+        "idempotency_key".to_owned(),
+        JsonValue::String("post-3".to_owned()),
+    );
+    assert!(fixture.admit_as("post", &next, Some(&authority)).is_err());
+    assert_eq!(
+        fixture.provider.calls(),
+        2,
+        "the original and new act spent the limit once each"
+    );
+}
+
 /// A write whose outcome is unknown waits on its retry. Taken further with
 /// nobody asked, nothing custody holds settles it, so nothing is sent; a
 /// person's retry is their saying it didn't take effect, and it goes again
@@ -2113,6 +2245,79 @@ fn a_persons_retry_of_an_unknown_write_sends_it_again_under_its_key() {
         "the same key"
     );
     assert_eq!(packet(&outcome).get("already_done"), None);
+}
+
+/// An unsettled attempt of another intent under the same key holds a call:
+/// it waits on its retry, nothing sent, while that attempt stands unsettled,
+/// with nobody asked as with a person's retry. A person's retry of an attempt
+/// with no evidence is their saying it didn't take effect: it settles, and the
+/// call goes under the same key.
+#[test]
+fn another_intents_unsettled_attempt_holds_the_call_until_a_person_says_it_didnt_take_effect() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    fixture.provider.answer(Answer::TimeOut);
+    fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect_err("unknown");
+    fixture.provider.answer(Answer::Succeed);
+    for reconciliation in [None, Some(crate::effects::Reconciliation::Evidence)] {
+        fixture.reconciliation = reconciliation;
+        let held = fixture
+            .run(
+                "post",
+                &post("a revised hi"),
+                Some(ResolutionResponseActor::Human),
+            )
+            .expect_err("held");
+        assert!(held.contains("waits on its retry"), "{held}");
+    }
+    assert_eq!(fixture.provider.calls(), 1);
+    fixture.reconciliation = Some(crate::effects::Reconciliation::Retried);
+    let (_, outcome) = fixture
+        .run(
+            "post",
+            &post("a revised hi"),
+            Some(ResolutionResponseActor::Human),
+        )
+        .expect("sent once the person says the first didn't take effect");
+    assert_eq!(fixture.provider.calls(), 2);
+    assert_eq!(packet(&outcome).get("already_done"), None);
+}
+
+/// Evidence comes first: an attempt of another intent that read back took
+/// effect, so a person's retry doesn't say otherwise, and the call stays held
+/// until that attempt's own recovery finalizes it. Then the act is done
+/// under its key, and the call returns it.
+#[test]
+fn another_intents_attempt_that_read_back_holds_the_call_until_it_finalizes() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    let (admission, outcome) = fixture
+        .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
+        .expect("posts");
+    let sent = fixture.provider.calls();
+    fixture.reconciliation = Some(crate::effects::Reconciliation::Retried);
+    let held = fixture
+        .run(
+            "post",
+            &post("a revised hi"),
+            Some(ResolutionResponseActor::Human),
+        )
+        .expect_err("held by what read back");
+    assert!(held.contains("waits on its retry"), "{held}");
+    assert_eq!(fixture.provider.calls(), sent);
+    finalize(&admission, "receipt-1");
+    fixture.reconciliation = Some(crate::effects::Reconciliation::Evidence);
+    let (_, done) = fixture
+        .run("post", &post("a revised hi"), None)
+        .expect("already done");
+    assert_eq!(
+        serde_json::to_value(&packet(&done)["already_done"]).unwrap(),
+        serde_json::json!({
+            "receipt_id": "receipt-1",
+            "plan_digest": serde_json::to_value(&packet(&outcome)["plan_digest"]).unwrap(),
+        })
+    );
+    assert_eq!(fixture.provider.calls(), sent);
 }
 
 /// A person's retry of a priced read whose answer never arrived keeps what
@@ -3823,7 +4028,7 @@ fn a_read_fingerprints_the_credential_it_presented() {
             .run("issues", &read, None)
             .expect("the read runs")
             .1
-            .credential
+            .read_identity
     };
     assert_eq!(presented(&fixture), None, "a hosted grant's credential");
     fixture.set_credential("fixture/forge", "token", "forge-local-token");

@@ -12,6 +12,19 @@
       "prompt": "Read the NWS forecast for the supplied US point.",
       "expected_output": "Read actual points, bind its returned office/grid and fetch that forecast without manual grid construction.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Get the NWS forecast for the gridpoint already resolved for the Washington Monument.",
+      "expected_output": "One NWS provider packet for office LWX at grid 97,71, read from the given gridpoint without locating it again.",
+      "files": [
+        "evals/files/washington-monument-gridpoint.json"
+      ],
+      "expectations": [
+        "It does not resolve the location or gridpoint again.",
+        "It reads the forecast once."
+      ],
+      "method": "forecast"
     }
   ]
 }

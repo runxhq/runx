@@ -42,7 +42,7 @@ impl ReceiptReadContext {
             runtime_config: Some(&RuntimeReceiptConfig::default()),
             paths: &paths,
         });
-        let store = LocalReceiptStore::new(&resolved.path);
+        let store = LocalReceiptStore::of_project(&resolved.path, &paths);
         Ok(Self {
             store,
             paths,
@@ -95,6 +95,19 @@ impl ReceiptServices {
     ) -> Result<(), ReceiptStoreError> {
         LocalReceiptStore::new(&path.path)
             .write_receipt(receipt, self.signature_config.signature_policy())
+    }
+
+    /// Write the receipts a run sealed, a copy of `record`'s, into the
+    /// receipt directory at `path`.
+    pub(crate) fn write_sealed_receipts<'a>(
+        &self,
+        receipts: impl IntoIterator<Item = &'a Receipt>,
+        path: &ResolvedReceiptPath,
+        record: &std::sync::Arc<crate::kernel::store::KernelStore>,
+    ) -> Result<(), ReceiptStoreError> {
+        LocalReceiptStore::new(&path.path)
+            .with_record(std::sync::Arc::clone(record))
+            .write_sealed(receipts, self.signature_config.signature_policy())
     }
 
     pub(crate) fn write_local_receipts<'a>(

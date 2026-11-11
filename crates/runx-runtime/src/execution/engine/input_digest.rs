@@ -8,7 +8,7 @@ use runx_contracts::{CallAct, ContextEntry, JsonObject};
 use runx_parser::{StepKind, ToolTarget, WorkflowStep};
 
 /// What a step was given, beside its inputs.
-pub(super) struct Given<'a> {
+pub(crate) struct Given<'a> {
     pub inputs: &'a JsonObject,
     pub act: Option<&'a CallAct>,
     pub context: &'a [ContextEntry],
@@ -20,7 +20,7 @@ pub(super) struct Given<'a> {
 /// read, so a run given `REGION=eu` and one given `REGION=us` differ. None
 /// when those values can't be resolved or fingerprinted, since a digest
 /// that left them out would take two such runs for the same.
-pub(super) fn of(
+pub(crate) fn of(
     step: &WorkflowStep,
     given: &Given<'_>,
     env: &BTreeMap<String, String>,

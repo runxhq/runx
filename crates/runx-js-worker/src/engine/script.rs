@@ -28,8 +28,9 @@ use super::{
     EngineError, WorkerHost, configure_context, engine_failure, parse_modules, settle_module,
 };
 use crate::protocol::{
-    InvocationLimits, ReuseAsk, ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptContext,
-    ScriptEnding, ScriptInputReference, ScriptReference, ScriptSettlement, WorkerFailureCode,
+    InvocationLimits, JAVASCRIPT_HEAP_BYTES, ReuseAsk, ScriptCall, ScriptCallOutcome,
+    ScriptCallTarget, ScriptContext, ScriptEnding, ScriptInputReference, ScriptReference,
+    ScriptSettlement, WorkerFailureCode,
 };
 
 /// What a script's `ctx` sees of the clock: nothing but `ctx.now()`, which
@@ -99,6 +100,22 @@ pub(crate) struct ScriptPass<'a> {
     pub(crate) limits: InvocationLimits,
     pub(crate) settled: &'a [ScriptSettlement],
     pub(crate) now: i64,
+    /// How much of the worker's memory is in use.
+    pub(crate) allocated: fn() -> usize,
+}
+
+/// Past this much of the worker's memory in use, a script's heap is collected
+/// after each settlement. The collector counts only its own objects, never
+/// the strings and arrays they own, so what a script read and let go would
+/// otherwise stay until the worker's memory ran out.
+const COLLECT_PAST_BYTES: usize = (JAVASCRIPT_HEAP_BYTES / 2) as usize;
+
+/// Collect the heap when the worker's memory in use is past
+/// [`COLLECT_PAST_BYTES`].
+fn collect_when_full(allocated: fn() -> usize) {
+    if allocated() > COLLECT_PAST_BYTES {
+        boa_gc::force_collect();
+    }
 }
 
 /// A script that waits on its calls, kept running between settlements, so a
@@ -111,7 +128,7 @@ pub(crate) struct LiveScript {
     jobs: Rc<BoundedJobExecutor>,
     ledger: Shared,
     returned: JsValue,
-    output_bytes: usize,
+    allocated: fn() -> usize,
     _loader: Rc<MapModuleLoader>,
 }
 
@@ -202,12 +219,13 @@ pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Pass
         }
     };
     drain(&jobs, &mut context)?;
+    collect_when_full(request.allocated);
     let mut live = LiveScript {
         context,
         jobs,
         ledger,
         returned,
-        output_bytes: limits.output_bytes,
+        allocated: request.allocated,
         _loader: loader,
     };
     let passed = live.deliver(request.settled)?;
@@ -271,8 +289,9 @@ impl LiveScript {
                 .call(&JsValue::undefined(), &[value], context)
                 .map_err(|error| engine_failure("settling a script call", error))?;
             drain(&self.jobs, context)?;
+            collect_when_full(self.allocated);
         }
-        let ending = ending(self.returned.clone(), self.output_bytes, context)?;
+        let ending = ending(self.returned.clone(), context)?;
         Ok(Passed {
             calls: take_calls(&self.ledger),
             ending,
@@ -286,12 +305,11 @@ fn drain(jobs: &BoundedJobExecutor, context: &mut Context) -> Result<(), EngineE
     ran.map_err(|error| engine_failure("running the script's job queue", error))
 }
 
-/// How the function stands once the record ran out.
-fn ending(
-    returned: JsValue,
-    output_bytes: usize,
-    context: &mut Context,
-) -> Result<ScriptEnding, EngineError> {
+/// How the function stands once the record ran out. How large an output is
+/// the server decides, once the script's thread has ended and its heap with
+/// it, so the worker never holds an output's JavaScript, its value and its
+/// JSON at once.
+fn ending(returned: JsValue, context: &mut Context) -> Result<ScriptEnding, EngineError> {
     let value = match returned
         .as_object()
         .and_then(|object| JsPromise::from_object(object.clone()).ok())
@@ -316,14 +334,6 @@ fn ending(
                 "the script's result is not JSON-compatible",
             )
         })?;
-    let bytes = serde_json::to_vec(&output)
-        .map_err(|error| EngineError::new(WorkerFailureCode::OutputRejected, error.to_string()))?;
-    if bytes.len() > output_bytes {
-        return Err(EngineError::limit(format!(
-            "the script's output is {} bytes; limit is {output_bytes} bytes",
-            bytes.len()
-        )));
-    }
     Ok(ScriptEnding::Returned { output })
 }
 

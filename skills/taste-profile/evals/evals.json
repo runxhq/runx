@@ -6,6 +6,19 @@
       "prompt": "Build a product-UI taste profile from these likes and dislikes.",
       "expected_output": "Return scoped design preferences, anti-patterns, and decision rules grounded in the supplied examples.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Turn the preference examples you are given into design context the UI work can reuse.",
+      "expected_output": "A taste profile drawn from the given examples: dense operational surfaces with visible proof preferred, decorative marketing cards that hide the workflow avoided, ready for downstream UI work.",
+      "files": [
+        "evals/files/collected-preferences.json"
+      ],
+      "expectations": [
+        "It does not ask for preferences the examples already state.",
+        "It states no aesthetic rule the examples do not support."
+      ],
+      "method": "profile"
     }
   ]
 }

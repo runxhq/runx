@@ -1,0 +1,28 @@
+{
+  "about": "An invoice an upstream capture already read, and the JSON schema the caller wants its fields in.",
+  "content": "Invoice INV-104. Total USD 125. Customer Northstar.",
+  "source_id": "document:invoice-104",
+  "objective": "Extract invoice id, total and customer. Do not infer missing fields.",
+  "schema": {
+    "type": "object",
+    "required": [
+      "invoice_id",
+      "total_usd",
+      "customer"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "invoice_id": {
+        "type": "string",
+        "minLength": 3
+      },
+      "total_usd": {
+        "type": "number",
+        "minimum": 0
+      },
+      "customer": {
+        "type": "string"
+      }
+    }
+  }
+}

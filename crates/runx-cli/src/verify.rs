@@ -178,7 +178,9 @@ pub fn run_verify_command_with_stdin<R: Read>(
         paths: &paths,
     });
     let verifier = receipt_verifier(env, &paths, parsed.trust())?;
-    let store = LocalReceiptStore::new(&resolved.path);
+    // A receipt a run sealed is read back from the run's record where its
+    // file was lost or torn.
+    let store = LocalReceiptStore::of_project(&resolved.path, &paths);
     let verification = store
         .verify_trees(
             parsed.receipt_id.as_deref(),
