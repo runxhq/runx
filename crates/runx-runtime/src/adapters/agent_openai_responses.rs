@@ -149,6 +149,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
             "input": input_json(transcript),
             "tools": Self::tools_json(tools),
             "tool_choice": "auto",
+            "parallel_tool_calls": false,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
             // The loop replays its own transcript; OpenAI keeps nothing.
             "store": false,
@@ -283,6 +284,7 @@ mod tests {
         .map_err(|error| error.to_string())?;
         assert_eq!(body["model"], "gpt");
         assert_eq!(body["max_output_tokens"], MAX_OUTPUT_TOKENS);
+        assert_eq!(body["parallel_tool_calls"], false);
         assert_eq!(body["store"], false);
         assert_eq!(body["tools"][0]["name"], "acme_post");
         assert_eq!(body["input"][0]["role"], "system");

@@ -480,6 +480,11 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
     assert_eq!(output["status"], "sealed", "{output}");
     let requests = finish_server(server)?;
     assert_eq!(requests.len(), 3);
+    assert!(
+        requests
+            .iter()
+            .all(|request| request["parallel_tool_calls"] == false)
+    );
     let tools = |request: &Value| -> Vec<String> {
         request["tools"]
             .as_array()

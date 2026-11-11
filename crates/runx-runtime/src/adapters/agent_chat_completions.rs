@@ -173,6 +173,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
             "messages":self.messages_json(transcript),
             "tools":Self::tools_json(tools),
             "tool_choice":"auto",
+            "parallel_tool_calls":false,
             // The current name; OpenAI's newer models refuse `max_tokens`.
             "max_completion_tokens":MAX_TOKENS,
         });
