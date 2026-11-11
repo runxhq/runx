@@ -1,5 +1,7 @@
 name: failure-remains-visible-after-later-success
 package: fixtures/failure-continuation
+inputs:
+  plan_json: {"decision":"ready","objective":"Delete two reviewed obsolete posts; keep failures visible.","principal":"account:@example","acts":[{"act_id":"act-delete-1","kind":"delete_post","params":{"post_id":"7001"},"consequence":"live_mutation","rationale":"Reviewed obsolete post."},{"act_id":"act-delete-2","kind":"delete_post","params":{"post_id":"7002"},"consequence":"live_mutation","rationale":"Reviewed obsolete post."}],"gates":{"human_approval_required":true,"approval_id":null}}
 setup:
   credentials:
   - twitter
@@ -42,7 +44,11 @@ providers:
       body: '{"data":{"deleted":true}}'
 expect:
   status: sealed
+  steps: [digest, batch1, status1, batch2, status2, recent, complete]
   step_outputs:
+    digest:
+      subset:
+        digest_result: {digest: sha256:772dbf40993d7fd452b6940b817ca1f78926005263b2f2569bbbc18f55c74a84}
     batch1:
       subset:
         twitter_execution:

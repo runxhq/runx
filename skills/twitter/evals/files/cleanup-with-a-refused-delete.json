@@ -1,5 +1,5 @@
 {
-  "about": "A reviewed plan to delete two obsolete posts, by its digest, after its first batch: the provider refused the first delete as terminal.",
+  "about": "Non-live plan and illustrative terminal refusal, not installed progress or human approval. tests/failure-continuation.yaml accepts this exact plan, natively records the first refusal, continues by saved digest alone, succeeds the second delete, and proves processed/succeeded/failed remain2/1/1 in final status/noop. Finite provider exchanges forbid retrying the terminal refusal. No live X work is claimed.",
   "plan_json": {
     "decision": "ready",
     "objective": "Delete two reviewed obsolete posts; keep failures visible.",
