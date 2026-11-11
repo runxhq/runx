@@ -67,7 +67,10 @@ approval and performs no delivery.
 Read `template`, `parties`, and `terms` from step inputs. Return `draft_doc`
 with `title`, `clauses` (each `id`, `heading`, `text`), and `deviations` as an
 array of `clause_id` plus `reason` entries. Render every placeholder from
-the supplied values; never invent parties, amounts, or dates. Match each
-baseline exactly unless a deviation is justified by the supplied terms, and declare every
-deviation with its reason. Do not add clauses the template does not define and
+the supplied values; never invent parties, amounts, or dates. First render the
+baseline with those values, then compare the draft text to that rendered baseline.
+Replacing placeholders with supplied values is not a deviation. Return
+`deviations: []` when every clause matches its rendered baseline. Declare only
+actual changes to the rendered text, justified by supplied terms, with a reason.
+Do not add clauses the template does not define and
 do not change the title or headings, repeat clause ids, or produce delivery instructions; delivery belongs to the gated proposal.
