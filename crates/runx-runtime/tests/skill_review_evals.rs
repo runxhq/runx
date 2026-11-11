@@ -309,9 +309,20 @@ fn criteria_of(eval: &Value) -> TestResult<runx_contracts::Criteria> {
 /// The eval a request is about, by the marker its prompt starts with.
 fn eval_marker(request: &Value) -> Option<&'static str> {
     let sent = request.to_string();
-    ["Meets", "Misses", "Partial", "Wrong", "Claims", "Write"]
-        .into_iter()
-        .find(|marker| sent.contains(&format!("{marker}:")))
+    [
+        "Meets",
+        "Misses",
+        "Partial",
+        "Wrong",
+        "Claims",
+        "Write",
+        "Uncalled",
+        "LoadOnly",
+        "Other",
+        "OtherMethod",
+    ]
+    .into_iter()
+    .find(|marker| sent.contains(&format!("{marker}:")))
 }
 
 /// An eval run works each eval in a fresh turn of the agent skill's write
@@ -328,13 +339,25 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     let source = tempdir()?;
     let registry = LoopbackRegistry::serve()?;
     let subject = digest_package(source.path(), "subject", "Digests a value for the person.")?;
+    let manifest = subject.join("run.yaml");
+    fs::write(
+        &manifest,
+        format!(
+            "{}  alternate:\n    description: Digest through another method.\n    inputs:\n      value: {{type: string}}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+            fs::read_to_string(&manifest)?
+        ),
+    )?;
     let evals = json!([
-        {"id": 1, "prompt": "Meets: digest proof.", "expected_output": "The digest of proof.", "files": ["evals/files/prior.json"], "expectations": ["It names the digest."]},
+        {"id": 1, "prompt": "Meets: digest proof.", "expected_output": "The digest of proof.", "files": ["evals/files/prior.json"], "expectations": ["It names the digest."], "method": "digest"},
         {"id": 2, "prompt": "Misses: digest proof.", "expected_output": "The digest of proof.", "files": []},
         {"id": 3, "prompt": "Partial: digest proof.", "expected_output": "The digest of proof.", "files": [], "expectations": ["It names the digest."]},
         {"id": 4, "prompt": "Wrong: digest proof.", "expected_output": "The digest of proof.", "files": []},
         {"id": 5, "prompt": "Claims: digest proof.", "expected_output": "The digest of proof.", "files": []},
         {"id": 6, "prompt": "Write: write the digest to a file.", "expected_output": "The digest, written nowhere.", "files": []},
+        {"id": 7, "prompt": "Uncalled: digest proof.", "expected_output": "The digest of proof.", "files": []},
+        {"id": 8, "prompt": "LoadOnly: digest proof.", "expected_output": "The digest of proof.", "files": []},
+        {"id": 9, "prompt": "Other: digest proof.", "expected_output": "The digest of proof.", "files": []},
+        {"id": 10, "prompt": "OtherMethod: digest proof.", "expected_output": "The digest of proof.", "files": [], "method": "digest"},
     ]);
     fs::create_dir_all(subject.join("evals/files"))?;
     fs::write(
@@ -347,6 +370,15 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         r#"{"prior": "the value is proof"}"#,
     )?;
     let digest = release(&registry, source.path(), &subject)?;
+    let other = digest_package(
+        source.path(),
+        "other",
+        "Digests a different package's value.",
+    )?;
+    release(&registry, source.path(), &other)?;
+    for package in ["acme/subject@1.0.0", "acme/other@1.0.0"] {
+        trust_ahead(root, &registry, package)?;
+    }
     let pinned = |reference: &str, revision: &str| json!({"ref": reference, "revision": revision});
     let mut sets = BTreeMap::new();
     for eval in evals.as_array().into_iter().flatten() {
@@ -367,6 +399,8 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     // Whether the first eval's attempt was given its prior run.
     let given_prior = Arc::new(Mutex::new(false));
     let saw_prior = Arc::clone(&given_prior);
+    let graded = Arc::new(Mutex::new(Vec::new()));
+    let saw_grade = Arc::clone(&graded);
     let model = ScriptedModel::serve(move |request| {
         let complete = |answer: Value| tool_call("call-final", "turn_complete", &answer);
         let Some(marker) = eval_marker(request) else {
@@ -395,8 +429,43 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
                     &json!({"path": "written.txt", "contents": "proof", "create": true}),
                 );
             }
+            if marker == "Meets" && !sent.contains("Use acme/subject@1.0.0#digest for this task.") {
+                return complete(json!({"summary": "No measured method was supplied."}));
+            }
+            if marker == "Uncalled" {
+                return complete(json!({"summary": "I used the subject and finished."}));
+            }
+            if !sent.contains("call-load") {
+                return tool_call(
+                    "call-load",
+                    "load",
+                    &json!({
+                        "skill": if marker == "Other" { "acme/other@1.0.0" } else { "acme/subject@1.0.0" },
+                        "method": if marker == "OtherMethod" { "alternate" } else { "digest" },
+                    }),
+                );
+            }
+            if marker != "LoadOnly" && !sent.contains("call-subject") {
+                let ending = if marker == "OtherMethod" {
+                    "__alternate"
+                } else {
+                    "__digest"
+                };
+                let name = request["tools"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|tool| tool["function"]["name"].as_str())
+                    .find(|name| name.ends_with(ending))
+                    .unwrap_or("missing_subject");
+                return tool_call("call-subject", name, &json!({"value": "proof"}));
+            }
             return complete(json!({"summary": format!("{marker}: done.")}));
         }
+        saw_grade
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(marker);
         let met = |id: &str| json!({"verdict": "met", "id": id, "evidence": []});
         let mut verdict = json!({
             "schema": "runx.verdict.v1",
@@ -449,7 +518,7 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
     let results = &hosts[0]["results"];
     assert_eq!(results["kind"], "evals", "{results}");
     assert_eq!(results["met"], 2, "{results}");
-    assert_eq!(results["refused"], 2, "{results}");
+    assert_eq!(results["refused"], 6, "{results}");
     let attempt = |id: u64| -> TestResult<Value> {
         let eval = results["evals"]
             .as_array()
@@ -473,6 +542,25 @@ fn an_eval_run_grades_each_attempt_and_decides_its_verdict() -> TestResult {
         assert_eq!(refused["status"], "refused", "{refused}");
         assert!(refused.get("verdict").is_none(), "{refused}");
     }
+    for id in [7, 8, 9, 10] {
+        let row = attempt(id)?;
+        assert_eq!(row["decision"]["status"], "refused", "{row}");
+        assert!(
+            row["decision"]["reason"]
+                .as_str()
+                .is_some_and(|reason| reason.contains("no subject execution")),
+            "{row}"
+        );
+        assert!(row.get("evaluator").is_none(), "{row}");
+    }
+    let graded = graded
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    assert_eq!(
+        graded.len(),
+        6,
+        "unexercised attempts spend no grading calls: {graded:?}"
+    );
     assert!(
         attempt(4)?["decision"]["reason"]
             .as_str()

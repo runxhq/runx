@@ -110,7 +110,8 @@ description is what's measured.
 Supply `eval_ids` to run only those exact declared cases; unknown IDs are refused.
 Each attempt runs
 in a fresh turn of the `agent` skill's `write` method under this run's
-authority. Each file an eval names, such as the prior run it builds on, is
+authority. Its task names the measured package and the eval's method, when
+declared; selection across the catalog belongs to `triggers`. Each file an eval names, such as the prior run it builds on, is
 given to its attempt as a context entry, which its turn reads by locator. No eval writes to the world: a scripted model's run uses provider
 fixtures, and a real model's runs under `effects: none`, with its reads live
 and recorded as live, so a write is refused at any depth.
@@ -126,6 +127,15 @@ against the package at its distribution digest and that criteria set: `met`,
 verdict that judges something else, answers another set, or names another
 evaluator is refused, and a refused verdict answers nothing, which isn't
 `inconclusive`.
+
+Before grading, the run requires a recorded skill call bound to the measured
+package's distribution digest and, when the eval names a method, that method.
+A summary, a load alone, another version, or another method does not establish
+that the subject was exercised. Such an attempt is reported as refused without
+a grading turn; it says nothing about whether the subject would pass. A bound
+call that failed or was refused still goes to the grader, since refusal may be
+the expected behavior. A passing grade remains scoped to the recorded output
+and calls; it cannot establish an unattempted provider effect.
 
 ## Stop conditions
 

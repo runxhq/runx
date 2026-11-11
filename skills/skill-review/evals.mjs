@@ -42,7 +42,7 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
   for (const kase of cases) {
     for (let attempt = 0; attempt < runs; attempt += 1) {
       const settled = await settle(
-        ctx.skill(HOST, { act: { purpose: kase.entry.prompt } }, {
+        ctx.skill(HOST, { act: { purpose: `${kase.entry.prompt} Use ${judged.ref}${kase.entry.method ? `#${kase.entry.method}` : ""} for this task.` } }, {
           context: given(kase.entry, subject.inspect.eval_files ?? []),
         }),
       );
@@ -54,7 +54,12 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
   for (const [index, attempt] of attempts.entries()) {
     attempt.run = turns[index];
     attempt.evidence = evidence(record.events, turns[index]);
-    attempt.decision = await judge(ctx, judged, attempt);
+    attempt.decision = exercised(record.events, turns[index], judged.revision, attempt.kase.entry.method)
+      ? await judge(ctx, judged, attempt)
+      : { decision: {
+        status: "refused",
+        reason: `eval ${attempt.kase.entry.id} did not call ${judged.ref}${attempt.kase.entry.method ? `#${attempt.kase.entry.method}` : ""} at ${judged.revision}; no subject execution to grade`,
+      } };
   }
   return {
     evidence: {
@@ -69,6 +74,16 @@ export default async function evals(ctx, { subject, repeats, eval_ids }) {
       })),
     },
   };
+}
+
+// A host's summary cannot establish that the measured package did the work.
+// A loaded method's call carries the exact native binding, even when the call
+// fails or is refused: the grader must still be able to judge refusal cases.
+function exercised(events, run, digest, method) {
+  return events.some(({ stream, event }) =>
+    within(run, stream) && event.kind === "call" && event.target?.kind === "skill" &&
+    event.target.bound?.package_digest === digest &&
+    (method === undefined || event.target.method === method));
 }
 
 // One host's attempts at each eval, and how each verdict was decided.
