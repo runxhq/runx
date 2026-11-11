@@ -120,7 +120,11 @@ pub(super) fn register(c: &mut Criterion) {
 
     c.bench_function("provider_effect_finality", |b| {
         b.iter_batched(
-            || fixtures.provider_workflow.clone(),
+            || {
+                fixtures
+                    .provider_sample()
+                    .expect("provider benchmark workflow must parse")
+            },
             |workflow| {
                 run_provider_workflow(
                     &fixtures.next_run(&fixtures.provider_runtime),
@@ -149,7 +153,9 @@ struct RuntimePathFixtures {
     /// What the provider runtime runs under, for a run that states its own
     /// authority.
     provider_options: RuntimeOptions,
-    provider_workflow: Workflow,
+    /// How many provider-effect workflows were made, so each sample's key is
+    /// its own.
+    provider_samples: AtomicU64,
     provider_transport: ProviderBenchmarkTransport,
 }
 
@@ -246,7 +252,6 @@ impl RuntimePathFixtures {
             directory.path(),
         )?;
         let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options.clone());
-        let provider_workflow = method_workflow("provider-effect", PROVIDER_EFFECT_SKILL)?;
 
         Ok(Self {
             directory,
@@ -260,9 +265,20 @@ impl RuntimePathFixtures {
             module_adapter,
             provider_runtime,
             provider_options,
-            provider_workflow,
+            provider_samples: AtomicU64::new(0),
             provider_transport,
         })
+    }
+
+    /// The provider-effect workflow under a key no sample used before. A key
+    /// means one intent, so a key an earlier sample finalized would return
+    /// its act as already done and attempt nothing.
+    fn provider_sample(&self) -> Result<Workflow, Box<dyn Error>> {
+        let sample = self.provider_samples.fetch_add(1, Ordering::Relaxed);
+        method_workflow(
+            "provider-effect",
+            &PROVIDER_EFFECT_SKILL.replace("{sample}", &sample.to_string()),
+        )
     }
 
     fn root(&self) -> &Path {
@@ -307,7 +323,7 @@ impl RuntimePathFixtures {
             &self.provider_runtime,
             &self.provider_transport,
             self.root(),
-            self.provider_workflow.clone(),
+            self.provider_sample()?,
         )?;
         Ok(JsonObject::from([
             (
@@ -889,7 +905,7 @@ methods:
     steps:
       - id: provider-effect
         operation: fixture/chat/thread.reply
-        idempotency_key: benchmark-request
+        idempotency_key: benchmark-request-{sample}
         result:
           required: [state]
           equals:
