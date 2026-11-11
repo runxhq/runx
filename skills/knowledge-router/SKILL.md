@@ -120,6 +120,25 @@ owner_id, and skill must exactly match a supplied id. Choose the smallest useful
 set. Use needs_more_context with no selected ids when the catalog cannot support a route. Use
 manual_review for consequential legal, billing, security, privacy, or destructive decisions, not
 merely because the topic belongs to those domains. Do not answer the question or perform the
-follow-up skill. When feedback is supplied, it gives your previous proposal, the validator's
-reason for refusing it, and any references it named outside the catalog: return a revised
-proposal that fixes that reason, using only supplied ids.
+follow-up skill.
+
+A deterministic validator refuses the proposal unless every one of these holds:
+
+- Every source_id in route.source_ids and source_matches, the owner_id, and the next skill is an
+  id the catalog supplies.
+- A routed verdict selects at least one source in route.source_ids.
+- needs_more_context selects nothing: route.source_ids and source_matches are empty, and
+  owner_recommendation and next_skill are null.
+- source_matches names each source in route.source_ids exactly once, and no other source.
+- Every selection limit holds. allowed_sources, allowed_owners and allowed_skills, when given,
+  admit only the ids they list, so an empty list admits none and its field must be empty or
+  null. A source in excluded_sources is never selected.
+- When owner_recommendation names an owner, route.domain is exactly one of the domains that
+  owner declares, written as the catalog writes it.
+
+So an owner the catalog supports but no source does can only be recommended under
+manual_review, and with no supported route at all, needs_more_context names nothing.
+
+When feedback is supplied, it gives your previous proposal, the validator's reason for refusing
+it, which names the field to change, and any references it named outside the catalog: return a
+revised proposal that fixes that reason, using only supplied ids.
