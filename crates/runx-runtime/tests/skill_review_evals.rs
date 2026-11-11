@@ -56,13 +56,9 @@ fn release(registry: &LoopbackRegistry, source: &Path, dir: &Path) -> TestResult
     .package_digest()?)
 }
 
-/// The environment of a run in the workspace at `root` that reaches
-/// `registry`, its turns worked by the scripted model at `endpoint`.
-fn eval_env(
-    root: &Path,
-    registry: &LoopbackRegistry,
-    endpoint: &str,
-) -> TestResult<BTreeMap<String, String>> {
+/// The environment of the workspace at `root`, whose home is `root/.home`,
+/// reaching `registry`.
+fn workspace_env(root: &Path, registry: &LoopbackRegistry) -> TestResult<BTreeMap<String, String>> {
     let mut env = registry.env()?;
     env.extend([
         ("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned()),
@@ -72,73 +68,27 @@ fn eval_env(
         ),
         ("RUNX_REGISTRY_URL".to_owned(), registry.url.clone()),
     ]);
+    Ok(env)
+}
+
+/// The environment of a run in the workspace at `root` that reaches
+/// `registry`, its turns worked by the scripted model at `endpoint`.
+fn eval_env(
+    root: &Path,
+    registry: &LoopbackRegistry,
+    endpoint: &str,
+) -> TestResult<BTreeMap<String, String>> {
+    let mut env = workspace_env(root, registry)?;
     env.extend(managed_agent_env(endpoint, "fixture-model"));
     crate::support::insert_test_signing_env(&mut env);
     Ok(env)
 }
 
 /// The person states their trust in `reference` ahead of a measurement, as
-/// a person does: a turn of the agent skill's read method loads it, the load
-/// waits on their trust, and they give it. Their trust is recorded in the
-/// home for the package's closure, so a measurement's loads of it bind
-/// without waiting.
-fn trust_ahead(root: &Path, registry: &LoopbackRegistry, reference: &'static str) -> TestResult {
-    let model = ScriptedModel::serve(move |request| {
-        if loaded(request) {
-            return tool_call(
-                "call-final",
-                "turn_complete",
-                &json!({"summary": "Trusted it."}),
-            );
-        }
-        tool_call("call-load", "load", &json!({"skill": reference}))
-    })?;
-    let env = eval_env(root, registry, model.endpoint())?;
-    let agent = skill_review().join("../agent");
-    let orchestrator = LocalOrchestrator::default();
-    let started = orchestrator.run_skill_with_binding(
-        &SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: Some(serde_json::from_value(
-                json!({"purpose": "Load it, to trust it."}),
-            )?),
-            skill_path: agent,
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: env.clone(),
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(4)?,
-        },
-        Some("read"),
-        None,
-        None,
-    );
-    let started = serde_json::to_value(&started?.output)?;
-    let run_id = started["run_id"].as_str().ok_or("the run has an id")?;
-    let trusted = orchestrator.resume(&runx_runtime::ResumeRequest {
-        run_id: run_id.to_owned(),
-        answers: crate::support::bind_resume(
-            &env,
-            root,
-            run_id,
-            json!({"approvals": {"read/0/trust": true}}),
-        )?,
-        receipt_dir: Some(root.join("receipts")),
-        env,
-        cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(4)?,
-        package_digest: None,
-        closure_digest: None,
-    });
-    model.finish()?;
-    let trusted = serde_json::to_value(&trusted?.output)?;
-    if trusted["status"] != "sealed" {
-        return Err(format!("the trust run seals once trusted: {trusted}").into());
-    }
+/// `runx trust` does: recorded in the home for each closure a load of it
+/// binds, so a measurement's loads of it bind without waiting.
+fn trust_ahead(root: &Path, registry: &LoopbackRegistry, reference: &str) -> TestResult {
+    runx_runtime::state_trust(reference, None, &workspace_env(root, registry)?, root)?;
     Ok(())
 }
 

@@ -73,6 +73,14 @@ reaching it takes:
 cargo run --manifest-path crates/Cargo.toml -p runx-runtime --example runx-catalog-registry -- --root <repository>
 ```
 
+A local catalog's packages are `community`, below the `verified` rule the
+`agent` skill's turns load under, so a turn's load of one waits on your
+trust. State it ahead, once for each package a measurement loads:
+
+```sh
+runx trust catalog/<name>@<version>
+```
+
 Then measure `catalog/<name>@<version>` with that environment.
 
 ## Measuring selection
