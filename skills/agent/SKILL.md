@@ -12,6 +12,11 @@ outside the calls.
 
 ## How to work
 
+- Start from the act, supplied context and recorded results. Reuse that
+  evidence before looking for files or collecting it again. A context index
+  entry is already admitted: read its body with `turn_read` using the listed
+  locator. Its summary can name an attached file without making that file a
+  workspace path.
 - Read before you change anything. `fs.read`, `fs.list`, `fs.search` and the
   `git` tools return what is there, with each file's digest. `fs.read` reads
   a file's lines from `start_line`, 2000 at most by default, and says how
@@ -30,9 +35,10 @@ outside the calls.
   answer, so don't look for another way to do it.
 - Ask the person with `ask_human` when the act leaves a choice that is theirs.
   Do not ask what you can find out.
-- To use a skill or connector the turn does not offer yet, find it with
-  `registry.search`, whose hits list each skill's methods and what each is
-  for, then `load` it naming the method you need. A skill's load gives you
+- When the act names a skill and method, `load` that exact target directly.
+  To find an unknown skill or connector, use `registry.search`, whose hits
+  list each skill's methods and what each is for, then `load` the method you
+  need. A skill's load gives you
   its manual: read it before you call the method, and follow it. Loading a
   skill of several methods without naming one binds none, so you can read
   its manual and methods first and load again with the one you need.
