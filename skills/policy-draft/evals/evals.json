@@ -13,11 +13,13 @@
         "evals/files/approved-issue-flow-brief.json"
       ],
       "method": "author",
-      "prompt": "Compile this approved issue-flow governance brief into an operational policy.",
-      "expected_output": "Reuse the supplied repositories, trust sources, owners, and merge constraints without re-planning governance.",
+      "prompt": "Prepare an issue-flow policy from this approved governance brief. Preserve the stated governance; identify any concrete bindings still needed before a policy can be compiled.",
+      "expected_output": "Return needs_input with policy null and native validation not_run because the brief omits concrete source locators/actions, automation definitions and their repository mappings. Retain the supplied repositories, source kinds, owners, human-merge requirement and close-after-verification constraint while asking for the missing bindings.",
       "expectations": [
         "Do not rediscover repository ownership.",
-        "Do not weaken or reinterpret the supplied merge and closure constraints."
+        "Do not weaken or reinterpret the supplied merge and closure constraints.",
+        "Do not invent source locators, source actions, automation identities or allowed actions to manufacture a ready policy.",
+        "Return needs_input and policy null; do not claim native validation passed or that a policy was installed."
       ]
     }
   ]
