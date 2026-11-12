@@ -11,6 +11,7 @@ providers:
         headers: {content-type: text/plain}
         body: HTTP Semantics defines interoperable request and response behavior.
 expect:
+  http_request_counts: [1]
   status: sealed
   receipt:
     schema: runx.receipt.v1

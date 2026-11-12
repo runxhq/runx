@@ -23,6 +23,7 @@ providers:
         content-type: application/json
       body: '{"requestId":"fixture-1","results":[{"url":"https://example.com/docs","title":"Example docs"},{"url":"https://example.com/docs","title":"Example docs"}],"costDollars":{"total":0.005}}'
 expect:
+  http_request_counts: [1]
   status: sealed
   steps:
   - validate
