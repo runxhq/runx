@@ -1,4 +1,5 @@
 name: github-common-read-exact-issue
+method: github
 setup:
   sessions:
     - github
@@ -29,6 +30,8 @@ providers:
         body: '{"number":241,"title":"Sourcey output path is unclear","state":"open","body":"The docs mention two different output directories.","html_url":"https://github.com/runxhq/runx/issues/241","labels":[],"assignees":[]}'
 expect:
   status: sealed
+  # Session confirmation and operation admission each check the account.
+  http_request_counts: [2, 1]
   output:
     subset:
       provider_operation:
@@ -41,6 +44,8 @@ expect:
           issues:
             - number: 241
               title: Sourcey output path is unclear
+              state: open
               body: The docs mention two different output directories.
+              html_url: https://github.com/runxhq/runx/issues/241
   receipt:
     schema: runx.receipt.v1
