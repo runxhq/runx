@@ -28,7 +28,8 @@ pub trait Host {
 
     /// Whether the model that works this host's turns is known to run on
     /// this machine, so a turn may carry its `local_only` context entries.
-    /// A host whose model may run anywhere never gets one (memory.md).
+    /// A turn given local_only inputs or context is refused when its host
+    /// cannot attest this; its context is never silently reduced.
     fn reads_local_only(&self) -> bool {
         false
     }

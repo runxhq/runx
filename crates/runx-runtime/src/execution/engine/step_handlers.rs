@@ -1359,24 +1359,6 @@ pub(crate) fn ask_turn(
         .current_context
         .extend(current_context.iter().cloned());
     invocation.historical_context = historical_context.to_vec();
-    // A `local_only` entry never reaches a model that may run elsewhere: a
-    // turn whose host can't say its model runs here is given none.
-    if !reads_local_only {
-        // Nor is what's labelled `local_only`: an artifact among its inputs,
-        // or an earlier step's output made from one. An input isn't dropped,
-        // since the act would then ask something else: the step is refused.
-        if given.is_local_only() {
-            return Err(RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: "what it is given is labelled local_only, and its host can't say its model runs on this machine".to_owned(),
-            });
-        }
-        let shareable = |entry: &ContextEntry| {
-            entry.labels.sharing != runx_contracts::ContextSharing::LocalOnly
-        };
-        invocation.current_context.retain(shareable);
-        invocation.historical_context.retain(shareable);
-    }
     // Where the entries the turn is given may be shared, as each says.
     let context = ArtifactLabels::derived_from(
         invocation
@@ -1389,6 +1371,15 @@ pub(crate) fn ask_turn(
             .collect::<Vec<_>>()
             .iter(),
     );
+    // Inputs and context are both part of the act. If either must stay
+    // local, refuse a host that cannot attest locality instead of dropping
+    // evidence and asking it to answer a different act.
+    if !reads_local_only && (given.is_local_only() || context.is_local_only()) {
+        return Err(RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: "what it is given is labelled local_only, and its host can't say its model runs on this machine".to_owned(),
+        });
+    }
     let request = turn_resolution_request(&invocation, package, act, address)?;
     Ok((request, context))
 }

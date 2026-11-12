@@ -1784,7 +1784,7 @@ fn an_agent_step_is_given_an_earlier_steps_context_entries_with_their_own_labels
 }
 
 #[test]
-fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
+fn a_remote_turn_is_refused_instead_of_dropping_a_local_only_context_entry()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let entry = |summary: &str, sharing: &str| {
@@ -1821,16 +1821,86 @@ fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
     // anywhere.
     let result = run_context_entries_skill(temp.path(), skill_dir)?;
 
-    let output = object(&result.output, "context entries result")?;
-    assert_eq!(string_field(output, "status"), Some("needs_agent"));
-    let rendered = serde_json::to_string(&result.output)?;
-    assert!(
-        rendered.contains("Shared with the configured model"),
-        "{rendered}"
-    );
-    // Neither the entry nor any of its text reaches the host.
-    assert!(!rendered.contains("Kept on this machine"), "{rendered}");
-    assert!(!rendered.contains("memory:local_only"), "{rendered}");
+    refused_before_the_turn(&result)?;
+    // The failed run retains both entries locally for diagnosis, but asks no
+    // model to answer a partial request.
+    let output = serde_json::to_value(&result.output)?;
+    let entries = &output["context"]["step_outputs"]["recall"]["entries"];
+    assert_eq!(entries.as_array().map(Vec::len), Some(2), "{output}");
+    assert_eq!(entries[1]["data"]["text"], "Kept on this machine");
+    Ok(())
+}
+
+#[test]
+fn a_remote_child_turn_preserves_the_callers_context_or_refuses_it()
+-> Result<(), Box<dyn std::error::Error>> {
+    for historical in [false, true] {
+        for sharing in ["configured_model", "local_only"] {
+            let temp = tempdir()?;
+            write_context_entries_skill(
+                temp.path(),
+                "export const recall = () => ({entries: []});\n",
+            )?;
+            let parent = temp.path().join("parent");
+            crate::support::write_test_skill_package(
+                &parent,
+                "---\nname: parent\ndescription: Pass caller context to a child.\n---\n# Parent\n",
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: child\n        skill: ../context-entries#main\n",
+            )?;
+            let text = "Retain every byte: café 🧭.";
+            let entry: runx_contracts::ContextEntry = serde_json::from_value(serde_json::json!({
+                "schema": "runx.context_entry.v1", "type": "memory.said",
+                "summary": "Exact caller context", "data": {"text": text},
+                "labels": {"purpose": "confirmed_memory", "trust": "person_confirmed", "sharing": sharing},
+                "sources": ["conversation:2026-10-20"],
+                "origin": {"artifact_id": "memory:caller@1", "run_id": "rx_host", "step_id": null,
+                    "producer": {"skill": "fixture", "method": "memory"},
+                    "created_at": "2026-10-20T00:00:00Z",
+                    "digest": runx_contracts::sha256_prefixed(text.as_bytes()), "size_bytes": text.len()}
+            }))?;
+            let result = run_skill(SkillRunRequest {
+                current_context: if historical {
+                    Vec::new()
+                } else {
+                    vec![entry.clone()]
+                },
+                historical_context: if historical {
+                    vec![entry.clone()]
+                } else {
+                    Vec::new()
+                },
+                run_authority: None,
+                act: None,
+                skill_path: parent,
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: path_env(),
+                cwd: temp.path().to_path_buf(),
+                managed_agent: Default::default(),
+            })?;
+            if sharing == "local_only" {
+                refused_before_the_turn(&result)?;
+                let rendered = serde_json::to_string(&result.output)?;
+                assert!(!rendered.contains("Exact caller context"), "{rendered}");
+                assert!(!rendered.contains("Retain every byte"), "{rendered}");
+            } else {
+                let output = serde_json::to_value(&result.output)?;
+                assert_eq!(output["status"], "needs_agent", "{output}");
+                let field = if historical {
+                    "historical_context"
+                } else {
+                    "current_context"
+                };
+                assert_eq!(
+                    output["requests"][0]["invocation"]["envelope"][field],
+                    serde_json::json!([entry]),
+                    "{output}"
+                );
+            }
+        }
+    }
     Ok(())
 }
 
