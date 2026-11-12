@@ -445,6 +445,30 @@ fn a_loaded_connector_runs_only_as_it_was_loaded() -> TestResult {
 }
 
 #[test]
+fn a_persons_stated_trust_covers_the_disclosed_connector_and_reports_one_method() -> TestResult {
+    let temp = tempdir()?;
+    let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
+    let stated = runx_runtime::state_trust("skills/reach", Some("mark"), &ws.env(), &ws.root)?;
+    assert_eq!(stated.len(), 1);
+    assert_eq!(stated[0].method, "mark");
+    assert_eq!(stated[0].connectors, ["marker"]);
+    let turn = ws.open(&ws.start()?)?;
+    assert!(completed(&load(
+        &turn,
+        serde_json::json!({"skill": "skills/reach"})
+    )?));
+    let ran = turn.call(
+        TURN,
+        "skill__reach__mark",
+        None,
+        input(serde_json::json!({"path": ws.marker().to_string_lossy()}))?,
+    )?;
+    assert!(completed(&ran), "{ran:?}");
+    assert_eq!(std::fs::read_to_string(ws.marker())?, "ran\n");
+    Ok(())
+}
+
+#[test]
 fn a_project_skill_reaching_a_connector_waits_on_trust_and_runs_once_trusted() -> TestResult {
     let temp = tempdir()?;
     let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
@@ -454,6 +478,11 @@ fn a_project_skill_reaching_a_connector_waits_on_trust_and_runs_once_trusted() -
     let held = load(&turn, serde_json::json!({"skill": "skills/reach"}))?;
     let gate = waits_on(&held, "trust")?;
     assert!(gate.reason.as_str().contains("marker"), "{gate:?}");
+    assert_eq!(
+        closures(&gate)?.len(),
+        2,
+        "the gate names the method and connector implementations it trusts"
+    );
     assert!(!ws.marker().exists(), "no process ran");
     drop(turn);
 

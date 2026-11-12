@@ -298,6 +298,16 @@ fn bind_skill(
         );
         closures.push(closure_digest);
     }
+    // Trust in a method includes the exact connectors it discloses. Process
+    // reads check those implementation digests, whether called directly or
+    // through this method; the one gate must name every record it will write.
+    closures.extend(
+        connectors
+            .iter()
+            .map(|binding| binding.connector_digest.as_str().to_owned()),
+    );
+    closures.sort();
+    closures.dedup();
     let reached = connectors
         .iter()
         .map(|binding| binding.connector.as_str())
@@ -434,6 +444,17 @@ pub fn state_trust(
             .iter()
             .map(|binding| binding.connector.as_str().to_owned())
             .collect::<Vec<_>>();
+        let closure_digest = bound
+            .tools
+            .iter()
+            .find_map(|tool| match &tool.target {
+                CallTarget::Skill {
+                    bound: Some(binding),
+                    ..
+                } => Some(binding.closure_digest.as_str().to_owned()),
+                _ => None,
+            })
+            .ok_or_else(|| format!("{reference} bound no method closure"))?;
         for closure in &bound.closures {
             crate::registry::record_trust(
                 &paths,
@@ -443,14 +464,14 @@ pub fn state_trust(
                     tier,
                 },
             )?;
-            stated.push(StatedTrust {
-                package: skill.as_str().to_owned(),
-                method: method.clone(),
-                closure_digest: closure.clone(),
-                connectors: connectors.clone(),
-                tier,
-            });
         }
+        stated.push(StatedTrust {
+            package: skill.as_str().to_owned(),
+            method,
+            closure_digest,
+            connectors,
+            tier,
+        });
     }
     Ok(stated)
 }
