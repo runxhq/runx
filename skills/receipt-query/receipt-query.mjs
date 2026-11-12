@@ -31,6 +31,7 @@ export function finalizeReceiptQuery(inputs) {
   const native = record(inputs.receipt_query);
   const rows = replay ? records(inputs.receipts) : records(native.receipts);
   const matched = rows
+    .filter((row) => !replay || matchesReplayIdentity(row, context.filter))
     .map(projectIdStub)
     .filter((stub) => matchesFilter(stub, context.filter))
     .filter((stub) => !context.receipt_ids_supplied || context.receipt_ids.includes(stub.receipt_id))
@@ -216,9 +217,16 @@ function projectIdStub(row) {
 function matchesFilter(stub, filter) {
   if (filter.skill && stub.skill !== filter.skill) return false;
   if (filter.outcome.length > 0 && !filter.outcome.includes(stub.outcome)) return false;
-  if (filter.from && stub.created_at && stub.created_at < filter.from) return false;
-  if (filter.to && stub.created_at && stub.created_at > filter.to) return false;
+  if (filter.from && (!stub.created_at || stub.created_at < filter.from)) return false;
+  if (filter.to && (!stub.created_at || stub.created_at > filter.to)) return false;
   return true;
+}
+
+function matchesReplayIdentity(row, filter) {
+  const actor = stringValue(row.actor)?.toLowerCase();
+  const issuer = stringValue(row.issuer_type)?.toLowerCase();
+  return (!filter.actor || actor === filter.actor.toLowerCase()) &&
+    (!filter.issuer || issuer === filter.issuer.toLowerCase());
 }
 
 function renderSummary({ decision, matched, chain, proofRequested, query }) {
