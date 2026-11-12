@@ -27,7 +27,7 @@
       ],
       "method": "from-evidence",
       "prompt": "Review already resolved receipt records against this grant baseline.",
-      "expected_output": "Reuse completed ledger evidence with a scoped result; no query or original operation repeats. The completed ledger packet is synthetic replay evidence, not fresh native verification.",
+      "expected_output": "Reuse completed ledger evidence without querying or replaying the original operation. Preserve exact receipt identity and recorded scopes, but return needs_more_evidence: the synthetic replay packet has unknown chain integrity and does not establish native verification.",
       "expectations": [
         "Do not resolve ledger evidence again.",
         "Do not rerun the audited operation."

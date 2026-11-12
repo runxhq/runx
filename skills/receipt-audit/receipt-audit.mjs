@@ -24,10 +24,11 @@ export default function finalizeAudit(inputs) {
   if (gaps.length) findings.push({id:'receipt.evidence.incomplete',severity:'warning',message:gaps.join(' ')});
   if (verdict === 'clean') findings.push({id:'receipt.clean',severity:'info',message:'No anomaly was found in the inspected recorded evidence against the supplied baseline.'});
   const source = inputs.supplied_evidence != null ? 'Supplied ledger evidence was reused; this run did not independently reread its receipts.' : 'Native ledger evidence was resolved for this review.';
+  const rationale = gaps.length ? `The assessment is inconclusive. ${gaps.join(' ')}` : candidate.rationale || 'No supported assessment was provided.';
   return {receipt_audit:{
     decision: conclusive ? 'ready' : 'needs_more_evidence', receipt_id:id, granted_scopes:granted, exercised_scopes:recorded,
     refusals:array(candidate.refusals), findings, verdict,
-    rationale:[candidate.rationale || 'No supported assessment was provided.',source,'Coverage is limited to inspected recorded evidence. Authority references do not prove complete or successful usage; hidden inputs and diagnostics were not checked for secrets.'].join(' '),
+    rationale:[rationale,source,'Coverage is limited to inspected recorded evidence. Authority references do not prove complete or successful usage; hidden inputs and diagnostics were not checked for secrets.'].join(' '),
     recommendations:[...array(candidate.recommendations),...gaps],
     success_checkpoint:{milestone:conclusive ? 'recorded_evidence_reviewed' : 'awaiting_evidence',description:conclusive ? 'Completed a scoped assessment of the inspected receipt evidence.' : 'Preserved the receipt identity and missing evidence without a clean verdict.'}
   }};

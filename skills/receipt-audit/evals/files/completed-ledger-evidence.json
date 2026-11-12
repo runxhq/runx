@@ -44,7 +44,7 @@
     ],
     "chain_verification": {
       "checked": true,
-      "intact": true,
+      "intact": null,
       "breaks": []
     },
     "summary": "Synthetic completed ledger packet for deterministic composition testing; not live proof."
