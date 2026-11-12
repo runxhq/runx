@@ -8,13 +8,13 @@ expect:
       message: hello from test
   receipt:
     schema: runx.receipt.v1
-    body_digest: sha256:44ad5c6d204fa110e5847eea89a2d5b8b40f0b9cc0383d4e5e71df83d2763464
-    receipt_digest: sha256:ff31b0b96d518578928c0d0520769dd637d6dba8e5cd042f6b376c3d5f4570e8
+    body_digest: sha256:dadd04ae6193eccfe277ee68bc8dbc9d36d403fd741cc172c09f0665be933d04
+    receipt_digest: sha256:b0566281cea3e59f7d153fbc872f34a524c2ad1c174dc2e16b89e33627b1928b
     subject_uri: runx:run:test-echo-skill
     state: sealed
     outcome: completed
     child_receipt_uris:
-      - runx:receipt:sha256:b5b16314a5ea1346c368dfdcc38f1e24027a597f6ddba80f15c3c9dc6e159721
+      - runx:receipt:sha256:7ee81aefb6caa0d2d329afb1ce8f8dd81fa383d9c90cfaef037730076dda78fd
     child_receipt_count: 1
   steps:
     - default

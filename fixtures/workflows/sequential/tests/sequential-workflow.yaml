@@ -3,16 +3,16 @@ expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
-    body_digest: sha256:e3a63d3777f8854a87ee97d093b004227dab30fd682084d6918e0e1c2e3cca9a
-    receipt_digest: sha256:e5e4de36c6b653670ab40650ed5e1f29204b616bd5a703e7ce3fd265891587d5
+    body_digest: sha256:7f13b300b8a786f1e72cb027c7df43ff8378b59379d4c5c11e2a21aa9676a5a3
+    receipt_digest: sha256:8637435eddd1c97ef9b2cdb1c8f720ade08226996cb3f86389be555a02ca6607
     subject_uri: runx:run:test-sequential-workflow
     state: sealed
     outcome: completed
     act_ids: []
     decision_ids: []
     child_receipt_uris:
-      - runx:receipt:sha256:caa4b7c48b6fd609bdba29140715828dcb713a70818b0de0d2d676f9622b9063
-      - runx:receipt:sha256:9c0070917de21799845365b8594de9512074d39ba3b7a142e157c89ca14ca4cb
+      - runx:receipt:sha256:f0424e11250ed41dbc2febec127c12453ee80f1e6224555dde313604447c8e99
+      - runx:receipt:sha256:be24798f52935c7c89b27a2b9a26429ce09baac449af7db7d12402c67e41467c
     child_receipt_count: 2
   steps:
     - first
