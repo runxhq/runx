@@ -837,6 +837,140 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
 }
 
 #[test]
+fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
+-> Result<(), Box<dyn std::error::Error>> {
+    use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+    let temp = tempdir()?;
+    let skill = temp.path().join("reader");
+    crate::support::write_test_skill_package(
+        &skill,
+        "---\nname: reader\ndescription: Read an entire input.\n---\n# Reader\n\n## Agent task: read\n\nRead every page of the document, then finish.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      document: {type: string}\n    steps:\n      - id: read\n        agent: read\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let invalid = [
+        (
+            "turn_read",
+            json!({"locator": "input:document", "offset": "32000"}),
+        ),
+        (
+            "turn_read",
+            json!({"locator": "input:document", "offset": null}),
+        ),
+        (
+            "turn_read",
+            json!({"locator": "input:document", "offset": -1}),
+        ),
+        (
+            "turn_read",
+            json!({"locator": "input:document", "offset": 1.5}),
+        ),
+        (
+            "turn_read",
+            json!({"locator": "input:document", "offset": 1e20}),
+        ),
+        (
+            "turn_read",
+            json!({"locator": "input:document", "offest": 32000}),
+        ),
+        (
+            "turn_read",
+            json!({"locator": "input:document", "limit": null}),
+        ),
+        ("turn_status", json!({"unexpected": true})),
+    ];
+    let mut responses = invalid
+        .iter()
+        .enumerate()
+        .map(|(index, (tool, input))| tool_call(&format!("bad-{index}"), tool, input))
+        .chain([0, 32_000, 64_000].map(|offset| {
+            tool_call(
+                &format!("page-{offset}"),
+                "turn_read",
+                &json!({"locator": "input:document", "offset": offset}),
+            )
+        }))
+        .chain([tool_call(
+            "done",
+            "turn_complete",
+            &json!({"status": "done"}),
+        )])
+        .collect::<Vec<_>>()
+        .into_iter();
+    let model = ScriptedModel::serve(move |_| {
+        responses.next().unwrap_or_else(|| {
+            tool_call("extra", "turn_complete", &json!({"status": "unexpected"}))
+        })
+    })?;
+    let mut env = BTreeMap::from([(
+        "RUNX_HOME".to_owned(),
+        temp.path().join("home").display().to_string(),
+    )]);
+    env.extend(managed_agent_env(model.endpoint(), "reader"));
+    crate::support::insert_test_signing_env(&mut env);
+    let document = format!("{}end", "café🧭".repeat(13_000));
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("document".to_owned(), JsonValue::String(document.clone()))]),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(12)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let requests = model.finish()?;
+    let output = serde_json::to_value(result.output)?;
+    assert_eq!(output["outcome"], "completed", "{output}");
+    assert_eq!(requests.len(), invalid.len() + 4);
+    let messages = requests
+        .last()
+        .and_then(|request| request["messages"].as_array())
+        .ok_or("missing transcript")?;
+    let result_for = |id: &str| -> Result<&str, Box<dyn std::error::Error>> {
+        messages
+            .iter()
+            .find(|message| message["tool_call_id"] == id)
+            .and_then(|message| message["content"].as_str())
+            .ok_or_else(|| format!("missing {id}").into())
+    };
+    for index in 0..invalid.len() {
+        let content = result_for(&format!("bad-{index}"))?;
+        let start = content.chars().take(120).collect::<String>();
+        assert!(
+            content.contains("input"),
+            "a malformed control returns an input error: {start}"
+        );
+        assert!(
+            serde_json::from_str::<Value>(content).is_err(),
+            "a malformed control must not return a page or status: {start}"
+        );
+    }
+    let mut reconstructed = String::new();
+    for offset in [0, 32_000, 64_000] {
+        let page: Value = serde_json::from_str(result_for(&format!("page-{offset}"))?)?;
+        assert_eq!(page["offset"], offset);
+        assert_eq!(page["total"], document.chars().count());
+        let text = page["text"].as_str().ok_or("missing page text")?;
+        reconstructed.push_str(text);
+        assert_eq!(
+            page["next_offset"].as_u64(),
+            (offset < 64_000).then_some(offset + 32_000)
+        );
+    }
+    assert_eq!(reconstructed, document);
+    Ok(())
+}
+
+#[test]
 fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

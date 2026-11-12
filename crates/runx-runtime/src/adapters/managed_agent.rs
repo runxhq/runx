@@ -279,6 +279,40 @@ impl ToolExecutor for TurnCalls<'_> {
 
     // The loop ends the turn on its final tool; it never runs here.
     fn execute(&mut self, tool: &str, input: &JsonValue) -> Result<ToolOutcome, RuntimeError> {
+        if [TURN_STATUS_TOOL, TURN_READ_TOOL].contains(&tool) {
+            // Host controls have no capability handler to admit their inputs.
+            // Enforce the exact schema offered this round before reading;
+            // malformed paging arguments must never become absent arguments.
+            let schema = self
+                .offered
+                .definitions()
+                .iter()
+                .find(|definition| definition.name == tool)
+                .and_then(|definition| definition.input_schema.as_object())
+                .ok_or_else(|| {
+                    RuntimeError::effect_state(
+                        "admitting a turn control",
+                        "its offered input schema is missing",
+                    )
+                })?;
+            let declaration = runx_contracts::InputDefinition {
+                input_type: "object".to_owned(),
+                required: true,
+                description: None,
+                default: None,
+                packet: None,
+                schema: Some(schema.clone()),
+            };
+            if let Err(error) =
+                crate::input_contract::admit_input_value("tool", tool, &declaration, input)
+            {
+                return Ok(ToolOutcome::Result {
+                    content: error.to_string(),
+                    is_error: true,
+                    guidance: None,
+                });
+            }
+        }
         if tool == TURN_STATUS_TOOL {
             return Ok(ToolOutcome::Result {
                 content: json_text(&self.turn.status()?)?,
@@ -288,16 +322,24 @@ impl ToolExecutor for TurnCalls<'_> {
         }
         if tool == TURN_READ_TOOL {
             let field = |name: &str| input.as_object().and_then(|input| input.get(name));
-            let read = match field("locator").and_then(JsonValue::as_str) {
-                Some(locator) => self.turn.read(
-                    locator,
-                    field("offset").and_then(JsonValue::as_u64).unwrap_or(0),
-                    field("limit").and_then(JsonValue::as_u64),
-                ),
-                None => Err(RuntimeError::ContinuationRejected {
-                    reason: "turn_read takes the locator to read".to_owned(),
-                }),
-            };
+            let read = (|| {
+                let locator = field("locator")
+                    .and_then(JsonValue::as_str)
+                    .ok_or_else(|| RuntimeError::ContinuationRejected {
+                        reason: "turn_read takes the locator to read".to_owned(),
+                    })?;
+                let count = |name: &str| {
+                    field(name)
+                        .map(|value| {
+                            value.as_u64().ok_or_else(|| RuntimeError::ContinuationRejected {
+                                reason: format!("turn_read input '{name}' must be a whole number of zero or more"),
+                            })
+                        })
+                        .transpose()
+                };
+                self.turn
+                    .read(locator, count("offset")?.unwrap_or(0), count("limit")?)
+            })();
             // A locator the turn does not hold is the model's to correct.
             return Ok(match read {
                 Ok(page) => ToolOutcome::Result {

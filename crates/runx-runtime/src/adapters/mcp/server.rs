@@ -314,6 +314,26 @@ fn prepare_rmcp_tool_call(
             None,
         ));
     };
+    if matches!(&tool.result, McpServerToolBehavior::Turn(_)) {
+        // Turn controls are admitted here; the kernel admits each skill or
+        // capability call they make. Do not silently discard a misspelled
+        // control argument before that call reaches the run.
+        let declaration = runx_contracts::InputDefinition {
+            input_type: "object".to_owned(),
+            required: true,
+            description: None,
+            default: None,
+            packet: None,
+            schema: Some(tool.input_schema.clone()),
+        };
+        crate::input_contract::admit_input_value(
+            "tool",
+            name,
+            &declaration,
+            &JsonValue::Object(arguments.clone()),
+        )
+        .map_err(rmcp_invalid_params)?;
+    }
     match tool.result {
         McpServerToolBehavior::Fixed(result) => Ok(PreparedMcpToolCall::Fixed(result)),
         McpServerToolBehavior::Skill(execution) => Ok(PreparedMcpToolCall::Skill {
@@ -789,6 +809,44 @@ mod tests {
             .and_then(JsonValue::as_str)
             .ok_or("the paused call names its run")?
             .to_owned();
+        let read_arguments = JsonObject::from([
+            ("run".to_owned(), JsonValue::String(run_id.clone())),
+            ("turn".to_owned(), JsonValue::String("default".to_owned())),
+            (
+                "locator".to_owned(),
+                JsonValue::String("input:prompt".to_owned()),
+            ),
+        ]);
+        for (field, value) in [
+            ("offest", JsonValue::Number(1_u64.into())),
+            ("offset", JsonValue::String("1".to_owned())),
+            ("limit", JsonValue::Null),
+        ] {
+            let mut arguments = read_arguments.clone();
+            arguments.insert(field.to_owned(), value);
+            assert!(
+                prepare_rmcp_tool_call(&state, "turn_read", arguments).is_err(),
+                "{field} must be refused before control dispatch"
+            );
+        }
+        let PreparedMcpToolCall::Turn {
+            tool: read,
+            arguments,
+            served,
+        } = prepare_rmcp_tool_call(&state, "turn_read", read_arguments)?
+        else {
+            return Err("expected an admitted turn read".into());
+        };
+        let page =
+            super::super::server_turn::execute_mcp_turn_tool(&read, arguments, &served, None);
+        assert!(!page.is_error, "{page:?}");
+        assert_eq!(
+            page.structured_content
+                .as_ref()
+                .and_then(|page| page.get("text"))
+                .and_then(JsonValue::as_str),
+            Some("review")
+        );
         let Some(McpServerToolBehavior::Turn(complete)) = tool("turn_complete") else {
             return Err("expected the turn_complete tool".into());
         };
