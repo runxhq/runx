@@ -86,7 +86,9 @@ inspected base digest and exact transaction, not an unchecked overwrite.
 An agent continues the offered nested architect and author turns using their
 actual request addresses and tool contracts. Do not substitute answers copied
 from a fixture. Use the result's outcome and apply_result: no_skill, needs_core,
-unchanged, failure and applied are different results. Inspect and invoke the
+unchanged, failure and applied are different results. The returned architecture_plan
+preserves the builder’s decision rationale and recovery even when no package is written.
+Inspect and invoke the
 returned local package for its promised job before recommending adoption.
 
 ## Authority and continuation

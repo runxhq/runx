@@ -1,4 +1,4 @@
-version: "0.4.11"
+version: "0.4.12"
 minimum_runx: 0.12.0
 default_method: adopt
 catalog:
@@ -56,6 +56,7 @@ methods:
           source_snapshot: $steps.read.file_read_bundle
           validation_byte_budget: $input.validation_byte_budget
         outputs:
+          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1, optional: true}
           apply_result: {type: object, packet: runx.skill.apply_result.v1, optional: true}
   from-source:
     description: Adopt already captured upstream source without another acquisition; canonical skill-build owns validation and atomic application.
@@ -184,6 +185,7 @@ methods:
           package_name: $input.package_name
           project_context: $steps.context.adoption_context.project_context
         outputs:
+          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1, optional: true}
           apply_result: {type: object, packet: runx.skill.apply_result.v1}
 shared_inputs:
   objective:

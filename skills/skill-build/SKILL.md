@@ -484,7 +484,8 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 - `architecture_decision`: the agent's closed ownership and execution design.
 - `architecture_plan`: that decision bound by native code to the exact
-  inspection digest. Design stops here.
+  inspection digest. Every method returns it so the rationale, limits and
+  recovery survive applied, unchanged and stopped outcomes. Design stops here.
 - `change_draft`: package bytes and intent authored against the admitted plan;
   it contains no model-authored integrity values.
 - `change_bundle`: the native, digest-bound transaction candidate produced from

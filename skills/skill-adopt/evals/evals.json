@@ -10,12 +10,14 @@
     {
       "id": 2,
       "prompt": "Adopt from previously captured upstream source without fetching it again.",
-      "expected_output": "Reuse captured source and author a complete local package through the same canonical builder.",
+      "expected_output": "Reuse the exact captured source without refetching. Apply a complete package only when the source establishes a useful distinct skill and its required source/license context is sufficient; otherwise return a justified no_skill, needs_core, or blocked result with an actionable reason and no package writes.",
       "files": [
         "evals/files/captured-decision-note.json"
       ],
       "expectations": [
-        "Do not refetch the upstream repository or replay the upstream operational workflow."
+        "Do not refetch the upstream repository or replay the upstream operational workflow.",
+        "Do not manufacture a useful capability or license permission to satisfy a forced package-creation expectation.",
+        "Preserve the architecture decision rationale and recovery context in the returned result, including when no package is created."
       ],
       "method": "from-source"
     }

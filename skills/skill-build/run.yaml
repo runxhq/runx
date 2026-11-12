@@ -1,4 +1,4 @@
-version: "0.9.21"
+version: "0.9.22"
 minimum_runx: 0.12.0
 default_method: build
 catalog:
@@ -87,6 +87,7 @@ methods:
         target_dir: skills/research
         project_context: Preserve remote evidence support and avoid package-local file readers.
     result_from:
+      - plan
       - apply
       - apply-terminal
     steps:
@@ -206,6 +207,7 @@ methods:
         project_context: Preserve the existing contract version and provider boundary.
         test_output: The agent could not construct the nested resources selector from inspection.
     result_from:
+      - plan
       - apply
       - apply-terminal
     steps:
@@ -317,6 +319,7 @@ methods:
         target_dir: skills/research
         project_context: Exercise the real native file and evidence capabilities.
     result_from:
+      - plan
       - apply
       - apply-terminal
     steps:
