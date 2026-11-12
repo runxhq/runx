@@ -3,15 +3,11 @@
   "objective": "Decide where generic evidence admission belongs.",
   "source_packets": [
     {
-      "decision": "ready",
-      "source_kind": "local_file",
-      "source_uri": "file:fixtures/local-architecture-evidence.txt",
+      "path": "fixtures/local-architecture-evidence.txt",
+      "contents": "Runx keeps generic evidence admission in the native runtime.\nSkills contribute domain judgment without inventing transport or hashing layers.\n",
       "content_digest": "sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45",
-      "extracted": "Runx keeps generic evidence admission in the native runtime.\nSkills contribute domain judgment without inventing transport or hashing layers.\n",
-      "provenance": {
-        "path": "fixtures/local-architecture-evidence.txt",
-        "bytes": 142
-      }
+      "bytes": 142,
+      "truncated": false
     }
   ]
 }
