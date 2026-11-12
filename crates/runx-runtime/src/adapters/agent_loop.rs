@@ -498,8 +498,7 @@ where
                     results.push(AgentToolResult {
                         tool_use_id: use_.id.clone(),
                         content: format!(
-                            "Final result does not match the declared output contract at {error}. {}",
-                            final_result_repair_hint(config.final_result_output.as_ref())
+                            "Final result does not match the declared output contract at {error}."
                         ),
                         is_error: true,
                     });
@@ -611,16 +610,6 @@ where
     ))
 }
 
-fn final_result_repair_hint(output: Option<&BTreeMap<String, OutputField>>) -> String {
-    let Some(output) = output.filter(|fields| !fields.is_empty()) else {
-        return "Submit one JSON object as the tool input.".to_owned();
-    };
-    let fields = output.keys().cloned().collect::<Vec<_>>().join(", ");
-    format!(
-        "The tool input root must contain exactly these declared fields: [{fields}]. Do not submit a field's inner value as the root object."
-    )
-}
-
 fn validate_final_result(config: &AgentLoopConfig, value: &JsonValue) -> Result<(), String> {
     let Some(schema) = config.final_result_schema.as_ref() else {
         return validate_output_value(config.final_result_output.as_ref(), value)
@@ -635,10 +624,11 @@ fn validate_final_result(config: &AgentLoopConfig, value: &JsonValue) -> Result<
         .map_err(|error| format!("$: final result could not be serialized: {error}"))?;
     validator.validate(&instance).map_err(|error| {
         let path = error.instance_path();
+        let message = error.masked();
         if path.is_empty() {
-            format!("$: {error}")
+            format!("$: {message}")
         } else {
-            format!("${path}: {error}")
+            format!("${path}: {message}")
         }
     })
 }
@@ -1012,6 +1002,95 @@ mod tests {
                 && attempt.status == "failure"
                 && attempt.resolution_kind.as_deref() == Some("output_contract_failed")
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn loop_reports_the_nested_error_without_echoing_or_rewriting_the_root() -> Result<(), String> {
+        struct Repair(std::cell::Cell<u32>);
+        impl ModelCaller for Repair {
+            fn reply(
+                &self,
+                _tools: &AgentToolNameMap,
+                transcript: &[AgentTurn],
+            ) -> Result<ModelReply, RuntimeError> {
+                let call = self.0.get();
+                self.0.set(call + 1);
+                let input = if call == 0 {
+                    JsonValue::Object(JsonObject::from([(
+                        "draft".to_owned(),
+                        JsonValue::String("rejected-payload".repeat(10_000)),
+                    )]))
+                } else {
+                    let feedback = transcript
+                        .iter()
+                        .rev()
+                        .find_map(|turn| match turn {
+                            AgentTurn::ToolResults(results) => results.first(),
+                            _ => None,
+                        })
+                        .expect("the invalid final result is returned to the model");
+                    assert!(feedback.is_error);
+                    assert!(
+                        feedback.content.contains("draft") && feedback.content.contains("object")
+                    );
+                    assert!(!feedback.content.contains("rejected-payload"));
+                    assert!(!feedback.content.contains("root must contain"));
+                    assert!(!feedback.content.contains("optional_note"));
+                    assert!(feedback.content.len() < 500);
+                    JsonValue::Object(JsonObject::from([(
+                        "draft".to_owned(),
+                        JsonValue::Object(JsonObject::new()),
+                    )]))
+                };
+                Ok(unmetered(vec![AgentToolUse {
+                    id: format!("final-{call}"),
+                    name: FINAL.to_owned(),
+                    input,
+                    replay: None,
+                }]))
+            }
+        }
+        let output = BTreeMap::from([
+            (
+                "draft".to_owned(),
+                OutputField {
+                    schema: JsonObject::from([(
+                        "type".to_owned(),
+                        JsonValue::String("object".to_owned()),
+                    )]),
+                    optional: false,
+                    packet: None,
+                },
+            ),
+            (
+                "optional_note".to_owned(),
+                OutputField {
+                    schema: JsonObject::new(),
+                    optional: true,
+                    packet: None,
+                },
+            ),
+        ]);
+        for exact in [false, true] {
+            let config = AgentLoopConfig {
+                max_rounds: 2,
+                max_empty_turn_resamples: 0,
+                final_result_tool: FINAL.to_owned(),
+                final_result_schema: exact
+                    .then(|| runx_contracts::output_value_schema(Some(&output))),
+                final_result_output: Some(output.clone()),
+            };
+            let end = run_agent_loop(
+                &config,
+                &Repair(std::cell::Cell::new(0)),
+                &mut OkExecutor,
+                vec![AgentTurn::User("draft".to_owned())],
+            )
+            .map_err(|error| error.to_string())?;
+            assert!(end.answer.is_some());
+            assert_eq!(end.telemetry.model_calls, Some(2));
+        }
         Ok(())
     }
 

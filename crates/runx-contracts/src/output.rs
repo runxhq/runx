@@ -214,7 +214,7 @@ pub fn validate_output_value(
     };
     Err(OutputValidationError::new(
         validation_error_path(&error),
-        error.to_string(),
+        error.masked().to_string(),
     ))
 }
 
@@ -345,6 +345,16 @@ mod tests {
         assert!(error.to_string().starts_with("$.notify_plan: "));
         assert!(validate_output_value(Some(&output), &wrong_enum).is_err());
         assert!(validate_output_value(Some(&output), &wrong_type).is_err());
+        let long_value = JsonValue::Object(BTreeMap::from([(
+            "notify_plan".to_owned(),
+            JsonValue::String("rejected-payload".repeat(10_000)),
+        )]));
+        let error = validate_output_value(Some(&output), &long_value)
+            .err()
+            .ok_or("a string cannot become an object")?
+            .to_string();
+        assert!(error.contains("notify_plan") && error.contains("object"));
+        assert!(!error.contains("rejected-payload") && error.len() < 500);
         Ok(())
     }
 
