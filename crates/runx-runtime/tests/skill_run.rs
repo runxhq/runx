@@ -2867,7 +2867,8 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
     };
     let message = refused.to_string();
     assert!(
-        message.contains("method output contract violation at $.output"),
+        message.contains("method output contract violation at $.fix_bundle")
+            && message.contains("required property"),
         "unexpected envelope refusal: {message}"
     );
     let reopened = run_skill(SkillRunRequest {

@@ -77,7 +77,7 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
     "count": { "type": "integer" },
     "message": { "type": "string" },
     "mode": { "type": "string", "default": "safe", "optional": true },
-    "optional": { "type": "object", "optional": true }
+    "optional": { "optional": true }
   }
 }
 "#,
@@ -123,7 +123,7 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
         Some(3),
         "a declared input passes through"
     );
-    assert!(!object.contains_key("optional"));
+    assert_eq!(object.get("optional"), Some(&JsonValue::Null));
     assert!(!object.contains_key("undeclared"));
     Ok(())
 }

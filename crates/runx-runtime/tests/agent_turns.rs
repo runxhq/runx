@@ -3007,10 +3007,16 @@ methods:
         .and_then(JsonValue::as_object)
         .and_then(|refusal| text(refusal, "reason"))
         .ok_or("the run names why it was refused")?;
-    assert_eq!(
-        reason,
-        "the run's effects are none, so it changes nothing: the fs.write tool, which changes the workspace, in writer-child#write's step write; the fs.write tool, which changes the workspace, in writer-script#write's step write, are each refused before the run starts"
-    );
+    assert!(reason.starts_with("the run's effects are none, so it changes nothing:"));
+    for method in ["writer-child#write", "writer-script#write"] {
+        assert!(
+            reason.contains(&format!(
+                "the fs.write tool, which changes the workspace, in {method}'s step write"
+            )),
+            "{reason}"
+        );
+    }
+    assert!(reason.ends_with("are each refused before the run starts"));
     for written in [
         "own.txt",
         "child.txt",

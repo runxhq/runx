@@ -1016,7 +1016,11 @@ mod tests {
                             AgentTurn::ToolResults(results) => results.first(),
                             _ => None,
                         })
-                        .expect("the invalid final result is returned to the model");
+                        .ok_or_else(|| {
+                            provider_failed(
+                                "the invalid final result was not returned to the model",
+                            )
+                        })?;
                     assert!(feedback.is_error);
                     assert!(
                         feedback.content.contains("draft") && feedback.content.contains("object")
