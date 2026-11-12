@@ -685,12 +685,14 @@ fn step_declares_result(
             )
         }
         StepKind::Tool(ToolTarget::Catalog(tool_name)) => {
-            crate::output_contract::declares_output_contract(None, definition.artifacts.as_ref())
-                || (definition.artifacts.is_none()
-                    && tools
-                        .iter()
-                        .find(|tool| tool.name == *tool_name)
-                        .is_some_and(|tool| tool.declared_artifact_output))
+            crate::output_contract::declares_output_contract(
+                definition.outputs.as_ref(),
+                definition.artifacts.as_ref(),
+            ) || (definition.artifacts.is_none()
+                && tools
+                    .iter()
+                    .find(|tool| tool.name == *tool_name)
+                    .is_some_and(|tool| tool.declared_artifact_output))
         }
     }
 }
@@ -1346,6 +1348,66 @@ methods:
                 .content
                 .as_deref()
                 .is_some_and(|content| content.contains("\"command\": \"true\""))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn operator_context_accepts_result_tool_inline_outputs_at_execution()
+    -> Result<(), Box<dyn Error>> {
+        let temp = tempdir()?;
+        let entry = temp.path().join("entry");
+        write_skill(&entry, "entry", "# Entry")?;
+        write_file(
+            &entry.join("run.yaml"),
+            r#"minimum_runx: 0.12.0
+methods:
+  main:
+    result_from: [verify]
+    steps:
+      - id: verify
+        tool: evidence.verify_artifact
+        inputs:
+          artifact_name: review
+          candidate: {decision: ready, summary: Typed inline result.}
+          require_claim_bindings: false
+        outputs:
+          review:
+            type: object
+            required: [decision, summary, validation]
+            properties:
+              decision: {const: ready}
+              summary: {type: string}
+              validation: {type: object, additionalProperties: true}
+"#,
+        )?;
+        let chain = load_skill_operator_context_chain(
+            &entry,
+            None,
+            SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
+        )?;
+        assert!(chain.entry.steps[0].definition.outputs.is_some());
+        assert!(!chain.entry.tools[0].declared_artifact_output);
+        let fixture = entry.join("tests/inline.yaml");
+        write_file(
+            &fixture,
+            r#"name: native-inline-output
+expect:
+  status: sealed
+  output:
+    subset:
+      review:
+        decision: ready
+        summary: Typed inline result.
+        validation: {status: pass}
+"#,
+        )?;
+        let output = crate::run_test_fixture(&fixture, BTreeMap::new())?;
+        assert!(
+            output
+                .skill_output
+                .ok_or("missing semantic result")?
+                .succeeded()
         );
         Ok(())
     }
