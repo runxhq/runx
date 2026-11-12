@@ -122,6 +122,12 @@ product gap. Do not invent a private workaround.
      usually produce `needs_input` rather than fake readiness.
 
 3. Route to governed lanes.
+   - Route the action being proposed now, not the broader subject of the
+     objective. Inspecting source code is a source-inspection task, even when
+     the code belongs to payments or deployment. Use the supplied source owner
+     or an inspected read interface; a payment method is not a file reader.
+     Requirements of a possible later effect do not block a current read that
+     does not need those credentials, approval or provider bindings.
    - Reuse a retained inspection when it establishes the exact proposed method.
      Otherwise inspect that skill with `registry.inspect` before naming its
      method and inputs; use one targeted `registry.search` only when the owner
@@ -261,7 +267,9 @@ communications, providers, receipts, access, release, registry, and deploy state
 smallest useful next action; route every proposal to a named governed lane resolved from the
 registry: release, ledger, payments, provider send and health checks, deploy checks, or the
 product's own skill. Use the declared read-only registry tools only to resolve
-a proposed route that retained evidence has not already established. For
+a proposed route that retained evidence has not already established. Match its
+actual method and inputs to the present action. Keep prerequisites for a later
+effect separate from blockers of the proposed read or preparation. For
 each consequential proposal include an execution handoff naming the existing skill, CLI command,
 hosted API, workflow, provider tool, or manual gate that should execute it; never duplicate that
 implementation in operator prose. Read-only checks do not need approval. Live sends, payouts,
