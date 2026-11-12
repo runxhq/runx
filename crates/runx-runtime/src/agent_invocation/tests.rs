@@ -185,11 +185,6 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
             .and_then(JsonValue::as_str),
         Some("object")
     );
-    assert!(
-        output_schema
-            .as_object()
-            .is_some_and(|schema| !schema.contains_key("allOf"))
-    );
     let validator =
         jsonschema::draft202012::options().build(&serde_json::to_value(output_schema)?)?;
     let invalid = JsonValue::Object(BTreeMap::from([(
@@ -209,6 +204,102 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
     validator
         .validate(&valid)
         .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[test]
+fn agent_invocation_preserves_inline_and_packet_constraints()
+-> Result<(), Box<dyn std::error::Error>> {
+    for wrapped in [false, true] {
+        let skill =
+            temp_skill("Assess the supplied evidence without weakening either output contract.")?;
+        fs::create_dir_all(skill.path().join("packets"))?;
+        let packet = packet_id("acme/contract-test.lossless.v1")?;
+        let packet_fields = serde_json::json!({
+            "type": "object",
+            "required": ["decision"],
+            "properties": {"decision": {"$ref": "#/$defs/decision"}},
+            "additionalProperties": true
+        });
+        let mut packet_schema = if wrapped {
+            serde_json::json!({"type":"object", "required":["plan"], "properties":{"plan":packet_fields}, "additionalProperties":false})
+        } else {
+            packet_fields
+        };
+        packet_schema["$schema"] =
+            serde_json::json!("https://json-schema.org/draft/2020-12/schema");
+        packet_schema["$id"] = serde_json::json!(packet.schema_url());
+        packet_schema["x-runx-packet-id"] = serde_json::json!(packet.as_str());
+        packet_schema["$defs"] = serde_json::json!({"decision":{"type":"string","const":"ready"}});
+        fs::write(
+            skill.path().join("packets/lossless.v1.schema.json"),
+            packet_schema.to_string(),
+        )?;
+        let declared = serde_json::from_value(serde_json::json!({
+            "plan": {
+                "type":"object", "required":["decision","caller_work"],
+                "properties": {
+                    "decision":{"type":"string","enum":["ready","blocked"]},
+                    "caller_work":{"type":"array","minItems":1,"items":{"type":"string"}}
+                }, "additionalProperties":false
+            }
+        }))?;
+        let mut request = invocation(skill.path().to_path_buf(), Some(declared));
+        request.artifacts = Some(OutputArtifacts {
+            result_as: wrapped.then(|| "complete_result".to_owned()),
+            packets: BTreeMap::from([(
+                (if wrapped { "complete_result" } else { "plan" }).to_owned(),
+                packet,
+            )]),
+        });
+        let resolved =
+            build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        let schema = serde_json::to_value(
+            resolved
+                .envelope
+                .output_schema
+                .as_ref()
+                .ok_or("missing schema")?,
+        )?;
+        assert_eq!(schema["type"], "object");
+        assert!(schema["properties"]["plan"].is_object());
+        let validator = jsonschema::draft202012::options().build(&schema)?;
+        let turn = runx_contracts::ResolutionRequest::Turn {
+            id: "assess".into(),
+            invocation: Box::new(resolved),
+        };
+        for (value, valid) in [
+            (
+                serde_json::json!({"plan":{"decision":"ready","caller_work":["inspect"]}}),
+                true,
+            ),
+            (
+                serde_json::json!({"plan":{"decision":"ready","caller_work":"scalar"}}),
+                false,
+            ),
+            (serde_json::json!({"plan":{"decision":"ready"}}), false),
+            (
+                serde_json::json!({"plan":{"decision":"blocked","caller_work":["inspect"]}}),
+                false,
+            ),
+            (
+                serde_json::json!({"plan":{"decision":"ready","caller_work":["inspect"],"extra":true}}),
+                false,
+            ),
+        ] {
+            let offered = validator.validate(&value).is_ok();
+            let value: JsonValue = serde_json::from_value(value)?;
+            let enforced = crate::agent_contract::agent_contract_checks_with_artifacts(
+                &turn,
+                &value,
+                request.artifacts.as_ref(),
+                skill.path(),
+            )
+            .is_ok();
+            assert_eq!(offered, valid, "offered wrapped={wrapped}: {value:?}");
+            assert_eq!(enforced, valid, "enforced wrapped={wrapped}: {value:?}");
+        }
+    }
     Ok(())
 }
 
@@ -258,11 +349,6 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
             .and_then(|schema| schema.get("type"))
             .and_then(JsonValue::as_str),
         Some("object")
-    );
-    assert!(
-        output_schema
-            .as_object()
-            .is_some_and(|schema| !schema.contains_key("allOf"))
     );
     let validator =
         jsonschema::draft202012::options().build(&serde_json::to_value(output_schema)?)?;

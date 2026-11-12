@@ -87,22 +87,20 @@ pub(crate) fn agent_output_contract_schema(
 
 fn merge_wrapped_packet_schema(
     root: &mut runx_contracts::JsonValue,
-    mut packet: runx_contracts::JsonObject,
+    packet: runx_contracts::JsonObject,
 ) -> Result<(), RuntimeError> {
     use runx_contracts::JsonValue;
-
     let JsonValue::Object(root) = root else {
         return Err(agent_packet_shape_error());
     };
-    let Some(JsonValue::Object(root_properties)) = root.get_mut("properties") else {
+    let Some(JsonValue::Object(properties)) = root.get("properties") else {
         return Err(agent_packet_shape_error());
     };
-    let packet_properties = match packet.remove("properties") {
-        Some(JsonValue::Object(properties)) => properties,
-        _ => return Err(agent_packet_shape_error()),
+    let Some(JsonValue::Object(packet_properties)) = packet.get("properties") else {
+        return Err(agent_packet_shape_error());
     };
     if packet.get("additionalProperties") == Some(&JsonValue::Bool(false))
-        && let Some(name) = root_properties
+        && let Some(name) = properties
             .keys()
             .find(|name| !packet_properties.contains_key(*name))
     {
@@ -111,27 +109,12 @@ fn merge_wrapped_packet_schema(
             message: format!("wrapped packet schema does not declare agent output field '{name}'"),
         });
     }
-    for (name, field_schema) in packet_properties {
-        if let Some(field) = root_properties.get_mut(&name) {
-            *field = field_schema;
-        }
-    }
-
-    let declared = root_properties
-        .keys()
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut required = root
-        .get("required")
-        .and_then(JsonValue::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if let Some(JsonValue::Array(packet_required)) = packet.remove("required") {
-        for field in packet_required {
+    if let Some(JsonValue::Array(required)) = packet.get("required") {
+        for field in required {
             let Some(name) = field.as_str() else {
                 return Err(agent_packet_shape_error());
             };
-            if !declared.contains(name) {
+            if !properties.contains_key(name) {
                 return Err(RuntimeError::SkillFailed {
                     skill_name: "agent".to_owned(),
                     message: format!(
@@ -139,37 +122,40 @@ fn merge_wrapped_packet_schema(
                     ),
                 });
             }
-            if !required
-                .iter()
-                .any(|existing| existing.as_str() == Some(name))
-            {
-                required.push(JsonValue::String(name.to_owned()));
-            }
         }
     }
-    root.insert("required".to_owned(), JsonValue::Array(required));
-
-    // Preserve root-level semantic constraints while retaining the ordinary
-    // object/properties form accepted by provider tool APIs.
-    for key in [
-        "$defs",
-        "allOf",
-        "anyOf",
-        "oneOf",
-        "not",
-        "if",
-        "then",
-        "else",
-        "dependentRequired",
-        "dependentSchemas",
-        "minProperties",
-        "maxProperties",
-    ] {
-        if let Some(value) = packet.remove(key) {
-            root.insert(key.to_owned(), value);
-        }
+    // Keep the complete packet in its own schema scope. Flattening selected
+    // keywords loses constraints and can rebase local references incorrectly.
+    match root
+        .entry("allOf".to_owned())
+        .or_insert_with(|| JsonValue::Array(Vec::new()))
+    {
+        JsonValue::Array(constraints) => constraints.push(JsonValue::Object(packet)),
+        _ => return Err(agent_packet_shape_error()),
     }
     Ok(())
+}
+
+fn intersect_output_schema(
+    declared: runx_contracts::JsonValue,
+    packet: runx_contracts::JsonObject,
+) -> runx_contracts::JsonValue {
+    use runx_contracts::{JsonObject, JsonValue};
+    let mut combined = JsonObject::new();
+    // A direct type remains useful to tool callers; both complete contracts
+    // below enforce it independently, including any more specific constraints.
+    if let Some(kind) = declared
+        .as_object()
+        .and_then(|schema| schema.get("type"))
+        .or_else(|| packet.get("type"))
+    {
+        combined.insert("type".to_owned(), kind.clone());
+    }
+    combined.insert(
+        "allOf".to_owned(),
+        JsonValue::Array(vec![declared, JsonValue::Object(packet)]),
+    );
+    JsonValue::Object(combined)
 }
 
 fn agent_packet_shape_error() -> RuntimeError {
@@ -247,7 +233,10 @@ fn replace_output_property_schema(
             message: "agent output schema has no properties object".to_owned(),
         });
     };
-    properties.insert(name.to_owned(), runx_contracts::JsonValue::Object(schema));
+    let declared = properties
+        .remove(name)
+        .ok_or_else(agent_packet_shape_error)?;
+    properties.insert(name.to_owned(), intersect_output_schema(declared, schema));
     Ok(())
 }
 
