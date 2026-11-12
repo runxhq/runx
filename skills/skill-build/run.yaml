@@ -40,7 +40,7 @@ methods:
       - id: architect
         agent: skill-build-architecture
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
         inputs:
@@ -93,7 +93,7 @@ methods:
       - id: architect
         agent: skill-build-architecture
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
         inputs:
@@ -112,7 +112,7 @@ methods:
       - id: author
         agent: skill-build-author
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           change_draft: {type: object, packet: runx.skill.change_draft.v1}
         inputs:
@@ -188,7 +188,7 @@ methods:
       - id: architect
         agent: skill-build-architecture
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
         inputs:
@@ -210,7 +210,7 @@ methods:
       - id: author
         agent: skill-build-author
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           change_draft: {type: object, packet: runx.skill.change_draft.v1}
         inputs:
@@ -275,7 +275,7 @@ methods:
       - id: architect
         agent: skill-build-architecture
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
         inputs:
@@ -294,7 +294,7 @@ methods:
       - id: author
         agent: skill-build-author
         calls:
-          tools: [fs.read_bundle, git.status, runx.skill.plan, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
           change_draft: {type: object, packet: runx.skill.change_draft.v1}
         inputs:

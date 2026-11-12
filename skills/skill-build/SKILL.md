@@ -520,13 +520,11 @@ and recovery. Assign every required behavior to exactly one real execution lane
 a domain module supplies a specific justification. Record inspected, selected,
 and genuinely missing native capabilities; use `needs_core` only for a runtime
 or security invariant or a primitive with two independent existing consumers.
-Before calling `turn_complete`, call `runx.skill.plan` once with the exact
-`authoring_context.base_digest` and candidate `architecture_decision`. Repair
-any deterministic architecture error it returns, then submit the same validated
-decision. For every `native_capability` behavior, `reuses` must be exactly one
-entry from `native_reuse.selected_capabilities`; split a behavior when it needs
-more than one capability. This prevalidation is read-only and does not replace
-the workflow's native digest-binding step.
+Return the architecture decision once the evidence is sufficient. The workflow's
+native `plan` step validates it and binds it to the inspected package digest.
+For every `native_capability` behavior, `reuses` must be exactly one entry from
+`native_reuse.selected_capabilities`; split a behavior when it needs more than
+one capability.
 When `package_name` is supplied, treat it as the requested package identity;
 do not silently rename the package from its target path.
 
