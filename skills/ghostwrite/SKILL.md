@@ -112,6 +112,17 @@ add publication state, provider claims, or facts absent from the evidence.
 Respect each context's applicability, structured profile and stop conditions.
 Profile examples guide style; they are not evidence for new factual claims.
 
+For each `draft.claims` entry, use only digests listed in
+`evidence_context.source_digests` and support the claim from the corresponding
+`evidence_log` entries. For researched evidence, `evidence_packet_digest`
+identifies the whole admitted packet, not an underlying source. For supplied
+facts, admission explicitly lists their digest as a source; use that admitted
+list in either mode. The research brief supplies the requested
+focus and prior synthesis, not additional verified facts. Preserve the evidence
+log's caveats and confidence; do not turn a synthesis or ranking into an
+established architectural guarantee. Narrow the draft when the source log
+supports less than the brief suggests.
+
 Only `evidence_context.writing_contexts` supplies admitted writing packets for
 `context_binding.applied`. If it is empty, return
 `context_binding: {applied: []}`. A factual `source_digest` belongs in claims,
