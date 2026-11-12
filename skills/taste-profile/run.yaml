@@ -98,17 +98,27 @@ methods:
                 type: string
               applicability:
                 type: object
+                additionalProperties: false
+                required: [surfaces, audience, expires_when]
                 properties:
                   surfaces:
                     type: array
+                    maxItems: 50
+                    uniqueItems: true
                     items:
                       type: string
+                      minLength: 1
+                      maxLength: 500
                   audience:
                     type: string
+                    maxLength: 1000
                   expires_when:
                     type: array
+                    maxItems: 100
                     items:
                       type: string
+                      minLength: 1
+                      maxLength: 2000
               taste_profile:
                 type: object
                 additionalProperties: false
@@ -212,10 +222,18 @@ methods:
                         confidence: {type: string, enum: [explicit, observed, inferred]}
               redactions:
                 type: array
-              stop_conditions:
-                type: array
+                maxItems: 100
                 items:
                   type: string
+                  minLength: 1
+                  maxLength: 2000
+              stop_conditions:
+                type: array
+                maxItems: 100
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
             required:
               - decision
             if:
