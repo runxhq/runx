@@ -1858,7 +1858,7 @@ fn a_remote_child_turn_preserves_the_callers_context_or_refuses_it()
                     "created_at": "2026-10-20T00:00:00Z",
                     "digest": runx_contracts::sha256_prefixed(text.as_bytes()), "size_bytes": text.len()}
             }))?;
-            let result = run_skill(SkillRunRequest {
+            let request = with_test_signing_env(SkillRunRequest {
                 current_context: if historical {
                     Vec::new()
                 } else {
@@ -1879,7 +1879,8 @@ fn a_remote_child_turn_preserves_the_callers_context_or_refuses_it()
                 env: path_env(),
                 cwd: temp.path().to_path_buf(),
                 managed_agent: Default::default(),
-            })?;
+            });
+            let result = run_skill(request.clone())?;
             if sharing == "local_only" {
                 refused_before_the_turn(&result)?;
                 let rendered = serde_json::to_string(&result.output)?;
@@ -1898,6 +1899,52 @@ fn a_remote_child_turn_preserves_the_callers_context_or_refuses_it()
                     serde_json::json!([entry]),
                     "{output}"
                 );
+                let run_id = output["run_id"].as_str().ok_or("missing run id")?;
+                let turn = output["requests"][0]["id"].as_str().ok_or("missing turn")?;
+                let mut drifted = request.clone();
+                drifted.run_id = Some(run_id.to_owned());
+                let context = if historical {
+                    &mut drifted.historical_context
+                } else {
+                    &mut drifted.current_context
+                };
+                context[0].data.insert(
+                    "text".to_owned(),
+                    JsonValue::String("replacement context".to_owned()),
+                );
+                let error = run_skill(drifted)
+                    .err()
+                    .ok_or("changed context must be refused")?;
+                assert!(
+                    error.to_string().contains("original agent context"),
+                    "{error}"
+                );
+                // A new driver gets no copy of the first request's context;
+                // it restores the complete recorded context through the root.
+                let session =
+                    LocalOrchestrator::default().open_turns(&runx_runtime::TurnRequest {
+                        run_id: run_id.to_owned(),
+                        receipt_dir: request.receipt_dir.clone(),
+                        env: request.env.clone(),
+                        cwd: request.cwd.clone(),
+                    })?;
+                let locator = if historical {
+                    "historical:0"
+                } else {
+                    "current:0"
+                };
+                let page = session.read(turn, locator, 0, None)?;
+                assert_eq!(
+                    serde_json::from_str::<JsonValue>(&page.text)?,
+                    JsonValue::Object(entry.data)
+                );
+                assert_eq!(page.next_offset, None);
+                let sealed = session.complete(
+                    turn,
+                    [("answer".to_owned(), JsonValue::String("done".to_owned()))].into(),
+                )?;
+                let sealed = serde_json::to_value(sealed.output)?;
+                assert_eq!(sealed["outcome"], "completed", "{sealed}");
             }
         }
     }
