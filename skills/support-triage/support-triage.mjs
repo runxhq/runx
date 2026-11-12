@@ -8,15 +8,20 @@ export default function finalize(inputs) {
     sources.set(document.source_id, document.text);
   }
   const findings = [];
-  if (!draft.evidence.length) findings.push("The judgment must cite the supplied customer request.");
-  if (!draft.evidence.some((item) => item.source_id === request.source)) findings.push("Customer request evidence is missing.");
-  for (const item of draft.evidence) {
-    if (!sources.get(item.source_id)?.includes(item.quote)) findings.push(`Unbound support evidence: ${item.source_id}`);
+  const requestQuote = draft.request_evidence?.quote;
+  const products = Array.isArray(draft.product_evidence) ? draft.product_evidence : [];
+  const evidence = typeof requestQuote === "string" && requestQuote.trim()
+    ? [{ source_id: request.source, quote: requestQuote }, ...products]
+    : [...products];
+  if (typeof requestQuote !== "string" || !requestQuote.trim()) findings.push("Customer request evidence is missing.");
+  if (products.some(item => item.source_id === request.source)) findings.push("Product evidence must name a supplied product source.");
+  for (const item of evidence) {
+    if (typeof item.quote !== "string" || !item.quote.trim() || !sources.get(item.source_id)?.includes(item.quote)) findings.push(`Unbound support evidence: ${item.source_id}`);
   }
   if (draft.draft_email) {
     if (draft.classification !== "how_to" || draft.recommended_path !== "reply_draft") findings.push("This reply needs specialist review before customer drafting.");
     if (draft.missing_context.length) findings.push("Resolve missing context before presenting a definitive reply.");
-    if (!draft.evidence.some((item) => item.source_id !== request.source && sources.has(item.source_id))) findings.push("A product answer requires supplied product evidence.");
+    if (!products.some((item) => item.source_id !== request.source && sources.has(item.source_id))) findings.push("A product answer requires supplied product evidence.");
   }
   return { support_triage_packet: {
     schema: "runx/support-triage.reply.v1",
@@ -25,7 +30,7 @@ export default function finalize(inputs) {
     severity: draft.severity,
     recommended_path: findings.length ? "manual_review" : draft.recommended_path,
     rationale: draft.rationale,
-    evidence: draft.evidence,
+    evidence,
     missing_context: draft.missing_context,
     operator_notes: draft.operator_notes,
     draft_email: findings.length ? null : draft.draft_email,

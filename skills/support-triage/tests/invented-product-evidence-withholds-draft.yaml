@@ -15,9 +15,9 @@ host:
         severity: low
         recommended_path: reply_draft
         rationale: The customer asks for a documented next step.
-        evidence:
-        - source_id: thread:domain-1
+        request_evidence:
           quote: I added the DNS records.
+        product_evidence:
         - source_id: docs:domain-verification
           quote: Change your DNS records to an invented value.
         missing_context: []

@@ -88,7 +88,8 @@ methods:
           - severity
           - recommended_path
           - rationale
-          - evidence
+          - request_evidence
+          - product_evidence
           - missing_context
           - operator_notes
           - draft_email
@@ -121,8 +122,16 @@ methods:
               type: string
               minLength: 1
               maxLength: 5000
-            evidence:
+            request_evidence:
+              type: object
+              description: Select an exact quotation from the customer request; native binding supplies its source ID.
+              required: [quote]
+              additionalProperties: false
+              properties:
+                quote: {type: string, minLength: 1, maxLength: 4000}
+            product_evidence:
               type: array
+              description: Exact quotations from supplied product sources; use an empty array when no product evidence supports the route.
               maxItems: 50
               items:
                 type: object

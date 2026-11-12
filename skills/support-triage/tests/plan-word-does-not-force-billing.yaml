@@ -12,9 +12,9 @@ host:
         severity: low
         recommended_path: request_info
         rationale: No product documentation was supplied.
-        evidence:
-        - source_id: thread:content-plan
+        request_evidence:
           quote: How do I plan a content calendar?
+        product_evidence: []
         missing_context:
         - Which product and documented calendar workflow?
         operator_notes:
