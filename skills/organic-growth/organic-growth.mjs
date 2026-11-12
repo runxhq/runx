@@ -253,7 +253,9 @@ function propertyCovers(property, siteUrl) {
       const host = site.hostname.toLowerCase();
       return host === domain || host.endsWith(`.${domain}`);
     }
-    return site.href.startsWith(property) || property.startsWith(site.origin);
+    const selected = Runx.parseUrl(property);
+    return selected.origin === site.origin && !selected.username && !selected.password &&
+      (site.href.startsWith(selected.href) || selected.href.startsWith(site.href));
   } catch {
     return false;
   }

@@ -1,0 +1,32 @@
+name: rejects-lookalike-search-property
+method: analyze
+inputs:
+  objective: Review evidence for the selected site.
+  site_url: https://example.com/
+  search_evidence:
+    schema: runx/google-search-console.performance_evidence.v1
+    decision: ready
+    validation: {status: pass, findings: []}
+    evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    property: https://example.com.evil/
+    rows: []
+expect:
+  status: sealed
+  steps: [admit, reject]
+  step_outputs:
+    admit:
+      subset:
+        growth_context:
+          decision: needs_more_evidence
+          sources: []
+          validation:
+            status: fail
+            findings:
+              - code: growth.search.site_mismatch
+                message: search property does not cover site_url
+    reject:
+      subset:
+        organic_growth_packet:
+          decision: needs_more_evidence
+          external_status: not_executed
+  receipt: {schema: runx.receipt.v1}
