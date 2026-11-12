@@ -9,8 +9,8 @@
     },
     {
       "id": 2,
-      "prompt": "Reuse the exact completed native PR capture for a review, without another PR, comparison or check request.",
-      "expected_output": "The parent graph receives useful changed-line findings from the retained immutable source.",
+      "prompt": "Review this already prepared PR context without another PR, comparison or check request.",
+      "expected_output": "Return a review bound to the supplied head and changed lines, with honest unknown check coverage. Report concrete supported defects when present; do not invent findings.",
       "files": [
         "evals/files/pr-42-review-context.json"
       ],

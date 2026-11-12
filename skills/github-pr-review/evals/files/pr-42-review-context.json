@@ -1,5 +1,5 @@
 {
-  "about": "The prepared review context a prior capture of example/project pull request 42 produced: its pinned head, its changed-line patch, its checks and what the selection admitted.",
+  "about": "Non-live prepared review context for example/project pull request 42, including pinned identities, a complete changed-line patch and unknown check coverage. This is caller-supplied evidence, not an installed native snapshot artifact or fresh provider proof.",
   "review_context": {
     "schema": "runx/github-pr-review.context.v1",
     "decision": "ready",
@@ -17,7 +17,7 @@
         "previous_path": null,
         "status": "modified",
         "blob_sha": "dddddddddddddddddddddddddddddddddddddddd",
-        "patch": "@@ -8,9 +8,9 @@ export async function request(account, path) {\n   const url = new URL(path, account.baseUrl);\n   const response = await fetch(url, {\n     headers: {\n-      authorization: `Bearer ${process.env.API_TOKEN}`,\n+      authorization: `Bearer ${account.token}`,\n       accept: \"application/json\",\n     },\n   });\n   return response.json();"
+        "patch": "@@ -8,8 +8,8 @@ export async function request(account, path) {\n   const url = new URL(path, account.baseUrl);\n   const response = await fetch(url, {\n     headers: {\n-      authorization: `Bearer ${process.env.API_TOKEN}`,\n+      authorization: `Bearer ${account.token}`,\n       accept: \"application/json\",\n     },\n   });\n   return response.json();"
       }
     ],
     "checks": [],
