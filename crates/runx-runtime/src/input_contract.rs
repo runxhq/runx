@@ -224,16 +224,8 @@ fn materialize_declared_inputs(
     let mut supplied = static_inputs.clone();
     supplied.extend(resolved_inputs.clone());
 
-    if unknown_inputs == UnknownInputs::Reject
-        && let Some(name) = supplied.keys().find(|name| !declared.contains_key(*name))
-    {
-        return Err(InputContractError::new(
-            declared_by,
-            name,
-            format!("/{name}"),
-            format!("{declared_by} input '{name}' is not declared"),
-            JsonValue::Object(runx_contracts::input_contract_schema(declared)),
-        ));
+    if unknown_inputs == UnknownInputs::Reject {
+        reject_unknown_inputs(declared, &supplied, declared_by)?;
     }
 
     declared
@@ -249,6 +241,25 @@ fn materialize_declared_inputs(
             .transpose()
         })
         .collect()
+}
+
+/// An explicit call has arguments, not an ambient parameter map. Reject an
+/// unknown name before projection could discard a misspelled constraint.
+pub(crate) fn reject_unknown_inputs(
+    declared: &BTreeMap<String, SkillInput>,
+    supplied: &JsonObject,
+    declared_by: &'static str,
+) -> Result<(), InputContractError> {
+    if let Some(name) = supplied.keys().find(|name| !declared.contains_key(*name)) {
+        return Err(InputContractError::new(
+            declared_by,
+            name,
+            format!("/{name}"),
+            format!("{declared_by} input '{name}' is not declared"),
+            JsonValue::Object(runx_contracts::input_contract_schema(declared)),
+        ));
+    }
+    Ok(())
 }
 
 fn materialize_input(
@@ -471,7 +482,7 @@ mod tests {
 
     use super::{
         materialize_complete_method_inputs, materialize_nested_method_inputs,
-        materialize_present_method_inputs,
+        materialize_present_method_inputs, materialize_tool_inputs,
     };
 
     fn string_input(required: bool) -> InputDefinition {
@@ -507,6 +518,27 @@ mod tests {
             Some("Bounded question")
         );
         assert!(materialize_present_method_inputs(&declared, &supplied).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn workflow_tool_inputs_still_project_ambient_parameters()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let declared = BTreeMap::from([("objective".to_owned(), string_input(true))]);
+        let supplied = JsonObject::from([
+            (
+                "objective".to_owned(),
+                JsonValue::String("selected".to_owned()),
+            ),
+            ("parent_only".to_owned(), JsonValue::Bool(true)),
+        ]);
+        assert_eq!(
+            materialize_tool_inputs(&declared, &supplied, &JsonObject::new())?,
+            JsonObject::from([(
+                "objective".to_owned(),
+                JsonValue::String("selected".to_owned())
+            )]),
+        );
         Ok(())
     }
 

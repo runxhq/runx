@@ -15,6 +15,39 @@ use tempfile::tempdir;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[test]
+fn an_explicit_script_tool_call_rejects_unknown_arguments() -> TestResult {
+    let temp = tempdir()?;
+    let skill = write_script_skill(
+        temp.path(),
+        r#"export default async function (ctx, {value}) {
+  let rejected = "call ran";
+  try { await ctx.tool("data.digest", {value, encodng: "utf8_text"}); }
+  catch (error) { rejected = error.message; }
+  const {digest_result} = await ctx.tool("data.digest", {value, encoding: "utf8_text"});
+  return {rejected, digest: (await ctx.read(digest_result)).digest};
+}
+"#,
+        "          rejected: {type: string}\n          digest: {type: string}\n",
+    )?;
+    let result = serde_json::to_value(run(temp.path(), skill)?.output)?;
+    assert_eq!(result["outcome"], "completed", "{result}");
+    assert!(
+        result["result"]["rejected"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("encodng")),
+        "{result}"
+    );
+    assert_eq!(
+        result["result"]["digest"],
+        runx_contracts::sha256_prefixed(b"hello")
+    );
+    let calls = call_events(temp.path(), result["run_id"].as_str().ok_or("run id")?)?;
+    assert!(calls.contains(&(0, "refused")), "{calls:?}");
+    assert!(!calls.contains(&(0, "executing")), "{calls:?}");
+    Ok(())
+}
+
+#[test]
 fn a_script_opens_a_typed_artifact_descriptor_and_rejects_tampering() -> TestResult {
     let temp = tempdir()?;
     let skill = temp.path().join("artifact-reader");

@@ -2201,7 +2201,7 @@ where
         let kind = match target {
             // A tool the turn lists resolves before its call runs.
             CallTarget::Tool { tool } => {
-                self.resolve_tool(tool.as_str())?;
+                self.resolve_tool(tool.as_str(), input)?;
                 StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned()))
             }
             CallTarget::Operation {
@@ -2820,15 +2820,16 @@ where
     }
 
     /// A tool the turn lists resolves.
-    fn resolve_tool(&self, tool: &str) -> Result<(), String> {
-        crate::tool_catalogs::dispatch::inspect_catalog_tool(
+    fn resolve_tool(&self, tool: &str, inputs: &JsonObject) -> Result<(), String> {
+        let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
             tool,
             &self.scope.runtime.options.env,
             self.scope.workflow_dir,
             &self.scope.runtime.options.effects,
         )
-        .map(|_| ())
-        .map_err(|error| format!("tool {tool} could not be resolved: {error}"))
+        .map_err(|error| format!("tool {tool} could not be resolved: {error}"))?;
+        crate::input_contract::reject_unknown_inputs(&inspected.inputs, inputs, "tool")
+            .map_err(|error| error.to_string())
     }
 }
 

@@ -1782,6 +1782,61 @@ methods:
     Ok(skill_dir)
 }
 
+#[test]
+fn an_explicit_tool_call_rejects_a_misspelled_write_precondition() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::write(root.join("README.md"), "old\n")?;
+    let mut authority = bounded(None, None);
+    authority.effects = Effects::Allow;
+    authority.reach = Reach::Workspace;
+    let started = start_bounded(root, write_develop_skill(root)?, authority)?;
+    let turn = opened(root, &started)?;
+    let arguments = serde_json::json!({
+        "path": "README.md",
+        "contents": "new\n",
+        "expectedDigest": runx_contracts::sha256_prefixed(b"stale\n"),
+    });
+    let offered = turn
+        .status(TURN)?
+        .tools
+        .into_iter()
+        .find(|tool| tool.name.as_str() == "fs_write")
+        .ok_or("write tool is offered")?;
+    let schema = serde_json::to_value(offered.input_schema)?;
+    assert!(!jsonschema::validator_for(&schema)?.is_valid(&arguments));
+    let rejected = turn.call(TURN, "fs_write", None, input(arguments)?)?;
+    assert!(
+        matches!(&rejected.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("expectedDigest")),
+        "{rejected:?}"
+    );
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "old\n");
+
+    let stale = turn.call(
+        TURN,
+        "fs_write",
+        None,
+        input(serde_json::json!({
+            "path": "README.md", "contents": "new\n",
+            "expected_digest": runx_contracts::sha256_prefixed(b"stale\n"),
+        }))?,
+    )?;
+    assert!(!completed(&stale), "{stale:?}");
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "old\n");
+    let changed = turn.call(
+        TURN,
+        "fs_write",
+        None,
+        input(serde_json::json!({
+            "path": "README.md", "contents": "new\n",
+            "expected_digest": runx_contracts::sha256_prefixed(b"old\n"),
+        }))?,
+    )?;
+    assert!(completed(&changed), "{changed:?}");
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
+    Ok(())
+}
+
 /// What a host gives its agent: `effects: ask` and `reach: workspace`, with
 /// the person's standing approvals.
 fn asking(standing: serde_json::Value) -> TestResult<runx_runtime::RunAuthority> {
