@@ -20,25 +20,24 @@ host:
           audience: advanced software builders
           expires_when: [The evidence set changes materially.]
         taste_profile:
-          principles: [Make the workflow visible before promotional language.]
-          likes: [Dense operational surfaces with visible proof.]
-          dislikes: [Decorative marketing cards that hide the workflow.]
-          decision_rules: [Choose operational clarity over decorative flourish.]
+          principles:
+            - rule: "Make the workflow visible before promotional language."
+              source_ids: [source:1]
+              confidence: inferred
+          likes:
+            - rule: "Dense operational surfaces with visible proof."
+              source_ids: [source:1]
+              confidence: observed
+          dislikes:
+            - rule: "Decorative marketing cards that hide the workflow."
+              source_ids: [source:2]
+              confidence: observed
+          decision_rules:
+            - rule: "Choose operational clarity over decorative flourish."
+              source_ids: [source:1, source:2]
+              confidence: inferred
           examples_to_emulate: []
           examples_to_avoid: []
-        evidence_bindings:
-          - rule: Make the workflow visible before promotional language.
-            source_ids: [source:1]
-            confidence: inferred
-          - rule: Dense operational surfaces with visible proof.
-            source_ids: [source:1]
-            confidence: observed
-          - rule: Decorative marketing cards that hide the workflow.
-            source_ids: [source:2]
-            confidence: observed
-          - rule: Choose operational clarity over decorative flourish.
-            source_ids: [source:1, source:2]
-            confidence: inferred
         redactions: []
         stop_conditions: [Do not apply this packet outside the declared surface.]
 expect:

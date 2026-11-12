@@ -105,12 +105,14 @@ claim that an omitted archive was analyzed.
 At least two records are required. Return `taste_profile_draft` with `decision`,
 the unchanged `subject`, `applicability: {surfaces, audience, expires_when}`,
 and `taste_profile: {principles, likes, dislikes, decision_rules,
-examples_to_emulate, examples_to_avoid}`. Those rule collections are arrays of
-strings. Add `evidence_bindings` as `{rule, source_ids, confidence}` entries
-using the exact generated `source:N` IDs; confidence is `explicit`, `observed`
-or `inferred`. Add `redactions` and `stop_conditions` arrays. Bind each principle,
-like, dislike and decision rule with the same rule text; preserve uncertainty
-instead of upgrading an inference to an explicit preference.
+examples_to_emulate, examples_to_avoid}`. Every collection contains bound entries
+`{rule, source_ids, confidence}` using the exact generated `source:N` IDs;
+confidence is `explicit`, `observed` or `inferred`. Keep each rule and its
+supporting sources together, including examples. Preserve uncertainty instead
+of upgrading an inference to an explicit preference. If a rule repeats across
+collections, use the same sources and confidence. Native finalization derives
+the public string collections and evidence bindings; do not supply a separate
+`evidence_bindings` list. Add `redactions` and `stop_conditions` arrays.
 
 Pass the released packet itself as `taste_context` to `ghostwrite`
 or `content-package`, together with separate factual evidence. A source-bound

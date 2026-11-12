@@ -13,16 +13,15 @@ host:
         subject: runx maintainer
         applicability: {surfaces: [], audience: "", expires_when: []}
         taste_profile:
-          principles: [Invented preference.]
+          principles:
+            - rule: "Invented preference."
+              source_ids: [source:unknown]
+              confidence: inferred
           likes: []
           dislikes: []
           decision_rules: []
           examples_to_emulate: []
           examples_to_avoid: []
-        evidence_bindings:
-          - rule: Invented preference.
-            source_ids: [source:unknown]
-            confidence: inferred
         redactions: []
         stop_conditions: []
 expect:

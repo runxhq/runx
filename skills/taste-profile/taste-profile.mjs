@@ -52,6 +52,10 @@ export function finalizeProfile(inputs) {
     code: "taste_profile.evidence.invalid",
     message,
   }));
+  const profile = {};
+  const bindingMap = new Map();
+  const collections = ["principles", "likes", "dislikes", "decision_rules", "examples_to_emulate", "examples_to_avoid"];
+  for (const collection of collections) profile[collection] = [];
 
   if (index.decision === "ready") {
     if (!isDigest(evidenceDigest)) {
@@ -63,29 +67,28 @@ export function finalizeProfile(inputs) {
     if (text(draft.subject) !== subject) {
       findings.push({ code: "taste_profile.subject.changed", message: "draft subject does not match input" });
     }
-    const profile = object(draft.taste_profile);
-    const rules = [
-      ...strings(profile.principles),
-      ...strings(profile.likes),
-      ...strings(profile.dislikes),
-      ...strings(profile.decision_rules),
-    ];
-    const bindings = Array.isArray(draft.evidence_bindings) ? draft.evidence_bindings : [];
-    const bindingMap = new Map(bindings.map((binding) => [text(binding?.rule), binding]));
-    for (const rule of rules) {
-      const binding = object(bindingMap.get(rule));
-      const sourceIds = strings(binding.source_ids);
-      if (sourceIds.length === 0 || sourceIds.some((sourceId) => !known.has(sourceId))) {
-        findings.push({ code: "taste_profile.binding.invalid", message: `rule is not bound to admitted evidence: ${rule}` });
-      }
-      if (!["explicit", "observed", "inferred"].includes(text(binding.confidence))) {
-        findings.push({ code: "taste_profile.confidence.invalid", message: `binding confidence is invalid: ${rule}` });
+    for (const collection of collections) {
+      for (const binding of object(draft.taste_profile)[collection] ?? []) {
+        const { rule, source_ids: sourceIds, confidence } = object(binding);
+        if (!text(rule) || !Array.isArray(sourceIds) || sourceIds.length === 0 || sourceIds.some((sourceId) => !known.has(sourceId))) {
+          findings.push({ code: "taste_profile.binding.invalid", message: `rule is not bound to admitted evidence: ${text(rule)}` });
+          continue;
+        }
+        if (!["explicit", "observed", "inferred"].includes(confidence)) {
+          findings.push({ code: "taste_profile.confidence.invalid", message: `binding confidence is invalid: ${rule}` });
+          continue;
+        }
+        const previous = bindingMap.get(rule);
+        if (previous && (previous.confidence !== confidence || JSON.stringify([...previous.source_ids].sort()) !== JSON.stringify([...sourceIds].sort()))) {
+          findings.push({ code: "taste_profile.binding.conflict", message: `repeated rule has conflicting evidence or confidence: ${rule}` });
+          continue;
+        }
+        profile[collection].push(rule);
+        if (!previous) bindingMap.set(rule, { rule, source_ids: sourceIds, confidence });
       }
     }
-    for (const binding of bindings) {
-      if (strings(binding?.source_ids).some((sourceId) => !known.has(sourceId))) {
-        findings.push({ code: "taste_profile.binding.unknown", message: "binding cites unknown evidence" });
-      }
+    if (bindingMap.size === 0) {
+      findings.push({ code: "taste_profile.profile.empty", message: "ready profile has no evidence-bound rules" });
     }
   }
 
@@ -99,7 +102,7 @@ export function finalizeProfile(inputs) {
         audience,
         expires_when: [],
       },
-      taste_profile: ready ? object(draft.taste_profile) : {
+      taste_profile: ready ? profile : {
         principles: [],
         likes: [],
         dislikes: [],
@@ -114,7 +117,7 @@ export function finalizeProfile(inputs) {
           kind: text(source.kind),
           label: text(source.label),
         })),
-        bindings: ready && Array.isArray(draft.evidence_bindings) ? draft.evidence_bindings : [],
+        bindings: ready ? [...bindingMap.values()] : [],
       },
       redactions: ready && Array.isArray(draft.redactions) ? draft.redactions : [],
       stop_conditions: ready && Array.isArray(draft.stop_conditions) ? draft.stop_conditions : [],

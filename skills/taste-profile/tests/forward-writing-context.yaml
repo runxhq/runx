@@ -14,33 +14,23 @@ host:
             - The evidence set changes materially.
         taste_profile:
           principles:
-            - Make the workflow visible before promotional language.
+            - rule: "Make the workflow visible before promotional language."
+              source_ids: [source:1]
+              confidence: inferred
           likes:
-            - Dense operational surfaces with visible proof.
+            - rule: "Dense operational surfaces with visible proof."
+              source_ids: [source:1]
+              confidence: observed
           dislikes:
-            - Decorative marketing cards that hide the workflow.
+            - rule: "Decorative marketing cards that hide the workflow."
+              source_ids: [source:2]
+              confidence: observed
           decision_rules:
-            - Choose operational clarity over decorative flourish.
+            - rule: "Choose operational clarity over decorative flourish."
+              source_ids: [source:1, source:2]
+              confidence: inferred
           examples_to_emulate: []
           examples_to_avoid: []
-        evidence_bindings:
-          - rule: Make the workflow visible before promotional language.
-            source_ids:
-              - source:1
-            confidence: inferred
-          - rule: Dense operational surfaces with visible proof.
-            source_ids:
-              - source:1
-            confidence: observed
-          - rule: Decorative marketing cards that hide the workflow.
-            source_ids:
-              - source:2
-            confidence: observed
-          - rule: Choose operational clarity over decorative flourish.
-            source_ids:
-              - source:1
-              - source:2
-            confidence: inferred
         redactions: []
         stop_conditions:
           - Do not apply this packet outside the declared surface.
