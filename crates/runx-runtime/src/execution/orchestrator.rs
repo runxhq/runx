@@ -212,6 +212,15 @@ pub enum OrchestratorError {
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
 }
 
+impl OrchestratorError {
+    pub fn run_id(&self) -> Option<&str> {
+        match self {
+            Self::SkillRun(error) => error.run_id(),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct LocalOrchestrator {
     effects: RuntimeEffectRegistry,

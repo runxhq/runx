@@ -63,6 +63,11 @@ pub enum SkillRunError {
     Invalid(String),
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
+    #[error("{source} (run {run_id})")]
+    Execution {
+        run_id: String,
+        source: Box<SkillRunError>,
+    },
     #[error("{source}; refusal receipt: {receipt_id}")]
     PreflightRefused {
         source: Box<RuntimeError>,
@@ -73,8 +78,28 @@ pub enum SkillRunError {
 }
 
 impl SkillRunError {
+    /// The execution whose allocated identity must survive a recoverable error.
+    pub fn run_id(&self) -> Option<&str> {
+        match self {
+            Self::Execution { run_id, .. } => Some(run_id),
+            _ => None,
+        }
+    }
+
+    pub fn runtime_error(&self) -> Option<&RuntimeError> {
+        match self {
+            Self::Runtime(error) => Some(error),
+            Self::PreflightRefused { source, .. } => Some(source),
+            Self::Execution { source, .. } => source.runtime_error(),
+            _ => None,
+        }
+    }
+
     /// Whether another driver holds the run, so nothing here could drive it.
     pub(crate) fn is_driven(&self) -> bool {
+        if let Self::Execution { source, .. } = self {
+            return source.is_driven();
+        }
         matches!(
             self,
             Self::Runtime(RuntimeError::RunRecord(

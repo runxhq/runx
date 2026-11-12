@@ -6,6 +6,77 @@ use std::process::{Command, Stdio};
 use serde_json::json;
 
 #[test]
+fn rejected_answer_keeps_run_identity_and_can_be_corrected()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-rejected-answer-identity");
+    let skill = crate::support::write_agent_task_skill(&root.join("skills"))?;
+    let command = || {
+        let mut command = crate::support::unsigned_runx_command_at(&root);
+        command
+            .env("RUNX_CWD", &root)
+            .env("RUNX_PROJECT_DIR", root.join(".runx"));
+        command
+    };
+    let started = command().arg("skill").arg(&skill).arg("--json").output()?;
+    let started = assert_json(&started, Some(2))?;
+    let run_id = started["run_id"].as_str().ok_or("run identity missing")?;
+    let request_id = started["requests"][0]["id"]
+        .as_str()
+        .ok_or("request identity missing")?;
+    let history = command().args(["history", run_id, "--json"]).output()?;
+    let history = assert_json(&history, Some(0))?;
+    let answer = root.join("answer.json");
+    fs::write(
+        &answer,
+        crate::support::bind_resume(
+            &history,
+            json!({"answers": {request_id: {"intake_report": "invalid scalar"}}}),
+        )?
+        .to_string(),
+    )?;
+    let rejected = command()
+        .args(["resume", run_id])
+        .arg(&answer)
+        .arg("--json")
+        .output()?;
+    let rejected = assert_json(&rejected, Some(1))?;
+    assert_eq!(rejected["run_id"], run_id);
+    assert_eq!(rejected["error"]["code"], "resume_error");
+    assert!(
+        rejected["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("output contract violation"))
+    );
+    let history = command().args(["history", run_id, "--json"]).output()?;
+    let history = assert_json(&history, Some(0))?;
+    assert!(
+        !history["events"]
+            .as_array()
+            .ok_or("history events missing")?
+            .iter()
+            .any(|event| event["event"]["kind"] == "sealed")
+    );
+    fs::write(
+        &answer,
+        crate::support::bind_resume(
+            &history,
+            json!({"answers": {request_id: {"intake_report": {"answer": "corrected"}}}}),
+        )?
+        .to_string(),
+    )?;
+    let corrected = command()
+        .args(["resume", run_id])
+        .arg(&answer)
+        .arg("--json")
+        .output()?;
+    let corrected = assert_json(&corrected, Some(0))?;
+    assert_eq!(corrected["run_id"], run_id);
+    assert_eq!(corrected["outcome"], "completed");
+    assert_eq!(corrected["result"]["intake_report"]["answer"], "corrected");
+    Ok(())
+}
+
+#[test]
 fn input_document_supports_file_and_stdin_without_a_second_input_map()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-input-document");

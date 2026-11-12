@@ -215,7 +215,9 @@ pub fn run_native_resume_with_workspace(
                 artifacts: &workspace.paths().artifacts(),
             },
         ),
-        Err(error) => write_resume_failure(&error.to_string(), plan.json, 1),
+        Err(error) => {
+            crate::skill::write_orchestrator_failure(&error, plan.json, "resume_error", 1, None)
+        }
     }
 }
 

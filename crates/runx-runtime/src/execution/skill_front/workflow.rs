@@ -59,6 +59,13 @@ impl BoundRun {
             });
         }
         self.advance(&mut host)
+            .map_err(|source| match &self.request.run_id {
+                Some(run_id) => SkillRunError::Execution {
+                    run_id: run_id.clone(),
+                    source: Box::new(source),
+                },
+                None => source,
+            })
     }
 
     // Function rationale: one run driver: open the record, bind what the host

@@ -315,6 +315,7 @@ pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &Workspac
                 1,
                 entry_provenance(&resolved),
                 detail,
+                None,
             );
         }
         if let Err(error) = prepared.bind_context() {
@@ -635,10 +636,10 @@ fn write_skill_failure(
     exit_code: u8,
     provenance: Option<JsonObject>,
 ) -> ExitCode {
-    write_skill_failure_with_detail(message, json, code, exit_code, provenance, None)
+    write_skill_failure_with_detail(message, json, code, exit_code, provenance, None, None)
 }
 
-fn write_orchestrator_failure(
+pub(crate) fn write_orchestrator_failure(
     error: &OrchestratorError,
     json: bool,
     code: &str,
@@ -652,6 +653,7 @@ fn write_orchestrator_failure(
         exit_code,
         provenance,
         input_contract_detail(error),
+        error.run_id(),
     )
 }
 
@@ -662,9 +664,10 @@ fn write_skill_failure_with_detail(
     exit_code: u8,
     provenance: Option<JsonObject>,
     detail: Option<JsonObject>,
+    run_id: Option<&str>,
 ) -> ExitCode {
     if json {
-        let output = skill_json_failure_output(message, code, provenance, detail);
+        let output = skill_json_failure_output(message, code, provenance, detail, run_id);
         return crate::cli_io::write_stdout_code(&output, exit_code);
     }
     let _ignored = writeln!(io::stderr(), "runx: {message}");
@@ -674,15 +677,13 @@ fn write_skill_failure_with_detail(
 fn input_contract_detail(error: &OrchestratorError) -> Option<JsonObject> {
     let (runtime, receipt_id) = match error {
         OrchestratorError::SkillRun(
-            runx_runtime::execution::skill_front::SkillRunError::Runtime(runtime),
-        )
-        | OrchestratorError::Runtime(runtime) => (runtime, None),
-        OrchestratorError::SkillRun(
             runx_runtime::execution::skill_front::SkillRunError::PreflightRefused {
                 source,
                 receipt_id,
             },
         ) => (source.as_ref(), Some(receipt_id)),
+        OrchestratorError::SkillRun(error) => (error.runtime_error()?, None),
+        OrchestratorError::Runtime(runtime) => (runtime, None),
         _ => return None,
     };
     let runx_runtime::RuntimeError::InputContract {
@@ -721,6 +722,7 @@ fn skill_json_failure_output(
     code: &str,
     provenance: Option<JsonObject>,
     detail: Option<JsonObject>,
+    run_id: Option<&str>,
 ) -> String {
     let mut error = JsonObject::new();
     error.insert("message".to_owned(), JsonValue::String(message.to_owned()));
@@ -731,6 +733,9 @@ fn skill_json_failure_output(
     let mut output = JsonObject::new();
     output.insert("status".to_owned(), JsonValue::String("failure".to_owned()));
     output.insert("error".to_owned(), JsonValue::Object(error));
+    if let Some(run_id) = run_id {
+        output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
+    }
     if let Some(provenance) = provenance {
         output.insert("entry_provenance".to_owned(), JsonValue::Object(provenance));
     }

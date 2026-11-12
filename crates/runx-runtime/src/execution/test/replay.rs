@@ -214,6 +214,7 @@ impl From<crate::execution::skill_front::SkillRunError> for TestReplayError {
     fn from(error: crate::execution::skill_front::SkillRunError) -> Self {
         use crate::execution::skill_front::SkillRunError;
         match error {
+            SkillRunError::Execution { source, .. } => Self::from(*source),
             SkillRunError::Runtime(error) => TestReplayError::Runtime(error),
             SkillRunError::PreflightRefused { source, .. } => TestReplayError::Runtime(*source),
             other => TestReplayError::Runtime(RuntimeError::ReceiptInvalid {
