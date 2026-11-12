@@ -1,5 +1,5 @@
 {
-  "about": "The bounded source set and catalog evidence a prior step gathered for this design decision.",
+  "about": "Capture these exact selected current repository sources once through prior-art#capture in the same Runx project. Pass its actual returned artifact descriptor as snapshot to prior-art#analyze with this objective and decomposition. This file supplies selectors, not previously captured bytes or catalog proof. Do not pass capture-only selectors to analyze or fabricate a descriptor.",
   "objective": "Add a Moltbook opportunity scan to an existing governed pipeline.",
   "decomposition": {
     "objective_summary": "Add a Moltbook opportunity scan step.",
@@ -17,22 +17,8 @@
       }
     ]
   },
-  "sources": [
-    {
-      "path": "skills/moltbook/run.yaml",
-      "excerpt": "methods: scan-provider reads Moltbook newest posts and finds at most one opportunity, cited to its posts; scan finds at most one opportunity in a feed snapshot already captured, for replay or offline work, from objective, community_context and feed_snapshot; post drafts a post for the opportunity a scan chose; publish publishes a drafted post once after exact approval."
-    }
+  "source_paths": [
+    "skills/moltbook/run.yaml"
   ],
-  "catalog": [
-    {
-      "skill": "moltbook",
-      "exists": true,
-      "methods": [
-        "scan-provider",
-        "scan",
-        "post",
-        "publish"
-      ]
-    }
-  ]
+  "repo_root": "."
 }

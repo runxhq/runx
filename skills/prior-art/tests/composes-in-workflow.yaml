@@ -6,15 +6,15 @@ host:
       prior_art_draft:
         decision: ready
         findings:
-          - claim: The existing Moltbook package owns the opportunity scan boundary.
+          - claim: The selected fixture declares a scan method with a data.digest step.
             source: skills/moltbook/run.yaml
-            relevance: Reuse avoids a duplicate public scanner.
+            relevance: This binds the finding to the inspected fixture, without proving a production opportunity scanner.
             confidence: verified
         catalog_fit:
           decision: reuse
           adjacent_skills:
             - moltbook
-          rationale: Compose the existing scan method and add only pipeline glue.
+          rationale: The selected fixture exposes a scan entry; production opportunity scanning is outside this fixture.
         quality_bar:
           audience: Runx skill maintainers
           artifact: A source-bound reuse decision.
@@ -23,12 +23,12 @@ host:
             - Stop if the method cannot be verified.
         recommended_flow:
           - step: scan
-            rationale: Reuse the existing Moltbook scan method.
+            rationale: Reuse the selected fixture entry for this bounded composition check.
         sources:
           - path: skills/moltbook/run.yaml
             kind: skill-manifest
         risks: []
 expect:
   status: sealed
-  steps: [prior-art, digest]
+  steps: [capture, prior-art, digest]
   receipt: {schema: runx.receipt.v1}

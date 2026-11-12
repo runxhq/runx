@@ -4,10 +4,9 @@ catalog:
 methods:
   run:
     steps:
-      - id: prior-art
-        skill: ../..#prior-art-agent
+      - id: capture
+        skill: ../..#capture
         inputs:
-          objective: Add a Moltbook opportunity scan to an existing governed pipeline.
           repo_root: fixtures/workspace
           source_paths:
             - skills/moltbook/run.yaml
@@ -20,6 +19,11 @@ methods:
             required_skills:
               - name: moltbook
                 exists: true
+      - id: prior-art
+        skill: ../..#analyze
+        inputs:
+          objective: Add a Moltbook opportunity scan to an existing governed pipeline.
+          snapshot: $steps.capture.artifact
       - id: digest
         tool: data.digest
         inputs:

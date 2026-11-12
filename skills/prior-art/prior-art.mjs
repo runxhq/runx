@@ -75,6 +75,19 @@ export function indexSources(inputs) {
   };
 }
 
+export function readCapture({ page }) {
+  if (page?.offset !== 0 || page.eof !== true || typeof page.data !== "string")
+    throw new Error("Prior-art capture must be read completely from its first byte.");
+  const capture = Runx.parseData(page.data, "json");
+  const bundle = requiredRecord(capture.file_read_bundle, "file_read_bundle");
+  return {
+    limits: requiredRecord(capture.limits, "limits"),
+    authoring_context: requiredRecord(capture.authoring_context, "authoring_context"),
+    file_read_bundle: bundle,
+    source_paths: [...records(bundle.files), ...records(bundle.missing)].map((entry) => entry.path),
+  };
+}
+
 export function validatePriorArt(inputs) {
   const index = requiredRecord(inputs.evidence_index, "evidence_index");
   const draft = requiredRecord(inputs.prior_art_draft, "prior_art_draft");

@@ -9,14 +9,15 @@
     },
     {
       "id": 2,
-      "prompt": "Continue this design decision from the supplied repository and catalog evidence.",
+      "prompt": "Continue this design decision from a retained prior-art capture. Establish the selected capture once, then analyze that exact artifact in the same project.",
       "expected_output": "Reuse the bounded source set and return a prior-art recommendation without broad repository rediscovery.",
       "files": [
         "evals/files/moltbook-scan-sources.json"
       ],
       "expectations": [
-        "Do not enumerate or grep the whole repository again.",
-        "Do not reacquire catalog evidence already included in the bounded source set."
+        "Capture the selected source set and catalog once; invoke the actual analyze method with the returned native artifact descriptor.",
+        "During analyze, do not enumerate or grep the repository, reopen selected source files or reacquire catalog evidence.",
+        "Keep original captured source bytes and digests if workspace files change after capture."
       ]
     }
   ]

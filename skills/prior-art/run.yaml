@@ -3,47 +3,82 @@ minimum_runx: 0.12.0
 catalog:
   visibility: public
   category: authoring
+default_method: prior-art-agent
+shared_inputs:
+  objective:
+    type: string
+    description: Build, content, or operator objective being researched.
+    minLength: 1
+    pattern: \S
+  decomposition:
+    description: Structured decomposition output from code-plan.
+    optional: true
+  workflow_purpose:
+    type: string
+    description: Downstream purpose such as skill proposal, docs, content, issue, or release.
+    optional: true
+  audience:
+    type: string
+    description: Reader or operator who will use the downstream artifact.
+    optional: true
+  artifact_contract:
+    description: Expected downstream output shape.
+    optional: true
+  source_paths:
+    type: array
+    default: []
+    description: Exact repo-relative files selected by the host or parent; at most sixteen files after decomposition-derived manifests are included.
+    maxItems: 16
+    uniqueItems: true
+    items:
+      type: string
+      minLength: 1
+    optional: true
+  repo_root:
+    type: string
+    default: .
+    description: Workspace root used for native catalog and bounded file inspection.
+    optional: true
+  snapshot:
+    packet: runx.artifact.v1
+    description: Exact native project artifact descriptor returned by capture; analysis reads only its retained catalog and complete source bundle.
 methods:
   prior-art-agent:
+    description: Capture the selected repository and catalog evidence once, then return a source-bound recommendation.
     inputs:
-      objective:
-        type: string
-        description: Build, content, or operator objective being researched.
-        minLength: 1
-        pattern: \S
-      decomposition:
-        description: Structured decomposition output from code-plan.
-        optional: true
-      workflow_purpose:
-        type: string
-        description: Downstream purpose such as skill proposal, docs, content, issue, or release.
-        optional: true
-      audience:
-        type: string
-        description: Reader or operator who will use the downstream artifact.
-        optional: true
-      artifact_contract:
-        description: Expected downstream output shape.
-        optional: true
-      source_paths:
-        type: array
-        default: []
-        description: Exact repo-relative files selected by the host or parent; at most sixteen files after decomposition-derived manifests are included.
-        maxItems: 16
-        uniqueItems: true
-        items:
-          type: string
-          minLength: 1
-        optional: true
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root used for native catalog and bounded file inspection.
-        optional: true
-    result_from:
-      - validate
+      objective: {}
+      decomposition: {}
+      workflow_purpose: {}
+      audience: {}
+      artifact_contract: {}
+      source_paths: {}
+      repo_root: {}
     examples:
       - objective: Check whether this repository already has a retry helper before adding one.
+    result_from: [analyze]
+    steps:
+      - id: capture
+        skill: .#capture
+        inputs:
+          decomposition: $input.decomposition
+          source_paths: $input.source_paths
+          repo_root: $input.repo_root
+      - id: analyze
+        skill: .#analyze
+        inputs:
+          objective: $input.objective
+          decomposition: $input.decomposition
+          workflow_purpose: $input.workflow_purpose
+          audience: $input.audience
+          artifact_contract: $input.artifact_contract
+          snapshot: $steps.capture.artifact
+  capture:
+    description: Retain the exact selected source bytes and native catalog projection without model judgment.
+    inputs:
+      decomposition: {}
+      source_paths: {}
+      repo_root: {}
+    result_from: [store]
     steps:
       - id: plan
         inputs:
@@ -66,6 +101,46 @@ methods:
           max_bytes: 262144
           on_missing: report
           paths: $steps.plan.paths
+      - id: store
+        tool: artifact.store
+        inputs:
+          value:
+            limits: $steps.plan.limits
+            authoring_context: $steps.catalog.authoring_context
+            file_read_bundle: $steps.read.file_read_bundle
+  analyze:
+    description: Analyze an existing capture without catalog inspection, source reads or repository discovery.
+    inputs:
+      objective: {}
+      decomposition: {}
+      workflow_purpose: {}
+      audience: {}
+      artifact_contract: {}
+      snapshot: {}
+    result_from: [validate]
+    steps:
+      - id: open
+        tool: artifact.open
+        inputs:
+          artifact: $input.snapshot
+      - id: read-capture
+        tool: artifact.read
+        inputs:
+          ref: $steps.open.artifact.ref
+          encoding: utf8
+          max_bytes: 4194304
+      - id: decode
+        tool:
+          module: prior-art.mjs
+          export: readCapture
+          requires: [parseData]
+        inputs:
+          page: $steps.read-capture.artifact_page
+        outputs:
+          limits: {type: object}
+          authoring_context: {packet: runx.skill_lab.authoring_context.v1}
+          file_read_bundle: {packet: runx.fs.file_read_bundle.v1}
+          source_paths: {type: array}
       - id: index
         tool:
           module: prior-art.mjs
@@ -73,9 +148,9 @@ methods:
         outputs:
           evidence_index: {type: object}
         inputs:
-          limits: $steps.plan.limits
-          authoring_context: $steps.catalog.authoring_context
-          file_read_bundle: $steps.read.file_read_bundle
+          limits: $steps.decode.limits
+          authoring_context: $steps.decode.authoring_context
+          file_read_bundle: $steps.decode.file_read_bundle
       - id: research
         agent: prior-art-research
         outputs:
@@ -196,9 +271,9 @@ methods:
           audience: $input.audience
           artifact_contract: $input.artifact_contract
           evidence_index: $steps.index.evidence_index
-          source_paths: $input.source_paths
-          repo_root: $input.repo_root
-          inspected_bundle: $steps.read.file_read_bundle
+          source_paths: $steps.decode.source_paths
+          repo_root: $steps.decode.file_read_bundle.repo_root
+          inspected_bundle: $steps.decode.file_read_bundle
       - id: validate
         inputs:
           evidence_index: $steps.index.evidence_index

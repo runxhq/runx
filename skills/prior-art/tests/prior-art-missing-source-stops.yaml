@@ -26,15 +26,9 @@ host:
         risks: []
 expect:
   status: sealed
-  steps:
-    - plan
-    - catalog
-    - read
-    - index
-    - research
-    - validate
+  steps: [capture, analyze]
   step_outputs:
-    validate:
+    analyze:
       subset:
         decision: needs_more_evidence
         validation:

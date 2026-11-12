@@ -21,7 +21,8 @@ turn bounded discovery into a repository-wide grep.
    skill manifests. Select at most sixteen files. Listing filenames is
    discovery, not the prior-art result; continue through inspection.
 3. Invoke the default method with the objective, chosen paths, and any existing
-   decomposition. Complete its bounded research request, resume it in memory,
+   decomposition. It captures the selected evidence once and analyzes that
+   immutable capture. Complete its bounded research request, resume it in memory,
    and return the validated prior-art report—not a narration of what you intend
    to read.
 4. If the selected evidence is insufficient, return one precise
@@ -37,19 +38,32 @@ receipt.
 
 ## Composed use
 
-A parent should pass its objective, decomposition, and already selected source
-paths. Reuse that evidence boundary exactly. Do not enumerate the repository,
-reacquire the catalog, or repeat a prior evidence-selection step unless the
-packet is missing, stale, or outside the current objective.
+A parent that has only selected paths calls `capture` once with those paths,
+the repository root and any decomposition. Pass its returned `artifact`
+descriptor as `snapshot` to `analyze`, together with the objective and optional
+decision context. Reuse the same descriptor for further analysis in the same
+Runx project. `analyze` opens the retained artifact; it does not inspect the
+catalog, reopen source paths, or repeat discovery. Changed workspace files do
+not replace captured bytes. Paths and caller-authored source summaries are not
+a capture.
+
+If the capture is missing, incomplete, stale or outside the current objective,
+state the gap and explicitly select a new capture. An unreadable or foreign
+project artifact fails closed without reacquisition. An artifact's integrity
+does not independently prove the truth of its contents or grant authority.
 
 ## Executable procedure
 
 1. Supply a bounded `objective`, optional code-plan `decomposition`, and the
    repo-relative `source_paths` selected by direct discovery or a parent chain.
-2. Native `runx.skill.inspect` indexes the local Runx catalog and
+2. In `capture`, native `runx.skill.inspect` indexes the local Runx catalog and
    `fs.read_bundle` reads and hashes at most sixteen requested files under the
    workspace boundary. Missing files are recorded; escaping, duplicate, or
-   oversized paths fail closed.
+   oversized paths fail closed. `artifact.store` retains both complete native
+   projections in the project's immutable artifact store. `analyze` verifies
+   that descriptor with `artifact.open`, reads the bounded retained JSON with
+   `artifact.read`, and refuses a partial read. Decoded native projections
+   retain their packet contracts.
 3. Read the exact `inspected_bundle.files[].contents` delivered with the task.
    It is the same native read whose whole-file digests appear in the evidence
    index; do not read those files again. Catalog descriptions help identify an
@@ -58,8 +72,10 @@ packet is missing, stale, or outside the current objective.
    Read only the indexed sources needed for the objective. State each finding as `claim`, `source`, `relevance`, and `confidence` (`verified`, `likely`, or `unverified`).
 4. Name adjacent catalog skills and the boundary each already owns. Recommend `reuse`, `amend`, `new_work`, or `stop`; do not create a duplicate primitive because an existing package is imperfect.
 5. The domain validator checks every verified citation and adjacent skill
-   against those native projections. Unsupported verified claims or missing
-   requested sources force `needs_more_evidence`.
+   against those native projections. Unknown citation paths or missing requested
+   sources force `needs_more_evidence`. A bound citation does not establish that
+   its source supports the claim; inspect the retained text before calling a
+   finding verified.
 
 External URLs are not inspected by this method. Fetch them through a governed source skill, persist the bounded evidence in the workspace, then pass its path here.
 
@@ -84,7 +100,10 @@ evidence: object
 validation: object
 ```
 
-Inputs are `objective`, optional `decomposition`, `workflow_purpose`, `audience`, `artifact_contract`, and bounded `source_paths`.
+The default accepts `objective`, optional `decomposition`, `workflow_purpose`,
+`audience`, `artifact_contract`, bounded `source_paths` and `repo_root`.
+`capture` accepts `decomposition`, `source_paths` and `repo_root`; `analyze`
+accepts `snapshot`, `objective` and the optional decision context.
 
 ## Agent task: prior-art-research
 
