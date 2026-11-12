@@ -17,7 +17,11 @@ pub struct InputDefinition {
     pub required: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_input_default",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub default: Option<JsonValue>,
     /// Canonical packet contract for a JSON-valued input. The runtime resolves
     /// this identifier through the packet-schema catalog before inspection or
@@ -30,6 +34,14 @@ pub struct InputDefinition {
     /// and composition without creating a second schema file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<JsonObject>,
+}
+
+/// A missing default is None; a present JSON null is a declared default.
+fn deserialize_input_default<'de, D>(deserializer: D) -> Result<Option<JsonValue>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    JsonValue::deserialize(deserializer).map(Some)
 }
 
 impl InputDefinition {
@@ -193,6 +205,23 @@ mod tests {
         }
     }
 
+    #[test]
+    fn input_defaults_preserve_null_and_absence_through_serialization()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for value in [None, Some(JsonValue::Null), Some(JsonValue::Bool(false))] {
+            let mut input = declared("json");
+            input.default = value;
+            let serialized = serde_json::to_value(&input)?;
+            assert_eq!(serialized.get("default").is_some(), input.default.is_some());
+            let decoded: InputDefinition = serde_json::from_value(serialized)?;
+            assert_eq!(decoded, input);
+            let decoded =
+                JsonValue::from_serialize(&input)?.deserialize_into::<InputDefinition>()?;
+            assert_eq!(decoded, input);
+        }
+        Ok(())
+    }
+
     /// The text a command line passes reads as a value of its declared type.
     #[test]
     fn text_reads_as_its_declared_type() -> Result<(), String> {
@@ -209,6 +238,7 @@ mod tests {
             ),
             ("array", "[1,2]", "[1,2]"),
             ("json", r#""fixture""#, r#""fixture""#),
+            ("json", "null", "null"),
         ] {
             let expected: JsonValue =
                 serde_json::from_str(expected).map_err(|error| error.to_string())?;

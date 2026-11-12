@@ -2774,6 +2774,82 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
 }
 
 #[test]
+fn a_declared_json_null_survives_a_nested_method_boundary() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("nullable-input");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: nullable-input\ndescription: Digest one JSON value.\n---\n# Nullable input\n\nRetain the exact supplied JSON value through a child method.\n",
+        r#"minimum_runx: 0.12.0
+default_method: run
+shared_inputs:
+  value: {}
+methods:
+  run:
+    inputs:
+      value: {}
+    steps:
+      - id: child
+        skill: .#hash
+        inputs:
+          value: $input.value
+  defaulted:
+    inputs:
+      value: {default: null}
+    steps:
+      - id: child
+        skill: .#hash
+        inputs:
+          value: $input.value
+  hash:
+    inputs:
+      value: {}
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.value
+"#,
+    )?;
+    for (method, inputs) in [
+        (
+            "run",
+            BTreeMap::from([("value".to_owned(), JsonValue::Null)]),
+        ),
+        ("defaulted", BTreeMap::new()),
+    ] {
+        let request = with_test_signing_env(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir.clone(),
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs,
+            env: BTreeMap::from([("RUNX_CWD".to_owned(), temp.path().display().to_string())]),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        });
+        let result = LocalOrchestrator::default().run_skill_with_binding(
+            &request,
+            Some(method),
+            None,
+            None,
+        )?;
+        let output = serde_json::to_value(result.output)?;
+        assert_eq!(output["outcome"], "completed", "{output}");
+        assert_eq!(
+            output["result"]["digest_result"]["digest"],
+            runx_contracts::sha256_prefixed(b"null")
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn native_workflow_skill_run_omits_missing_optional_workflow_input_references()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

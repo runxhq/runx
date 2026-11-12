@@ -44,7 +44,8 @@ pub(crate) fn apply_defaults(declared: &BTreeMap<String, SkillInput>, inputs: &m
     }
 }
 
-/// Return required manifest inputs that are absent or explicitly null.
+/// Return required manifest inputs that are absent. A supplied null is a
+/// concrete JSON value, checked against the input's type and schema.
 pub(crate) fn missing_required(
     declared: &BTreeMap<String, SkillInput>,
     inputs: &JsonObject,
@@ -52,14 +53,10 @@ pub(crate) fn missing_required(
     declared
         .iter()
         .filter(|(name, input)| {
-            input.required && input.default.is_none() && is_missing(inputs.get(*name))
+            input.required && input.default.is_none() && !inputs.contains_key(*name)
         })
         .map(|(name, _)| name.clone())
         .collect()
-}
-
-pub(crate) fn is_missing(value: Option<&JsonValue>) -> bool {
-    matches!(value, None | Some(JsonValue::Null))
 }
 
 /// Build the one invocation map a declared local tool receives.
@@ -282,32 +279,7 @@ fn materialize_input(
             Ok(None)
         };
     };
-    if matches!(value, JsonValue::Null) {
-        return if input.required && missing_required == MissingRequired::Reject {
-            Err(input_error(
-                declared_by,
-                name,
-                format!("{declared_by} input '{name}' is required"),
-                input,
-            ))
-        } else {
-            Ok(None)
-        };
-    }
-
     let value = value.clone();
-    if matches!(value, JsonValue::Null) {
-        return if input.required && missing_required == MissingRequired::Reject {
-            Err(input_error(
-                declared_by,
-                name,
-                format!("{declared_by} input '{name}' is required"),
-                input,
-            ))
-        } else {
-            Ok(None)
-        };
-    }
     if !input.accepts_value(&value) {
         return Err(input_error(
             declared_by,
@@ -482,7 +454,7 @@ mod tests {
 
     use super::{
         materialize_complete_method_inputs, materialize_nested_method_inputs,
-        materialize_present_method_inputs, materialize_tool_inputs,
+        materialize_present_method_inputs, materialize_tool_inputs, missing_required,
     };
 
     fn string_input(required: bool) -> InputDefinition {
@@ -494,6 +466,80 @@ mod tests {
             packet: None,
             schema: None,
         }
+    }
+
+    #[test]
+    fn declared_json_null_is_preserved_across_input_boundaries()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut definition = string_input(true);
+        definition.input_type = "json".to_owned();
+        let supplied = JsonObject::from([("value".to_owned(), JsonValue::Null)]);
+        for default in [None, Some(JsonValue::Null), Some(JsonValue::Bool(false))] {
+            definition.default = default;
+            let declared = BTreeMap::from([("value".to_owned(), definition.clone())]);
+            assert!(missing_required(&declared, &supplied).is_empty());
+            for actual in [
+                materialize_present_method_inputs(&declared, &supplied)?,
+                materialize_complete_method_inputs(&declared, &JsonObject::new(), &supplied)?,
+                materialize_nested_method_inputs(&declared, &JsonObject::new(), &supplied)?,
+                materialize_tool_inputs(&declared, &supplied, &JsonObject::new())?,
+            ] {
+                assert_eq!(actual, supplied);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_null_is_checked_against_type_and_nullable_schema()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let supplied = JsonObject::from([("value".to_owned(), JsonValue::Null)]);
+        for required in [false, true] {
+            let declared = BTreeMap::from([("value".to_owned(), string_input(required))]);
+            assert!(materialize_present_method_inputs(&declared, &supplied).is_err());
+        }
+        let mut definition = string_input(true);
+        definition.input_type = "json".to_owned();
+        for (schema, accepted) in [
+            (
+                serde_json::json!({"anyOf": [{"type": "string"}, {"type": "null"}]}),
+                true,
+            ),
+            (serde_json::json!({"type": "object"}), false),
+        ] {
+            definition.schema = Some(serde_json::from_value(schema)?);
+            let declared = BTreeMap::from([("value".to_owned(), definition.clone())]);
+            assert_eq!(
+                materialize_present_method_inputs(&declared, &supplied).is_ok(),
+                accepted
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn an_absent_input_uses_a_declared_null_default_but_is_otherwise_absent()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut definition = string_input(false);
+        definition.input_type = "json".to_owned();
+        let absent = JsonObject::new();
+        let declared = BTreeMap::from([("value".to_owned(), definition.clone())]);
+        assert_eq!(
+            materialize_present_method_inputs(&declared, &absent)?,
+            absent
+        );
+        definition.required = true;
+        let declared = BTreeMap::from([("value".to_owned(), definition.clone())]);
+        assert_eq!(missing_required(&declared, &absent), ["value"]);
+        assert!(materialize_complete_method_inputs(&declared, &absent, &absent).is_err());
+        definition.default = Some(JsonValue::Null);
+        let declared = BTreeMap::from([("value".to_owned(), definition)]);
+        assert!(missing_required(&declared, &absent).is_empty());
+        assert_eq!(
+            materialize_complete_method_inputs(&declared, &absent, &absent)?,
+            JsonObject::from([("value".to_owned(), JsonValue::Null)])
+        );
+        Ok(())
     }
 
     #[test]
