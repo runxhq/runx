@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,13 @@ if (!existsSync(runx)) fail(`runx binary is missing: ${runx}`);
 // reads what this source exports and never a person's installed skills.
 const home = mkdtempSync(path.join(os.tmpdir(), "runx-codex-export-"));
 process.on("exit", () => rmSync(home, { recursive: true, force: true }));
+const nativeEnv = {
+  ...process.env,
+  HOME: home,
+  RUNX_HOME: path.join(home, ".runx"),
+  RUNX_PROJECT_DIR: path.join(home, "project-state"),
+  RUNX_CWD: root,
+};
 const installRoot = path.join(home, ".agents", "skills");
 exportInto(home);
 
@@ -85,7 +92,7 @@ function inspect(name) {
   const result = spawnSync(runx, ["skill", "inspect", path.join(root, "skills", name), "--json"], {
     cwd: root,
     encoding: "utf8",
-    env: process.env,
+    env: nativeEnv,
     maxBuffer: 16 * 1024 * 1024,
   });
   if (result.status !== 0) {
@@ -109,7 +116,7 @@ function exportInto(target) {
   const result = spawnSync(runx, ["export", "codex", "--json"], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, HOME: target, RUNX_HOME: path.join(target, ".runx"), RUNX_CWD: root, RUNX_EXPORT_BIN: runx },
+    env: { ...nativeEnv, HOME: target, RUNX_HOME: path.join(target, ".runx"), RUNX_EXPORT_BIN: runx },
     maxBuffer: 16 * 1024 * 1024,
   });
   if (result.status !== 0) {
@@ -119,15 +126,13 @@ function exportInto(target) {
 
 function exportableNames() {
   if (!existsSync(runx)) return [];
-  const scratch = path.join(root, ".runx");
-  mkdirSync(scratch, { recursive: true });
-  const project = mkdtempSync(path.join(scratch, "export-check-"));
+  const project = mkdtempSync(path.join(home, "export-check-"));
   try {
     symlinkSync(path.join(root, "skills"), path.join(project, "skills"), process.platform === "win32" ? "junction" : "dir");
     const result = spawnSync(runx, ["export", "codex", "--project", "--json"], {
       cwd: project,
       encoding: "utf8",
-      env: { ...process.env, RUNX_CWD: project, RUNX_EXPORT_BIN: runx },
+      env: { ...nativeEnv, RUNX_CWD: project, RUNX_PROJECT_DIR: path.join(project, ".runx"), RUNX_EXPORT_BIN: runx },
       maxBuffer: 16 * 1024 * 1024,
     });
     if (result.status !== 0) {
