@@ -1,5 +1,5 @@
 {
-  "about": "Non-live account and thread evidence from the native session fixture. Its configured account must exist in an isolated fixture store; this context file does not install account state, establish live account eligibility, or authorize publication.",
+  "about": "Non-live account and thread evidence from the native session fixture. Its configured account must exist in an isolated fixture store; this context file does not install account state, establish live account eligibility, or authorize publication. Community rules and current account eligibility are not supplied; native target review must withhold a selected-target draft until rules are established. The selected_action is a synthetic draft example, not eligibility or permission proof.",
   "account_id": "example_builder",
   "objective": "Use the supplied thread context to draft one useful comment; do not browse or submit.",
   "prior_evidence": [

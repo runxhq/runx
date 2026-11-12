@@ -11,13 +11,14 @@
     {
       "id": 2,
       "prompt": "Draft from existing thread evidence and account voice.",
-      "expected_output": "Return account-specific drafts and evidence without publishing or voting.",
+      "expected_output": "Reuse the configured account and supplied thread evidence without browsing or submitting. This fixture omits community rules, so hold any selected-target draft and state that missing evidence; do not invent permission or eligibility.",
       "files": [
         "evals/files/thread-evidence.json"
       ],
       "expectations": [
         "Do not browse to reacquire this supplied fixture evidence.",
-        "Do not submit from the default method."
+        "Do not submit from the default method.",
+        "Unknown community rules cannot establish a selected target; an honest held result is expected from this incomplete context."
       ],
       "method": "reddit"
     }
