@@ -8152,6 +8152,7 @@
       "enum": [
         "build",
         "extend_existing",
+        "no_change",
         "no_skill",
         "needs_core"
       ],
@@ -8170,6 +8171,16 @@
         "runx.skill.architecture_plan.v1"
       ],
       "title": "SkillArchitecturePlanSchema",
+      "type": "string"
+    },
+    "SkillAuthoringMode": {
+      "enum": [
+        "design",
+        "build",
+        "improve",
+        "test"
+      ],
+      "title": "SkillAuthoringMode",
       "type": "string"
     },
     "SkillBehaviorDecision": {

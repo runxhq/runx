@@ -79,10 +79,14 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
 }
 
 fn change_bundle(base_digest: &str, manual: String) -> Result<SkillChangeBundle, RuntimeError> {
-    let plan = plan_skill_architecture(base_digest, architecture()?)?;
+    let plan = plan_skill_architecture(
+        base_digest,
+        runx_contracts::SkillAuthoringMode::Improve,
+        architecture()?,
+    )?;
     bind_skill_change(
         &plan,
-        SkillChangeDraft {
+        Some(SkillChangeDraft {
             schema: SkillChangeDraftSchema::V1,
             decision: SkillChangeDecision::Write,
             summary: "Apply one bounded manual correction.".into(),
@@ -93,7 +97,7 @@ fn change_bundle(base_digest: &str, manual: String) -> Result<SkillChangeBundle,
             }],
             deletes: Vec::new(),
             expected_outputs: Vec::new(),
-        },
+        }),
     )
 }
 
@@ -187,6 +191,7 @@ fn choice_name(choice: SkillArchitectureChoice) -> &'static str {
     match choice {
         SkillArchitectureChoice::Build => "build",
         SkillArchitectureChoice::ExtendExisting => "extend_existing",
+        SkillArchitectureChoice::NoChange => "no_change",
         SkillArchitectureChoice::NoSkill => "no_skill",
         SkillArchitectureChoice::NeedsCore => "needs_core",
     }

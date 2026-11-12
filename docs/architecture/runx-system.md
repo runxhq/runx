@@ -355,6 +355,10 @@ change contract. Design is judgment; inspect, validate, diff,
 write, and test execution are native mechanics. No template generator creates a
 placeholder `.mjs`. No package writes outside its declared target. A no-op
 design produces no file churn.
+The native plan binds both the inspected package state and authoring mode.
+Terminal decisions (`no_change`, `no_skill`, `needs_core`) need no package
+identity or second author turn; native binding produces an empty change bundle.
+A write plan requires an authored draft, and apply rejects mode or state drift.
 
 External extensions use stable manifests and wire protocols. They do not link
 the runtime, fork the executor, or acquire a second authoring framework.

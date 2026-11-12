@@ -51,16 +51,6 @@ host:
           - Do not hide filesystem admission in package-local code.
         deletions: []
         proof_plan: []
-    author:
-      change_draft:
-        schema: runx.skill.change_draft.v1
-        decision: needs_core
-        summary: Stop package authoring because the missing primitive has independent consumers.
-        non_goals:
-          - Do not add package-local filesystem code.
-        writes: []
-        deletes: []
-        expected_outputs: []
 expect:
   status: sealed
   receipt:
@@ -69,11 +59,10 @@ expect:
     - inspect
     - architect
     - plan
-    - author
-    - bind
-    - apply
+    - bind-terminal
+    - apply-terminal
   step_outputs:
-    apply:
+    apply-terminal:
       subset:
         apply_result:
           decision: needs_core

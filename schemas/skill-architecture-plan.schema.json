@@ -11,6 +11,9 @@
       "minLength": 1,
       "type": "string"
     },
+    "mode": {
+      "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillAuthoringMode"
+    },
     "plan_digest": {
       "minLength": 1,
       "type": "string"
@@ -21,6 +24,7 @@
   },
   "required": [
     "schema",
+    "mode",
     "base_digest",
     "plan_digest",
     "architecture"

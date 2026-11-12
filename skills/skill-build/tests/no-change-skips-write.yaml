@@ -15,34 +15,7 @@ host:
     architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
-        choice: extend_existing
-        identity:
-          current_name: not-present
-          proposed_name: not-present
-          action: keep
-          visibility: public
-          rationale: The fixture preserves the requested identity while proving evidence-bound no-change behavior.
-        direct_use:
-          trigger_requests:
-            - Improve this skill from the supplied failed-run evidence.
-          non_trigger_requests:
-            - Change this skill based only on an unverified report.
-          default_outcome: Apply a bounded evidence-backed correction or return unchanged.
-          routine_host_work:
-            - Inspect the supplied report and current package state.
-          runx_boundary: Bind any correction to the inspected package and reproducible failure evidence.
-          terminal_result: A validated apply result or an honest unchanged result.
-          blocker_behavior: Stop once and request a sealed receipt or focused failing fixture.
-          native_escape: Return the report and inspection for direct host reproduction.
-        chain_use:
-          accepted_inputs:
-            - A diagnose-skill-run failure packet, receipt summary, or test output.
-          result: A digest-bound correction or unchanged result.
-          reused_evidence:
-            - The supplied failure packet and package inspection.
-          reused_effects: []
-          must_not_repeat:
-            - Do not rerun unrelated provider work or rediscover the inspected package.
+        choice: no_change
         objective: Decide whether weak evidence warrants a package change.
         operator_value: Protect a package from speculative corrections.
         knowledge_contract:
@@ -95,16 +68,6 @@ host:
           - name: failure-evidence-reuse
             kind: chain_use_eval
             expected: A supplied diagnosis packet is reused without repeating the failed operation.
-    author:
-      change_draft:
-        schema: runx.skill.change_draft.v1
-        decision: no_change
-        summary: The supplied report does not justify a package mutation.
-        non_goals:
-          - Do not invent a regression.
-        writes: []
-        deletes: []
-        expected_outputs: []
 expect:
   status: sealed
   receipt:
@@ -113,11 +76,10 @@ expect:
     - inspect
     - architect
     - plan
-    - author
-    - bind
-    - apply
+    - bind-terminal
+    - apply-terminal
   step_outputs:
-    apply:
+    apply-terminal:
       subset:
         apply_result:
           decision: no_change

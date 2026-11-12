@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     Digest, JsonValue, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
-    SkillArchitectureDecision, SkillArchitecturePlan, SkillArchitecturePlanSchema,
-    SkillChangeBundle, SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft,
-    SkillValidationResult, sha256_prefixed,
+    SkillArchitectureChoice, SkillArchitectureDecision, SkillArchitecturePlan,
+    SkillArchitecturePlanSchema, SkillAuthoringMode, SkillChangeBundle, SkillChangeBundleSchema,
+    SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema, SkillValidationResult,
+    sha256_prefixed,
 };
 
 use super::path::{
@@ -27,7 +28,8 @@ mod commit_tests;
 
 use admission::{
     validate_architecture, validate_architecture_decision, validate_change_contract,
-    validate_change_shape, validate_digest, validate_resource_budget,
+    validate_change_shape, validate_digest, validate_mode_architecture, validate_mode_decision,
+    validate_resource_budget,
 };
 use application::{
     AdmittedSkillChange, SkillApplicationLock, admit_skill_change, no_change_result,
@@ -36,6 +38,7 @@ use application::{
 
 pub(crate) fn architecture_digest(
     base_digest: &str,
+    mode: &str,
     architecture: &SkillArchitectureDecision,
 ) -> Result<String, RuntimeError> {
     let architecture: JsonValue = serde_json::to_value(architecture)
@@ -47,6 +50,7 @@ pub(crate) fn architecture_digest(
             JsonValue::String(base_digest.to_owned()),
         ),
         ("architecture".to_owned(), architecture),
+        ("mode".to_owned(), JsonValue::String(mode.to_owned())),
     ]));
     let canonical = runx_contracts::canonical_stable_json(&value)
         .map_err(|error| invalid_skill_change(format!("canonicalizing architecture: {error}")))?;
@@ -55,13 +59,16 @@ pub(crate) fn architecture_digest(
 
 pub(crate) fn plan_skill_architecture(
     base_digest: &str,
+    mode: SkillAuthoringMode,
     architecture: SkillArchitectureDecision,
 ) -> Result<SkillArchitecturePlan, RuntimeError> {
     validate_digest("base_digest", base_digest)?;
     validate_architecture_decision(&architecture)?;
-    let plan_digest = architecture_digest(base_digest, &architecture)?;
+    validate_mode_architecture(mode.as_str(), architecture.choice)?;
+    let plan_digest = architecture_digest(base_digest, mode.as_str(), &architecture)?;
     Ok(SkillArchitecturePlan {
         schema: SkillArchitecturePlanSchema::V1,
+        mode,
         base_digest: base_digest.to_owned().into(),
         plan_digest: plan_digest.into(),
         architecture,
@@ -70,17 +77,52 @@ pub(crate) fn plan_skill_architecture(
 
 pub(crate) fn bind_skill_change(
     plan: &SkillArchitecturePlan,
-    draft: SkillChangeDraft,
+    draft: Option<SkillChangeDraft>,
 ) -> Result<SkillChangeBundle, RuntimeError> {
     validate_digest("base_digest", plan.base_digest.as_str())?;
     validate_digest("plan_digest", plan.plan_digest.as_str())?;
     validate_architecture_decision(&plan.architecture)?;
-    let expected_plan = architecture_digest(plan.base_digest.as_str(), &plan.architecture)?;
+    validate_mode_architecture(plan.mode.as_str(), plan.architecture.choice)?;
+    if plan.mode == SkillAuthoringMode::Design {
+        return Err(invalid_skill_change(
+            "design plans do not bind package changes",
+        ));
+    }
+    let expected_plan = architecture_digest(
+        plan.base_digest.as_str(),
+        plan.mode.as_str(),
+        &plan.architecture,
+    )?;
     if plan.plan_digest.as_str() != expected_plan {
         return Err(invalid_skill_change(
             "architecture plan digest does not bind its base and decision",
         ));
     }
+    let draft = match draft {
+        Some(draft) => draft,
+        None => {
+            let decision = match plan.architecture.choice {
+                SkillArchitectureChoice::NoChange => SkillChangeDecision::NoChange,
+                SkillArchitectureChoice::NoSkill => SkillChangeDecision::NoSkill,
+                SkillArchitectureChoice::NeedsCore => SkillChangeDecision::NeedsCore,
+                _ => {
+                    return Err(invalid_skill_change(
+                        "package authoring requires a change_draft",
+                    ));
+                }
+            };
+            SkillChangeDraft {
+                schema: SkillChangeDraftSchema::V1,
+                decision,
+                summary: plan.architecture.operator_value.clone(),
+                non_goals: plan.architecture.preservation_obligations.clone(),
+                writes: Vec::new(),
+                deletes: Vec::new(),
+                expected_outputs: Vec::new(),
+            }
+        }
+    };
+    validate_mode_decision(plan.mode.as_str(), draft.decision)?;
     let bundle = SkillChangeBundle {
         schema: SkillChangeBundleSchema::V1,
         decision: draft.decision,

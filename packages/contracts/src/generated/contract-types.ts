@@ -3145,7 +3145,7 @@ export type SkillApplyVerdictContract = "unchanged" | "needs_core" | "validated_
 
 export type SkillApprovalRequirementContract = "none" | "policy" | "human";
 
-export type SkillArchitectureChoiceContract = "build" | "extend_existing" | "no_skill" | "needs_core";
+export type SkillArchitectureChoiceContract = "build" | "extend_existing" | "no_change" | "no_skill" | "needs_core";
 
 export type SkillArchitectureDecisionContract = {
   readonly chain_use?: SkillChainUseContract;
@@ -3172,6 +3172,7 @@ export type SkillArchitectureDecisionSchemaContract = "runx.skill.architecture_d
 export type SkillArchitecturePlanContract = {
   readonly architecture: SkillArchitectureDecisionContract;
   readonly base_digest: string;
+  readonly mode: SkillAuthoringModeContract;
   readonly plan_digest: string;
   readonly schema: SkillArchitecturePlanSchemaContract;
 };
@@ -3197,6 +3198,8 @@ export type SkillAuthoringContextContract = {
   } | null;
   readonly target_metrics: SkillPackageMetricsContract;
 };
+
+export type SkillAuthoringModeContract = "design" | "build" | "improve" | "test";
 
 export type SkillBehaviorDecisionContract = {
   readonly domain_module_justification?: string;

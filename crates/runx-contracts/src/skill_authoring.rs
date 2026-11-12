@@ -54,8 +54,29 @@ pub enum SkillApplyResultSchema {
 pub enum SkillArchitectureChoice {
     Build,
     ExtendExisting,
+    NoChange,
     NoSkill,
     NeedsCore,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillAuthoringMode {
+    Design,
+    Build,
+    Improve,
+    Test,
+}
+
+impl SkillAuthoringMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Design => "design",
+            Self::Build => "build",
+            Self::Improve => "improve",
+            Self::Test => "test",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -250,6 +271,7 @@ pub struct SkillArchitectureDecision {
 #[runx_schema(id = "runx.skill.architecture_plan.v1")]
 pub struct SkillArchitecturePlan {
     pub schema: SkillArchitecturePlanSchema,
+    pub mode: SkillAuthoringMode,
     pub base_digest: NonEmptyString,
     pub plan_digest: NonEmptyString,
     pub architecture: SkillArchitectureDecision,

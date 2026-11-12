@@ -52,7 +52,11 @@ methods:
           target_dir: $input.target_dir
       - id: plan
         tool: runx.skill.plan
+        outputs:
+          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
+          authoring_required: {type: boolean}
         inputs:
+          mode: design
           base_digest: $steps.inspect.authoring_context.base_digest
           architecture: $steps.architect.architecture_decision
   build:
@@ -84,6 +88,7 @@ methods:
         project_context: Preserve remote evidence support and avoid package-local file readers.
     result_from:
       - apply
+      - apply-terminal
     steps:
       - id: inspect
         tool: runx.skill.inspect
@@ -106,10 +111,15 @@ methods:
           target_dir: $input.target_dir
       - id: plan
         tool: runx.skill.plan
+        outputs:
+          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
+          authoring_required: {type: boolean}
         inputs:
+          mode: build
           base_digest: $steps.inspect.authoring_context.base_digest
           architecture: $steps.architect.architecture_decision
       - id: author
+        when: {value: $steps.plan.authoring_required, equals: true}
         agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
@@ -125,11 +135,13 @@ methods:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
       - id: bind
+        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.bind
         inputs:
           architecture_plan: $steps.plan.architecture_plan
           change_draft: $steps.author.change_draft
       - id: apply
+        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
@@ -138,6 +150,22 @@ methods:
           change_bundle: $steps.bind.change_bundle
         outputs:
           apply_result: {type: object, packet: runx.skill.apply_result.v1}
+      - id: bind-terminal
+        when: {value: $steps.plan.authoring_required, equals: false}
+        tool: runx.skill.bind
+        inputs:
+          architecture_plan: $steps.plan.architecture_plan
+      - id: apply-terminal
+        when: {value: $steps.plan.authoring_required, equals: false}
+        tool: runx.skill.apply
+        inputs:
+          target_dir: $input.target_dir
+          repo_root: $input.repo_root
+          mode: build
+          change_bundle: $steps.bind-terminal.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
+
   improve:
     description: Turn one receipt or test failure into a bounded update of a package, validated before it is written.
     inputs:
@@ -179,6 +207,7 @@ methods:
         test_output: The agent could not construct the nested resources selector from inspection.
     result_from:
       - apply
+      - apply-terminal
     steps:
       - id: inspect
         tool: runx.skill.inspect
@@ -204,10 +233,15 @@ methods:
           target_dir: $input.target_dir
       - id: plan
         tool: runx.skill.plan
+        outputs:
+          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
+          authoring_required: {type: boolean}
         inputs:
+          mode: improve
           base_digest: $steps.inspect.authoring_context.base_digest
           architecture: $steps.architect.architecture_decision
       - id: author
+        when: {value: $steps.plan.authoring_required, equals: true}
         agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
@@ -226,17 +260,35 @@ methods:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
       - id: bind
+        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.bind
         inputs:
           architecture_plan: $steps.plan.architecture_plan
           change_draft: $steps.author.change_draft
       - id: apply
+        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: improve
           change_bundle: $steps.bind.change_bundle
+      - id: bind-terminal
+        when: {value: $steps.plan.authoring_required, equals: false}
+        tool: runx.skill.bind
+        inputs:
+          architecture_plan: $steps.plan.architecture_plan
+      - id: apply-terminal
+        when: {value: $steps.plan.authoring_required, equals: false}
+        tool: runx.skill.apply
+        inputs:
+          target_dir: $input.target_dir
+          repo_root: $input.repo_root
+          mode: improve
+          change_bundle: $steps.bind-terminal.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
+
   test:
     description: Add tests to an existing package and replay them against the candidate before writing.
     inputs:
@@ -266,6 +318,7 @@ methods:
         project_context: Exercise the real native file and evidence capabilities.
     result_from:
       - apply
+      - apply-terminal
     steps:
       - id: inspect
         tool: runx.skill.inspect
@@ -288,10 +341,15 @@ methods:
           target_dir: $input.target_dir
       - id: plan
         tool: runx.skill.plan
+        outputs:
+          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
+          authoring_required: {type: boolean}
         inputs:
+          mode: test
           base_digest: $steps.inspect.authoring_context.base_digest
           architecture: $steps.architect.architecture_decision
       - id: author
+        when: {value: $steps.plan.authoring_required, equals: true}
         agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
@@ -307,14 +365,31 @@ methods:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
       - id: bind
+        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.bind
         inputs:
           architecture_plan: $steps.plan.architecture_plan
           change_draft: $steps.author.change_draft
       - id: apply
+        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: test
           change_bundle: $steps.bind.change_bundle
+      - id: bind-terminal
+        when: {value: $steps.plan.authoring_required, equals: false}
+        tool: runx.skill.bind
+        inputs:
+          architecture_plan: $steps.plan.architecture_plan
+      - id: apply-terminal
+        when: {value: $steps.plan.authoring_required, equals: false}
+        tool: runx.skill.apply
+        inputs:
+          target_dir: $input.target_dir
+          repo_root: $input.repo_root
+          mode: test
+          change_bundle: $steps.bind-terminal.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}

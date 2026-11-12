@@ -512,7 +512,7 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 Call `turn_complete` with exactly one root field,
 `{"architecture_decision": <decision>}`. The inner decision uses
 `runx.skill.architecture_decision.v1`. Choose `build`, `extend_existing`,
-`no_skill`, or `needs_core`. Explain the operator value and the manual's
+`no_change`, `no_skill`, or `needs_core`. Explain the operator value and the manual's
 knowledge contract: purpose, required evidence, decision logic, stop conditions,
 and recovery. Assign every required behavior to exactly one real execution lane
 (`manual`, `workflow`, `agent`, `native_capability`, `domain_module`,
@@ -592,8 +592,11 @@ registry HTTP, credentials, auto-publish, or an adjacent publisher/name.
 
 For `improve`, diagnose only from supplied receipt or test evidence and
 distinguish contract, implementation, fixture, environment, and operator
-failures. When evidence cannot justify a change, choose `extend_existing` and
-let the author return `no_change`. For `test`, plan test-only changes, new
+failures. When evidence cannot justify a change, choose `no_change`. Do not invent a
+package identity, direct-use contract or chain-use contract for that stop. The
+workflow binds the authoring mode and derives an empty change bundle natively;
+there is no author turn for a terminal decision. Preserve the missing evidence
+and next step in the decision. For `test`, plan test-only changes, new
 `tests/<name>.yaml` and the `fixtures/` data they read, and preserve all
 production behavior.
 

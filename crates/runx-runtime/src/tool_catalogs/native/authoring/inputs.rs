@@ -1,6 +1,6 @@
 use runx_contracts::{
-    JsonObject, JsonValue, SkillArchitectureDecision, SkillArchitecturePlan, SkillChangeBundle,
-    SkillChangeDraft,
+    JsonObject, JsonValue, SkillArchitectureDecision, SkillArchitecturePlan, SkillAuthoringMode,
+    SkillChangeBundle, SkillChangeDraft,
 };
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +41,7 @@ impl CapabilityInput for ApplyInput {
 #[serde(deny_unknown_fields)]
 pub(super) struct PlanInput {
     pub(super) base_digest: String,
+    pub(super) mode: SkillAuthoringMode,
     pub(super) architecture: SkillArchitectureDecision,
 }
 
@@ -50,7 +51,8 @@ impl CapabilityInput for PlanInput {}
 #[serde(deny_unknown_fields)]
 pub(super) struct BindInput {
     pub(super) architecture_plan: SkillArchitecturePlan,
-    pub(super) change_draft: SkillChangeDraft,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) change_draft: Option<SkillChangeDraft>,
 }
 
 impl CapabilityInput for BindInput {}
@@ -94,6 +96,10 @@ pub(super) const APPLY_FIELDS: &[CapabilityField] = &[
 
 pub(super) const PLAN_FIELDS: &[CapabilityField] = &[
     field(
+        "mode",
+        "Exact authoring mode, bound into the plan digest and checked before authoring.",
+    ),
+    field(
         "base_digest",
         "Package digest returned by the matching runx.skill.inspect call.",
     ),
@@ -110,7 +116,7 @@ pub(super) const BIND_FIELDS: &[CapabilityField] = &[
     ),
     field(
         "change_draft",
-        "Closed agent-authored file and intent draft without integrity fields.",
+        "Required for package authoring. Omit for a terminal plan; native binding derives empty writes and deletes.",
     ),
 ];
 

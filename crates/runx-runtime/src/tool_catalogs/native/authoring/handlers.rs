@@ -109,9 +109,15 @@ pub(super) fn plan_skill(
 ) -> Result<PlanOutput, RuntimeError> {
     let plan = crate::services::plan_skill_architecture(
         &invocation.inputs.base_digest,
+        invocation.inputs.mode,
         invocation.inputs.architecture.clone(),
     )?;
     Ok(PlanOutput {
+        authoring_required: matches!(
+            plan.architecture.choice,
+            runx_contracts::SkillArchitectureChoice::Build
+                | runx_contracts::SkillArchitectureChoice::ExtendExisting
+        ),
         architecture_plan: plan,
     })
 }

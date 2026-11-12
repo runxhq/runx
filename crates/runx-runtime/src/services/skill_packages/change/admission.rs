@@ -16,7 +16,9 @@ pub(super) fn validate_change_contract(
 ) -> Result<(), RuntimeError> {
     validate_digest("base_digest", change.base_digest.as_str())?;
     validate_digest("plan_digest", change.plan_digest.as_str())?;
-    let expected_plan = architecture_digest(change.base_digest.as_str(), &change.architecture)?;
+    validate_mode_architecture(mode, change.architecture.choice)?;
+    let expected_plan =
+        architecture_digest(change.base_digest.as_str(), mode, &change.architecture)?;
     if change.plan_digest.as_str() != expected_plan {
         return Err(invalid_skill_change(
             "plan_digest does not bind the supplied architecture decision",
@@ -34,7 +36,31 @@ pub(super) fn validate_change_contract(
     validate_architecture(change)
 }
 
-fn validate_mode_decision(mode: &str, decision: SkillChangeDecision) -> Result<(), RuntimeError> {
+pub(super) fn validate_mode_architecture(
+    mode: &str,
+    choice: SkillArchitectureChoice,
+) -> Result<(), RuntimeError> {
+    use SkillArchitectureChoice::{Build, ExtendExisting, NeedsCore, NoChange, NoSkill};
+    let allowed = match mode {
+        "design" => true,
+        "build" => matches!(choice, Build | ExtendExisting | NoSkill | NeedsCore),
+        "improve" => matches!(choice, ExtendExisting | NoChange | NeedsCore),
+        "test" => matches!(choice, ExtendExisting | NoChange),
+        _ => false,
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err(invalid_skill_change(format!(
+            "architecture choice {choice:?} is not valid in {mode} mode"
+        )))
+    }
+}
+
+pub(super) fn validate_mode_decision(
+    mode: &str,
+    decision: SkillChangeDecision,
+) -> Result<(), RuntimeError> {
     let allowed = match mode {
         "build" => matches!(
             decision,
@@ -92,7 +118,7 @@ pub(super) fn validate_architecture(change: &SkillChangeBundle) -> Result<(), Ru
             SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting
         ) | (
             SkillChangeDecision::NoChange,
-            SkillArchitectureChoice::ExtendExisting
+            SkillArchitectureChoice::ExtendExisting | SkillArchitectureChoice::NoChange
         ) | (
             SkillChangeDecision::NoSkill,
             SkillArchitectureChoice::NoSkill
@@ -153,7 +179,7 @@ fn validate_operator_contract(
             || architecture.chain_use.is_some()
         {
             return Err(invalid_skill_change(
-                "no_skill and needs_core architectures must not invent a package identity or operator contract",
+                "terminal architectures must not invent a package identity or operator contract",
             ));
         }
         return Ok(());
@@ -260,6 +286,17 @@ fn validate_operator_proofs(architecture: &SkillArchitectureDecision) -> Result<
 fn validate_architecture_completeness(
     architecture: &SkillArchitectureDecision,
 ) -> Result<(), RuntimeError> {
+    if matches!(
+        architecture.choice,
+        SkillArchitectureChoice::NoChange
+            | SkillArchitectureChoice::NoSkill
+            | SkillArchitectureChoice::NeedsCore
+    ) && !architecture.deletions.is_empty()
+    {
+        return Err(invalid_skill_change(
+            "terminal architecture decisions cannot plan deletions",
+        ));
+    }
     if matches!(
         architecture.choice,
         SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting

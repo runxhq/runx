@@ -38,6 +38,7 @@ fn architecture(choice: SkillArchitectureChoice, deletes: &[&str]) -> SkillArchi
     let choice_name = match choice {
         SkillArchitectureChoice::Build => "build",
         SkillArchitectureChoice::ExtendExisting => "extend_existing",
+        SkillArchitectureChoice::NoChange => "no_change",
         SkillArchitectureChoice::NoSkill => "no_skill",
         SkillArchitectureChoice::NeedsCore => "needs_core",
     };
@@ -157,12 +158,13 @@ fn architecture(choice: SkillArchitectureChoice, deletes: &[&str]) -> SkillArchi
 
 fn change_bundle(
     base_digest: &Digest,
+    mode: runx_contracts::SkillAuthoringMode,
     decision: SkillChangeDecision,
     architecture: SkillArchitectureDecision,
     writes: &[(&str, &str)],
     deletes: &[&str],
 ) -> SkillChangeBundle {
-    let plan = plan_skill_architecture(base_digest.as_str(), architecture)
+    let plan = plan_skill_architecture(base_digest.as_str(), mode, architecture)
         .expect("architecture fixture must produce a plan");
     let draft = SkillChangeDraft {
         schema: SkillChangeDraftSchema::V1,
@@ -179,7 +181,7 @@ fn change_bundle(
         deletes: deletes.iter().map(|path| (*path).into()).collect(),
         expected_outputs: Vec::new(),
     };
-    bind_skill_change(&plan, draft).expect("valid plan and draft must bind")
+    bind_skill_change(&plan, Some(draft)).expect("valid plan and draft must bind")
 }
 
 #[test]
@@ -262,6 +264,7 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
     let bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Improve,
         SkillChangeDecision::NoChange,
         architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[],
@@ -286,12 +289,126 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
 }
 
 #[test]
+fn skill_authoring_terminal_plan_binds_mode_and_preserves_current_state()
+-> Result<(), Box<dyn std::error::Error>> {
+    use runx_contracts::SkillAuthoringMode::{Build, Design, Improve, Test};
+    let temp = tempfile::tempdir()?;
+    let target = temp.path().join("skills/demo");
+    fs::create_dir_all(&target)?;
+    fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
+    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
+    let base = package_snapshot(&target)?.digest;
+    let plan = plan_skill_architecture(
+        base.as_str(),
+        Improve,
+        architecture(SkillArchitectureChoice::NoChange, &[]),
+    )?;
+    assert!(plan.architecture.identity.is_none());
+    let bundle = bind_skill_change(&plan, None)?;
+    assert_eq!(bundle.decision, SkillChangeDecision::NoChange);
+    assert!(bundle.writes.is_empty() && bundle.deletes.is_empty());
+    let result = apply_skill_change(
+        temp.path(),
+        "skills/demo",
+        "improve",
+        &bundle,
+        &BTreeMap::new(),
+        &RuntimeEffectRegistry::default(),
+    )?;
+    assert_eq!(result.verdict, SkillApplyVerdict::Unchanged);
+    assert_eq!(fs::read_to_string(target.join("SKILL.md"))?, VALID_MANUAL);
+    assert_eq!(package_snapshot(&target)?.digest, base);
+
+    let mut tampered = plan.clone();
+    tampered.mode = Test;
+    assert!(bind_skill_change(&tampered, None).is_err());
+    assert!(
+        apply_skill_change(
+            temp.path(),
+            "skills/demo",
+            "test",
+            &bundle,
+            &BTreeMap::new(),
+            &RuntimeEffectRegistry::default()
+        )
+        .is_err()
+    );
+    let draft = SkillChangeDraft {
+        schema: SkillChangeDraftSchema::V1,
+        decision: SkillChangeDecision::NoChange,
+        summary: "Attempt a write under a no-change decision.".into(),
+        non_goals: Vec::new(),
+        writes: vec![SkillFileWrite {
+            path: "SKILL.md".into(),
+            contents: "replacement".to_owned(),
+        }],
+        deletes: Vec::new(),
+        expected_outputs: Vec::new(),
+    };
+    assert!(bind_skill_change(&plan, Some(draft)).is_err());
+    fs::write(target.join("operator-note.txt"), "concurrent edit")?;
+    assert!(
+        apply_skill_change(
+            temp.path(),
+            "skills/demo",
+            "improve",
+            &bundle,
+            &BTreeMap::new(),
+            &RuntimeEffectRegistry::default()
+        )
+        .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(target.join("operator-note.txt"))?,
+        "concurrent edit"
+    );
+    assert!(
+        plan_skill_architecture(
+            base.as_str(),
+            Improve,
+            architecture(SkillArchitectureChoice::NoSkill, &[])
+        )
+        .is_err()
+    );
+    assert!(
+        plan_skill_architecture(
+            base.as_str(),
+            Improve,
+            architecture(SkillArchitectureChoice::NoChange, &["SKILL.md"])
+        )
+        .is_err()
+    );
+    assert!(
+        plan_skill_architecture(
+            base.as_str(),
+            Test,
+            architecture(SkillArchitectureChoice::NeedsCore, &[])
+        )
+        .is_err()
+    );
+    let write_plan = plan_skill_architecture(
+        base.as_str(),
+        Build,
+        architecture(SkillArchitectureChoice::Build, &[]),
+    )?;
+    assert!(bind_skill_change(&write_plan, None).is_err());
+    let design_plan = plan_skill_architecture(
+        base.as_str(),
+        Design,
+        architecture(SkillArchitectureChoice::NoChange, &[]),
+    )?;
+    assert!(bind_skill_change(&design_plan, None).is_err());
+    Ok(())
+}
+
+#[test]
 fn skill_authoring_invalid_candidate_does_not_touch_target()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
     let bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Build,
         SkillChangeDecision::Write,
         architecture(SkillArchitectureChoice::Build, &[]),
         &[
@@ -338,6 +455,7 @@ fn skill_authoring_rejects_candidate_identity_drift_before_writing()
         let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
         let bundle = change_bundle(
             &base,
+            runx_contracts::SkillAuthoringMode::Build,
             SkillChangeDecision::Write,
             architecture(SkillArchitectureChoice::Build, &[]),
             &[("SKILL.md", manual), ("run.yaml", manifest)],
@@ -364,6 +482,7 @@ fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn s
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
     let bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Build,
         SkillChangeDecision::NeedsCore,
         architecture(SkillArchitectureChoice::NeedsCore, &[]),
         &[],
@@ -387,9 +506,16 @@ fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn s
 fn skill_authoring_plan_digest_binds_the_base_and_architecture()
 -> Result<(), Box<dyn std::error::Error>> {
     let architecture = architecture(SkillArchitectureChoice::Build, &[]);
-    let first =
-        plan_skill_architecture(&format!("sha256:{}", "a".repeat(64)), architecture.clone())?;
-    let second = plan_skill_architecture(&format!("sha256:{}", "b".repeat(64)), architecture)?;
+    let first = plan_skill_architecture(
+        &format!("sha256:{}", "a".repeat(64)),
+        runx_contracts::SkillAuthoringMode::Build,
+        architecture.clone(),
+    )?;
+    let second = plan_skill_architecture(
+        &format!("sha256:{}", "b".repeat(64)),
+        runx_contracts::SkillAuthoringMode::Build,
+        architecture,
+    )?;
 
     assert_ne!(first.plan_digest, second.plan_digest);
     Ok(())
@@ -400,7 +526,14 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
     let digest = format!("sha256:{}", "a".repeat(64));
     let mut missing_identity = architecture(SkillArchitectureChoice::Build, &[]);
     missing_identity.identity = None;
-    assert!(plan_skill_architecture(&digest, missing_identity).is_err());
+    assert!(
+        plan_skill_architecture(
+            &digest,
+            runx_contracts::SkillAuthoringMode::Build,
+            missing_identity
+        )
+        .is_err()
+    );
 
     for missing in [
         SkillProofKind::TriggerEval,
@@ -410,7 +543,12 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
         let mut incomplete = architecture(SkillArchitectureChoice::Build, &[]);
         incomplete.proof_plan.retain(|proof| proof.kind != missing);
         assert!(
-            plan_skill_architecture(&digest, incomplete).is_err(),
+            plan_skill_architecture(
+                &digest,
+                runx_contracts::SkillAuthoringMode::Build,
+                incomplete
+            )
+            .is_err(),
             "missing {missing:?} must fail admission"
         );
     }
@@ -422,7 +560,10 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
         .expect("extension fixture must have identity");
     identity.visibility = SkillPackageVisibility::Internal;
     internal.direct_use = None;
-    assert!(plan_skill_architecture(&digest, internal).is_ok());
+    assert!(
+        plan_skill_architecture(&digest, runx_contracts::SkillAuthoringMode::Build, internal)
+            .is_ok()
+    );
 
     let mut internal_with_public_triggers =
         architecture(SkillArchitectureChoice::ExtendExisting, &[]);
@@ -431,7 +572,14 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
         .as_mut()
         .expect("extension fixture must have identity")
         .visibility = SkillPackageVisibility::Internal;
-    assert!(plan_skill_architecture(&digest, internal_with_public_triggers).is_err());
+    assert!(
+        plan_skill_architecture(
+            &digest,
+            runx_contracts::SkillAuthoringMode::Build,
+            internal_with_public_triggers
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -440,6 +588,7 @@ fn skill_authoring_bind_owns_integrity_fields_and_rejects_tampered_plan()
     let base_digest = format!("sha256:{}", "a".repeat(64));
     let plan = plan_skill_architecture(
         &base_digest,
+        runx_contracts::SkillAuthoringMode::Build,
         architecture(SkillArchitectureChoice::Build, &[]),
     )?;
     let draft = SkillChangeDraft {
@@ -458,14 +607,14 @@ fn skill_authoring_bind_owns_integrity_fields_and_rejects_tampered_plan()
     assert!(serialized_draft.get("base_digest").is_none());
     assert!(serialized_draft.get("plan_digest").is_none());
 
-    let bundle = bind_skill_change(&plan, draft.clone())?;
+    let bundle = bind_skill_change(&plan, Some(draft.clone()))?;
     assert_eq!(bundle.base_digest, plan.base_digest);
     assert_eq!(bundle.plan_digest, plan.plan_digest);
     assert_eq!(bundle.architecture, plan.architecture);
 
     let mut tampered = plan;
     tampered.plan_digest = format!("sha256:{}", "f".repeat(64)).into();
-    assert!(bind_skill_change(&tampered, draft).is_err());
+    assert!(bind_skill_change(&tampered, Some(draft)).is_err());
     Ok(())
 }
 
@@ -479,6 +628,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
     let base = package_snapshot(&target)?.digest;
     let mut bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Improve,
         SkillChangeDecision::Write,
         architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[(
@@ -502,6 +652,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
 
     let bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Improve,
         SkillChangeDecision::Write,
         architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[("SKILL.md", VALID_MANUAL)],
@@ -534,6 +685,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     let base = package_snapshot(&target)?.digest;
     let bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Improve,
         SkillChangeDecision::Write,
         architecture(SkillArchitectureChoice::ExtendExisting, &["obsolete.txt"]),
         &[],
@@ -584,6 +736,7 @@ fn skill_authoring_apply_states_the_package_and_distribution_digests_of_what_it_
     let base = package_snapshot(&target)?.digest;
     let bundle = change_bundle(
         &base,
+        runx_contracts::SkillAuthoringMode::Improve,
         SkillChangeDecision::Write,
         architecture(SkillArchitectureChoice::ExtendExisting, &["obsolete.txt"]),
         &[],

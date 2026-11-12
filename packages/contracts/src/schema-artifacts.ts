@@ -9414,6 +9414,7 @@ export const runxSchemaArtifacts = {
         "enum": [
           "build",
           "extend_existing",
+          "no_change",
           "no_skill",
           "needs_core"
         ],
@@ -9432,6 +9433,16 @@ export const runxSchemaArtifacts = {
           "runx.skill.architecture_plan.v1"
         ],
         "title": "SkillArchitecturePlanSchema",
+        "type": "string"
+      },
+      "SkillAuthoringMode": {
+        "enum": [
+          "design",
+          "build",
+          "improve",
+          "test"
+        ],
+        "title": "SkillAuthoringMode",
         "type": "string"
       },
       "SkillBehaviorDecision": {
@@ -14336,6 +14347,9 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
+      "mode": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillAuthoringMode"
+      },
       "plan_digest": {
         "minLength": 1,
         "type": "string"
@@ -14346,6 +14360,7 @@ export const runxSchemaArtifacts = {
     },
     "required": [
       "schema",
+      "mode",
       "base_digest",
       "plan_digest",
       "architecture"

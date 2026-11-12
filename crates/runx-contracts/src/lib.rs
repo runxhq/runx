@@ -241,7 +241,7 @@ pub use skill_authoring::{
     SKILL_CHANGE_BUNDLE_SCHEMA, SKILL_CHANGE_DRAFT_SCHEMA, SKILL_VALIDATION_RESULT_SCHEMA,
     SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict, SkillApprovalRequirement,
     SkillArchitectureChoice, SkillArchitectureDecision, SkillArchitectureDecisionSchema,
-    SkillArchitecturePlan, SkillArchitecturePlanSchema, SkillAuthoringContext,
+    SkillArchitecturePlan, SkillArchitecturePlanSchema, SkillAuthoringContext, SkillAuthoringMode,
     SkillBehaviorDecision, SkillCatalogEntry, SkillChainPlan, SkillChainUse, SkillChangeBundle,
     SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
     SkillDirectUse, SkillEffectClass, SkillEffectRequirement, SkillExecutionLane,

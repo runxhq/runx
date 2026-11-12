@@ -26,6 +26,7 @@ impl CapabilityOutput for ValidateOutput {}
 #[serde(deny_unknown_fields)]
 pub(super) struct PlanOutput {
     pub(super) architecture_plan: SkillArchitecturePlan,
+    pub(super) authoring_required: bool,
 }
 
 impl CapabilityOutput for PlanOutput {}
