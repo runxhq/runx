@@ -367,7 +367,7 @@ methods:
             beats: [What changed, How to migrate]
             source_ids: [changelog_1]
           source_evidence:
-            - {source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z"}
+            - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
           evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           delivery_status: not_posted
           validation: {status: pass, findings: []}
@@ -398,6 +398,7 @@ methods:
             properties:
               decision:
                 type: string
+                enum: [ready_for_handoff, needs_more_evidence, needs_review]
               post_payload:
                 type: object
                 properties:

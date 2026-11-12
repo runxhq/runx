@@ -131,11 +131,11 @@
     },
     {
       "id": "runx/moltbook.post.v1",
-      "digest": "sha256:10af580b2f38907f2f8170b474d57e25fb21c460ab8397e8d5b5a11d79d164fc"
+      "digest": "sha256:6a892d92ee294c94422e0fde9eb697046c5925742d3985990d844778796335a6"
     },
     {
       "id": "runx/moltbook.scan.v1",
-      "digest": "sha256:ab3e7928fe4ee3d2509ab0aa6e2fa7f8ef40efa0fe5d812f2fde4f49edc93ab0"
+      "digest": "sha256:06d98b95f056c2f8291c01e75ceadad30dbf00b894b657debf288a70f7284e5c"
     },
     {
       "id": "runx/operations-review.action_review.v1",

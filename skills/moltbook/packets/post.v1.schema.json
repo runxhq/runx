@@ -8,7 +8,22 @@
     "moderation_notes": { "type": "object", "additionalProperties": true },
     "publish_plan": { "type": "object", "additionalProperties": true },
     "post": { "type": "object", "additionalProperties": true },
-    "handoff": { "type": "object", "additionalProperties": true }
+    "handoff": { "type": "object", "additionalProperties": true },
+    "source_evidence": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "topic": { "type": "string", "description": "Original admitted source topic; needed for post drafting." },
+          "summary": { "type": "string", "description": "Original admitted source text; ids alone do not support post claims." },
+          "observed_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["source_id", "observed_at"],
+        "additionalProperties": true
+      }
+    }
   },
   "additionalProperties": true
 }

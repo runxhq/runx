@@ -33,4 +33,7 @@ expect:
           decision: ready
           delivery_status: not_posted
           validation: {status: pass}
+          source_evidence:
+            - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
+            - {source_id: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z"}
   receipt: {schema: runx.receipt.v1}

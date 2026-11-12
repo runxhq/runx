@@ -33,6 +33,9 @@ produces a post payload for the selected submolt, moderation notes, and
 follow-up plan. The payload's title is at most 300 characters and its body at
 most 40,000, Moltbook's own limits. It cannot introduce claims unsupported by
 the scan evidence.
+Scan packets retain each source's topic and summary as well as its id and
+observation time. An id-only packet cannot support writing: `post` holds it
+without rescanning or inventing the missing source text.
 
 Neither analysis method publishes. Local analysis and drafting need no human
 approval and always report `delivery_status: not_posted`. `publish` validates
@@ -99,3 +102,5 @@ references. Return the payload with `channel: moltbook`, that `submolt`, a
 `title` of at most 300 characters and a `body` of at most 40,000, plus
 moderation notes and a follow-up plan. Bind every material claim to admitted
 refs. Do not publish or claim delivery.
+Use `ready_for_handoff` only for a supported complete draft. Use
+`needs_more_evidence` when source text cannot support the requested claims.

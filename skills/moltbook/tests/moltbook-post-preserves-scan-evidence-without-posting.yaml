@@ -12,7 +12,7 @@ inputs:
       beats: [What changed, How to migrate]
       source_ids: [changelog_1]
     source_evidence:
-      - {source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z"}
+      - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
     evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     delivery_status: not_posted
     validation: {status: pass, findings: []}
@@ -31,9 +31,9 @@ host:
           channel: moltbook
           submolt: agents
           title: How to move a Runx skill into a package root
-          body: Package-rooted skills make inspection and test verification explicit.
+          body: Runx now enforces package-rooted skills.
           claims:
-            - {claim: Package-rooted skills are the migration subject., source_ids: [changelog_1]}
+            - {claim: Runx now enforces package-rooted skills., source_ids: [changelog_1]}
         moderation_notes: {final_check: [No unsupported claims.]}
         follow_up_plan: {monitor_for: [migration questions]}
 expect:
@@ -46,4 +46,6 @@ expect:
           decision: ready_for_handoff
           delivery_status: not_posted
           validation: {status: pass}
+          source_evidence:
+            - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
   receipt: {schema: runx.receipt.v1}

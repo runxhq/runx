@@ -87,6 +87,8 @@ export function finalizeScan(inputs) {
       follow_up_plan: ready ? object(draft.follow_up_plan) : {},
       source_evidence: sources.map((source) => ({
         source_id: text(source.source_id),
+        topic: text(source.topic),
+        summary: text(source.summary),
         observed_at: text(source.observed_at),
       })),
       evidence_digest: evidenceDigest,
@@ -102,6 +104,10 @@ export function admitScan(inputs) {
   const evidence = Array.isArray(packet.source_evidence) ? packet.source_evidence : [];
   const sourceIds = evidence.map((item) => text(item.source_id)).filter(Boolean);
   const blockers = [];
+  if (evidence.length === 0 || evidence.some((source) =>
+    !text(source.source_id) || !text(source.topic) || !text(source.summary))) {
+    blockers.push("scan source evidence is missing its topic or summary");
+  }
   if (packet.decision !== "ready" || packet.validation?.status !== "pass") {
     blockers.push("scan packet is not validated and ready");
   }

@@ -1,5 +1,5 @@
 {
-  "about": "An opportunity scan a prior run completed: the opportunity it chose, the outline for a post, and the evidence behind it.",
+  "about": "A non-live prior scan packet whose producer retained source ids and timestamps but lost their topic and summary. The missing source text is unavailable; do not infer changelog facts or repeat the scan.",
   "scan_packet": {
     "decision": "ready",
     "opportunity_report": {

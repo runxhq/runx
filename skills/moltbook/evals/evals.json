@@ -41,7 +41,7 @@
     {
       "id": 6,
       "prompt": "Prepare the exact Moltbook post from this completed opportunity scan.",
-      "expected_output": "Reuse scan evidence and selected opportunity without rescanning or claiming publication.",
+      "expected_output": "Hold this id-only scan packet because its source text is missing. Preserve the supplied source references without rescanning, inventing changelog facts or claiming publication.",
       "files": [
         "evals/files/completed-scan.json"
       ],
