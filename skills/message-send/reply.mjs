@@ -1,6 +1,24 @@
 const object = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 const text = (value) => typeof value === "string" ? value.trim() : "";
 
+export function bindThreadPlan({send_plan, principal, thread_locator, digest_result}) {
+  const workspace = /^slack:\/\/([A-Z][A-Z0-9]+)\/[CGD][A-Z0-9]+\/[0-9]+\.[0-9]+$/.exec(thread_locator)?.[1];
+  const digest = object(digest_result).digest;
+  if (!workspace || !text(principal) || !/^sha256:[0-9a-f]{64}$/.test(digest)) {
+    throw new Error("A reply plan requires its exact principal, Slack thread and native text digest.");
+  }
+  const plan = object(send_plan);
+  return {send_plan: {
+    ...plan,
+    principal: {...object(plan.principal), uri: principal},
+    provider: {name: "slack", account_id: `workspace:${workspace}`, runtime_path: "slack"},
+    audience: {type: "thread", locator: thread_locator, requires_reconfirmation: false},
+    content: {...object(plan.content), draft_uri: `inline:${digest}`, digest},
+    gates: {...object(plan.gates), human_approval_required: true, approval_id: "slack.deliver-reply.approval"},
+    provider_actions: ["thread.reply"],
+  }};
+}
+
 function uuidFromTurn(turn) {
   const hex = text(turn).match(/^sha256:([0-9a-f]{64})$/)?.[1];
   if (!hex) return null;

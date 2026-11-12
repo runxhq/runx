@@ -45,6 +45,12 @@ after the provider reads it back.
   requires `thread.reply.read` to resolve a stable message locator with the
   matching content digest. An accepted or queued request alone leaves the work
   held for reconciliation.
+- `plan_reply`: makes one policy judgment for an already selected Slack thread
+  reply, then binds the exact principal, thread and native text digest with
+  logical provider `slack` and action `thread.reply`. Connector backend names
+  are not provider identities. The plan's gate label is not human approval.
+- `deliver_reply`: checks that plan against the supplied thread and text, then
+  owns the actual delivery approval, reply and independent readback.
 
 A channel post and a source-bound reply keep their own input checks: a post is
 bound to a destination and a plan, a reply to a source packet and a turn.

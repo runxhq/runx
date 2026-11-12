@@ -571,7 +571,7 @@ methods:
         outputs:
           work_result: {type: object, packet: runx.work_outcome.v1}
   plan_reply:
-    description: Plan one Slack thread reply, binding the thread and the text's digest, without sending it. Deliver it with deliver_reply.
+    description: Plan one Slack thread reply, binding its logical provider, thread, principal and text digest after policy judgment. Sends nothing; deliver it with deliver_reply.
     inputs:
       principal:
         type: string
@@ -602,7 +602,7 @@ methods:
           workspace: T123ABC
         operator_context: Reply only in the supplied thread and require approval before delivery.
     result_from:
-      - authorize
+      - bind
     steps:
       - id: digest
         tool: data.digest
@@ -621,6 +621,19 @@ methods:
             requires_reconfirmation: false
           operator_context: $input.operator_context
           content: $steps.digest.digest_result
+          connector:
+            provider: slack
+            operation: thread.reply
+            target: $input.thread_locator
+      - id: bind
+        tool: {module: reply.mjs, export: bindThreadPlan}
+        inputs:
+          send_plan: $steps.authorize.send_plan
+          principal: $input.principal
+          thread_locator: $input.thread_locator
+          digest_result: $steps.digest.digest_result
+        outputs:
+          send_plan: {type: object, packet: runx/message-send.plan.v1}
   deliver_reply:
     description: Deliver a reply planned by plan_reply once, under approval, and read it back.
     inputs:
