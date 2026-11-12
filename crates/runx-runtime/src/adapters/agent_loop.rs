@@ -615,22 +615,7 @@ fn validate_final_result(config: &AgentLoopConfig, value: &JsonValue) -> Result<
         return validate_output_value(config.final_result_output.as_ref(), value)
             .map_err(|error| error.to_string());
     };
-    let schema = serde_json::to_value(schema)
-        .map_err(|error| format!("$: exact output schema could not be serialized: {error}"))?;
-    let validator = jsonschema::draft202012::options()
-        .build(&schema)
-        .map_err(|error| format!("$: exact output schema is invalid: {error}"))?;
-    let instance = serde_json::to_value(value)
-        .map_err(|error| format!("$: final result could not be serialized: {error}"))?;
-    validator.validate(&instance).map_err(|error| {
-        let path = error.instance_path();
-        let message = error.masked();
-        if path.is_empty() {
-            format!("$: {message}")
-        } else {
-            format!("${path}: {message}")
-        }
-    })
+    runx_contracts::validate_output_schema_value(schema, value).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -666,7 +651,7 @@ mod tests {
         )
         .err()
         .ok_or("missing nested field must fail")?;
-        assert!(error.starts_with("$/change_set: \"severity\" is a required property"));
+        assert!(error.starts_with("$.change_set.severity: \"severity\" is a required property"));
         Ok(())
     }
 
@@ -930,7 +915,9 @@ mod tests {
                         matches!(turn, AgentTurn::ToolResults(results)
                             if results.iter().any(|result|
                                 result.is_error
-                                    && result.content.contains("declared output contract")))
+                                    && result.content.contains("declared output contract")
+                                    && result.content.contains("architecture_decision")
+                                    && result.content.contains("required property")))
                     }));
                 }
                 let architecture = JsonValue::Object(JsonObject::from([(

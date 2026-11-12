@@ -172,7 +172,8 @@ pub use orchestrator_handoff::{
 };
 pub use output::{
     Output, OutputContractParseError, OutputField, OutputValidationError, output_contract_digest,
-    output_value_schema, parse_output_contract, validate_output_value,
+    output_value_schema, parse_output_contract, validate_output_schema_value,
+    validate_output_value,
 };
 pub use packet_id::{
     PACKET_ID_EXPECTED, PACKET_ID_MAX_LENGTH, PACKET_ID_PATTERN, PacketId, is_packet_id,

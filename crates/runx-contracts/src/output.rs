@@ -192,7 +192,18 @@ pub fn validate_output_value(
     output: Option<&BTreeMap<String, OutputField>>,
     value: &JsonValue,
 ) -> Result<(), OutputValidationError> {
-    let schema = serde_json::to_value(output_value_schema(output)).map_err(|error| {
+    validate_output_schema_value(&output_value_schema(output), value)
+}
+
+/// Validate against the exact resolved output schema, retaining the same
+/// diagnostics as a field-map contract. The schema remains authoritative.
+pub fn validate_output_schema_value(
+    schema: &JsonValue,
+    value: &JsonValue,
+) -> Result<(), OutputValidationError> {
+    use jsonschema::error::ValidationErrorKind;
+
+    let schema = serde_json::to_value(schema).map_err(|error| {
         OutputValidationError::new(
             "$",
             format!("declared output schema could not be serialized: {error}"),
@@ -209,8 +220,25 @@ pub fn validate_output_value(
             format!("output value could not be serialized: {error}"),
         )
     })?;
-    let Some(error) = validator.iter_errors(&instance).next() else {
+    let mut errors = validator.iter_errors(&instance);
+    let Some(first) = errors.next() else {
         return Ok(());
+    };
+    // An unwrapped result violates both required and additionalProperties.
+    // Name the missing root field before listing its misplaced inner fields.
+    let error = if first.instance_path().is_empty()
+        && matches!(
+            first.kind(),
+            ValidationErrorKind::AdditionalProperties { .. }
+        ) {
+        errors
+            .find(|error| {
+                error.instance_path().is_empty()
+                    && matches!(error.kind(), ValidationErrorKind::Required { .. })
+            })
+            .unwrap_or(first)
+    } else {
+        first
     };
     Err(OutputValidationError::new(
         validation_error_path(&error),
@@ -310,6 +338,18 @@ mod tests {
             return Err("extra field must fail".into());
         };
         assert!(error.to_string().starts_with("$.message: "));
+        let unwrapped = JsonValue::Object(BTreeMap::from([(
+            "body".to_owned(),
+            JsonValue::String("nested draft body".to_owned()),
+        )]));
+        let error = validate_output_value(Some(&output), &unwrapped)
+            .err()
+            .ok_or("an unwrapped result must fail")?
+            .to_string();
+        assert!(
+            error.starts_with("$.notify_plan: ") && error.contains("required property"),
+            "{error}"
+        );
         assert!(
             serde_json::to_string(&output_value_schema(Some(&output)))?
                 .contains("\"additionalProperties\":false")
