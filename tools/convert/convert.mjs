@@ -11,8 +11,9 @@
 // only where a rule also holds in that shape, so the program can rerun over
 // a tree it has converted.
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import YAML, { isMap, isScalar, isSeq, Pair, Scalar, YAMLMap, YAMLSeq } from "yaml";
 
 const MINIMUM_RUNX = "0.12.0";
@@ -238,10 +239,9 @@ function heldOf(step) {
 // stands: the 0.11 one, or the 0.12 one when it converted first, where a
 // plain emit has become a plain output. The method is the one named, else
 // the default, else the only one. A package not on disk holds nothing known.
-function heldOfPackage(dir, method, seen = new Set()) {
-  const held = new Set();
+function emitsOfPackage(dir, method) {
   const file = path.join(dir, "run.yaml");
-  if (!existsSync(file)) return held;
+  if (!existsSync(file)) return { emits: new Map() };
   const manifest = YAML.parse(readFileSync(file, "utf8")) ?? {};
   const methods = manifest.runners ?? manifest.methods ?? {};
   const names = Object.keys(methods);
@@ -249,14 +249,28 @@ function heldOfPackage(dir, method, seen = new Set()) {
     ?? manifest.default_method
     ?? names.find((candidate) => methods[candidate]?.default === true)
     ?? (names.length === 1 ? names[0] : undefined);
+  if (name === undefined) return { emits: new Map() };
   const key = `${path.resolve(dir)}#${name}`;
-  if (name === undefined || seen.has(key)) return held;
-  seen.add(key);
+  const emits = new Map();
   for (const step of methods[name]?.steps ?? []) {
-    for (const output of heldOf(step)) held.add(output);
-    if (typeof step?.skill !== "string") continue;
-    const [reference, called] = step.skill.split("#");
-    for (const output of heldOfPackage(path.resolve(dir, reference), called ?? step.runner, seen)) held.add(output);
+    const reference = typeof step?.skill === "string"
+      ? step.skill + (step.runner ? `#${step.runner}` : "")
+      : undefined;
+    emits.set(step.id, { held: heldOf(step), calls: reference === undefined ? undefined : { from: dir, reference } });
+  }
+  return { key, emits };
+}
+
+function heldOfPackage(dir, method, seen = new Set()) {
+  const held = new Set();
+  const { key, emits } = emitsOfPackage(dir, method);
+  if (key === undefined || seen.has(key)) return held;
+  seen.add(key);
+  for (const step of emits.values()) {
+    for (const output of step.held) held.add(output);
+    if (!step.calls) continue;
+    const [reference, called] = step.calls.reference.split("#");
+    for (const output of heldOfPackage(path.resolve(dir, reference), called, seen)) held.add(output);
   }
   return held;
 }
@@ -721,6 +735,8 @@ function convertCase(doc, testCase, where, packageOf, evals, notes, dir, emitsOf
   if (kind === "graph") {
     const fixture = packageOf(target, where);
     insertAt(testCase, 1, "package", new Scalar(fixture));
+  } else if (kind === "skill" && target !== undefined && target !== "..") {
+    insertAt(testCase, 1, "package", new Scalar(packageOf(target, where, kind)));
   } else if (!(kind === undefined || (kind === "skill" && (target === ".." || target === undefined)))) {
     refuse(`${where} targets ${kind} ${JSON.stringify(target)}, not its own package or a support graph`);
   }
@@ -1049,7 +1065,15 @@ function convertPackage(dir) {
   const tests = new Map();
   const fixtures = path.join(dir, "fixtures");
   const graphPackages = new Map();
-  const packageOf = (target, where) => {
+  const packageOf = (target, where, kind = "graph") => {
+    if (kind === "skill") {
+      if (typeof target !== "string" || path.isAbsolute(target)) refuse(`${where} targets no relative fixture package`);
+      const directory = path.resolve(fixtures, target);
+      if (!existsSync(path.join(directory, "SKILL.md")) || !existsSync(path.join(directory, "run.yaml"))) refuse(`${where} targets ${target}, which is not a fixture package`);
+      const relative = path.relative(realpathSync(fixtures), realpathSync(directory));
+      if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) refuse(`${where} targets ${target}, outside fixtures/`);
+      return path.posix.join("fixtures", relative.split(path.sep).join("/"));
+    }
     if (typeof target !== "string" || !/^support\/[^/]+\.graph$/.test(target)) refuse(`${where} targets graph ${JSON.stringify(target)}, not a support graph`);
     const file = path.join(fixtures, target);
     if (!existsSync(file)) refuse(`${where} targets ${target}, which doesn't exist`);
@@ -1066,7 +1090,8 @@ function convertPackage(dir) {
   const methodNames = node(root, "methods").items.map(keyOf);
   const emitsOf = (testCase) => {
     const fixture = read(testCase, "package");
-    if (fixture !== undefined) return [...graphPackages.values()].find((graph) => `fixtures/${path.basename(graph.into)}` === fixture)?.emits;
+    if (fixture !== undefined) return [...graphPackages.values()].find((graph) => `fixtures/${path.basename(graph.into)}` === fixture)?.emits
+      ?? emitsOfPackage(path.join(dir, fixture), read(testCase, "method")).emits;
     const method = read(testCase, "method") ?? (methodNames.length === 1 ? methodNames[0] : defaults[0]);
     return methodEmits.get(method);
   };
@@ -1099,7 +1124,13 @@ function convertPackage(dir) {
     const fixture = read(testDoc.contents, "package");
     if (fixture !== undefined) fixtureInputs.set(fixture, [...(fixtureInputs.get(fixture) ?? []), ...(node(testDoc.contents, "inputs")?.items ?? []).map(keyOf)]);
     const file = path.join(dir, "tests", `${base ?? slug(caseName)}.yaml`);
-    if (tests.has(file)) refuse(`two tests would both be ${path.relative(dir, file)}`);
+    if (tests.has(file)) {
+      const { name: previousName, ...previous } = tests.get(file).toJSON();
+      const { name: currentName, ...current } = testDoc.toJSON();
+      if (slug(previousName) !== slug(currentName) || !isDeepStrictEqual(previous, current)) refuse(`two different tests would both be ${path.relative(dir, file)}`);
+      notes.push(`${where}: the same case is already declared inline, kept once at ${path.relative(dir, file)}`);
+      return;
+    }
     tests.set(file, testDoc);
   };
   if (harness !== undefined) {

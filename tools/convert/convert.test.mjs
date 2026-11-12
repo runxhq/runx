@@ -36,6 +36,49 @@ const snapshot = (dir) =>
 
 const digestStep = "    steps:\n      - id: digest\n        tool: data.digest\n        inputs: { value: fixed }\n";
 
+test("an identical inline and file case is kept once, while conflicting cases refuse", (t) => {
+  const files = {
+    "SKILL.md": manual("demo"),
+    "run.yaml": `skill: demo\nversion: "0.1.0"\nrunners:\n  run:\n${digestStep}harness:\n  cases:\n    - name: digest_case\n      runner: run\n      expect: {status: sealed}\n`,
+    "fixtures/digest-case.yaml": "name: digest-case\nkind: skill\ntarget: ..\nrunner: run\nexpect: {status: sealed}\nmetadata: {source: skills-fixture}\n",
+  };
+  const dir = tree(t, files);
+  const result = convert("--write", dir);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(readdirSync(path.join(dir, "tests")), ["digest-case.yaml"]);
+  assert.match(result.out, /same case is already declared inline/);
+  const conflict = tree(t, { ...files, "fixtures/digest-case.yaml": files["fixtures/digest-case.yaml"].replace("status: sealed", "status: failure") });
+  const before = snapshot(conflict);
+  const refused = convert("--write", conflict);
+  assert.equal(refused.status, 1, refused.out);
+  assert.match(refused.out, /two different tests/);
+  assert.deepEqual(snapshot(conflict), before);
+});
+
+test("an existing fixture package keeps its target and its called method's output data", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": "skill: demo\nversion: \"0.1.0\"\nrunners:\n  run:\n    steps:\n      - id: answer\n        tool: { module: answer.mjs }\n        artifacts: { wrap_as: answer }\n",
+    "answer.mjs": "export default () => ({ ready: true });\n",
+    "fixtures/support/wrapper/SKILL.md": manual("wrapper"),
+    "fixtures/support/wrapper/run.yaml": "skill: wrapper\nversion: \"0.1.0\"\nrunners:\n  test:\n    steps:\n      - id: call\n        skill: ../../..\n        runner: run\n",
+    "fixtures/works.yaml": "name: works\nkind: skill\ntarget: support/wrapper\nrunner: test\nexpect:\n  status: sealed\n  step_outputs:\n    call:\n      subset:\n        answer: { data: { ready: true } }\n",
+  });
+  const result = convert("--write", path.join(dir, "fixtures/support/wrapper"), dir);
+  assert.equal(result.status, 0, result.out);
+  const fixture = read(dir, "tests/works.yaml");
+  assert.match(fixture, /^package: fixtures\/support\/wrapper$/m);
+  assert.match(fixture, /answer: \{ready: true\}/);
+  const binary = process.env.RUNX_RUST_CLI_BIN;
+  if (binary) {
+    const run = spawnSync(binary, ["test", dir, "--json"], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: path.join(dir, "home"), RUNX_HOME: path.join(dir, "home"), RUNX_PROJECT_DIR: path.join(dir, "project"), RUNX_CWD: dir },
+    });
+    assert.equal(run.status, 0, run.stderr + run.stdout);
+  }
+});
+
 test("a name any method defines its own way isn't shared, and every method keeps exactly its source's meaning", (t) => {
   const dir = tree(t, {
     "SKILL.md": manual("demo"),
