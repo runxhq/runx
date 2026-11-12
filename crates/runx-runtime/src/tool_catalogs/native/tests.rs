@@ -21,6 +21,30 @@ fn no_core_tool_states_a_persons_trust() {
 }
 
 #[test]
+fn native_artifact_input_rejection_names_the_nested_bad_field() {
+    let capability = definition("artifact.open").expect("native artifact reader");
+    let inputs: JsonObject = serde_json::from_value(serde_json::json!({
+        "artifact": {
+            "schema": "runx.artifact.v1",
+            "digest": format!("sha256:{}", "1".repeat(64)),
+            "labels": {"sharing": "configured_model"},
+            "media_type": "application/json",
+            "path": "/not-read/source.json",
+            "ref": format!("runx:project-artifact:sha256:{}", "1".repeat(64)),
+            "size_bytes": 2,
+            "produced_by": {"act_id": "invented"}
+        }
+    }))
+    .expect("canonical tool input");
+    let error = capability
+        .normalize_inputs(&inputs)
+        .expect_err("reject invented provenance")
+        .to_string();
+    assert!(error.contains("artifact.produced_by.act_id"), "{error}");
+    assert!(error.contains("unknown field `act_id`"), "{error}");
+}
+
+#[test]
 fn capability_registry_definitions_are_unique_and_valid() {
     let capabilities = core_capabilities().collect::<Vec<_>>();
     let ids = capabilities

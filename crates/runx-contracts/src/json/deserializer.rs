@@ -88,7 +88,8 @@ pub(super) fn from_json_value<T>(value: JsonValue) -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
-    T::deserialize(ValueDeserializer(value))
+    serde_path_to_error::deserialize(ValueDeserializer(value))
+        .map_err(|source| de::Error::custom(source.to_string()))
 }
 
 struct ValueDeserializer(JsonValue);

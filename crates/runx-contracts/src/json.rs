@@ -58,6 +58,7 @@ impl JsonValue {
     ///
     /// This avoids constructing a parallel `serde_json::Value` tree at typed
     /// runtime boundaries while preserving serde's normal validation rules.
+    /// Rejections retain their field and array path within this tree.
     pub fn deserialize_into<T>(self) -> Result<T, de::value::Error>
     where
         T: serde::de::DeserializeOwned,
@@ -308,6 +309,41 @@ mod tests {
                 flags: vec![true, false],
             }
         );
+    }
+
+    #[test]
+    fn typed_json_rejections_retain_nested_fields_and_array_indices() {
+        #[derive(Debug, Deserialize)]
+        struct Batch {
+            #[allow(dead_code)]
+            items: Vec<TypedFixture>,
+        }
+
+        for (input, path, reason) in [
+            (
+                serde_json::json!({"items": [{"name": "runx", "flags": [true, "yes"]}]}),
+                "items[0].flags[1]",
+                "expected a boolean",
+            ),
+            (
+                serde_json::json!({"items": [{"name": "runx", "flags": [], "invented": true}]}),
+                "items[0].invented",
+                "unknown field `invented`",
+            ),
+            (
+                serde_json::json!({"items": [{"flags": []}]}),
+                "items[0]",
+                "missing field `name`",
+            ),
+        ] {
+            let value: JsonValue = serde_json::from_value(input).expect("canonical JSON input");
+            let error = value
+                .deserialize_into::<Batch>()
+                .expect_err("invalid typed input")
+                .to_string();
+            assert!(error.contains(path), "{error}");
+            assert!(error.contains(reason), "{error}");
+        }
     }
 
     #[test]

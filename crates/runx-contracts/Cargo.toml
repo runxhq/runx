@@ -26,6 +26,7 @@ path = "src/lib.rs"
 jsonschema = { version = "0.56.0", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
+serde_path_to_error.workspace = true
 sha2.workspace = true
 runx-contracts-derive.workspace = true
 thiserror.workspace = true
