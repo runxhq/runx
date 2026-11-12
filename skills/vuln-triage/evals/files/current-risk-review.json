@@ -1,5 +1,5 @@
 {
-  "about": "Prior source-bound risk review captured from an isolated native scan using the composed workflow test's assessment. The source findings are synthetic; native binding does not establish actual deployment exposure. This advisory eval receives the completed review, not the advisory draft.",
+  "about": "Prior source-bound risk review captured from an isolated native scan using the composed workflow test's assessment. The source findings are synthetic; native binding does not establish actual deployment exposure. This advisory eval receives the completed review, not the advisory draft. Parent context is open with no sealed receipt yet; this is evaluation context, not an advisory method input.",
   "triage_packet": {
     "advisories": [
       {
@@ -92,10 +92,6 @@
       "findings": [],
       "status": "pass"
     }
-  },
-  "parent": {
-    "status": "open",
-    "sealed_receipt": null
   },
   "audience": "affected_users"
 }
