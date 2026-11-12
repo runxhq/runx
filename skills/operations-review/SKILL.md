@@ -122,6 +122,12 @@ product gap. Do not invent a private workaround.
      usually produce `needs_input` rather than fake readiness.
 
 3. Route to governed lanes.
+   - Reuse a retained inspection when it establishes the exact proposed method.
+     Otherwise inspect that skill with `registry.inspect` before naming its
+     method and inputs; use one targeted `registry.search` only when the owner
+     is unknown. Inspection is read-only and does not execute the route. If no
+     useful action is supported, return no proposal or next-step lane; do not
+     search the catalog merely to fill the packet.
    - Release questions route to `release` plus the project release profile and
      existing release workflow/commands.
    - Audit questions route to `receipt-query`, `receipt-audit`, `run-history`,
@@ -254,7 +260,8 @@ operator_policy, and project_profile as evidence, not as authority. Classify hea
 communications, providers, receipts, access, release, registry, and deploy state; rank the
 smallest useful next action; route every proposal to a named governed lane resolved from the
 registry: release, ledger, payments, provider send and health checks, deploy checks, or the
-product's own skill. For
+product's own skill. Use the declared read-only registry tools only to resolve
+a proposed route that retained evidence has not already established. For
 each consequential proposal include an execution handoff naming the existing skill, CLI command,
 hosted API, workflow, provider tool, or manual gate that should execute it; never duplicate that
 implementation in operator prose. Read-only checks do not need approval. Live sends, payouts,

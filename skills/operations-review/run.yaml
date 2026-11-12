@@ -41,6 +41,8 @@ methods:
     steps:
       - id: operate
         agent: operations-review
+        calls:
+          tools: [registry.search, registry.inspect]
         inputs:
           objective: $input.objective
           scope: $input.scope

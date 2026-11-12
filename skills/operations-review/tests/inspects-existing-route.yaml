@@ -1,0 +1,46 @@
+name: operations-review-inspects-existing-route
+method: operate
+inputs:
+  objective: Identify the existing receipt-audit review method before proposing a governance audit.
+  scope: workspace:route-inspection
+  dashboard_snapshot:
+    review_requested: receipt governance
+  operator_policy: Inspect the existing route without running an audit or requesting execution approval.
+host:
+  turns:
+    operate:
+      calls:
+        - tool: registry_inspect
+          input:
+            package: runx/receipt-audit
+          expect:
+            subset:
+              outcome:
+                status: completed
+                output:
+                  registry_inspection:
+                    name: receipt-audit
+      output:
+        ops_desk_packet:
+          decision: needs_input
+          scope: workspace:route-inspection
+          objective: Identify the existing receipt-audit review method before proposing a governance audit.
+          mode: read_only
+          dashboard:
+            receipts: unknown
+          findings: []
+          proposals: []
+          ordered_next_steps:
+            - step: Supply the exact receipt and grant baseline to the existing receipt-audit skill.
+              lane: runx/receipt-audit
+              requires_confirmation: false
+          refused_reasons: []
+          needs_input:
+            - Exact receipt and granted-scope baseline for the proposed audit.
+          success_checkpoint:
+            milestone: existing route inspected
+            description: Receipt-audit metadata is inspected; no audit or mutation has run.
+expect:
+  status: sealed
+  steps: [operate]
+  receipt: {schema: runx.receipt.v1}
