@@ -8,7 +8,7 @@ The CLI ships from `github.com/runxhq/runx`. Release tags are `cli-vX.Y.Z`
 (prefixed so they do not collide with the repo's other release trains). In the
 workspace, `release/status.json` records verified release status and Cloud
 adoption. The OSS platform topology owns the CLI package set. The git tag is the
-immutable OSS release event that the public workflow builds.
+immutable OSS release event that promotes the selected rehearsal artifacts.
 
 Release policy lives at the workspace root (`AGENTS.md` plus
 `release/status.json`). This doc is the OSS maintainer runbook. If a release doc,
@@ -24,7 +24,7 @@ channels:
 - npm: `@runxhq/cli@X.Y.Z` (+ `@runxhq/cli-<platform>@X.Y.Z`)
 - Docker (GHCR): `ghcr.io/runxhq/runx:X.Y.Z`, anonymously pullable
 - Homebrew and Scoop: `X.Y.Z`
-- AUR: `runx`, which builds GitHub's archive of the tag from source. AUR's
+- AUR: `runx`, which builds the exact rehearsed commit archive from source. AUR's
   `runx-bin` is an unrelated project's runx, and a prebuilt package must end in
   `-bin`, so the bare name is the source build.
 
@@ -38,7 +38,7 @@ internal Rust crate graph, whose versions move under a separate, explicit
 library release. A CLI tag must not publish those libraries implicitly.
 
 `runx --version` reports `CARGO_PKG_VERSION`, so the crate and npm versions are
-stamped from the tag at build time and the number is truthful regardless of how
+stamped in the candidate commit before its rehearsal and the number is truthful regardless of how
 the binary was installed.
 
 ## Versioning model
@@ -47,7 +47,7 @@ the binary was installed.
 version-setting command projects it into the Rust CLI package and lockfile and
 the execution-runtime release identity. The release profile and tag workflow
 check those committed values without changing the release checkout; a mismatched
-tag fails before a build. `cli-vX.Y.Z` is the CLI distribution version, not a workspace-wide
+tag fails before publication. `cli-vX.Y.Z` is the CLI distribution version, not a workspace-wide
 library-crate release. One command updates only the CLI package surfaces: npm
 `package.json` + its `optionalDependencies`, `runx-cli`, the execution-runtime
 release identity, and the `runx-cli` lockfile entry.
@@ -71,63 +71,36 @@ place.
 `.github/workflows/release.yml` fires on `cli-v*` tags. `workflow_dispatch`
 (with a `version` input) runs a build + render dry-run with no publishing.
 
-Stages (the order is intentional — the GitHub Release must exist before any
-channel that downloads its archives):
+The rehearsal runs once on the final candidate commit. It verifies the committed
+version and release notes, performs the runtime checks, builds and smokes every
+supported platform, and retains four publication artifacts:
 
-1. **prepare** — resolve the version, stamp + `--check` manifests, `verify:fast`,
-   and pack `@runxhq/contracts` and `@runxhq/client`: a version npm already
-   holds with other bytes stops the release before anything builds, so a
-   changed package needs a new version before the tag.
-2. **build** (5-platform matrix) — resolve the matrix from
-   `packages/cli/native/supported-platforms.json`, run the shared hostile-module
-   contract on each native method, then build `runx` and `runx-js-worker`
-   together with the pinned toolchain. Per platform, package both executables
-   into the signed npm artifact, raw archive, and Linux `.deb`, and record
-   digest-bound worker evidence.
-3. **smoke** (5-platform matrix) — downloads each built archive and runs
-   the extracted `runx` beside its matching worker on the real OS. In addition
-   to version and archive-shape checks, the packaged candidate must execute a
-   nested signed-registry skill, pass declared workspace environment into
-   frozen JavaScript context, deliver complete digest-bound `SKILL.md` context
-   beyond one megabyte, preserve opaque scopes, close one human approval
-   without a duplicate gate, and terminate active JavaScript work on
-   interruption. Windows process-tree interruption remains covered by the
-   dedicated Windows host-job lifecycle gate. A broken, incomplete, wrong-arch, or
-   semantically incomplete archive fails before anything is published. The
-   same smoke runs in dry-runs.
-4. **github-release** — assemble `checksums.txt`, generate a CycloneDX SBOM, emit
-   build-provenance attestations for the binaries, stage the install scripts, and
-   publish the Release with all archives. This is the hub. The tagged workflow
-   refuses an existing Release before compiling, so published archive bytes are
-   never replaced by a whole-workflow retry.
-5. **publish-npm** — verify + publish the selector and native packages, then
-   `@runxhq/contracts` and `@runxhq/client`, with npm provenance. Each package
-   is packed once; a version already in npm must have the same tarball
-   integrity, and publication is read back from the registry. A
-   `contracts-v<version>` or `client-v<version>` tag publishes that package
-   the same way without a CLI release (**Publish TypeScript packages**).
-6. **package-managers** — build the channel input from the published checksums
-   and the tag's source archive (`build-channel-input.mjs`), verify the archive
-   and contained CLI and worker digests and sizes, render Homebrew / Scoop /
-   winget / AUR / Chocolatey manifests (`gen-channel-manifests.ts`), verify them
-   against the actual release archive contents (`check-channel-manifests.mjs`),
-   and attach them to the Release.
-7. **publish-{homebrew,scoop,aur}** — update the required package-manager
-   channels; AUR refuses a version it already holds with a different package.
-   **publish-winget** submits the validated `channels/winget/` manifest set
-   asynchronously; it must not use a generator that guesses archive nesting.
-   **publish-chocolatey** packs and installs the exact package on Windows,
-   checks the CLI and its worker, then pushes it for moderation. The prepare job
-   refuses a tag before any build when the AUR or Chocolatey key is missing.
-8. **publish-docker** — multi-arch GHCR image (pulls the exact musl archives
-   selected by the verified channel input, checks their SHA-256, and installs
-   `runx` beside `runx-js-worker`; no Rust toolchain in the image build).
-   The versioned tag must be absent before building; a retry cannot silently
-   replace an image already published under that version.
-   **smoke-docker** pulls the pushed versioned image by digest on native amd64
-   and arm64 methods and runs a JavaScript-backed skill. **promote-docker** moves
-   `latest` to that tested digest and independently reads it back; an untested
-   build never replaces `latest`.
+- `release-assets`: archives, worker evidence, SBOM, install scripts and checksums;
+- `npm-tarballs`: the checked contracts/client and native/selector tarballs;
+- `channel-manifests`: rendered and checked package-manager files;
+- `channel-input`: exact source commit, archive hashes and contained executable hashes.
+
+AUR uses the immutable commit archive, which is available before a release tag
+exists. The candidate is retained for thirty days; expired artifacts require a
+new rehearsal. A rerun changes the attempt and needs a newly selected profile.
+
+An annotated release tag names `release-candidate: <run-id>/<attempt>`. Before
+any publication, the workflow checks that this was a successful dispatch of
+this release workflow in this repository at exactly the tagged commit. Each
+required artifact must have one unexpired immutable ID and a native GitHub
+digest. Artifact downloads reject digest mismatches.
+
+Tags skip runtime compilation, native smoke and npm packing. They download the
+selected release assets and tarballs by artifact ID, verify their checksums,
+and publish those bytes. Package-manager publication uses the retained manifests
+and verifies them against the retained archives before forwarding them. The
+GitHub Release remains the hub for archive downloads. npm contracts and native
+packages publish before the selector/client that resolve them.
+
+Docker assembles an image from the same digest-bound Linux archives. Native
+container smoke precedes promotion to `latest`. AUR builds from source as its
+package requires. Independent `contracts-v*` and `client-v*` tags retain their
+separate package-only publication path.
 
 GitHub Actions is deliberately disabled on the `winget-pkgs` fork. The fork only
 hosts the PR head branch; the checks that gate a winget submission run on
@@ -199,39 +172,42 @@ owned by an unrelated maintainer.
 
 ## Cutting a release
 
+Set the candidate version, write `release/notes/X.Y.Z.md`, and complete the
+repository checks before the rehearsal. On the exact pushed candidate commit:
+
 ```bash
-# 1. Write release/notes/X.Y.Z.md with every required section and the exact
-#    previous-tag comparison link, then validate it.
-node scripts/check-runx-cli-release-notes.mjs --version X.Y.Z
+gh workflow run release.yml --ref main -f version=X.Y.Z
+```
 
-# 2. On a clean OSS main commit, run the project-owned profile through the
-#    canonical governed release lane. This prepares, obtains approval for, and
-#    pushes the exact tag, then independently verifies every required channel.
-runx skill skills/release#release \
-  -i project_root=. \
-  -i profile_ref=release/runx-cli.json \
-  -i channel=runx-cli \
-  -i version=X.Y.Z \
-  --json
+Wait for that workflow to finish successfully. Select its exact run ID and
+attempt; the project adapter writes a concrete local profile whose argv includes
+both values. The profile refuses replacement by another candidate:
 
-# 3. After the release method returns verified, add the reviewed release entry
-#    to the Cloud changelog. From the workspace root, adopt the independently
-#    verified release across status, Cloud's exact npm pin, lockfile, and notary.
+```bash
+node scripts/runx-cli-release-profile.mjs profile \
+  --candidate-run RUN_ID --candidate-attempt ATTEMPT
+```
+
+Invoke `skills/release#release` with a JSON inputs file containing
+`project_root: "."`, `profile_path: ".runx/release/profile-RUN_ID-ATTEMPT.json"`,
+`channel: "runx-cli"` and the exact `version`. The native lane prepares the brief,
+pauses for its one approval, publishes the annotated tag and independently reads
+back every required channel. Resume that same run after approval.
+
+The project preparation checks the clean checkout, exact remote-main commit,
+CI aggregate, pinned rehearsal and artifacts, committed versions, release notes
+and anonymous GHCR access. It reuses the rehearsal’s checks rather than running
+another platform build or local verification wall. Publication rechecks the
+same rehearsal and refuses a changed or unavailable tag identity.
+
+After the release method returns verified, add the reviewed Cloud changelog
+entry and adopt the release through the workspace's existing commands:
+
+```bash
 pnpm release:adopt -- --version X.Y.Z
 pnpm release:check
 pnpm release:check:live
 ```
-
-The release profile refuses a dirty checkout, a commit that differs from
-`origin/main`, an exact candidate commit without successful `checks` and
-`gitleaks` results, an existing tag bound to another commit, or a GHCR package
-that is not anonymously pullable. It also requires a complete versioned
-release-note file; the tag workflow publishes that exact reviewed body instead
-of reconstructing a partial changelog from pull requests. Use
-`workflow_dispatch` with a version only when a release-pipeline change needs a
-no-publish matrix rehearsal. Do not duplicate the complete platform build for
-an ordinary release: the governed tag publish starts the workflow that builds
-and smokes every target.
 
 Never move a published semver tag. Never bump a new patch just to repair channel
 drift; fix the existing channel artifact or workflow unless the binary itself is

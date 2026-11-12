@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { candidateFromTag, readReleaseCandidate } from "./lib/release-candidate.mjs";
 
 import {
   checkRunxGhcrAnonymousAccess,
@@ -11,6 +14,23 @@ const repository = "runxhq/runx";
 const RELEASE_VERIFY_DEADLINE_MS = 55 * 60_000;
 
 const phase = process.argv[2];
+const candidateArgs = process.argv.slice(3);
+if (phase === "profile") {
+  const selected = parseCandidate(candidateArgs);
+  const profile = JSON.parse(readFileSync("release/runx-cli.json", "utf8"));
+  for (const command of Object.values(profile.commands)) command.argv.push(...candidateArgs);
+  const relativePath = `.runx/release/profile-${selected.runId}-${selected.attempt}.json`;
+  const output = path.resolve(relativePath);
+  mkdirSync(path.dirname(output), { recursive: true });
+  const bytes = `${JSON.stringify(profile, null, 2)}\n`;
+  try { writeFileSync(output, bytes, { flag: "wx" }); }
+  catch (error) {
+    if (error.code !== "EEXIST" || readFileSync(output, "utf8") !== bytes) throw error;
+  }
+  emit({ status: "prepared", profile_path: relativePath, ...selected });
+  process.exit(0);
+}
+const selectedCandidate = parseCandidate(candidateArgs);
 const version = requiredEnvironment("RUNX_RELEASE_VERSION");
 const channel = requiredEnvironment("RUNX_RELEASE_CHANNEL");
 
@@ -24,7 +44,7 @@ const commit = run("git", ["rev-parse", "HEAD"]);
 
 try {
   if (phase === "prepare") await prepare();
-  else if (phase === "publish") publish();
+  else if (phase === "publish") await publish();
   else if (phase === "verify") await verify();
   else fail(`unknown release phase: ${phase ?? "<missing>"}`);
 } catch (error) {
@@ -32,7 +52,7 @@ try {
     status: "failed",
     version,
     channel,
-    commit_ref: commit,
+    commit,
     checks: { failure: summarizeFailure(error) },
   });
   process.exitCode = 1;
@@ -53,6 +73,9 @@ async function prepare() {
       `exact candidate commit has not passed release checks: ${candidate.missing.join(", ")}`,
     );
   }
+  const rehearsal = await readReleaseCandidate({
+    repository, commit, ...selectedCandidate, githubToken: githubApiToken(),
+  });
   run("node", ["scripts/check-runx-cli-release-notes.mjs", "--version", version]);
   const ghcrAccess = await checkRunxGhcrAnonymousAccess();
   if (ghcrAccess.status !== "passed") {
@@ -64,39 +87,35 @@ async function prepare() {
     );
   }
 
-  run("pnpm", ["install", "--frozen-lockfile", "--store-dir", ".runx/cache/pnpm"], {
-    timeout: 300_000,
-  });
   run("pnpm", ["exec", "tsx", "scripts/set-release-version.ts", "--check", version]);
-  run("pnpm", ["verify:fast"], {
-    cleanRunxEnvironment: true,
-    environment: { CARGO_TARGET_DIR: ".runx/cache/release-target" },
-    timeout: 840_000,
-  });
   assertCleanCheckout();
 
   emit({
     status: "ready",
     version,
     channel,
-    commit_ref: commit,
+    commit,
     checks: {
       clean_checkout: true,
       head_matches_origin_main: true,
       exact_commit_ci: true,
       manifests_match_version: true,
       release_notes: true,
-      verify_fast: true,
+      rehearsal: `${rehearsal.run_id}/${rehearsal.attempt}`,
+      ...Object.fromEntries(Object.entries(rehearsal.artifacts).map(([name, artifact]) =>
+        [`rehearsal_${name}`, `${artifact.id} ${artifact.digest}`])),
       remote_tag_compatible: true,
       ghcr_anonymous_access: true,
     },
   });
 }
 
-function publish() {
+async function publish() {
   assertCleanCheckout();
   run("git", ["fetch", "origin", "main", "--tags"]);
   assertMainCommit();
+
+  await readReleaseCandidate({ repository, commit, ...selectedCandidate, githubToken: githubApiToken() });
 
   const remoteCommit = remoteTagCommit();
   if (remoteCommit && remoteCommit !== commit) {
@@ -108,10 +127,13 @@ function publish() {
     if (localCommit && localCommit !== commit) {
       throw new Error(`local ${tag} points to ${localCommit}, expected ${commit}`);
     }
-    if (!localCommit) run("git", ["tag", "-a", tag, "-m", `Runx CLI ${version}`]);
+    if (!localCommit) run("git", ["tag", "-a", tag, "-m",
+      `Runx CLI ${version}\n\nrelease-candidate: ${selectedCandidate.runId}/${selectedCandidate.attempt}`]);
+    assertCandidateTag();
     run("git", ["push", "origin", `refs/tags/${tag}`]);
   }
 
+  assertCandidateTag();
   const publishedCommit = remoteTagCommit();
   if (publishedCommit !== commit) {
     throw new Error(`remote ${tag} did not resolve to approved commit ${commit}`);
@@ -122,7 +144,7 @@ function publish() {
     version,
     channel,
     release_id: tag,
-    commit_ref: commit,
+    commit,
     locators: [
       `https://github.com/${repository}/actions/workflows/release.yml`,
       `https://github.com/${repository}/releases/tag/${tag}`,
@@ -132,6 +154,7 @@ function publish() {
 }
 
 async function verify() {
+  assertCandidateTag();
   const githubToken = githubApiToken();
   const deadline = Date.now() + RELEASE_VERIFY_DEADLINE_MS;
   let observation;
@@ -151,7 +174,7 @@ async function verify() {
     version,
     channel,
     release_id: tag,
-    commit_ref: commit,
+    commit,
     locators: observation.locators,
     checks: Object.fromEntries(
       observation.checks.map((check) => [check.id, check.status === "passed"]),
@@ -181,6 +204,24 @@ async function releaseObservation(githubToken) {
       ? observation.missing
       : [`remote_tag: ${remoteTagCheck.detail}`, ...observation.missing],
   };
+}
+
+function parseCandidate(args) {
+  if (args.length !== 4 || args[0] !== "--candidate-run" || args[2] !== "--candidate-attempt"
+    || !/^[1-9]\d*$/u.test(args[1]) || !/^[1-9]\d*$/u.test(args[3])) {
+    throw new Error("pin a rehearsal with --candidate-run <id> --candidate-attempt <attempt>; generate its native profile with the profile phase");
+  }
+  return { runId: args[1], attempt: args[3] };
+}
+
+function assertCandidateTag() {
+  if (run("git", ["cat-file", "-t", `refs/tags/${tag}`]) !== "tag") {
+    throw new Error("release tag must be annotated with its approved rehearsal");
+  }
+  const recorded = candidateFromTag(run("git", ["for-each-ref", "--format=%(contents)", `refs/tags/${tag}`]));
+  if (recorded.runId !== selectedCandidate.runId || recorded.attempt !== selectedCandidate.attempt) {
+    throw new Error("release tag's rehearsal differs from the approved native command plan");
+  }
 }
 
 function githubApiToken() {
@@ -228,17 +269,22 @@ function localTagCommit() {
 }
 
 function remoteTagCommit() {
-  const result = tryRun("git", [
+  const output = run("git", [
     "ls-remote",
     "origin",
     `refs/tags/${tag}`,
     `refs/tags/${tag}^{}`,
   ]);
-  if (!result.ok || !result.stdout) return "";
-  const refs = new Map(result.stdout.split("\n").map((line) => {
+  if (!output) return "";
+  const refs = new Map(output.split("\n").map((line) => {
     const [objectId, ref] = line.trim().split(/\s+/, 2);
     return [ref, objectId];
   }));
+  const remoteObject = refs.get(`refs/tags/${tag}`);
+  if (remoteObject && localTagCommit()
+    && run("git", ["rev-parse", `refs/tags/${tag}`]) !== remoteObject) {
+    throw new Error("remote release tag differs from the exact local annotated tag");
+  }
   return refs.get(`refs/tags/${tag}^{}`) || refs.get(`refs/tags/${tag}`) || "";
 }
 
@@ -258,8 +304,7 @@ function run(command, args, options = {}) {
     cwd: process.cwd(),
     encoding: "utf8",
     env: {
-      ...(options.cleanRunxEnvironment ? withoutRunxEnvironment() : process.env),
-      ...(options.environment ?? {}),
+      ...process.env,
       CI: "true",
     },
     maxBuffer: 16 * 1024 * 1024,
@@ -271,10 +316,6 @@ function run(command, args, options = {}) {
     throw new Error(`${command} ${args.join(" ")} failed${detail ? `: ${detail}` : ""}`);
   }
   return result.stdout.trim();
-}
-
-function withoutRunxEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("RUNX_")));
 }
 
 function tryRun(command, args) {

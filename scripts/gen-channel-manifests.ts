@@ -19,10 +19,11 @@ interface Manifest {
   readonly version: string;
   readonly repo: string; // owner/name on GitHub
   readonly tag: string; // e.g. cli-v0.6.0
+  readonly commit_ref: string;
   readonly homepage: string;
   readonly description: string;
   readonly artifacts: Record<string, Artifact>; // keyed by rust target triple
-  readonly source: { readonly url: string; readonly sha256: string; readonly root: string }; // GitHub's archive of the tag
+  readonly source: { readonly url: string; readonly sha256: string; readonly root: string }; // GitHub's archive of the exact commit
 }
 
 const releaseTopology = JSON.parse(
@@ -38,10 +39,6 @@ const TARGETS = {
 
 // AUR's runx builds the release from source: an AUR package of prebuilt
 // binaries must end in -bin, and runx-bin is an unrelated project's runx.
-// The PKGBUILD names its source through pkgver, so it must expand to exactly
-// the archive the release input hashed.
-const AUR_SOURCE_URL = "https://github.com/runxhq/runx/archive/refs/tags/cli-v$pkgver.tar.gz";
-const AUR_SOURCE_ROOT = "$pkgname-cli-v$pkgver";
 const publisher = JSON.parse(readFileSync(path.join(workspaceRoot, "release", "publisher.json"), "utf8")) as {
   readonly name: string;
   readonly email: string;
@@ -218,13 +215,11 @@ ManifestVersion: ${manifestVersion}
   ];
 }
 
-function aurExpand(m: Manifest, value: string): string {
-  return value.replaceAll("$pkgname", "runx").replaceAll("$pkgver", m.version);
-}
-
 function renderPkgbuild(m: Manifest): string {
-  if (aurExpand(m, AUR_SOURCE_URL) !== m.source.url || aurExpand(m, AUR_SOURCE_ROOT) !== m.source.root) {
-    throw new Error(`the AUR source ${aurExpand(m, AUR_SOURCE_URL)} is not the release source ${m.source.url}`);
+  const sourceUrl = `https://github.com/${m.repo}/archive/${m.commit_ref}.tar.gz`;
+  const sourceRoot = `${m.repo.split("/")[1]}-${m.commit_ref}`;
+  if (!/^[0-9a-f]{40}$/u.test(m.commit_ref) || m.source.url !== sourceUrl || m.source.root !== sourceRoot) {
+    throw new Error("the AUR source must bind the exact rehearsed source commit");
   }
   return `# Maintainer: ${publisher.name} <${publisher.email}>
 pkgname=runx
@@ -242,24 +237,24 @@ conflicts=('runx-bin')
 # lld, which cannot read the GCC LTO objects that makepkg's lto option makes of
 # the bundled C libraries (sqlite, zstd, ring).
 options=('!debug' '!lto')
-source=("$pkgname-$pkgver.tar.gz::${AUR_SOURCE_URL}")
+source=("$pkgname-$pkgver.tar.gz::${m.source.url}")
 sha256sums=('${m.source.sha256}')
 
 prepare() {
-  cd "${AUR_SOURCE_ROOT}"
+  cd "${m.source.root}"
   export RUSTUP_TOOLCHAIN=stable
   cargo fetch --locked --manifest-path crates/Cargo.toml --target "$(rustc -vV | sed -n 's/host: //p')"
 }
 
 build() {
-  cd "${AUR_SOURCE_ROOT}"
+  cd "${m.source.root}"
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
   cargo build --frozen --release --manifest-path crates/Cargo.toml -p runx-cli -p runx-js-worker
 }
 
 package() {
-  cd "${AUR_SOURCE_ROOT}"
+  cd "${m.source.root}"
   install -Dm755 target/release/runx "$pkgdir/usr/bin/runx"
   install -Dm755 target/release/runx-js-worker "$pkgdir/usr/bin/runx-js-worker"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

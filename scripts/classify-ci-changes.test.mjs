@@ -76,6 +76,14 @@ test("release tooling alone runs its own checks, not the runtime corpus", () => 
   });
 });
 
+test("promotion scripts use the release checks without rebuilding the runtime", () => {
+  for (const file of ["scripts/lib/release-candidate.mjs", "scripts/resolve-release-candidate.mjs", "scripts/release-candidate.test.mjs", "scripts/gen-channel-manifests.ts"]) {
+    const result = classifyFiles([file], core);
+    assert.equal(result.full, false, file);
+    assert.equal(result.release, true, file);
+  }
+});
+
 test("the release candidate smoke stays behind the full wall", () => {
   const result = classifyFiles(["scripts/smoke-release-candidate.mjs"], core);
   assert.equal(result.full, true);
@@ -98,9 +106,10 @@ test("an unavailable diff runs every lane", () => {
   });
 });
 
-test("the core skills are the twelve the binary bundles", () => {
+test("the core skills include the bundled memory owner", () => {
   const names = bundledCoreSkills();
-  assert.equal(names.length, 12);
+  assert.equal(names.length, 13);
+  assert.ok(names.includes("memory"));
   assert.ok(names.includes("skill-build"));
   assert.ok(names.includes("agent"));
   assert.ok(names.includes("revert"));

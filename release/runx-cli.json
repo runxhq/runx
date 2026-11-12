@@ -4,21 +4,30 @@
   "channel": "runx-cli",
   "commands": {
     "prepare": {
-      "argv": ["node", "scripts/runx-cli-release-profile.mjs", "prepare"],
+      "argv": [
+        "node",
+        "scripts/runx-cli-release-profile.mjs",
+        "prepare"
+      ],
       "cwd": ".",
-      "network": true,
       "timeout_ms": 900000
     },
     "publish": {
-      "argv": ["node", "scripts/runx-cli-release-profile.mjs", "publish"],
+      "argv": [
+        "node",
+        "scripts/runx-cli-release-profile.mjs",
+        "publish"
+      ],
       "cwd": ".",
-      "network": true,
       "timeout_ms": 120000
     },
     "verify": {
-      "argv": ["node", "scripts/runx-cli-release-profile.mjs", "verify"],
+      "argv": [
+        "node",
+        "scripts/runx-cli-release-profile.mjs",
+        "verify"
+      ],
       "cwd": ".",
-      "network": true,
       "timeout_ms": 3600000
     }
   }

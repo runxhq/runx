@@ -22,10 +22,11 @@ const lightOnlyPatterns = [
 // checked by its own syntax and the version and notes checks, not the runtime
 // corpus. The candidate smoke stays in the full lane, since verify:fast runs it.
 const releasePatterns = [
+  /^scripts\/lib\/release-candidate\.mjs$/u,
   /^\.github\/workflows\/(?:release|publish-typescript-packages)\.yml$/u,
   /^packaging\//u,
   /^release\//u,
-  /^scripts\/(?:build-channel-input(?:\.test)?|build-release-archives|check-publishable-package-manifests(?:\.test)?|check-rust-cli-release-artifacts|check-runx-cli-release-notes|global-npm-prefix|pack-typescript-packages|publish-npm-tarball|publish-winget-manifest|release-platform-matrix|release-rust-cli|runx-cli-release-profile|set-release-version|smoke-released-cli-live|smoke-runx-image)\.(?:mjs|sh|ts)$/u,
+  /^scripts\/(?:build-channel-input(?:\.test)?|build-release-archives|gen-channel-manifests|check-publishable-package-manifests(?:\.test)?|check-rust-cli-release-artifacts|check-runx-cli-release-notes|global-npm-prefix|pack-typescript-packages|publish-npm-tarball|publish-winget-manifest|release-candidate(?:\.test)?|record-deterministic-module-platform-evidence|rust-cli-topology|resolve-release-candidate|release-platform-matrix|release-rust-cli|runx-cli-release-profile|set-release-version|smoke-released-cli-live|smoke-runx-image)\.(?:mjs|sh|ts)$/u,
 ];
 
 const windowsPatterns = [

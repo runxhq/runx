@@ -50,17 +50,16 @@ for (const platform of platforms) {
   };
 }
 
-// A source package (AUR's runx) builds GitHub's archive of the tag, whose one
-// root directory is <repository>-<tag>.
-const sourceRoot = `${options.repo.split("/")[1]}-${options.tag}`;
+// Pin the source archive to the commit so rehearsal needs no future tag.
+const sourceRoot = `${options.repo.split("/")[1]}-${options.commit}`;
 const sourceEntries = execFileSync("tar", ["-tzf", options.sourceArchive], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
   .split("\n")
   .filter(Boolean);
 if (!sourceEntries.every((entry) => entry.startsWith(`${sourceRoot}/`)) || !sourceEntries.includes(`${sourceRoot}/crates/Cargo.lock`)) {
-  throw new Error(`${options.sourceArchive} is not the ${options.tag} source archive under ${sourceRoot}/`);
+  throw new Error(`${options.sourceArchive} is not the ${options.commit} source archive under ${sourceRoot}/`);
 }
 const source = {
-  url: `https://github.com/${options.repo}/archive/refs/tags/${options.tag}.tar.gz`,
+  url: `https://github.com/${options.repo}/archive/${options.commit}.tar.gz`,
   sha256: createHash("sha256").update(readFileSync(options.sourceArchive)).digest("hex"),
   root: sourceRoot,
 };

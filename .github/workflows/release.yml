@@ -19,7 +19,8 @@ name: release
 # moderation reviews each version after it is pushed.
 #
 # Pushing a cli-v* tag runs a real release. workflow_dispatch runs a dry-run
-# (build + render, no publish).
+# (build + render, no publish). Tags promote the exact successful rehearsal
+# named by their release-candidate: <run-id>/<attempt> annotation. They never build.
 
 on:
   push:
@@ -43,7 +44,7 @@ env:
 
 jobs:
   runtime-quality:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cli-v')
+    if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/runtime-quality.yml
 
   prepare:
@@ -51,10 +52,16 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      actions: read
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       publish: ${{ steps.resolve.outputs.publish }}
       platform_matrix: ${{ steps.platforms.outputs.matrix }}
+      candidate_run_id: ${{ steps.candidate.outputs.candidate_run_id }}
+      release_assets_id: ${{ steps.candidate.outputs.release_assets_id }}
+      npm_tarballs_id: ${{ steps.candidate.outputs.npm_tarballs_id }}
+      channel_manifests_id: ${{ steps.candidate.outputs.channel_manifests_id }}
+      channel_input_id: ${{ steps.candidate.outputs.channel_input_id }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -79,6 +86,12 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "resolved version=$version publish from tag=${{ github.event_name == 'push' }}"
+      - name: Resolve the exact rehearsed candidate
+        if: steps.resolve.outputs.publish == 'true'
+        id: candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/resolve-release-candidate.mjs
       - name: Refuse an existing GitHub Release
         if: steps.resolve.outputs.publish == 'true'
         env:
@@ -102,16 +115,17 @@ jobs:
           NODE
       - name: Verify complete release notes
         run: node scripts/check-runx-cli-release-notes.mjs --version "${{ steps.resolve.outputs.version }}"
-      # Every channel publishes or none starts: a missing key fails here, before
-      # any build, not after the GitHub Release and npm have shipped.
+      # Missing required publication credentials stop before the first public effect.
       - name: Require package publication credentials
         if: steps.resolve.outputs.publish == 'true'
         env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
         run: |
           missing=0
-          for name in AUR_SSH_PRIVATE_KEY CHOCOLATEY_API_KEY; do
+          for name in HOMEBREW_TAP_TOKEN SCOOP_BUCKET_TOKEN AUR_SSH_PRIVATE_KEY CHOCOLATEY_API_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::$name is required before building a release"
               missing=1
@@ -121,6 +135,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Refuse a package version npm holds with other bytes
+        if: github.event_name == 'workflow_dispatch'
         # A registry version is immutable. A TypeScript package whose packed
         # bytes changed needs a new version before the tag, or publish-npm
         # fails after every other channel has shipped.
@@ -128,6 +143,29 @@ jobs:
           set -euo pipefail
           bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
           bash scripts/publish-npm-tarball.sh --check "$RUNNER_TEMP"/typescript-packages/*.tgz
+      - name: Download the exact candidate npm tarballs
+        if: steps.resolve.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          digest-mismatch: error
+          artifact-ids: ${{ steps.candidate.outputs.npm_tarballs_id }}
+          run-id: ${{ steps.candidate.outputs.candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .runx/npm-tarballs
+      - name: Recheck immutable registry versions before publication
+        if: steps.resolve.outputs.publish == 'true'
+        run: |
+          (cd .runx/npm-tarballs && sha256sum -c checksums.txt)
+          bash scripts/publish-npm-tarball.sh --check \
+            .runx/npm-tarballs/native/*.tgz .runx/npm-tarballs/selector/*.tgz .runx/npm-tarballs/typescript/*.tgz
+      - name: Retain the checked TypeScript tarballs
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: typescript-tarballs
+          path: ${{ runner.temp }}/typescript-packages/
+          if-no-files-found: error
+          retention-days: 30
       - name: Resolve release platform matrix
         id: platforms
         shell: bash
@@ -141,6 +179,7 @@ jobs:
   # instead of ahead of them; nothing is published until it, the runtime
   # quality checks, and the smoke have all passed.
   verify:
+    if: github.event_name == 'workflow_dispatch'
     needs: prepare
     runs-on: ubuntu-24.04
     permissions:
@@ -175,6 +214,7 @@ jobs:
         run: pnpm verify:fast
 
   build:
+    if: github.event_name == 'workflow_dispatch'
     needs: prepare
     strategy:
       fail-fast: true
@@ -224,7 +264,7 @@ jobs:
             --decision "docs/architecture/deterministic-module-engine.json" \
             --platform "${{ matrix.platform }}" \
             --target "${{ matrix.target }}" \
-            --runner "${{ matrix.runner }}" \
+            --host "${{ matrix.runner }}" \
             --worker "crates/target/${{ matrix.target }}/release/${{ matrix.worker }}" \
             --out "dist/archives/deterministic-module-${{ matrix.platform }}.json"
       - name: Stage signature manifest (npm)
@@ -258,7 +298,7 @@ jobs:
         if: contains(matrix.target, 'linux')
         run: |
           cargo install cargo-deb --locked
-          cargo deb --no-build --target ${{ matrix.target }} -p runx-cli --output "dist/archives/"
+          cargo deb --no-build --target ${{ matrix.target }} -p runx-cli --output "../dist/archives/"
         working-directory: crates
       - name: Upload npm artifacts
         uses: actions/upload-artifact@v7
@@ -268,16 +308,78 @@ jobs:
             .runx/rust-cli-artifacts/${{ matrix.platform }}/
             .runx/rust-cli-artifacts/selector/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
       - name: Upload release archives
         uses: actions/upload-artifact@v7
         with:
           name: archive-${{ matrix.platform }}
           path: dist/archives/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
+
+  pack-npm:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.18.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Download native npm packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: npm-*
+          merge-multiple: true
+          path: .runx/rust-cli-artifacts
+      - name: Download checked TypeScript tarballs
+        uses: actions/download-artifact@v8
+        with:
+          name: typescript-tarballs
+          path: ${{ runner.temp }}/npm-tarballs/typescript
+      - name: Restore native executable bits and verify packages
+        run: |
+          find .runx/rust-cli-artifacts -path '*/bin/*' -type f -exec chmod +x {} +
+          pnpm exec tsx scripts/check-rust-cli-release-artifacts.ts \
+            --artifact-dir .runx/rust-cli-artifacts --no-js-delegation --verify-signatures
+      - name: Pack the exact native and selector tarballs
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/npm-tarballs/native" "$RUNNER_TEMP/npm-tarballs/selector"
+          for dir in .runx/rust-cli-artifacts/*/; do
+            if [ "$dir" = '.runx/rust-cli-artifacts/selector/' ]; then
+              destination="$RUNNER_TEMP/npm-tarballs/selector"
+            else
+              destination="$RUNNER_TEMP/npm-tarballs/native"
+            fi
+            (cd "$dir" && npm pack --ignore-scripts --pack-destination "$destination")
+          done
+          cd "$RUNNER_TEMP/npm-tarballs"
+          find . -type f -name '*.tgz' -print0 | sort -z | xargs -0 sha256sum > checksums.txt
+      - name: Check registry versions against the complete candidate
+        run: |
+          bash scripts/publish-npm-tarball.sh --check \
+            "$RUNNER_TEMP"/npm-tarballs/native/*.tgz \
+            "$RUNNER_TEMP"/npm-tarballs/selector/*.tgz \
+            "$RUNNER_TEMP"/npm-tarballs/typescript/*.tgz
+      - name: Retain publishable tarballs
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/npm-tarballs/
+          if-no-files-found: error
+          retention-days: 30
 
   smoke:
+    if: github.event_name == 'workflow_dispatch'
     needs: [prepare, build]
     strategy:
       fail-fast: true
@@ -328,38 +430,69 @@ jobs:
             --expected-version "${{ needs.prepare.outputs.version }}"
 
   github-release:
-    needs: [prepare, verify, runtime-quality, build, smoke]
+    needs: [prepare, verify, runtime-quality, build, smoke, pack-npm]
+    if: >-
+      !cancelled() && needs.prepare.result == 'success' &&
+      (needs.prepare.outputs.publish == 'true' ||
+       (needs.verify.result == 'success' && needs.runtime-quality.result == 'success' &&
+        needs.build.result == 'success' && needs.smoke.result == 'success' &&
+        needs.pack-npm.result == 'success'))
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
       id-token: write # build provenance attestation
       attestations: write
     steps:
       - uses: actions/checkout@v7
       - name: Download archives
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/download-artifact@v8
         with:
           pattern: archive-*
           merge-multiple: true
           path: dist/archives
-      - name: Build consolidated checksums
-        run: |
-          cd dist/archives
-          sha256sum runx-* > checksums.txt
-          cat checksums.txt
       - name: Generate SBOM (CycloneDX)
+        if: github.event_name == 'workflow_dispatch'
         uses: anchore/sbom-action@v0
         with:
           path: crates
           format: cyclonedx-json
           output-file: dist/archives/runx-${{ needs.prepare.outputs.version }}-sbom.cdx.json
+      - name: Stage install scripts
+        if: github.event_name == 'workflow_dispatch'
+        run: cp scripts/install scripts/install.ps1 dist/archives/
+      - name: Bind the complete release assets
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: dist/archives
+        run: |
+          find . -maxdepth 1 -type f ! -name checksums.txt -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/release-checksums.txt"
+          mv "$RUNNER_TEMP/release-checksums.txt" checksums.txt
+      - name: Retain the rehearsed release assets
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-assets
+          path: dist/archives/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Download rehearsed release assets
+        if: needs.prepare.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          digest-mismatch: error
+          artifact-ids: ${{ needs.prepare.outputs.release_assets_id }}
+          run-id: ${{ needs.prepare.outputs.candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist/archives
+      - name: Verify the retained asset bytes
+        working-directory: dist/archives
+        run: sha256sum -c checksums.txt
       - name: Attest build provenance for released binaries
         if: needs.prepare.outputs.publish == 'true'
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/archives/runx-*.tar.gz, dist/archives/runx-*.zip"
-      - name: Stage install scripts
-        run: cp scripts/install scripts/install.ps1 dist/archives/
       - name: Create GitHub release
         if: needs.prepare.outputs.publish == 'true'
         uses: softprops/action-gh-release@v3
@@ -410,10 +543,11 @@ jobs:
 
   publish-npm:
     needs: [prepare, github-release]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.github-release.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      actions: read
       id-token: write # npm trusted publishing and provenance
     steps:
       - uses: actions/checkout@v7
@@ -426,32 +560,17 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
           registry-url: https://registry.npmjs.org
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Download npm artifacts
+      - name: Download rehearsed npm tarballs
         uses: actions/download-artifact@v8
         with:
-          pattern: npm-*
-          merge-multiple: true
-          path: .runx/rust-cli-artifacts
-      - name: Restore executable bits on native binaries
-        # actions/upload-artifact stores via a zip-on-the-wire path that does
-        # not preserve POSIX exec bits; re-apply them before verify.
-        run: |
-          find .runx/rust-cli-artifacts -path '*/bin/runx' -type f -print0 \
-            | xargs -0 -r chmod +x
-          find .runx/rust-cli-artifacts -path '*/bin/runx.exe' -type f -print0 \
-            | xargs -0 -r chmod +x
-          find .runx/rust-cli-artifacts -path '*/bin/runx-js-worker' -type f -print0 \
-            | xargs -0 -r chmod +x
-          find .runx/rust-cli-artifacts -path '*/bin/runx-js-worker.exe' -type f -print0 \
-            | xargs -0 -r chmod +x
-      - name: Verify release artifacts
-        run: |
-          pnpm exec tsx scripts/check-rust-cli-release-artifacts.ts \
-            --artifact-dir ".runx/rust-cli-artifacts" --no-js-delegation --verify-signatures
-      - name: Pack TypeScript packages
-        run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
+          digest-mismatch: error
+          artifact-ids: ${{ needs.prepare.outputs.npm_tarballs_id }}
+          run-id: ${{ needs.prepare.outputs.candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .runx/npm-tarballs
+      - name: Verify retained tarball bytes
+        working-directory: .runx/npm-tarballs
+        run: sha256sum -c checksums.txt
       - name: Publish packages
         env:
           NPM_CONFIG_PROVENANCE: "true"
@@ -459,26 +578,20 @@ jobs:
         # selector after the platform packages, the client after contracts.
         run: |
           set -euo pipefail
-          pack() {
-            packed=$(cd "$1" && npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP")
-            node -e 'const p=JSON.parse(process.argv[1])[0]; if (!p?.filename) process.exit(1); process.stdout.write(p.filename)' "$packed"
-          }
-          first=("$RUNNER_TEMP"/typescript-packages/runxhq-contracts-*.tgz)
-          for dir in .runx/rust-cli-artifacts/*/; do
-            if [ "$dir" != '.runx/rust-cli-artifacts/selector/' ]; then
-              filename=$(pack "$dir")
-              first+=("$RUNNER_TEMP/$filename")
-            fi
-          done
-          bash scripts/publish-npm-tarball.sh "${first[@]}"
-          selector=$(pack .runx/rust-cli-artifacts/selector/)
-          bash scripts/publish-npm-tarball.sh "$RUNNER_TEMP/$selector" "$RUNNER_TEMP"/typescript-packages/runxhq-client-*.tgz
+          bash scripts/publish-npm-tarball.sh \
+            .runx/npm-tarballs/typescript/runxhq-contracts-*.tgz \
+            .runx/npm-tarballs/native/*.tgz
+          bash scripts/publish-npm-tarball.sh \
+            .runx/npm-tarballs/selector/*.tgz \
+            .runx/npm-tarballs/typescript/runxhq-client-*.tgz
 
   package-managers:
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.github-release.result == 'success' }}
     needs: [prepare, github-release]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -492,26 +605,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Download archives (for checksums)
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/download-artifact@v8
         with:
           pattern: archive-*
           merge-multiple: true
           path: dist/archives
-      # AUR's runx builds GitHub's archive of the tag. A dry run has no tag, so
-      # it renders against an archive of the checkout under the same root.
-      - name: Fetch the tag's source archive
-        env:
-          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          RUNX_PUBLISH: ${{ needs.prepare.outputs.publish }}
-        run: |
-          set -euo pipefail
-          tag="cli-v$RUNX_RELEASE_VERSION"
-          if [ "$RUNX_PUBLISH" = "true" ]; then
-            curl -fsSL --retry 3 -o dist/source.tar.gz "https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/$tag.tar.gz"
-          else
-            git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-$tag/" -o dist/source.tar.gz HEAD
-          fi
+      # An immutable commit archive exists during rehearsal, before a tag does.
+      - name: Fetch the exact source revision
+        if: github.event_name == 'workflow_dispatch'
+        run: curl -fsSL --retry 3 -o dist/source.tar.gz "https://github.com/${GITHUB_REPOSITORY}/archive/${GITHUB_SHA}.tar.gz"
       - name: Build channel manifest input
+        if: github.event_name == 'workflow_dispatch'
         run: |
           node scripts/build-channel-input.mjs \
             --version "${{ needs.prepare.outputs.version }}" \
@@ -522,22 +627,64 @@ jobs:
             --source-archive dist/source.tar.gz \
             --out dist/channel-input.json
       - name: Render channel manifests
+        if: github.event_name == 'workflow_dispatch'
         run: pnpm exec tsx scripts/gen-channel-manifests.ts --input dist/channel-input.json --out-dir dist/channels
+      - name: Download rehearsed archives
+        if: needs.prepare.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          digest-mismatch: error
+          artifact-ids: ${{ needs.prepare.outputs.release_assets_id }}
+          run-id: ${{ needs.prepare.outputs.candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist/archives
+      - name: Download rehearsed channel manifests
+        if: needs.prepare.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          digest-mismatch: error
+          artifact-ids: ${{ needs.prepare.outputs.channel_manifests_id }}
+          run-id: ${{ needs.prepare.outputs.candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Extract the retained channel archive
+        if: needs.prepare.outputs.publish == 'true'
+        run: tar -xzf dist/channel-manifests.tar.gz -C dist
+      - name: Download rehearsed artifact index
+        if: needs.prepare.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          digest-mismatch: error
+          artifact-ids: ${{ needs.prepare.outputs.channel_input_id }}
+          run-id: ${{ needs.prepare.outputs.candidate_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
       - name: Verify channel manifests against archives
         run: node scripts/check-channel-manifests.mjs --input dist/channel-input.json --channels dist/channels --archives dist/archives
+      - name: Freeze the checked channel archive
+        if: github.event_name == 'workflow_dispatch'
+        run: tar -C dist -czf dist/channel-manifests.tar.gz channels
       - name: Attach rendered manifests to release
         if: needs.prepare.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tar -C dist -czf dist/channel-manifests.tar.gz channels
           gh release upload "${{ github.ref_name }}" dist/channel-manifests.tar.gz --clobber
-      - name: Upload rendered manifests
+      - name: Retain the rehearsed channel archive
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: channel-manifests
+          path: dist/channel-manifests.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+      - name: Forward the retained channel files to publishers
+        if: needs.prepare.outputs.publish == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: channel-manifests
           path: dist/channels
-          # AUR's .SRCINFO is a dotfile, which upload-artifact drops by default.
+          # AUR's .SRCINFO must survive publication handoff.
           include-hidden-files: true
           if-no-files-found: error
       - name: Upload verified artifact index
@@ -549,7 +696,7 @@ jobs:
 
   publish-homebrew:
     needs: [prepare, package-managers]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.package-managers.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Download rendered manifests
@@ -570,11 +717,11 @@ jobs:
           git -C tap config user.name "github-actions[bot]"
           git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C tap add Formula/runx.rb
-          git -C tap diff --cached --quiet || { git -C tap commit -m "runx ${{ needs.prepare.outputs.version }}"; git -C tap push; }
+          git -C tap diff --cached --quiet || { git -C tap commit -m "chore(release): update runx ${{ needs.prepare.outputs.version }}"; git -C tap push; }
 
   publish-scoop:
     needs: [prepare, package-managers]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.package-managers.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Download rendered manifests
@@ -595,11 +742,11 @@ jobs:
           git -C bucket config user.name "github-actions[bot]"
           git -C bucket config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C bucket add bucket/runx.json
-          git -C bucket diff --cached --quiet || { git -C bucket commit -m "runx ${{ needs.prepare.outputs.version }}"; git -C bucket push; }
+          git -C bucket diff --cached --quiet || { git -C bucket commit -m "chore(release): update runx ${{ needs.prepare.outputs.version }}"; git -C bucket push; }
 
   publish-winget:
     needs: [prepare, package-managers]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.package-managers.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Check winget credentials
@@ -631,7 +778,7 @@ jobs:
 
   publish-aur:
     needs: [prepare, package-managers]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.package-managers.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Download rendered manifests
@@ -679,7 +826,7 @@ jobs:
 
   publish-chocolatey:
     needs: [prepare, package-managers]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.package-managers.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: windows-latest
     steps:
       - name: Download rendered manifests
@@ -719,7 +866,7 @@ jobs:
 
   publish-docker:
     needs: [prepare, package-managers]
-    if: needs.prepare.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.package-managers.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-24.04
     outputs:
       digest: ${{ steps.image.outputs.digest }}
@@ -813,6 +960,7 @@ jobs:
         run: node scripts/check-ghcr-anonymous-access.mjs
 
   smoke-docker:
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.publish-docker.result == 'success' && needs.prepare.outputs.publish == 'true' }}
     needs: [prepare, publish-docker]
     strategy:
       fail-fast: true
@@ -825,6 +973,7 @@ jobs:
         run: node scripts/smoke-runx-image.mjs --image "ghcr.io/runxhq/runx@${{ needs.publish-docker.outputs.digest }}" --expected-version "${{ needs.prepare.outputs.version }}"
 
   promote-docker:
+    if: ${{ !cancelled() && needs.publish-docker.result == 'success' && needs.smoke-docker.result == 'success' }}
     needs: [publish-docker, smoke-docker]
     runs-on: ubuntu-24.04
     permissions:

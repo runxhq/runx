@@ -120,6 +120,8 @@ jobs:
           for script in scripts/build-release-archives.ts scripts/check-rust-cli-release-artifacts.ts \
             scripts/check-runx-cli-release-notes.mjs scripts/global-npm-prefix.mjs \
             scripts/publish-winget-manifest.mjs scripts/release-platform-matrix.mjs \
+            scripts/resolve-release-candidate.mjs scripts/lib/release-candidate.mjs scripts/gen-channel-manifests.ts \
+            scripts/record-deterministic-module-platform-evidence.mjs scripts/rust-cli-topology.mjs \
             scripts/release-rust-cli.ts scripts/runx-cli-release-profile.mjs \
             scripts/set-release-version.ts scripts/smoke-released-cli-live.mjs scripts/smoke-runx-image.mjs; do
             node --check "$script"
@@ -127,7 +129,7 @@ jobs:
           pnpm release:version:check
           node scripts/check-runx-cli-release-notes.mjs --version "$(node -p "require('./packages/cli/package.json').version")"
           node scripts/check-publishable-package-manifests.mjs
-          node --test scripts/build-channel-input.test.mjs scripts/check-publishable-package-manifests.test.mjs
+          node --test scripts/release-candidate.test.mjs scripts/build-channel-input.test.mjs scripts/check-publishable-package-manifests.test.mjs
 
   linux-checks:
     needs: classify

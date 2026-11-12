@@ -27,12 +27,12 @@ test("channel input binds every platform to actual archive bytes", () => {
       const sha256 = createHash("sha256").update(readFileSync(path.join(dir, file))).digest("hex");
       writeFileSync(path.join(dir, `${file}.sha256`), `${sha256}  ${file}\n`);
     }
-    const sourceRoot = `runx-cli-v${version}`;
+    const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    const sourceRoot = `runx-${commit}`;
     mkdirSync(path.join(dir, "source", sourceRoot, "crates"), { recursive: true });
     writeFileSync(path.join(dir, "source", sourceRoot, "crates", "Cargo.lock"), "lock");
     const sourceArchive = path.join(dir, "source.tar.gz");
     execFileSync("tar", ["-czf", sourceArchive, "-C", path.join(dir, "source"), sourceRoot]);
-    const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
     const args = [script, "--version", version, "--tag", `cli-v${version}`, "--commit", commit, "--repo", "runxhq/runx", "--archives", dir, "--source-archive", sourceArchive, "--out", path.join(dir, "input.json")];
     execFileSync(process.execPath, args);
     const input = JSON.parse(readFileSync(path.join(dir, "input.json"), "utf8"));
@@ -41,7 +41,7 @@ test("channel input binds every platform to actual archive bytes", () => {
     assert.equal(input.homepage, "https://runx.ai");
     assert.equal(input.homepage, cliManifest.homepage);
     assert.deepEqual(input.source, {
-      url: `https://github.com/runxhq/runx/archive/refs/tags/cli-v${version}.tar.gz`,
+      url: `https://github.com/runxhq/runx/archive/${commit}.tar.gz`,
       sha256: createHash("sha256").update(readFileSync(sourceArchive)).digest("hex"),
       root: sourceRoot,
     });
@@ -52,7 +52,7 @@ test("channel input binds every platform to actual archive bytes", () => {
     const strayArchive = path.join(dir, "stray.tar.gz");
     execFileSync("tar", ["-czf", strayArchive, "-C", path.join(dir, "source", sourceRoot), "crates"]);
     const strayArgs = args.map((arg) => (arg === sourceArchive ? strayArchive : arg));
-    assert.throws(() => execFileSync(process.execPath, strayArgs, { stdio: "pipe" }), /is not the cli-v.* source archive/u);
+    assert.throws(() => execFileSync(process.execPath, strayArgs, { stdio: "pipe" }), /is not the [0-9a-f]+ source archive/u);
     for (const [platform, entry] of Object.entries(topology.nativePackages)) {
       const artifact = input.artifacts[entry.rustTarget];
       assert.equal(artifact.size, readFileSync(path.join(dir, artifact.file)).length);
