@@ -29,6 +29,7 @@ providers:
         content-type: application/json
       body: '{"title":"Unauthorized","detail":"The user credential is no longer valid."}'
 expect:
+  http_request_counts: [1, 1]
   status: sealed
   step_outputs:
     batch1:
