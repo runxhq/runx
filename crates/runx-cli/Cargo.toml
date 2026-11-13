@@ -41,7 +41,7 @@ toml_edit = { workspace = true, features = ["display"] }
 url.workspace = true
 
 [dev-dependencies]
-rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
+rusqlite = { version = "0.41.0", default-features = false, features = ["bundled"] }
 # The crash tests drive a binary with crash points, and count the reads of
 # each stream it recovers; only a test build has either.
 runx-runtime = { workspace = true, features = ["crash-points", "probe-fixtures", "scripted-model"] }
