@@ -183,17 +183,20 @@ try {
       );
     }
     const candidate = readJson(path.resolve(repoRoot, options.candidate));
-    const checks = runtimeQualityChecks(candidate, options.expectedSourceCommit);
+    const scope = options.scope ?? "release";
+    if (scope !== "release" && scope !== "runtime") throw new Error("--scope must be release or runtime");
+    const checks = runtimeQualityChecks(candidate, options.expectedSourceCommit, scope);
     const failed = checks.filter((check) => check.status === "failed");
     process.stdout.write(`${JSON.stringify({
       status: failed.length === 0 ? "passed" : "failed",
+      scope,
       checks,
     }, null, 2)}\n`);
     if (failed.length > 0) {
       process.exitCode = 1;
     }
   } else {
-    throw new Error("Usage: runtime-throughput.mjs <list|capture|check|verify-quality> [--output path] [--baseline path] [--candidate path] [--expected-source-commit sha] [--workloads a,b] [--min-throughput-ratio n] [--max-growth-exponent n] [--max-spawn-count n] [--max-p99-regression n] [--arrival-rate n]");
+    throw new Error("Usage: runtime-throughput.mjs <list|capture|check|verify-quality> [--output path] [--baseline path] [--candidate path] [--expected-source-commit sha] [--scope release|runtime] [--workloads a,b] [--min-throughput-ratio n] [--max-growth-exponent n] [--max-spawn-count n] [--max-p99-regression n] [--arrival-rate n]");
   }
 } catch (error) {
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -1029,9 +1032,11 @@ function everyAt(bySize, sizes, holds) {
   return sizes.every((size) => holds(bySize?.[size]));
 }
 
-function journeyChecks(report) {
+function journeyChecks(report, scope) {
   const measured = report?.journeys ?? {};
-  return journeyBudgets().flatMap(({ journey, name, budgets }) => {
+  // Registry and agent comparisons belong to their owners, not an OSS-only capture.
+  const budgets = journeyBudgets().filter(({ journey }) => scope !== "runtime" || ![6, 8].includes(journey));
+  return budgets.flatMap(({ journey, name, budgets }) => {
     const measurement = measured[String(journey)];
     if (!measurement || typeof measurement !== "object") {
       return [{
@@ -1051,7 +1056,7 @@ function journeyChecks(report) {
   });
 }
 
-function runtimeQualityChecks(report, expectedSourceCommit) {
+function runtimeQualityChecks(report, expectedSourceCommit, scope) {
   const native = report?.workloads?.native_capability_dispatch;
   const session = report?.workloads?.pure_module_session_reuse;
   const measurements = Object.entries(report?.workloads ?? {}).map(([workload, metric]) => {
@@ -1071,7 +1076,7 @@ function runtimeQualityChecks(report, expectedSourceCommit) {
     qualityCheck("session_spawn_count", session?.spawn_count, { expected: 1 }),
     qualityCheck("session_peak_in_flight", session?.peak_in_flight, { expected: 1 }),
     ...measurements,
-    ...journeyChecks(report),
+    ...journeyChecks(report, scope),
   ];
 }
 
@@ -1125,6 +1130,8 @@ function parseArgs(argv) {
       parsed.candidate = requiredValue(argv, ++index, arg);
     } else if (arg === "--expected-source-commit") {
       parsed.expectedSourceCommit = requiredValue(argv, ++index, arg);
+    } else if (arg === "--scope") {
+      parsed.scope = requiredValue(argv, ++index, arg);
     } else if (arg === "--workloads") {
       parsed.workloads = requiredValue(argv, ++index, arg).split(",").filter(Boolean);
     } else if (arg === "--min-throughput-ratio") {

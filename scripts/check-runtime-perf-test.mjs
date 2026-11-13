@@ -61,6 +61,18 @@ try {
   // measurement, and every timing honest about what it is.
   expectPass(runQualityVerification(quality({})), "release-quality evidence with every journey in budget");
 
+  const runtimeJourneys = journeys();
+  delete runtimeJourneys["6"];
+  delete runtimeJourneys["8"];
+  const runtimeOnly = quality({ journeys: runtimeJourneys });
+  const runtimeCheck = runQualityVerification(runtimeOnly, ["--scope", "runtime"]);
+  expectPass(runtimeCheck, "OSS measurements pass only their explicit runtime scope");
+  if (JSON.parse(runtimeCheck.stdout).scope !== "runtime") throw new Error("the report must name its runtime scope");
+  expectFail(runQualityVerification(runtimeOnly), "the default release scope still requires registry and agent evidence", "journey_8");
+  delete runtimeJourneys["5"];
+  expectFail(runQualityVerification(quality({ journeys: runtimeJourneys }), ["--scope", "runtime"]), "runtime scope still requires every runtime journey", "journey_5");
+  expectFail(runQualityVerification(quality({}), ["--scope", "partial"]), "an unknown quality scope", "--scope must be release or runtime");
+
   const growingRegistry = journeys();
   growingRegistry["6"].queries_per_page["1000"] = 4;
   expectFail(runQualityVerification(quality({ journeys: growingRegistry })), "a registry page past its batched read budget", "journey_6.bounded_queries_per_page");
@@ -227,7 +239,7 @@ function runChecks(baselinePath, candidatePath, workload, bounds) {
   );
 }
 
-function runQualityVerification(candidatePath) {
+function runQualityVerification(candidatePath, args = []) {
   return spawnSync(
     "node",
     [
@@ -237,6 +249,7 @@ function runQualityVerification(candidatePath) {
       candidatePath,
       "--expected-source-commit",
       "quality-fixture-commit",
+      ...args,
     ],
     {
       cwd: workspaceRoot,

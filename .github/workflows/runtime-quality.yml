@@ -95,10 +95,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # This capture measures journeys 1–5 and 7. Cloud owns registry 6;
+      # the fixed-task model comparison 8 remains a release-wide requirement.
       - name: Enforce runtime resource budgets
         env:
           EXPECTED_COMMIT: ${{ github.sha }}
         run: |
           node scripts/runtime-throughput.mjs verify-quality \
             --candidate .runx/evidence/runtime-quality.json \
-            --expected-source-commit "$EXPECTED_COMMIT"
+            --expected-source-commit "$EXPECTED_COMMIT" \
+            --scope runtime
