@@ -1789,3 +1789,7 @@ oss	write_sequential_graph_smoke_harness	0	harness,graph	write_sequential_workfl
 oss	write_skill_root_skill_with_runner_inputs	0	runner	write_skill_root_skill_with_method_inputs		
 oss	write_skill_with_runner_inputs	0	runner	write_skill_with_method_inputs		
 oss	writes_runner_manifest	0	runner	writes_method_manifest		
+frantic	frantic-operator-auto-review-holds-without-a-rating	1	hold	frantic-operator-auto-review-holds-without-a-rating	Frantic review abstention or operator custody, not a Runx lease: stays	runx/skills/frantic-operator/tests/auto-review-holds-without-a-rating.yaml
+frantic	old-hold	1	hold	old-hold	Frantic review abstention or operator custody, not a Runx lease: stays	packages/db/src/review-abstention-migration.pg.test.ts
+frantic	operator-held	1	hold	operator-held	Frantic review abstention or operator custody, not a Runx lease: stays	packages/verifier/src/cli.ts
+frantic	unreadBinaryHolds	2	hold	unreadBinaryHolds	Frantic review abstention or operator custody, not a Runx lease: stays	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs
