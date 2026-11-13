@@ -23,7 +23,6 @@ execution evidence may require more evidence; they are not permission to fetch.
 <!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
 - `agent#read`
-- `agent#write`
 
 ## Procedure
 
