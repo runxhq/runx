@@ -286,9 +286,16 @@ jobs:
       - name: Prove Windows process trees and private files
         working-directory: crates
         run: cargo test -p runx-runtime -- windows_ private_file local_key signs_with_the_selected_home_key --test-threads=1 --nocapture
-      - name: Prove atomic registry publication and file access
+      - name: Prove connector installation and immutable versions
         working-directory: crates
-        run: cargo test -p runx-runtime --lib registry::local::util::tests -- --test-threads=1
+        run: |
+          $tests = cargo test -p runx-runtime --test integration registry_connector_install:: -- --list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tests
+          if (-not ($tests -match '^registry_connector_install::.+: test$')) {
+            throw "connector installation test filter matched no cases"
+          }
+          cargo test -p runx-runtime --test integration registry_connector_install:: -- --test-threads=1
       - name: Prove watchdog timeout semantics
         run: node scripts/test-sweep.mjs --self-test
 

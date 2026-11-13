@@ -6,7 +6,7 @@
       "package": "@runxhq/cli-darwin-arm64",
       "os": "darwin",
       "cpu": "arm64",
-      "host": "macos-14",
+      "host": "macos-15",
       "rustTarget": "aarch64-apple-darwin",
       "archiveExtension": "tar.gz",
       "binary": "bin/runx",

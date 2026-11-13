@@ -66,10 +66,12 @@ test("platform-sensitive runtime fixtures run the Windows compilation proof", ()
   }
 });
 
-test("registry publication runs its Windows filesystem regressions", () => {
-  const result = classifyFiles(["crates/runx-runtime/src/registry/local/util.rs"], core);
-  assert.equal(result.full, true);
-  assert.equal(result.windows, true);
+test("registry installation runs its Windows filesystem regressions", () => {
+  for (const file of ["crates/runx-runtime/src/registry/install.rs", "crates/runx-runtime/src/registry/connector_install.rs", "crates/runx-runtime/tests/registry_install.rs", "crates/runx-runtime/tests/registry_connector_install.rs"]) {
+    const result = classifyFiles([file], core);
+    assert.equal(result.full, true, file);
+    assert.equal(result.windows, true, file);
+  }
 });
 
 test("release tooling alone runs its own checks, not the runtime corpus", () => {
