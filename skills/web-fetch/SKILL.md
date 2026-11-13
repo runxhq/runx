@@ -106,19 +106,18 @@ receipt-safe evidence.
 
 ```yaml
 provider_operation:
-  data:
-    provider: web
-    operation: page.read
-    result:
-      final_url: string            # URL after redirects, the one the digest is over
-      status: number               # HTTP status of the final response
-      content_digest: string       # digest of the body, algorithm prefix included
-      extract_mode: text | metadata | links | json
-      extracted: string | object | array   # text, metadata object, hrefs, or the JSON document
-      provenance:
-        fetched_at: string         # timestamp of the fetch
-        redirects: array           # ordered hops, each re-checked against the allowlist
-        bytes: number              # bytes read
+  provider: web
+  operation: page.read
+  result:
+    final_url: string            # URL after redirects, the one the digest is over
+    status: number               # HTTP status of the final response
+    content_digest: string       # digest of the body, algorithm prefix included
+    extract_mode: text | metadata | links | json
+    extracted: string | object | array   # text, metadata object, hrefs, or the JSON document
+    provenance:
+      fetched_at: string         # timestamp of the fetch
+      redirects: array          # ordered hops, each re-checked against the allowlist
+      bytes: number             # bytes read
 ```
 
 The sealed `runx.receipt.v1` carries the final URL, status, `content_digest`,
