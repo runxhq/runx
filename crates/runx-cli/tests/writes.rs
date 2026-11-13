@@ -253,7 +253,7 @@ fn waiting_approval(outcome: &Value) -> Option<&Value> {
 
 fn post() -> Value {
     json!({
-        "idempotency_key": "6f0d3c8e-2b1a-4c5d-9e7f-0a1b2c3d4e5f",
+        "idempotency_key": "00000000-0000-4000-8000-000000000001",
         "input": {"channel_locator": "slack://T123/C456", "text": "A declared approval."},
     })
 }
