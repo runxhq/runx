@@ -91,6 +91,7 @@ mod tests {
     }
 
     /// The issuer a receipt sealed by `receipts` names.
+    #[cfg(unix)]
     fn sealed_issuer(
         receipts: &ReceiptServices,
     ) -> Result<runx_contracts::ReceiptIssuer, crate::RuntimeError> {
