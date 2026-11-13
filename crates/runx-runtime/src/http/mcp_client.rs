@@ -1,10 +1,8 @@
-// Module rationale: rmcp's reqwest client reads a POST's JSON body whole with no
-// ceiling, so a remote MCP server could answer one call with unbounded bytes.
-// This client sends each POST itself and reads its body through the same
-// bounded reader as every other response; it follows rmcp 3.3.0's POST
-// semantics, which the exact version pin holds still. GET streams and session
-// deletes stay rmcp's, whose events are bounded by the transport's
-// `max_sse_event_size`.
+// Module rationale: MCP POST bodies obey Runx's configured response ceiling,
+// which may be smaller than rmcp's fixed transport ceiling. Read each POST
+// through the same bounded reader as other guarded HTTP responses. GET streams
+// and session deletes stay upstream-owned; GET event limits are passed through
+// explicitly.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -29,7 +27,7 @@ use sse_stream::SseStream;
 
 use super::read_response_body;
 
-/// The guarded client, with every MCP response body bounded by `limit`.
+/// The guarded client, with POST bodies and stream events bounded by `limit`.
 #[derive(Clone)]
 pub(crate) struct BoundedMcpClient {
     pub(super) client: reqwest::Client,
