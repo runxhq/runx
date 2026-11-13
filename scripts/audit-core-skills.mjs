@@ -42,6 +42,7 @@ try {
     process.stdout.write(
       `core skill audit ${report.status}: ${report.summary.reviewed}/${report.summary.runx_maintained} reviewed\n`,
     );
+    for (const finding of report.findings) process.stderr.write(`${finding}\n`);
   }
   if (report.status !== "passed") process.exitCode = 1;
 } catch (error) {

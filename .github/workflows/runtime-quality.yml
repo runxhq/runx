@@ -64,7 +64,7 @@ jobs:
 
       - name: Audit official skills and receipt ownership
         run: |
-          pnpm core-skills:audit
+          node scripts/audit-core-skills.mjs --check
           pnpm canonical:check
 
       - name: Audit Rust dependency advisories
@@ -72,7 +72,10 @@ jobs:
 
       - name: Exercise runtime stress boundaries
         run: |
+          set -euo pipefail
+          pnpm --silent run stress:runtime:mcp --list | grep ': test$'
           pnpm stress:runtime:mcp
+          pnpm --silent run stress:runtime:process-tool --list | grep ': test$'
           pnpm stress:runtime:process-tool
 
       - name: Verify performance test
