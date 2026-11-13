@@ -93,11 +93,11 @@
     "@runxhq/client": "workspace:^",
     "@runxhq/contracts": "workspace:*",
     "@types/node": "^26.6.5",
-    "@x402/core": "2.29.0",
+    "@x402/core": "2.30.0",
     "ajv": "^8.20.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5",
+    "vite": "^8.3.7",
     "vitest": "^4.1.12"
   }
 }
