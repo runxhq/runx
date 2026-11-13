@@ -292,18 +292,18 @@ authoring.
   turn `fixtures/` into a second source tree or include unconsumed helpers.
 - Put every typed output and packet contract on the step that actually produces
   it: an output with a `packet` is kept as an artifact of that packet, and
-  `result_as` names the output the whole result becomes. A composed method is
-  composition and its receipt proves that composition; it must not restate its
-  steps' outputs in a second method-level `outputs` contract with ambiguous
-  ownership. Every composed method declares `result_from` as the intentional
-  public result boundary. Name the final provider readback or
-  package/finalize step, not every leaf: approvals, evidence gathering, and
-  intermediate writes remain available in operator context and receipts without
-  polluting the result. Multiple producers are valid only for mutually exclusive
-  branches or when their distinct contracts are intentionally returned together;
-  simultaneous producers may not emit the same key. When a workflow needs one
-  public result, end it with an explicit package/finalize step and let that
-  producer own the packet schema.
+  `result_as` names the output the whole result becomes. A composed method
+  declares `result_from` as its intentional public result boundary. Native
+  aggregation combines distinct named outputs from successful producers;
+  skipped branches contribute nothing and duplicate names fail. Use this to
+  return a domain report alongside native operation evidence without a worker
+  that only joins or wraps those values. Method `outputs` may narrow the
+  selected producers to public fields, excluding private control values; reuse
+  packet references rather than copying their schemas. An omitted optional
+  operation output means that branch did not produce an operation result.
+  Approvals and other intermediate evidence remain in operator context and
+  receipts. A final domain computation is justified when it interprets evidence
+  or derives a meaningful result, not merely to reshape native contracts.
 - Add executable code only for irreducible deterministic domain computation.
   Explain its domain boundary and why native tools plus a declarative workflow
   cannot express it. Do not add code merely to transform Runx contracts.

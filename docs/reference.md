@@ -1143,6 +1143,12 @@ transport output is never an implicit workflow result. An output with a
 `packet` is kept as an artifact of that packet, and `result_as` names the
 output a step's whole result becomes, with its packet on that output.
 
+A method's optional `outputs` narrows those producers to its declared public
+fields and validates the result. Use it to exclude private control values while
+returning a domain report and native operation evidence directly; a worker that
+only joins those values is unnecessary. Declare a conditional operation's output
+`optional: true` when its branch can be skipped.
+
 A package's tests live in `tests/<name>.yaml`, one test each, and the data they
 read under `fixtures/`. The package should contain only the files the skill
 uses at execution time: `SKILL.md`, `run.yaml`, deterministic method modules,
