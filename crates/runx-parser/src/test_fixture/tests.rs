@@ -3,6 +3,35 @@
 use super::*;
 
 #[test]
+fn output_expectations_preserve_explicit_null() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = parse_test_fixture("name: null-result\nexpect:\n  output: {exact: null}\n")?;
+    let expected = TestJsonExpectation::Exact {
+        exact: JsonValue::Null,
+    };
+    assert_eq!(fixture.expect.output.as_ref(), Some(&expected));
+    assert_eq!(
+        serde_json::to_value(expected)?,
+        serde_json::json!({"exact": null})
+    );
+    Ok(())
+}
+
+#[test]
+fn every_json_expectation_requires_exactly_one_mode() {
+    for invalid in ["{}", "{exact: 1, subset: 1}"] {
+        for fixture in [
+            format!("name: output\nexpect:\n  output: {invalid}\n"),
+            format!("name: step\nexpect:\n  step_outputs:\n    work: {invalid}\n"),
+            format!(
+                "name: turn\nhost:\n  turns:\n    work:\n      calls:\n        - tool: data.echo\n          expect: {invalid}\n      output: {{}}\nexpect:\n  status: sealed\n"
+            ),
+        ] {
+            assert!(parse_test_fixture(&fixture).is_err(), "{fixture}");
+        }
+    }
+}
+
+#[test]
 fn validates_receipt_and_output_expectations() -> Result<(), TestFixtureError> {
     let fixture = parse_test_fixture(
         r#"

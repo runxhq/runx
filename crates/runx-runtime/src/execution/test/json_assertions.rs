@@ -8,15 +8,15 @@ pub(crate) fn assert_json_expectation(
     actual: &JsonValue,
     field: &str,
 ) -> Result<(), TestReplayError> {
-    if let Some(expected) = &expectation.exact
-        && expected != actual
-    {
-        return Err(json_mismatch(format!("{field}.exact"), expected, actual));
+    match expectation {
+        TestJsonExpectation::Exact { exact } if exact != actual => {
+            Err(json_mismatch(format!("{field}.exact"), exact, actual))
+        }
+        TestJsonExpectation::Exact { .. } => Ok(()),
+        TestJsonExpectation::Subset { subset } => {
+            assert_json_subset(subset, actual, &format!("{field}.subset"))
+        }
     }
-    if let Some(expected) = &expectation.subset {
-        assert_json_subset(expected, actual, &format!("{field}.subset"))?;
-    }
-    Ok(())
 }
 
 fn assert_json_subset(
@@ -31,7 +31,13 @@ fn assert_json_subset(
             };
             for (key, expected_value) in expected_object {
                 let path = format!("{field}.{key}");
-                let actual_value = actual_object.get(key).unwrap_or(&JsonValue::Null);
+                let Some(actual_value) = actual_object.get(key) else {
+                    return Err(TestReplayError::Mismatch {
+                        field: path,
+                        expected: json_value_text(expected_value),
+                        actual: "<missing>".to_owned(),
+                    });
+                };
                 assert_json_subset(expected_value, actual_value, &path)?;
             }
             Ok(())
@@ -40,7 +46,7 @@ fn assert_json_subset(
             let JsonValue::Array(actual_values) = actual else {
                 return Err(json_mismatch(field.to_owned(), expected, actual));
             };
-            if expected_values.len() > actual_values.len() {
+            if expected_values.len() != actual_values.len() {
                 return Err(json_mismatch(field.to_owned(), expected, actual));
             }
             for (index, expected_value) in expected_values.iter().enumerate() {
@@ -84,14 +90,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn subset_arrays_match_ordered_object_prefixes() -> Result<(), Box<dyn std::error::Error>> {
-        let expected = serde_json::from_value(serde_json::json!([{"id": "first"}]))?;
+    fn exact_null_is_an_assertion_not_an_absent_mode() {
+        let expected = TestJsonExpectation::Exact {
+            exact: JsonValue::Null,
+        };
+        assert!(assert_json_expectation(&expected, &JsonValue::Null, "expect.output").is_ok());
+        assert!(
+            assert_json_expectation(&expected, &JsonValue::Bool(false), "expect.output").is_err()
+        );
+    }
+
+    #[test]
+    fn subset_arrays_match_each_object_without_ignoring_extra_items()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let expected = serde_json::from_value(serde_json::json!([
+            {"id": "first"},
+            {"id": "second"}
+        ]))?;
         let actual = serde_json::from_value(serde_json::json!([
             {"id": "first", "status": "closed"},
             {"id": "second", "status": "closed"}
         ]))?;
 
         assert!(assert_json_subset(&expected, &actual, "expect.output.subset").is_ok());
+        let prefix = serde_json::from_value(serde_json::json!([{"id": "first"}]))?;
+        assert!(assert_json_subset(&prefix, &actual, "expect.output.subset").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn an_empty_array_asserts_there_are_no_items() -> Result<(), Box<dyn std::error::Error>> {
+        let expected = serde_json::from_value(serde_json::json!([]))?;
+        let empty = serde_json::from_value(serde_json::json!([]))?;
+        let nonempty = serde_json::from_value(serde_json::json!([{"effect": "sent"}]))?;
+
+        assert!(assert_json_subset(&expected, &empty, "expect.output.subset").is_ok());
+        assert!(assert_json_subset(&expected, &nonempty, "expect.output.subset").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn an_explicit_null_requires_the_field_to_exist() -> Result<(), Box<dyn std::error::Error>> {
+        let expected = serde_json::from_value(serde_json::json!({"proposal": null}))?;
+        let present = serde_json::from_value(serde_json::json!({"proposal": null}))?;
+        let absent = serde_json::from_value(serde_json::json!({}))?;
+
+        assert!(assert_json_subset(&expected, &present, "expect.output.subset").is_ok());
+        assert!(matches!(
+            assert_json_subset(&expected, &absent, "expect.output.subset"),
+            Err(TestReplayError::Mismatch { actual, .. }) if actual == "<missing>"
+        ));
         Ok(())
     }
 

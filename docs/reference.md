@@ -1388,9 +1388,12 @@ A test names the `method` it runs, the package's default when absent, and
 under `fixtures/` is staged whole into each test's workspace, with
 `fixtures/bin/` executable.
 
-Tests can assert the terminal status, receipt identity and lineage, exact or
-subset output, ordered steps, and exact or subset output for named steps.
-Prefer semantic subsets over complete snapshots:
+Use `expect.output` to assert the method's public result. Object subsets allow
+additional fields; arrays must have the same length and order, and each object
+inside can be a subset. An empty array asserts there are no items. An explicit
+null requires the field to exist with that value.
+Choose exactly one comparison, `exact` or `subset`; `exact: null` is a valid
+expectation of a null result.
 
 ```yaml
 expect:
@@ -1398,16 +1401,17 @@ expect:
   receipt:
     schema: runx.receipt.v1
     child_receipt_count: 2
-  steps:
-    - classify
-    - act
-  step_outputs:
-    act:
-      subset:
-        action_packet:
-          data:
+  output:
+    subset:
+      delivery:
         status: awaiting_approval
+        sent: false
 ```
+
+`expect.steps` and `expect.step_outputs` inspect execution details. Use them
+when step order or an intermediate operation is the behavior being tested,
+such as proving a refused write was never dispatched. Ordinary output tests
+should not depend on internal step names.
 
 A receipt-dependent test may seed a bounded set of existing receipts from
 its own package:

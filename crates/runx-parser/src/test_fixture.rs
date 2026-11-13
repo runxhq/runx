@@ -269,11 +269,11 @@ pub struct TestExpectation {
     pub step_outputs: BTreeMap<String, TestJsonExpectation>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TestJsonExpectation {
-    pub exact: Option<JsonValue>,
-    pub subset: Option<JsonValue>,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum TestJsonExpectation {
+    Exact { exact: JsonValue },
+    Subset { subset: JsonValue },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -791,32 +791,9 @@ fn validate_expectation(
             .transpose()?,
         steps: expectation.steps,
         http_request_counts: expectation.http_request_counts,
-        output: expectation
-            .output
-            .map(|expectation| validate_json_expectation(expectation, "expect.output"))
-            .transpose()?,
-        step_outputs: expectation
-            .step_outputs
-            .into_iter()
-            .map(|(step_id, expectation)| {
-                let field = format!("expect.step_outputs.{step_id}");
-                validate_json_expectation(expectation, &field)
-                    .map(|expectation| (step_id, expectation))
-            })
-            .collect::<Result<_, _>>()?,
+        output: expectation.output,
+        step_outputs: expectation.step_outputs,
     })
-}
-
-fn validate_json_expectation(
-    expectation: TestJsonExpectation,
-    field: &str,
-) -> Result<TestJsonExpectation, TestFixtureError> {
-    if expectation.exact.is_none() && expectation.subset.is_none() {
-        return Err(TestFixtureError::Required {
-            field: format!("{field}.exact or {field}.subset"),
-        });
-    }
-    Ok(expectation)
 }
 
 fn validate_receipt_expectation(
