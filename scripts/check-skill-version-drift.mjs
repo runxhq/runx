@@ -69,9 +69,7 @@ function checkCurrentCatalog() {
     const profile = result.value;
     currentProfiles.set(document.skill, profile);
     if (!isSemver(profile?.version)) {
-      findings.push(`skills/${document.skill}/run.yaml: version must be quoted semantic version x.y.z`);
-    } else if (!document.source.split("\n").some((line) => line === `version: "${profile.version}"`)) {
-      findings.push(`skills/${document.skill}/run.yaml: version must be quoted as "${profile.version}"`);
+      findings.push(`skills/${document.skill}/run.yaml: version must be semantic version x.y.z`);
     }
     const unstated = methodsWithoutPurpose(profile);
     if (unstated.length > 0) {
@@ -207,9 +205,15 @@ function loadBaseProfiles(base, skills) {
     } catch {
       return [];
     }
-    const version = /^version: "(\d+\.\d+\.\d+)"$/mu.exec(source)?.[1];
+    const version = sourceVersion(source);
     return version ? [[skill, { version }]] : [];
   }));
+}
+
+// Historical profiles need only their literal version, not validation under
+// today's method schema. All three YAML string styles carry the same label.
+function sourceVersion(source) {
+  return /^version:[ \t]+(["']?)(\d+\.\d+\.\d+)\1(?:[ \t]+#.*)?[ \t]*$/mu.exec(source)?.[2];
 }
 
 function resolveBase() {
@@ -249,6 +253,11 @@ function runSelfTests() {
   assert(versionFinding("same", "0.1.0", "0.1.0", ["skills/same/SKILL.md"]) !== null, "unchanged version fails");
   assert(versionFinding("bumped", "0.1.0", "0.1.1", ["skills/bumped/SKILL.md"]) === null, "increased version passes");
   assert(versionFinding("corrected", "1.0.0", "0.7.0", ["skills/corrected/run.yaml"]) === null, "corrected prerelease label passes");
+  for (const source of ['version: "0.2.13"', "version: '0.2.13'", "version: 0.2.13", "version: 0.2.13 # current"]) {
+    const version = sourceVersion(source);
+    assert(version === "0.2.13", "literal version styles retain their label");
+    assert(versionFinding("same", version, "0.2.13", ["skills/same/run.yaml"]) !== null, "an unquoted base cannot bypass drift");
+  }
   assert(methodsWithoutPurpose({ methods: { only: {} } }).length === 0, "a skill's only method needs no purpose of its own");
   assert(
     methodsWithoutPurpose({ methods: { read: { description: "Read it." }, write: {}, blank: { description: " " } } })
