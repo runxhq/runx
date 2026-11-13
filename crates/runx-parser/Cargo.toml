@@ -19,7 +19,7 @@ include = ["Cargo.toml", "README.md", "src/**/*.rs"]
 workspace = true
 
 [dependencies]
-jsonschema = { version = "0.56.0", default-features = false }
+jsonschema = { version = "0.60.2", default-features = false }
 runx-contracts.workspace = true
 runx-core.workspace = true
 regex.workspace = true

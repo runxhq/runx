@@ -28,7 +28,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 criterion = "0.8.2"
-jsonschema = { version = "0.56.0", default-features = false }
+jsonschema = { version = "0.60.2", default-features = false }
 ring = "0.17.14"
 
 [lib]

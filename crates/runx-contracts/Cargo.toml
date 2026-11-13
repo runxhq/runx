@@ -23,7 +23,7 @@ name = "runx_contracts"
 path = "src/lib.rs"
 
 [dependencies]
-jsonschema = { version = "0.56.0", default-features = false }
+jsonschema = { version = "0.60.2", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 serde_path_to_error.workspace = true
