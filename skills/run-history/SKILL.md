@@ -30,7 +30,11 @@ evidence is available for grant review; actual usage and policy semantics are st
   `period`/`as_of` for replay; time filtering belongs to `run.list`, not a second
   JavaScript history engine. Skill scope is applied before the replay limit,
   preserving the original supplied order.
-- Empty history returns `needs_more_evidence` rather than a healthy verdict.
+- Empty history or a native list containing unreadable records returns
+  `needs_more_evidence`. Unreadable run ids, update times and reasons remain in
+  `runs.unreadable`; they count toward the native limit and are excluded from
+  outcome rates. Native skill/time filters cannot attribute unreadable records
+  to a narrower selection, so filtered reports do not establish their absence.
 - `completed_rate` is the share of sealed runs whose outcome is `completed`.
 - `refusal_rate` counts sealed runs that were `blocked` or `declined`. It is
   reported as an observation, not automatically treated as a defect.

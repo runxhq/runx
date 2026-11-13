@@ -199,7 +199,7 @@
     },
     {
       "id": "runx/run-history.report.v1",
-      "digest": "sha256:b8f8e3e25f7176218dd3c5de11b1d31848cabfc6031f42194936e762ab66e500"
+      "digest": "sha256:732157cc8045216d54a7636c598b5eb6131e62407ff88d28a5fb1ae998293248"
     },
     {
       "id": "runx/sbom-generate.inventory.v1",

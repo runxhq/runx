@@ -22,24 +22,24 @@ inputs:
       test_cases: 0
 expect:
   status: sealed
-  step_outputs:
-    finalize-replay:
-      subset:
-        history_report:
-          schema: runx/run-history.report.v1
-          decision: ready
-          catalog:
-            entry_count: 2
-            tested_entry_count: 1
-            untested_entry_count: 1
-            coverage_rate: 0.5
-          runs:
-            terminal_count: 2
-            pending_count: 0
-            completed_rate: 0.5
-            refusal_rate: 0.5
-          sources:
-            history: supplied_replay
-            catalog: supplied_replay
   receipt:
     schema: runx.receipt.v1
+  output:
+    subset:
+      history_report:
+        schema: runx/run-history.report.v1
+        decision: ready
+        catalog:
+          entry_count: 2
+          tested_entry_count: 1
+          untested_entry_count: 1
+          coverage_rate: 0.5
+        runs:
+          terminal_count: 2
+          pending_count: 0
+          completed_rate: 0.5
+          refusal_rate: 0.5
+          unreadable: []
+        sources:
+          history: supplied_replay
+          catalog: supplied_replay

@@ -5,5 +5,15 @@ inputs:
   catalog_items: []
 expect:
   status: sealed
+  output:
+    subset:
+      history_report:
+        decision: needs_more_evidence
+        runs:
+          terminal_count: 0
+          pending_count: 0
+          unreadable: []
+          completed_rate: null
+          refusal_rate: null
   receipt:
     schema: runx.receipt.v1

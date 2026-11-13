@@ -1,4 +1,4 @@
-version: "0.2.13"
+version: 0.2.13
 minimum_runx: 0.12.0
 catalog:
   visibility: public
@@ -94,7 +94,53 @@ methods:
           module: run-history.mjs
           export: prepareHistory
         outputs:
-          history_context: {type: object}
+          history_context:
+            type: object
+            additionalProperties: false
+            required:
+              - objective
+              - scope
+              - skill_filter
+              - period
+              - since
+              - lookback
+              - as_of
+              - limit
+              - path
+            properties:
+              objective:
+                type: string
+                minLength: 1
+              scope:
+                type: string
+              skill_filter:
+                type:
+                  - string
+                  - "null"
+              period:
+                type:
+                  - string
+                  - "null"
+              since:
+                type:
+                  - string
+                  - "null"
+              lookback:
+                type:
+                  - string
+                  - "null"
+              as_of:
+                type:
+                  - string
+                  - "null"
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 1000
+              path:
+                enum:
+                  - live
+                  - replay
       - id: history
         when:
           value: $steps.prepare.history_context.path
@@ -124,8 +170,7 @@ methods:
         outputs:
           history_report:
             type: object
-          history_report_packet: {packet: runx/run-history.report.v1}
-        result_as: history_report_packet
+            packet: runx/run-history.report.v1
         inputs:
           history_context: $steps.prepare.history_context
           run_list: $steps.history.run_list
@@ -146,5 +191,4 @@ methods:
         outputs:
           history_report:
             type: object
-          history_report_packet: {packet: runx/run-history.report.v1}
-        result_as: history_report_packet
+            packet: runx/run-history.report.v1

@@ -42,6 +42,7 @@ export function finalizeHistory(inputs) {
     !prepared.skill_filter || stringValue(name)?.toLowerCase().includes(prepared.skill_filter.toLowerCase());
   const matchingRuns = historyOverride ? listedRuns.filter((row) => matchesSkill(row.skill)) : listedRuns;
   const runs = historyOverride ? matchingRuns.slice(0, prepared.limit) : matchingRuns;
+  const unreadable = historyOverride ? [] : records(record(inputs.run_list).unreadable);
   const sealed = runs.filter((row) => row.state === "sealed");
   const pending = runs.filter((row) => row.state === "paused");
   const filteredCatalog = catalogItems.filter((row) => matchesSkill(row.name));
@@ -50,7 +51,8 @@ export function finalizeHistory(inputs) {
   const refusalCount = (outcomes.blocked || 0) + (outcomes.declined || 0);
   const testedCatalogEntries = filteredCatalog.filter((item) => numberValue(item.fixtures) + numberValue(item.test_cases) > 0).length;
   const untestedCatalogEntries = filteredCatalog.length - testedCatalogEntries;
-  const decision = terminalCount === 0 && pending.length === 0 ? "needs_more_evidence" : "ready";
+  const decision = unreadable.length > 0 || (terminalCount === 0 && pending.length === 0)
+    ? "needs_more_evidence" : "ready";
 
   return {
     history_report: {
@@ -71,6 +73,7 @@ export function finalizeHistory(inputs) {
       runs: {
         terminal_count: terminalCount,
         pending_count: pending.length,
+        unreadable,
         outcomes,
         completed_rate: rate(outcomes.completed || 0, terminalCount),
         refusal_rate: rate(refusalCount, terminalCount),
@@ -82,24 +85,29 @@ export function finalizeHistory(inputs) {
         untested_entry_count: untestedCatalogEntries,
         coverage_rate: rate(testedCatalogEntries, filteredCatalog.length),
       },
-      recommendations: recommendations({ decision, outcomes, refusalCount, untestedCatalogEntries }),
+      recommendations: recommendations({ decision, outcomes, refusalCount, untestedCatalogEntries, unreadableCount: unreadable.length }),
       limitations: [
         "The run list exposes each run's state and sealed outcome, not its execution bodies.",
         "Catalog coverage proves declared fixtures or inline cases, not live provider behavior.",
         "Rates describe only this bounded selection of sealed runs; active states are outside the sealed/paused metrics.",
+        ...(unreadable.length > 0 ? [`${unreadable.length} unreadable run record${unreadable.length === 1 ? " remains" : "s remain"} listed and excluded from outcome rates.`] : []),
+        ...(!historyOverride && (prepared.skill_filter || prepared.period || prepared.as_of) ? ["Native skill/time filters cannot attribute unreadable records to this selection; this report does not establish their absence."] : []),
         ...(historyOverride ? ["Replay preserves the supplied row order and performs no temporal filtering; the source must already have the intended native window."] : []),
-        ...(runs.length >= prepared.limit ? [`The ${prepared.limit}-run bound was reached; older matching runs may be omitted.`] : []),
+        ...(runs.length + unreadable.length >= prepared.limit ? [`The ${prepared.limit}-run bound was reached; older matching runs may be omitted.`] : []),
         ...(prepared.as_of ? [`The native history window ends at ${prepared.as_of}.`] : []),
       ],
     },
   };
 }
 
-function recommendations({ decision, outcomes, refusalCount, untestedCatalogEntries }) {
-  if (decision === "needs_more_evidence") {
+function recommendations({ decision, outcomes, refusalCount, untestedCatalogEntries, unreadableCount }) {
+  if (decision === "needs_more_evidence" && unreadableCount === 0) {
     return [{ lane: "none", action: "Run governed skills before treating an empty ledger as platform health." }];
   }
   const items = [];
+  if (unreadableCount > 0) {
+    items.push({ lane: "none", action: `Inspect the ${unreadableCount} unreadable run record${unreadableCount === 1 ? "" : "s"} with a compatible runtime before relying on this partial history.` });
+  }
   if ((outcomes.failed || 0) > 0 || (outcomes.timed_out || 0) > 0) {
     items.push({ lane: "diagnose-skill-run", action: "Diagnose representative failed or timed-out runs and route bounded fixes through skill-build improve." });
   }
@@ -113,11 +121,12 @@ function recommendations({ decision, outcomes, refusalCount, untestedCatalogEntr
 }
 
 function countBy(rows, keyFor) {
-  return rows.reduce((counts, row) => {
+  const counts = new Map();
+  for (const row of rows) {
     const key = keyFor(row);
-    counts[key] = (counts[key] || 0) + 1;
-    return counts;
-  }, {});
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Object.fromEntries(counts);
 }
 
 function topCounts(rows, keyFor, limit) {
