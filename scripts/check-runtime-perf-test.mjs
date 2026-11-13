@@ -61,6 +61,13 @@ try {
   // measurement, and every timing honest about what it is.
   expectPass(runQualityVerification(quality({})), "release-quality evidence with every journey in budget");
 
+  const growingRegistry = journeys();
+  growingRegistry["6"].queries_per_page["1000"] = 4;
+  expectFail(runQualityVerification(quality({ journeys: growingRegistry })), "a registry page past its batched read budget", "journey_6.bounded_queries_per_page");
+  const growingAggregates = journeys();
+  growingAggregates["6"].queries_with_aggregates_per_page["1000"] = 8;
+  expectFail(runQualityVerification(quality({ journeys: growingAggregates })), "registry aggregate work past its statement budget", "journey_6.bounded_aggregate_queries_per_page");
+
   const withoutMemory = journeys();
   delete withoutMemory["5"];
   expectFail(
@@ -343,7 +350,8 @@ function journeys() {
       index_focus_history_rows_read: 0,
     },
     6: {
-      queries_per_page: { 10: 1, 100: 1, 1000: 1 },
+      queries_per_page: { 10: 3, 100: 3, 1000: 3 },
+      queries_with_aggregates_per_page: { 10: 7, 100: 7, 1000: 7 },
       package_bodies_read: 0,
     },
     7: {

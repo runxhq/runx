@@ -977,7 +977,8 @@ function journeyBudgets() {
       journey: 6,
       name: "The registry",
       budgets: [
-        { id: "one_query_per_page", says: "One query per page, never one per listing, at 10, 100 and 1,000 listings.", holds: (m) => everyAt(m.queries_per_page, ["10", "100", "1000"], (value) => exactly(value, 1)) },
+        { id: "bounded_queries_per_page", says: "At most three statements per page or search, including batched publisher and connector metadata, at 10, 100 and 1,000 listings.", holds: (m) => everyAt(m.queries_per_page, ["10", "100", "1000"], (value) => atMost(value, 3)) },
+        { id: "bounded_aggregate_queries_per_page", says: "At most seven statements with requested count/facets, including their bounded read-only transaction, at every size.", holds: (m) => everyAt(m.queries_with_aggregates_per_page, ["10", "100", "1000"], (value) => atMost(value, 7)) },
         { id: "no_package_body_per_listing", says: "No package body read for a listing.", holds: (m) => exactly(m.package_bodies_read, 0) },
       ],
     },
