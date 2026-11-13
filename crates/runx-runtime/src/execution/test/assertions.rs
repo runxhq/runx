@@ -33,7 +33,7 @@ pub(super) fn assert_expectations(
     if let Some(expected_status) = &output.fixture.expect.status {
         // A run that stopped short for a request the case did not answer
         // names it.
-        let (expected, actual) = (status_name(expected_status), status_name(&output.status));
+        let (expected, actual) = (expected_status.as_str(), output.status.as_str());
         if expected != actual {
             let actual = match output.unanswered.as_slice() {
                 [] => actual.to_owned(),
@@ -97,9 +97,19 @@ pub(crate) fn assert_exchanges_requested(unrequested: &[String]) -> Result<(), T
     })
 }
 
-pub(super) fn status_from_outcome(outcome: &RunOutcome) -> TestExpectedStatus {
+pub(super) fn status_from_outcome(
+    outcome: &RunOutcome,
+    waiting: &[crate::execution::run_record::PendingRequest],
+) -> TestExpectedStatus {
     match outcome {
         RunOutcome::Completed => TestExpectedStatus::Sealed,
+        RunOutcome::Deferred
+            if crate::execution::skill_front::requests_need_approval(
+                waiting.iter().map(|request| &request.value),
+            ) =>
+        {
+            TestExpectedStatus::NeedsApproval
+        }
         RunOutcome::Deferred => TestExpectedStatus::NeedsAgent,
         RunOutcome::Blocked => TestExpectedStatus::PolicyDenied,
         RunOutcome::Declined => TestExpectedStatus::Declined,
@@ -317,17 +327,6 @@ fn assert_equal(
 fn schema_name(schema: &ReceiptSchema) -> &'static str {
     match schema {
         ReceiptSchema::V1 => "runx.receipt.v1",
-    }
-}
-
-pub(crate) fn status_name(status: &TestExpectedStatus) -> &'static str {
-    match status {
-        TestExpectedStatus::Sealed => "sealed",
-        TestExpectedStatus::Failure => "failure",
-        TestExpectedStatus::NeedsAgent => "needs_agent",
-        TestExpectedStatus::PolicyDenied => "policy_denied",
-        TestExpectedStatus::Declined => "declined",
-        TestExpectedStatus::Escalated => "escalated",
     }
 }
 

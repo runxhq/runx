@@ -154,17 +154,11 @@ fn registry_test_cases(tests: &BTreeMap<String, TestFixture>) -> Vec<RegistryTes
         .map(|test| RegistryTestCaseMetadata {
             name: test.name.clone(),
             method: test.method.clone(),
-            expected_status: test.expect.status.as_ref().map(|status| {
-                match status {
-                    runx_parser::test_fixture::TestExpectedStatus::Sealed => "sealed",
-                    runx_parser::test_fixture::TestExpectedStatus::Failure => "failure",
-                    runx_parser::test_fixture::TestExpectedStatus::NeedsAgent => "needs_agent",
-                    runx_parser::test_fixture::TestExpectedStatus::PolicyDenied => "policy_denied",
-                    runx_parser::test_fixture::TestExpectedStatus::Declined => "declined",
-                    runx_parser::test_fixture::TestExpectedStatus::Escalated => "escalated",
-                }
-                .to_owned()
-            }),
+            expected_status: test
+                .expect
+                .status
+                .as_ref()
+                .map(|status| status.as_str().to_owned()),
         })
         .collect()
 }

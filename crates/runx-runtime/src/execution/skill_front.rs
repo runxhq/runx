@@ -865,17 +865,7 @@ fn paused_output(
         .collect::<Vec<_>>();
     // A run that waits only on approvals and purchases needs a person, not
     // an agent.
-    let approvals_only = !requests.is_empty()
-        && requests.iter().all(|request| {
-            matches!(
-                request
-                    .as_object()
-                    .and_then(|request| request.get("kind"))
-                    .and_then(JsonValue::as_str),
-                Some("approval" | "purchase")
-            )
-        });
-    let status = if approvals_only {
+    let status = if requests_need_approval(requests.iter()) {
         "needs_approval"
     } else {
         "needs_agent"
@@ -907,6 +897,24 @@ fn paused_output(
         pending_requests: requests,
         diagnostics: Vec::new(),
     }
+}
+
+/// The public status shared by the live front and fixture replay: a nonempty
+/// request set containing only approvals or purchases needs a person.
+pub(crate) fn requests_need_approval<'a>(
+    requests: impl IntoIterator<Item = &'a JsonValue>,
+) -> bool {
+    let mut requests = requests.into_iter().peekable();
+    requests.peek().is_some()
+        && requests.all(|request| {
+            matches!(
+                request
+                    .as_object()
+                    .and_then(|request| request.get("kind"))
+                    .and_then(JsonValue::as_str),
+                Some("approval" | "purchase")
+            )
+        })
 }
 
 fn request_for_public_loop(request_id: &str, request: JsonValue) -> JsonValue {

@@ -1092,9 +1092,11 @@ infer that requirement from the capability's write-shaped effect.
 
 The host protocol represents every unresolved request with the generic
 `needs_agent` run state. CLI JSON and human output normalize a request set made
-only of approval requests to `needs_approval`; mixed or model-authored request
+only of approval or purchase requests to `needs_approval`; mixed or model-authored request
 sets remain `needs_agent`. Both resume the same sealed checkpoint through
-`runx resume` and neither opens an interactive prompt.
+`runx resume` and neither opens an interactive prompt. Fixture `expect.status`
+uses the same distinction from the recorded pending requests: an approval-only
+stop cannot satisfy `needs_agent`.
 
 The money a payment call moves is derived from its operation's inputs, which
 the connector declares, so a step never states an amount. It is part of the

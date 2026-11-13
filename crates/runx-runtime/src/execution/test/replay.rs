@@ -729,7 +729,7 @@ fn seal_admission_failure(
     )?;
     Ok(TestReplayOutput {
         fixture: fixture.clone(),
-        status: status_from_outcome(&receipt.seal.outcome),
+        status: status_from_outcome(&receipt.seal.outcome, &[]),
         receipt,
         step_receipts: Vec::new(),
         steps: Vec::new(),
@@ -774,6 +774,7 @@ where
         stated_authority(fixture, &target.skill_dir, &options.env)?,
         &target.method.workflow,
     );
+    let log = options.run.clone();
     let runtime = Runtime::new(adapter, options);
     // A case starts as any run does: its scripts' declared operations
     // admitted, then its worker started if its method runs JavaScript. A case
@@ -785,8 +786,20 @@ where
         None => runtime.run_workflow_for_test(&target.skill_dir, workflow, &mut host)?,
     };
     let (replayed_answers, unanswered) = host.finish();
-    let mut output =
-        replay_output_from_workflow(fixture, workflow_run, replayed_answers, unanswered);
+    let waiting = if workflow_run.receipt.seal.outcome == RunOutcome::Deferred {
+        log.waiting().map_err(|error| {
+            RuntimeError::effect_state("reading a test run's pending requests", error.to_string())
+        })?
+    } else {
+        Vec::new()
+    };
+    let mut output = replay_output_from_workflow(
+        fixture,
+        workflow_run,
+        replayed_answers,
+        unanswered,
+        &waiting,
+    );
     if output.skill_output.is_none() {
         output.skill_output = output
             .steps
@@ -982,6 +995,7 @@ fn replay_output_from_workflow(
     workflow_run: WorkflowRun,
     replayed_answers: JsonObject,
     unanswered: Vec<String>,
+    waiting: &[crate::execution::run_record::PendingRequest],
 ) -> TestReplayOutput {
     let result = crate::execution::engine::workflow_terminal_result(&workflow_run).ok();
     let skill_output = result.map(|result| {
@@ -1002,7 +1016,7 @@ fn replay_output_from_workflow(
         .collect::<Vec<_>>();
     TestReplayOutput {
         fixture: fixture.clone(),
-        status: status_from_outcome(&workflow_run.receipt.seal.outcome),
+        status: status_from_outcome(&workflow_run.receipt.seal.outcome, waiting),
         receipt: workflow_run.receipt,
         step_receipts,
         steps: workflow_run.steps,

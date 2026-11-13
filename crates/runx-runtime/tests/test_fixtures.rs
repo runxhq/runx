@@ -7,6 +7,59 @@ use runx_receipts::canonical_receipt_json;
 use runx_runtime::{TestExpectedStatus, load_test_fixture, run_test_fixture};
 
 #[test]
+fn pending_approvals_cannot_pass_as_agent_handoffs() -> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let package = workspace.path();
+    std::fs::create_dir_all(package.join("tests"))?;
+    std::fs::write(
+        package.join("SKILL.md"),
+        "---\nname: pending-requests\ndescription: Test native pending request kinds.\n---\n\n\
+         ## Agent task: think\n\nReturn the bounded answer.\n",
+    )?;
+    std::fs::write(
+        package.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  approve:\n    steps:\n      - id: review\n\
+         \x20       ask: {gate: human-review, reason: Review the test action.}\n\
+         \x20 think:\n    steps:\n      - id: think\n        agent: think\n\
+         \x20       outputs:\n          answer: {type: string}\n",
+    )?;
+    for (method, expected) in [
+        ("approve", TestExpectedStatus::NeedsApproval),
+        ("think", TestExpectedStatus::NeedsAgent),
+    ] {
+        let fixture = package.join("tests/pending.yaml");
+        let status = if method == "approve" {
+            "needs_approval"
+        } else {
+            "needs_agent"
+        };
+        std::fs::write(
+            &fixture,
+            format!("name: pending\nmethod: {method}\nexpect:\n  status: {status}\n"),
+        )?;
+        let output = run_test_fixture(&fixture, Default::default())?;
+        assert_eq!(output.status, expected);
+        assert_eq!(output.receipt.seal.outcome, RunOutcome::Deferred);
+        if method == "approve" {
+            std::fs::write(
+                &fixture,
+                "name: wrong-kind\nmethod: approve\nexpect:\n  status: needs_agent\n",
+            )?;
+            let error = run_test_fixture(&fixture, Default::default())
+                .err()
+                .ok_or("a human approval must not satisfy an agent-handoff expectation")?;
+            assert!(
+                matches!(&error, runx_runtime::TestReplayError::ExpectationFailed(failure)
+                    if failure.message.contains("expect.status")
+                        && failure.message.contains("expected needs_agent, actual needs_approval")),
+                "{error}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn loads_active_test_fixtures() -> Result<(), Box<dyn std::error::Error>> {
     for (path, expected_status, expected_seal_outcome) in [
         (

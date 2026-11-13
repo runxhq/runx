@@ -14,10 +14,26 @@ pub enum TestExpectedStatus {
     Sealed,
     Failure,
     NeedsAgent,
+    NeedsApproval,
     PolicyDenied,
     /// A person declined an approval the run waited on.
     Declined,
     Escalated,
+}
+
+impl TestExpectedStatus {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Sealed => "sealed",
+            Self::Failure => "failure",
+            Self::NeedsAgent => "needs_agent",
+            Self::NeedsApproval => "needs_approval",
+            Self::PolicyDenied => "policy_denied",
+            Self::Declined => "declined",
+            Self::Escalated => "escalated",
+        }
+    }
 }
 
 /// One exact HTTP response available only while the native test executes.
