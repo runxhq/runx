@@ -5,10 +5,9 @@ export function decideListHygiene(inputs) {
   const base = {
     key: inputs.key,
     expected_version: inputs.expected_version,
-    idempotency_key: inputs.idempotency_key,
     observed_state: inputs.consent_evidence.state,
     version: integer(readback.version),
-    chain_digest: string(readback.chain_digest),
+    observed_state_source: "supplied_evidence",
   };
 
   if (!sameKey(readback, base) || readback.operation !== "events.read") {
@@ -50,6 +49,7 @@ export function decideListHygiene(inputs) {
       return noWrite(base, "human_review", "the ledger head is not an exact recognized consent transition", "unrecognized_ledger_state");
     }
     base.observed_state = event.new_state;
+    base.observed_state_source = "native_record";
     if (consent.state !== event.new_state) {
       return noWrite(base, "human_review", "supplied consent state conflicts with the recorded ledger state", "conflicting_consent_state");
     }
@@ -71,7 +71,7 @@ export function decideListHygiene(inputs) {
       base,
       consent.state,
       "suppress",
-      "verified hard-bounce evidence requires suppression",
+      "supplied hard-bounce evidence requires suppression",
       { hard_bounces: engagement.hard_bounces, hard_bounce_action: policy.hard_bounce_action },
     );
   }
@@ -94,61 +94,15 @@ export function decideListHygiene(inputs) {
   return noWrite(base, "verify", "current evidence requires no consent transition", "current_evidence_clean");
 }
 
-export function finalizeListHygiene(inputs) {
-  const plan = object(inputs.decision_plan);
-  const readback = object(inputs.recorded_readback);
-  const last = object(readback.last_event);
-  if (readback.operation !== "key.inspect" || !sameKey(readback, plan)) {
-    throw new Error("ledger readback did not match the planned contact source");
-  }
-
-  const appended = plan.append_allowed === true;
-  const writeResult = object(inputs.write_result);
-  if (appended) {
-    if (!WRITABLE_STATES.has(plan.decision.state)) {
-      throw new Error("only re_permission or suppress may be recorded automatically");
-    }
-    if (!["committed", "replayed"].includes(writeResult.status)) {
-      throw new Error("ledger append did not return a committed transition");
-    }
-    if (!sameKey(writeResult, plan)) {
-      throw new Error("ledger append identity did not match the planned transition");
-    }
-    if (writeResult.before_version !== plan.expected_version || writeResult.version !== plan.expected_version + 1) {
-      throw new Error("ledger append version did not match the planned transition");
-    }
-    if (
-      readback.version !== writeResult.version ||
-      last.type !== plan.event.type ||
-      last.id !== writeResult.event?.id ||
-      last.digest !== writeResult.event?.digest ||
-      readback.chain_digest !== writeResult.chain_digest
-    ) {
-      throw new Error("ledger readback did not prove the exact appended transition");
-    }
-  } else if (
-    readback.version !== plan.version ||
-    readback.chain_digest !== plan.chain_digest
-  ) {
-    throw new Error("ledger changed while evaluating a no-write decision");
-  }
-
+export function finalizeListHygiene({ decision_plan: plan, observed_contact, record }) {
   return {
     list_hygiene_result: {
+      schema: "runx/contact-consent-review.decision.v1",
       decision: plan.decision,
       observed_state: plan.observed_state,
-      recorded_transition: {
-        recorded: appended,
-        state: appended ? plan.decision.state : null,
-        key: plan.key,
-        idempotency_key: appended ? plan.idempotency_key : null,
-        write_status: appended ? writeResult.status : "not_attempted",
-        before_version: plan.version,
-        version: readback.version,
-        event_id: appended ? writeResult.event.id : null,
-        event_digest: appended ? writeResult.event.digest : null,
-        chain_digest: readback.chain_digest,
-      },
+      observed_state_source: plan.observed_state_source,
+      observed_contact,
+      record,
       escalation: plan.decision.state === "human_review"
         ? { lane: "human:list-hygiene-reviewer", reason_code: plan.reason_code, status: "required_before_any_write" }
         : null,
@@ -206,8 +160,4 @@ function object(value) {
 
 function integer(value) {
   return Number.isInteger(value) && value >= 0 ? value : -1;
-}
-
-function string(value) {
-  return typeof value === "string" ? value : "";
 }

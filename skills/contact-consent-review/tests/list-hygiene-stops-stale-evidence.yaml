@@ -17,23 +17,14 @@ inputs:
     evidence_version: 0
 expect:
   status: sealed
-  steps:
-    - read-contact
-    - decide
-    - readback
-    - finalize-unchanged
-  step_outputs:
-    finalize-unchanged:
-      subset:
-        list_hygiene_result:
-          decision:
-            state: human_review
-          recorded_transition:
-            recorded: false
-            write_status: not_attempted
-            version: 0
-          escalation:
-            lane: human:list-hygiene-reviewer
-            status: required_before_any_write
   receipt:
     schema: runx.receipt.v1
+  output:
+    subset:
+      list_hygiene_result:
+        decision:
+          state: human_review
+        escalation:
+          lane: human:list-hygiene-reviewer
+          status: required_before_any_write
+        record: null

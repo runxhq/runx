@@ -194,7 +194,9 @@ The public skills compose the store instead of embedding storage semantics:
   package's stream, under a term naming it, before asking the operator agent to
   propose next actions.
 - `contact-consent-review` reads a contact's key in its own `consent` stream,
-  appends the decided transition and reads the key back.
+  appends an approved transition through the native operation. It preserves
+  the native observation and append packets; the store owns the independent
+  readback, without a package comparing the later head to its append.
 
 Their tests run against the workspace store. The same workflows run against
 Postgres or Redis by confirming a store instance; no skill changes.

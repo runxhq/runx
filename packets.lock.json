@@ -22,6 +22,10 @@
       "digest": "sha256:40d594e472873294ab15460ef096962b6979404a1cdbf1ad955e566b208e3216"
     },
     {
+      "id": "runx/contact-consent-review.decision.v1",
+      "digest": "sha256:917d25fd41474791c08043be77b78eddeda9e4786a080f41c517bafa6a1a0716"
+    },
+    {
       "id": "runx/contract-draft.draft.v1",
       "digest": "sha256:f2ef88e44c032225767001a8608c2c8804d4c34adc4fe6383648faa9d7ab4ce2"
     },

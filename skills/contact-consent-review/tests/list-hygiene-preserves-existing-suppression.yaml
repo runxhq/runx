@@ -17,21 +17,11 @@ inputs:
     evidence_version: 0
 expect:
   status: sealed
-  steps:
-    - read-contact
-    - decide
-    - readback
-    - finalize-unchanged
-  step_outputs:
-    finalize-unchanged:
-      subset:
-        list_hygiene_result:
-          decision:
-            state: suppress
-          recorded_transition:
-            recorded: false
-            state: null
-            write_status: not_attempted
-            version: 0
   receipt:
     schema: runx.receipt.v1
+  output:
+    subset:
+      list_hygiene_result:
+        decision:
+          state: suppress
+        record: null

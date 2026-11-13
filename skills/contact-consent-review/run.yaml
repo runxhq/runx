@@ -1,4 +1,4 @@
-version: "0.1.11"
+version: 0.1.11
 minimum_runx: 0.12.0
 catalog:
   visibility: public
@@ -121,7 +121,6 @@ methods:
         inputs:
           key: $input.key
           expected_version: $input.expected_version
-          idempotency_key: $input.idempotency_key
           engagement_evidence: $input.engagement_evidence
           hygiene_policy: $input.hygiene_policy
           consent_evidence: $input.consent_evidence
@@ -136,22 +135,19 @@ methods:
             required:
               - key
               - expected_version
-              - idempotency_key
               - observed_state
               - version
-              - chain_digest
               - decision
               - reason_code
               - append_allowed
               - event
+              - observed_state_source
             properties:
               key:
                 type: string
               expected_version:
                 type: integer
                 minimum: 0
-              idempotency_key:
-                type: string
               observed_state:
                 type: string
                 enum:
@@ -162,9 +158,6 @@ methods:
               version:
                 type: integer
                 minimum: 0
-              chain_digest:
-                type: string
-                pattern: ^sha256:[0-9a-f]{64}$
               decision:
                 type: object
                 additionalProperties: false
@@ -241,6 +234,10 @@ methods:
                   evidence_version:
                     type: integer
                     minimum: 0
+              observed_state_source:
+                enum:
+                  - supplied_evidence
+                  - native_record
       - id: append-transition
         when:
           value: $steps.decide.decision_plan.append_allowed
@@ -256,279 +253,33 @@ methods:
           expected_version: $input.expected_version
           type: list_hygiene.consent_transitioned
           data: $steps.decide.decision_plan.event
-      - id: readback
-        operation: store/key.inspect
-        inputs:
-          stream: consent
-          key: $input.key
       - id: finalize-written
         when:
           value: $steps.decide.decision_plan.append_allowed
           equals: true
         inputs:
           decision_plan: $steps.decide.decision_plan
-          write_result: $steps.append-transition.provider_operation.result
-          recorded_readback: $steps.readback.provider_operation.result
+          observed_contact: $steps.read-contact.provider_operation
+          record: $steps.append-transition.provider_operation
         tool:
           module: contact-consent-review.mjs
           export: finalizeListHygiene
         outputs:
           list_hygiene_result:
             type: object
-            additionalProperties: false
-            required:
-              - decision
-              - observed_state
-              - recorded_transition
-              - escalation
-              - downstream_send
-            properties:
-              decision:
-                type: object
-                additionalProperties: false
-                required:
-                  - state
-                  - reason
-                properties:
-                  state:
-                    type: string
-                    enum:
-                      - verify
-                      - re_permission
-                      - suppress
-                      - human_review
-                  reason:
-                    type: string
-                    minLength: 1
-                    maxLength: 1000
-              observed_state:
-                type: string
-                enum:
-                  - subscribed
-                  - re_permission
-                  - suppress
-                  - unsubscribed
-              recorded_transition:
-                type: object
-                additionalProperties: false
-                required:
-                  - recorded
-                  - state
-                  - key
-                  - idempotency_key
-                  - write_status
-                  - before_version
-                  - version
-                  - event_id
-                  - event_digest
-                  - chain_digest
-                properties:
-                  recorded:
-                    type: boolean
-                  state:
-                    type:
-                      - string
-                      - "null"
-                    enum:
-                      - re_permission
-                      - suppress
-                      - null
-                  key:
-                    type: string
-                  idempotency_key:
-                    type:
-                      - string
-                      - "null"
-                  write_status:
-                    type: string
-                    enum:
-                      - committed
-                      - replayed
-                      - not_attempted
-                  before_version:
-                    type: integer
-                    minimum: 0
-                  version:
-                    type: integer
-                    minimum: 0
-                  event_id:
-                    type:
-                      - string
-                      - "null"
-                  event_digest:
-                    type:
-                      - string
-                      - "null"
-                  chain_digest:
-                    type: string
-                    pattern: ^sha256:[0-9a-f]{64}$
-              escalation:
-                type:
-                  - object
-                  - "null"
-                additionalProperties: false
-                required:
-                  - lane
-                  - reason_code
-                  - status
-                properties:
-                  lane:
-                    const: human:list-hygiene-reviewer
-                  reason_code:
-                    type: string
-                    minLength: 1
-                    maxLength: 100
-                  status:
-                    const: required_before_any_write
-              downstream_send:
-                type: object
-                additionalProperties: false
-                required:
-                  - skill
-                  - status
-                  - requirement
-                properties:
-                  skill:
-                    type: "null"
-                    description: No delivery skill is selected or executed by this consent decision.
-                  status:
-                    const: not_run
-                  requirement:
-                    type: string
-                    minLength: 1
-                    maxLength: 500
+            packet: runx/contact-consent-review.decision.v1
       - id: finalize-unchanged
         when:
           value: $steps.decide.decision_plan.append_allowed
           equals: false
         inputs:
           decision_plan: $steps.decide.decision_plan
-          recorded_readback: $steps.readback.provider_operation.result
+          observed_contact: $steps.read-contact.provider_operation
+          record: null
         tool:
           module: contact-consent-review.mjs
           export: finalizeListHygiene
         outputs:
           list_hygiene_result:
             type: object
-            additionalProperties: false
-            required:
-              - decision
-              - observed_state
-              - recorded_transition
-              - escalation
-              - downstream_send
-            properties:
-              decision:
-                type: object
-                additionalProperties: false
-                required:
-                  - state
-                  - reason
-                properties:
-                  state:
-                    type: string
-                    enum:
-                      - verify
-                      - re_permission
-                      - suppress
-                      - human_review
-                  reason:
-                    type: string
-                    minLength: 1
-                    maxLength: 1000
-              observed_state:
-                type: string
-                enum:
-                  - subscribed
-                  - re_permission
-                  - suppress
-                  - unsubscribed
-              recorded_transition:
-                type: object
-                additionalProperties: false
-                required:
-                  - recorded
-                  - state
-                  - key
-                  - idempotency_key
-                  - write_status
-                  - before_version
-                  - version
-                  - event_id
-                  - event_digest
-                  - chain_digest
-                properties:
-                  recorded:
-                    type: boolean
-                  state:
-                    type:
-                      - string
-                      - "null"
-                    enum:
-                      - re_permission
-                      - suppress
-                      - null
-                  key:
-                    type: string
-                  idempotency_key:
-                    type:
-                      - string
-                      - "null"
-                  write_status:
-                    type: string
-                    enum:
-                      - committed
-                      - replayed
-                      - not_attempted
-                  before_version:
-                    type: integer
-                    minimum: 0
-                  version:
-                    type: integer
-                    minimum: 0
-                  event_id:
-                    type:
-                      - string
-                      - "null"
-                  event_digest:
-                    type:
-                      - string
-                      - "null"
-                  chain_digest:
-                    type: string
-                    pattern: ^sha256:[0-9a-f]{64}$
-              escalation:
-                type:
-                  - object
-                  - "null"
-                additionalProperties: false
-                required:
-                  - lane
-                  - reason_code
-                  - status
-                properties:
-                  lane:
-                    const: human:list-hygiene-reviewer
-                  reason_code:
-                    type: string
-                    minLength: 1
-                    maxLength: 100
-                  status:
-                    const: required_before_any_write
-              downstream_send:
-                type: object
-                additionalProperties: false
-                required:
-                  - skill
-                  - status
-                  - requirement
-                properties:
-                  skill:
-                    type: "null"
-                    description: No delivery skill is selected or executed by this consent decision.
-                  status:
-                    const: not_run
-                  requirement:
-                    type: string
-                    minLength: 1
-                    maxLength: 500
+            packet: runx/contact-consent-review.decision.v1

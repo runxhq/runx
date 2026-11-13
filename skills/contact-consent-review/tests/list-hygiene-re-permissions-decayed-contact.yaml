@@ -20,25 +20,21 @@ host:
     append-transition: true
 expect:
   status: sealed
-  steps:
-    - read-contact
-    - decide
-    - append-transition
-    - readback
-    - finalize-written
-  step_outputs:
-    finalize-written:
-      subset:
-        list_hygiene_result:
-          decision:
-            state: re_permission
-          recorded_transition:
-            recorded: true
-            state: re_permission
-            write_status: committed
-            version: 1
-          downstream_send:
-            skill: null
-            status: not_run
   receipt:
     schema: runx.receipt.v1
+  output:
+    subset:
+      list_hygiene_result:
+        decision:
+          state: re_permission
+        downstream_send:
+          skill: null
+          status: not_run
+        record:
+          schema: runx.provider.operation.v1
+          provider: store
+          operation: events.append
+          finality: confirmed
+          result:
+            status: committed
+            version: 1

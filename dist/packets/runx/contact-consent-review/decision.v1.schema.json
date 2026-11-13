@@ -1,0 +1,168 @@
+{
+  "type": "object",
+  "required": [
+    "schema",
+    "decision",
+    "observed_state",
+    "observed_state_source",
+    "observed_contact",
+    "record",
+    "escalation",
+    "downstream_send"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "runx/contact-consent-review.decision.v1"
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reason"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "verify",
+            "re_permission",
+            "suppress",
+            "human_review"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "observed_state": {
+      "type": "string",
+      "enum": [
+        "subscribed",
+        "re_permission",
+        "suppress",
+        "unsubscribed"
+      ]
+    },
+    "observed_state_source": {
+      "enum": [
+        "supplied_evidence",
+        "native_record"
+      ]
+    },
+    "observed_contact": {
+      "allOf": [
+        {
+          "$ref": "https://schemas.runx.ai/runx/provider/operation/v1.json"
+        },
+        {
+          "type": "object",
+          "required": [
+            "provider",
+            "operation",
+            "result"
+          ],
+          "properties": {
+            "provider": {
+              "const": "store"
+            },
+            "operation": {
+              "const": "events.read"
+            },
+            "result": {
+              "$ref": "https://schemas.runx.ai/runx/store/result/v1.json"
+            }
+          }
+        }
+      ]
+    },
+    "record": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "https://schemas.runx.ai/runx/provider/operation/v1.json"
+            },
+            {
+              "type": "object",
+              "required": [
+                "provider",
+                "operation",
+                "result"
+              ],
+              "properties": {
+                "provider": {
+                  "const": "store"
+                },
+                "operation": {
+                  "const": "events.append"
+                },
+                "result": {
+                  "$ref": "https://schemas.runx.ai/runx/store/result/v1.json"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "escalation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "lane",
+        "reason_code",
+        "status"
+      ],
+      "properties": {
+        "lane": {
+          "const": "human:list-hygiene-reviewer"
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "status": {
+          "const": "required_before_any_write"
+        }
+      }
+    },
+    "downstream_send": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skill",
+        "status",
+        "requirement"
+      ],
+      "properties": {
+        "skill": {
+          "type": "null",
+          "description": "No delivery skill is selected or executed by this consent decision."
+        },
+        "status": {
+          "const": "not_run"
+        },
+        "requirement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/contact-consent-review/decision/v1.json",
+  "x-runx-packet-id": "runx/contact-consent-review.decision.v1"
+}

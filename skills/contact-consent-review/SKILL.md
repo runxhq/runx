@@ -9,7 +9,8 @@ Use this skill after collecting current contact evidence and before preparing a
 campaign. It decides whether a contact remains eligible, needs re-permission,
 must be suppressed, or needs human review. When policy justifies a state
 transition, it records that decision in the operator's consent ledger with
-optimistic concurrency and verifies the exact event through a second read.
+optimistic concurrency. The native operation owns atomic commit, independent
+readback and completed-key recovery.
 
 This skill never sends a message and never mutates a mailing provider. The operator-selected mail delivery capability must read the current ledger
 decision and provider unsubscribe/bounce state again at delivery time. This
@@ -35,7 +36,7 @@ The deterministic decision order is conservative:
 
 1. An unsubscribe marker stops automation.
 2. An existing suppression is preserved; age alone can never relax it.
-3. Verified hard-bounce evidence suppresses when policy permits that automatic
+3. Supplied hard-bounce evidence suppresses when policy permits that automatic
    action, otherwise it stops for review.
 4. A subscribed contact whose last engagement exceeds the decay threshold is
    moved to `re_permission`.
@@ -45,11 +46,10 @@ Only `re_permission` and `suppress` can create transitions. A transition
 decides whether a person can be sent to, so its append waits on a person's
 approval of the exact event (`consent_transition`), whatever the run's
 `effects`. The append uses the observed ledger version and the caller's stable
-idempotency key. Readback must
-match the append status, the contact's key, new version, event reference, event
-digest, and chain digest before the result reports a recorded transition.
-No-write decisions also perform a second read and require the key to remain
-unchanged.
+idempotency key. The public record is the complete native operation packet;
+a later head is not compared to the appended event. No-write decisions return
+the actual initial observation and perform no second read. Observations are
+snapshots, not locks or promises that state remained unchanged.
 
 ## Authority and finality
 
@@ -58,10 +58,18 @@ the append requires `store.append`. These scopes authorize a bounded consent-led
 they do not authorize delivery or changes to a CRM or mailing provider. The
 store instance owns storage and credentials.
 
-A sealed result proves the ledger reads and any exact recorded transition. It
-does not prove provider state, re-subscription, campaign approval, or delivery.
-Every result therefore keeps `downstream_send.status` at `not_run` and leaves
-`downstream_send.skill` null: this review neither selects nor executes a sender.
+A completed method can return a native version/idempotency conflict without
+recording a transition. Inspect `record.result`, not the policy recommendation,
+to determine the storage outcome. A repeated completed key returns the original
+act: `record.already_done` preserves its receipt and plan even if later inputs
+propose a different state. This skill does not relabel that original record
+with the current proposal's state.
+
+The supplied engagement/consent snapshot is not independently verified provider
+evidence. `observed_state_source` distinguishes supplied evidence from a
+recognized native record. Every result keeps `downstream_send.status` at
+`not_run` and leaves `downstream_send.skill` null. Neither a stored policy
+recommendation nor a sealed receipt proves campaign approval or delivery.
 
 ## Decisions and recovery
 
@@ -73,11 +81,11 @@ Every result therefore keeps `downstream_send.status` at `not_run` and leaves
 - `human_review`: evidence or policy cannot safely support automation. Nothing
   is appended.
 
-If the ledger version changes before the decision, run again with a fresh read
-and fresh evidence. Reuse an idempotency key only for the identical transition.
-The method deliberately makes no claim that a post-commit retry can recover
-from the old expected version; inspect the receipt and current ledger before
-deciding whether another operation is needed.
+If the ledger version changes, refresh the observation and evidence. Reuse a
+key only for the same intended act; a distinct transition needs a new key.
+The existing state checks may instead return a no-write review when stale
+inputs are retried. Read the current native record and any original receipt
+before deciding whether another transition is needed.
 
 ## Inputs and result
 
@@ -86,7 +94,7 @@ bounce policy, and current consent evidence. Counts must be non-negative and
 the policy threshold must be between 1 and 3,650 days.
 
 The result preserves the decision and reason, the observed consent state, the
-readback-bound transition identity when one was written, a human escalation
+native `observed_contact` and optional `record` operation packets, a human escalation
 only when review is required, and the untouched downstream send boundary.
 
 ## Agent rules

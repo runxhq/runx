@@ -5,13 +5,11 @@ host:
     record-suppression#append-transition: true
 expect:
   status: sealed
-  step_outputs:
-    review-again:
-      subset:
-        list_hygiene_result:
-          decision:
-            state: human_review
-          observed_state: suppress
-          recorded_transition:
-            recorded: false
-            version: 1
+  output:
+    subset:
+      list_hygiene_result:
+        decision:
+          state: human_review
+        observed_state: suppress
+        record: null
+        observed_state_source: native_record
