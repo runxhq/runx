@@ -25,4 +25,6 @@ expect:
         decision:
           state: verify
         escalation: null
-        record: null
+  steps:
+    - read-contact
+    - decide

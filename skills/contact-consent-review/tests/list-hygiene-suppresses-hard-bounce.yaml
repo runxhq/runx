@@ -27,11 +27,11 @@ expect:
       list_hygiene_result:
         decision:
           state: suppress
-        record:
-          schema: runx.provider.operation.v1
-          provider: store
-          operation: events.append
-          finality: confirmed
-          result:
-            status: committed
-            version: 1
+      provider_operation:
+        schema: runx.provider.operation.v1
+        provider: store
+        operation: events.append
+        finality: confirmed
+        result:
+          status: committed
+          version: 1

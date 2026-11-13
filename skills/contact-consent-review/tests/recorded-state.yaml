@@ -11,5 +11,4 @@ expect:
         decision:
           state: human_review
         observed_state: suppress
-        record: null
         observed_state_source: native_record

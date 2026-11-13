@@ -108,8 +108,8 @@ methods:
           evidence_status: read
           evidence_version: 0
     result_from:
-      - finalize-written
-      - finalize-unchanged
+      - decide
+      - append-transition
     steps:
       - id: read-contact
         operation: store/events.read
@@ -124,7 +124,7 @@ methods:
           engagement_evidence: $input.engagement_evidence
           hygiene_policy: $input.hygiene_policy
           consent_evidence: $input.consent_evidence
-          contact_readback: $steps.read-contact.provider_operation.result
+          contact_readback: $steps.read-contact.provider_operation
         tool:
           module: contact-consent-review.mjs
           export: decideListHygiene
@@ -238,6 +238,9 @@ methods:
                 enum:
                   - supplied_evidence
                   - native_record
+          list_hygiene_result:
+            type: object
+            packet: runx/contact-consent-review.decision.v1
       - id: append-transition
         when:
           value: $steps.decide.decision_plan.append_allowed
@@ -253,33 +256,11 @@ methods:
           expected_version: $input.expected_version
           type: list_hygiene.consent_transitioned
           data: $steps.decide.decision_plan.event
-      - id: finalize-written
-        when:
-          value: $steps.decide.decision_plan.append_allowed
-          equals: true
-        inputs:
-          decision_plan: $steps.decide.decision_plan
-          observed_contact: $steps.read-contact.provider_operation
-          record: $steps.append-transition.provider_operation
-        tool:
-          module: contact-consent-review.mjs
-          export: finalizeListHygiene
-        outputs:
-          list_hygiene_result:
-            type: object
-            packet: runx/contact-consent-review.decision.v1
-      - id: finalize-unchanged
-        when:
-          value: $steps.decide.decision_plan.append_allowed
-          equals: false
-        inputs:
-          decision_plan: $steps.decide.decision_plan
-          observed_contact: $steps.read-contact.provider_operation
-          record: null
-        tool:
-          module: contact-consent-review.mjs
-          export: finalizeListHygiene
-        outputs:
-          list_hygiene_result:
-            type: object
-            packet: runx/contact-consent-review.decision.v1
+    outputs:
+      list_hygiene_result:
+        type: object
+        packet: runx/contact-consent-review.decision.v1
+      provider_operation:
+        type: object
+        packet: runx.provider.operation.v1
+        optional: true

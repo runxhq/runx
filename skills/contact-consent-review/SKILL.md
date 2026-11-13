@@ -46,7 +46,7 @@ Only `re_permission` and `suppress` can create transitions. A transition
 decides whether a person can be sent to, so its append waits on a person's
 approval of the exact event (`consent_transition`), whatever the run's
 `effects`. The append uses the observed ledger version and the caller's stable
-idempotency key. The public record is the complete native operation packet;
+idempotency key. The public `provider_operation` is the complete native append packet;
 a later head is not compared to the appended event. No-write decisions return
 the actual initial observation and perform no second read. Observations are
 snapshots, not locks or promises that state remained unchanged.
@@ -59,9 +59,9 @@ they do not authorize delivery or changes to a CRM or mailing provider. The
 store instance owns storage and credentials.
 
 A completed method can return a native version/idempotency conflict without
-recording a transition. Inspect `record.result`, not the policy recommendation,
+recording a transition. Inspect `provider_operation.result`, not the policy recommendation,
 to determine the storage outcome. A repeated completed key returns the original
-act: `record.already_done` preserves its receipt and plan even if later inputs
+act: `provider_operation.already_done` preserves its receipt and plan even if later inputs
 propose a different state. This skill does not relabel that original record
 with the current proposal's state.
 
@@ -93,9 +93,11 @@ Provide the contact's key in the consent ledger, the observed version, stable tr
 bounce policy, and current consent evidence. Counts must be non-negative and
 the policy threshold must be between 1 and 3,650 days.
 
-The result preserves the decision and reason, the observed consent state, the
-native `observed_contact` and optional `record` operation packets, a human escalation
-only when review is required, and the untouched downstream send boundary.
+The public `list_hygiene_result` preserves the decision and reason, the observed
+consent state, the native `observed_contact`, a human escalation only when review
+is required, and the untouched downstream send boundary. An attempted append
+returns the complete native `provider_operation` alongside that report; no-write
+paths omit it.
 
 ## Agent rules
 

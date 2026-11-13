@@ -27,4 +27,6 @@ expect:
         escalation:
           lane: human:list-hygiene-reviewer
           status: required_before_any_write
-        record: null
+  steps:
+    - read-contact
+    - decide

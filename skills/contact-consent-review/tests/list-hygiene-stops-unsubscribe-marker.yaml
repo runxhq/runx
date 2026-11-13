@@ -24,4 +24,6 @@ expect:
       list_hygiene_result:
         decision:
           state: human_review
-        record: null
+  steps:
+    - read-contact
+    - decide

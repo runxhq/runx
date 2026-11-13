@@ -1,7 +1,7 @@
 const WRITABLE_STATES = new Set(["re_permission", "suppress"]);
 
-export function decideListHygiene(inputs) {
-  const readback = object(inputs.contact_readback);
+function decide(inputs) {
+  const readback = object(inputs.contact_readback.result);
   const base = {
     key: inputs.key,
     expected_version: inputs.expected_version,
@@ -94,15 +94,16 @@ export function decideListHygiene(inputs) {
   return noWrite(base, "verify", "current evidence requires no consent transition", "current_evidence_clean");
 }
 
-export function finalizeListHygiene({ decision_plan: plan, observed_contact, record }) {
+export function decideListHygiene(inputs) {
+  const { decision_plan: plan } = decide(inputs);
   return {
+    decision_plan: plan,
     list_hygiene_result: {
       schema: "runx/contact-consent-review.decision.v1",
       decision: plan.decision,
       observed_state: plan.observed_state,
       observed_state_source: plan.observed_state_source,
-      observed_contact,
-      record,
+      observed_contact: inputs.contact_readback,
       escalation: plan.decision.state === "human_review"
         ? { lane: "human:list-hygiene-reviewer", reason_code: plan.reason_code, status: "required_before_any_write" }
         : null,

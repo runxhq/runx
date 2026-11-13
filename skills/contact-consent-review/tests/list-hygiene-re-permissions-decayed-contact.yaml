@@ -30,11 +30,11 @@ expect:
         downstream_send:
           skill: null
           status: not_run
-        record:
-          schema: runx.provider.operation.v1
-          provider: store
-          operation: events.append
-          finality: confirmed
-          result:
-            status: committed
-            version: 1
+      provider_operation:
+        schema: runx.provider.operation.v1
+        provider: store
+        operation: events.append
+        finality: confirmed
+        result:
+          status: committed
+          version: 1

@@ -6,7 +6,6 @@
     "observed_state",
     "observed_state_source",
     "observed_contact",
-    "record",
     "escalation",
     "downstream_send"
   ],
@@ -77,39 +76,6 @@
               "$ref": "https://schemas.runx.ai/runx/store/result/v1.json"
             }
           }
-        }
-      ]
-    },
-    "record": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "allOf": [
-            {
-              "$ref": "https://schemas.runx.ai/runx/provider/operation/v1.json"
-            },
-            {
-              "type": "object",
-              "required": [
-                "provider",
-                "operation",
-                "result"
-              ],
-              "properties": {
-                "provider": {
-                  "const": "store"
-                },
-                "operation": {
-                  "const": "events.append"
-                },
-                "result": {
-                  "$ref": "https://schemas.runx.ai/runx/store/result/v1.json"
-                }
-              }
-            }
-          ]
         }
       ]
     },
