@@ -1,0 +1,4 @@
+# Pipe handshakes should finish promptly; a lost peer must not consume the CI job.
+[[profile.default.overrides]]
+filter = "package(runx-cli) & test(workspace_lock::)"
+slow-timeout = { period = "10s", terminate-after = 3 }

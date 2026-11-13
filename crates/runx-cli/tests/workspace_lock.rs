@@ -215,11 +215,24 @@ fn runx_trust_inside_a_run_is_refused() -> TestResult {
 }
 
 /// A command that leaves a process running and returns: in a process group
-/// of its own, as job control puts it, so it outlives the command's. The
+/// of its own, detached explicitly rather than relying on shell job control,
+/// so it outlives the command's. The
 /// process waits on `go`, then runs runx under the command's old token,
 /// saying on `waiting` if that run waits on the lock, and on `done` once it
 /// ends.
-const LEAVE: &str = "#!/bin/sh\nset -um\n(\n  read line < \"$RUNX_INPUT_GO\"\n  RUNX_HOME=\"$RUNX_INPUT_HOME\" RUNX_REACHED=\"workspace_lock_wait@$RUNX_INPUT_WAITING\" \"$RUNX_INPUT_RUNX\" skill \"$RUNX_INPUT_SKILL\" -i log=\"$RUNX_INPUT_LOG\" --json > /dev/null\n  printf x > \"$RUNX_INPUT_DONE\"\n) < /dev/null > /dev/null 2>&1 &\nprintf '{\"done\":true}'\n";
+const LEAVE: &str = r#"#!/bin/sh
+set -eu
+node - <<'NODE'
+const { spawn } = require('node:child_process');
+const child = spawn('sh', ['-c', `
+  read line < "$RUNX_INPUT_GO"
+  RUNX_HOME="$RUNX_INPUT_HOME" RUNX_REACHED="workspace_lock_wait@$RUNX_INPUT_WAITING" "$RUNX_INPUT_RUNX" skill "$RUNX_INPUT_SKILL" -i log="$RUNX_INPUT_LOG" --json > /dev/null
+  printf x > "$RUNX_INPUT_DONE"
+`], { detached: true, stdio: 'ignore' });
+child.unref();
+process.stdout.write('{"done":true}');
+NODE
+"#;
 
 /// A process a command leaves running holds nothing: the next run's command
 /// proceeds once the first returns. And it gets no free pass: runx it starts
