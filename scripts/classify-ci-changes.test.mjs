@@ -58,10 +58,12 @@ test("the shared process environment runs the Windows startup regression", () =>
   assert.equal(result.windows, true);
 });
 
-test("receipt service platform gates run the Windows compilation proof", () => {
-  const result = classifyFiles(["crates/runx-runtime/src/services.rs"], core);
-  assert.equal(result.full, true);
-  assert.equal(result.windows, true);
+test("platform-sensitive runtime fixtures run the Windows compilation proof", () => {
+  for (const file of ["crates/runx-runtime/src/services.rs", "crates/runx-runtime/tests/call_cancel.rs", "crates/runx-runtime/tests/skill_run.rs"]) {
+    const result = classifyFiles([file], core);
+    assert.equal(result.full, true, file);
+    assert.equal(result.windows, true, file);
+  }
 });
 
 test("registry publication runs its Windows filesystem regressions", () => {

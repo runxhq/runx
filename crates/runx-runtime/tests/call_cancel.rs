@@ -4,6 +4,8 @@
 //! kept where the test needs it by a named pipe, which blocks its process
 //! until the test opens the other end, so nothing here waits on a clock.
 
+#![cfg(unix)]
+
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};

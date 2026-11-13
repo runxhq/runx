@@ -37,6 +37,7 @@ const windowsPatterns = [
   /^crates\/runx-runtime\/src\/(?:adapters\/javascript\/supervisor\/(?:process|session)|execution_environment|path_util|private_file|process|receipts\/(?:local_key|store)|services)\.rs$/u,
   /^crates\/runx-runtime\/src\/process\//u,
   /^crates\/runx-runtime\/src\/registry\/local\/util\.rs$/u,
+  /^crates\/runx-runtime\/tests\/(?:call_cancel|skill_run)\.rs$/u,
   /^scripts\/test-sweep\.mjs$/u,
 ];
 

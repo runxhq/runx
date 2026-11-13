@@ -899,15 +899,18 @@ methods:
             "{method}: {printed:?}"
         );
 
-        let mcp = runx_runtime::adapters::mcp::mcp_tool_result_from_run_result(result, None);
-        let structured = mcp
-            .structured_content
-            .ok_or("the MCP tool's structured result")?;
-        let given = structured
-            .get("output")
-            .and_then(JsonValue::as_object)
-            .ok_or("the MCP tool's output")?;
-        assert_eq!(given.get("transformed"), Some(&data), "{method}: {given:?}");
+        #[cfg(feature = "mcp")]
+        {
+            let mcp = runx_runtime::adapters::mcp::mcp_tool_result_from_run_result(result, None);
+            let structured = mcp
+                .structured_content
+                .ok_or("the MCP tool's structured result")?;
+            let given = structured
+                .get("output")
+                .and_then(JsonValue::as_object)
+                .ok_or("the MCP tool's output")?;
+            assert_eq!(given.get("transformed"), Some(&data), "{method}: {given:?}");
+        }
 
         fs::write(
             skill_dir.join("tests/reads-the-data.yaml"),
