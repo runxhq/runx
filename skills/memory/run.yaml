@@ -22,7 +22,7 @@
 # An output that's a contract names its packet. memory.mjs is a worker with no
 # I/O. Only this package writes its streams, and the workspace id comes from
 # the runx home ($run.workspace_id, null outside a workspace), never an input.
-version: "0.1.0"
+version: "0.1.1"
 minimum_runx: 0.12.0
 default_method: index
 catalog:
