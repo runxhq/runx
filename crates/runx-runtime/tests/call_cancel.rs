@@ -713,12 +713,20 @@ fn a_leads_completion_goes_ahead_with_a_siblings_call_still_running() -> TestRes
             .write(true)
             .custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32)
             .open(&off);
-        if opened.is_err() {
-            let read = reading.join().map_err(|_| "the read panicked")?;
-            return Err(format!("the sibling's read ended before its release: {read:?}").into());
+        match opened {
+            Ok(mut pipe) => {
+                // Release through the handle that proved the read is still
+                // waiting: closing it first could give that read EOF.
+                writeln!(pipe)?;
+            }
+            Err(_) => {
+                let read = reading.join().map_err(|_| "the read panicked")?;
+                return Err(
+                    format!("the sibling's read ended before its release: {read:?}").into(),
+                );
+            }
         }
     }
-    release(&off)?;
     let read = reading.join().map_err(|_| "the read panicked")??;
     assert!(
         matches!(read.outcome, TurnCallOutcome::Completed { .. }),

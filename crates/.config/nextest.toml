@@ -2,3 +2,7 @@
 [[profile.default.overrides]]
 filter = "package(runx-cli) & test(workspace_lock::)"
 slow-timeout = { period = "10s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = "package(runx-runtime) & test(call_cancel::)"
+slow-timeout = { period = "10s", terminate-after = 3 }
