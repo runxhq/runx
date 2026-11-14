@@ -100,7 +100,7 @@ rustix = { version = "1.1.4", features = ["fs", "process", "pty", "termios"] }
 rmcp = { version = "=3.9.0", default-features = false, features = ["client", "server"], optional = true }
 # Parse a remote MCP server's bounded SSE body into rmcp's event stream; the same
 # version rmcp's client uses.
-sse-stream = { version = "=0.2.5", optional = true }
+sse-stream = { version = "=0.3.0", optional = true }
 # Drive rmcp's StreamableHttpService (a tower service) over a TCP listener for the
 # MCP-over-HTTP server. Both crates are already in the tree via reqwest/rmcp.
 hyper = { version = "=1.12.0", default-features = false, features = ["server", "http1"], optional = true }
