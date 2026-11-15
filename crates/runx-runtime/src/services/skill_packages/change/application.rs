@@ -17,6 +17,7 @@ use super::super::snapshot::{PackageSnapshot, package_delta, package_metrics};
 use super::super::validation::{CandidateValidation, validate_candidate};
 use super::admission::{validate_digest, validate_resource_budget};
 use super::{RuntimeEffectRegistry, RuntimeError};
+use crate::TestProcesses;
 use crate::filesystem::{TextBundle, TextFileWrite};
 use crate::paths::RunxPaths;
 
@@ -159,12 +160,7 @@ pub(super) fn validation_result(
     after_metrics: SkillPackageMetrics,
     checks: CandidateValidation,
 ) -> SkillValidationResult {
-    let test_status = checks
-        .test
-        .get("status")
-        .and_then(JsonValue::as_str)
-        .unwrap_or("passed");
-    let check_results = validation_checks(test_status);
+    let check_results = validation_checks(checks.test.status);
     let delta = package_delta(&before_metrics, &after_metrics);
     SkillValidationResult {
         schema: SkillValidationResultSchema::V1,
@@ -215,9 +211,10 @@ pub(super) fn validate_stable_target(
         target,
         env,
         effects,
-        true,
+        TestProcesses::Run,
         Some(&change.architecture),
-    )?;
+    )?
+    .applicable()?;
     Ok(validation_result(
         target_dir,
         change,

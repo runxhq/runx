@@ -3500,8 +3500,8 @@ export type SkillValidationResultSchemaContract = "runx.skill.validation_result.
 
 export type SkillValidationSchemaContract = "runx.skill.validation.v1";
 
-/** How far validating a package got. */
-export type SkillValidationVerdictContract = "tested" | "needs_consequential_test_approval" | "validation_failed";
+/** How far validating a package got: `tested`, its `test` saying how each case came out, or `validation_failed` before its cases could run. */
+export type SkillValidationVerdictContract = "tested" | "validation_failed";
 
 export type SourcePacketContract = {
   /** Raw adapter payload. Optional; held for replay and audit. Must already have any redactions applied that `redaction_status` declares. */

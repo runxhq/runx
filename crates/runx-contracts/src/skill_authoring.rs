@@ -430,12 +430,12 @@ pub enum SkillValidationSchema {
     V1,
 }
 
-/// How far validating a package got.
+/// How far validating a package got: `tested`, its `test` saying how each
+/// case came out, or `validation_failed` before its cases could run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillValidationVerdict {
     Tested,
-    NeedsConsequentialTestApproval,
     ValidationFailed,
 }
 

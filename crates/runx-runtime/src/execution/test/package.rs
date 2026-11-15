@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -13,42 +14,110 @@ use super::fixtures::TestFixture;
 use super::replay::{load_test_case, run_test_case_with_adapter};
 use super::{TestExpectedStatus, TestOptions, TestReplayError};
 use crate::RuntimeError;
+use crate::adapter::{Executable, InvocationOutput, SkillAdapter, SkillInvocation};
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::skill_front::{ExecutableAdapter, SkillRunError};
 use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
 use crate::services::ReceiptServices;
 
-/// Aggregate result of running a package's tests. Mirrors the publish-test
-/// summary the registry records: a status, counts, per-case assertion
-/// failures, case names, sealed receipt ids, and how many tests proved the
-/// skill composes, by running a fixture package that calls it.
+/// How a package's tests came out: `passed` when every case that ran passed,
+/// `failed` when any failed, `inconclusive` when none failed and one couldn't
+/// run, `not_declared` with no cases. Each case in file order, the sealed
+/// receipt ids of those that ran, and how many proved the skill composes, by
+/// running a fixture package that calls it.
 #[derive(Clone, Debug, Serialize)]
 pub struct PackageTestReport {
     pub status: &'static str,
+    pub cases: Vec<PackageTestCase>,
     pub case_count: usize,
     pub assertion_error_count: usize,
-    pub assertion_errors: Vec<String>,
-    pub case_names: Vec<String>,
     pub receipt_ids: Vec<String>,
     pub workflow_case_count: usize,
+}
+
+/// One case: `passed`, `failed` with its own assertion errors, or
+/// `inconclusive` with why it couldn't run.
+#[derive(Clone, Debug, Serialize)]
+pub struct PackageTestCase {
+    pub name: String,
+    pub status: &'static str,
+    pub failures: Vec<String>,
 }
 
 impl PackageTestReport {
     fn not_declared() -> Self {
         Self {
             status: "not_declared",
+            cases: Vec::new(),
             case_count: 0,
             assertion_error_count: 0,
-            assertion_errors: Vec::new(),
-            case_names: Vec::new(),
             receipt_ids: Vec::new(),
             workflow_case_count: 0,
         }
     }
+
+    /// Each failed case's errors, named by its case, as one line each.
+    #[must_use]
+    pub fn failures(&self) -> Vec<String> {
+        self.cases
+            .iter()
+            .filter(|case| case.status == "failed")
+            .flat_map(|case| {
+                case.failures
+                    .iter()
+                    .map(|failure| format!("{}: {failure}", case.name))
+            })
+            .collect()
+    }
+
+    fn record(&mut self, name: String, status: &'static str, failures: Vec<String>) {
+        self.cases.push(PackageTestCase {
+            name,
+            status,
+            failures,
+        });
+    }
 }
 
-/// A case as loaded: its fixture and target, or why it could not be read.
-type LoadedCase = Result<(TestFixture, PathBuf), String>;
+/// Whether a package's cases may run a trusted host process. A process is the
+/// one thing a case can reach that its fixtures don't hold, so where they may
+/// not, a case that reaches one is held there, never run, and reported
+/// `inconclusive`, while the package's other cases run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TestProcesses {
+    Run,
+    Hold,
+}
+
+/// The adapter a case runs with: the executable adapter, or, where processes
+/// are held, one that refuses each and remembers that the case reached one.
+#[derive(Clone)]
+struct CaseAdapter {
+    processes: TestProcesses,
+    reached: Arc<AtomicBool>,
+}
+
+impl SkillAdapter for CaseAdapter {
+    fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
+        if self.processes == TestProcesses::Hold
+            && matches!(request.executable, Executable::Process(_))
+        {
+            self.reached.store(true, Ordering::SeqCst);
+            return Err(RuntimeError::SkillFailed {
+                skill_name: "package-test".to_owned(),
+                message: PROCESS_HELD.to_owned(),
+            });
+        }
+        ExecutableAdapter.invoke(request)
+    }
+}
+
+const PROCESS_HELD: &str =
+    "it reaches a process, and processes run only where its caller allows them";
+
+/// A case as loaded: its fixture and target, or its file's name and why it
+/// could not be read.
+type LoadedCase = Result<(TestFixture, PathBuf), (String, String)>;
 
 /// Run every test a package owns, its `tests/*.yaml`, each as a case through
 /// the one test engine. Discovery is deterministic, and this is the single
@@ -56,6 +125,7 @@ type LoadedCase = Result<(TestFixture, PathBuf), String>;
 pub(crate) fn run_package_test_with_effects(
     skill_path: &Path,
     receipt_dir: Option<&Path>,
+    processes: TestProcesses,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<PackageTestReport, SkillRunError> {
@@ -63,9 +133,16 @@ pub(crate) fn run_package_test_with_effects(
     let mut report = PackageTestReport::not_declared();
     let cases = test_paths(&loaded.directory)?
         .into_iter()
-        .map(|path| load_test_case(&path).map_err(|error| format!("{}: {error}", path.display())))
+        .map(|path| {
+            load_test_case(&path).map_err(|error| {
+                let name = path
+                    .file_stem()
+                    .map_or_else(String::new, |stem| stem.to_string_lossy().into_owned());
+                (name, format!("{}: {error}", path.display()))
+            })
+        })
         .collect();
-    replay_cases(cases, &test, effects, &mut report)?;
+    replay_cases(cases, &test, processes, effects, &mut report)?;
     finalize_report(&mut report);
     Ok(report)
 }
@@ -142,6 +219,7 @@ fn prepare_package_tests(
 fn replay_cases(
     cases: Vec<LoadedCase>,
     test: &PackageTestEnvironment,
+    processes: TestProcesses,
     effects: &RuntimeEffectRegistry,
     report: &mut PackageTestReport,
 ) -> Result<(), SkillRunError> {
@@ -156,8 +234,8 @@ fn replay_cases(
         report.case_count += 1;
         let (fixture, target_path) = match case {
             Ok(case) => case,
-            Err(error) => {
-                report.assertion_errors.push(error);
+            Err((name, error)) => {
+                report.record(name, "failed", vec![error]);
                 continue;
             }
         };
@@ -172,14 +250,25 @@ fn replay_cases(
         let is_workflow = fixture.package.is_some();
         let denial_expected = fixture.expect.status == Some(TestExpectedStatus::PolicyDenied);
         let decline_expected = fixture.expect.status == Some(TestExpectedStatus::Declined);
-        match run_test_case_with_adapter(fixture, target_path, ExecutableAdapter, options) {
+        let adapter = CaseAdapter {
+            processes,
+            reached: Arc::new(AtomicBool::new(false)),
+        };
+        let reached = Arc::clone(&adapter.reached);
+        let outcome = run_test_case_with_adapter(fixture, target_path, adapter, options);
+        // Held at a process, whatever its expectation then made of the run.
+        if reached.load(Ordering::SeqCst) {
+            report.record(name, "inconclusive", vec![PROCESS_HELD.to_owned()]);
+            continue;
+        }
+        match outcome {
             Ok(output) => {
                 persist_fixture_receipts(&receipt_services, &test.receipt_dir, &output)?;
                 if is_workflow {
                     report.workflow_case_count += 1;
                 }
-                report.case_names.push(output.fixture.name);
                 report.receipt_ids.push(output.receipt.id.to_string());
+                report.record(output.fixture.name, "passed", Vec::new());
             }
             Err(error)
                 if (denial_expected && is_authority_denial(&error))
@@ -188,9 +277,9 @@ fn replay_cases(
                 if is_workflow {
                     report.workflow_case_count += 1;
                 }
-                report.case_names.push(name);
+                report.record(name, "passed", Vec::new());
             }
-            Err(error) => report.assertion_errors.push(format!("{name}: {error}")),
+            Err(error) => report.record(name, "failed", vec![error.to_string()]),
         }
     }
     Ok(())
@@ -239,14 +328,23 @@ fn persist_fixture_receipts(
 }
 
 fn finalize_report(report: &mut PackageTestReport) {
-    report.assertion_error_count = report.assertion_errors.len();
-    report.status = if report.case_count == 0 {
+    let has = |status: &str| report.cases.iter().any(|case| case.status == status);
+    let status = if report.case_count == 0 {
         "not_declared"
-    } else if report.assertion_errors.is_empty() {
-        "passed"
-    } else {
+    } else if has("failed") {
         "failed"
+    } else if has("inconclusive") {
+        "inconclusive"
+    } else {
+        "passed"
     };
+    report.assertion_error_count = report
+        .cases
+        .iter()
+        .filter(|case| case.status == "failed")
+        .map(|case| case.failures.len())
+        .sum();
+    report.status = status;
 }
 
 struct PackageTestEnvironment {
@@ -530,7 +628,7 @@ mod tests {
 
     use super::{
         PackageTestEnvironment, PackageTestReport, RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,
-        finalize_report, is_authority_denial, run_package_test_with_effects,
+        TestProcesses, finalize_report, is_authority_denial, run_package_test_with_effects,
     };
 
     #[test]
@@ -584,6 +682,7 @@ expect:
         let report = run_package_test_with_effects(
             &skill_dir,
             None,
+            TestProcesses::Run,
             &env,
             &crate::RuntimeEffectRegistry::default(),
         )?;
@@ -591,7 +690,7 @@ expect:
         assert_eq!(report.status, "failed", "{report:?}");
         assert!(
             report
-                .assertion_errors
+                .failures()
                 .iter()
                 .any(|error| error
                     .contains("never requested: PATCH https://fixture.runx.invalid/item")),

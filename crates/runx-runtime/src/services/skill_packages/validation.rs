@@ -9,25 +9,45 @@ use runx_contracts::{
 
 use super::path::{canonical_directory, display_repo_path, invalid_skill_change};
 use super::staging::{InlineCandidateStage, ValidationReceiptStage, isolated_test_env};
-use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
+use crate::{PackageTestReport, RuntimeError, TestProcesses};
 
 mod resources;
 
 use resources::{candidate_resource_usage, validate_architecture_resources};
 
-/// What validating a candidate package found.
+/// What validating a candidate package found: its inspection, and how each
+/// of its cases came out.
 pub(super) struct CandidateValidation {
     pub(super) inspect: JsonObject,
-    pub(super) test: JsonObject,
+    pub(super) test: PackageTestReport,
 }
 
+impl CandidateValidation {
+    /// The validation of a candidate that may be written: none of its cases
+    /// failed or stopped short, so nothing writes a failing package.
+    pub(super) fn applicable(self) -> Result<Self, RuntimeError> {
+        match self.test.status {
+            "failed" => Err(invalid_skill_change(format!(
+                "native test failed: {}",
+                self.test.failures().join("; ")
+            ))),
+            "inconclusive" => Err(invalid_skill_change(
+                "native test was inconclusive: a case reaches a process the test held",
+            )),
+            _ => Ok(self),
+        }
+    }
+}
+
+/// A candidate's inspection and its test, each case run in the candidate's
+/// isolated home, a process only where `processes` lets it run.
 pub(super) fn validate_candidate(
     repo_root: &Path,
     candidate: &Path,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
-    run_test: bool,
+    processes: TestProcesses,
     architecture: Option<&SkillArchitectureDecision>,
 ) -> Result<CandidateValidation, RuntimeError> {
     let loaded = crate::load_validated_skill_package(candidate)?;
@@ -42,11 +62,7 @@ pub(super) fn validate_candidate(
                 .and_then(serde_json::from_value::<JsonObject>)
                 .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
         })?;
-    let test = if run_test {
-        run_candidate_test(repo_root, candidate, env, effects)?
-    } else {
-        skipped_test()
-    };
+    let test = run_candidate_test(repo_root, candidate, processes, env, effects)?;
     Ok(CandidateValidation { inspect, test })
 }
 
@@ -88,32 +104,21 @@ fn validate_architecture_identity(
 fn run_candidate_test(
     repo_root: &Path,
     candidate: &Path,
+    processes: TestProcesses,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
-) -> Result<JsonObject, RuntimeError> {
+) -> Result<PackageTestReport, RuntimeError> {
     let receipt_stage = ValidationReceiptStage::prepare(repo_root)?;
     let mut test_env = isolated_test_env(repo_root, env, receipt_stage.root());
     crate::services::merge_inferred_tool_roots(&mut test_env, candidate);
     install_candidate_closure(repo_root, candidate, &test_env)?;
-    let test = crate::orchestrator::LocalOrchestrator::with_effects_and_environment(
-        effects.clone(),
-        test_env,
-    )
-    .run_package_test(&crate::orchestrator::PackageTestRequest {
-        skill_path: candidate.to_path_buf(),
-        receipt_dir: Some(receipt_stage.receipt_dir.clone()),
-    })
-    .map_err(|error| invalid_skill_change(format!("native test failed: {error}")))?;
-    if test.status == "failed" {
-        return Err(invalid_skill_change(format!(
-            "native test failed: {}",
-            test.assertion_errors.join("; ")
-        )));
-    }
-    let encoded = serde_json::to_string(&test)
-        .map_err(|source| RuntimeError::json("serializing package test report", source))?;
-    serde_json::from_str(&encoded)
-        .map_err(|source| RuntimeError::json("projecting package test report", source))
+    crate::orchestrator::LocalOrchestrator::with_effects_and_environment(effects.clone(), test_env)
+        .run_package_test(&crate::orchestrator::PackageTestRequest {
+            skill_path: candidate.to_path_buf(),
+            receipt_dir: Some(receipt_stage.receipt_dir.clone()),
+            processes,
+        })
+        .map_err(|error| invalid_skill_change(format!("native test failed: {error}")))
 }
 
 /// The registry skills a candidate's closure names arrive as a publish's do:
@@ -146,17 +151,6 @@ fn install_candidate_closure(
         .map_err(|error| unbound(error.into_message()))?;
     crate::registry::install_registry_closure(&client, &target.registry_url, request)
         .map_err(|error| unbound(error.to_string()))
-}
-
-fn skipped_test() -> JsonObject {
-    JsonObject::from([
-        ("attempted".to_owned(), JsonValue::Bool(false)),
-        ("status".to_owned(), JsonValue::String("skipped".to_owned())),
-        (
-            "reason".to_owned(),
-            JsonValue::String("needs_consequential_test_approval".to_owned()),
-        ),
-    ])
 }
 
 pub(crate) fn validate_skill_package(
@@ -244,7 +238,8 @@ pub(crate) fn validate_registry_package(
 }
 
 /// The package at `candidate`, validated for the workspace at `repo_root`:
-/// its inspection, and its test when that is safe or allowed.
+/// its inspection, and its test, each case that reaches a process held unless
+/// the caller allows processes.
 fn validate_package_at(
     repo_root: &Path,
     candidate: &Path,
@@ -255,7 +250,11 @@ fn validate_package_at(
     effects: &RuntimeEffectRegistry,
 ) -> SkillValidation {
     let inspected = crate::inspect_skill_package(candidate, None, Some(env));
-    let run_test = allow_execute_test || safe_test_execution(candidate);
+    let processes = if allow_execute_test {
+        TestProcesses::Run
+    } else {
+        TestProcesses::Hold
+    };
     let inspected = inspected.and_then(|inspection| {
         serde_json::to_value(&inspection)
             .and_then(serde_json::from_value)
@@ -264,32 +263,31 @@ fn validate_package_at(
                 source,
             })
     });
-    let result = validate_candidate(repo_root, candidate, env, effects, run_test, None);
-    validation_result_report(requested_path, resolved_path, inspected, run_test, result)
+    let result = validate_candidate(repo_root, candidate, env, effects, processes, None);
+    validation_result_report(requested_path, resolved_path, inspected, result)
 }
 
 fn validation_result_report(
     requested_path: &str,
     resolved_path: &str,
     inspected: Result<JsonObject, crate::SkillInspectionError>,
-    run_test: bool,
     result: Result<CandidateValidation, RuntimeError>,
 ) -> SkillValidation {
-    let (verdict, inspect, test) = match result {
-        Ok(validation) => {
-            let verdict =
-                if validation.test.get("status").and_then(JsonValue::as_str) == Some("skipped") {
-                    SkillValidationVerdict::NeedsConsequentialTestApproval
-                } else {
-                    SkillValidationVerdict::Tested
-                };
-            (verdict, validation.inspect, validation.test)
+    let tested = result.and_then(|validation| {
+        let test = JsonValue::from_serialize(&validation.test).map_err(|error| {
+            invalid_skill_change(format!("projecting the package test report: {error}"))
+        })?;
+        match test {
+            JsonValue::Object(test) => Ok((validation.inspect, test)),
+            _ => Err(invalid_skill_change("a package test report is an object")),
         }
+    });
+    let (verdict, inspect, test) = match tested {
+        Ok((inspect, test)) => (SkillValidationVerdict::Tested, inspect, test),
         Err(error) => (
             SkillValidationVerdict::ValidationFailed,
             failed_inspection(inspected),
             JsonObject::from([
-                ("attempted".to_owned(), JsonValue::Bool(run_test)),
                 ("status".to_owned(), JsonValue::String("failed".to_owned())),
                 ("reason".to_owned(), JsonValue::String(error.to_string())),
             ]),
@@ -348,25 +346,6 @@ fn resolve_candidate_path(
     Ok(resolved)
 }
 
-/// A candidate's tests run without asking when they reach nothing outside
-/// the test sandbox: its providers are the tests' own, and a worker is
-/// deterministic, so only a trusted host process could. A package that runs
-/// one is tested only when the caller allows it.
-fn safe_test_execution(candidate: &Path) -> bool {
-    crate::load_validated_skill_package(candidate).is_ok_and(|loaded| {
-        loaded.manifest().is_none_or(|manifest| {
-            manifest.methods.values().all(|method| {
-                method.workflow.steps.iter().all(|step| {
-                    !matches!(
-                        step.kind,
-                        runx_parser::StepKind::Tool(runx_parser::ToolTarget::Process(_))
-                    )
-                })
-            })
-        })
-    })
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
@@ -409,16 +388,35 @@ mod tests {
             crate::paths::RUNX_CWD_ENV.to_owned(),
             repo.path().display().to_string(),
         )]);
-        let report = super::validate_candidate(
-            repo.path(),
-            &candidate,
-            &env,
-            &crate::RuntimeEffectRegistry::default(),
-            false,
-            None,
-        )?;
-        assert!(!report.inspect.is_empty());
+        let inspection = crate::inspect_skill_package(&candidate, None, Some(&env))?;
+        assert_eq!(inspection.name, "probe");
         Ok(())
+    }
+
+    #[test]
+    fn a_candidate_is_applicable_only_when_no_case_failed_or_was_held() {
+        let validation = |status: &'static str| super::CandidateValidation {
+            inspect: runx_contracts::JsonObject::new(),
+            test: crate::PackageTestReport {
+                status,
+                cases: vec![crate::PackageTestCase {
+                    name: "case".to_owned(),
+                    status,
+                    failures: vec!["expected ready".to_owned()],
+                }],
+                case_count: 1,
+                assertion_error_count: 1,
+                receipt_ids: Vec::new(),
+                workflow_case_count: 0,
+            },
+        };
+        let refusal = validation("failed")
+            .applicable()
+            .err()
+            .map(|error| error.to_string());
+        assert!(refusal.is_some_and(|error| error.contains("case: expected ready")));
+        assert!(validation("inconclusive").applicable().is_err());
+        assert!(validation("passed").applicable().is_ok());
     }
 
     fn architecture(domain_module: bool) -> SkillArchitectureDecision {

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::RegistryPublishPackageError;
 use crate::registry::{RegistryPackageFile, RegistryPublishTestReport};
-use crate::{LoadedSkillPackage, LocalOrchestrator, PackageTestRequest};
+use crate::{LoadedSkillPackage, LocalOrchestrator, PackageTestRequest, TestProcesses};
 
 pub(super) struct PublishTestPackage {
     root: TempDirectory,
@@ -56,6 +56,7 @@ pub(super) fn run_publish_test(
     let request = PackageTestRequest {
         skill_path: test_path.to_path_buf(),
         receipt_dir: Some(receipt_root.path().to_path_buf()),
+        processes: TestProcesses::Run,
     };
     let report = orchestrator.run_package_test(&request).map_err(|error| {
         RegistryPublishPackageError::invalid(format!(
@@ -67,8 +68,8 @@ pub(super) fn run_publish_test(
         status: report.status.to_owned(),
         case_count: report.case_count,
         assertion_error_count: report.assertion_error_count,
-        assertion_errors: report.assertion_errors,
-        case_names: report.case_names,
+        assertion_errors: report.failures(),
+        case_names: report.cases.into_iter().map(|case| case.name).collect(),
         receipt_ids: report.receipt_ids,
         workflow_case_count: report.workflow_case_count,
     };

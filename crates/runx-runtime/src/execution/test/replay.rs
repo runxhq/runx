@@ -1200,11 +1200,12 @@ operations:
         let report = super::super::package::run_package_test_with_effects(
             &skill_dir,
             None,
+            super::super::TestProcesses::Run,
             &source_env,
             &crate::RuntimeEffectRegistry::default(),
         )?;
         assert_eq!(report.status, "passed", "{report:?}");
-        assert_eq!(report.case_names, ["binds-installed"]);
+        assert_eq!(report.cases[0].name, "binds-installed");
 
         stage_installed_connectors_for_case(&source_env, &case_env, &skill_dir)?;
 

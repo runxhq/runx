@@ -133,10 +133,10 @@ describe("native invocation and decoding", () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "verify.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
-      if (process.argv[2] === 'test') { process.stdout.write(JSON.stringify({ status: 'failed', case_count: 1, assertion_error_count: 1, assertion_errors: ['failed'], case_names: ['case'], receipt_ids: [], workflow_case_count: 0 })); process.exitCode = 1; }
+      if (process.argv[2] === 'test') { process.stdout.write(JSON.stringify({ status: 'failed', case_count: 1, assertion_error_count: 1, cases: [{ name: 'case', status: 'failed', failures: ['failed'] }], receipt_ids: [], workflow_case_count: 0 })); process.exitCode = 1; }
       else { writeFileSync(${JSON.stringify(capture)}, readFileSync(0)); writeFileSync(${JSON.stringify(capture)} + '.args', JSON.stringify(process.argv.slice(2))); process.stdout.write(JSON.stringify({ schema: 'runx.verify_verdict.v1', valid: false, receipt_id: null })); process.exitCode = 3; }`);
     const client = createRunxClient(config);
-    await expect(client.tests.run({ skillPath: root, receiptDir })).resolves.toMatchObject({ status: "failed", assertion_errors: ["failed"] });
+    await expect(client.tests.run({ skillPath: root, receiptDir })).resolves.toMatchObject({ status: "failed", cases: [{ name: "case", failures: ["failed"] }] });
     await expect(client.receipts.verify({ receipt: '{"receipt":"exact"}' })).resolves.toMatchObject({ valid: false });
     expect(await readFile(capture, "utf8")).toBe('{"receipt":"exact"}');
     expect(JSON.parse(await readFile(`${capture}.args`, "utf8"))).toEqual(["verify", "--receipt", "-", "--trust", "home", "--json"]);

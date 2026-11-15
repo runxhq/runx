@@ -135,7 +135,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     tests: {
       run: async (options) => {
         const output = parseJson(await execute(["test", argument(options.skillPath), "--json", "--receipt-dir", absolute(options.receiptDir)], options), [0, 1]);
-        if (!["passed", "failed", "not_declared"].includes(String(output.status)) || ![output.case_count, output.assertion_error_count, output.workflow_case_count].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) || ![output.assertion_errors, output.case_names, output.receipt_ids].every((value) => Array.isArray(value) && value.every((item) => typeof item === "string"))) throw new RunxClientError("contract", "Invalid native test summary.");
+        if (!["passed", "failed", "not_declared"].includes(String(output.status)) || ![output.case_count, output.assertion_error_count, output.workflow_case_count].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) || !strings(output.receipt_ids) || !Array.isArray(output.cases) || !output.cases.every((item) => record(item) && typeof item.name === "string" && ["passed", "failed"].includes(String(item.status)) && strings(item.failures))) throw new RunxClientError("contract", "Invalid native test summary.");
         return output as unknown as NativeTestOutput;
       },
     },
@@ -153,6 +153,10 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
       },
     },
   };
+}
+
+function strings(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function positive(value: number, name: string): number {

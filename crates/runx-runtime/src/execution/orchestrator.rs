@@ -16,7 +16,7 @@ use super::prepared_skill::{
     PreparedEntryProvenance, PreparedSkillRun, prepare_skill_run_with_effects,
 };
 use super::skill_front::{SkillRunError, TurnSession};
-use super::test::PackageTestReport;
+use super::test::{PackageTestReport, TestProcesses};
 use super::test::{TestReplayError, TestReplayOutput};
 use crate::effects::RuntimeEffectRegistry;
 
@@ -123,11 +123,13 @@ pub struct TestRunRequest {
 
 /// Request to run every test case owned by a skill package. `skill_path` is
 /// a package directory or its `SKILL.md`; inline cases and conventional fixture
-/// files share the supplied environment and receipt directory.
+/// files share the supplied environment and receipt directory, and
+/// `processes` says whether a case may run a trusted host process.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageTestRequest {
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
+    pub processes: TestProcesses,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -433,6 +435,7 @@ impl LocalOrchestrator {
         Ok(super::test::run_package_test_with_effects(
             &request.skill_path,
             request.receipt_dir.as_deref(),
+            request.processes,
             &self.environment,
             &self.effects,
         )?)

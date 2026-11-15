@@ -928,12 +928,9 @@ methods:
             .run_package_test(&runx_runtime::PackageTestRequest {
                 skill_path: skill_dir.clone(),
                 receipt_dir: Some(temp.path().join("receipts")),
+                processes: runx_runtime::TestProcesses::Run,
             })?;
-        assert_eq!(
-            report.status, "passed",
-            "{method}: {:?}",
-            report.assertion_errors
-        );
+        assert_eq!(report.status, "passed", "{method}: {:?}", report.cases);
     }
     Ok(())
 }
@@ -5124,6 +5121,98 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
         registry.asked()
     );
     assert!(!temp.path().join(".runx/added-skills/acme").exists());
+    Ok(())
+}
+
+/// A candidate's cases each come out on their own: one passes, one fails with
+/// its own error, and one that reaches a process is held there, inconclusive
+/// and never run, until the caller allows processes, while the others run.
+#[test]
+fn a_candidates_cases_come_out_one_by_one_and_a_process_runs_only_where_allowed()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let candidate = temp.path().join("skills/candidate");
+    crate::support::write_test_skill_package(
+        &candidate,
+        "---\nname: candidate\ndescription: Digests a value and runs a command.\n---\n# Candidate\n",
+        "minimum_runx: 0.12.0\nmethods:\n  digest:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: ready, encoding: utf8_text}\n  command:\n    steps:\n      - id: command\n        tool: {command: sh, args: [./run.sh]}\n        outputs: {done: {type: boolean}}\n",
+    )?;
+    fs::write(candidate.join("run.sh"), "printf '{\"done\":true}'\n")?;
+    fs::create_dir_all(candidate.join("tests"))?;
+    for (name, case) in [
+        ("digests", "method: digest\nexpect:\n  status: sealed\n"),
+        (
+            "digests-another-value",
+            "method: digest\nexpect:\n  step_outputs:\n    digest:\n      subset: {digest_result: {digest: \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"}}\n",
+        ),
+        (
+            "runs-the-command",
+            "method: command\nexpect:\n  status: sealed\n",
+        ),
+    ] {
+        fs::write(
+            candidate.join(format!("tests/{name}.yaml")),
+            format!("name: {name}\n{case}"),
+        )?;
+    }
+    let validator = temp.path().join("validator");
+    crate::support::write_test_skill_package(
+        &validator,
+        "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
+        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    inputs: {allow: {type: boolean}}\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          repo_root: .\n          skill_path: skills/candidate\n          allow_execute_test: $input.allow\n",
+    )?;
+    let validate = |allow: bool| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let result = run_skill(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: validator.clone(),
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("allow".to_owned(), JsonValue::Bool(allow))]),
+            env: path_env(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        })?;
+        let output = serde_json::to_value(&result.output)?;
+        Ok(output["result"]["skill_validation"].clone())
+    };
+    let statuses = |validation: &serde_json::Value| {
+        validation["test"]["cases"].as_array().map(|cases| {
+            cases
+                .iter()
+                .map(|case| (case["name"].clone(), case["status"].clone()))
+                .collect::<Vec<_>>()
+        })
+    };
+
+    let held = validate(false)?;
+    assert_eq!(held["verdict"], "tested", "{held}");
+    assert_eq!(held["test"]["status"], "failed", "{held}");
+    assert_eq!(
+        statuses(&held),
+        Some(vec![
+            ("digests-another-value".into(), "failed".into()),
+            ("digests".into(), "passed".into()),
+            ("runs-the-command".into(), "inconclusive".into()),
+        ]),
+        "{held}"
+    );
+    assert!(
+        held["test"]["cases"][0]["failures"]
+            .to_string()
+            .contains("sha256:0000"),
+        "{held}"
+    );
+
+    let allowed = validate(true)?;
+    assert_eq!(
+        statuses(&allowed).map(|cases| cases[2].clone()),
+        Some(("runs-the-command".into(), "passed".into())),
+        "{allowed}"
+    );
     Ok(())
 }
 

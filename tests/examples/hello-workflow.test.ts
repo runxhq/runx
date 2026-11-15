@@ -34,13 +34,11 @@ describe("hello-workflow example", () => {
       // for each of the two steps.
       const report = JSON.parse(stdout) as {
         readonly status?: string;
-        readonly case_names?: readonly string[];
-        readonly assertion_errors?: readonly string[];
+        readonly cases?: readonly { readonly name: string; readonly status: string; readonly failures: readonly string[] }[];
         readonly receipt_ids?: readonly string[];
       };
       expect(report.status).toBe("passed");
-      expect(report.case_names).toEqual(["hello-workflow"]);
-      expect(report.assertion_errors).toEqual([]);
+      expect(report.cases).toEqual([{ name: "hello-workflow", status: "passed", failures: [] }]);
       expect(report.receipt_ids).toHaveLength(1);
     } finally {
       await rm(tempDir, { recursive: true, force: true });

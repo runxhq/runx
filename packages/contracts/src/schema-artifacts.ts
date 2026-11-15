@@ -10181,10 +10181,9 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "SkillValidationVerdict": {
-        "description": "How far validating a package got.",
+        "description": "How far validating a package got: `tested`, its `test` saying how each case came out, or `validation_failed` before its cases could run.",
         "enum": [
           "tested",
-          "needs_consequential_test_approval",
           "validation_failed"
         ],
         "title": "SkillValidationVerdict",

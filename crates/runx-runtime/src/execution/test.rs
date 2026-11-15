@@ -7,7 +7,7 @@ pub mod replay;
 mod transport;
 mod turns;
 
-pub use package::PackageTestReport;
+pub use package::{PackageTestCase, PackageTestReport, TestProcesses};
 pub(crate) use package::{run_package_case_with_effects, run_package_test_with_effects};
 
 use std::collections::{BTreeMap, BTreeSet};

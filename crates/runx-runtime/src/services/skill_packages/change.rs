@@ -17,6 +17,7 @@ use super::snapshot::{PackageSnapshot, package_metrics, package_snapshot};
 use super::staging::CandidateStage;
 use super::validation::validate_candidate;
 use crate::RuntimeError;
+use crate::TestProcesses;
 use crate::effects::RuntimeEffectRegistry;
 use crate::filesystem::apply_text_bundle_verified;
 use crate::paths::RunxPaths;
@@ -360,9 +361,10 @@ fn validate_candidate_stage(
         &stage.skill_dir,
         env,
         effects,
-        true,
+        TestProcesses::Run,
         Some(&change.architecture),
-    )?;
+    )?
+    .applicable()?;
     let validation = validation_result(
         &target.relative,
         change,

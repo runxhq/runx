@@ -318,8 +318,7 @@ async function runSkillTest(skill, runxBin, tempRoot, workspaceDir, allowed) {
     case_count: caseCount,
     workflow_case_count: report.workflow_case_count ?? 0,
     assertion_error_count: report.assertion_error_count ?? 0,
-    assertion_errors: report.assertion_errors ?? [],
-    case_names: report.case_names ?? [],
+    cases: report.cases ?? [],
     receipt_count: Array.isArray(report.receipt_ids) ? report.receipt_ids.length : 0,
     error: ["passed", "not_declared"].includes(status) ? undefined : error,
   };
@@ -502,8 +501,7 @@ function failedSkill(skill, started, error) {
     case_count: 0,
     workflow_case_count: 0,
     assertion_error_count: 0,
-    assertion_errors: [],
-    case_names: [],
+    cases: [],
     receipt_count: 0,
     error,
   };

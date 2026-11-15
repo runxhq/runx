@@ -238,13 +238,19 @@ export interface NativeConnectorPackageOutput extends Readonly<Record<string, un
 
 export interface NativeTestOutput {
   readonly status: "passed" | "failed" | "not_declared";
+  /** Each case in file order: how it came out, and its own errors when it failed. */
+  readonly cases: readonly NativeTestCase[];
   readonly case_count: number;
   readonly assertion_error_count: number;
-  readonly assertion_errors: readonly string[];
-  readonly case_names: readonly string[];
   readonly receipt_ids: readonly string[];
   /** Tests whose run composed the package into a workflow. */
   readonly workflow_case_count: number;
+}
+
+export interface NativeTestCase {
+  readonly name: string;
+  readonly status: "passed" | "failed";
+  readonly failures: readonly string[];
 }
 
 export interface ReceiptVerifyOutput extends Readonly<Record<string, unknown>> {

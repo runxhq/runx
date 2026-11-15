@@ -39,7 +39,7 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
     CapabilityDefinition {
         id: VALIDATE_TOOL,
         source: "runx-runtime/authoring",
-        summary: "Validate and safely test an existing or inline skill package.",
+        summary: "Validate an existing, inline or released skill package and run its cases, each reported passed, failed or inconclusive.",
         // The candidate's test reads the registry children its closure
         // names from the registry the operator selects.
         effect: CapabilityEffect::Read,

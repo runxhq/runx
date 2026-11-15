@@ -378,6 +378,7 @@ fn run_package_test(
     let request = runx_runtime::PackageTestRequest {
         skill_path: skill_path.to_path_buf(),
         receipt_dir: receipt_dir.map(PathBuf::from),
+        processes: runx_runtime::TestProcesses::Run,
     };
     let orchestrator = match runx_cli::runtime::local_orchestrator(workspace.env()) {
         Ok(orchestrator) => orchestrator,
@@ -425,7 +426,7 @@ fn run_package_test(
 
 fn package_test_report_hint(report: &runx_runtime::PackageTestReport) -> Option<&'static str> {
     if report
-        .assertion_errors
+        .failures()
         .iter()
         .any(|error| error.contains("receipt store index is stale"))
     {
@@ -504,8 +505,11 @@ mod tests {
             status: "failed",
             case_count: 1,
             assertion_error_count: 1,
-            assertion_errors: vec![error.to_owned()],
-            case_names: vec!["smoke".to_owned()],
+            cases: vec![runx_runtime::PackageTestCase {
+                name: "smoke".to_owned(),
+                status: "failed",
+                failures: vec![error.to_owned()],
+            }],
             receipt_ids: Vec::new(),
             workflow_case_count: 0,
         }

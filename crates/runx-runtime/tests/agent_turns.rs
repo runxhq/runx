@@ -1116,6 +1116,7 @@ fn run_case(root: &Path, skill_dir: PathBuf) -> TestResult<runx_runtime::Package
         .run_package_test(&PackageTestRequest {
             skill_path: skill_dir,
             receipt_dir: Some(root.join("receipts")),
+            processes: runx_runtime::TestProcesses::Run,
         })?)
 }
 
@@ -1183,7 +1184,7 @@ expect:
         ),
     )?;
     let report = run_case(temp.path(), skill_dir)?;
-    assert_eq!(report.status, "passed", "{:?}", report.assertion_errors);
+    assert_eq!(report.status, "passed", "{:?}", report.cases);
     Ok(())
 }
 
@@ -1244,7 +1245,7 @@ expect:
         ),
     )?;
     let report = run_case(temp.path(), skill_dir)?;
-    assert_eq!(report.status, "passed", "{:?}", report.assertion_errors);
+    assert_eq!(report.status, "passed", "{:?}", report.cases);
     Ok(())
 }
 
@@ -1255,7 +1256,7 @@ fn a_test_case_works_a_turn_call_by_call() -> TestResult {
         temp.path(),
         write_scripted_turn_skill(temp.path(), "completed")?,
     )?;
-    assert_eq!(report.status, "passed", "{:?}", report.assertion_errors);
+    assert_eq!(report.status, "passed", "{:?}", report.cases);
     assert_eq!(report.case_count, 1);
     Ok(())
 }
@@ -1270,11 +1271,11 @@ fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
     assert_eq!(report.status, "failed");
     assert!(
         report
-            .assertion_errors
+            .failures()
             .iter()
             .any(|error| error.contains("host.turns.answer.calls[0].expect")),
         "{:?}",
-        report.assertion_errors
+        report.cases
     );
     Ok(())
 }

@@ -232,9 +232,9 @@ pub use skill_package::{
 };
 pub use skill_package::{inspect_connector_readiness, resolve_local_skill_reference};
 pub use test::{
-    PackageTestReport, TestExpectedStatus, TestFixtureError, TestOptions, TestReplayError,
-    TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
-    run_test_fixture_with_adapter,
+    PackageTestCase, PackageTestReport, TestExpectedStatus, TestFixtureError, TestOptions,
+    TestProcesses, TestReplayError, TestReplayOutput, load_test_fixture, replay_test_fixture,
+    run_test_fixture, run_test_fixture_with_adapter,
 };
 pub use tool_catalogs::{
     ToolCatalogError, ToolInspectOptions, ToolSearchOptions, inspect_tool_with_effects,

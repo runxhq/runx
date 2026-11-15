@@ -42,9 +42,12 @@ expect:
     let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
     assert_eq!(report["status"], "passed");
     assert_eq!(report["case_count"], 2);
-    let names = report["case_names"]
+    let names = report["cases"]
         .as_array()
-        .ok_or("missing case_names")?;
+        .ok_or("missing cases")?
+        .iter()
+        .map(|case| case["name"].clone())
+        .collect::<Vec<_>>();
     assert!(names.contains(&serde_json::Value::String("smoke".to_owned())));
     assert!(names.contains(&serde_json::Value::String("conventional".to_owned())));
     let stored_receipts = fs::read_dir(&receipt_dir)?
@@ -261,7 +264,7 @@ fn a_refusing_host_never_runs_a_packages_process_tool() -> TestResult {
     let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
     assert_eq!(report["status"], "failed");
     assert!(
-        report["assertion_errors"]
+        report["cases"]
             .to_string()
             .contains("starts no trusted host process"),
         "{report}"
@@ -515,11 +518,9 @@ methods:
     let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
     assert_eq!(report["status"], "failed");
     assert!(
-        report["assertion_errors"]
-            .as_array()
-            .is_some_and(|errors| errors.iter().any(|error| error
-                .as_str()
-                .is_some_and(|message| message.contains(expected_field)))),
+        report["cases"].as_array().is_some_and(|cases| cases
+            .iter()
+            .any(|case| case["failures"].to_string().contains(expected_field))),
         "missing expected assertion field {expected_field}: {report}"
     );
     Ok(())
