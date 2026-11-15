@@ -141,17 +141,18 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "authority",
         top_level_usage: &["runx authority save|list|show|remove ... [-j|--json]"],
         usage: &[
-            "runx authority save <name> <file|-> [--workspace <path>...] [-j|--json]",
+            "runx authority save <name> <file|-> [--workspace <path>...] [--standing] [-j|--json]",
             "runx authority list [-j|--json]",
             "runx authority show <name> [-j|--json]",
             "runx authority remove <name> [-j|--json]",
         ],
         notes: &[
-            "A saved authority is the run authority a person gives ahead of time, kept by name in the runx home for the workspaces it lists, by default the one it's saved in. `runx skill`, `runx skill inspect` and `runx mcp` apply one only where they name it with `--authority <name>`, and only in a workspace it lists, because a repository's .mcp.json can name one; nothing applies one unnamed. An explicit empty authority stays empty.",
+            "A saved authority is the run authority a person gives ahead of time, kept by name in the runx home for the workspaces it lists, by default the one it's saved in. `runx skill`, `runx skill inspect` and `runx mcp` apply one where they name it with `--authority <name>`, and only in a workspace it lists, because a repository's .mcp.json can name one. One saved with `--standing` is what every run in its workspaces that states no authority starts with: it gives only the person's own data, delegations on private such as their memory, and a workspace has one. Nothing else applies one unnamed, and an explicit empty authority stays empty.",
             "It speaks in connector and package names: each delegation names its `connector` and holds one or more `terms` of `verbs` over `bounds`, and the run resolves each connector to the instance that stands for it when it starts. `save` checks it resolves in each workspace it lists before saving it. A runx home that fell back to the workspace, with HOME and USERPROFILE unset, keeps none.",
         ],
         options: &[
             "--workspace path  A workspace it's for; repeat for each",
+            "--standing        What its workspaces' runs that state no authority start with",
             "-j, --json",
         ],
     },
@@ -277,7 +278,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         options: &[
             "--run <run-id>  Serve this run's open turns",
-            "--authority name  Start every run a skill call opens under this saved authority (runx authority); with none, no run holds one",
+            "--authority name  Start every run a skill call opens under this saved authority (runx authority); with none, the workspace's standing one, if one is saved",
             "--receipt-dir dir",
             "--http-listen [addr]",
             "--http-allow-non-loopback",
@@ -298,7 +299,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
             "--run-authority json     The authority a host states for this run or inspection, as a JSON run authority: its grants, delegations, packages, effects, reach and limits. It needs no workspace and saves nothing",
-            "--authority name         Run under the preset an operator saved as name (runx authority), which applies only in a workspace it lists",
+            "--authority name         Run under the preset an operator saved as name (runx authority), which applies only in a workspace it lists; with neither, the workspace's standing one, if one is saved",
             "--max-spend usd           Bound the root run's operation quotes and moved USD/USDC amounts. Calls without a USD quote, or over what remains, are refused before dispatch (cost_limit_exceeded); an absent quote never means free",
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",

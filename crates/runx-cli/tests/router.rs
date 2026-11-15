@@ -9,7 +9,7 @@ use runx_cli::router::{
     DoctorMode, DoctorPlan, FilterMode, HistoryPlan, ListKind, ListPlan, RouterAction, TestPlan,
     ToolAction, ToolPlan, command_help_text, help_text, route_args,
 };
-use runx_cli::skill::{MethodRef, SkillAction, SkillPlan};
+use runx_cli::skill::{MethodRef, SavedAuthority, SkillAction, SkillPlan};
 use runx_runtime::HostedApiCredentialPurpose;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -575,7 +575,12 @@ fn routes_canonical_skill_run_to_native_plan() {
             input_document: None,
             act: None,
             run_authority: None,
-            authority: None,
+            // Naming none and stating none, it starts with the workspace's
+            // standing authority, if the person saved one.
+            authority: Some(SavedAuthority {
+                name: None,
+                max_spend_micro_usd: None,
+            }),
             context: None,
             managed_agent: Default::default(),
         }))
@@ -585,7 +590,9 @@ fn routes_canonical_skill_run_to_native_plan() {
 #[test]
 fn a_run_and_its_inspection_name_the_saved_authority_they_start_with() -> Result<(), String> {
     let named = |action: &RouterAction| match action {
-        RouterAction::RunSkill(plan) => plan.authority.as_ref().map(|named| named.name.clone()),
+        RouterAction::RunSkill(plan) => {
+            plan.authority.as_ref().and_then(|saved| saved.name.clone())
+        }
         _ => None,
     };
     assert_eq!(

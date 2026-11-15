@@ -1,12 +1,15 @@
 //! Saved authorities (authority.md, D31): an authority a person saves in
 //! their runx home by name, for the workspaces it lists by workspace id, and
-//! which applies only where a run or a server names it with `--authority`.
+//! which applies where a run or a server names it with `--authority`.
 //!
-//! Nothing applies one unnamed, because no host stated doesn't mean a person
-//! is there. Naming one from a workspace it doesn't list refuses, because a
-//! repository's `.mcp.json` can name one. A home that fell back to the
-//! workspace keeps none, and one planted there is never read (D30). It speaks
-//! in connector and package names, and the root's admission resolves them.
+//! Nothing else applies one unnamed, because no host stated doesn't mean a
+//! person is there, but the one a person saves as standing: their own data,
+//! `private` alone, for the runs in its workspaces that state no authority,
+//! as an agent's memory is there for its own work. Naming one from a
+//! workspace it doesn't list refuses, because a repository's `.mcp.json` can
+//! name one. A home that fell back to the workspace keeps none, and one
+//! planted there is never read (D30). It speaks in connector and package
+//! names, and the root's admission resolves them.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -33,6 +36,10 @@ pub struct SavedAuthority {
     pub workspaces: Vec<String>,
     /// The authority it gives, in connector and package names.
     pub authority: RunAuthority,
+    /// It's what every run in its workspaces that states no authority starts
+    /// with. It gives only the person's own data, and a workspace has one.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub standing: bool,
 }
 
 /// Why a saved authority can't be saved, read or applied.
@@ -58,6 +65,14 @@ pub enum SavedAuthorityError {
     NoWorkspace { path: String },
     #[error("the authority doesn't resolve in {workspace}: {reason}")]
     Unresolved { workspace: String, reason: String },
+    #[error(
+        "a standing authority applies to runs that state none, so it gives only the person's own data: delegations on private, and nothing else"
+    )]
+    NotOwnData,
+    #[error(
+        "this workspace's standing authority is {other}; remove it with runx authority remove {other} first"
+    )]
+    StandingTaken { other: String },
     #[error(transparent)]
     WorkspaceId(#[from] WorkspaceIdError),
     #[error("{path} {fault}")]
@@ -71,18 +86,22 @@ pub enum SavedAuthorityError {
 
 /// Save `authority` as `name` for `workspaces`, or, with none, for the
 /// workspace runx runs in, once it resolves in each of them: each
-/// delegation's connector stands for an instance there.
+/// delegation's connector stands for an instance there. `standing`, it's
+/// what those workspaces' runs that state no authority start with.
 ///
 /// # Errors
 ///
 /// Returns why it can't: a home that fell back, a bad name, a path that's no
-/// workspace, or an authority that doesn't resolve in one of them.
+/// workspace, an authority that doesn't resolve in one of them, or, standing,
+/// one that gives more than the person's own data or a workspace that has a
+/// standing authority already.
 pub fn save(
     env: &BTreeMap<String, String>,
     cwd: &Path,
     name: &str,
     authority: RunAuthority,
     workspaces: &[PathBuf],
+    standing: bool,
     now: &str,
 ) -> Result<SavedAuthority, SavedAuthorityError> {
     let paths = RunxPaths::resolve(env, cwd);
@@ -90,6 +109,9 @@ pub fn save(
         return Err(SavedAuthorityError::HomeFellBack);
     }
     let file = authority_file(&paths, name)?;
+    if standing && !own_data(&authority) {
+        return Err(SavedAuthorityError::NotOwnData);
+    }
     let places = if workspaces.is_empty() {
         vec![(env.clone(), paths.clone())]
     } else {
@@ -127,9 +149,17 @@ pub fn save(
             ids.push(id);
         }
     }
+    if standing
+        && let Some((other, _)) = list(&paths)?.into_iter().find(|(other, saved)| {
+            other != name && saved.standing && saved.workspaces.iter().any(|id| ids.contains(id))
+        })
+    {
+        return Err(SavedAuthorityError::StandingTaken { other });
+    }
     let saved = SavedAuthority {
         workspaces: ids,
         authority,
+        standing,
     };
     let directory = paths.saved_authorities();
     ensure_private_directory(&directory).map_err(|fault| SavedAuthorityError::File {
@@ -249,6 +279,54 @@ pub fn named(
         });
     }
     Ok(saved.authority)
+}
+
+/// The authority a run in the workspace runx runs in starts with when it
+/// states none: the one the person saved as standing for it, if any. A
+/// workspace this home has minted no id for has none, and none is minted.
+///
+/// # Errors
+///
+/// Returns why the home's saved authorities or workspace ids can't be read.
+pub fn standing(paths: &RunxPaths) -> Result<Option<RunAuthority>, SavedAuthorityError> {
+    if paths.home_fell_back() || !paths.workspace_found() {
+        return Ok(None);
+    }
+    let standing = list(paths)?
+        .into_iter()
+        .filter(|(_, saved)| saved.standing)
+        .collect::<Vec<_>>();
+    if standing.is_empty() {
+        return Ok(None);
+    }
+    let workspace = std::fs::canonicalize(paths.workspace())
+        .map(|path| path.display().to_string())
+        .ok();
+    let Some(id) = workspace_ids::list(paths)?
+        .into_iter()
+        .find(|entry| Some(&entry.path) == workspace.as_ref())
+        .map(|entry| entry.id)
+    else {
+        return Ok(None);
+    };
+    Ok(standing
+        .into_iter()
+        .find(|(_, saved)| saved.workspaces.contains(&id))
+        .map(|(_, saved)| saved.authority))
+}
+
+/// Whether `authority` gives only the person's own data: delegations on
+/// `private`, and nothing else a run's authority can say.
+fn own_data(authority: &RunAuthority) -> bool {
+    !authority.delegations.is_empty()
+        && authority
+            .delegations
+            .iter()
+            .all(|delegation| delegation.connector.as_str() == crate::drivers::store::PRIVATE)
+        && RunAuthority {
+            delegations: Vec::new(),
+            ..authority.clone()
+        } == RunAuthority::default()
 }
 
 fn authority_file(paths: &RunxPaths, name: &str) -> Result<PathBuf, SavedAuthorityError> {

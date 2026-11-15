@@ -149,9 +149,23 @@ object, as step 5 of the default workflow does.
    `runx test skills/<name>`.
 5. **Run it like any skill**, under the authority the person grants, with an
    approval before anything consequential.
-6. **Keep the person's corrections.** When they correct a run, keep their exact
-   words with `runx skill runx/memory#remember`, which asks them to confirm, so
-   the next run applies the correction. Change the skill itself with
+6. **Keep the person's corrections.** Their memory is theirs, so the first
+   time, ask them to let this workspace's skills keep and read it, and save
+   that once as the workspace's standing authority, which every run here that
+   states no authority starts with:
+
+   ```json
+   {"delegations": [{"connector": "private", "terms": [{"verbs": ["read", "write"],
+     "bounds": {"operations": ["private/*"], "scopes": ["store.read", "store.append"],
+       "targets": ["runx/memory/said:*", "runx/memory/observed:*"],
+       "packages": ["runx/memory", "runx/agent", "project:*"]}}]}]}
+   ```
+
+   `runx authority save memory <file> --standing`. Then keep each correction's
+   exact words with `runx skill runx/memory#remember`, which asks them to
+   confirm, and later runs apply it: a skill reads it through a
+   `runx/memory#index` step before its turn, which `skill-build` plans for a
+   job the person repeats. Change the skill itself with
    `runx skill runx/skill-build#improve`, which tests the change before it
    writes it.
 

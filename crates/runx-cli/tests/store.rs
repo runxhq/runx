@@ -1615,6 +1615,65 @@ fn a_saved_authority_applies_only_in_the_workspaces_it_lists() -> TestResult {
     Ok(())
 }
 
+/// A standing authority is the person's one decision for a workspace: every
+/// run there that states no authority starts with it, so their own skills
+/// keep and read their memory unnamed. It gives only their own data, a
+/// workspace has one, another workspace gets nothing, and an authority a
+/// host states, an empty one included, stays its own.
+#[test]
+fn a_standing_authority_gives_its_workspace_the_persons_own_data_unnamed() -> TestResult {
+    let project = Project::new("runx-authority-standing")?;
+    project.skill("notes", NOTES)?;
+    let standing = |name: &str, authority: &Value| -> TestResult<Output> {
+        let file = project.write(&format!("{name}.authority.json"), &authority.to_string())?;
+        Ok(project
+            .runx()?
+            .args(["authority", "save", name])
+            .arg(&file)
+            .args(["--standing", "--json"])
+            .output()?)
+    };
+    let mut bounded = memory_authority();
+    bounded["max_fanout"] = json!(2);
+    let mut elsewhere_data = memory_authority();
+    elsewhere_data["delegations"][0]["connector"] = json!("slack");
+    for (name, authority) in [
+        ("bounded", bounded),
+        ("elsewhere", elsewhere_data),
+        ("empty", json!({})),
+    ] {
+        let refused = standing(name, &authority)?;
+        assert!(
+            !refused.status.success() && printed(&refused).contains("own data"),
+            "{name}: {}",
+            printed(&refused)
+        );
+    }
+    let saved = json(&standing("mine", &memory_authority())?, 0)?;
+    assert_eq!(saved["standing"], true, "{saved}");
+
+    let observed = json(&project.run("skills/notes#observe", &SEEN, None)?, 0)?;
+    assert_eq!(store_result(&observed)["status"], "committed", "{observed}");
+    let second = standing("again", &memory_authority())?;
+    assert!(
+        !second.status.success() && printed(&second).contains("mine"),
+        "{}",
+        printed(&second)
+    );
+    let stated = project.run("skills/notes#recall", &[("key", "tea")], Some(&json!({})))?;
+    assert!(!stated.status.success(), "{}", printed(&stated));
+
+    let elsewhere = Project::new("runx-authority-standing-elsewhere")?;
+    elsewhere.skill("notes", NOTES)?;
+    let there = crate::support::unsigned_runx_command_at(&elsewhere.root)
+        .env("RUNX_CWD", &elsewhere.root)
+        .env("RUNX_HOME", project.root.join("home"))
+        .args(["skill", "skills/notes#recall", "-i", "key=tea", "--json"])
+        .output()?;
+    assert!(!there.status.success(), "{}", printed(&there));
+    Ok(())
+}
+
 #[test]
 fn saving_an_authority_checks_it_resolves() -> TestResult {
     let project = Project::new("runx-authority-resolves")?;

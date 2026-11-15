@@ -8,7 +8,7 @@ use runx_runtime::WorkspaceEnv;
 
 use super::inputs::{CliInputs, parse_input_arg, parse_input_document_arg};
 use super::method_ref::MethodRef;
-use super::{NamedAuthority, SkillAction, SkillPlan};
+use super::{SavedAuthority, SkillAction, SkillPlan};
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 
 pub fn parse_skill_plan(args: &[OsString]) -> Result<SkillPlan, String> {
@@ -55,8 +55,8 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     }
     // A run's authority is the one its host states for this invocation, or
     // a saved preset it names, and never both: either goes through the same
-    // admission once it's read. With neither, `--max-spend` gives the run an
-    // authority that only bounds it.
+    // admission once it's read. With neither, it's the workspace's standing
+    // one if the person saved one, and `--max-spend` bounds whichever it is.
     let (run_authority, authority) = match (state.run_authority, state.authority) {
         (Some(_), Some(_)) => {
             return Err(
@@ -64,9 +64,9 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
                     .to_owned(),
             );
         }
-        (None, Some(name)) => (
+        (None, name) => (
             None,
-            Some(NamedAuthority {
+            Some(SavedAuthority {
                 name,
                 max_spend_micro_usd: state.max_cost,
             }),
@@ -498,21 +498,25 @@ mod tests {
 
     #[test]
     fn max_cost_bounds_a_direct_run_in_micro_usd() -> Result<(), String> {
-        let limited = plan(&["skill", "skills/research", "--max-spend", "0.25"])?;
-        let authority = limited.run_authority.ok_or("no run authority")?;
-        assert_eq!(authority.max_spend_micro_usd, Some(250_000));
-        assert_eq!(authority.actor_ref, None, "a limit names no actor");
+        // With no authority named or stated, the limit bounds whichever the
+        // run starts with: the workspace's standing one, or one that only
+        // bounds it.
+        let limited = |spend: &str| -> Result<Option<u64>, String> {
+            let limited = plan(&["skill", "skills/research", spend])?;
+            assert_eq!(limited.run_authority, None);
+            Ok(limited
+                .authority
+                .filter(|saved| saved.name.is_none())
+                .and_then(|saved| saved.max_spend_micro_usd))
+        };
+        assert_eq!(limited("--max-spend=0.25")?, Some(250_000));
+        assert_eq!(limited("--max-spend=2")?, Some(2_000_000));
+        assert_eq!(limited("--max-spend=0.000001")?, Some(1));
+        let bound = super::limit_run(None, Some(250_000))?.ok_or("an authority")?;
         assert_eq!(
-            plan(&["skill", "skills/research", "--max-spend=2"])?
-                .run_authority
-                .and_then(|authority| authority.max_spend_micro_usd),
-            Some(2_000_000)
-        );
-        assert_eq!(
-            plan(&["skill", "skills/research", "--max-spend=0.000001"])?
-                .run_authority
-                .and_then(|authority| authority.max_spend_micro_usd),
-            Some(1)
+            (bound.max_spend_micro_usd, bound.actor_ref),
+            (Some(250_000), None),
+            "a limit names no actor"
         );
         for refused in ["-1", "0.0000001", "1e3", "", ".5", "5.", "$2", "0.5x"] {
             let Err(error) = plan(&["skill", "skills/research", "--max-spend", refused]) else {
@@ -535,8 +539,8 @@ mod tests {
         ])?;
         assert_eq!(
             named.authority,
-            Some(super::NamedAuthority {
-                name: "ops".to_owned(),
+            Some(super::SavedAuthority {
+                name: Some("ops".to_owned()),
                 max_spend_micro_usd: Some(1_000_000),
             })
         );

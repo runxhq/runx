@@ -1,6 +1,7 @@
 //! `runx authority`: the authorities a person saves in their runx home, by
 //! name and for the workspaces they list, which a run or a server applies
-//! only where it names one with `--authority <name>` (authority.md).
+//! where it names one with `--authority <name>`, and, the one saved
+//! `--standing`, where it states none (authority.md).
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -13,7 +14,7 @@ use serde::Serialize;
 use crate::cli_args::{os_arg, os_flag_value, split_flag};
 use crate::document_input::DocumentInputSource;
 
-const USAGE: &str = "runx authority save <name> <file|-> [--workspace <path>...] | list | show <name> | remove <name>";
+const USAGE: &str = "runx authority save <name> <file|-> [--workspace <path>...] [--standing] | list | show <name> | remove <name>";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorityPlan {
@@ -24,11 +25,13 @@ pub struct AuthorityPlan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AuthorityAction {
     /// Save the authority a file or stdin holds as `name`, for `workspaces`
-    /// or, with none, the workspace it's made in.
+    /// or, with none, the workspace it's made in, and `standing`, for their
+    /// runs that state none.
     Save {
         name: String,
         source: DocumentInputSource,
         workspaces: Vec<PathBuf>,
+        standing: bool,
     },
     List,
     Show {
@@ -47,12 +50,14 @@ pub fn parse_authority_plan(args: &[OsString]) -> Result<AuthorityPlan, String> 
     let mut positionals = Vec::new();
     let mut workspaces = Vec::new();
     let mut json = false;
+    let mut standing = false;
     let mut index = 2;
     while index < args.len() {
         let token = os_arg(args, index, "authority")?;
         let (flag, inline) = split_flag(token);
         match flag {
             "--json" | "-j" if inline.is_none() => json = true,
+            "--standing" if inline.is_none() => standing = true,
             "--workspace" => {
                 let (value, next) = os_flag_value(args, index, flag, inline)?;
                 workspaces.push(PathBuf::from(value));
@@ -76,10 +81,13 @@ pub fn parse_authority_plan(args: &[OsString]) -> Result<AuthorityPlan, String> 
                 DocumentInputSource::Path(PathBuf::from(source))
             },
             workspaces,
+            standing,
         },
-        ("list", []) if workspaces.is_empty() => AuthorityAction::List,
-        ("show", [name]) if workspaces.is_empty() => AuthorityAction::Show { name: name.clone() },
-        ("remove", [name]) if workspaces.is_empty() => {
+        ("list", []) if workspaces.is_empty() && !standing => AuthorityAction::List,
+        ("show", [name]) if workspaces.is_empty() && !standing => {
+            AuthorityAction::Show { name: name.clone() }
+        }
+        ("remove", [name]) if workspaces.is_empty() && !standing => {
             AuthorityAction::Remove { name: name.clone() }
         }
         _ => return Err(format!("usage: {USAGE}")),
@@ -121,6 +129,16 @@ pub fn named_authority(name: &str, workspace: &WorkspaceEnv) -> Result<RunAuthor
         .map_err(|error| error.to_string())
 }
 
+/// The authority a run or a server started in `workspace` that states none
+/// starts with: the person's standing one there, if they saved one.
+///
+/// # Errors
+///
+/// Returns why the saved authorities can't be read.
+pub fn standing_authority(workspace: &WorkspaceEnv) -> Result<Option<RunAuthority>, String> {
+    saved_authorities::standing(workspace.paths()).map_err(|error| error.to_string())
+}
+
 fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, String> {
     let paths = workspace.paths();
     let failed = |error: saved_authorities::SavedAuthorityError| error.to_string();
@@ -129,6 +147,7 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             name,
             source,
             workspaces,
+            standing,
         } => {
             let text = match source {
                 DocumentInputSource::Path(path) => {
@@ -153,6 +172,7 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 name,
                 authority,
                 &workspaces,
+                *standing,
                 &runx_runtime::now_iso8601(),
             )
             .map_err(failed)?;
@@ -163,6 +183,12 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     saved: &saved,
                 },
                 || {
+                    if saved.standing {
+                        return format!(
+                            "saved authority {name}, standing for {} workspace(s): every run there that states no authority starts with it\n",
+                            saved.workspaces.len()
+                        );
+                    }
                     format!(
                         "saved authority {name} for {} workspace(s); name it with --authority {name}\n",
                         saved.workspaces.len()
@@ -177,6 +203,7 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 .map(|(name, saved)| Listed {
                     name,
                     workspaces: &saved.workspaces,
+                    standing: saved.standing,
                 })
                 .collect::<Vec<_>>();
             render(
@@ -193,8 +220,13 @@ fn execute(plan: &AuthorityPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                         .iter()
                         .map(|listed| {
                             format!(
-                                "{}  for {} workspace(s)\n",
+                                "{}  {} {} workspace(s)\n",
                                 listed.name,
+                                if listed.standing {
+                                    "standing for"
+                                } else {
+                                    "for"
+                                },
                                 listed.workspaces.len()
                             )
                         })
@@ -234,6 +266,8 @@ struct Shown<'a> {
 struct Listed<'a> {
     name: &'a str,
     workspaces: &'a [String],
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    standing: bool,
 }
 
 #[derive(Serialize)]
@@ -294,16 +328,18 @@ mod tests {
                     name: "notes".to_owned(),
                     source: DocumentInputSource::Path(PathBuf::from("notes.json")),
                     workspaces: vec![PathBuf::from("../other")],
+                    standing: false,
                 },
                 json: true,
             }
         );
         assert_eq!(
-            plan(&["authority", "save", "notes", "-"])?.action,
+            plan(&["authority", "save", "notes", "-", "--standing"])?.action,
             AuthorityAction::Save {
                 name: "notes".to_owned(),
                 source: DocumentInputSource::Stdin,
                 workspaces: Vec::new(),
+                standing: true,
             }
         );
         assert_eq!(plan(&["authority", "list"])?.action, AuthorityAction::List);
@@ -323,6 +359,7 @@ mod tests {
             &["authority"][..],
             &["authority", "save", "notes"],
             &["authority", "list", "--workspace", "x"],
+            &["authority", "list", "--standing"],
             &["authority", "show"],
             &["authority", "drop", "notes"],
             &["authority", "save", "notes", "a.json", "--trust"],

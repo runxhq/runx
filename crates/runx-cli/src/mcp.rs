@@ -212,13 +212,12 @@ fn server_options(
             env!("CARGO_PKG_VERSION"),
         ));
     }
-    // A saved authority applies only where the server names it, and only in
-    // a workspace it lists; it's never assumed.
-    let run_authority = plan
-        .authority
-        .as_deref()
-        .map(|name| crate::authority::named_authority(name, workspace))
-        .transpose()?;
+    // A saved authority applies where the server names it, in a workspace it
+    // lists, and the standing one where it names none.
+    let run_authority = match plan.authority.as_deref() {
+        Some(name) => Some(crate::authority::named_authority(name, workspace)?),
+        None => crate::authority::standing_authority(workspace)?,
+    };
     let effects = crate::runtime::runtime_effect_registry().map_err(|error| error.to_string())?;
     // Each ref resolves as `runx skill` resolves it, so the server offers the
     // same skill a run would. A ref with `#method` offers that method under

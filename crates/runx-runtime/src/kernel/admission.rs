@@ -420,7 +420,7 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
     // call, is made only under a term the host states (D21).
     let needs_term = if is_private(&connector) {
         Some(format!(
-            "every {} call needs a term, and the run's authority states none for this instance: save an authority with a delegation on it with runx authority save <name> <file>, and name it with --authority <name>",
+            "every {} call needs a term, and the run's authority states none for this instance: save one with a delegation on it for this workspace with runx authority save <name> <file> --standing, which every run here that states no authority starts with, or name a saved one with --authority <name>",
             connector.name
         ))
     } else {
@@ -1414,7 +1414,7 @@ fn readiness(
                     let refused = delegated.uncovered(chain).or_else(|| {
                         (is_private(&connector) && !delegated.stated).then(|| {
                             format!(
-                                "every {} call needs a term, and the run's authority states none for this instance: save an authority with a delegation on it with runx authority save <name> <file>, and name it with --authority <name>",
+                                "every {} call needs a term, and the run's authority states none for this instance: save one with a delegation on it for this workspace with runx authority save <name> <file> --standing, which every run here that states no authority starts with, or name a saved one with --authority <name>",
                                 connector.name
                             )
                         })
