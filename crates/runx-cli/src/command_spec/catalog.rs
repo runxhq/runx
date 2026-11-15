@@ -87,7 +87,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &[
             "--receipt-dir dir",
             "--drive  Explicitly allow an in-process model loop for this continuation",
-            "--drive-rounds n  Bound each managed act to 1-32 rounds (default 4)",
+            "--drive-rounds n  Bound each driven turn to 1-32 rounds (default 4)",
             "--package-digest sha256   Reassert the checkpointed package binding",
             "--closure-digest sha256",
             "                          Reassert the checkpointed closure",
@@ -303,7 +303,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--drive          Explicitly allow an in-process model loop for this run",
-            "--drive-rounds n Bound each managed act to 1-32 rounds (default 4)",
+            "--drive-rounds n Bound each driven turn to 1-32 rounds (default 4)",
             "--receipt-dir dir    Write receipts under dir",
             "-j, --json               Print machine-readable output",
             "--diagnostics            Show everything: the complete prepared context before the run, and its trace and intermediate context inline",

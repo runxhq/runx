@@ -233,7 +233,7 @@ or whose result carries one. The turn sees the refusal and the label, never
 what the call read. Custom project roots follow RunxPaths;
 foreign roots, stale sizes, file symlinks and digest mismatches are refused.
 Large workflows retain bounded immutable parts and a compact cursor, rather
-than pass a growing completed-history array to the next turn. The host owns
+than pass a growing completed-history array to the next run. The host owns
 continuation and scheduling.
 
 Runtime-owned ceilings are 4 MiB source, 4 MiB input, 4 MiB output, 64 MiB

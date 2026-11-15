@@ -6,27 +6,31 @@ tools, ask other agents to reason, receive feedback, and continue until an
 explicit stop condition is reached.
 
 runx should make those loops safe and verifiable without becoming the loop host.
+runx has no loop, schedule or stop policy of its own; its words, and where they
+stop, are in the [glossary](glossary.md).
 
 ## Shape
 
 - A **loop** lives outside the trusted kernel. It owns scheduling, durable loop
   state, wakeups, projections, and stop policy.
-- A **turn** is one governed runx skill or workflow run. It has explicit inputs,
-  authority, the calls its agent step declares, optional `context.skills`, bounded model/tool
-  rounds, approval gates, and one sealed receipt.
+- An **iteration** is one governed runx run of a skill's method, the one thing
+  the loop host submits. It has explicit inputs, authority, the calls its steps
+  declare, optional `context.skills`, approval gates, and one sealed receipt.
+  An agent step inside it opens a **turn**, whose agent loop runs bounded
+  rounds.
 - A **handoff** is a receipt-backed artifact or tool-shaped result asking
   another agent, loop, or system to continue.
 - A **signal** is an external event delivered to the loop host. It may cause a
-  new turn, but it is not hidden model context.
+  new iteration, but it is not hidden model context.
 - A **projection** is loop-readable state derived from receipts and admitted
   external events.
-- A **stop condition** is checked outside the model: max turns, budget, deadline,
-  approval state, confidence threshold, or explicit terminal output.
+- A **stop condition** is checked outside the model: max iterations, budget,
+  deadline, approval state, confidence threshold, or explicit terminal output.
 
 ```text
 loop host
   loads projection from receipts/events
-  chooses next turn request
+  chooses the next iteration's request
   submits a runx skill method with authority + context
   receives sealed receipt / pause / denial
   updates projection
@@ -73,9 +77,9 @@ A loop host must not be able to smuggle authority through prompts.
 
 Required gates:
 
-- **Turn budget:** maximum turns per loop and maximum model/tool rounds per
-  turn.
-- **Authority budget:** spend/effect limits are consumed across linked turns;
+- **Iteration budget:** maximum iterations per loop; inside each run, its
+  steps' `max_calls`, and the rounds of each agent turn.
+- **Authority budget:** spend/effect limits are consumed across linked runs;
   the next prompt cannot mint fresh authority.
 - **Context budget:** `context.skills` and prior receipt summaries are capped,
   digest-bound, and marked untrusted.
@@ -83,8 +87,10 @@ Required gates:
   `calls.tools` and pass normal runx tool-ref admission.
 - **Side-effect review:** side-effecting tools may pause for human or policy
   review before execution.
-- **Idempotency:** every turn has a stable loop id, turn id, and idempotency key.
-- **Stop policy:** loops fail closed on exhausted turns, budget, stale
+- **Idempotency:** every iteration has a stable loop id and a run id the host
+  chooses, so a retried submission returns what that run sealed instead of
+  running again.
+- **Stop policy:** loops fail closed on exhausted iterations, budget, stale
   projection, or missing required receipts.
 - **Replay discipline:** replay reads receipts and projections. It never treats
   hidden prompts as source of truth.
@@ -93,7 +99,7 @@ Required gates:
 
 Use runx for:
 
-- governed skill/workflow turns;
+- governed runs of skills' methods;
 - authority attenuation and approval gates;
 - bounded model/tool execution;
 - governed data operations through declared data-source adapters;
@@ -104,7 +110,7 @@ Use the outer loop host for:
 
 - scheduling and wakeups;
 - durable loop state and projections;
-- retries across turns;
+- retries across runs;
 - cross-agent routing;
 - product-specific stop policy;
 - resident hosted operation.
@@ -129,9 +135,9 @@ projection operation.
 ## Example
 
 The canonical OSS example is `examples/loop-orchestration`: a local fixture
-loop that submits bounded runx runs, prints each receipt id and next-turn
-reason, demonstrates `context.skills`, includes a refusal path, and runs
-without provider keys.
+loop that submits bounded runx runs, prints each receipt id and the reason for
+or against another iteration, demonstrates `context.skills`, includes a refusal
+path, and runs without provider keys.
 
 Run it from the OSS workspace:
 

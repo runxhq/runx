@@ -160,15 +160,17 @@ contract. See `docs/skill-quality-standard.md` for the review bar.
 
 ### Loop Orchestration
 
-Long-running agent workflows are loops over governed turns, not resident kernel
-loops. The loop host lives in an app, hosted service, local script, or external
+Long-running agent work is a loop over governed runs, never a resident kernel
+loop: runx has no loop, schedule or stop policy (see `docs/glossary.md`). The
+loop host lives in an app, hosted service, local script, or external
 orchestrator. It owns scheduling, durable loop state, wakeups, projections, and
-stop policy. Each loop step is one skill or workflow run with explicit inputs,
-authority, the calls its agent steps declare, optional `context.skills`,
-bounded model/tool rounds, approval gates, and one sealed receipt.
+stop policy. Each iteration is one run of a skill's method, with explicit
+inputs, authority, the calls its steps declare, optional `context.skills`,
+approval gates, and one sealed receipt; an agent step in it opens a turn, whose
+agent loop runs bounded rounds.
 
 Handoffs are receipt-backed artifacts or tool-shaped results. Prior receipts and
-skill context are untrusted data for the next turn, not new authority. Do not add
+skill context are untrusted data for the next run, not new authority. Do not add
 loop-specific authority families, packet namespaces, product branches, or
 schedulers to `runx-core`; build residency outside the kernel over ordinary runx
 submissions.
