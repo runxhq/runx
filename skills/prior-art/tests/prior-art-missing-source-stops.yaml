@@ -36,5 +36,9 @@ expect:
           findings:
             - code: source.missing
               path: docs/does-not-exist.md
+            - code: finding.unbound_source
+              path: docs/does-not-exist.md
+            - code: source.unbound
+              path: docs/does-not-exist.md
   receipt:
     schema: runx.receipt.v1

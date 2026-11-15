@@ -8,5 +8,5 @@ inputs:
   payload: {hello: workflow}
 env: {N8N_WEBHOOK_URL: 'https://acme.app.n8n.cloud/webhook/runx-governed-effect'}
 expect:
-  status: needs_agent
+  status: needs_approval
   steps: [terms, build-handoff-context, address]

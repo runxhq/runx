@@ -134,6 +134,10 @@ expect:
               kind: delivery
               content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
               source: merchant://orders/42/access-log
+            - id: provider-dispute
+              kind: provider
+            - id: provider-charge
+              kind: provider
           citations:
             - field: access_activity_log
               evidence_id: delivery-42
