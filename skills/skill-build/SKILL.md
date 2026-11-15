@@ -45,7 +45,10 @@ author so exact source references can survive the candidate write.
 - `build` (the `default_method`): create or update a package after its exact
   staged bundle passes native parsing, inspection, and safe replay of its tests.
 - `improve`: turn one receipt or test failure into a bounded package update,
-  then validate and commit the exact staged bytes.
+  then validate and commit the exact staged bytes. It is `draft`, then apply.
+- `draft`: the same bounded update, bound and validated, returned as its
+  change bundle with nothing written, for a caller that tests the change
+  itself before it applies it, as reflection does.
 - `test`: add tests to an existing package and replay them safely against
   the exact candidate before committing it.
 
@@ -502,9 +505,9 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
   package; use it as `SKILL.md`'s `name` even when the target directory has a
   different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
-- `target_dir` (required for `build`, `improve`, and `test`): repo-relative package directory.
+- `target_dir` (required for `build`, `improve`, `draft`, and `test`): repo-relative package directory.
 - `project_context` (optional): product, repository, and operator constraints.
-- `receipt_id`, `receipt_summary`, `test_output`, `failure_packet` (improve):
+- `receipt_id`, `receipt_summary`, `test_output`, `failure_packet` (improve and draft):
   failure evidence, including the stable packet from `diagnose-skill-run`.
   `test_output` carries a test run's sanitized output.
 

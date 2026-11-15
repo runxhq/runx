@@ -207,9 +207,73 @@ methods:
         project_context: Preserve the existing contract version and provider boundary.
         test_output: The agent could not construct the nested resources selector from inspection.
     result_from:
-      - plan
+      - draft
       - apply
-      - apply-terminal
+    steps:
+      - id: draft
+        skill: .#draft
+        inputs:
+          objective: $input.objective
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
+          project_context: $input.project_context
+          receipt_id: $input.receipt_id
+          receipt_summary: $input.receipt_summary
+          test_output: $input.test_output
+          failure_packet: $input.failure_packet
+      - id: apply
+        tool: runx.skill.apply
+        inputs:
+          target_dir: $input.target_dir
+          repo_root: $input.repo_root
+          mode: improve
+          change_bundle: $steps.draft.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
+
+  draft:
+    description: Turn one receipt or test failure into a bounded update of a package, bound and validated, and stop before anything is written. A caller such as reflection tests the change first and applies it itself.
+    inputs:
+      objective:
+        type: string
+        description: Bounded improvement objective.
+      repo_root:
+        type: string
+        default: .
+        description: Workspace root that owns target_dir.
+        optional: true
+      target_dir:
+        type: string
+        description: Repo-relative package directory to improve.
+      project_context:
+        type: string
+        description: Product, repository, and operator constraints.
+        optional: true
+      receipt_id:
+        type: string
+        description: Receipt reference for the failed or suspicious run.
+        optional: true
+      receipt_summary:
+        type: string
+        description: Sanitized receipt or failure summary.
+        optional: true
+      test_output:
+        type: string
+        description: Sanitized test output or assertion failure.
+        optional: true
+      failure_packet:
+        description: Stable runx/diagnose-skill-run.diagnosis.v1 failure packet from diagnose-skill-run.
+        optional: true
+    examples:
+      - objective: Make every public method callable from inspection without source-diving.
+        repo_root: .
+        target_dir: skills/github
+        project_context: Preserve the existing contract version and provider boundary.
+        test_output: The agent could not construct the nested resources selector from inspection.
+    result_from:
+      - plan
+      - bind
+      - bind-terminal
     steps:
       - id: inspect
         tool: runx.skill.inspect
@@ -267,29 +331,11 @@ methods:
         inputs:
           architecture_plan: $steps.plan.architecture_plan
           change_draft: $steps.author.change_draft
-      - id: apply
-        when: {value: $steps.plan.authoring_required, equals: true}
-        tool: runx.skill.apply
-        inputs:
-          target_dir: $input.target_dir
-          repo_root: $input.repo_root
-          mode: improve
-          change_bundle: $steps.bind.change_bundle
       - id: bind-terminal
         when: {value: $steps.plan.authoring_required, equals: false}
         tool: runx.skill.bind
         inputs:
           architecture_plan: $steps.plan.architecture_plan
-      - id: apply-terminal
-        when: {value: $steps.plan.authoring_required, equals: false}
-        tool: runx.skill.apply
-        inputs:
-          target_dir: $input.target_dir
-          repo_root: $input.repo_root
-          mode: improve
-          change_bundle: $steps.bind-terminal.change_bundle
-        outputs:
-          apply_result: {type: object, packet: runx.skill.apply_result.v1}
 
   test:
     description: Add tests to an existing package and replay them against the candidate before writing.

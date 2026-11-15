@@ -73,13 +73,10 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
-    - inspect
-    - architect
-    - plan
-    - bind-terminal
-    - apply-terminal
+    - draft
+    - apply
   step_outputs:
-    apply-terminal:
+    apply:
       subset:
         apply_result:
           decision: no_change
