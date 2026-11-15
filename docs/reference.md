@@ -590,9 +590,9 @@ one JSON object, and then enter the same selected-method defaulting and type
 validation as inline inputs. Runx does not echo a rejected document in its
 diagnostic.
 
-A `null` is a value where an input can hold one: a `json` input, or one whose
-schema admits null, receives it as given. Where the input can't hold null, a
-`null` gives it nothing, as an absent field does: an optional input is left
+A `null` is a value where an input accepts one: a `json` input, or one whose
+schema admits null, receives it as given. Where the input doesn't accept null,
+a `null` gives it nothing, as an absent field does: an optional input is left
 out, its default applies, and a required one is missing. So a step with
 nothing to forward can hand on `null`.
 

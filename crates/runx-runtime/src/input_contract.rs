@@ -58,16 +58,16 @@ pub(crate) fn missing_required(
         .collect()
 }
 
-/// What `input` is given by `supplied`. A null the input can hold, by its
-/// type and schema, is its value. One it can't hold gives it nothing: it is
-/// how a step with nothing to forward says so, as an absent field is, and a
-/// required input given it is missing.
+/// What `input` is given by `supplied`. A null the input accepts, by its
+/// type and schema, is its value. One it doesn't accept gives it nothing: it
+/// is how a step with nothing to forward says so, as an absent field is, and
+/// a required input given it is missing.
 fn given<'a>(input: &SkillInput, supplied: Option<&'a JsonValue>) -> Option<&'a JsonValue> {
-    supplied.filter(|value| !matches!(value, JsonValue::Null) || holds_null(input))
+    supplied.filter(|value| !matches!(value, JsonValue::Null) || accepts_null(input))
 }
 
-/// Whether `input`'s type and schema admit a null.
-fn holds_null(input: &SkillInput) -> bool {
+/// Whether `input`'s type and schema accept a null.
+fn accepts_null(input: &SkillInput) -> bool {
     input.accepts_value(&JsonValue::Null)
         && (input.schema.is_none()
             || validate_schema_value("input", "value", input, &JsonValue::Null).is_ok())
@@ -504,12 +504,12 @@ mod tests {
         Ok(())
     }
 
-    /// A null an input can hold is its value; one it can't hold gives it
+    /// A null an input accepts is its value; one it doesn't accept gives it
     /// nothing, so an optional input is left out, as an absent field leaves
     /// it, and a required one is missing.
     #[test]
-    fn a_null_is_a_value_only_where_the_input_can_hold_one()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn a_null_is_a_value_only_where_the_input_accepts_one() -> Result<(), Box<dyn std::error::Error>>
+    {
         let supplied = JsonObject::from([("value".to_owned(), JsonValue::Null)]);
         let optional = BTreeMap::from([("value".to_owned(), string_input(false))]);
         assert_eq!(
@@ -520,11 +520,11 @@ mod tests {
         assert_eq!(missing_required(&required, &supplied), ["value"]);
         let refused = materialize_complete_method_inputs(&required, &JsonObject::new(), &supplied)
             .err()
-            .ok_or("a required input given a null it can't hold is missing")?;
+            .ok_or("a required input given a null it doesn't accept is missing")?;
         assert!(refused.to_string().contains("is required"), "{refused}");
         let mut definition = string_input(true);
         definition.input_type = "json".to_owned();
-        for (schema, holds) in [
+        for (schema, accepted) in [
             (
                 serde_json::json!({"anyOf": [{"type": "string"}, {"type": "null"}]}),
                 true,
@@ -533,10 +533,10 @@ mod tests {
         ] {
             definition.schema = Some(serde_json::from_value(schema)?);
             let declared = BTreeMap::from([("value".to_owned(), definition.clone())]);
-            assert_eq!(missing_required(&declared, &supplied).is_empty(), holds);
+            assert_eq!(missing_required(&declared, &supplied).is_empty(), accepted);
             assert_eq!(
                 materialize_complete_method_inputs(&declared, &JsonObject::new(), &supplied).ok(),
-                holds.then(|| supplied.clone())
+                accepted.then(|| supplied.clone())
             );
         }
         Ok(())

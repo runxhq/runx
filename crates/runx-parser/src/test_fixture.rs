@@ -291,9 +291,9 @@ pub enum TestJsonExpectation {
     Exact {
         exact: JsonValue,
     },
-    /// The fields `subset` names hold those values, and nothing is at each
+    /// The fields `subset` names have those values, and nothing is at each
     /// JSON pointer `absent` names. A `null` in `subset` is a value the field
-    /// holds, so a field that must not be there at all is named in `absent`.
+    /// has, so a field that must not be there at all is named in `absent`.
     Subset {
         subset: JsonValue,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
