@@ -505,6 +505,11 @@ export async function propose(ctx, { survey, findings }) {
     if (!entry.criterion.startsWith("resisted_") || !entry.finding) continue;
     const item = survey.resistance[Number(entry.criterion.slice("resisted_".length)) - 1];
     const { criterion, finding } = entry;
+    // Reflection never changes its own package, its checks or its cases.
+    if (item.skill === SELF) {
+      proposals.push({ criterion, target_dir: null, dropped: "reflection never changes its own package" });
+      continue;
+    }
     const target_dir = `skills/${item.skill}`;
     const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence, cause: finding.cause })).slice(7);
     const declined = (await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation?.result;

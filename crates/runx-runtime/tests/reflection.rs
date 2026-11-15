@@ -12,7 +12,7 @@ use tempfile::tempdir;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 const GREET: &str = "minimum_runx: 0.12.0\nmethods:\n  hello:\n    inputs: {name: {type: string}}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: $input.name, encoding: utf8_text}\n  broken:\n    steps:\n      - id: compare\n        tool: data.compare\n        inputs: {expected: a, actual: b}\n      - id: insist\n        tool: data.digest\n        guard:\n          - {value: $steps.compare.comparison.equal, equals: true}\n        inputs: {value: never, encoding: utf8_text}\n  asks:\n    steps:\n      - id: confirm\n        ask: {gate: greet.confirm, reason: Say hello to the world?}\n        inputs: {quote: hello}\n";
-const RULES: &str = "minimum_runx: 0.12.0\nmethods:\n  keep:\n    inputs: {text: {type: string}}\n    steps:\n      - id: remember\n        skill: runx/memory#remember\n        inputs: {level: workspace, text: $input.text, summary: Greetings name the team., purpose: mandate, date: 2026-11-16, sources: [conversation], supersedes: none}\n";
+const RULES: &str = "minimum_runx: 0.12.0\nmethods:\n  keep:\n    inputs: {text: {type: string}, level: {type: string, default: workspace, optional: true}}\n    steps:\n      - id: remember\n        skill: runx/memory#remember\n        inputs: {level: $input.level, text: $input.text, summary: Greetings name the team., purpose: mandate, date: 2026-11-16, sources: [conversation], supersedes: none}\n  index:\n    steps:\n      - id: index\n        skill: runx/memory#index\n        inputs: {levels: [{level: personal}, {level: workspace}]}\n";
 
 fn env(root: &Path) -> BTreeMap<String, String> {
     let mut env = BTreeMap::from([
@@ -718,6 +718,104 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
                 && entry["again"] == false),
         "{weekly}"
     );
+    model.finish()?;
+    Ok(())
+}
+
+/// Reflection's walls, whatever its term allows: it reads no personal
+/// memory, so a person's own rule is never promoted or named, and it writes
+/// no person's words, so every said: entry is where it was after a whole
+/// reflection the person approves.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+#[test]
+fn reflection_reads_no_personal_memory_and_writes_no_persons_words() -> TestResult {
+    let model = reflection_model(false)?;
+    let endpoint = model.endpoint().to_owned();
+    let temp = tempdir()?;
+    let root = temp.path();
+    record(root)?;
+    let everything = ["runx/memory/said:*", "runx/memory/observed:*"];
+    let mine = run(
+        root,
+        root.join("skills/rules"),
+        "keep",
+        serde_json::json!({"text": "I greet in Australian English.", "level": "personal"}),
+        Some(
+            serde_json::json!({"delegations": [{"connector": "private", "terms": [{"verbs": ["read", "write"],
+            "bounds": {"operations": ["private/*"], "scopes": ["store.read", "store.append"], "targets": everything, "packages": ["project:rules", "runx/memory"]}}]}]}),
+        ),
+    )?;
+    let personal = answer(root, &mine, serde_json::json!(true))?;
+    let personal = personal["result"]["handle"]
+        .as_str()
+        .ok_or("the person's own rule")?
+        .to_owned();
+    // Every level the term could reach, read and write.
+    let widened = serde_json::json!({"delegations": [{"connector": "private", "terms": [{"verbs": ["read", "write"],
+        "bounds": {"operations": ["private/*"], "scopes": ["store.read", "store.append"], "targets": everything, "packages": ["project:reflect", "runx/memory"]}}]}]});
+    let mut environment = env(root);
+    environment.extend(runx_runtime::scripted_model::managed_agent_env(
+        &endpoint,
+        "fixture-model",
+    ));
+    let started = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        environment.clone(),
+    )
+    .run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: Some(serde_json::from_value(widened)?),
+            act: None,
+            skill_path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/reflect"),
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: serde_json::from_value(
+                serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
+            )?,
+            env: environment,
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(4)?,
+        },
+        Some("reflect"),
+        None,
+        None,
+    )?;
+    let sealed = drive(
+        root,
+        &endpoint,
+        serde_json::to_value(&started.output)?,
+        |_| serde_json::json!(true),
+    )?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    assert!(
+        !sealed.to_string().contains(&personal),
+        "a person's own rule was read: {sealed}"
+    );
+    assert!(!std::fs::read_to_string(root.join("AGENTS.md"))?.contains("Australian English"));
+    // No said: entry moved: each is current at its first version.
+    let index = run(
+        root,
+        root.join("skills/rules"),
+        "index",
+        serde_json::json!({}),
+        Some(
+            serde_json::json!({"delegations": [{"connector": "private", "terms": [{"verbs": ["read"],
+            "bounds": {"operations": ["private/*"], "scopes": ["store.read"], "targets": everything, "packages": ["project:rules", "runx/memory"]}}]}]}),
+        ),
+    )?;
+    let entries = index["result"]["entries"].to_string();
+    assert!(
+        entries.contains(&personal),
+        "the person's own rule is current: {index}"
+    );
+    assert!(!entries.contains("memory.disabled"), "{index}");
+    let promoted = sealed["result"]["promotion"]["promoted"][0]["handle"]
+        .as_str()
+        .ok_or("the workspace's rule")?;
+    assert!(promoted.ends_with("@1"), "{promoted}");
     model.finish()?;
     Ok(())
 }
