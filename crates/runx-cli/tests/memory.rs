@@ -954,3 +954,214 @@ fn a_search_matches_an_entrys_words_and_never_its_confirmation() -> TestResult {
     assert!(entries(&result["matches"])?.is_empty(), "{result}");
     Ok(())
 }
+
+// The bundled agent works with memory as a session does (D48): its turn is
+// given the index of what its run may read, and it may search, read,
+// observe and remember.
+
+/// A term reading and writing the runtime's memory, made from the bundled
+/// agent.
+fn agents_memory() -> String {
+    json!({"delegations": [{"connector": "private", "terms": [{
+        "verbs": ["read", "write"],
+        "bounds": {
+            "operations": ["private/*"],
+            "scopes": ["store.read", "store.append"],
+            "targets": ["runx/memory/said:*", "runx/memory/observed:*"],
+            "packages": ["runx/agent", "runx/memory"],
+        },
+    }]}]})
+    .to_string()
+}
+
+impl Memory {
+    /// The runtime's own `runx/memory#<method>` with `inputs` under
+    /// `authority`, its JSON.
+    fn runtimes(&self, method: &str, inputs: &Value, authority: &str) -> TestResult<Value> {
+        let file = format!("runtimes-{method}.json");
+        fs::write(self.root.join(&file), inputs.to_string())?;
+        Ok(serde_json::from_slice(
+            &self
+                .runx(&[
+                    "skill",
+                    &format!("runx/memory#{method}"),
+                    "--inputs",
+                    &file,
+                    "--run-authority",
+                    authority,
+                    "--json",
+                ])?
+                .stdout,
+        )?)
+    }
+
+    /// The runtime's own `runx/memory#<method>`, its change approved at
+    /// `gate` on resume: the run's result.
+    fn runtimes_approved(&self, method: &str, gate: &str, inputs: &Value) -> TestResult<Value> {
+        let paused = self.runtimes(method, inputs, &agents_memory())?;
+        assert_eq!(paused["status"], "needs_approval", "{paused}");
+        let run_id = paused["run_id"].as_str().ok_or("no run id")?.to_owned();
+        let read: Value =
+            serde_json::from_slice(&self.runx(&["history", &run_id, "--json"])?.stdout)?;
+        fs::write(
+            self.root.join("approve.json"),
+            crate::support::bind_resume(&read, json!({"approvals": {gate: true}}))?.to_string(),
+        )?;
+        let resumed: Value = serde_json::from_slice(
+            &self
+                .runx(&["resume", &run_id, "approve.json", "--json"])?
+                .stdout,
+        )?;
+        assert_eq!(resumed["outcome"], "completed", "{resumed}");
+        Ok(resumed["result"].clone())
+    }
+
+    /// `agent#read` started under `authority`, stopped at its turn.
+    fn agent_read(&self, authority: Option<&str>) -> TestResult<Value> {
+        let mut args = vec!["skill", "agent#read", "--json"];
+        if let Some(authority) = authority {
+            args.extend(["--run-authority", authority]);
+        }
+        let started: Value = serde_json::from_slice(&self.runx(&args)?.stdout)?;
+        assert_eq!(started["status"], "needs_agent", "{started}");
+        Ok(started)
+    }
+}
+
+/// The summary of each memory index entry the turn `started` waits on was
+/// given, read from its view.
+fn memory_given(started: &Value) -> TestResult<Vec<String>> {
+    let path = started["requests"][0]["artifact"]["path"]
+        .as_str()
+        .ok_or_else(|| format!("the run waits on a turn: {started}"))?;
+    let view: Value = serde_json::from_slice(&fs::read(path)?)?;
+    Ok(view["invocation"]["envelope"]["current_context"]
+        .as_array()
+        .ok_or_else(|| format!("the view lists its context: {view}"))?
+        .iter()
+        .filter_map(|entry| entry["summary"].as_str())
+        .filter(|summary| summary.starts_with("memory:"))
+        .map(str::to_owned)
+        .collect())
+}
+
+#[test]
+fn the_bundled_agents_turn_is_given_the_memory_its_run_may_read() -> TestResult {
+    let memory = Memory::new("runx-memory-agent")?;
+    memory.runtimes_approved(
+        "remember",
+        "memory.remember",
+        &said(
+            "I take my tea black, no sugar.",
+            "Tea black, no sugar",
+            "confirmed_memory",
+        ),
+    )?;
+
+    let started = memory.agent_read(Some(&agents_memory()))?;
+    let given = memory_given(&started)?;
+    assert!(
+        given
+            .iter()
+            .any(|index| index.starts_with("memory:said:personal")
+                && index.contains("Tea black, no sugar")),
+        "{given:?}"
+    );
+    let skills = &started["requests"][0]["allowance"]["skills"];
+    for method in ["search", "read", "observe", "remember"] {
+        assert!(
+            skills
+                .as_array()
+                .is_some_and(|skills| skills.contains(&json!(format!("runx/memory#{method}")))),
+            "the turn may {method} memory: {skills}"
+        );
+    }
+
+    // With no term the run starts as before, and its turn is given no
+    // memory.
+    assert!(memory_given(&memory.agent_read(None)?)?.is_empty());
+    Ok(())
+}
+
+/// A correction applies only to later runs: a run already waiting on its
+/// turn keeps the request it was given, and the next run is given the
+/// corrected words.
+#[test]
+fn a_correction_reaches_the_next_run_and_never_a_run_already_started() -> TestResult {
+    let memory = Memory::new("runx-memory-later")?;
+    let kept = memory.runtimes_approved(
+        "remember",
+        "memory.remember",
+        &said("I take my tea black.", "Tea black", "confirmed_memory"),
+    )?;
+    let started = memory.agent_read(Some(&agents_memory()))?;
+    assert!(memory_given(&started)?.concat().contains("Tea black"));
+
+    memory.runtimes_approved(
+        "correct",
+        "memory.correct",
+        &json!({"handle": kept["handle"], "text": "I take my tea with milk.", "summary": "Tea with milk", "purpose": "confirmed_memory", "date": "2026-11-09", "sources": ["conversation"]}),
+    )?;
+    let run_id = started["run_id"].as_str().ok_or("no run id")?;
+    let read: Value = serde_json::from_slice(&memory.runx(&["history", run_id, "--json"])?.stdout)?;
+    assert_eq!(
+        read["waiting"][0]["request_digest"], started["requests"][0]["request_digest"],
+        "{read}"
+    );
+    let later = memory_given(&memory.agent_read(Some(&agents_memory()))?)?.concat();
+    assert!(
+        later.contains("Tea with milk") && !later.contains("Tea black"),
+        "{later}"
+    );
+    Ok(())
+}
+
+/// A memory change waits on the person's answer to that exact change, and
+/// without it nothing changes: words to remember, a correction or a disable
+/// left unanswered keep nothing, and an answer to another change is refused.
+#[test]
+fn nothing_changes_until_the_person_answers_that_exact_change() -> TestResult {
+    let memory = Memory::new("runx-memory-unanswered")?;
+    let paused = memory.run("remember", words("I take my tea black."), EVERY_STREAM)?;
+    assert_eq!(paused["status"], "needs_approval", "{paused}");
+    assert!(memory.search("tea")?.is_empty());
+    assert!(memory.index(None)?.0.is_empty());
+
+    let kept = memory.remember(words("I take my coffee black."))?;
+    let correction = |text: &str| json!({"handle": kept, "text": text, "summary": text, "purpose": "confirmed_memory", "date": "2026-11-09", "sources": ["conversation"]});
+    for (method, inputs) in [
+        ("correct", correction("I take my coffee with milk.")),
+        (
+            "disable",
+            json!({"handle": kept, "reason": "No longer true."}),
+        ),
+    ] {
+        let paused = memory.run(method, inputs, EVERY_STREAM)?;
+        assert_eq!(paused["status"], "needs_approval", "{method}: {paused}");
+    }
+    assert_eq!(handles(&memory.search("coffee")?), [kept.as_str()]);
+
+    // The person's answer to one correction never applies another.
+    let asked = |text: &str| -> TestResult<(String, Value)> {
+        let paused = memory.run("correct", correction(text), EVERY_STREAM)?;
+        let run_id = paused["run_id"].as_str().ok_or("no run id")?.to_owned();
+        let read: Value =
+            serde_json::from_slice(&memory.runx(&["history", &run_id, "--json"])?.stdout)?;
+        Ok((run_id, read))
+    };
+    let (_, oat) = asked("I take my coffee with oat milk.")?;
+    let (sugar, _) = asked("I take my coffee with sugar.")?;
+    fs::write(
+        memory.root.join("another.json"),
+        crate::support::bind_resume(&oat, json!({"approvals": {"memory.correct": true}}))?
+            .to_string(),
+    )?;
+    let resumed = memory.runx(&["resume", &sugar, "another.json", "--json"])?;
+    assert!(
+        !resumed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&resumed.stdout)
+    );
+    assert_eq!(handles(&memory.search("coffee")?), [kept.as_str()]);
+    Ok(())
+}

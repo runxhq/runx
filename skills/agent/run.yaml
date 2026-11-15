@@ -11,12 +11,20 @@ methods:
       - {}
     description: Work a turn that reads, searches and asks, across the workspace's files and git history, the web and the catalog, and changes nothing.
     effects: none
+    result_from: [read]
     steps:
+      - id: recall
+        skill: runx/memory#index
+        inputs:
+          levels: [{level: personal}, {level: workspace}]
       - id: read
         agent: read
+        context:
+          entries: [$steps.recall.entries]
         calls:
           tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect]
           operations: [web/page.read, exa/search.query]
+          skills: [runx/memory#search, runx/memory#read, runx/memory#observe, runx/memory#remember]
           load: [{catalog: {trust: verified}}, {project: true}]
           ask: true
         inputs: $input
@@ -26,12 +34,20 @@ methods:
             description: What the turn did and found, what is still open, and what waits on the person.
   write:
     description: Work a turn that may also change the workspace, editing and writing files and running commands, as the turn's effects allow.
+    result_from: [write]
     steps:
+      - id: recall
+        skill: runx/memory#index
+        inputs:
+          levels: [{level: personal}, {level: workspace}]
       - id: write
         agent: write
+        context:
+          entries: [$steps.recall.entries]
         calls:
           tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect, fs.edit, fs.write, fs.apply_bundle, command.execute]
           operations: [web/page.read, exa/search.query]
+          skills: [runx/memory#search, runx/memory#read, runx/memory#observe, runx/memory#remember]
           load: [{catalog: {trust: verified}}, {project: true}]
           ask: true
         inputs: $input

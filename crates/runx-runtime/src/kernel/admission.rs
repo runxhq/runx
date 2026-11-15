@@ -1014,6 +1014,7 @@ pub(crate) fn admit_declared(
         chain,
         run_id,
         clock,
+        starting: true,
     };
     for allowed in allowed {
         let key = allowed.requirement.as_str();
@@ -1152,6 +1153,7 @@ fn project(
                             chain,
                             run_id: INSPECTION,
                             clock: &INSPECTION_CLOCK,
+                            starting: false,
                         },
                         context,
                     )
@@ -1196,6 +1198,9 @@ struct Caller<'a> {
     chain: &'a [crate::identity::ChainLink],
     run_id: &'a str,
     clock: &'a crate::RunClock,
+    /// The check before a run starts, of its scripts' declared operations,
+    /// rather than an inspection of whether a call would be admitted.
+    starting: bool,
 }
 
 /// The run an inspection's projection stands in for, and its clock.
@@ -1215,6 +1220,7 @@ fn readiness(
         authority,
         chain,
         run_id,
+        starting,
         clock,
     } = caller;
     let Context {
@@ -1334,6 +1340,19 @@ fn readiness(
                     usage_approval = usage_approval_required(spec, money_limit, &limits);
                     if let Some(detail) = delegated.uncovered(chain) {
                         reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail);
+                    } else if is_private(&connector) && !delegated.stated && starting {
+                        // A run whose host states no term reads none of the
+                        // person's data. That isn't a reason not to start:
+                        // each call it makes is refused, and a script decides
+                        // what that means, as memory passes over a stream it
+                        // can't read.
+                        reasons.pass(
+                            AdmissionCheck::Delegation,
+                            format!(
+                                "the run states no term for {}, so each call it makes there is refused",
+                                connector.name
+                            ),
+                        );
                     } else if is_private(&connector) && !delegated.stated {
                         reasons.push(
                             AdmissionCheck::Delegation,

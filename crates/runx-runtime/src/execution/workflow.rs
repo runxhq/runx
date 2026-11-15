@@ -296,12 +296,18 @@ fn run_workspace_id(
     let Some(paths) = workspace else {
         return Ok(JsonValue::Null);
     };
-    crate::workspace_ids::workspace_id(paths, &crate::time::now_iso8601())
-        .map(|id| id.map_or(JsonValue::Null, JsonValue::String))
-        .map_err(|error| RuntimeError::StepFailed {
-            step_id: reader.id.clone(),
-            reason: format!("it reads $run.workspace_id, and {error}"),
-        })
+    match crate::workspace_ids::workspace_id(paths, &crate::time::now_iso8601()) {
+        // A home that fell back mints no workspace id, since a repository
+        // could ship it, so the run has none: a read of memory passes over
+        // what needs one, and a write that needs one says it has none.
+        Err(crate::workspace_ids::WorkspaceIdError::HomeFellBack) => Ok(None),
+        other => other,
+    }
+    .map(|id| id.map_or(JsonValue::Null, JsonValue::String))
+    .map_err(|error| RuntimeError::StepFailed {
+        step_id: reader.id.clone(),
+        reason: format!("it reads $run.workspace_id, and {error}"),
+    })
 }
 
 /// Place every binding `invoked` resolves, last first so a list item left out
