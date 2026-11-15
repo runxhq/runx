@@ -419,18 +419,15 @@ where
             }
         };
         let mut round_ids = BTreeSet::new();
-        let invalid_call = uses.iter().any(|use_| {
+        // A call the provider's protocol can't be answered on, with no id, an
+        // id already used, or input that isn't an object, ends the run.
+        let malformed = uses.iter().any(|use_| {
             use_.id.trim().is_empty()
                 || !matches!(&use_.input, JsonValue::Object(_))
                 || !round_ids.insert(use_.id.as_str())
                 || seen_tool_call_ids.contains(&use_.id)
         });
-        if invalid_call
-            || (uses.len() > 1
-                && uses
-                    .iter()
-                    .any(|use_| use_.name == config.final_result_tool))
-        {
+        if malformed {
             return Err(AgentLoopFailure::new(
                 AgentLoopFailureReason::ToolExecutionFailed,
                 "Managed agent emitted an invalid tool-call batch.",
@@ -444,45 +441,40 @@ where
                 ),
             ));
         }
-        // Admit the entire model batch before executing any tool. A late
-        // unknown name must not leave earlier calls with partial effects.
-        let admitted_names = uses
-            .iter()
-            .map(|use_| {
-                if use_.name == config.final_result_tool {
-                    Some(config.final_result_tool.clone())
-                } else {
-                    executor.admitted_tool_name(&use_.name)
-                }
-            })
-            .collect::<Vec<_>>();
-        if admitted_names.iter().any(Option::is_none) {
-            tool_calls = tool_calls.saturating_add(1);
-            if !tools.iter().any(|name| name == UNRECOGNIZED_MODEL_TOOL) {
-                tools.push(UNRECOGNIZED_MODEL_TOOL.to_owned());
-            }
-            tool_executions.push(AgentToolExecutionTrace {
-                tool: UNRECOGNIZED_MODEL_TOOL.to_owned(),
-                status: "failure".to_owned(),
-                receipt_id: None,
-                resolution_kind: None,
-            });
-            return Err(AgentLoopFailure::new(
-                AgentLoopFailureReason::ToolExecutionFailed,
-                "Managed agent tool execution failed.",
-                telemetry(
-                    round,
-                    model_calls,
-                    usage,
-                    tool_calls,
-                    tools,
-                    tool_executions,
-                ),
-            ));
-        }
-        let admitted_names = admitted_names.into_iter().flatten();
         seen_tool_call_ids.extend(round_ids.into_iter().map(str::to_owned));
         transcript.push(AgentTurn::AssistantToolUses(uses.clone()));
+        // The whole batch is admitted before any of it runs, so no call has
+        // effects a later call's refusal would strand. A batch that can't be
+        // admitted whole runs nothing: each of its calls is answered with why,
+        // and the model sends again.
+        let admitted = match admit_batch(config, executor, &uses) {
+            Ok(admitted) => admitted,
+            Err(refusal) => {
+                if refusal.unrecognized {
+                    tool_calls = tool_calls.saturating_add(1);
+                    if !tools.iter().any(|name| name == UNRECOGNIZED_MODEL_TOOL) {
+                        tools.push(UNRECOGNIZED_MODEL_TOOL.to_owned());
+                    }
+                    tool_executions.push(AgentToolExecutionTrace {
+                        tool: UNRECOGNIZED_MODEL_TOOL.to_owned(),
+                        status: "failure".to_owned(),
+                        receipt_id: None,
+                        resolution_kind: None,
+                    });
+                }
+                transcript.push(AgentTurn::ToolResults(
+                    uses.iter()
+                        .map(|use_| AgentToolResult {
+                            tool_use_id: use_.id.clone(),
+                            content: refusal.reason.clone(),
+                            is_error: true,
+                        })
+                        .collect(),
+                ));
+                continue;
+            }
+        };
+        let admitted_names = admitted.into_iter();
 
         let mut results = Vec::with_capacity(uses.len());
         let mut guidance = Vec::new();
@@ -610,6 +602,57 @@ where
     ))
 }
 
+/// Why a batch can't be admitted whole, as each of its calls is answered.
+struct BatchRefusal {
+    reason: String,
+    /// Whether it names a tool the turn doesn't offer.
+    unrecognized: bool,
+}
+
+/// The tool each call of `uses` runs, or why the batch runs nothing: the
+/// final result goes on its own, after the calls it depends on have
+/// returned, and every call names a tool the turn offers.
+fn admit_batch<T: ToolExecutor + ?Sized>(
+    config: &AgentLoopConfig,
+    executor: &T,
+    uses: &[AgentToolUse],
+) -> Result<Vec<String>, BatchRefusal> {
+    if uses.len() > 1
+        && uses
+            .iter()
+            .any(|use_| use_.name == config.final_result_tool)
+    {
+        return Err(BatchRefusal {
+            reason: format!(
+                "{} is sent on its own, after the calls it depends on have returned. Nothing in this batch ran.",
+                config.final_result_tool
+            ),
+            unrecognized: false,
+        });
+    }
+    let mut admitted = Vec::with_capacity(uses.len());
+    let mut unknown = Vec::new();
+    for use_ in uses {
+        if use_.name == config.final_result_tool {
+            admitted.push(config.final_result_tool.clone());
+        } else if let Some(name) = executor.admitted_tool_name(&use_.name) {
+            admitted.push(name);
+        } else {
+            unknown.push(use_.name.as_str());
+        }
+    }
+    if unknown.is_empty() {
+        return Ok(admitted);
+    }
+    Err(BatchRefusal {
+        reason: format!(
+            "This turn offers no tool named {}. Nothing in this batch ran.",
+            unknown.join(", ")
+        ),
+        unrecognized: true,
+    })
+}
+
 fn validate_final_result(config: &AgentLoopConfig, value: &JsonValue) -> Result<(), String> {
     let Some(schema) = config.final_result_schema.as_ref() else {
         return validate_output_value(config.final_result_output.as_ref(), value)
@@ -717,6 +760,8 @@ mod tests {
         }
     }
 
+    /// A call the provider's protocol can't be answered on ends the run, and
+    /// nothing in its batch runs.
     #[test]
     fn malformed_and_duplicate_call_batches_never_execute_any_tool() -> Result<(), String> {
         let valid = AgentToolUse {
@@ -740,26 +785,8 @@ mod tests {
             }],
             vec![AgentToolUse {
                 id: String::new(),
-                ..valid.clone()
+                ..valid
             }],
-            vec![
-                valid.clone(),
-                AgentToolUse {
-                    id: "final".to_owned(),
-                    name: FINAL.to_owned(),
-                    input: done_payload(),
-                    replay: None,
-                },
-            ],
-            vec![
-                valid,
-                AgentToolUse {
-                    id: "unknown".to_owned(),
-                    name: UNRECOGNIZED_MODEL_TOOL.to_owned(),
-                    input: JsonValue::Object(Default::default()),
-                    replay: None,
-                },
-            ],
         ];
         for calls in cases {
             let mut executor = CountingExecutor(Cell::new(0));
@@ -773,6 +800,93 @@ mod tests {
             .ok_or_else(|| "invalid batch must be refused".to_owned())?;
             assert_eq!(error.reason(), AgentLoopFailureReason::ToolExecutionFailed);
             assert_eq!(executor.0.get(), 0);
+        }
+        Ok(())
+    }
+
+    /// Sends `first`, then, once each of its calls is answered with an
+    /// error, the final result on its own.
+    struct ThenFinal(Vec<AgentToolUse>);
+
+    impl ModelCaller for ThenFinal {
+        fn reply(
+            &self,
+            _tools: &AgentToolNameMap,
+            transcript: &[AgentTurn],
+        ) -> Result<ModelReply, RuntimeError> {
+            let answered = transcript.iter().find_map(|turn| match turn {
+                AgentTurn::ToolResults(results) => Some(results),
+                _ => None,
+            });
+            let Some(results) = answered else {
+                return Ok(unmetered(self.0.clone()));
+            };
+            assert_eq!(
+                results.len(),
+                self.0.len(),
+                "every call of the batch is answered"
+            );
+            assert!(
+                results.iter().all(|result| result.is_error
+                    && result.content.contains("Nothing in this batch ran"))
+            );
+            Ok(unmetered(vec![AgentToolUse {
+                id: "final-alone".to_owned(),
+                name: FINAL.to_owned(),
+                input: done_payload(),
+                replay: None,
+            }]))
+        }
+    }
+
+    /// A batch that can't be admitted whole, one sending the final result
+    /// beside other calls or naming a tool the turn doesn't offer, runs none
+    /// of its calls; each is answered with why, and the turn goes on.
+    #[test]
+    fn a_batch_admitted_only_in_part_runs_nothing_and_the_turn_goes_on() -> Result<(), String> {
+        let noop = AgentToolUse {
+            id: "call-1".to_owned(),
+            name: "noop".to_owned(),
+            input: JsonValue::Object(Default::default()),
+            replay: None,
+        };
+        let config = AgentLoopConfig {
+            max_rounds: 3,
+            max_empty_turn_resamples: 0,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: None,
+        };
+        for batch in [
+            vec![
+                noop.clone(),
+                AgentToolUse {
+                    id: "final".to_owned(),
+                    name: FINAL.to_owned(),
+                    input: done_payload(),
+                    replay: None,
+                },
+            ],
+            vec![
+                noop.clone(),
+                AgentToolUse {
+                    id: "unknown".to_owned(),
+                    name: "not_offered".to_owned(),
+                    input: JsonValue::Object(Default::default()),
+                    replay: None,
+                },
+            ],
+        ] {
+            let mut executor = CountingExecutor(Cell::new(0));
+            let end = run_agent_loop(
+                &config,
+                &ThenFinal(batch),
+                &mut executor,
+                vec![AgentTurn::User("go".to_owned())],
+            )
+            .map_err(|error| error.to_string())?;
+            assert_eq!(end.answer, Some(done_payload()));
+            assert_eq!(executor.0.get(), 0, "nothing in the refused batch ran");
         }
         Ok(())
     }
