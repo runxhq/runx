@@ -20,6 +20,8 @@ use tempfile::TempDir;
 mod long_runs_journey;
 #[path = "workflow_throughput/memory_journey.rs"]
 mod memory_journey;
+#[path = "workflow_throughput/reflection_journey.rs"]
+mod reflection_journey;
 #[path = "workflow_throughput/runtime_paths.rs"]
 mod runtime_paths;
 #[path = "workflow_throughput/volume_paths.rs"]
@@ -38,6 +40,7 @@ fn bench_workflow_throughput(c: &mut Criterion) {
     volume_paths::register(c);
     long_runs_journey::register();
     memory_journey::register();
+    reflection_journey::register();
 
     c.bench_function("workflow_planning", |b| {
         let steps = sequential_steps(192);

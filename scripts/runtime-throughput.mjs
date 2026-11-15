@@ -241,7 +241,7 @@ function capture(workloads, options) {
     hardware: hardwareIdentity(),
     workloads: metrics,
     // Each journey's structural measurements, from the probes that count
-    // them: journey 1 from launches of the CLI, journeys 2, 3, 4, 5 and 7 from
+    // them: journey 1 from launches of the CLI, journeys 2, 3, 4, 5, 7 and 9 from
     // the runtime bench, which runs them on the runtimes its fixtures warmed. A
     // journey no probe measures is absent, and the quality gate fails it.
     journeys: {
@@ -912,7 +912,7 @@ function measurementRefusals(workload, metric) {
   return refused;
 }
 
-// performance.md's eight journeys, each with the work budget its row states,
+// performance.md's nine journeys, each with the work budget its row states,
 // as the structural measurements a capture's `journeys` holds for it. These
 // hold at any speed, so they're checked apart from timing. A journey with no
 // measurement fails, and so does any budget whose measurement is missing.
@@ -1000,6 +1000,13 @@ function journeyBudgets() {
         { id: "context_reads_what_the_turn_uses", says: "Context preparation reads what the turn can use.", holds: (m) => exactly(m.context_reads_unused, 0) },
         { id: "repeated_reads_no_more_than_before", says: "Repeated reads counted against the task's previous run.", holds: (m) => atMost(m.repeated_reads?.current, m.repeated_reads?.previous) },
         { id: "model_calls_no_more_than_before", says: "Model calls counted against the task's previous run.", holds: (m) => atMost(m.model_calls?.current, m.model_calls?.previous) },
+      ],
+    },
+    {
+      journey: 9,
+      name: "Reflection",
+      budgets: [
+        { id: "survey_follows_the_window", says: "A survey reads what moved since its reader's mark, never the history: its calls and the store rows it reads for the same window are the same after 10, 100 and 1,000 runs of history.", holds: (m) => flatAcross(m.survey_calls, ["10", "100", "1000"]) && flatAcross(m.survey_rows_read, ["10", "100", "1000"]) },
       ],
     },
   ];

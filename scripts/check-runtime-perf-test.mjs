@@ -88,6 +88,14 @@ try {
     "journey_5",
   );
 
+  const readingHistory = journeys();
+  readingHistory["9"].survey_rows_read["1000"] = 342;
+  expectFail(
+    runQualityVerification(quality({ journeys: readingHistory })),
+    "a survey whose reads grow with the history",
+    "journey_9.survey_follows_the_window",
+  );
+
   const growingWrites = journeys();
   growingWrites["2"].store_writes_per_call["1000"] = 3;
   expectFail(
@@ -375,6 +383,10 @@ function journeys() {
       context_reads_unused: 0,
       repeated_reads: { previous: 3, current: 3 },
       model_calls: { previous: 5, current: 4 },
+    },
+    9: {
+      survey_calls: { 10: 40, 100: 40, 1000: 40 },
+      survey_rows_read: { 10: 163, 100: 163, 1000: 163 },
     },
   };
 }

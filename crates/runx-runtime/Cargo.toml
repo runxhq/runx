@@ -150,4 +150,4 @@ path = "tests/integration.rs"
 [[bench]]
 name = "workflow_throughput"
 harness = false
-required-features = ["agent", "probe-fixtures"]
+required-features = ["agent", "probe-fixtures", "scripted-model"]
