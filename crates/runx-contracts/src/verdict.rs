@@ -22,6 +22,10 @@ use crate::connector::ids::identifier;
 use crate::schema::{BoundedString, NonEmptyString, NonEmptyVec, RunxSchema, SchemaMapKey};
 
 pub const VERDICT_SCHEMA: &str = "runx.verdict.v1";
+/// The field of a verdict the runtime names, from the step that returned it:
+/// who judged. Its producer needn't state it, and one it states must be the
+/// runtime's.
+pub const VERDICT_EVALUATOR: &str = "evaluator";
 pub const CRITERIA_SCHEMA: &str = "runx.criteria.v1";
 
 /// A criterion id: lowercase, starting with a letter, then letters, digits

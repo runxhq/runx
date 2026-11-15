@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use runx_contracts::{Evaluator, JsonObject, JsonValue, VERDICT_SCHEMA};
+use runx_contracts::{Evaluator, JsonObject, JsonValue, VERDICT_EVALUATOR, VERDICT_SCHEMA};
 use runx_parser::{OutputArtifacts, WorkflowStep};
 
 use super::super::Runtime;
@@ -64,9 +64,9 @@ pub(super) fn name_verdicts(
         else {
             continue;
         };
-        match verdict.get("evaluator") {
+        match verdict.get(VERDICT_EVALUATOR) {
             None => {
-                verdict.insert("evaluator".to_owned(), named.clone());
+                verdict.insert(VERDICT_EVALUATOR.to_owned(), named.clone());
             }
             Some(stated) if stated == &named => {}
             Some(stated) => {

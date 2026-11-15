@@ -165,33 +165,38 @@ fn agent_packet_shape_error() -> RuntimeError {
     }
 }
 
+/// The field of `packet` the runtime names where a step's output becomes its
+/// claim, never its producer: a verdict's evaluator, who judged.
+fn named_by_runtime(packet: &PacketId) -> Option<&'static str> {
+    (packet.as_str() == runx_contracts::VERDICT_SCHEMA).then_some(runx_contracts::VERDICT_EVALUATOR)
+}
+
 /// A packet's schema as its producer answers it, and as a step's output is
-/// checked against it. A verdict's `evaluator` is the runtime's to name, where
-/// the step's output becomes its claim, never the producer's, so the producer
-/// needn't state it; one it states that isn't the runtime's fails its step.
+/// checked against it: the field the runtime names isn't required of the
+/// producer, and one it states that isn't the runtime's fails its step.
 pub(crate) fn as_produced(
     packet: &PacketId,
     mut schema: runx_contracts::JsonObject,
 ) -> runx_contracts::JsonObject {
-    if packet.as_str() == runx_contracts::VERDICT_SCHEMA
+    if let Some(named) = named_by_runtime(packet)
         && let Some(runx_contracts::JsonValue::Array(required)) = schema.get_mut("required")
     {
-        required.retain(|field| field.as_str() != Some("evaluator"));
+        required.retain(|field| field.as_str() != Some(named));
     }
     schema
 }
 
+/// A packet's schema as a model is offered it: the field the runtime names is
+/// no choice of the model's, so it isn't offered at all.
 fn produced(
     catalog: &PacketSchemaCatalog,
     packet: &PacketId,
 ) -> Result<runx_contracts::JsonObject, RuntimeError> {
     let mut schema = as_produced(packet, packet_schema(catalog, packet)?);
-    // The model authors the judgment. The native step boundary supplies its
-    // evaluator, so that field is not a choice in the model's tool schema.
-    if packet.as_str() == runx_contracts::VERDICT_SCHEMA
+    if let Some(named) = named_by_runtime(packet)
         && let Some(runx_contracts::JsonValue::Object(properties)) = schema.get_mut("properties")
     {
-        properties.remove("evaluator");
+        properties.remove(named);
     }
     Ok(schema)
 }
