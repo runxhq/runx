@@ -25,7 +25,7 @@ impl CapabilityInput for InspectInput {
 pub(super) struct ApplyInput {
     pub(super) repo_root: String,
     pub(super) target_dir: String,
-    pub(super) mode: String,
+    pub(super) mode: SkillAuthoringMode,
     pub(super) change_bundle: SkillChangeBundle,
 }
 

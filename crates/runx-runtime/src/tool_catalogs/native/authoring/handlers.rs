@@ -211,7 +211,7 @@ pub(super) fn apply_skill(
     let report = crate::services::apply_skill_change(
         &repo_root,
         &invocation.inputs.target_dir,
-        &invocation.inputs.mode,
+        invocation.inputs.mode,
         &invocation.inputs.change_bundle,
         invocation.env,
         invocation.effects,

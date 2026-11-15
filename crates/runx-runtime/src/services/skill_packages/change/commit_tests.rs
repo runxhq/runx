@@ -39,11 +39,15 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
         target.before.digest.as_str(),
         VALID_MANUAL.replace("bounded decision", "bounded operator decision"),
     )?;
-    validate_change_contract(&change, "improve", target.before.digest.as_str())?;
+    validate_change_contract(
+        &change,
+        runx_contracts::SkillAuthoringMode::Improve,
+        target.before.digest.as_str(),
+    )?;
     let admitted = admit_skill_change(
         &target.relative,
         &target.path,
-        "improve",
+        runx_contracts::SkillAuthoringMode::Improve,
         &change,
         &std::collections::BTreeSet::new(),
     )?;

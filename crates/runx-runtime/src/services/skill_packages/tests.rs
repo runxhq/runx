@@ -5,8 +5,8 @@ use std::fs;
 
 use runx_contracts::{
     Digest, JsonValue, SkillApplyVerdict, SkillArchitectureChoice, SkillArchitectureDecision,
-    SkillChangeBundle, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
-    SkillFileWrite, SkillPackageVisibility, SkillProofKind,
+    SkillAuthoringMode, SkillChangeBundle, SkillChangeDecision, SkillChangeDraft,
+    SkillChangeDraftSchema, SkillFileWrite, SkillPackageVisibility, SkillProofKind,
 };
 use serde_json::json;
 
@@ -273,7 +273,7 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
     let report = apply_skill_change(
         temp.path(),
         "skills/demo",
-        "improve",
+        SkillAuthoringMode::Improve,
         &bundle,
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
@@ -310,7 +310,7 @@ fn skill_authoring_terminal_plan_binds_mode_and_preserves_current_state()
     let result = apply_skill_change(
         temp.path(),
         "skills/demo",
-        "improve",
+        SkillAuthoringMode::Improve,
         &bundle,
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
@@ -326,7 +326,7 @@ fn skill_authoring_terminal_plan_binds_mode_and_preserves_current_state()
         apply_skill_change(
             temp.path(),
             "skills/demo",
-            "test",
+            SkillAuthoringMode::Test,
             &bundle,
             &BTreeMap::new(),
             &RuntimeEffectRegistry::default()
@@ -351,7 +351,7 @@ fn skill_authoring_terminal_plan_binds_mode_and_preserves_current_state()
         apply_skill_change(
             temp.path(),
             "skills/demo",
-            "improve",
+            SkillAuthoringMode::Improve,
             &bundle,
             &BTreeMap::new(),
             &RuntimeEffectRegistry::default()
@@ -420,7 +420,7 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
     let result = apply_skill_change(
         temp.path(),
         "skills/demo",
-        "build",
+        SkillAuthoringMode::Build,
         &bundle,
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
@@ -464,7 +464,7 @@ fn skill_authoring_rejects_candidate_identity_drift_before_writing()
         let error = apply_skill_change(
             temp.path(),
             "skills/demo",
-            "build",
+            SkillAuthoringMode::Build,
             &bundle,
             &BTreeMap::new(),
             &RuntimeEffectRegistry::default(),
@@ -491,7 +491,7 @@ fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn s
     let report = apply_skill_change(
         temp.path(),
         "skills/demo",
-        "build",
+        SkillAuthoringMode::Build,
         &bundle,
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
@@ -642,7 +642,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
         apply_skill_change(
             temp.path(),
             "skills/demo",
-            "improve",
+            SkillAuthoringMode::Improve,
             &bundle,
             &BTreeMap::new(),
             &RuntimeEffectRegistry::default(),
@@ -663,7 +663,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
         apply_skill_change(
             temp.path(),
             "skills/demo",
-            "improve",
+            SkillAuthoringMode::Improve,
             &bundle,
             &BTreeMap::new(),
             &RuntimeEffectRegistry::default(),
@@ -695,7 +695,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     let first = apply_skill_change(
         temp.path(),
         "skills/demo",
-        "improve",
+        SkillAuthoringMode::Improve,
         &bundle,
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
@@ -710,7 +710,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     let retry = apply_skill_change(
         temp.path(),
         "skills/demo",
-        "improve",
+        SkillAuthoringMode::Improve,
         &bundle,
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
@@ -747,7 +747,7 @@ fn skill_authoring_apply_states_the_package_and_distribution_digests_of_what_it_
         apply_skill_change(
             temp.path(),
             "skills/demo",
-            "improve",
+            SkillAuthoringMode::Improve,
             &bundle,
             &env,
             &RuntimeEffectRegistry::default(),
@@ -797,10 +797,15 @@ fn skill_authoring_improve_may_maintain_but_not_add_or_delete_public_docs()
     fs::create_dir_all(&target)?;
     fs::write(target.join("README.md"), "existing public surface\n")?;
 
-    assert_allowed_package_write_path("README.md", &target, "improve")?;
-    assert!(assert_allowed_package_write_path("CHANGELOG.md", &target, "improve").is_err());
-    assert!(assert_allowed_package_write_path("README.md", &target, "build").is_err());
-    assert!(assert_allowed_package_delete_path("README.md", "improve").is_err());
+    assert_allowed_package_write_path("README.md", &target, SkillAuthoringMode::Improve)?;
+    assert!(
+        assert_allowed_package_write_path("CHANGELOG.md", &target, SkillAuthoringMode::Improve)
+            .is_err()
+    );
+    assert!(
+        assert_allowed_package_write_path("README.md", &target, SkillAuthoringMode::Build).is_err()
+    );
+    assert!(assert_allowed_package_delete_path("README.md", SkillAuthoringMode::Improve).is_err());
     Ok(())
 }
 

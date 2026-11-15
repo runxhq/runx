@@ -38,7 +38,7 @@ use application::{
 
 pub(crate) fn architecture_digest(
     base_digest: &str,
-    mode: &str,
+    mode: SkillAuthoringMode,
     architecture: &SkillArchitectureDecision,
 ) -> Result<String, RuntimeError> {
     let architecture: JsonValue = serde_json::to_value(architecture)
@@ -50,7 +50,10 @@ pub(crate) fn architecture_digest(
             JsonValue::String(base_digest.to_owned()),
         ),
         ("architecture".to_owned(), architecture),
-        ("mode".to_owned(), JsonValue::String(mode.to_owned())),
+        (
+            "mode".to_owned(),
+            JsonValue::String(mode.as_str().to_owned()),
+        ),
     ]));
     let canonical = runx_contracts::canonical_stable_json(&value)
         .map_err(|error| invalid_skill_change(format!("canonicalizing architecture: {error}")))?;
@@ -64,8 +67,8 @@ pub(crate) fn plan_skill_architecture(
 ) -> Result<SkillArchitecturePlan, RuntimeError> {
     validate_digest("base_digest", base_digest)?;
     validate_architecture_decision(&architecture)?;
-    validate_mode_architecture(mode.as_str(), architecture.choice)?;
-    let plan_digest = architecture_digest(base_digest, mode.as_str(), &architecture)?;
+    validate_mode_architecture(mode, architecture.choice)?;
+    let plan_digest = architecture_digest(base_digest, mode, &architecture)?;
     Ok(SkillArchitecturePlan {
         schema: SkillArchitecturePlanSchema::V1,
         mode,
@@ -82,17 +85,14 @@ pub(crate) fn bind_skill_change(
     validate_digest("base_digest", plan.base_digest.as_str())?;
     validate_digest("plan_digest", plan.plan_digest.as_str())?;
     validate_architecture_decision(&plan.architecture)?;
-    validate_mode_architecture(plan.mode.as_str(), plan.architecture.choice)?;
+    validate_mode_architecture(plan.mode, plan.architecture.choice)?;
     if plan.mode == SkillAuthoringMode::Design {
         return Err(invalid_skill_change(
             "design plans do not bind package changes",
         ));
     }
-    let expected_plan = architecture_digest(
-        plan.base_digest.as_str(),
-        plan.mode.as_str(),
-        &plan.architecture,
-    )?;
+    let expected_plan =
+        architecture_digest(plan.base_digest.as_str(), plan.mode, &plan.architecture)?;
     if plan.plan_digest.as_str() != expected_plan {
         return Err(invalid_skill_change(
             "architecture plan digest does not bind its base and decision",
@@ -122,7 +122,7 @@ pub(crate) fn bind_skill_change(
             }
         }
     };
-    validate_mode_decision(plan.mode.as_str(), draft.decision)?;
+    validate_mode_decision(plan.mode, draft.decision)?;
     let bundle = SkillChangeBundle {
         schema: SkillChangeBundleSchema::V1,
         decision: draft.decision,
@@ -143,7 +143,7 @@ pub(crate) fn bind_skill_change(
 pub(crate) fn apply_skill_change(
     repo_root: &Path,
     target_dir: &str,
-    mode: &str,
+    mode: SkillAuthoringMode,
     change: &SkillChangeBundle,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,

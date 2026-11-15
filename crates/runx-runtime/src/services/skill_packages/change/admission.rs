@@ -2,16 +2,16 @@ use std::collections::BTreeSet;
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    SkillArchitectureChoice, SkillArchitectureDecision, SkillChangeBundle, SkillChangeDecision,
-    SkillExecutionLane, SkillIdentityAction, SkillPackageMetrics, SkillPackageVisibility,
-    SkillProofKind,
+    SkillArchitectureChoice, SkillArchitectureDecision, SkillAuthoringMode, SkillChangeBundle,
+    SkillChangeDecision, SkillExecutionLane, SkillIdentityAction, SkillPackageMetrics,
+    SkillPackageVisibility, SkillProofKind,
 };
 
 use super::{RuntimeError, architecture_digest, invalid_skill_change};
 
 pub(super) fn validate_change_contract(
     change: &SkillChangeBundle,
-    mode: &str,
+    mode: SkillAuthoringMode,
     current_digest: &str,
 ) -> Result<(), RuntimeError> {
     validate_digest("base_digest", change.base_digest.as_str())?;
@@ -37,57 +37,61 @@ pub(super) fn validate_change_contract(
 }
 
 pub(super) fn validate_mode_architecture(
-    mode: &str,
+    mode: SkillAuthoringMode,
     choice: SkillArchitectureChoice,
 ) -> Result<(), RuntimeError> {
     use SkillArchitectureChoice::{Build, ExtendExisting, NeedsCore, NoChange, NoSkill};
     let allowed = match mode {
-        "design" => true,
-        "build" => matches!(choice, Build | ExtendExisting | NoSkill | NeedsCore),
-        "improve" => matches!(choice, ExtendExisting | NoChange | NeedsCore),
-        "test" => matches!(choice, ExtendExisting | NoChange),
-        _ => false,
+        SkillAuthoringMode::Design => true,
+        SkillAuthoringMode::Build => matches!(choice, Build | ExtendExisting | NoSkill | NeedsCore),
+        SkillAuthoringMode::Improve => matches!(choice, ExtendExisting | NoChange | NeedsCore),
+        SkillAuthoringMode::Test => matches!(choice, ExtendExisting | NoChange),
     };
     if allowed {
         Ok(())
     } else {
         Err(invalid_skill_change(format!(
-            "architecture choice {choice:?} is not valid in {mode} mode"
+            "architecture choice {choice:?} is not valid in {} mode",
+            mode.as_str()
         )))
     }
 }
 
 pub(super) fn validate_mode_decision(
-    mode: &str,
+    mode: SkillAuthoringMode,
     decision: SkillChangeDecision,
 ) -> Result<(), RuntimeError> {
     let allowed = match mode {
-        "build" => matches!(
+        SkillAuthoringMode::Build => matches!(
             decision,
             SkillChangeDecision::Write
                 | SkillChangeDecision::NoSkill
                 | SkillChangeDecision::NeedsCore
         ),
-        "improve" => matches!(
+        SkillAuthoringMode::Improve => matches!(
             decision,
             SkillChangeDecision::Write
                 | SkillChangeDecision::NoChange
                 | SkillChangeDecision::NeedsCore
         ),
-        "test" => matches!(
+        SkillAuthoringMode::Test => matches!(
             decision,
             SkillChangeDecision::Write | SkillChangeDecision::NoChange
         ),
-        _ => {
-            return Err(invalid_skill_change("mode must be build, improve, or test"));
+        // A design plan decides an architecture; it binds no package change.
+        SkillAuthoringMode::Design => {
+            return Err(invalid_skill_change(
+                "design mode binds no package change; build, improve or test applies one",
+            ));
         }
     };
     if allowed {
         return Ok(());
     }
     Err(invalid_skill_change(format!(
-        "{} is not a valid decision in {mode} mode",
-        decision_name(decision)
+        "{} is not a valid decision in {} mode",
+        decision_name(decision),
+        mode.as_str()
     )))
 }
 

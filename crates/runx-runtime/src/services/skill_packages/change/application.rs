@@ -98,7 +98,7 @@ pub(super) struct AdmittedSkillChange {
 pub(super) fn admit_skill_change(
     target_dir: &str,
     target: &Path,
-    mode: &str,
+    mode: runx_contracts::SkillAuthoringMode,
     change: &SkillChangeBundle,
     secret_prefixes: &BTreeSet<String>,
 ) -> Result<AdmittedSkillChange, RuntimeError> {
@@ -124,7 +124,7 @@ pub(super) fn admit_skill_change(
 fn admit_write(
     target_dir: &str,
     target: &Path,
-    mode: &str,
+    mode: runx_contracts::SkillAuthoringMode,
     write: &runx_contracts::SkillFileWrite,
     secret_prefixes: &BTreeSet<String>,
 ) -> Result<TextFileWrite, RuntimeError> {
@@ -137,7 +137,11 @@ fn admit_write(
     })
 }
 
-fn admit_delete(target_dir: &str, mode: &str, delete: &str) -> Result<String, RuntimeError> {
+fn admit_delete(
+    target_dir: &str,
+    mode: runx_contracts::SkillAuthoringMode,
+    delete: &str,
+) -> Result<String, RuntimeError> {
     let relative = normalize_package_file(delete.to_owned())?;
     assert_allowed_package_delete_path(&relative, mode)?;
     if relative == "SKILL.md" {

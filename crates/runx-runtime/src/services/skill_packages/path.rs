@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue, SkillAuthoringMode};
 
 use crate::RuntimeError;
 
@@ -55,10 +55,12 @@ pub(super) fn normalize_package_file(value: String) -> Result<String, RuntimeErr
 pub(super) fn assert_allowed_package_write_path(
     relative: &str,
     target: &Path,
-    mode: &str,
+    mode: SkillAuthoringMode,
 ) -> Result<(), RuntimeError> {
     let basename = relative.rsplit('/').next().unwrap_or(relative);
-    if is_auxiliary_doc(basename) && !(mode == "improve" && target.join(relative).is_file()) {
+    if is_auxiliary_doc(basename)
+        && !(mode == SkillAuthoringMode::Improve && target.join(relative).is_file())
+    {
         return Err(invalid_skill_change(format!(
             "{basename} is auxiliary package bloat; keep operating guidance in SKILL.md"
         )));
@@ -68,7 +70,7 @@ pub(super) fn assert_allowed_package_write_path(
 
 pub(super) fn assert_allowed_package_delete_path(
     relative: &str,
-    mode: &str,
+    mode: SkillAuthoringMode,
 ) -> Result<(), RuntimeError> {
     let basename = relative.rsplit('/').next().unwrap_or(relative);
     if is_auxiliary_doc(basename) {
@@ -86,9 +88,9 @@ fn is_auxiliary_doc(basename: &str) -> bool {
     )
 }
 
-fn assert_test_path(relative: &str, mode: &str) -> Result<(), RuntimeError> {
+fn assert_test_path(relative: &str, mode: SkillAuthoringMode) -> Result<(), RuntimeError> {
     // A package's tests are its tests/<name>.yaml files.
-    if mode == "test"
+    if mode == SkillAuthoringMode::Test
         && !(relative.starts_with("tests/")
             && !relative["tests/".len()..].contains('/')
             && (relative.ends_with(".yaml") || relative.ends_with(".yml")))
