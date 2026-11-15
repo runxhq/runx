@@ -49,7 +49,8 @@ function addressOf(record) {
  */
 export function resisted(summary, records) {
   const items = [];
-  const at = (record, fields) => ({ run: summary.run_id, skill: summary.skill, stream: record.stream, ...fields });
+  // Each item's date is its run's: the fact's own date, never when it's read.
+  const at = (record, fields) => ({ run: summary.run_id, skill: summary.skill, stream: record.stream, date: summary.updated_at.slice(0, 10), ...fields });
   for (const record of records) {
     const event = record.event;
     if (event.kind === "call") {
@@ -98,18 +99,21 @@ function later(left, right) {
   return left.created_at > right.created_at || (left.created_at === right.created_at && left.run_id > right.run_id);
 }
 
-/** Each standing said:workspace rule whose handle the instruction file doesn't hold. */
-export function unheldOf(indexEntries, instructions) {
+/** Each standing said:workspace rule, split by whether the instruction file holds its handle. */
+export function rulesOf(indexEntries, instructions) {
   const rules = [];
   for (const entry of indexEntries ?? []) {
     for (const item of entry?.data?.entries ?? []) {
       if (item?.kind === "said" && STANDING.has(item.purpose) && String(item.handle).startsWith("memory:said:workspace")) rules.push(item);
     }
   }
-  return rules
-    .filter((rule) => !instructions.includes(rule.handle))
+  const sorted = rules
     .sort((left, right) => (left.handle < right.handle ? -1 : left.handle > right.handle ? 1 : 0))
     .map(({ handle, text, summary, date, purpose }) => ({ handle, text, summary, date, purpose }));
+  return {
+    unheld: sorted.filter((rule) => !instructions.includes(rule.handle)),
+    held: sorted.filter((rule) => instructions.includes(rule.handle)),
+  };
 }
 
 /** The checks, one per item, after survey's own: laid out before anything is judged. */
@@ -269,7 +273,7 @@ export async function survey(ctx, { reader, until }) {
   const entries = await ctx.read(memory.entries);
 
   const sampled = sampledOf(successes);
-  const unheld = unheldOf(entries, instructions);
+  const { unheld, held } = rulesOf(entries, instructions);
   const revision = (await tool("data.digest", { value: { head, runs: [...readRuns].sort(), open: [...open].sort() } })).digest_result.digest;
   const subject = { ref: `runx/reflect/window/${reader}`, revision };
   const { criteria } = await tool("verdict.criteria", { criteria: checksOf({ resistance, unheld, sampled }) });
@@ -280,6 +284,7 @@ export async function survey(ctx, { reader, until }) {
     resistance,
     sampled,
     unheld,
+    held,
     mark: { version: mark.version, through, at_through: atThrough.sort(), open: [...new Set(open)].sort() },
     read_to_end,
   };
@@ -372,7 +377,9 @@ export async function judge(ctx, { survey }) {
  * not_met, saying what it lacks, a declined fix with the person's reason. A sampled run is met or not as its purpose-only
  * reader found, and unresolved when no finding was kept.
  */
-export function assessments({ survey, findings, proposals = [] }) {
+export function assessments({ survey, findings, proposals = [], promoted = [], observed = [] }) {
+  const observations = new Map(observed.filter((entry) => entry.handle).map((entry) => [entry.criterion, entry.handle]));
+  const written = new Set(promoted.map((rule) => rule.handle));
   const by = new Map(findings.map((entry) => [entry.criterion, entry]));
   const proposed = new Map(proposals.map((entry) => [entry.criterion, entry]));
   const where = (item) => `${item.stream}${item.step ? `#${item.step}` : ""}${item.index === undefined ? "" : `/${item.index}`}`;
@@ -392,7 +399,7 @@ export function assessments({ survey, findings, proposals = [] }) {
     if (kind === "resisted") {
       const item = survey.resistance[ordinal];
       const proposal = proposed.get(id);
-      if (proposal?.applied) {
+      if (proposal?.applied || observations.has(id)) {
         answers.push({ id, verdict: "met", evidence: [item.evidence] });
         continue;
       }
@@ -414,7 +421,11 @@ export function assessments({ survey, findings, proposals = [] }) {
       });
     } else if (kind === "unheld") {
       const rule = survey.unheld[ordinal];
-      answers.push({ id, verdict: "not_met", evidence: [], failure: { expected: `AGENTS.md holds ${rule.handle}`, actual: "it isn't promoted", where: "AGENTS.md" } });
+      answers.push(
+        written.has(rule.handle)
+          ? { id, verdict: "met", evidence: [] }
+          : { id, verdict: "not_met", evidence: [], failure: { expected: `AGENTS.md holds ${rule.handle}`, actual: "it isn't promoted", where: "AGENTS.md" } },
+      );
     } else if (kind === "sampled") {
       const run = survey.sampled[ordinal];
       if (!entry?.finding) continue;
@@ -554,4 +565,130 @@ export async function propose(ctx, { survey, findings }) {
     }
   }
   return { proposals };
+}
+
+/** How many bytes a text is in UTF-8: the worker has no TextEncoder. */
+function utf8Bytes(text) {
+  let bytes = 0;
+  for (const character of text) {
+    const point = character.codePointAt(0);
+    bytes += point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
+/** The heading a promoted rule goes under in the instruction file. */
+export const RULES_HEADING = "## Rules";
+/** An instruction file reaches a turn whole up to this bound (agent_invocation/profiles.rs). */
+const INSTRUCTIONS_BOUND = 128 * 1024;
+
+/**
+ * The instruction file with each rule's line added at the end of its
+ * Rules section, which it opens when there's none: the person's exact
+ * words, then their date and handle, so the repository holds the rule and a
+ * later survey reads it held at HEAD.
+ */
+export function withRules(current, rules) {
+  const lines = rules.map((rule) => `- ${rule.text} (${rule.date}, ${rule.handle})`);
+  if (lines.length === 0) return current;
+  const text = current.endsWith("\n") || current === "" ? current : `${current}\n`;
+  const at = text.split("\n").findIndex((line) => line.trim() === RULES_HEADING);
+  if (at < 0) return `${text}${text === "" ? "" : "\n"}${RULES_HEADING}\n\n${lines.join("\n")}\n`;
+  const all = text.split("\n");
+  let end = all.findIndex((line, index) => index > at && /^#{1,2} /.test(line));
+  if (end < 0) end = all.length;
+  while (end > at + 1 && all[end - 1].trim() === "") end -= 1;
+  return [...all.slice(0, end), ...lines, ...all.slice(end)].join("\n").replace(/\n*$/, "\n");
+}
+
+/**
+ * Promote each standing rule the repository doesn't hold: its exact words
+ * into AGENTS.md under its Rules heading, with its date and handle, written
+ * under effects: ask so the person approves the exact file. A write that
+ * would take the file past what reaches a turn whole is refused, and the
+ * rules go elsewhere. Reflection never commits: the person does, and the
+ * next survey reads the rule held at HEAD.
+ */
+export async function promote(ctx, { survey }) {
+  if (survey.unheld.length === 0) return { promotion: { promoted: [] } };
+  let current = "";
+  let expected_digest;
+  try {
+    const read = await ctx.read((await ctx.tool("fs.read", { path: INSTRUCTIONS, line_count: 100000, max_bytes: INSTRUCTIONS_BOUND + 1 })).file_read);
+    if (read.truncated) return { promotion: { promoted: [], refused: `${INSTRUCTIONS} is past ${INSTRUCTIONS_BOUND} bytes already, so no rule is added to it` } };
+    current = read.contents;
+    expected_digest = read.content_digest;
+  } catch (rejection) {
+    if (rejection?.code !== "failed") throw rejection;
+  }
+  const rules = survey.unheld.filter((rule) => !current.includes(rule.handle));
+  const next = withRules(current, rules);
+  if (utf8Bytes(next) > INSTRUCTIONS_BOUND) {
+    return { promotion: { promoted: [], refused: `promoting would take ${INSTRUCTIONS} past ${INSTRUCTIONS_BOUND} bytes, so these rules go elsewhere` } };
+  }
+  if (rules.length > 0) {
+    try {
+      await ctx.tool("fs.write", { path: INSTRUCTIONS, contents: next, ...(expected_digest ? { expected_digest } : { create: true }) });
+    } catch (rejection) {
+      if (rejection?.code !== "declined") throw rejection;
+      return { promotion: { promoted: [], declined: rejection.message ?? null } };
+    }
+  }
+  return { promotion: { promoted: survey.unheld.map(({ handle, text, date }) => ({ handle, text, date })) } };
+}
+
+/**
+ * An observation for each kept diagnosis, with its evidence as its sources,
+ * on the workspace's observed stream, dated by its run. One that matches an
+ * observation memory already holds is that one, so nothing is kept twice.
+ */
+export async function observe(ctx, { survey, findings }) {
+  const observed = [];
+  for (const entry of findings) {
+    if (!entry.criterion.startsWith("resisted_") || !entry.finding) continue;
+    const item = survey.resistance[Number(entry.criterion.slice("resisted_".length)) - 1];
+    const { finding } = entry;
+    const kept = await ctx.skill("runx/memory#observe", {
+      level: "workspace",
+      text: `${item.skill}: ${finding.summary} ${finding.cause}`.slice(0, 4000),
+      summary: `${item.skill}: ${finding.summary}`.replace(/\s+/g, " ").slice(0, 120),
+      date: item.date,
+      sources: finding.evidence.slice(0, 16),
+      supersedes: "none",
+    });
+    const matches = await ctx.read(kept.matches ?? []);
+    const handle = kept.handle ?? matches[0]?.data?.handle ?? null;
+    observed.push({ criterion: entry.criterion, handle, already: kept.handle === undefined });
+  }
+  return { observed };
+}
+
+/**
+ * Close what the record holds now and move the mark: for each rule the
+ * repository holds at HEAD, the disable that closes it, its reason naming the
+ * commit, which the person runs, since reflection never writes a said:
+ * stream; and the mark, moved past the window the verdict covers, at the
+ * version survey read, so a concurrent reflection's move wins and this one
+ * says it lost.
+ */
+export async function keep(ctx, { reader, survey }) {
+  const disable = survey.held.map((rule) => ({
+    skill: "runx/memory#disable",
+    handle: rule.handle,
+    reason: `Held by ${INSTRUCTIONS} at ${survey.head}, so the repository holds it.`,
+  }));
+  const { through, at_through, open, version } = survey.mark;
+  let mark;
+  try {
+    const moved = await ctx.operation(
+      "store/events.append",
+      { stream: MARKS, key: reader, expected_version: version, type: "mark.moved", data: { through, at_through, open } },
+      { idempotency_key: `mark:${reader}@${version}` },
+    );
+    mark = { moved: true, version: moved?.provider_operation?.result?.version ?? version + 1, through };
+  } catch (rejection) {
+    if (rejection?.code !== "failed" && rejection?.code !== "refused") throw rejection;
+    mark = { moved: false, reason: rejection.message ?? null };
+  }
+  return { kept: { disable, mark } };
 }

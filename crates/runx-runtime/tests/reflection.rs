@@ -276,6 +276,12 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
 /// scripted model at `endpoint`, as runx's managed agent drives them.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
+    reflect_as(root, endpoint, "nightly")
+}
+
+/// `reflect#reflect` as `reader`, its turns worked by the scripted model.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn reflect_as(root: &Path, endpoint: &str, reader: &str) -> TestResult<serde_json::Value> {
     let mut environment = env(root);
     environment.extend(runx_runtime::scripted_model::managed_agent_env(
         endpoint,
@@ -289,17 +295,14 @@ fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
         &SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),
-            run_authority: Some(serde_json::from_value(memory(
-                &["read"],
-                &["project:reflect", "runx/memory"],
-            ))?),
+            run_authority: Some(serde_json::from_value(reflecting())?),
             act: None,
             skill_path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/reflect"),
             receipt_dir: Some(root.join("receipts")),
             run_id: None,
             answers: None,
             inputs: serde_json::from_value(
-                serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
+                serde_json::json!({"reader": reader, "until": "2099-01-01T00:00:00Z"}),
             )?,
             env: environment,
             cwd: root.to_path_buf(),
@@ -341,9 +344,16 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
     let root = temp.path();
     record(root)?;
     let model = reflection_model(true)?;
-    let first = reflect(root, model.endpoint())?;
-    let second = reflect(root, model.endpoint())?;
+    let endpoint = model.endpoint().to_owned();
+    // The rule's promotion waits on the person; approved once, it's in the
+    // workspace's AGENTS.md. The first reflection moves its reader's mark, so
+    // the same record is judged again by another reader, which writes nothing.
+    let first = drive(root, &endpoint, reflect(root, &endpoint)?, |_| {
+        serde_json::json!(true)
+    })?;
+    let second = reflect_as(root, &endpoint, "again")?;
     assert_eq!(first["status"], "sealed", "{first}");
+    assert_eq!(second["status"], "sealed", "{second}");
     model.finish()?;
 
     let findings = first["result"]["findings"].as_array().ok_or("findings")?;
@@ -383,8 +393,11 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
     };
     assert_eq!(answer("record_read")["verdict"], "met");
     assert_eq!(answer("sampled_1")["verdict"], "met");
-    assert_eq!(answer("unheld_1")["verdict"], "not_met");
-    assert_eq!(answer(&resistance("declined_ask"))["verdict"], "not_met");
+    // Promoted, and observed: a decline is kept as what it found.
+    assert_eq!(answer("unheld_1")["verdict"], "met");
+    assert_eq!(answer(&resistance("declined_ask"))["verdict"], "met");
+    // Its diagnosis dropped, the stopped run is kept as nothing.
+    assert_eq!(answer(&resistance("sealed_blocked"))["verdict"], "not_met");
     assert_eq!(verdict["evaluator"]["method"], "reflect", "{verdict}");
     assert_eq!(first["result"]["decision"]["verdict"], "not_met", "{first}");
 
@@ -543,27 +556,62 @@ fn decide_change(
     Ok(serde_json::to_value(&sealed.output)?)
 }
 
-/// A fix is proposed with its case, proven before the person is asked: the
-/// new case fails on the old revision and passes on the fix. Approved, the
-/// exact files are written and the stopped run's check is met. Declined, with
-/// a reason, nothing is written, the reason is kept, and the next reflection
-/// doesn't propose that change again.
+/// Reflection's term: it reads the workspace's memory and writes only its
+/// observations, never a person's words.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn reflecting() -> serde_json::Value {
+    let packages = ["project:reflect", "runx/memory"];
+    serde_json::json!({"delegations": [{"connector": "private", "terms": [
+        {"verbs": ["read"], "bounds": {"operations": ["private/*"], "scopes": ["store.read"],
+            "targets": ["runx/memory/said:workspace:*", "runx/memory/observed:workspace:*"], "packages": packages}},
+        {"verbs": ["write"], "bounds": {"operations": ["private/*"], "scopes": ["store.append"],
+            "targets": ["runx/memory/observed:workspace:*"], "packages": packages}},
+    ]}]})
+}
+
+/// Drive a reflection to its seal, answering each change it waits on with
+/// what `decide` says of it.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn drive(
+    root: &Path,
+    endpoint: &str,
+    mut output: serde_json::Value,
+    decide: impl Fn(&serde_json::Value) -> serde_json::Value,
+) -> TestResult<serde_json::Value> {
+    let mut asked = 0;
+    while output["status"] == "needs_approval" {
+        asked += 1;
+        if asked > 8 {
+            return Err(format!("still waiting after eight answers: {output}").into());
+        }
+        let decision = decide(&output["requests"][0]);
+        output = decide_change(root, &output, endpoint, decision)?;
+    }
+    Ok(output)
+}
+
+/// The whole loop on scripted answers. Approved, the fix and its case are
+/// written once the new case is proven to fail on the old revision and pass
+/// on the fix, the rule goes into AGENTS.md word for word, an observation is
+/// kept and the mark moves; once the person commits, the next reflection asks
+/// nothing, names the commit in the rule's closing disable, and its window is
+/// met. Declined with a reason, nothing is written, and another reader over
+/// the same record isn't asked about that change again.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
-fn reflection_proposes_a_proven_fix_and_remembers_a_decline() -> TestResult {
+fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
     let model = reflection_model(false)?;
     let endpoint = model.endpoint().to_owned();
 
     let approved = tempdir()?;
     let root = approved.path();
     record(root)?;
-    let paused = reflect(root, &endpoint)?;
-    assert_eq!(paused["status"], "needs_approval", "{paused}");
-    let sealed = decide_change(root, &paused, &endpoint, serde_json::json!(true))?;
+    let sealed = drive(root, &endpoint, reflect(root, &endpoint)?, |_| {
+        serde_json::json!(true)
+    })?;
     assert_eq!(sealed["status"], "sealed", "{sealed}");
-    let proposals = sealed["result"]["proposals"]
-        .as_array()
-        .ok_or("proposals")?;
+    let result = &sealed["result"];
+    let proposals = result["proposals"].as_array().ok_or("proposals")?;
     let fix = proposals
         .iter()
         .find(|entry| entry["applied"].is_object())
@@ -581,25 +629,68 @@ fn reflection_proposes_a_proven_fix_and_remembers_a_decline() -> TestResult {
             .contains("{expected: b, actual: b}")
     );
     assert!(root.join("skills/greet/tests/broken-insists.yaml").exists());
-    let met = sealed["result"]["verdict"]["assessments"]
+    let handle = result["promotion"]["promoted"][0]["handle"]
+        .as_str()
+        .ok_or("a promoted rule")?
+        .to_owned();
+    let instructions = std::fs::read_to_string(root.join("AGENTS.md"))?;
+    assert!(instructions.contains(&format!("## Rules\n\n- Every greeting names the team, never the whole world. (2026-11-16, {handle})")), "{instructions}");
+    let answers = result["verdict"]["assessments"]
         .as_array()
         .ok_or("assessments")?;
-    assert!(
-        met.iter()
-            .any(|answer| answer["id"] == fix["criterion"] && answer["verdict"] == "met"),
+    let answered = |id: &str| {
+        answers
+            .iter()
+            .find(|entry| entry["id"] == id)
+            .map(|entry| entry["verdict"].clone())
+            .unwrap_or_default()
+    };
+    assert_eq!(
+        answered(fix["criterion"].as_str().unwrap_or_default()),
+        "met",
         "{sealed}"
     );
+    assert_eq!(answered("unheld_1"), "met", "{sealed}");
+    assert!(
+        result["observed"]
+            .as_array()
+            .is_some_and(|kept| kept.iter().any(|entry| entry["handle"].is_string())),
+        "{sealed}"
+    );
+    assert_eq!(result["kept"]["mark"]["moved"], true, "{sealed}");
+
+    git(root, &["commit", "-qam", "reflection's fix and rule"])?;
+    let next = reflect(root, &endpoint)?;
+    assert_eq!(next["status"], "sealed", "{next}");
+    let survey = &next["context"]["step_outputs"]["survey"];
+    assert_eq!(survey["resistance"], serde_json::json!([]), "{next}");
+    assert_eq!(survey["unheld"], serde_json::json!([]), "{next}");
+    let head = git(root, &["rev-parse", "HEAD"])?;
+    let disable = &next["result"]["kept"]["disable"][0];
+    assert_eq!(disable["handle"], handle.as_str(), "{next}");
+    assert!(
+        disable["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains(&head)),
+        "{next}"
+    );
+    assert_eq!(next["result"]["verdict"]["verdict"], "met", "{next}");
 
     let declined = tempdir()?;
     let root = declined.path();
     record(root)?;
-    let paused = reflect(root, &endpoint)?;
-    let sealed = decide_change(
-        root,
-        &paused,
-        &endpoint,
-        serde_json::json!({"approved": false, "reason": "Fix the caller, not greet."}),
-    )?;
+    let fix_or_rule = |request: &serde_json::Value| {
+        // The fix is propose's write; the rule is promote's.
+        if request["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("propose/"))
+        {
+            serde_json::json!({"approved": false, "reason": "Fix the caller, not greet."})
+        } else {
+            serde_json::json!(true)
+        }
+    };
+    let sealed = drive(root, &endpoint, reflect(root, &endpoint)?, fix_or_rule)?;
     let proposals = sealed["result"]["proposals"]
         .as_array()
         .ok_or("proposals")?;
@@ -614,16 +705,18 @@ fn reflection_proposes_a_proven_fix_and_remembers_a_decline() -> TestResult {
             .contains("{expected: b, actual: b}")
     );
     assert!(!root.join("skills/greet/tests").exists());
-    // The next reflection asks nothing: the decline stands for that evidence.
-    let again = reflect(root, &endpoint)?;
-    assert_eq!(again["status"], "sealed", "{again}");
+    // Another reader over the same record asks nothing: the decline stands
+    // for that evidence.
+    let weekly = reflect_as(root, &endpoint, "weekly")?;
+    assert_eq!(weekly["status"], "sealed", "{weekly}");
     assert!(
-        again["result"]["proposals"]
+        weekly["result"]["proposals"]
             .as_array()
             .into_iter()
             .flatten()
-            .any(|entry| entry["declined"] == "Fix the caller, not greet."),
-        "{again}"
+            .any(|entry| entry["declined"] == "Fix the caller, not greet."
+                && entry["again"] == false),
+        "{weekly}"
     );
     model.finish()?;
     Ok(())

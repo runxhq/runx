@@ -16,7 +16,7 @@ methods:
     inputs:
       reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a schedule. Marks are per reader." }
       until: { type: string, format: date-time, description: The window's end. }
-    result_from: [judge, propose, decide, decision]
+    result_from: [judge, propose, promote, observe, decide, decision, keep]
     steps:
       - id: survey
         skill: .#survey
@@ -48,14 +48,46 @@ methods:
         effects: ask
         outputs:
           proposals: { type: array, items: { type: object }, description: "Each fix with its case and the cases it changes or removes, its proof that the new case fails on the old revision and passes on the fix, and whether it was applied, declined with the person's reason, or dropped and why." }
+      - id: promote
+        # Each standing rule the repository doesn't hold, its exact words into
+        # AGENTS.md under its Rules heading with its date and handle, the
+        # person approving the exact file. Reflection never commits.
+        script: { module: reflect.mjs, export: promote }
+        inputs: { survey: $steps.survey }
+        calls:
+          tools: [fs.read, fs.write]
+        max_calls: 4
+        effects: ask
+        outputs:
+          promotion: { type: object, description: "promoted, each rule written into AGENTS.md word for word with its date and handle; or refused, why none was, when the file would pass the bound a turn reads whole; or declined, the person's reason." }
+      - id: observe
+        # An observation for each kept diagnosis, with its sources, on the
+        # workspace's observed stream.
+        script: { module: reflect.mjs, export: observe }
+        inputs: { survey: $steps.survey, findings: $steps.judge.findings }
+        calls:
+          skills: [runx/memory#observe]
+        max_calls: 64
+        outputs:
+          observed: { type: array, items: { type: object }, description: "Each diagnosis's observation by its handle, or the one memory already held that it matches." }
       - id: decide
         tool: { module: reflect.mjs, export: assessments }
-        inputs: { survey: $steps.survey, findings: $steps.judge.findings, proposals: $steps.propose.proposals }
+        inputs: { survey: $steps.survey, findings: $steps.judge.findings, proposals: $steps.propose.proposals, promoted: $steps.promote.promotion.promoted, observed: $steps.observe.observed }
         outputs:
           verdict: { packet: runx.verdict.v1, description: "One assessment per check survey laid out, its subject survey's window. The runtime sets its evaluator." }
       - id: decision
         tool: verdict.decide
         inputs: { verdict: $steps.decide.verdict, subject: $steps.survey.subject, criteria_ref: runx/reflect, criteria: $steps.survey.criteria }
+      - id: keep
+        # The disable that closes each rule the repository holds, for the
+        # person to run, and the mark, moved past the window the verdict covers.
+        script: { module: reflect.mjs, export: keep }
+        inputs: { reader: $input.reader, survey: $steps.survey }
+        calls:
+          operations: [store/events.append]
+        max_calls: 2
+        outputs:
+          kept: { type: object, description: "The disables for the person to run, each naming the commit that holds its rule, and the mark." }
   survey:
     description: Read the mark, the record since it, the workspace's standing memory and its revision, and lay out the checks before anything is judged. No model.
     inputs:
@@ -78,6 +110,7 @@ methods:
           resistance: { type: array, items: { type: object }, description: "Every refused, declined and failed call, failed step, declined ask with its reason, unmet verdict, and run that sealed other than completed, each with its evidence." }
           sampled: { type: array, items: { type: object }, description: "The latest success of each skill in the window, for the purpose-only reader." }
           unheld: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md doesn't hold at HEAD." }
+          held: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md holds at HEAD, which keep closes." }
           mark: { type: object, description: "Where the mark moves once a verdict covers the window, and the runs still open there." }
           read_to_end: { type: boolean, description: "Every run in the window was read to its last event. False when the calls ran out first." }
   diagnose:

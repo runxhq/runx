@@ -64,11 +64,28 @@ then can't be met, and the mark it returns moves only past what it read.
   the exact files. A decline writes nothing and its reason is kept in
   reflect's `declines` stream, keyed by the change's target and evidence, so
   a later run doesn't propose that change again unless its evidence changed.
+- **`promote`** writes each standing `said:workspace` rule the repository
+  doesn't hold into `AGENTS.md`, word for word under its `## Rules` heading,
+  with its date and handle, under `effects: ask`, so the person approves the
+  exact file. A write that would take the file past 128 KiB, what reaches a
+  turn whole, is refused, and the rule goes elsewhere. Reflection never
+  commits: the person does.
+- **`observe`** keeps an observation for each kept diagnosis on the
+  workspace's `observed:` stream, its evidence as its sources and its run's
+  date as its own. One memory already holds is that one.
 - **`decide`** answers every check with a `runx.verdict.v1` whose subject is
   survey's window, and `verdict.decide` decides it by the one rule. A resistance
-  is met once its fix and case are proven and applied, and a rule once
-  `AGENTS.md` holds it: until then each is `not_met`, saying what it lacks, a
-  declined fix with the person's reason. A sampled run is met or not as its purpose-only reader found,
+  is met once it's kept, as a proven fix that was applied or as an
+  observation, and a rule once it's promoted: until then each is `not_met`,
+  saying what it lacks, a declined fix with the person's reason.
+- **`keep`** returns the disable that closes each rule `AGENTS.md` holds at
+  `HEAD`, its reason naming the commit, for the person to run: reflection's
+  term never writes a `said:` stream. Then it moves the mark past the window
+  the verdict covers, at the version survey read, so a concurrent reflection's
+  move wins and this one says it lost.
+
+Reflection's term reads the workspace's memory and writes only its
+`observed:` stream. It never reads or writes personal memory. A sampled run is met or not as its purpose-only reader found,
   and unresolved when no finding was kept.
 
 ## Agent task: diagnose
