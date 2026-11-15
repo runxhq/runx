@@ -82,6 +82,11 @@ fn env(root: &Path) -> BTreeMap<String, String> {
             "RUNX_REGISTRY_URL".to_owned(),
             "http://127.0.0.1:9".to_owned(),
         ),
+        // A rooted home, as a host gives every run, where `private` lives.
+        (
+            "RUNX_HOME".to_owned(),
+            root.join("home").to_string_lossy().into_owned(),
+        ),
     ]);
     crate::support::insert_test_signing_env(&mut env);
     env
@@ -894,4 +899,266 @@ fn stopping_a_run_stops_its_scripts_calls_in_flight_and_never_reaches_its_catch(
 /// streams.
 fn of_run(stream: &str, run_id: &str) -> bool {
     stream == run_id || runx_runtime::run_record::is_calls_stream_of(stream, run_id)
+}
+
+/// One lead's cancellation goes ahead beside a sibling (D36): the lead's
+/// skill call and a sibling's read are both in flight, each held by its own
+/// pipe. The lead's cancel stops its child's read and settles it cancelled,
+/// with the sibling still held; released, the sibling reads to its end.
+#[test]
+fn a_leads_cancel_goes_ahead_with_a_siblings_call_still_running() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (lead_on, lead_off) = (
+        pipe(&root.join("lead-started"))?,
+        pipe(&root.join("lead-release"))?,
+    );
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    crate::support::write_test_skill_package(
+        &root.join("peek"),
+        "---\nname: peek\ndescription: Reads once it is released.\n---\n# Peek\n\nRead.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  peek:\n    steps:\n      - id: peek\n        operation: gate/gate.wait\n        inputs: {{started: \"{}\", release: \"{}\"}}\n",
+            lead_on.display(),
+            lead_off.display()
+        ),
+    )?;
+    let skill = asker(
+        root,
+        "          skills: [../peek]\n          operations: [gate/gate.wait]\n",
+    )?;
+    let (run_id, session) = open(root, skill)?;
+    let wait = session
+        .status(TURN)?
+        .tools
+        .into_iter()
+        .find(|tool| tool.name.as_str().contains("gate"))
+        .ok_or("the turn offers the gate's read")?
+        .name;
+    let leading = std::thread::spawn({
+        let session = Arc::clone(&session);
+        move || session.call(TURN, "skill__peek", None, JsonObject::new())
+    });
+    started(&lead_on)?;
+    let reading = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let call = input(serde_json::json!({"input": {
+            "started": on.to_string_lossy(),
+            "release": off.to_string_lossy(),
+        }}))?;
+        move || session.call(TURN, wait.as_str(), None, call)
+    });
+    started(&on)?;
+
+    assert_eq!(session.cancel("answer/0")?, CallCancel::SettlesAsItEnds);
+    let lead = leading.join().map_err(|_| "the lead's call panicked")??;
+    assert_eq!(lead.outcome, TurnCallOutcome::Cancelled, "{lead:?}");
+    // Read from the record while the sibling is still held.
+    assert_eq!(
+        calls(root, &run_id, &run_id)?,
+        [
+            (0, "child", false),
+            (1, "claimed", false),
+            (0, "cancelled", true)
+        ]
+    );
+
+    release(&off)?;
+    let read = reading.join().map_err(|_| "the read panicked")??;
+    assert!(
+        matches!(read.outcome, TurnCallOutcome::Completed { .. }),
+        "{read:?}"
+    );
+    turn_complete(&session)
+}
+
+/// One lead's approval goes ahead beside a sibling (D36, "a slow call can't
+/// hold another child"): the lead's skill call waits on the person's
+/// approval while a sibling's read is in flight, held by a pipe. The person
+/// approves through a resume, which the live driver accepts, and the host's
+/// next call applies it, so the lead's child runs on and its call settles
+/// while the sibling is still held. The record is read before the sibling is
+/// released, which happens before anything is asserted, so a lead that waits
+/// on its sibling fails the test and never hangs it.
+#[test]
+fn a_leads_approval_goes_ahead_with_a_siblings_call_still_running() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    crate::support::write_test_skill_package(
+        &root.join("go"),
+        "---\nname: go\ndescription: Goes ahead once the person approves.\n---\n# Go\n\nGo.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  go:\n    steps:\n      - id: approve\n        ask: {gate: lead.go, reason: Go ahead with this lead.}\n      - id: digest\n        guard:\n          - {value: $steps.approve.approval_decision.approved, equals: true}\n        tool: data.digest\n        inputs: {value: lead, encoding: utf8_text}\n",
+    )?;
+    let skill = asker(
+        root,
+        "          skills: [../go]\n          operations: [gate/gate.wait]\n          tools: [data.digest]\n",
+    )?;
+    let (run_id, session) = open(root, skill)?;
+    let going = session.call(TURN, "skill__go", None, JsonObject::new())?;
+    assert!(
+        matches!(going.outcome, TurnCallOutcome::Pending { .. }),
+        "{going:?}"
+    );
+    let approval = session
+        .waiting()?
+        .into_iter()
+        .find_map(|request| match request {
+            runx_contracts::ResolutionRequest::Approval { id, .. } => Some(id.as_str().to_owned()),
+            _ => None,
+        })
+        .ok_or("the lead waits on the person's approval")?;
+    let wait = session
+        .status(TURN)?
+        .tools
+        .into_iter()
+        .find(|tool| tool.name.as_str().contains("gate"))
+        .ok_or("the turn offers the gate's read")?
+        .name;
+    let reading = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let call = input(serde_json::json!({"input": {
+            "started": on.to_string_lossy(),
+            "release": off.to_string_lossy(),
+        }}))?;
+        move || session.call(TURN, wait.as_str(), None, call)
+    });
+    started(&on)?;
+
+    let answers = crate::support::bind_resume(
+        &env(root),
+        root,
+        &run_id,
+        serde_json::json!({"approvals": {approval.as_str(): true}}),
+    )?;
+    let delivered = orchestrator(root)?.resume(&runx_runtime::ResumeRequest {
+        run_id: run_id.clone(),
+        answers,
+        receipt_dir: Some(root.join("receipts")),
+        env: env(root),
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+        package_digest: None,
+        closure_digest: None,
+    })?;
+    let digested = session.call(
+        TURN,
+        "data_digest",
+        None,
+        input(serde_json::json!({"value": "beside", "encoding": "utf8_text"}))?,
+    );
+    let beside = calls(root, &run_id, &run_id);
+
+    release(&off)?;
+    let read = reading.join().map_err(|_| "the read panicked")??;
+    let delivered = serde_json::to_value(&delivered.output)?;
+    assert_eq!(delivered["status"], "accepted", "{delivered}");
+    assert!(
+        matches!(digested?.outcome, TurnCallOutcome::Completed { .. }),
+        "the host's next call ran"
+    );
+    let beside = beside?;
+    assert!(
+        beside.contains(&(0, "completed", false)) && !beside.contains(&(1, "completed", false)),
+        "the lead settled while its sibling was still held: {beside:?}"
+    );
+    assert!(
+        matches!(read.outcome, TurnCallOutcome::Completed { .. }),
+        "{read:?}"
+    );
+    turn_complete(&session)
+}
+
+/// One lead keeps an observation while a sibling's provider read is still
+/// running (§4.8, "Concurrency"): the read, a process, holds the workspace's
+/// lock shared, and an append to `private` takes nothing, so
+/// `runx/memory#observe` keeps what the agent found with the sibling held.
+#[test]
+fn an_observation_is_kept_with_a_siblings_provider_read_still_running() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    let skill = asker(
+        root,
+        "          skills: [runx/memory#observe]\n          operations: [gate/gate.wait]\n",
+    )?;
+    let observing = serde_json::json!({"delegations": [{"connector": "private", "terms": [{
+        "verbs": ["read", "write"],
+        "bounds": {
+            "operations": ["private/*"],
+            "scopes": ["store.read", "store.append"],
+            "targets": ["runx/memory/observed:*"],
+            "packages": ["project:asker", "runx/memory"],
+        },
+    }]}]});
+    let (run_id, session) = open_under(root, skill, Some(observing))?;
+    let tools = session.status(TURN)?.tools;
+    let named = |part: &str| {
+        tools
+            .iter()
+            .find(|tool| tool.name.as_str().contains(part))
+            .map(|tool| tool.name.as_str().to_owned())
+            .ok_or_else(|| format!("the turn offers a call with {part} in its name"))
+    };
+    let (wait, observe) = (named("gate")?, named("observe")?);
+    let reading = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let call = input(serde_json::json!({"input": {
+            "started": on.to_string_lossy(),
+            "release": off.to_string_lossy(),
+        }}))?;
+        move || session.call(TURN, wait.as_str(), None, call)
+    });
+    started(&on)?;
+
+    let observed = session.call(
+        TURN,
+        &observe,
+        None,
+        input(serde_json::json!({
+            "level": "personal",
+            "text": "The build runs on Node 26.",
+            "summary": "The build runs on Node 26",
+            "date": "2026-11-15",
+            "sources": ["fixture:build"],
+        }))?,
+    );
+    let beside = calls(root, &run_id, &run_id);
+
+    release(&off)?;
+    let read = reading.join().map_err(|_| "the read panicked")??;
+    let observed = observed?;
+    let TurnCallOutcome::Completed { output, .. } = &observed.outcome else {
+        return Err(format!("the observation was kept: {observed:?}").into());
+    };
+    let output = serde_json::to_string(output)?;
+    assert!(
+        output.contains("memory:observed:personal"),
+        "the observation has its handle: {output}"
+    );
+    let beside = beside?;
+    assert!(
+        beside.contains(&(1, "completed", false)) && !beside.contains(&(0, "completed", false)),
+        "the observation settled while its sibling was still held: {beside:?}"
+    );
+    assert!(
+        matches!(read.outcome, TurnCallOutcome::Completed { .. }),
+        "{read:?}"
+    );
+    turn_complete(&session)
 }

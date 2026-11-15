@@ -4119,3 +4119,152 @@ fn a_script_past_its_max_calls_stops_and_the_call_past_it_never_runs() -> TestRe
     );
     Ok(())
 }
+
+/// A connector whose one read needs a credential, `LOCKED_TOKEN`, which no
+/// test sets.
+const LOCKED_CONNECTOR: &str = r#"schema: runx.connector.v1
+name: locked
+title: Locked
+description: A read that needs a credential.
+auth:
+  credentials:
+    token:
+      kind: api_key
+      fields: [{name: token, label: Locked token}]
+      delivery: {env: LOCKED_TOKEN}
+      audience: [locked.fixture.invalid]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  note.read:
+    description: Read the note.
+    verb: read
+    scopes: [note.read]
+    credentials: [token]
+    target: {template: self}
+    result_fields: [note]
+    implementation:
+      http:
+        allowed_hosts: [locked.fixture.invalid]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: note
+            http_method: GET
+            url: https://locked.fixture.invalid/note
+"#;
+
+/// A script revises on a failed check (§4.8, "Revising"): a `not_met`
+/// verdict is a result the script acts on, so it revises the draft and checks
+/// again until the check is met. A missing credential rejects instead, so a
+/// loop that doesn't catch it ends at its first call and never tries again
+/// what can't succeed.
+#[test]
+fn a_failed_check_is_revised_on_and_a_missing_credential_ends_the_loop() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let judge = root.join("judge");
+    crate::support::write_test_skill_package(
+        &judge,
+        "---\nname: judge\ndescription: Judges a draft's length.\n---\n# Judge\n\nJudge it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  judge:\n    inputs:\n      draft: {type: string}\n    steps:\n      - id: judge\n        tool: {module: judge.mjs}\n        inputs: {draft: $input.draft}\n        outputs:\n          verdict: {packet: runx.verdict.v1}\n",
+    )?;
+    std::fs::write(
+        judge.join("judge.mjs"),
+        r#"export default function ({ draft }) {
+  const words = draft.split(" ").length;
+  const assessment = words >= 3
+    ? { id: "length", verdict: "met", evidence: [] }
+    : { id: "length", verdict: "not_met", evidence: [], failure: { expected: "at least 3 words", actual: `${words} words`, where: "draft" } };
+  return { verdict: {
+    schema: "runx.verdict.v1",
+    verdict: assessment.verdict,
+    subject: { ref: "draft", revision: "sha256:draft" },
+    criteria_set: { ref: "length", revision: "sha256:length" },
+    assessments: [assessment],
+  } };
+}
+"#,
+    )?;
+    let revise = write_one_step(
+        root,
+        "        calls:\n          skills: [../judge]\n        max_calls: 5\n        outputs:\n          drafts: {type: array}\n          verdict: {type: string}\n",
+        r#"export default async function (ctx) {
+  const drafts = [];
+  let draft = "one";
+  for (;;) {
+    drafts.push(draft);
+    const { verdict } = await ctx.skill("../judge", { draft });
+    if (verdict.verdict === "met") return { drafts, verdict: verdict.verdict };
+    // The failure says what the check expected, and the script revises on it.
+    if (verdict.assessments[0].failure.expected !== "at least 3 words") throw new Error("an unknown failure");
+    draft = `${draft} more`;
+  }
+}
+"#,
+    )?;
+    let local = || -> TestResult<LocalOrchestrator> {
+        Ok(LocalOrchestrator::with_effects_and_environment(
+            runx_runtime::RuntimeEffectRegistry::local()?,
+            env(root),
+        ))
+    };
+    let revised = run_on(local()?, root, revise)?;
+    let output = object(&revised.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    assert_eq!(
+        serde_json::to_value(output.get("result").ok_or("no result")?)?,
+        serde_json::json!({"drafts": ["one", "one more", "one more more"], "verdict": "met"}),
+        "{output:?}"
+    );
+
+    std::fs::create_dir_all(root.join("connectors/locked"))?;
+    std::fs::write(
+        root.join("connectors/locked/connector.yaml"),
+        LOCKED_CONNECTOR,
+    )?;
+    let fetch = write_one_step(
+        root,
+        "        calls:\n          operations: [locked/note.read]\n        max_calls: 5\n        outputs:\n          note: {}\n",
+        "export default async function (ctx) {\n  for (;;) {\n    await ctx.operation(\"locked/note.read\", {});\n  }\n}\n",
+    )?;
+    // The script's own call: refused before the run starts, so no pass runs.
+    let refused = run_on(local()?, root, fetch)?;
+    let output = object(&refused.output)?;
+    assert_eq!(text(output, "outcome"), Some("blocked"), "{output:?}");
+    assert!(
+        serde_json::to_string(output)?.contains("no instance is selected for connector locked"),
+        "{output:?}"
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    assert_eq!(call_events(root, &run_id)?, Vec::new(), "no call was made");
+
+    // Beneath a child the script calls, the call rejects when it's made, and
+    // the loop, which doesn't catch it, ends there.
+    crate::support::write_test_skill_package(
+        &root.join("reader"),
+        "---\nname: reader\ndescription: Reads the locked note.\n---\n# Reader\n\nRead it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    steps:\n      - id: read\n        operation: locked/note.read\n        inputs: {}\n",
+    )?;
+    let fetch = write_one_step(
+        root,
+        "        calls:\n          skills: [../reader]\n        max_calls: 5\n        outputs:\n          note: {}\n",
+        "export default async function (ctx) {\n  for (;;) {\n    await ctx.skill(\"../reader\", {});\n  }\n}\n",
+    )?;
+    let ended = run_on(local()?, root, fetch)?;
+    let output = object(&ended.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    assert!(
+        serde_json::to_string(output)?.contains("no instance is selected for connector locked"),
+        "{output:?}"
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    // One call: its child run was refused, and the call settled with that
+    // run, whose failure the script got as a rejection.
+    assert_eq!(
+        call_events(root, &run_id)?,
+        vec![(0, "child"), (0, "completed")],
+        "the loop ended at its first call"
+    );
+    Ok(())
+}
