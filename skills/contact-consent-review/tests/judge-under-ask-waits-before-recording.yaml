@@ -1,0 +1,26 @@
+name: judge-under-ask-waits-before-recording
+method: judge
+inputs:
+  key: contact:hard-bounce
+  expected_version: 0
+  idempotency_key: contact:hard-bounce:consent:v1
+  engagement_evidence:
+    hard_bounces: 1
+    recency_days: 12
+  hygiene_policy:
+    hard_bounce_action: suppress
+    decay_threshold_days: 90
+  consent_evidence:
+    state: subscribed
+    active_unsubscribe_marker: false
+    evidence_status: read
+    evidence_version: 0
+setup:
+  # Under effects: ask, with nobody answering, the consent transition waits on
+  # the person before anything is recorded: a consent decision decides who
+  # can be sent to.
+  authority:
+    effects: ask
+expect:
+  status: needs_approval
+  steps: [read-contact, decide]

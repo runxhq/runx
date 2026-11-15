@@ -122,6 +122,15 @@ fn a_home_that_fell_back_to_the_workspace_says_so() {
     // A home named outright is the operator's, wherever it sits.
     assert!(!fell_back(&[(RUNX_HOME_ENV, "state/home")]));
     assert!(!fell_back(&[(RUNX_HOME_ENV, "/work/app/.runx")]));
+    // A person running from `~` has their home inside the workspace, and it
+    // is still theirs: the fallback is decided by what names the home, never
+    // by where it sits.
+    let from_home = RunxPaths::resolve(
+        &env(&[("HOME", "/home/kam"), (RUNX_CWD_ENV, "/home/kam")]),
+        Path::new("/home/kam"),
+    );
+    assert!(!from_home.home_fell_back());
+    assert_eq!(from_home.home(), from_home.workspace().join(".runx"));
 }
 
 #[test]

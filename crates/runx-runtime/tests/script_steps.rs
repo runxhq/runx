@@ -2980,8 +2980,9 @@ fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
     );
     let reused = run_managed(temp.path(), skill_dir)?;
     assert_reused_from(temp.path(), &reused, &source)?;
-    // The same source made under a host's driver, whose harness runx can't
-    // see, isn't eligible: a later call runx drives finds it and recomputes.
+    // The same source made under a host's driver, whose own tools runx
+    // can't see, isn't eligible: a later call runx drives finds it and
+    // recomputes.
     let hosted = tempdir()?;
     write_digest_child(hosted.path())?;
     let skill_dir = write_reusing_parent(hosted.path(), "digest-child")?;

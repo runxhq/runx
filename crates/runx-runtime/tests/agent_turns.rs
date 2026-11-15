@@ -3306,3 +3306,51 @@ methods:
     assert_eq!(given("other")?, 0, "a turn of another package");
     Ok(())
 }
+
+/// An agent edits unattended under a standing approval and still can't read a
+/// credential file (§9, effects and reach): the approval covering edits under
+/// `docs` runs them with nobody asked, and the turn's read of a secret there,
+/// by its name or through a symlink to it, is refused by reach. The approval
+/// answers the floor's gate; it never widens what the turn may read.
+#[cfg(unix)]
+#[test]
+fn an_unattended_edit_under_a_standing_approval_never_reads_a_credential() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("docs"))?;
+    std::fs::write(root.join("docs/.env"), "TOKEN=fixture-secret\n")?;
+    std::os::unix::fs::symlink(root.join("docs/.env"), root.join("docs/config.txt"))?;
+    let skill_dir = root.join("edit-demo");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: edit-demo\ndescription: Edits the docs, then answers.\n---\n# Edit demo\n\n## Agent task: answer\n\nEdit what you need, then answer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [fs.read, fs.write]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let standing = serde_json::json!([{"edits": {"paths": ["docs"]}}]);
+    let started = start_bounded(root, skill_dir, asking(standing)?)?;
+    let turn = opened(root, &started)?;
+
+    let edited = turn.call(
+        TURN,
+        "fs_write",
+        None,
+        input(serde_json::json!({"path": "docs/a.md", "contents": "made\n"}))?,
+    )?;
+    assert!(
+        completed(&edited),
+        "the edit runs with nobody asked: {edited:?}"
+    );
+    for secret in ["docs/.env", "docs/config.txt"] {
+        let read = turn.call(
+            TURN,
+            "fs_read",
+            None,
+            input(serde_json::json!({"path": secret}))?,
+        )?;
+        assert!(!completed(&read), "{secret}: {read:?}");
+        let said = serde_json::to_string(&read)?;
+        assert!(said.contains("secret"), "refused as a secret: {said}");
+        assert!(!said.contains("fixture-secret"), "{secret}: {said}");
+    }
+    Ok(())
+}
