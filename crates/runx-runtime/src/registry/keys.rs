@@ -483,6 +483,73 @@ mod tests {
         );
     }
 
+    /// A rotation adds the new key beside the one it replaces, so each
+    /// verifies the packages it signed. A package signed by one never
+    /// verifies as the other's, and a key the list drops verifies nothing.
+    #[test]
+    fn a_rotated_key_verifies_old_and_new_packages() -> Result<(), String> {
+        use ring::signature::{Ed25519KeyPair, KeyPair};
+        let pair = |seed: u8| {
+            Ed25519KeyPair::from_seed_unchecked(&[seed; 32]).map_err(|error| error.to_string())
+        };
+        let (old, new) = (pair(1)?, pair(2)?);
+        let (old_id, new_id) = ("runx-registry-ed25519-v1", "runx-registry-ed25519-v2");
+        let official = |key_id: &str, pair: &Ed25519KeyPair| {
+            RegistryKey::from_base64(
+                key_id,
+                &STANDARD.encode(pair.public_key().as_ref()),
+                RegistryKeyScope::Official,
+            )
+        };
+        let keys = vec![official(old_id, &old)?, official(new_id, &new)?];
+        let signed = |version: &str, key_id: &str, pair: &Ed25519KeyPair| {
+            let mut manifest = RegistrySignedManifest {
+                schema: REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
+                subject: RegistrySubject {
+                    kind: RegistrySubjectKind::Skill,
+                    name: "runx/echo".to_owned(),
+                },
+                version: version.to_owned(),
+                content_digest: format!("sha256:{}", "a".repeat(64)),
+                signer: RegistryManifestSigner {
+                    id: "registry".to_owned(),
+                    key_id: key_id.to_owned(),
+                },
+                signature: RegistryManifestSignature {
+                    alg: REGISTRY_MANIFEST_SIGNATURE_ALG.to_owned(),
+                    value: String::new(),
+                },
+            };
+            let payload = manifest
+                .signing_payload()
+                .map_err(|error| error.to_string())?;
+            manifest.signature.value = format!(
+                "{REGISTRY_MANIFEST_SIGNATURE_PREFIX}{}",
+                URL_SAFE_NO_PAD.encode(pair.sign(&payload).as_ref())
+            );
+            Ok::<_, String>(manifest)
+        };
+        let verifies = |manifest: &RegistrySignedManifest, keys: &[RegistryKey]| {
+            verify_registry_signed_manifest(manifest, keys).map(|key| key.key_id.clone())
+        };
+
+        let before = signed("1.0.0", old_id, &old)?;
+        let after = signed("1.1.0", new_id, &new)?;
+        assert_eq!(verifies(&before, &keys), Ok(old_id.to_owned()));
+        assert_eq!(verifies(&after, &keys), Ok(new_id.to_owned()));
+        assert_eq!(
+            verifies(&signed("1.1.0", old_id, &new)?, &keys),
+            Err(RegistryManifestVerificationFailure::SignatureMismatch),
+            "the new key never signs as the old one"
+        );
+        assert_eq!(
+            verifies(&before, &keys[1..]),
+            Err(RegistryManifestVerificationFailure::UnknownKey),
+            "a dropped key verifies nothing"
+        );
+        Ok(())
+    }
+
     #[test]
     fn an_operator_key_never_covers_runx_project_or_the_official_registry() {
         for publisher in ["runx", "project", "Acme", "acme/team", ""] {
@@ -521,6 +588,18 @@ mod tests {
                 "{name}"
             );
         }
+        // Two private registries: each one's key signs only its own.
+        let beta = RegistryKey::third_party("beta-key", KEY, "beta", "https://registry.beta.test")?;
+        let beta_source =
+            registry_manifest_source_authority_from_registry_url("https://registry.beta.test");
+        assert_eq!(
+            registry_key_signs(&beta, skill, "beta/echo", Some(&beta_source)),
+            Ok(())
+        );
+        assert!(registry_key_signs(&beta, skill, "acme/echo", Some(&acme)).is_err());
+        assert!(registry_key_signs(&beta, skill, "acme/echo", None).is_err());
+        assert!(registry_key_signs(&key, skill, "beta/echo", Some(&beta_source)).is_err());
+        assert!(registry_key_signs(&key, skill, "acme/echo", Some(&beta_source)).is_err());
         let official = official_registry_keys().remove(0);
         assert_eq!(
             registry_key_signs(

@@ -1,5 +1,5 @@
 use runx_parser::{
-    ParseError, ValidationError, parse_method_manifest_yaml, parse_skill_markdown,
+    ParseError, RUNX_VERSION, ValidationError, parse_method_manifest_yaml, parse_skill_markdown,
     parse_tool_manifest_json, parse_tool_manifest_yaml, validate_method_manifest, validate_skill,
     validate_tool_manifest,
 };
@@ -141,6 +141,45 @@ methods:
         matches!(invalid_field, ValidationError::InvalidField { .. }),
         "{invalid_field:?}"
     );
+    Ok(())
+}
+
+#[test]
+fn a_package_needing_a_newer_runx_is_refused_by_that_runx_before_its_steps_are_read()
+-> Result<(), String> {
+    let mut parts = RUNX_VERSION.split('.').map(|part| part.parse::<u64>());
+    let (Some(Ok(major)), Some(Ok(minor)), Some(Ok(_)), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(format!(
+            "RUNX_VERSION {RUNX_VERSION} is <major>.<minor>.<patch>"
+        ));
+    };
+    let newer = format!("{major}.{}.0", minor + 1);
+    // Everything after `minimum_runx` is in a format this runx can't read: a
+    // key it doesn't know and a step kind it doesn't have.
+    let future = |minimum: &str| {
+        parse_method_manifest_yaml(&format!(
+            "minimum_runx: {minimum}\nlifecycle: managed\nmethods:\n  echo:\n    steps:\n      - id: echo\n        teleport: {{to: elsewhere}}\n"
+        ))
+        .map_err(|error| error.to_string())
+    };
+
+    let refused = validation_rejection(validate_method_manifest("future", future(&newer)?))?;
+    assert_eq!(
+        refused,
+        ValidationError::InvalidField {
+            field: "run.yaml".to_owned(),
+            message: format!(
+                "this package needs runx {newer} or newer, and this is runx {RUNX_VERSION}: upgrade runx to run it."
+            ),
+        }
+    );
+
+    // At this runx's own version, the same package reaches its keys, and is
+    // refused for one of them instead.
+    let read = validation_rejection(validate_method_manifest("future", future(RUNX_VERSION)?))?;
+    assert!(!read.to_string().contains("upgrade runx"), "{read}");
     Ok(())
 }
 

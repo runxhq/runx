@@ -478,10 +478,20 @@ fn mcp_rejects_unknown_shapes_without_delegating() {
             http_allow_non_loopback: false,
         })
     );
-    assert_eq!(
-        plan(&["turn", "rx_1"]),
-        RouterAction::Error("unknown command turn".to_owned())
-    );
+}
+
+#[test]
+fn the_four_retired_commands_are_unknown_with_or_without_help() {
+    for retired in ["harness", "turn", "new", "policy"] {
+        assert!(
+            COMMAND_SPECS.iter().all(|spec| spec.name != retired),
+            "{retired} is still a documented command"
+        );
+        let unknown = RouterAction::Error(format!("unknown command {retired}"));
+        assert_eq!(plan(&[retired]), unknown, "{retired}");
+        assert_eq!(plan(&[retired, "rx_1"]), unknown, "{retired}");
+        assert_eq!(plan(&[retired, "--help"]), unknown, "{retired}");
+    }
 }
 
 #[test]

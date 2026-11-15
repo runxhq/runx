@@ -402,6 +402,75 @@ fn a_project_connector_waits_on_trust_and_runs_once_trusted() -> TestResult {
     Ok(())
 }
 
+/// A project connector waits on trust whatever implements it: one the
+/// project adds over HTTP, with no process, waits as the process-backed one
+/// does, and nothing it declares is offered first.
+#[test]
+fn a_new_http_project_connector_waits_on_trust_too() -> TestResult {
+    let temp = tempdir()?;
+    let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
+    std::fs::create_dir_all(ws.root.join("connectors/lookup"))?;
+    std::fs::write(
+        ws.root.join("connectors/lookup/connector.yaml"),
+        r#"schema: runx.connector.v1
+name: lookup
+title: Lookup
+description: Reads one record over HTTP.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  record.read:
+    description: Read the record.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: docs}
+    scopes: [record.read]
+    target:
+      template: "https://records.example/record"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    result_fields: [record]
+    implementation:
+      http:
+        allowed_hosts: [records.example]
+        requests:
+          - http_method: GET
+            url: https://records.example/record
+"#,
+    )?;
+
+    let run_id = ws.start()?;
+    let turn = ws.open(&run_id)?;
+    let gate = waits_on(
+        &load(&turn, serde_json::json!({"connector": "lookup"}))?,
+        "trust",
+    )?;
+    assert!(
+        gate.reason.as_str().contains("connector lookup"),
+        "{gate:?}"
+    );
+    assert!(
+        !turn
+            .status(TURN)?
+            .tools
+            .iter()
+            .any(|tool| tool.name.as_str().starts_with("lookup__")),
+        "nothing it declares is offered before the person trusts it"
+    );
+    drop(turn);
+
+    ws.answer(&run_id, "read/0/trust", true)?;
+    assert!(
+        completed(&ws.recorded(&run_id, 0)?),
+        "trusted, the load binds"
+    );
+    Ok(())
+}
+
 /// Trust covers the implementation for as long as the turn runs: a loaded
 /// connector's calls run only against the exact binding the load recorded,
 /// so a process changed under the same connector.yaml after the load runs
