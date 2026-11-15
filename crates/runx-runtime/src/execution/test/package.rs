@@ -81,16 +81,16 @@ impl PackageTestReport {
 
 /// Whether a package's cases may run a trusted host process. A process is the
 /// one thing a case can reach that its fixtures don't hold, so where they may
-/// not, a case that reaches one is held there, never run, and reported
+/// not, a case that reaches one is refused there, never run, and reported
 /// `inconclusive`, while the package's other cases run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TestProcesses {
     Run,
-    Hold,
+    Refuse,
 }
 
 /// The adapter a case runs with: the executable adapter, or, where processes
-/// are held, one that refuses each and remembers that the case reached one.
+/// are refused, one that refuses each and remembers that the case reached one.
 #[derive(Clone)]
 struct CaseAdapter {
     processes: TestProcesses,
@@ -99,20 +99,20 @@ struct CaseAdapter {
 
 impl SkillAdapter for CaseAdapter {
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
-        if self.processes == TestProcesses::Hold
+        if self.processes == TestProcesses::Refuse
             && matches!(request.executable, Executable::Process(_))
         {
             self.reached.store(true, Ordering::SeqCst);
             return Err(RuntimeError::SkillFailed {
                 skill_name: "package-test".to_owned(),
-                message: PROCESS_HELD.to_owned(),
+                message: PROCESS_REFUSED.to_owned(),
             });
         }
         ExecutableAdapter.invoke(request)
     }
 }
 
-const PROCESS_HELD: &str =
+const PROCESS_REFUSED: &str =
     "it reaches a process, and processes run only where its caller allows them";
 
 /// A case as loaded: its fixture and target, or its file's name and why it
@@ -256,9 +256,9 @@ fn replay_cases(
         };
         let reached = Arc::clone(&adapter.reached);
         let outcome = run_test_case_with_adapter(fixture, target_path, adapter, options);
-        // Held at a process, whatever its expectation then made of the run.
+        // Refused at a process, whatever its expectation then made of the run.
         if reached.load(Ordering::SeqCst) {
-            report.record(name, "inconclusive", vec![PROCESS_HELD.to_owned()]);
+            report.record(name, "inconclusive", vec![PROCESS_REFUSED.to_owned()]);
             continue;
         }
         match outcome {

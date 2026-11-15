@@ -33,7 +33,7 @@ impl CandidateValidation {
                 self.test.failures().join("; ")
             ))),
             "inconclusive" => Err(invalid_skill_change(
-                "native test was inconclusive: a case reaches a process the test held",
+                "native test was inconclusive: a case reaches a process the test refused",
             )),
             _ => Ok(self),
         }
@@ -238,7 +238,7 @@ pub(crate) fn validate_registry_package(
 }
 
 /// The package at `candidate`, validated for the workspace at `repo_root`:
-/// its inspection, and its test, each case that reaches a process held unless
+/// its inspection, and its test, each case that reaches a process refused unless
 /// the caller allows processes.
 fn validate_package_at(
     repo_root: &Path,
@@ -253,7 +253,7 @@ fn validate_package_at(
     let processes = if allow_execute_test {
         TestProcesses::Run
     } else {
-        TestProcesses::Hold
+        TestProcesses::Refuse
     };
     let inspected = inspected.and_then(|inspection| {
         serde_json::to_value(&inspection)
@@ -394,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn a_candidate_is_applicable_only_when_no_case_failed_or_was_held() {
+    fn a_candidate_is_applicable_only_when_no_case_failed_or_was_inconclusive() {
         let validation = |status: &'static str| super::CandidateValidation {
             inspect: runx_contracts::JsonObject::new(),
             test: crate::PackageTestReport {

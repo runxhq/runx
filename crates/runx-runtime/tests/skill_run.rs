@@ -5125,7 +5125,7 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
 }
 
 /// A candidate's cases each come out on their own: one passes, one fails with
-/// its own error, and one that reaches a process is held there, inconclusive
+/// its own error, and one that reaches a process is refused there, inconclusive
 /// and never run, until the caller allows processes, while the others run.
 #[test]
 fn a_candidates_cases_come_out_one_by_one_and_a_process_runs_only_where_allowed()
@@ -5188,23 +5188,23 @@ fn a_candidates_cases_come_out_one_by_one_and_a_process_runs_only_where_allowed(
         })
     };
 
-    let held = validate(false)?;
-    assert_eq!(held["verdict"], "tested", "{held}");
-    assert_eq!(held["test"]["status"], "failed", "{held}");
+    let refused = validate(false)?;
+    assert_eq!(refused["verdict"], "tested", "{refused}");
+    assert_eq!(refused["test"]["status"], "failed", "{refused}");
     assert_eq!(
-        statuses(&held),
+        statuses(&refused),
         Some(vec![
             ("digests-another-value".into(), "failed".into()),
             ("digests".into(), "passed".into()),
             ("runs-the-command".into(), "inconclusive".into()),
         ]),
-        "{held}"
+        "{refused}"
     );
     assert!(
-        held["test"]["cases"][0]["failures"]
+        refused["test"]["cases"][0]["failures"]
             .to_string()
             .contains("sha256:0000"),
-        "{held}"
+        "{refused}"
     );
 
     let allowed = validate(true)?;

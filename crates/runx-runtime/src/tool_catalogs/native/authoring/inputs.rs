@@ -132,7 +132,7 @@ pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
     ),
     field(
         "allow_execute_test",
-        "Let a case run a trusted host process. Without it, a case that reaches one is held there, reported inconclusive and never run, and the package's other cases run.",
+        "Let a case run a trusted host process. Without it, a case that reaches one is refused there, reported inconclusive and never run, and the package's other cases run.",
     ),
 ];
 
