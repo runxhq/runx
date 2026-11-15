@@ -446,7 +446,11 @@ impl WorkflowExecution {
             });
         }
         let plan = StepExecutionPlan { step_id, attempt };
-        let step = self.find_step(workflow, plan.step_id)?;
+        let found = self.find_step(workflow, plan.step_id)?;
+        // What the step reads of who its calls act as, read as it runs.
+        let step = &*crate::execution::workflow::bind_principals(found, &|connector| {
+            super::admission::step_principal(runtime, workflow_dir, found, connector)
+        })?;
         // The step's receipt is counted against the run's tree before
         // anything of the step runs: a step the run waits at, as a fact, and
         // a new one from what's left. A step a governed stop ends seals none,
@@ -1253,7 +1257,11 @@ pub(super) fn operand_value<'a>(
         // so an input field still unbound is absent; no condition or guard
         // reads the invoker's act or the run's id.
         Operand::Reference(
-            Source::Input { .. } | Source::Act { .. } | Source::RunId | Source::WorkspaceId,
+            Source::Input { .. }
+            | Source::Act { .. }
+            | Source::RunId
+            | Source::WorkspaceId
+            | Source::Principal { .. },
         ) => None,
     }
 }

@@ -41,6 +41,7 @@ pub(super) struct ScriptPassInvocation {
     pub(super) references: Vec<runx_contracts::javascript_worker::ScriptInputReference>,
     pub(super) worker_path: Option<String>,
     pub(super) limits: InvocationLimits,
+    pub(super) max_calls: u32,
     pub(super) settled: Vec<ScriptSettlement>,
     pub(super) now: i64,
 }
@@ -117,6 +118,7 @@ impl JavaScriptWorkerSupervisor {
             inputs: pass.inputs,
             references: pass.references,
             limits: pass.limits,
+            max_calls: pass.max_calls,
             settled: pass.settled,
             now: pass.now,
         }));

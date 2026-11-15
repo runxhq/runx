@@ -21,8 +21,8 @@ use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AdmissionCheck, AdmissionReason, AuthorityApproval, AuthorityBounds, AuthorityDerivation,
     AuthorityEvidence, AuthorityEvidenceKind, AuthorityTerm, AuthorityUseLimit, CheckOutcome,
-    ConnectorInstance, JsonObject, JsonValue, OperationAmount, OperationIntent, Readiness,
-    Reference, ReferenceType,
+    ConnectorInstance, InstanceAuthority, JsonObject, JsonValue, OperationAmount, OperationIntent,
+    Readiness, Reference, ReferenceType,
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
@@ -1184,6 +1184,79 @@ fn standing_instance(
         ),
         None => context.instances.resolve(connector, context.env),
     }
+}
+
+/// The principal the run's instance of the package's connector `reference`
+/// acts as, as `$run.principals.<connector>` reads it: the provider's
+/// account, by the stable `id` it names and its `login`. The instance is the
+/// one a call on the connector would run under. A session pinned its account
+/// when it was confirmed, and each call checks the session is still that
+/// account, so the pin is read. A credential held in a secret or a variable
+/// is sent to the connector's principal call, the one its command session
+/// reads the same credential's account with, which the manifest holds inside
+/// that credential's audience. A hosted grant's account is runx Connect's to
+/// read, and a public instance acts as nobody, so each refuses by name.
+pub(crate) fn principal(
+    reference: &str,
+    requirement: &ConnectorRequirement,
+    authority: Option<&RunAuthority>,
+    context: Context<'_>,
+    transport: &dyn crate::http::RuntimeHttpTransport,
+) -> Result<super::session::Principal, String> {
+    use super::operation::credentials;
+    use super::session::{CommandSession, Principal};
+    let connector = context
+        .scope
+        .requirement(reference, requirement)
+        .map_err(|error| error.to_string())?;
+    let instance =
+        standing_instance(context, &connector, authority).map_err(|error| error.to_string())?;
+    let name = connector.manifest.name.as_str();
+    let secret = match &instance.authority {
+        InstanceAuthority::Session { .. } => {
+            return Principal::pinned(name, &instance).ok_or_else(|| {
+                format!(
+                    "{name}'s session instance {} pinned no account; confirm it again with `runx connector use {name} --session`",
+                    instance.instance_id
+                )
+            });
+        }
+        InstanceAuthority::Secret { .. } => {
+            credentials::from_secret(context.env, context.cwd, &connector, &instance)?
+        }
+        InstanceAuthority::Environment {
+            credential,
+            variable,
+            ..
+        } => credentials::from_environment(context.env, &connector, credential, variable)?,
+        InstanceAuthority::HostedGrant { .. } | InstanceAuthority::Held { .. } => {
+            return Err(format!(
+                "{name}'s instance {} is held by runx Connect, which holds its provider account and doesn't name it to a run",
+                instance.instance_id
+            ));
+        }
+        InstanceAuthority::Public => {
+            return Err(format!(
+                "{name} runs here with no account, so it acts as no principal"
+            ));
+        }
+    };
+    let session = CommandSession::of(&connector.manifest)
+        .filter(|session| *session.credential == secret.name)
+        .ok_or_else(|| {
+            format!(
+                "{name} names no principal call for its credential {}, so its account can't be read",
+                secret.name
+            )
+        })?;
+    let field = connector
+        .manifest
+        .auth
+        .credentials
+        .get(&secret.name)
+        .and_then(|declaration| declaration.fields.first())
+        .ok_or("the credential is no longer declared")?;
+    session.principal(secret.field(field.name.as_str())?, transport)
 }
 
 /// Project whether one requirement's operation could be admitted here,

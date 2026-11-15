@@ -4641,3 +4641,170 @@ fn a_recovered_run_reads_the_result_it_chose() -> TestResult {
     assert_eq!(decisions.len(), 1, "{decisions:?}");
     assert_reused_from(root, &sealed, &source)
 }
+
+/// Coverage across mornings (§9's coverage row), through github's own
+/// `follow` on the runtime: positions live in the package's store, keyed by
+/// the account a credential reads as. A morning where one repository fails
+/// moves the other's position, and the next morning, on a rotated token for
+/// the same account, reads that one from its mark and the failed one from
+/// the beginning, and only then is every repository read.
+#[test]
+fn a_failed_morning_continues_from_its_positions_and_a_rotated_token_keeps_them() -> TestResult {
+    use runx_runtime::{
+        OperationEffect, RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest,
+        RuntimeHttpResponse, RuntimeHttpTransport,
+    };
+    use std::sync::{Arc, Mutex};
+    /// GitHub, as far as follow reads it: whose token it is, and each
+    /// repository's items updated at or after `since`. `down` fails until
+    /// it's back.
+    #[derive(Clone, Default)]
+    struct GitHub {
+        asked: Arc<Mutex<Vec<String>>>,
+        down: Arc<Mutex<bool>>,
+    }
+    fn poisoned() -> RuntimeHttpError {
+        RuntimeHttpError::Transport {
+            message: "poisoned".to_owned(),
+        }
+    }
+    impl RuntimeHttpTransport for GitHub {
+        fn send(
+            &self,
+            request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+            let url = request.url.clone();
+            self.asked.lock().map_err(|_| poisoned())?.push(url.clone());
+            if url == "https://api.github.com/user" {
+                return Ok(RuntimeHttpResponse::new(
+                    200,
+                    r#"{"id": 7, "login": "ada"}"#.to_owned(),
+                ));
+            }
+            if url.contains("/repos/acme/down/") && *self.down.lock().map_err(|_| poisoned())? {
+                return Ok(RuntimeHttpResponse::new(
+                    502,
+                    r#"{"message": "Server Error"}"#.to_owned(),
+                ));
+            }
+            let since = url
+                .split(['?', '&'])
+                .find_map(|pair| pair.strip_prefix("since="))
+                .unwrap_or_default()
+                .replace("%3A", ":");
+            let issue = |number: u64, at: &str| {
+                serde_json::json!({"number": number, "title": "t", "state": "open", "user": {"login": "ada", "type": "User"},
+                    "created_at": "2025-12-01T00:00:00Z", "updated_at": at, "closed_at": null, "labels": [], "assignees": [],
+                    "comments": 0, "html_url": "https://github.com/acme/x", "body": ""})
+            };
+            let all = [
+                issue(1, "2025-12-02T00:00:00Z"),
+                issue(2, "2025-12-03T00:00:00Z"),
+            ];
+            let page = all
+                .into_iter()
+                .filter(|item| {
+                    item["updated_at"]
+                        .as_str()
+                        .is_some_and(|at| at >= since.as_str())
+                })
+                .collect::<Vec<_>>();
+            Ok(RuntimeHttpResponse::new(
+                200,
+                serde_json::Value::from(page).to_string(),
+            ))
+        }
+    }
+    let temp = tempdir()?;
+    let root = temp.path();
+    let github = GitHub::default();
+    *github.down.lock().map_err(|_| "poisoned")? = true;
+    let morning = |token: &str| -> TestResult<serde_json::Value> {
+        let mut environment = env(root);
+        environment.insert("GITHUB_TOKEN".to_owned(), token.to_owned());
+        let ran = LocalOrchestrator::with_effects_and_environment(
+            RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(
+                github.clone(),
+            ))?,
+            environment.clone(),
+        )
+        .run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/github"),
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::from([
+                    (
+                        "repositories".to_owned(),
+                        serde_json::from_value(serde_json::json!(["acme/up", "acme/down"]))?,
+                    ),
+                    ("reader".to_owned(), JsonValue::String("morning".to_owned())),
+                    (
+                        "until".to_owned(),
+                        JsonValue::String("2026-01-01T00:00:00Z".to_owned()),
+                    ),
+                ]),
+                env: environment,
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            Some("follow"),
+            None,
+            None,
+        )?;
+        let output = object(&ran.output)?;
+        assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+        Ok(serde_json::to_value(
+            output.get("result").ok_or("no result")?,
+        )?)
+    };
+    let first = morning("fixture-token-one")?;
+    assert_eq!(first["verdict"]["verdict"], "not_met", "{first}");
+    assert_eq!(
+        first["coverage"][0]["position"]["updated_at"], "2025-12-03T00:00:00Z",
+        "{first}"
+    );
+    assert_eq!(
+        first["coverage"][1]["position"],
+        serde_json::Value::Null,
+        "{first}"
+    );
+
+    *github.down.lock().map_err(|_| "poisoned")? = false;
+    github.asked.lock().map_err(|_| "poisoned")?.clear();
+    let second = morning("fixture-token-two")?;
+    assert_eq!(second["verdict"]["verdict"], "met", "{second}");
+    let asked = github.asked.lock().map_err(|_| "poisoned")?.clone();
+    let since = |repository: &str| {
+        asked
+            .iter()
+            .filter(|url| url.contains(&format!("/repos/{repository}/")))
+            .map(|url| {
+                url.split("since=")
+                    .nth(1)
+                    .unwrap_or_default()
+                    .split('&')
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(since("acme/up"), ["2025-12-03T00%3A00%3A00Z"], "{asked:?}");
+    assert_eq!(
+        since("acme/down"),
+        ["1970-01-01T00%3A00%3A00Z"],
+        "{asked:?}"
+    );
+    assert_eq!(
+        second["coverage"][0]["fragments"],
+        serde_json::json!([]),
+        "{second}"
+    );
+    Ok(())
+}

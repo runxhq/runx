@@ -2222,14 +2222,17 @@ where
                 )?;
                 inputs = arguments;
                 // A turn's own call never writes to store (D19): a stream is
-                // written by a package's deterministic step.
-                if let Some(write) = crate::kernel::operation::operation_write(
-                    &target,
-                    &inputs,
-                    &self.scope.runtime.options.env,
-                    self.scope.workflow_dir,
-                )
-                .filter(|write| write.store)
+                // written by its package's deterministic steps, a script's
+                // calls among them, since a script is the package's own code.
+                // Admission still holds a write to the package's own streams.
+                if self.turn.is_some()
+                    && let Some(write) = crate::kernel::operation::operation_write(
+                        &target,
+                        &inputs,
+                        &self.scope.runtime.options.env,
+                        self.scope.workflow_dir,
+                    )
+                    .filter(|write| write.store)
                 {
                     return Err(format!(
                         "{}/{} writes to store, and a turn's own call never does: writes to store go through a package's deterministic step",

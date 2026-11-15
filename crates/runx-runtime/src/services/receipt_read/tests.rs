@@ -42,6 +42,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
         "run_claim",
         "fixture",
         "fixture",
+        "default",
         "2026-11-03T00:00:00Z",
     )?;
     let claim: JsonObject = serde_json::from_value(serde_json::json!({
@@ -189,6 +190,7 @@ fn other_retained_step(fixture: &Fixture) -> TestResult<StepRun> {
         "run_other",
         "other",
         "other",
+        "default",
         "2026-11-04T00:00:00Z",
     )?
     .record_step(&step, &[])?;

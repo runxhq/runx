@@ -52,6 +52,8 @@ pub(crate) struct PreparedScript {
     modules: std::collections::BTreeMap<String, String>,
     worker_path: Option<String>,
     limits: runx_contracts::javascript_worker::InvocationLimits,
+    /// The step's `max_calls`, which the script reads as `ctx.max_calls`.
+    max_calls: u32,
 }
 
 /// What a script pass or settlement came to: the calls made since the last,
@@ -305,6 +307,7 @@ impl JavaScriptAdapter {
                     references,
                     worker_path: prepared.worker_path.clone(),
                     limits: prepared.limits,
+                    max_calls: prepared.max_calls,
                     settled: clock,
                     now,
                 })?;

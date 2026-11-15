@@ -98,6 +98,8 @@ pub(crate) struct ScriptPass<'a> {
     pub(crate) inputs: serde_json::Value,
     pub(crate) references: &'a [ScriptInputReference],
     pub(crate) limits: InvocationLimits,
+    /// The step's `max_calls`, as `ctx.max_calls`.
+    pub(crate) max_calls: u32,
     pub(crate) settled: &'a [ScriptSettlement],
     pub(crate) now: i64,
     /// How much of the worker's memory is in use.
@@ -201,7 +203,7 @@ pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Pass
         pending: BTreeMap::new(),
         references: Vec::new(),
     }));
-    let ctx = script_context(&ledger, &mut context)?;
+    let ctx = script_context(&ledger, request.max_calls, &mut context)?;
     let input = given(&request.inputs, request.references, &ledger, &mut context)?;
 
     jobs.renew();
@@ -464,8 +466,14 @@ fn take_calls(ledger: &Shared) -> Vec<ScriptCall> {
     std::mem::take(&mut ledger.borrow_mut().calls)
 }
 
-/// `ctx`: `skill`, `tool`, `operation`, `now`, `wait` and `read`, frozen.
-fn script_context(ledger: &Shared, context: &mut Context) -> Result<JsValue, EngineError> {
+/// `ctx`: `skill`, `tool`, `operation`, `now`, `wait` and `read`, and the
+/// step's `max_calls`, frozen. A script that pages reads its limit to stop
+/// short of it and say what it left, since reaching it ends the step.
+fn script_context(
+    ledger: &Shared,
+    max_calls: u32,
+    context: &mut Context,
+) -> Result<JsValue, EngineError> {
     let functions: [(&str, usize, CallFn); 6] = [
         ("skill", 3, skill),
         ("tool", 2, tool),
@@ -492,6 +500,7 @@ fn script_context(ledger: &Shared, context: &mut Context) -> Result<JsValue, Eng
     for (name, object) in built {
         initializer.property(js_string!(name), object, Attribute::default());
     }
+    initializer.property(js_string!("max_calls"), max_calls, Attribute::default());
     let ctx = initializer.build();
     ctx.set_integrity_level(IntegrityLevel::Frozen, context)
         .map_err(|error| engine_failure("freezing the script's ctx", error))?;

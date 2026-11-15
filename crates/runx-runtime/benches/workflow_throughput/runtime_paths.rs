@@ -187,6 +187,7 @@ impl RuntimePathFixtures {
                 name,
                 "workflow-throughput",
                 name,
+                "default",
                 CREATED_AT,
             )
         };
@@ -295,6 +296,7 @@ impl RuntimePathFixtures {
                 &run_id,
                 "workflow-throughput",
                 &run_id,
+                "default",
                 CREATED_AT,
             )
             .expect("benchmark sample run must start"),

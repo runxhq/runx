@@ -26,7 +26,7 @@ describe("registry skill native fetch", () => {
   let registry: LoopbackRegistry;
   let publisherDir: string;
   let researchRef: string;
-  let githubRef: string;
+  let consentRef: string;
 
   beforeAll(async () => {
     registry = await startLoopbackRegistry({ publisher: "acme" });
@@ -34,7 +34,7 @@ describe("registry skill native fetch", () => {
     const publisherEnv = testEnv(path.join(publisherDir, "project"), path.join(publisherDir, "home"), registry);
     await mkdir(path.join(publisherDir, "project"), { recursive: true });
     researchRef = publishRegistrySkill(registry, path.resolve("skills/research"), publisherEnv);
-    githubRef = publishRegistrySkill(registry, path.resolve("skills/github"), publisherEnv);
+    consentRef = publishRegistrySkill(registry, path.resolve("skills/contact-consent-review"), publisherEnv);
   });
 
   afterAll(async () => {
@@ -150,26 +150,25 @@ describe("registry skill native fetch", () => {
 
     try {
       await mkdir(projectDir, { recursive: true });
-      // The cursor method plans locally and persists through the store's own
-      // operations; it calls no GitHub operation.
+      // A consent judgement reads the contact's stream, decides with a
+      // deterministic tool and records the transition, all through the
+      // store's own operations, with no provider.
       const result = runNativeSkill(env, [
-        `${githubRef}#plan_and_append_cursor`,
+        `${consentRef}#judge`,
         "--registry",
         registry.url,
         "--input",
-        "key=acme/app:triage-open",
+        "key=contact:example",
         "--input",
         "expected_version=0",
         "--input",
-        "idempotency_key=acme/app:triage-open:pull:v1",
+        "idempotency_key=contact:example:consent:v1",
         "--input",
-        "repo=acme/app",
+        "engagement_evidence={\"hard_bounces\":0,\"recency_days\":12}",
         "--input",
-        "direction=pull",
+        "hygiene_policy={\"hard_bounce_action\":\"suppress\",\"decay_threshold_days\":90}",
         "--input",
-        "resources={\"kind\":\"issues\",\"filters\":{\"state\":\"open\",\"labels\":[\"triage\"],\"limit\":25}}",
-        "--input",
-        "scope=read",
+        "consent_evidence={\"state\":\"subscribed\",\"active_unsubscribe_marker\":false,\"evidence_status\":\"read\",\"evidence_version\":0}",
         "--json",
       ]);
       const output = parseJsonOutput(result, 0) as { status?: string };

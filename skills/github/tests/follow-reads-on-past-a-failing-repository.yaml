@@ -1,0 +1,44 @@
+name: github-follow-reads-on-past-a-failing-repository
+method: follow
+setup:
+  sessions: [github]
+inputs:
+  repositories: [runxhq/runx, runxhq/down]
+  reader: morning
+  until: "2026-05-17T00:00:00Z"
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+providers:
+  http:
+    - request: {method: GET, url: "https://api.github.com/user", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"id": 7, "login": "operator"}'
+    - request: {method: GET, url: "https://api.github.com/repos/runxhq/runx/issues?direction=asc&page=1&per_page=100&since=1970-01-01T00%3A00%3A00Z&sort=updated&state=all", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '[{"number": 553, "title": "Search offers an install command that fails", "state": "open", "user": {"login": "ada", "type": "User"}, "created_at": "2026-05-16T22:10:00Z", "updated_at": "2026-05-16T22:40:00Z", "closed_at": null, "labels": [], "assignees": [], "comments": 0, "html_url": "https://github.com/runxhq/runx/issues/553", "body": ""}]'
+    - request: {method: GET, url: "https://api.github.com/repos/runxhq/down/issues?direction=asc&page=1&per_page=100&since=1970-01-01T00%3A00%3A00Z&sort=updated&state=all", body: none}
+      response:
+        status: 502
+        headers: {content-type: application/json}
+        body: '{"message": "Server Error"}'
+expect:
+  # One repository failing after another succeeds: the first is read, stored
+  # and its position moved, the second is named with its error, and the
+  # verdict is not_met, never a quiet morning.
+  status: sealed
+  steps: [follow, verdict]
+  output:
+    subset:
+      coverage:
+        - {repository: runxhq/runx, complete: true, checked_through: "2026-05-17T00:00:00Z", position: {updated_at: "2026-05-16T22:40:00Z", ids_at_mark: [553]}}
+        - {repository: runxhq/down, complete: false, checked_through: null, position: null}
+      budget_exhausted: false
+      verdict:
+        verdict: not_met
+        criteria_set: {ref: runx/github.coverage}
+        evaluator: {method: follow}
+  receipt: {schema: runx.receipt.v1}

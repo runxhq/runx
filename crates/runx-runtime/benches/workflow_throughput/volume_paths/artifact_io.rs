@@ -182,6 +182,7 @@ impl ToolCalls {
             run_id,
             "artifact-io",
             run_id,
+            "default",
             "2026-07-20T00:00:00Z",
         )?)
     }

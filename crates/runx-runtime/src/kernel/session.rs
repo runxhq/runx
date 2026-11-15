@@ -42,6 +42,23 @@ impl Principal {
         format!("runx:principal:{connector}:{}", self.id)
     }
 
+    /// The principal a session instance pinned when it was confirmed: its
+    /// [`Self::principal_uri`] and the login it recorded. Every call the
+    /// instance makes checks the session is still that account.
+    pub(crate) fn pinned(
+        connector: &str,
+        instance: &runx_contracts::ConnectorInstance,
+    ) -> Option<Self> {
+        let id = instance
+            .principal_uri
+            .as_str()
+            .strip_prefix(&format!("runx:principal:{connector}:"))?;
+        Some(Self {
+            id: id.to_owned(),
+            login: instance.account_id.as_deref()?.to_owned(),
+        })
+    }
+
     /// Who `answer`, from `source`, names at its `id` and `login` paths:
     /// each a number, or a non-empty string on one line with no control
     /// character, since it is recorded and shown.
@@ -151,7 +168,8 @@ impl<'a> CommandSession<'a> {
         Ok(token.to_owned())
     }
 
-    /// Read who `token` belongs to.
+    /// Read who `token` belongs to: the session's token, or the credential
+    /// it stands in for, held elsewhere.
     pub(crate) fn principal(
         &self,
         token: &str,
@@ -167,20 +185,20 @@ impl<'a> CommandSession<'a> {
                 ],
                 body: None,
             })
-            .map_err(|error| format!("reading the session's account failed: {error}"))?;
+            .map_err(|error| format!("reading the token's account failed: {error}"))?;
         if !(200..300).contains(&response.status) {
             return Err(format!(
-                "{} answered HTTP {} for the session's token; sign in again",
-                self.principal.url, response.status
+                "{} answered HTTP {} for {}'s token; sign in again or set the credential anew",
+                self.principal.url, response.status, self.connector
             ));
         }
         let answer = serde_json::from_str::<JsonValue>(&response.body)
-            .map_err(|_| "the session's account answer is not JSON".to_owned())?;
+            .map_err(|_| "the token's account answer is not JSON".to_owned())?;
         Principal::read(
             &answer,
             self.principal.id.as_str(),
             self.principal.login.as_str(),
-            "the session's account answer",
+            "the token's account answer",
         )
     }
 }

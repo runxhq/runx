@@ -72,6 +72,7 @@ impl TestOptions {
         run_id: &str,
         fixture: &TestFixture,
         target: &Path,
+        method: &str,
     ) -> Result<RuntimeOptions, RuntimeError> {
         let policy =
             |error| RuntimeError::effect_state("reading the host's resource policy", error);
@@ -88,6 +89,7 @@ impl TestOptions {
             run_id,
             &fixture.name,
             &target.to_string_lossy(),
+            method,
             &self.clock.now(),
         )?;
         Ok(RuntimeOptions {
@@ -767,7 +769,7 @@ where
         &run_id,
         None,
     )?;
-    let mut options = options.runtime(&run_id, fixture, &target.skill_dir)?;
+    let mut options = options.runtime(&run_id, fixture, &target.skill_dir, &target.method.name)?;
     // The run holds the authority the test states, as a host gives a run
     // one, and its method's effects and reach, as any run of it does.
     options.run_authority = crate::RunAuthority::of_method(

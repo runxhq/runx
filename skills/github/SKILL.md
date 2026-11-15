@@ -27,8 +27,11 @@ twenty typed mutations per call that one GitHub operation applies, and returns e
 item's outcome. It closes only on an independent GitHub readback of every
 applied item. An item whose outcome is unknown holds the push for
 reconciliation and is never silently retried. `activity` reads what changed
-in a repository since a time, compact enough to summarise. No GitHub token
-enters this package.
+in each of a list of repositories, to the end, and writes nothing. `follow` is
+what a schedule runs: it keeps each reader's read position for each
+repository in this package's own store, moves it only past what it read and
+stored, and returns a verdict on whether every repository was read. No GitHub
+token enters this package.
 
 ## When to use it
 
@@ -38,12 +41,14 @@ and pass it explicitly. Do not guess a repository, treat a folder name as one,
 or introduce a separate repository/cursor state store.
 
 Use `sync` when an operator needs a reproducible pull or push contract for
-issues, pull requests, or threads, especially when cursor state must survive
-across runs. Use `plan` only when the requested outcome is a plan. Use `pull`
-for an explicitly selected read lane. Use `activity` to learn what changed in
-a repository since a time, such as since the last check of a daily summary:
-it reads issues and pull requests together and returns the fields a reader
-needs rather than GitHub's whole records. Use `push` for already-decided issue,
+issues, pull requests, or threads. Use `plan` only when the requested outcome
+is a plan. Use `pull` for an explicitly selected read lane. Use `activity` to
+learn what changed in some repositories since a time or a position: it reads
+issues and pull requests together and returns the fields a reader needs
+rather than GitHub's whole records. Use `follow` for a schedule that must
+read everything, such as a daily summary: it reads on from where this reader
+last stopped, and its verdict says whether every repository was read through
+the window's end. Use `push` for already-decided issue,
 pull-request, or comment changes of one kind. A call accepts up to twenty changes, matching the connector's batch contract; split larger work into separate calls and retain each result. Batches are bounded and
 best-effort, not atomic: a refused item does not stop the rest, the result
 identifies each item, and the operator reconciles before retrying. Use `github-issue-triage` to decide what an issue means
@@ -64,12 +69,7 @@ evidence. Do not silently turn a denied push into a pull.
    `pullrequests.update`, `comments.create`, or `comments.update`. It rejects unknown fields,
    oversized content, and mixed kinds, then returns `ready_for_execution`;
    planning itself does not grant provider authority.
-4. Optional `plan_and_append_cursor` calls the store's `events.append` and
-   `key.inspect` to append the bounded plan to this skill's own `sync_plans`
-   stream and read its key back. That proves local
-   cursor persistence, not GitHub synchronization; this package does not own a
-   second cursor database or storage adapter.
-5. The explicit `sync` method selects the same bounded read or write path from the
+4. The explicit `sync` method selects the same bounded read or write path from the
    validated direction. `pull` calls the planned read (`issues.list`,
    `issues.read`, `pullrequests.list`, `pullrequests.read`, or
    `comments.list`) with `repo.read`. `push` calls the planned write once under
@@ -77,14 +77,31 @@ evidence. Do not silently turn a denied push into a pull.
    every applied item back before the push closes.
    Both run under the GitHub instance selected here: the signed-in `gh` session
    or a stored token.
-6. `activity` calls `issues.list` with `repo.read` for one page of 100 of
-   everything updated at or after `since`, open or closed. GitHub's listing
-   holds pull requests too, so one read finds both. The result keeps each
-   item's number, kind, title, state (`merged` for a merged pull request),
-   whether it was opened at or after `since`, its author and whether that is a
-   bot, its times, labels, assignees, comment count and link, and the first
-   600 characters of its body with the count left out. The provider is queried in updated/descending order, then the
-   page is projected in that order; a full page names a possible `next_page`.
+5. `activity` reads each repository with `issues.list` under `repo.read`, by
+   keyset: every page asks for everything updated since the mark, oldest
+   first, open or closed, and drops what was already read at the mark. Page
+   numbers would skip an item whenever another is updated mid-read; a keyset
+   read only finds the updated one later, where it's read. A page shorter
+   than 100 is the end. When a whole page shares one timestamp, the read goes
+   on by page there and the mark keeps the ids read at it. GitHub's listing
+   holds pull requests too, so one read finds both. Each item keeps its
+   number, kind, title, state (`merged` for a merged pull request), whether
+   it was opened since the read began, its author and whether that is a bot,
+   its times, labels, assignees, comment count and link, and the first 600
+   characters of its body with the count left out. A repository that fails
+   is reported with its error and the rest go on, so a failure never reads as
+   nothing changed. A read stops short of its calls and of 2,000 items, and
+   what it didn't reach is incomplete at its position or unstarted.
+6. `follow` reads each repository's position for this reader, this GitHub
+   account (by its id, so a rotated token keeps it) and this query from the
+   `positions` stream, runs `activity` from there, stores what was read as an
+   artifact, and only then appends `position.moved` at the version it read,
+   so a position never moves past results the reader didn't receive. A move
+   that loses to a concurrent one reads again from the winner's position. A
+   run that runs out of calls says so in `budget_exhausted`, and the host runs
+   `follow` again. Its verdict, `runx.verdict.v1` against
+   `runx/github.coverage`, is `met` only when every repository is checked
+   through the window's end.
 
 ## Inputs and result
 
@@ -97,14 +114,18 @@ evidence. Do not silently turn a denied push into a pull.
   uses `path: issues` and `op: create`; new thread comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
   return GitHub's records whole.
 - `scope` is the requested read or write scope.
-- `activity` takes `repo`, `since` (RFC 3339) and an optional `page`, and
-  returns `activity`: the repository, `since`, the page, its items, and
-  `next_page` when more may follow. Its provider evidence is the read's
-  `runx.provider.operation.v1`, kept in the run's record.
+- `activity` takes `repositories`, each `{repository, since}` or
+  `{repository, position}`, and returns `coverage`, each repository's
+  `started`, `complete`, `error`, `items` and next `position`, and
+  `evidence`, the reads it rests on.
+- `follow` takes `repositories`, `reader` (who's reading, such as a schedule)
+  and `until`, the window's end, and returns `coverage`, each repository's
+  `position`, `checked_through`, `complete`, `error` and the `fragments`
+  stored this run, with `budget_exhausted` and the `verdict`.
 
 The `runx/github.sync_plan.v1` plan records exact direction, provider operation,
-scope, filters, blockers, authority posture, cursor state when used, and the
-explicit absence of remote effects. Execution additionally emits the native
+scope, filters, blockers, authority posture, and the explicit absence of
+remote effects. Execution additionally emits the native
 provider-operation packet; it does not rewrite the planning packet to imply a
 remote effect.
 
@@ -114,7 +135,7 @@ remote effect.
   limits above the contract, more than twenty mutations in one call, unknown mutation fields, or
   content beyond the declared bounds.
 - Refuse push when write scope is missing; do not degrade silently.
-- Do not treat local cursor persistence as remote provider readback.
+- Do not treat a stored read position as remote provider readback.
 - Refuse a push that mixes new issues, issue, pull-request, and comment
   changes; send each kind as its own push.
 - Refuse when no GitHub instance is selected, or the selected one lacks the
@@ -125,18 +146,19 @@ remote effect.
 
 ## Example
 
-A caller wants to pull the next 50 open issues after cursor `2`. Planning can
-persist that cursor locally; `pull` then performs `issues.list` through the
-selected instance and returns the provider result. To close issue 241, a push
-carries `path: issues/241`, `op: update`, and
-`payload: {state: closed, state_reason: completed}`. Runx applies only that
+A caller wants the next 50 open issues after page `2`: `pull` performs
+`issues.list` through the selected instance and returns the provider result.
+To close issue 241, a push carries `path: issues/241`, `op: update`, and
+`payload: {state: closed, state_reason: completed}`. runx applies only that
 issue update through `issues.update` under `repo.write`, and reads issue 241
-back. A morning summary calls `activity` with `since` set to its last check
-and reports the items that are new, or changed by someone else.
+back. A morning summary's schedule runs `follow` with its repositories,
+`reader: morning` and `until` set to the morning's time, reports the items
+that are new or changed by someone else, and trusts the morning only when the
+verdict is `met`.
 
 For composition, consume the returned native provider-operation packet directly.
 Pass already read issue fields to `github-issue-triage` `respond`, preserving
 repository, exact number, title, state, full relevant body and original source
 link/receipt. This path does not fetch or post again. `pull` and `push` retain
 their complete typed selectors for power users; the common reader does not
-replace them. Local cursor persistence remains the explicit store-owned phase.
+replace them.

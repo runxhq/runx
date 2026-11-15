@@ -69,6 +69,7 @@ pub(super) fn validated_script(
         modules,
         worker_path,
         limits: InvocationLimits::default(),
+        max_calls: script.max_calls,
     })
 }
 

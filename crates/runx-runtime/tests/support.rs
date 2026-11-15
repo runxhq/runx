@@ -136,6 +136,7 @@ pub(crate) fn run_in(dir: &Path, run_id: &str) -> Result<RunLog, Box<dyn std::er
         run_id,
         "integration-test",
         "integration-test",
+        "default",
         "2026-05-18T00:00:00Z",
     )?)
 }
@@ -151,6 +152,7 @@ pub(crate) fn scratch_run(
         run_id,
         "integration-test",
         "integration-test",
+        "default",
         "2026-05-18T00:00:00Z",
     )?;
     Ok((root, log))

@@ -740,148 +740,6 @@ methods:
           choose: $steps.plan.sync_plan.provider_operation
           from: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
         inputs: $steps.plan.sync_plan.provider_input
-  activity:
-    description: Read what changed in a repository since a time, the issues and pull requests updated since then, compact enough to summarise. Use it for a periodic summary.
-    inputs:
-      repo:
-        type: string
-        description: Target GitHub repository as owner/name.
-        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
-        examples:
-          - runxhq/runx
-      since:
-        type: string
-        description: The time to read from; every issue and pull request updated at or after it is read.
-        format: date-time
-        maxLength: 64
-      page:
-        type: integer
-        description: The page to read, 1 by default; a result with next_page has more.
-        minimum: 1
-        maximum: 9007199254740991
-        optional: true
-    examples:
-      - repo: runxhq/runx
-        since: 2026-10-19T21:00:00Z
-    result_from:
-      - digest
-    steps:
-      - id: window
-        tool:
-          module: github.mjs
-          export: activityWindow
-        inputs:
-          repo: $input.repo
-          since: $input.since
-          page: $input.page
-        outputs:
-          read_input: {type: object}
-      - id: read
-        operation: github/issues.list
-        inputs: $steps.window.read_input
-      - id: digest
-        tool:
-          module: github.mjs
-          export: digestActivity
-        inputs:
-          read_input: $steps.window.read_input
-          provider_operation: $steps.read.provider_operation
-        outputs:
-          activity:
-            type: object
-            additionalProperties: false
-            required:
-              - repository
-              - since
-              - page
-              - items
-            properties:
-              repository:
-                type: string
-              since:
-                type: string
-              page:
-                type: integer
-                minimum: 1
-              next_page:
-                type: integer
-                minimum: 2
-              items:
-                type: array
-                maxItems: 100
-                items:
-                  type: object
-                  additionalProperties: false
-                  required:
-                    - number
-                    - kind
-                    - title
-                    - state
-                    - new
-                    - author
-                    - bot
-                    - created_at
-                    - updated_at
-                    - closed_at
-                    - labels
-                    - assignees
-                    - comments
-                    - url
-                    - body
-                    - body_left_out
-                  properties:
-                    number:
-                      type: integer
-                      minimum: 1
-                    kind:
-                      enum:
-                        - issue
-                        - pull_request
-                    title:
-                      type: string
-                    state:
-                      enum:
-                        - open
-                        - closed
-                        - merged
-                    new:
-                      type: boolean
-                      description: Opened at or after since.
-                    author:
-                      type:
-                        - string
-                        - "null"
-                    bot:
-                      type: boolean
-                    created_at:
-                      type: string
-                    updated_at:
-                      type: string
-                    closed_at:
-                      type:
-                        - string
-                        - "null"
-                    labels:
-                      type: array
-                      items:
-                        type: string
-                    assignees:
-                      type: array
-                      items:
-                        type: string
-                    comments:
-                      type: integer
-                      minimum: 0
-                    url:
-                      type: string
-                    body:
-                      type: string
-                      maxLength: 600
-                      description: The body's first 600 characters.
-                    body_left_out:
-                      type: integer
-                      minimum: 0
-                      description: Characters of the body not kept.
   push:
     description: Apply one to twenty decided changes of one kind (new issues, issue or pull request updates, or comments) and read each back. Needs write scope.
     inputs:
@@ -929,73 +787,108 @@ methods:
           from: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
         idempotency_key: $input.idempotency_key
         inputs: $steps.plan.sync_plan.provider_input
-  plan_and_append_cursor:
-    description: Plan a sync and append it to this skill's own sync_plans stream, reading the key back. It keeps the cursor locally and touches nothing on GitHub.
+  activity:
+    description: Read what changed in each repository since its position or a time, to the end, repository by repository. Each repository's coverage and next position come back, and nothing is written.
     inputs:
-      key:
-        type: string
-        description: The cursor's key in the sync_plans stream.
-      expected_version:
-        type: number
-        description: Current cursor stream version.
-      idempotency_key:
-        type: string
-        description: Stable retry key.
-      repo:
-        type: string
-        description: Target GitHub repository as owner/name.
-        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
-        examples:
-          - runxhq/runx
-      direction: {}
-      resources: {}
-      scope: {}
+      repositories:
+        type: array
+        minItems: 1
+        maxItems: 100
+        description: Each repository, read from its position, or from since when it has none, or from the beginning with neither.
+        items:
+          type: object
+          additionalProperties: false
+          required: [repository]
+          properties:
+            repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", maxLength: 140}
+            since: {type: string, format: date-time, maxLength: 64}
+            position: {type: object, additionalProperties: false, required: [updated_at, ids_at_mark], properties: {updated_at: {type: string, format: date-time}, ids_at_mark: {type: array, items: {type: integer, minimum: 1}}}, description: "Where a read starts. The same shape as activity's output and the stored event, with no cap on ids_at_mark, since a bulk change can give many items one timestamp."}
     examples:
-      - key: runxhq/runx:triage-open
-        expected_version: 0
-        idempotency_key: runxhq/runx:triage-open:pull:v2
-        repo: runxhq/runx
-        direction: pull
-        resources:
-          kind: issues
-          filters:
-            state: open
-            labels:
-              - triage
-            limit: 25
-        scope: read
-    result_from:
-      - readback
+      - repositories: [{repository: runxhq/runx, since: "2026-11-01T00:00:00Z"}]
     steps:
-      - id: read-cursor
-        operation: store/key.inspect
-        inputs:
-          stream: sync_plans
-          key: $input.key
-      - id: plan
-        inputs:
-          repo: $input.repo
-          direction: $input.direction
-          resources: $input.resources
-          scope: $input.scope
-        tool:
-          module: github.mjs
+      - id: read
+        script: {module: github.mjs, export: activity}
+        inputs: {repositories: $input.repositories}
+        calls:
+          operations: [github/issues.list]
+        max_calls: 400
+        effects: none
         outputs:
-          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
-      - id: append-cursor-event
-        operation: store/events.append
-        idempotency_key: $input.idempotency_key
-        inputs:
-          stream: sync_plans
-          key: $input.key
-          expected_version: $input.expected_version
-          type: github.sync_plan
-          data: $steps.plan.sync_plan
-      - id: readback
-        operation: store/key.inspect
-        inputs:
-          stream: sync_plans
-          key: $input.key
+          coverage:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [repository, started, complete, items, position]
+              properties:
+                repository: {type: string}
+                started: {type: boolean}
+                complete: {type: boolean}
+                error: {type: object, required: [code, message], properties: {code: {type: string}, message: {type: string}}}
+                items: {type: array, items: {type: object}}
+                position: {type: object, additionalProperties: false, required: [updated_at, ids_at_mark], properties: {updated_at: {type: string, format: date-time}, ids_at_mark: {type: array, items: {type: integer, minimum: 1}}}, description: "Where a read starts. The same shape as activity's output and the stored event, with no cap on ids_at_mark, since a bulk change can give many items one timestamp."}
+          evidence:
+            type: array
+            items: {type: string}
+            description: The calls this read rests on, by the digest of the intent each one's seal binds.
+  follow:
+    description: What a schedule runs. Read this reader's position for each repository, read from there, store what was read, then move each position only past it, and return the coverage with a verdict a schedule can trust.
+    inputs:
+      repositories:
+        type: array
+        minItems: 1
+        maxItems: 100
+        uniqueItems: true
+        items: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", maxLength: 140}
+      reader:
+        type: string
+        pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$"
+        maxLength: 128
+        description: Who's reading, such as a schedule, given by the host. Positions are per reader, so two jobs can't take each other's results.
+      until:
+        type: string
+        format: date-time
+        description: The window's end.
+    examples:
+      - repositories: [runxhq/runx]
+        reader: morning
+        until: "2026-11-15T21:00:00Z"
+    steps:
+      - id: follow
+        script: {module: github.mjs, export: follow}
+        inputs: {repositories: $input.repositories, reader: $input.reader, until: $input.until, principal: $run.principals.github}
+        calls:
+          skills: [".#activity"]
+          operations: [store/key.inspect, store/events.append]
+          tools: [artifact.store, data.digest, verdict.criteria]
+        max_calls: 512
+        outputs:
+          coverage:
+            type: array
+            description: "[{ repository, position, checked_through, complete, error, fragments }]. A position is kept under the key <first 32 hex of the digest of the reader, the account's id and the query>:<repository>, and each moves with a position.moved event at its expected version, only after its fragments are stored. A quiet repository keeps its position and moves checked_through. The loser of a concurrent move reads again."
+            items: {type: object}
+          budget_exhausted:
+            type: boolean
+            description: The run's calls ran out with repositories left, and the host runs follow again in the same occurrence.
+          evidence:
+            type: array
+            items: {type: string}
+            description: The sealed reads and appends the verdict rests on, by the digest of the intent each one's seal binds.
+          subject:
+            type: object
+            description: The window the verdict judges, by a digest of the repositories and until.
+          criteria:
+            type: object
+            description: The runx.criteria.v1 set the verdict answers, made with its revision.
+      - id: verdict
+        tool: {module: github.mjs, export: coverageVerdict}
+        inputs: {coverage: $steps.follow.coverage, budget_exhausted: $steps.follow.budget_exhausted, evidence: $steps.follow.evidence, subject: $steps.follow.subject, criteria: $steps.follow.criteria, until: $input.until}
+        outputs:
+          coverage: {type: array, items: {type: object}}
+          budget_exhausted: {type: boolean}
+          verdict:
+            packet: runx.verdict.v1
+            description: Against the runx/github.coverage criteria, whose required criterion is every_repository_read, met only when every repository is checked through until. Its subject is the window, by a digest of the repositories and until. The runtime sets its evaluator.
   comment:
     description: Post one note on a pull request, its exact body approved and read back.
     inputs:

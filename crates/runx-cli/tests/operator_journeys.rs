@@ -7,7 +7,6 @@ use serde_json::Value;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-mod github;
 #[cfg(unix)]
 mod issue_to_pr;
 mod release;

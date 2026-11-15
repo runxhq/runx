@@ -773,6 +773,45 @@ impl RuntimeEffect for OperationEffect {
         .map_err(refused)
     }
 
+    fn principal(
+        &self,
+        request: EffectStepRequest<'_>,
+        connector: &str,
+        requirement: &runx_parser::ConnectorRequirement,
+    ) -> Option<Result<JsonValue, RuntimeEffectError>> {
+        let read = || {
+            let paths = crate::paths::RunxPaths::resolve(request.env, request.workflow_dir);
+            let store = KernelStore::for_project(&paths).map_err(state)?;
+            let scope = ConnectorScope::in_project(request.workflow_dir, &paths)
+                .map_err(|error| invalid(error.to_string()))?;
+            let instances = Instances::new(Arc::clone(&store));
+            let transport = self
+                .placements
+                .declared_hosts(request.env)
+                .map_err(|failure| denied(failure.reason()))?;
+            let principal = admission::principal(
+                connector,
+                requirement,
+                request.run_authority,
+                Context {
+                    scope: &scope,
+                    instances: &instances,
+                    hosted: &self.placements.hosted,
+                    env: request.env,
+                    cwd: request.workflow_dir,
+                },
+                transport.as_ref(),
+            )
+            .map_err(denied)?;
+            JsonValue::from_serialize(&BTreeMap::from([
+                ("id", principal.id),
+                ("login", principal.login),
+            ]))
+            .map_err(state)
+        };
+        Some(read())
+    }
+
     fn authorize(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
         let Some(target) = request.step.operation() else {
             return Ok(());

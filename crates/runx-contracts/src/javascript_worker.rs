@@ -146,6 +146,10 @@ pub struct ScriptPassRequest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub references: Vec<ScriptInputReference>,
     pub limits: InvocationLimits,
+    /// The step's `max_calls`, which the script reads as `ctx.max_calls`: a
+    /// script that pages stops short of it and says what it left, since
+    /// reaching it ends the step.
+    pub max_calls: u32,
     /// What the script's calls settled to, in the order they settled: a
     /// replay's first, then the rest in `Settle` requests, so no frame holds
     /// more than a bounded share of its record.

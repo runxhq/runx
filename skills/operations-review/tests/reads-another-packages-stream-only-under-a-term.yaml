@@ -2,7 +2,7 @@ name: operations-review-reads-another-packages-stream-only-under-a-term
 method: operate_from_projection
 inputs:
   package: runx/github
-  stream: sync_plans
+  stream: positions
   key: workspace-example
   objective: Check the workspace and tell me the next safe action.
   scope: workspace:example

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::{JsonObject, Receipt};
+use runx_contracts::{JsonObject, JsonValue, Receipt};
 use runx_parser::WorkflowStep;
 
 use crate::CapabilityContract;
@@ -95,6 +95,20 @@ pub trait RuntimeEffect: Send + Sync {
     fn admit_declared(&self, request: EffectStepRequest<'_>) -> Result<(), RuntimeEffectError> {
         let _ = request;
         Ok(())
+    }
+
+    /// The principal the run's instance of the package's connector
+    /// `connector` acts as, `{ id, login }`, for a step that reads
+    /// `$run.principals.<connector>`. None from a family that holds no
+    /// connector instances.
+    fn principal(
+        &self,
+        request: EffectStepRequest<'_>,
+        connector: &str,
+        requirement: &runx_parser::ConnectorRequirement,
+    ) -> Option<Result<JsonValue, RuntimeEffectError>> {
+        let _ = (request, connector, requirement);
+        None
     }
 
     /// Prepare an admitted effect immediately before dispatch. The effect owner

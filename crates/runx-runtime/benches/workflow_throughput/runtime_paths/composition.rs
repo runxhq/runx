@@ -216,6 +216,7 @@ impl RuntimePathFixtures {
             "run_composition_crowd",
             "workflow-throughput",
             "run_composition_crowd",
+            "default",
             CREATED_AT,
         )?;
         options.run_authority = Some(RunAuthority {

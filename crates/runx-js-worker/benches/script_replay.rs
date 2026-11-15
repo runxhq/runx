@@ -82,6 +82,7 @@ impl Worker {
                 cpu_milliseconds: runx_contracts::javascript_worker::MAX_CPU_MILLISECONDS,
                 ..InvocationLimits::default()
             },
+            max_calls: calls,
             settled: settled.to_vec(),
             now: 0,
         })))?;

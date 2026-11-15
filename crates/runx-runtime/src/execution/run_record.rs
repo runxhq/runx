@@ -178,6 +178,8 @@ pub(crate) struct ChildStarted {
 pub(crate) struct EvaluationStarted {
     pub fixture: String,
     pub target: String,
+    /// The target's method the fixture runs.
+    pub method: String,
     pub created_at: String,
 }
 
@@ -1339,6 +1341,7 @@ impl RunLog {
         run_id: impl Into<String>,
         fixture: &str,
         target: &str,
+        method: &str,
         created_at: &str,
     ) -> Result<Self, RunRecordError> {
         let log = Self::open(store, run_id)?;
@@ -1346,6 +1349,7 @@ impl RunLog {
             RunEvent::EvaluationStarted(Box::new(EvaluationStarted {
                 fixture: fixture.to_owned(),
                 target: target.to_owned(),
+                method: method.to_owned(),
                 created_at: created_at.to_owned(),
             })),
             Vec::new(),
@@ -3124,6 +3128,7 @@ pub(crate) fn scratch_log(run_id: &str) -> (tempfile::TempDir, RunLog) {
                 run_id,
                 "unit-test",
                 "unit-test",
+                "default",
                 "2026-07-24T00:00:00Z",
             )
         })

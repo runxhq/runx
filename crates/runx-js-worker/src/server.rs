@@ -430,6 +430,7 @@ fn script_pass(
         inputs,
         references,
         limits,
+        max_calls,
         settled,
         now,
     } = request;
@@ -440,6 +441,7 @@ fn script_pass(
         inputs,
         references: &references,
         limits,
+        max_calls,
         settled: &settled,
         now,
         allocated,

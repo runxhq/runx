@@ -111,7 +111,7 @@ pub(super) fn evaluator<A>(
     let method = match record.origin {
         Origin::Run(started) => started.method,
         Origin::Child(started) => started.skill,
-        Origin::Evaluation(started) => started.target,
+        Origin::Evaluation(started) => started.method,
     };
     Ok(Evaluator {
         package: package.into(),

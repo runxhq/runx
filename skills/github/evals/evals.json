@@ -58,16 +58,14 @@
     },
     {
       "id": 9,
-      "prompt": "Persist the next local GitHub sync plan from the supplied cursor and prior sync evidence.",
-      "expected_output": "Use the supplied current store version and page-2 cursor to reach the local plan's append with exactly those, stopping when it is refused at admission, without GitHub calls. This is local planning, not remote work.",
-      "files": [
-        "evals/files/triage-sync-cursor.json"
-      ],
+      "prompt": "Read this morning's changes in runxhq/runx and runxhq/sourcey for the morning schedule, through 21:00 UTC on 15 November 2026, from wherever the last morning stopped.",
+      "expected_output": "Call follow with both repositories, reader morning and until 2026-11-15T21:00:00Z, and report the morning as read only when its verdict is met.",
+      "files": [],
       "expectations": [
-        "Do not repeat provider discovery already covered by the cursor.",
-        "Do not reapply completed synchronization mutations."
+        "Do not build store keys, cursors or positions by hand: follow reads and moves them.",
+        "Do not call a morning read when the verdict is not_met or a repository is incomplete."
       ],
-      "method": "plan_and_append_cursor"
+      "method": "follow"
     },
     {
       "id": 10,

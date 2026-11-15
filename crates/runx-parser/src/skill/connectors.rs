@@ -225,6 +225,38 @@ pub(crate) fn bind_operation_steps(
 ) -> Result<(), ValidationError> {
     for (name, method) in methods {
         for step in &mut method.workflow.steps {
+            // A principal is the one the run's instance of a connector this
+            // package calls acts as.
+            let principals = step
+                .bindings
+                .iter()
+                .chain(step.act.iter().flat_map(|act| &act.bindings))
+                .filter_map(|binding| match &binding.source {
+                    crate::workflow::Source::Principal { connector, .. } => Some(connector),
+                    _ => None,
+                });
+            for connector in principals {
+                let field = format!("methods.{name}.steps.{}.inputs", step.id);
+                match requirements.get(connector) {
+                    None => {
+                        return Err(invalid(
+                            &field,
+                            format!(
+                                "{field} reads $run.principals.{connector}, and no step of the package calls {connector}."
+                            ),
+                        ));
+                    }
+                    Some(requirement) if requirement.choose.is_some() => {
+                        return Err(invalid(
+                            &field,
+                            format!(
+                                "{field} reads $run.principals.{connector}, which the run chooses: a principal is one connector's."
+                            ),
+                        ));
+                    }
+                    Some(_) => {}
+                }
+            }
             let field = format!("methods.{name}.steps.{}.operation", step.id);
             match &mut step.kind {
                 crate::StepKind::Agent(agent) => {

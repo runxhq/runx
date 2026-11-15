@@ -230,7 +230,9 @@ pub(crate) fn bind_run_inputs(
         ),
         Source::RunId => Some(Some(JsonValue::String(run_id.to_owned()))),
         Source::WorkspaceId => Some(Some(workspace_id.clone())),
-        Source::Step { .. } => None,
+        // A step's own references, and its principal, which is read when
+        // the step runs.
+        Source::Step { .. } | Source::Principal { .. } => None,
     };
     for step in &mut workflow.steps {
         step.bindings = bind_invoked(
@@ -308,6 +310,63 @@ fn run_workspace_id(
         step_id: reader.id.clone(),
         reason: format!("it reads $run.workspace_id, and {error}"),
     })
+}
+
+/// `step` with each `$run.principals.<connector>` it reads placed in its
+/// inputs and act: read when the step runs, once per connector, by
+/// `principal`, so the step reads the account its calls act as. A step that
+/// reads none comes back as it is. A principal that can't be read fails the
+/// step, naming what it reads.
+pub(crate) fn bind_principals<'a>(
+    step: &'a WorkflowStep,
+    principal: &dyn Fn(&str) -> Result<JsonValue, String>,
+) -> Result<Cow<'a, WorkflowStep>, RuntimeError> {
+    let mut principals = BTreeMap::<&str, JsonValue>::new();
+    for binding in step
+        .bindings
+        .iter()
+        .chain(step.act.iter().flat_map(|act| &act.bindings))
+    {
+        let Source::Principal { connector, .. } = &binding.source else {
+            continue;
+        };
+        if principals.contains_key(connector.as_str()) {
+            continue;
+        }
+        let read = principal(connector).map_err(|reason| RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason: format!("it reads $run.principals.{connector}, and {reason}"),
+        })?;
+        principals.insert(connector, read);
+    }
+    if principals.is_empty() {
+        return Ok(Cow::Borrowed(step));
+    }
+    let invoked = |source: &Source| match source {
+        Source::Principal { connector, path } => Some(
+            principals
+                .get(connector.as_str())
+                .and_then(|read| value_at(read, path))
+                .cloned(),
+        ),
+        _ => None,
+    };
+    let mut bound = step.clone();
+    bound.bindings = bind_invoked(
+        &step.id,
+        &mut bound.inputs,
+        bound.bindings.split_off(0),
+        &invoked,
+    )?;
+    if let Some(act) = &mut bound.act {
+        act.bindings = bind_invoked(
+            &step.id,
+            &mut act.values,
+            act.bindings.split_off(0),
+            &invoked,
+        )?;
+    }
+    Ok(Cow::Owned(bound))
 }
 
 /// Place every binding `invoked` resolves, last first so a list item left out
@@ -1038,7 +1097,11 @@ pub(crate) fn materialize_step_invocation_provenance_with_index(
             Source::Step { step: from, path } => {
                 Some(prior_run_index.provenance(&step.id, &binding_label(binding), from, path))
             }
-            Source::Input { .. } | Source::Act { .. } | Source::RunId | Source::WorkspaceId => None,
+            Source::Input { .. }
+            | Source::Act { .. }
+            | Source::RunId
+            | Source::WorkspaceId
+            | Source::Principal { .. } => None,
         })
         .collect()
 }

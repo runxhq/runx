@@ -58,6 +58,54 @@ where
     Ok(None)
 }
 
+/// The principal the run's instance of the package's `connector` acts as,
+/// `{ id, login }`, for `step`, which reads `$run.principals.<connector>`.
+pub(super) fn step_principal<A>(
+    runtime: &super::Runtime<A>,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
+    connector: &str,
+) -> Result<runx_contracts::JsonValue, String>
+where
+    A: SkillAdapter,
+{
+    let package = runtime
+        .options
+        .package(workflow_dir)
+        .map_err(|error| error.to_string())?;
+    let requirement = package
+        .manifest()
+        .and_then(|manifest| manifest.connectors.get(connector))
+        .ok_or_else(|| format!("the package calls no connector {connector}"))?;
+    let chain = runtime
+        .options
+        .chain_at(workflow_dir)
+        .map_err(|error| error.to_string())?;
+    let request = EffectStepRequest {
+        step,
+        target: ResolvedEffectTarget::default(),
+        inputs: &step.inputs,
+        env: &runtime.options.env,
+        workflow_dir,
+        run_id: runtime.options.run.run_id(),
+        run_authority: runtime.options.run_authority.as_ref(),
+        held_by_effects: false,
+        chain: &chain,
+        clock: &runtime.options.clock,
+        reconciliation: None,
+    };
+    runtime
+        .options
+        .effects
+        .principal(request, connector, requirement)
+        .map_err(|error| match error {
+            RuntimeEffectError::Denied { message, .. }
+            | RuntimeEffectError::Failed { message, .. }
+            | RuntimeEffectError::InvalidMetadata { message, .. } => message,
+            other => other.to_string(),
+        })
+}
+
 pub(super) fn enforce_step_authority_admission(
     request: EffectStepRequest<'_>,
     effects: &RuntimeEffectRegistry,

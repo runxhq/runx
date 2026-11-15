@@ -1124,6 +1124,18 @@ fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
         matches!(heads.outcome, TurnCallOutcome::Completed { .. }),
         "{heads:?}"
     );
+    // Its own call never writes to store (D19): its package's deterministic
+    // steps do, a script's calls among them.
+    let append = turn.call(
+        TURN,
+        "store__events_append",
+        None,
+        input(serde_json::json!({"input": {"stream": "items", "key": "k", "expected_version": 0, "type": "item.added", "data": {}}}))?,
+    )?;
+    assert!(
+        serde_json::to_string(&append)?.contains("a turn's own call never does"),
+        "{append:?}"
+    );
     Ok(())
 }
 

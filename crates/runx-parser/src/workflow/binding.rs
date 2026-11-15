@@ -43,6 +43,14 @@ pub enum Source {
     RunId,
     /// The id of the workspace the run runs in.
     WorkspaceId,
+    /// The principal the run's instance of the package's `connector` acts
+    /// as, `{ id, login }`, or the field at `path`: the provider's account,
+    /// read when the step runs, so a key made from its `id` follows the
+    /// account and never a credential.
+    Principal {
+        connector: String,
+        path: Vec<String>,
+    },
 }
 
 impl Source {
@@ -51,7 +59,11 @@ impl Source {
     pub fn step(&self) -> Option<&str> {
         match self {
             Self::Step { step, .. } => Some(step),
-            Self::Input { .. } | Self::Act { .. } | Self::RunId | Self::WorkspaceId => None,
+            Self::Input { .. }
+            | Self::Act { .. }
+            | Self::RunId
+            | Self::WorkspaceId
+            | Self::Principal { .. } => None,
         }
     }
 
@@ -64,6 +76,7 @@ impl Source {
             Self::Act { path } => ("$run.act".to_owned(), path),
             Self::RunId => return "$run.id".to_owned(),
             Self::WorkspaceId => return "$run.workspace_id".to_owned(),
+            Self::Principal { connector, path } => (format!("$run.principals.{connector}"), path),
         };
         std::iter::once(head)
             .chain(path.iter().cloned())
@@ -152,7 +165,8 @@ pub(crate) fn parse_operand(
         Source::Input { path } | Source::Act { path } | Source::Step { path, .. } => {
             !path.is_empty()
         }
-        Source::RunId => false,
+        // A principal is read when its step runs, after every condition.
+        Source::RunId | Source::Principal { .. } => false,
         Source::WorkspaceId => true,
     };
     source
@@ -338,6 +352,9 @@ impl Reading {
             Some(Source::RunId) if self != Self::Key => Err(validation_error(format!(
                 "{field} reads $run.id, the run's own id, which only an operation's idempotency_key may read."
             ))),
+            Some(Source::Principal { .. }) if self == Self::Key => Err(validation_error(format!(
+                "{field} reads $run.principals, which a step's inputs read: a key names one intent, never who makes it."
+            ))),
             source => Ok(source),
         }
     }
@@ -368,8 +385,14 @@ fn reference(
             Some((act, path)) if act == "act" => Ok(Some(Source::Act {
                 path: path.to_vec(),
             })),
+            Some((principals, [connector, path @ ..])) if principals == "principals" => {
+                Ok(Some(Source::Principal {
+                    connector: connector.clone(),
+                    path: path.to_vec(),
+                }))
+            }
             _ => Err(validation_error(format!(
-                "{field} reference {text:?} reads the run: write $run.id, $run.workspace_id, or $run.act.<field> in an act:."
+                "{field} reference {text:?} reads the run: write $run.id, $run.workspace_id, $run.principals.<connector>, or $run.act.<field> in an act:."
             ))),
         },
         "$steps" => {

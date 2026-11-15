@@ -141,6 +141,24 @@ impl RuntimeEffectRegistry {
             .try_for_each(|effect| effect.admit_declared(request))
     }
 
+    /// The principal the run's instance of `connector` acts as, from the
+    /// family that holds connector instances.
+    pub(crate) fn principal(
+        &self,
+        request: EffectStepRequest<'_>,
+        connector: &str,
+        requirement: &runx_parser::ConnectorRequirement,
+    ) -> Result<runx_contracts::JsonValue, RuntimeEffectError> {
+        self.families
+            .values()
+            .find_map(|effect| effect.principal(request, connector, requirement))
+            .unwrap_or_else(|| {
+                Err(RuntimeEffectError::MissingFamily {
+                    family: format!("the holder of connector {connector}'s instances"),
+                })
+            })
+    }
+
     pub(crate) fn prepare_execution(
         &self,
         request: EffectStepRequest<'_>,
