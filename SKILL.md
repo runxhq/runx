@@ -130,6 +130,31 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      URL, transaction hash, delivered message id, deployment id, or denial.
    - Report both success and refusal receipts. A safe refusal is a valid outcome.
 
+## Turn repeated work into a skill
+
+Skills are your company's playbooks, written so agents run them. When the
+person does a job the same way each time, make it a skill they own, so every
+agent runs it the same way. Inspect each method first and give it one input
+object, as step 5 of the default workflow does.
+
+1. **Ask what they repeat.** Which job, and what a good result looks like. Take
+   one job at a time.
+2. **Look for one that exists.** `runx list skills --json` and
+   `runx registry search <query>`. Prefer a skill that already does the job.
+3. **Design it, then build it.** `runx skill runx/skill-build#design` lays the
+   skill out and writes nothing. `runx skill runx/skill-build#build` writes the
+   package into the project's `skills/` folder, and only once its tests pass.
+4. **Prove how it behaves.** Add a case for each way it should behave, a
+   refusal among them, with `runx skill runx/skill-build#test`, then run
+   `runx test skills/<name>`.
+5. **Run it like any skill**, under the authority the person grants, with an
+   approval before anything consequential.
+6. **Keep the person's corrections.** When they correct a run, keep their exact
+   words with `runx skill runx/memory#remember`, which asks them to confirm, so
+   the next run applies the correction. Change the skill itself with
+   `runx skill runx/skill-build#improve`, which tests the change before it
+   writes it.
+
 ## Command reference
 
 Install runx:
