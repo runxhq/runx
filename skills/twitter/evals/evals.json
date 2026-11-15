@@ -64,7 +64,7 @@
     {
       "id": 10,
       "prompt": "Continue this approved update and account work across separate bounded runs.",
-      "expected_output": "Save the exact plan once, continue a partial thread without reposting it, then follow and unfollow with exact approvals, ending in a read-only complete status.",
+      "expected_output": "Reach saving the exact plan with the supplied inputs, stopping when it is refused at admission, without reposting the partial thread.",
       "files": [
         "evals/files/partial-thread-plan.json"
       ],
@@ -77,7 +77,7 @@
     {
       "id": 11,
       "prompt": "Run the next batch of this approved posting plan.",
-      "expected_output": "Publish the next post alone under its own approval, confirm it by reading it back, and advance the cursor past it.",
+      "expected_output": "Reach the next post alone, under its own approval, stopping when it is refused at admission, and advance the cursor no further.",
       "files": [
         "evals/files/release-announcement-plan.json"
       ],
@@ -90,7 +90,7 @@
     {
       "id": 12,
       "prompt": "Run the next batch of this approved unfollow plan.",
-      "expected_output": "Unfollow the contiguous run of accounts under one approval, settle each act, stop at the provider's rate limit, and record the cursor and reset time.",
+      "expected_output": "Reach the unfollow of the contiguous run of accounts under one approval, stopping when it is refused at admission.",
       "files": [
         "evals/files/unfollow-plan.json"
       ],

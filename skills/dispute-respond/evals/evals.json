@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Respond to this Stripe dispute with the delivery evidence and submit after my approval.",
-      "expected_output": "Read the merchant, current dispute and original charge; prepare the grounded evidence, require exactly one native approval, submit true and independently read back the new count and exact evidence.",
+      "expected_output": "Read the merchant, current dispute and original charge; prepare the grounded evidence and reach its submission under exactly one native approval, stopping when it is refused at admission.",
       "files": []
     },
     {

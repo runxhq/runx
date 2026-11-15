@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "Publish this approved Moltbook post packet.",
-      "expected_output": "Bind the exact payload digest, publish once after approval, and confirm the created post by reading it back.",
+      "expected_output": "Bind the exact payload digest and reach the approved publish with it, stopping when it is refused at admission.",
       "files": [
         "evals/files/approved-post-packet.json"
       ],

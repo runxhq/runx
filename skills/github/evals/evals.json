@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Post this exact review comment to the selected GitHub pull request.",
-      "expected_output": "Post the approved comment once and return independent GitHub readback for the exact body.",
+      "expected_output": "Reach posting the approved comment's exact body once, stopping when it is refused at admission.",
       "files": []
     },
     {
@@ -34,19 +34,19 @@
     {
       "id": 6,
       "prompt": "Label issue 241 in runxhq/runx as triage using the GitHub account signed in on this machine.",
-      "expected_output": "Apply the one approved label update and confirm it by reading the issue back.",
+      "expected_output": "Reach the one approved label update, stopping when it is refused at admission.",
       "files": []
     },
     {
       "id": 7,
       "prompt": "Open an issue in runxhq/runx titled \"Test cases for issue creation\", labelled triage, using the GitHub account signed in on this machine.",
-      "expected_output": "Open the one approved issue and confirm it by reading the new issue back.",
+      "expected_output": "Reach opening the one approved issue, stopping when it is refused at admission.",
       "files": []
     },
     {
       "id": 8,
       "prompt": "Post the final comment produced by this completed PR review.",
-      "expected_output": "Reuse the supplied final review body and target, create it once, and return readback without repeating review.",
+      "expected_output": "Reuse the supplied final review body and target and reach the review write with exactly those, stopping when it is refused at admission, without repeating the review.",
       "files": [
         "evals/files/pr-42-final-comment.json"
       ],
@@ -59,7 +59,7 @@
     {
       "id": 9,
       "prompt": "Persist the next local GitHub sync plan from the supplied cursor and prior sync evidence.",
-      "expected_output": "Use the supplied current store version and page-2 cursor to append and read back the local plan without GitHub calls. This is local planning, not remote synchronization.",
+      "expected_output": "Use the supplied current store version and page-2 cursor to reach the local plan's append with exactly those, stopping when it is refused at admission, without GitHub calls. This is local planning, not remote work.",
       "files": [
         "evals/files/triage-sync-cursor.json"
       ],

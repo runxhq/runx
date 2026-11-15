@@ -14,24 +14,6 @@
       "files": []
     },
     {
-      "id": 3,
-      "prompt": "Enrich this identified person for the requested professional facts.",
-      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
-      "files": []
-    },
-    {
-      "id": 4,
-      "prompt": "Enrich this identified company for the requested professional facts.",
-      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
-      "files": []
-    },
-    {
-      "id": 5,
-      "prompt": "Enrich this identified person for the requested professional facts.",
-      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
-      "files": []
-    },
-    {
       "id": 6,
       "prompt": "Reuse these collected professional observations for the requested lead.",
       "expected_output": "Keep supplied source identity and freshness; reject the other entity rather than invent a match.",

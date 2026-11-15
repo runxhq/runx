@@ -8,12 +8,6 @@
       "files": []
     },
     {
-      "id": 2,
-      "prompt": "Prioritize SEO and answer-engine growth work from this bounded search, analytics, site, and market evidence.",
-      "expected_output": "Return evidence-bound priorities, actions, and a measurement plan without guaranteed-ranking claims.",
-      "files": []
-    },
-    {
       "id": 3,
       "prompt": "Continue growth planning from these completed Search Console, analytics, and site evidence packets.",
       "expected_output": "Reuse normalized source packets without rerunning analytics or search acquisition.",

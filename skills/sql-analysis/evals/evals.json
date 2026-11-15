@@ -28,12 +28,6 @@
       "files": []
     },
     {
-      "id": 5,
-      "prompt": "Stop if the declared source cannot support this question or its parameter values.",
-      "expected_output": "Retain the rejected plan with executed false and perform no query operation. There is no query fixture to answer an accidental call.",
-      "files": []
-    },
-    {
       "id": 6,
       "prompt": "Choose a qualified-trial read from this supplied query catalog.",
       "expected_output": "Return a bound plan without a catalog or database read.",

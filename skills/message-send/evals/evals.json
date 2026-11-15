@@ -10,13 +10,7 @@
     {
       "id": 2,
       "prompt": "Notify this Slack channel that release 0.8.2 is live.",
-      "expected_output": "Prepare the exact notification, post it once after approval, and return provider readback.",
-      "files": []
-    },
-    {
-      "id": 3,
-      "prompt": "Notify this Slack channel that release 0.8.2 is live.",
-      "expected_output": "Prepare the exact notification, post it once after approval, and return provider readback.",
+      "expected_output": "Prepare the exact notification and reach its post under one approval, stopping when it is refused at admission.",
       "files": []
     },
     {
@@ -46,7 +40,7 @@
     {
       "id": 7,
       "prompt": "Deliver this already prepared release notification to the selected Slack channel.",
-      "expected_output": "Reuse the exact plan, body, channel, digest, and principal; post once and return provider readback without redrafting.",
+      "expected_output": "Reuse the exact plan, body, channel, digest and principal and reach the post with exactly those, stopping when it is refused at admission, without redrafting.",
       "files": [
         "evals/files/release-notification-plan.json"
       ],

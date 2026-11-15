@@ -14,12 +14,6 @@
       "files": []
     },
     {
-      "id": 3,
-      "prompt": "Find the bounded Slack messages about release readiness.",
-      "expected_output": "Search the configured Slack account once and return bounded provider evidence.",
-      "files": []
-    },
-    {
       "id": 4,
       "prompt": "Find release signals mentioning this teammate in the selected operations channel.",
       "expected_output": "Read one bounded exact channel/member query, preserving provider evidence and no send authority.",

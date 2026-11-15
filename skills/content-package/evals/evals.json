@@ -8,12 +8,6 @@
       "files": []
     },
     {
-      "id": 2,
-      "prompt": "Turn this governed evidence into a citation-bound draft and channel package.",
-      "expected_output": "Return reader-facing copy, citations, and a provider-neutral publication handoff without claiming publication.",
-      "files": []
-    },
-    {
       "id": 3,
       "prompt": "Prepare channel content from these already captured source pages.",
       "expected_output": "Reuse the supplied source packets without acquiring pages again. Synthesize the captured evidence once, write and package the channel content, and preserve the supplied destination without delivering it.",

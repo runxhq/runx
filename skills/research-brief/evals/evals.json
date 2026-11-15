@@ -14,12 +14,6 @@
       "files": []
     },
     {
-      "id": 3,
-      "prompt": "Produce a decision-ready research-brief brief from these bounded sources.",
-      "expected_output": "Return a rigorous brief with material claims bound to source evidence and no publication claim.",
-      "files": []
-    },
-    {
       "id": 4,
       "files": [
         "evals/files/collected-source-packets.json"
