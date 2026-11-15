@@ -69,7 +69,9 @@ function checkCurrentCatalog() {
     const profile = result.value;
     currentProfiles.set(document.skill, profile);
     if (!isSemver(profile?.version)) {
-      findings.push(`skills/${document.skill}/run.yaml: version must be semantic version x.y.z`);
+      findings.push(`skills/${document.skill}/run.yaml: version must be quoted semantic version x.y.z`);
+    } else if (!document.source.split("\n").some((line) => line === `version: "${profile.version}"`)) {
+      findings.push(`skills/${document.skill}/run.yaml: version must be quoted as "${profile.version}"`);
     }
     const unstated = methodsWithoutPurpose(profile);
     if (unstated.length > 0) {
