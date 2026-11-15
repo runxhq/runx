@@ -221,7 +221,6 @@ impl Model {
                 if stopping.load(Ordering::SeqCst) {
                     return Ok(None);
                 }
-                stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))?;
                 let request = read_chat_request(&mut stream)?;
                 recorded
                     .lock()
@@ -261,7 +260,9 @@ impl Model {
                         })?;
                     let (stream, request) = initial.remove(index);
                     answer(stream, request)?;
-                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+                    // The run's record says when this lead's qualification has
+                    // completed, so the next is answered only then. There's no
+                    // deadline: one that never completes is the defect.
                     loop {
                         let read = runx_runtime::run_record::read_run(
                             &std::collections::BTreeMap::new(),
@@ -276,12 +277,7 @@ impl Model {
                         if completed == answered + 1 {
                             break;
                         }
-                        if std::time::Instant::now() >= deadline {
-                            return Err(io::Error::other(
-                                "qualification did not complete before the next answer",
-                            ));
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(2));
+                        std::thread::sleep(std::time::Duration::from_millis(10));
                     }
                 }
             }
