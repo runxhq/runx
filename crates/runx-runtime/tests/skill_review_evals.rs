@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use runx_runtime::{LocalOrchestrator, ManagedAgentPolicy, SkillRunRequest};
+use runx_runtime::{LocalOrchestrator, ManagedAgentPolicy, RuntimeEffectRegistry, SkillRunRequest};
 use serde_json::{Value, json};
 use tempfile::tempdir;
 
@@ -107,7 +107,13 @@ fn review(
     let Value::Object(inputs) = inputs else {
         return Err("inputs are an object".into());
     };
-    let result = LocalOrchestrator::default().run_skill_with_binding(
+    // Built as the CLI builds it, with the local effects, so the memory the
+    // agent's turn reads is admitted as a run's own would be.
+    let orchestrator = LocalOrchestrator::with_effects_and_environment(
+        RuntimeEffectRegistry::local()?,
+        env.clone(),
+    );
+    let result = orchestrator.run_skill_with_binding(
         &SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),

@@ -1837,21 +1837,20 @@ fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
     Ok(())
 }
 
+// A host's context stays within the package it was given to (D48): a child
+// run of that package's own methods is given it, as every turn of a session
+// is. A child of another package is given none, which agent_turns.rs proves.
 #[test]
-fn a_remote_child_turn_is_given_the_callers_shareable_context_and_none_kept_local()
+fn a_child_turn_of_the_hosts_package_is_given_its_shareable_context_and_none_kept_local()
 -> Result<(), Box<dyn std::error::Error>> {
     for historical in [false, true] {
         for sharing in ["configured_model", "local_only"] {
             let temp = tempdir()?;
-            write_context_entries_skill(
-                temp.path(),
-                "export const recall = () => ({entries: []});\n",
-            )?;
             let parent = temp.path().join("parent");
             crate::support::write_test_skill_package(
                 &parent,
-                "---\nname: parent\ndescription: Pass caller context to a child.\n---\n# Parent\n",
-                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: child\n        skill: ../context-entries#main\n",
+                "---\nname: parent\ndescription: Pass caller context to a child.\n---\n# Parent\n\n## Agent task: answer\n\nAnswer from what the caller gave.\n",
+                "minimum_runx: 0.12.0\ndefault_method: run\nmethods:\n  run:\n    steps:\n      - id: child\n        skill: .#answer\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        outputs:\n          answer: {type: string}\n",
             )?;
             let text = "Retain every byte: café 🧭.";
             let entry: runx_contracts::ContextEntry = serde_json::from_value(serde_json::json!({
@@ -2434,45 +2433,64 @@ fn a_run_where_there_is_no_workspace_reads_a_null_workspace_id()
     Ok(())
 }
 
+// A home that fell back counts for nothing (D30), so the run has no
+// workspace id, as a run with no workspace has none (D48): it reads `null`,
+// never an id the repository ships, and mints none there.
 #[test]
-fn a_run_whose_runx_home_fell_back_refuses_to_read_a_workspace_id()
+fn a_run_whose_runx_home_fell_back_reads_no_workspace_id_whatever_the_workspace_ships()
 -> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let workspace = temp.path().join("workspace");
-    fs::create_dir_all(workspace.join(".git"))?;
+    for ships in [false, true] {
+        let temp = tempdir()?;
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(workspace.join(".git"))?;
+        let shipped = workspace.join(".runx/workspaces.json");
+        let claimed = serde_json::json!({"workspaces": [{
+            "path": fs::canonicalize(&workspace)?.display().to_string(),
+            "id": "ws_shipped_by_the_repository",
+            "minted_at": "2026-10-20T00:00:00Z",
+        }]})
+        .to_string();
+        if ships {
+            fs::create_dir_all(workspace.join(".runx"))?;
+            fs::write(&shipped, &claimed)?;
+        }
 
-    // No RUNX_HOME and no HOME: the home is the workspace's own `.runx`,
-    // which a repository could ship. So the run is made without the test
-    // helper, which names a home.
-    let mut env = path_env();
-    crate::support::insert_test_signing_env(&mut env);
-    let refused = match LocalOrchestrator::default().run_skill_with_binding(
-        &SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: write_workspace_id_skill(&workspace)?,
-            receipt_dir: Some(temp.path().join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env,
-            cwd: workspace.clone(),
-            managed_agent: Default::default(),
-        },
-        None,
-        None,
-        None,
-    ) {
-        Ok(result) => serde_json::to_string(&result.output)?,
-        Err(error) => error.to_string(),
-    };
-    assert!(
-        refused.contains("reads $run.workspace_id, and the runx home fell back to the workspace"),
-        "{refused}"
-    );
-    assert!(!workspace.join(".runx/workspaces.json").exists());
+        // No RUNX_HOME and no HOME: the home is the workspace's own `.runx`,
+        // which a repository could ship. So the run is made without the test
+        // helper, which names a home.
+        let mut env = path_env();
+        crate::support::insert_test_signing_env(&mut env);
+        let result = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: write_workspace_id_skill(&workspace)?,
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env,
+                cwd: workspace.clone(),
+                managed_agent: Default::default(),
+            },
+            None,
+            None,
+            None,
+        )?;
+        assert_eq!(
+            echoed_workspace(&result.output),
+            Some(&JsonValue::Null),
+            "{:?}",
+            result.output
+        );
+        if ships {
+            assert_eq!(fs::read_to_string(&shipped)?, claimed);
+        } else {
+            assert!(!shipped.exists());
+        }
+    }
     Ok(())
 }
 
