@@ -55,7 +55,7 @@ after the provider reads it back.
 A channel post and a source-bound reply keep their own input checks: a post is
 bound to a destination and a plan, a reply to a source packet and a turn.
 
-The binding may be local, self-hosted, third-party or Runx-hosted. The skill
+The binding may be local, self-hosted, third-party or runx-hosted. The skill
 never receives a token, constructs a raw HTTP request, owns a tenant, or stores
 connector credentials in its inputs or receipts.
 

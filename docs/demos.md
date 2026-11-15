@@ -28,7 +28,7 @@ idempotency, mutation, and readback contracts without embedding a rail
 implementation in OSS. Real settlement dogfood belongs to runx Hosted.
 
 The upstream x402 conformance and interop scripts remain protocol checks only;
-they are not local payment adapters and do not prove a Runx-hosted settlement.
+they are not local payment adapters and do not prove a runx-hosted settlement.
 
 ## Verify A Receipt
 

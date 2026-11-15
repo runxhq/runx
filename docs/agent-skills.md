@@ -160,7 +160,7 @@ Rerun `runx export` after you add, rename, or remove skills; the shims are
 generated, so do not hand-edit them. If a shim's source skill moves, the stale
 shim fails closed and instructs you to rerun the export, so a renamed skill
 never silently runs the wrong thing. A full export also replaces digest-stale
-Runx-managed shims from the same source workspace and prunes only obsolete
+runx-managed shims from the same source workspace and prunes only obsolete
 entries bearing that workspace's managed marker.
 
 ## Portability

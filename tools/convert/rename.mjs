@@ -25,7 +25,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { BRAND, BRAND_READ, SCOPES, GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, signedBlocks, stayFor } from "./words.mjs";
+import { SCOPES, brandRead, GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, signedBlocks, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -522,10 +522,11 @@ function apply(repo, root, write, list, showStays) {
             edits.push({ at, from: token, to });
             return to;
           }
-          if (token === BRAND && brand(at, token)) {
+          const read = brandRead(token);
+          if (read !== undefined && brand(at, token)) {
             count += 1;
-            edits.push({ at, from: token, to: BRAND_READ });
-            return BRAND_READ;
+            edits.push({ at, from: token, to: read });
+            return read;
           }
           if (!inScope) return token;
           const site = `${file}:${number + 1}`;

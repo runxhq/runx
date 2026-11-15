@@ -100,19 +100,19 @@ and default local-state orchestration are OSS concerns. They must not be
 implemented in `runx/cloud`. Hosted connectors may custody credentials,
 resolve grants, and execute bounded provider API calls, but they do not own the
 operator or its state. If an operator surface is missing, add it here rather
-than extending a Cloud dogfood script. Runx-company deployment and
+than extending a Cloud dogfood script. runx-company deployment and
 control-plane administration are not domain-operator surfaces.
 
 ### Connector and Tenant Neutrality
 
 runx is tenant-agnostic and connector-neutral. Skills, manifests, packets, and
 public provider-operation contracts must target stable provider capabilities,
-not a Runx-company tenant or one credential backend. Never expose a credential
+not a runx-company tenant or one credential backend. Never expose a credential
 backend's connection ids, provider-config keys, hosted tenant ids, connector
-URLs, or Runx-owned credential assumptions in a portable skill contract.
+URLs, or runx-owned credential assumptions in a portable skill contract.
 
 The operator selects and binds the connector at runtime. It may be local,
-self-hosted, third-party, or Runx-hosted. A Runx-hosted connector is an optional
+self-hosted, third-party, or runx-hosted. A runx-hosted connector is an optional
 implementation of the same contract, not the authoritative path and not a
 prerequisite for using the skill. If a skill works only with runx Cloud when a
 user-owned connector could satisfy the same bounded operation, the design is
@@ -137,7 +137,7 @@ bumps require Kam's explicit instruction.
 
 ### Generic Stateful Effects
 
-Runx-maintained skills that drive stateful apps emit generic effect transition packets.
+runx-maintained skills that drive stateful apps emit generic effect transition packets.
 Put product identity in `effect_family` and the method/action in `operation`;
 do not add product-specific authority kinds or `runx.<product>.*` packet
 namespaces: an authority term names its connector instance, and that is its

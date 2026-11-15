@@ -53,13 +53,13 @@ in Rust and licensed under Apache-2.0.
 Give your agent the [runx operating manual](https://runx.ai/SKILL.md):
 
 ```text
-Set up Runx: https://runx.ai/SKILL.md
+Set up runx: https://runx.ai/SKILL.md
 ```
 
 Then give it a bounded job. For example:
 
 ```text
-Use Runx to investigate where our organic visitors stop becoming active users.
+Use runx to investigate where our organic visitors stop becoming active users.
 Use Search Console, GA4, and our saved PostHog activation funnel. Compare the
 last two complete 28-day periods. Bring back the evidence, three priorities,
 and a proposed content or product change. Stop before publishing or sending.
@@ -92,7 +92,7 @@ git clone --depth 1 https://github.com/runxhq/runx.git
 cd runx
 
 runx skill ./examples/hello-world --run-id first-run \
-  -i message="Hello, Runx." --json
+  -i message="Hello, runx." --json
 ```
 
 Selected fields from the result:
@@ -102,7 +102,7 @@ Selected fields from the result:
   "status": "sealed",
   "outcome": "completed",
   "run_id": "first-run",
-  "result": { "message": "Hello, Runx." },
+  "result": { "message": "Hello, runx." },
   "receipt_id": "sha256:…"
 }
 ```
@@ -139,7 +139,7 @@ next skill's inputs.
 ### Business ops: get the next release into customers' hands
 
 ```text
-We're launching team workspaces in Northstar. Use Runx to prepare the release,
+We're launching team workspaces in Northstar. Use runx to prepare the release,
 choose the customer audience, update the setup guide, draft the announcement,
 and coordinate the rollout with the team. Establish the activation baseline
 from workspace creation to the first teammate invited so we can measure adoption.

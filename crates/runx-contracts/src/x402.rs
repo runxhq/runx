@@ -1,4 +1,4 @@
-//! External x402 v2 wire contracts and the Runx-owned v1 declaration.
+//! External x402 v2 wire contracts and the runx-owned v1 declaration.
 //!
 //! External values deliberately preserve unknown fields for tolerant-reader
 //! interoperability. The `runx.purchase` declaration is strict and reuses

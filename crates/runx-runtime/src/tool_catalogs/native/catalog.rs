@@ -116,7 +116,7 @@ pub(crate) fn inventory(effects: &RuntimeEffectRegistry) -> Vec<SkillCatalogEntr
                         .capability(&tool.name)
                         .map(|capability| capability.definition().summary)
                 })
-                .unwrap_or("Runx-native tool");
+                .unwrap_or("runx-native tool");
             SkillCatalogEntry {
                 name: tool.name.into(),
                 kind: RunxListItemKind::Tool,

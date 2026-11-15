@@ -21,7 +21,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { BRAND, SCOPES, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
+import { SCOPES, brandRead, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -116,7 +116,7 @@ function main([repo, root, ...rest]) {
       for (const match of line.matchAll(TOKEN)) {
         const token = match[0];
         if (!unsigned(start + match.index)) continue;
-        if (token === BRAND && read(start + match.index, token)) {
+        if (brandRead(token) !== undefined && read(start + match.index, token)) {
           found.brand += 1;
           byFile.set(file, (byFile.get(file) ?? 0) + 1);
           if (list) process.stdout.write(`${file}:${index + 1}:${match.index + 1}\tbrand\t${token}\t${line.trim().slice(0, 160)}\n`);

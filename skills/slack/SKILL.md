@@ -13,7 +13,7 @@ Delivering a post or a reply is `message-send`'s job.
 
 The operator-selected provider binding has one narrow role in this flow: retain
 credential custody and execute a fixed Slack operation. It may be local,
-self-hosted, third-party, or Runx-hosted. The skill, its procedure, approval
+self-hosted, third-party, or runx-hosted. The skill, its procedure, approval
 point, retry identity, and completion rule remain in runx OSS. Any queue,
 team-specific routing rule, or durable action state belongs in a higher-level
 operator skill.

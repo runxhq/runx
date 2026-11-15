@@ -12,7 +12,7 @@ an exact sitemap should be submitted.
 
 The skill owns the Search Console procedure and evidence shape. It does not own
 OAuth, credential storage, tenant configuration, or connector routing. A local,
-self-hosted, third-party, or Runx-hosted connector is equally valid when it
+self-hosted, third-party, or runx-hosted connector is equally valid when it
 implements the declared provider operations and scopes. Connector identifiers,
 credential handles, provider-config keys, service URLs, and tenant ids belong in
 the operator's runx grant and connector configuration, never in this package or

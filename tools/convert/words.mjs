@@ -109,19 +109,51 @@ export function signedBlocks(file, text) {
 
 /** Each fenced code block in a Markdown text: the span between its fences. */
 export function fencedBlocks(text) {
+  return fences(text).map(({ from, to }) => [from, to]);
+}
+
+/** Each fenced block in a Markdown text: the span between its fences and its info string's first word. */
+function fences(text) {
   const blocks = [];
   let open;
   for (const fence of text.matchAll(/^ {0,3}(`{3,}|~{3,})([^\n]*)$/gm)) {
     const [, marks, info] = fence;
     if (!open) {
       if (marks[0] === "`" && info.includes("`")) continue;
-      open = { mark: marks[0], length: marks.length, start: fence.index + fence[0].length + 1 };
+      open = { mark: marks[0], length: marks.length, start: fence.index + fence[0].length + 1, lang: info.trim().split(/\s/)[0] };
     } else if (marks[0] === open.mark && marks.length >= open.length && info.trim() === "") {
-      blocks.push([open.start, fence.index]);
+      blocks.push({ from: open.start, to: fence.index, lang: open.lang });
       open = undefined;
     }
   }
   return blocks;
+}
+
+/**
+ * The words a person reads inside a Markdown document's fenced blocks: each
+ * line of a `text` block, which shows what a person types or reads, such as
+ * a prompt, and in any other block each quoted string that reads as words, a
+ * phrase with a space in it, as a code file's strings are. Code, a command's
+ * own words and a one-word value stay as they're quoted.
+ */
+function fencedWords(text) {
+  const spans = [];
+  for (const { from, to, lang } of fences(text)) {
+    const block = text.slice(from, to);
+    if (lang === "text") {
+      let at = from;
+      for (const line of block.split("\n")) {
+        spans.push([at, at + line.length]);
+        at += line.length + 1;
+      }
+      continue;
+    }
+    for (const quoted of block.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)) {
+      const body = quoted[1];
+      if (/\s/.test(body.trim()) && !isDocument(body)) spans.push([from + quoted.index + 1, from + quoted.index + 1 + body.length]);
+    }
+  }
+  return spans;
 }
 
 // Code whose string literals a person reads: an error, a message, help text.
@@ -173,13 +205,19 @@ export const SCOPES = {
 export const BRAND = "Runx";
 export const BRAND_READ = "runx";
 
+/** How `token` reads when it's the brand, alone or as a compound's first word (`Runx-hosted`); undefined when it isn't. */
+export function brandRead(token) {
+  return token === BRAND || token.startsWith(`${BRAND}-`) ? BRAND_READ + token.slice(BRAND.length) : undefined;
+}
+
 /**
  * Where the brand is a word a person reads, which its case is for: in a code
  * file, in a comment or a string that reads as words (`codeProse`), since
  * elsewhere a name such as `Runx::new`, or the one-word string that names a
  * script's `Runx` global, is code; in a Ruby file, its comments, since a
  * Homebrew formula's class is the formula's name; in Markdown, outside its
- * code; anywhere in other data. A word joined to a path or a call,
+ * code, and inside it where a person reads words (`fencedWords`); anywhere in
+ * other data. A word joined to a path or a call,
  * `Identity::Runx`, `Runx.parseData` or `isFrozen(Runx)`, or a class's name,
  * as a Homebrew formula a script renders has, names code wherever it's
  * written, and so does a word inside backticks, counted from where its
@@ -200,7 +238,12 @@ export function brandSites(file, text) {
   };
   if (file.endsWith(".md")) {
     const code = markdownCode(text);
-    return (at, token) => !code.some(([from, to]) => at >= from && at < to) && inLine(at, token);
+    const words = fencedWords(text);
+    return (at, token) => {
+      const said = words.find(([from, to]) => at >= from && at < to);
+      if (said) return !joined(at, token) && !ticked(said[0], at);
+      return !code.some(([from, to]) => at >= from && at < to) && inLine(at, token);
+    };
   }
   if (file.endsWith(".rb")) return (at, token) => commentAt(at, /#/) !== undefined && inLine(at, token);
   if (!STRINGS.test(file)) return inLine;

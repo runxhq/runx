@@ -15,7 +15,7 @@ export type RunxX402DiscoveryExtensionInfoContract = Extract<
 >;
 
 /**
- * The standard x402 extension declaration carrying Runx-owned strict info.
+ * The standard x402 extension declaration carrying runx-owned strict info.
  * The TS presentation assembles it; its `info` is the Rust-owned contract.
  */
 export type RunxX402PurchaseExtensionContract = {

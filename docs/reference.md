@@ -471,7 +471,7 @@ native execution boundary, persists them in pause checkpoints, and rejects a
 resume whose supplied bindings disagree with that checkpoint. These flags bind
 execution; they are never skill inputs. The closure digest includes the
 immutable runx release identity, so a pending continuation cannot silently
-cross a runtime upgrade. Runx-generated run ids and durable workflow state bind
+cross a runtime upgrade. runx-generated run ids and durable workflow state bind
 the same package and closure digests, so changing a skill, transitive
 child package, or runtime closure cannot merge incompatible checkpoint history.
 
@@ -1211,7 +1211,7 @@ wrap a capability already owned by the native catalog. The declared entrypoint
 must run directly on the supported Node runtime; do not probe for build output
 or import uncompiled TypeScript.
 
-## Runx-Maintained Packages
+## runx-Maintained Packages
 
 The runx-maintained catalog is explicit about why each package is public:
 

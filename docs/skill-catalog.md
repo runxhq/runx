@@ -38,7 +38,7 @@ CLI outputs identify the resolved source in `entry_provenance`; bundled
 packages identify `bundled:runx` without implying a registry trust tier.
 
 Public distribution of optional domain procedures and product integrations
-uses the registry. Their publisher follows the actual maintainer: Runx-maintained packages can
+uses the registry. Their publisher follows the actual maintainer: runx-maintained packages can
 remain under `runx/`; product-owned packages publish from their owning product
 repository. Being optional does not make a skill personally owned. A connector
 retains its own publisher even when a differently owned skill composes it.

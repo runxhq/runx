@@ -6,7 +6,7 @@ description: Read a selected Google Calendar's bounded events or free/busy windo
 
 Use this skill when a decision needs current events or busy intervals from a Google calendar the operator has explicitly selected. The default `events` method reads expanded event instances; `freebusy` reads only busy intervals. Both are read-only `google-calendar` connector operations with an exact calendar target and a positive, explicitly bounded time window. They cannot create, edit, delete, RSVP to, or invite anyone to events.
 
-The portable skill owns Calendar evidence semantics, not credentials or connector selection. A local, self-hosted, third-party, or Runx-hosted connector is compatible when it implements the declared operations and scopes. Keep connection identifiers, credentials, tenant details and private calendar choices in the operator's binding and inputs, never in this package.
+The portable skill owns Calendar evidence semantics, not credentials or connector selection. A local, self-hosted, third-party, or runx-hosted connector is compatible when it implements the declared operations and scopes. Keep connection identifiers, credentials, tenant details and private calendar choices in the operator's binding and inputs, never in this package.
 
 ## Choose a bounded read
 

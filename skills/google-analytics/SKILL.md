@@ -11,7 +11,7 @@ reading a short realtime window after a deployment or campaign.
 
 The portable skill owns the measurement procedure and evidence contract. It does
 not own OAuth, credentials, tenants, connector selection, or provider routing.
-Operators may bring a local, self-hosted, third-party, or Runx-hosted connector.
+Operators may bring a local, self-hosted, third-party, or runx-hosted connector.
 Any of those is compatible when it implements the operations and scopes below.
 Never place a connection id, credential handle, provider-config key, service URL,
 or tenant id in a skill input, fixture, or evidence packet; those bindings belong

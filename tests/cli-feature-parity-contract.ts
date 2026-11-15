@@ -101,7 +101,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("saved-authorities", "runx-cli + runx-runtime saved authorities", "schema-exact", "A saved authority is kept by name in the runx home for the workspaces it lists, by workspace id, and applies only where a run or a server names it with --authority."),
   surface("public-api", "runx-cli + runx-runtime", "stubbed", "Public API identity and HTTP transport are resolved once and exercised against deterministic local servers."),
   surface("connect", "runx-cli + runx cloud", "stubbed", "runx connector use --hosted owns the provider-neutral grant lifecycle; governed skills and native provider tools own bounded provider operations."),
-  surface("connectors", "runx-cli + runx-runtime kernel", "fixture-backed", "Runx-maintained connector manifests, instances and readiness are listed and selected natively; import-mcp pins what a server serves."),
+  surface("connectors", "runx-cli + runx-runtime kernel", "fixture-backed", "runx-maintained connector manifests, instances and readiness are listed and selected natively; import-mcp pins what a server serves."),
   surface("doctor", "runx-cli + runx-runtime doctor", "semantic", "Diagnostics can add ids, but the documented command surface must not disappear."),
   surface("skill-export", "runx-cli + runx-runtime", "semantic", "Host-agent shims are generated from validated skill packages and delegate back to governed runx skill execution."),
   surface("authority", "runx-core/policy", "schema-exact", "Grant, scope, and authority-kind policy remains machine-checkable without OSS brokerage."),

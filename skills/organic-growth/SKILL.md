@@ -69,7 +69,7 @@ business constraints, and any combination of:
 Google is optional. The canonical workflow depends on evidence contracts, not a
 provider, connector, credential store, or hosted tenant. A local crawler,
 self-hosted analytics service, another search provider, third-party connector,
-or Runx-hosted connector can supply evidence when its packet has a stable digest
+or runx-hosted connector can supply evidence when its packet has a stable digest
 and useful provenance. Connector ids, credential handles, URLs, and tenant
 configuration never belong in this skill.
 
