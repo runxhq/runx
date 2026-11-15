@@ -7190,6 +7190,17 @@
               "minLength": 1,
               "type": "string"
             },
+            "output": {
+              "additionalProperties": {},
+              "description": "The step's output its record holds, as a call's is: a declined ask's decision with the person's reason, or a packet it returned.",
+              "minProperties": 1,
+              "type": "object"
+            },
+            "reason": {
+              "description": "Why a step that ran did not succeed.",
+              "minLength": 1,
+              "type": "string"
+            },
             "receipt_id": {
               "minLength": 1,
               "type": "string"

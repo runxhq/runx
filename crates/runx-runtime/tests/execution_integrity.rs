@@ -217,6 +217,36 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
             _ => None,
         })
         .ok_or("the child run is sealed failed")?;
+    // Each of its steps reads with its output, and the failed one with why.
+    let steps = read
+        .events
+        .iter()
+        .filter_map(|record| match &record.event {
+            RunEventFact::Step {
+                step_id,
+                output,
+                reason,
+                ..
+            } if record.stream.as_str() == "nested-failure/invoke" => Some((
+                step_id.to_string(),
+                output.get("done").cloned(),
+                reason.as_ref().map(ToString::to_string),
+            )),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        steps.first(),
+        Some(&("first".to_owned(), Some(JsonValue::Bool(true)), None)),
+        "{steps:?}"
+    );
+    assert!(
+        steps
+            .get(1)
+            .and_then(|(_, _, reason)| reason.as_deref())
+            .is_some_and(|why| why.contains("child failed after work")),
+        "{steps:?}"
+    );
 
     // The parent's step closes over the child's receipt, which names both
     // of the child's steps.

@@ -152,8 +152,8 @@ struct StepStatus {
     outcome: StepOutcome,
 }
 
-/// The part of a call's record a read reports beside its outcome: its
-/// output, every field the record holds.
+/// The part of a step's or a call's record a read reports beside its
+/// outcome: its output, every field the record holds.
 #[derive(Deserialize)]
 struct CallOutput {
     contract: JsonObject,
@@ -197,6 +197,7 @@ fn project(
         }
         RunEvent::Step(event) => {
             let (outcome, receipt_id) = step(&event.record, &event.receipt)?;
+            let CallOutput { contract } = store.blob_json(&event.record)?;
             let TurnStatements { model, usage, host } =
                 turn_statements(store, stream, &event.answers)?;
             RunEventFact::Step {
@@ -207,6 +208,9 @@ fn project(
                 attempt: event.attempt,
                 succeeded: outcome.succeeded(),
                 receipt_id,
+                output: contract,
+                reason: (!outcome.succeeded())
+                    .then(|| reason(outcome.failure_message().unwrap_or_default())),
             }
         }
         RunEvent::Skipped(skipped) => RunEventFact::Skipped {

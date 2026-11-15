@@ -2810,6 +2810,12 @@ export type RunEventFactContract = {
   readonly kind: "step";
   /** The model an agent step's turn stated in its answer. Absent when the turn stated none, and on every other step. */
   readonly model?: string;
+  /** The step's output its record holds, as a call's is: a declined ask's decision with the person's reason, or a packet it returned. */
+  readonly output?: {
+    readonly [key: string]: unknown;
+  };
+  /** Why a step that ran did not succeed. */
+  readonly reason?: string;
   readonly receipt_id: string;
   readonly step_id: string;
   readonly succeeded: boolean;

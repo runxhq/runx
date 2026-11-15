@@ -160,6 +160,13 @@ pub enum RunEventFact {
         /// other step.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         host: Option<TurnHost>,
+        /// The step's output its record holds, as a call's is: a declined
+        /// ask's decision with the person's reason, or a packet it returned.
+        #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
+        output: JsonObject,
+        /// Why a step that ran did not succeed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<NonEmptyString>,
     },
     Skipped {
         step_ids: Vec<NonEmptyString>,
