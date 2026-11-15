@@ -1043,8 +1043,10 @@ mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
     use super::{
-        Source, answer_allowed, decide, head, index_at, native_read_is_seen, packet_read_runx_made,
+        Source, answer_allowed, call_is_seen, decide, head, index_at, native_read_is_seen,
+        packet_read_runx_made, step_is_seen,
     };
+    use crate::execution::run_record::{CallOutcome, RecordedCall};
     use crate::kernel::store::KernelStore;
 
     fn source(run: &str) -> Source {
@@ -1172,5 +1174,74 @@ mod tests {
             None,
             serde_json::json!({"ending": "completed", "model": "fixture-model", "requirements": ["fresh_context"]}),
         )));
+    }
+
+    /// A source with a child run, a load, or a long conversation behind its
+    /// turn isn't eligible: a child's or a loaded package's work is held by
+    /// another run's record or another package, not this one's, and a turn
+    /// that didn't start from a fresh context answered from more than its
+    /// record holds.
+    #[test]
+    fn a_child_run_a_load_or_a_turn_not_started_fresh_leaves_a_source_ineligible() {
+        let manifest = runx_parser::validate_method_manifest(
+            "source",
+            runx_parser::parse_method_manifest_yaml(
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: child\n        skill: ../child\n      - id: turn\n        agent: turn\n        outputs:\n          summary: {type: string}\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let steps = &manifest.default_method().unwrap().workflow.steps;
+        assert!(!step_is_seen(&steps[0]), "a child run");
+        assert!(step_is_seen(&steps[1]), "a turn, seen by what it called");
+
+        let call = |target: runx_contracts::CallTarget| RecordedCall {
+            step_id: "turn".to_owned(),
+            attempt: 1,
+            index: 0,
+            call_id: None,
+            target,
+            input: runx_contracts::JsonObject::new(),
+            context: Vec::new(),
+            standing: None,
+            outcome: CallOutcome::Refused(String::new()),
+            outputs: Vec::new(),
+            order: 0,
+            cancelled: false,
+            inline_bound: None,
+            reuse: None,
+            reuse_identity: None,
+        };
+        for target in [
+            runx_contracts::CallTarget::Skill {
+                skill: "../child".into(),
+                method: None,
+                bound: None,
+            },
+            runx_contracts::CallTarget::Load,
+        ] {
+            assert!(!call_is_seen(&call(target.clone())), "{target:?}");
+        }
+        assert!(call_is_seen(&call(runx_contracts::CallTarget::Tool {
+            tool: "fs.read".into()
+        })));
+
+        let answered = |value: serde_json::Value| crate::execution::run_record::Answer {
+            request_id: "turn".to_owned(),
+            request_digest: "sha256:request".to_owned(),
+            value: serde_json::from_value(value).unwrap(),
+            human: false,
+            input_digest: None,
+            gate: None,
+        };
+        for long in [
+            serde_json::json!({"ending": "completed", "model": "fixture-model"}),
+            serde_json::json!({"ending": "completed", "model": "fixture-model", "requirements": []}),
+        ] {
+            assert!(!answer_allowed(&answered(long.clone())), "{long}");
+        }
+        assert!(answer_allowed(&answered(serde_json::json!(
+            {"ending": "completed", "model": "fixture-model", "requirements": ["fresh_context"]}
+        ))));
     }
 }

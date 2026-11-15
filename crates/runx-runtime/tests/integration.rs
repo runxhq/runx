@@ -19,6 +19,7 @@ mod doctor;
 mod execution_integrity;
 mod governance_witness;
 mod hello_workflow;
+mod implementation_identity;
 mod javascript_worker;
 mod javascript_worker_hostile;
 mod javascript_worker_support;

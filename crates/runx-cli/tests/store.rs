@@ -202,6 +202,23 @@ impl Project {
         Ok(())
     }
 
+    /// Publish `<publisher>/<name>@1.0.0`, signed, with no statement of its
+    /// tier served, as an old or withdrawn version has, and install it.
+    fn publish_unstated(&self, publisher: &str, name: &str, profile: &str) -> TestResult {
+        let markdown = manual(name);
+        self.registry()?.publish(Publication {
+            tier_held: None,
+            ..Publication::new(publisher, "1.0.0", &markdown, Some(profile))
+        })?;
+        let installed = self
+            .runx()?
+            .args(["registry", "install", &format!("{publisher}/{name}@1.0.0")])
+            .args(["--json"])
+            .output()?;
+        json(&installed, 0)?;
+        Ok(())
+    }
+
     /// `runx skill <reference> -i ...` under `authority`, and its JSON.
     fn run(
         &self,
@@ -1963,5 +1980,184 @@ fn a_store_from_before_0_12_refuses_to_open_and_says_to_move_it_aside() -> TestR
     std::fs::rename(&path, path.with_extension("sqlite.0-11"))?;
     let inspected = project.result("skills/counter#inspect", &[("key", "k")], None)?;
     assert_eq!(inspected["version"], 0, "{inspected}");
+    Ok(())
+}
+
+/// One manifest runs the same from a checkout and installed: a write names
+/// no package, so `runx test` passes the same case on both copies, and each
+/// writes its own identity's stream, apart from the other's.
+#[test]
+fn runx_test_from_a_path_and_the_installed_package_run_the_same_manifest() -> TestResult {
+    let project = Project::with_registry("runx-store-same-manifest")?;
+    let case =
+        "name: bump\nmethod: bump\ninputs: {key: k, attempt: one}\nexpect:\n  status: sealed\n";
+    project.publish("acme", "counter", COUNTER, &[("tests/bump.yaml", case)])?;
+    let checkout = project.skill("counter", COUNTER)?;
+    project.write("skills/counter/tests/bump.yaml", case)?;
+    let installed = project.root.join(".runx/added-skills/acme/counter/1.0.0");
+    for copy in [&checkout, &installed] {
+        assert_eq!(std::fs::read_to_string(copy.join("run.yaml"))?, COUNTER);
+        let tested = project
+            .runx()?
+            .arg("test")
+            .arg(copy)
+            .arg("--json")
+            .output()?;
+        let tested = json(&tested, 0)?;
+        assert_eq!(tested["status"], "passed", "{}: {tested}", copy.display());
+    }
+
+    let own = project.result(
+        "skills/counter#bump",
+        &[("key", "k"), ("attempt", "checkout")],
+        None,
+    )?;
+    let published = project.result(
+        "acme/counter@1.0.0#bump",
+        &[("key", "k"), ("attempt", "installed")],
+        None,
+    )?;
+    assert_eq!(own["stream"], "project:counter/counts", "{own}");
+    assert_eq!(published["stream"], "acme/counter/counts", "{published}");
+    // Each began its own key: neither saw the other's event.
+    assert_eq!(
+        (own["version"].as_u64(), published["version"].as_u64()),
+        (Some(1), Some(1))
+    );
+    Ok(())
+}
+
+/// A published skill that keeps what it finds in `runx/memory`.
+const JOURNAL: &str = r#"minimum_runx: 0.12.0
+methods:
+  note:
+    inputs:
+      text: {type: string}
+    steps:
+      - id: keep
+        skill: runx/memory#observe
+        inputs:
+          level: personal
+          text: $input.text
+          summary: $input.text
+          date: "2026-11-15"
+          sources: [journal]
+          supersedes: none
+"#;
+
+/// A term writing memory's observations, from the packages `packages` names.
+fn observing(packages: &[&str]) -> Value {
+    json!({"delegations": [{"connector": "private", "terms": [{
+        "verbs": ["read", "write"],
+        "bounds": {
+            "operations": ["private/*"],
+            "scopes": ["store.read", "store.append"],
+            "targets": ["runx/memory/observed:*"],
+            "packages": packages,
+        },
+    }]}]})
+}
+
+/// `runx/memory` is always the runtime's own copy: a skill composing it
+/// carries none, and reaches the one memory, standalone and through two
+/// wrappers, whatever copy the workspace holds. Every package in the chain
+/// to `private` is covered by the term's `packages`, a wrapper by adding it
+/// once, and an old signed package with no fresh statement reaches nothing
+/// it doesn't name.
+#[test]
+fn a_skill_composing_memory_reaches_the_runtimes_one_memory_only_as_its_term_covers_it()
+-> TestResult {
+    let project = Project::with_registry("runx-store-memory-chain")?;
+    project.publish("acme", "journal", JOURNAL, &[])?;
+    project.publish_unstated("acme", "diary", JOURNAL)?;
+    for name in ["wrap-a", "wrap-b"] {
+        project.skill(
+            name,
+            "minimum_runx: 0.12.0\nmethods:\n  note:\n    inputs:\n      text: {type: string}\n    steps:\n      - id: note\n        skill: registry:acme/journal@1.0.0#note\n        inputs: {text: $input.text}\n",
+        )?;
+    }
+    // A copy of memory the workspace holds, and an install record claiming
+    // runx's, would fail any run that bound them.
+    project.write("skills/memory/SKILL.md", &manual("memory"))?;
+    project.write(
+        "skills/memory/run.yaml",
+        "minimum_runx: 0.12.0\nmethods: {}\n",
+    )?;
+    project.write(
+        ".runx/installs/added-skills/runx/memory/0.12.0.json",
+        r#"{"package": "runx/memory@0.12.0", "trust_tier": "first_party"}"#,
+    )?;
+    let installed = project.root.join(".runx/added-skills/acme/journal/1.0.0");
+    assert!(installed.join("run.yaml").is_file());
+    assert!(
+        !std::fs::read_dir(&installed)?
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name().to_string_lossy().contains("memory")),
+        "the published skill carries no copy of memory"
+    );
+
+    let note = |reference: &str, text: &str, packages: &[&str]| {
+        project.run(reference, &[("text", text)], Some(&observing(packages)))
+    };
+    // Uncovered, a package in the chain reaches nothing: a fresh statement
+    // gives it nothing, and nor does a wrapper's term.
+    for (reference, packages) in [
+        ("acme/journal@1.0.0#note", &["runx/memory"][..]),
+        ("acme/diary@1.0.0#note", &["runx/memory"][..]),
+        ("skills/wrap-a#note", &["runx/memory", "project:wrap-a"][..]),
+    ] {
+        let refused = note(reference, "Refused.", packages)?;
+        assert!(
+            !refused.status.success(),
+            "{reference}: {}",
+            printed(&refused)
+        );
+    }
+
+    let kept = [
+        note(
+            "acme/journal@1.0.0#note",
+            "Kept standalone.",
+            &["runx/memory", "acme/journal"],
+        )?,
+        note(
+            "skills/wrap-a#note",
+            "Kept through a.",
+            &["runx/memory", "acme/journal", "project:wrap-a"],
+        )?,
+        note(
+            "skills/wrap-b#note",
+            "Kept through b.",
+            &["runx/memory", "acme/journal", "project:wrap-b"],
+        )?,
+        note(
+            "acme/diary@1.0.0#note",
+            "Kept by the diary.",
+            &["runx/memory", "acme/diary"],
+        )?,
+    ];
+    for ran in &kept {
+        let ran = json(ran, 0)?;
+        assert_eq!(ran["outcome"], "completed", "{ran}");
+    }
+    // All four are in the one memory, the runtime's: its own index, read
+    // under a term naming only it, holds every one.
+    let read = json(
+        &project.run(
+            "runx/memory#index",
+            &[("levels", r#"[{"level": "personal"}]"#)],
+            Some(&observing(&["runx/memory"])),
+        )?,
+        0,
+    )?;
+    let index = read["result"]["entries"].to_string();
+    for text in [
+        "Kept standalone.",
+        "Kept through a.",
+        "Kept through b.",
+        "Kept by the diary.",
+    ] {
+        assert!(index.contains(text), "{text}: {index}");
+    }
     Ok(())
 }

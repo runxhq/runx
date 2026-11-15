@@ -3973,3 +3973,149 @@ operations:
     assert_eq!(wire.calls.load(Ordering::SeqCst), 5);
     Ok(())
 }
+
+/// A connector whose `count.read` quotes 5,000 micro-USD a call: its process
+/// marks the directory it's given with the name it's given.
+const METER_CONNECTOR: &str = r#"schema: runx.connector.v1
+name: meter
+title: Meter
+description: A priced read that marks each call.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  count.read:
+    description: Mark one call.
+    verb: read
+    cost: {usd_micro: 5000, per: request, source: docs}
+    scopes: [meter.read]
+    target:
+      template: {"$argument": "/name"}
+    input_schema:
+      type: object
+      required: [dir, name]
+      additionalProperties: false
+      properties:
+        dir: {type: string, minLength: 1}
+        name: {type: string, minLength: 1}
+    result_fields: [counted]
+    implementation:
+      process:
+        tool: count.read
+"#;
+
+const METER_TOOL: &str = r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "count.read",
+  "version": "0.1.0",
+  "description": "Mark one call: the meter connector's count.read implementation.",
+  "process": {"command": "sh", "args": ["./count.sh", "{{dir}}", "{{name}}"]},
+  "inputs": {
+    "dir": {"type": "string", "description": "Where the marks go."},
+    "name": {"type": "string", "description": "This call's mark."}
+  }
+}
+"#;
+
+/// A script's calls spend from the run's one money limit: each is reserved
+/// against what's left before it's sent, so of two priced calls made at once
+/// under a limit that fits one, one is sent and the other refused, and the
+/// run never spends past its limit.
+#[test]
+fn a_scripts_calls_share_the_runs_money_limit() -> TestResult {
+    let temp = tempdir()?;
+    let tool = temp.path().join("connectors/meter/tools/count/read");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(
+        temp.path().join("connectors/meter/connector.yaml"),
+        METER_CONNECTOR,
+    )?;
+    std::fs::write(tool.join("manifest.json"), METER_TOOL)?;
+    std::fs::write(
+        tool.join("count.sh"),
+        "#!/bin/sh\nset -eu\nmkdir -p \"$1\"\n: > \"$1/$2\"\nprintf '{\"counted\":\"%s\"}\\n' \"$2\"\n",
+    )?;
+    let marks = temp.path().join("marks");
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          operations: [meter/count.read]\n        max_calls: 2\n        outputs:\n          settled: {type: array}\n",
+        &format!(
+            r#"export default async function (ctx) {{
+  const call = (name) => ctx.operation("meter/count.read", {{ dir: {dir}, name }});
+  const settled = await Promise.allSettled([call("a"), call("b")]);
+  return {{ settled: settled.map((one) => one.status === "fulfilled" ? "sent" : one.reason.reason).sort() }};
+}}
+"#,
+            dir = serde_json::to_string(&marks.to_string_lossy())?
+        ),
+    )?;
+    let ran = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        env(temp.path()),
+    )
+    .run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: Some(serde_json::from_value(
+                serde_json::json!({"max_spend_micro_usd": 8000}),
+            )?),
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("hello".to_owned()))]),
+            env: env(temp.path()),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?;
+    let output = object(&ran.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = object(output.get("result").ok_or("no result")?)?;
+    assert_eq!(
+        serde_json::to_value(result.get("settled").ok_or("settled")?)?,
+        serde_json::json!(["refused", "sent"]),
+        "{result:?}"
+    );
+    assert_eq!(std::fs::read_dir(&marks)?.count(), 1, "one call was sent");
+    Ok(())
+}
+
+/// A script reaching its `max_calls` stops there: the calls within the
+/// bound run, the one past it never does, and the step fails saying so.
+#[test]
+fn a_script_past_its_max_calls_stops_and_the_call_past_it_never_runs() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        calls:\n          tools: [data.digest]\n        max_calls: 2\n        outputs:\n          digests: {type: array}\n",
+        "export default async function (ctx) {\n  const digests = [];\n  for (const value of [\"one\", \"two\", \"three\"]) {\n    digests.push(await ctx.tool(\"data.digest\", { value, encoding: \"utf8_text\" }));\n  }\n  return { digests };\n}\n",
+    )?;
+    let ran = run(temp.path(), skill_dir)?;
+    let output = object(&ran.output)?;
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
+    let printed = serde_json::to_string(output)?;
+    assert!(
+        printed.contains("the script reached its max_calls of 2"),
+        "{printed}"
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    assert_eq!(
+        call_events(temp.path(), &run_id)?,
+        vec![
+            (0, "executing"),
+            (0, "completed"),
+            (1, "executing"),
+            (1, "completed")
+        ],
+        "the third call never ran"
+    );
+    Ok(())
+}

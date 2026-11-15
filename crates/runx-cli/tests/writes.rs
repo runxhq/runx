@@ -705,3 +705,66 @@ fn a_read_turn_keeps_nothing_but_said_on_private_whatever_its_term_reaches() -> 
     std::fs::remove_dir_all(&root)?;
     Ok(())
 }
+
+// An operator's inspection (§4.8): under `effects: none` and `reach: inputs`,
+// a read turn reads the repositories it is pointed at, outside its workspace,
+// and nothing is written in any of them.
+
+/// Every file under `dir` with its bytes, to compare a tree before and after.
+fn tree(dir: &Path) -> TestResult<Vec<(PathBuf, Vec<u8>)>> {
+    let mut files = Vec::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        for entry in std::fs::read_dir(&next)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                files.push((path.strip_prefix(dir)?.to_path_buf(), std::fs::read(&path)?));
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+#[test]
+fn an_operator_inspects_two_repositories_and_nothing_is_written() -> TestResult {
+    let root = crate::support::temp_root("runx-writes-inspect");
+    let workspace = project(&root);
+    std::fs::create_dir_all(&workspace)?;
+    let repos = [
+        (root.join("repo-a"), "Alpha keeps its notes here."),
+        (root.join("repo-b"), "Beta keeps its notes here."),
+    ];
+    for (repo, line) in &repos {
+        std::fs::create_dir_all(repo)?;
+        std::fs::write(repo.join("README.md"), format!("{line}\n"))?;
+    }
+    let before = repos
+        .iter()
+        .map(|(repo, _)| tree(repo))
+        .collect::<TestResult<Vec<_>>>()?;
+
+    let inspecting = r#"{"effects":"none","reach":"inputs"}"#;
+    let run = start_session(command(&workspace), "read", inspecting)?;
+    for (index, (repo, line)) in repos.iter().enumerate() {
+        let called = turn_tool_on(
+            command(&workspace),
+            &run,
+            "turn_call",
+            json!({"turn": "read", "tool": "fs_read", "call_id": format!("read-{index}"), "input": {"repo_root": repo, "path": "README.md"}}),
+        )?;
+        let read = &called["outcome"];
+        assert_eq!(read["status"], "completed", "{read}");
+        assert!(read.to_string().contains(line), "{read}");
+    }
+
+    let after = repos
+        .iter()
+        .map(|(repo, _)| tree(repo))
+        .collect::<TestResult<Vec<_>>>()?;
+    assert_eq!(after, before, "an inspected repository changed");
+    std::fs::remove_dir_all(&root)?;
+    Ok(())
+}
