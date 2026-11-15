@@ -723,17 +723,21 @@ impl KernelStore {
 
     /// Stream heads of one kernel kind, most recently advanced first by the
     /// store's commit order, strictly before the `before` head when one is
-    /// given. Heads advanced in one instant still page once each.
+    /// given, and only those advanced at or after `since`, a time as the
+    /// store writes one, when it's given: so a listing back to a time reads
+    /// the heads since it and no row before. Heads advanced in one instant
+    /// still page once each.
     pub(crate) fn recent_heads<E: StreamEvent>(
         &self,
         before: Option<&Head>,
         limit: usize,
+        since: Option<&str>,
     ) -> Result<Vec<Head>, KernelStoreError> {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
                 "SELECT key, version, event_type, updated_at, sequence FROM kernel_keys
-                 WHERE stream = ?1 AND (?2 IS NULL OR sequence < ?2)
+                 WHERE stream = ?1 AND (?2 IS NULL OR sequence < ?2) AND (?4 IS NULL OR updated_at >= ?4)
                  ORDER BY sequence DESC LIMIT ?3",
             )
             .map_err(|source| self.database("preparing a recent head listing", source))?;
@@ -742,7 +746,8 @@ impl KernelStore {
                 params![
                     E::KIND,
                     before.map(|head| head.sequence as i64),
-                    limit.min(1000) as i64
+                    limit.min(1000) as i64,
+                    since
                 ],
                 head_row,
             )

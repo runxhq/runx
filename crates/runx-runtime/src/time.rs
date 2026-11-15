@@ -23,6 +23,15 @@ pub(crate) fn millis_of(at: &str) -> Option<i64> {
         .checked_add(i64::from(nanos / 1_000_000))
 }
 
+/// The instant `millis` since the epoch names, as the store writes a time:
+/// UTC, to the millisecond, so two of them order as text.
+pub(crate) fn iso8601_from_unix_millis(millis: i64) -> String {
+    let (year, month, day, hour, minute, second) =
+        civil_from_unix_seconds(millis.div_euclid(1_000));
+    let millis = millis.rem_euclid(1_000);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+}
+
 pub(crate) fn iso8601_from_unix_seconds(seconds: i64) -> String {
     let (year, month, day, hour, minute, second) = civil_from_unix_seconds(seconds);
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")

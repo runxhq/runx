@@ -335,7 +335,7 @@ fn recent_heads_page_newest_first() {
             Append::kernel("a", Expected::Version(1), &Ledger::Moved { amount: 2 }).unwrap(),
         ])
         .unwrap();
-    let first = store.recent_heads::<Ledger>(None, 2).unwrap();
+    let first = store.recent_heads::<Ledger>(None, 2, None).unwrap();
     assert_eq!(
         first
             .iter()
@@ -343,7 +343,7 @@ fn recent_heads_page_newest_first() {
             .collect::<Vec<_>>(),
         ["a", "c"]
     );
-    let rest = store.recent_heads::<Ledger>(first.last(), 2).unwrap();
+    let rest = store.recent_heads::<Ledger>(first.last(), 2, None).unwrap();
     assert_eq!(
         rest.iter()
             .map(|head| head.key.as_str())
@@ -369,7 +369,9 @@ fn heads_committed_in_one_instant_page_once_each_newest_first() {
     let mut paged = Vec::new();
     let mut before = None;
     loop {
-        let page = store.recent_heads::<Ledger>(before.as_ref(), 1).unwrap();
+        let page = store
+            .recent_heads::<Ledger>(before.as_ref(), 1, None)
+            .unwrap();
         let Some(head) = page.into_iter().next() else {
             break;
         };

@@ -149,7 +149,7 @@ pub(super) fn append(
 /// The processes the project records, most recently changed first.
 pub(super) fn recent(store: &KernelStore, limit: usize) -> Result<Vec<Record>, KernelStoreError> {
     let mut records = Vec::new();
-    for head in store.recent_heads::<ProcessEvent>(None, limit)? {
+    for head in store.recent_heads::<ProcessEvent>(None, limit, None)? {
         if let Some(record) = read(store, &head.key)? {
             records.push(record);
         }

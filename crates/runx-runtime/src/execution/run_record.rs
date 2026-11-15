@@ -2942,12 +2942,23 @@ pub fn list_runs(
     let state = lower(&filter.state);
     let since = instant("since", &filter.since)?;
     let until = instant("until", &filter.until)?;
+    // No run that last moved before `since` can match, since one started at
+    // or after it moved since too: the store reads only the heads since it.
+    let scanned_back_to = filter
+        .since
+        .as_deref()
+        .and_then(|since| crate::time::millis_of(since.trim()))
+        .map(crate::time::iso8601_from_unix_millis);
     let limit = filter.limit.unwrap_or(DEFAULT_RUN_LIMIT);
     let mut runs = Vec::new();
     let mut unreadable = Vec::new();
     let mut cursor: Option<Head> = None;
     while runs.len() + unreadable.len() < limit {
-        let heads = store.recent_heads::<RunEvent>(cursor.as_ref(), RUN_PAGE)?;
+        let heads = store.recent_heads::<RunEvent>(
+            cursor.as_ref(),
+            RUN_PAGE,
+            scanned_back_to.as_deref(),
+        )?;
         let exhausted = heads.len() < RUN_PAGE;
         for head in heads {
             cursor = Some(head.clone());
