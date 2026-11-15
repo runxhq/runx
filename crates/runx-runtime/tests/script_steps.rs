@@ -2969,7 +2969,7 @@ fn run_managed_in(
 /// D2). The same source under a host's driver isn't eligible.
 #[test]
 fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
-    use runx_contracts::RecomputeReason::NoCandidate;
+    use runx_contracts::RecomputeReason::{Ineligible, NoCandidate};
     let temp = tempdir()?;
     write_digest_child(temp.path())?;
     let skill_dir = write_reusing_parent(temp.path(), "digest-child")?;
@@ -2979,7 +2979,19 @@ fn a_source_runx_drove_and_saw_whole_is_eligible() -> TestResult {
         recomputed(NoCandidate)
     );
     let reused = run_managed(temp.path(), skill_dir)?;
-    assert_reused_from(temp.path(), &reused, &source)
+    assert_reused_from(temp.path(), &reused, &source)?;
+    // The same source made under a host's driver, whose harness runx can't
+    // see, isn't eligible: a later call runx drives finds it and recomputes.
+    let hosted = tempdir()?;
+    write_digest_child(hosted.path())?;
+    let skill_dir = write_reusing_parent(hosted.path(), "digest-child")?;
+    run(hosted.path(), skill_dir.clone())?;
+    let after = run_managed(hosted.path(), skill_dir)?;
+    assert_eq!(
+        first_decision(hosted.path(), &after)?,
+        recomputed(Ineligible)
+    );
+    Ok(())
 }
 
 /// A parent whose one script step asks to reuse `child`'s result.
@@ -4310,4 +4322,321 @@ fn changed_criteria_or_a_changed_package_recomputes() -> TestResult {
     let ran = run_managed(temp.path(), skill_dir)?;
     assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NoCandidate));
     Ok(())
+}
+
+/// A reused paid read spends nothing, so it doesn't fail a run that can spend
+/// nothing (§9, revise; reuse.md, check 2): the source paid for its read
+/// within its limit, and a later run whose limit is zero, or that states no
+/// limit, reuses the result with no call sent and nothing charged. D33's
+/// refusal of a priced call in a run with no limit is admission's, and a
+/// reused read makes no call.
+#[test]
+fn a_reused_paid_read_spends_nothing_and_never_fails_a_zero_spend_run() -> TestResult {
+    use runx_runtime::{
+        OperationEffect, RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest,
+        RuntimeHttpResponse, RuntimeHttpTransport,
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    #[derive(Clone)]
+    struct PricedWire {
+        calls: Arc<AtomicUsize>,
+    }
+    impl RuntimeHttpTransport for PricedWire {
+        fn send(
+            &self,
+            _request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RuntimeHttpResponse::new(
+                200,
+                serde_json::json!({"quote": "paid for once"}).to_string(),
+            ))
+        }
+    }
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("connectors/fixture/quotes"))?;
+    std::fs::write(
+        root.join("connectors/fixture/quotes/connector.yaml"),
+        r#"schema: runx.connector.v1
+name: fixture/quotes
+title: Quote fixture
+description: A priced read.
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  quote.read:
+    description: Read the quote, at a price.
+    verb: read
+    cost: {usd_micro: 5000, per: request, source: docs}
+    scopes: [quote.read]
+    target: {template: self}
+    result_fields: [quote]
+    implementation:
+      http:
+        allowed_hosts: [quotes.fixture.invalid]
+        requests:
+          - id: quote
+            http_method: GET
+            url: https://quotes.fixture.invalid/v1
+"#,
+    )?;
+    crate::support::write_test_skill_package(
+        &root.join("quote-reader"),
+        "---\nname: quote-reader\ndescription: Reads the quote.\n---\n# Quote reader\n\nRead it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        operation: fixture/quotes/quote.read\n        inputs: {}\n",
+    )?;
+    let parent = write_reusing_parent(root, "quote-reader")?;
+    let wire = PricedWire {
+        calls: Arc::new(AtomicUsize::new(0)),
+    };
+    let run_under = |authority: Option<serde_json::Value>| -> TestResult<RunResult> {
+        Ok(LocalOrchestrator::with_effects_and_environment(
+            RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(wire.clone()))?,
+            env(root),
+        )
+        .run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: authority.map(serde_json::from_value).transpose()?,
+                act: None,
+                skill_path: parent.clone(),
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::from([(
+                    "value".to_owned(),
+                    JsonValue::String("hello".to_owned()),
+                )]),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::inline(2)?,
+            },
+            None,
+            None,
+            None,
+        )?)
+    };
+    let source = run_under(Some(serde_json::json!({"max_spend_micro_usd": 10000})))?;
+    assert_eq!(
+        text(object(&source.output)?, "outcome"),
+        Some("completed"),
+        "{:?}",
+        source.output
+    );
+    assert_eq!(wire.calls.load(Ordering::SeqCst), 1);
+    for authority in [Some(serde_json::json!({"max_spend_micro_usd": 0})), None] {
+        let reused = run_under(authority)?;
+        assert_eq!(
+            text(object(&reused.output)?, "outcome"),
+            Some("completed"),
+            "{:?}",
+            reused.output
+        );
+        assert_reused_from(root, &reused, &source)?;
+    }
+    assert_eq!(
+        wire.calls.load(Ordering::SeqCst),
+        1,
+        "no call was sent again"
+    );
+    Ok(())
+}
+
+/// A mutation with no key is refused at any depth (D34, a key means one
+/// intent): a script's own write sent with no key, and a child's write step
+/// that names none, are each refused at admission and nothing is sent; the
+/// script's write with its key is sent once.
+#[test]
+fn a_mutation_with_no_key_is_refused_at_any_depth() -> TestResult {
+    use runx_runtime::{
+        OperationEffect, RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest,
+        RuntimeHttpResponse, RuntimeHttpTransport,
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    #[derive(Clone)]
+    struct PadWire {
+        sent: Arc<AtomicUsize>,
+    }
+    impl RuntimeHttpTransport for PadWire {
+        fn send(
+            &self,
+            _request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+            self.sent.fetch_add(1, Ordering::SeqCst);
+            Ok(RuntimeHttpResponse::new(
+                200,
+                serde_json::json!({"id": "note-1"}).to_string(),
+            ))
+        }
+    }
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("connectors/pad"))?;
+    std::fs::write(
+        root.join("connectors/pad/connector.yaml"),
+        r#"schema: runx.connector.v1
+name: pad
+title: Pad
+description: Writes a note.
+auth:
+  credentials:
+    token:
+      kind: api_key
+      fields: [{name: token, label: Pad token}]
+      delivery: {env: PAD_TOKEN}
+      audience: [pad.fixture.invalid]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  note.write:
+    description: Write a note.
+    verb: write
+    scopes: [note.write]
+    credentials: [token]
+    target: {template: "pad:note"}
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: {type: string}
+    result_fields: [note]
+    implementation:
+      http:
+        allowed_hosts: [pad.fixture.invalid]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: note
+            http_method: POST
+            url: https://pad.fixture.invalid/v1/notes
+            body:
+              text: {"$argument": "/text"}
+"#,
+    )?;
+    crate::support::write_test_skill_package(
+        &root.join("keyless-child"),
+        "---\nname: keyless-child\ndescription: Writes with no key.\n---\n# Keyless child\n\nWrite.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        operation: pad/note.write\n        inputs: {text: child}\n",
+    )?;
+    let skill_dir = write_one_step(
+        root,
+        "        calls:\n          operations: [pad/note.write]\n          skills: [../keyless-child]\n        max_calls: 3\n        outputs:\n          own: {type: object}\n          child: {type: object}\n          keyed: {type: object}\n",
+        r#"export default async function (ctx) {
+  const why = async (call) => {
+    try {
+      await call();
+      return { code: "sent", message: "" };
+    } catch (rejected) {
+      return { code: rejected.code, message: rejected.message };
+    }
+  };
+  const own = await why(() => ctx.operation("pad/note.write", { text: "own" }));
+  const child = await why(() => ctx.skill("../keyless-child", {}));
+  const keyed = await why(() =>
+    ctx.operation("pad/note.write", { text: "keyed" }, { idempotency_key: "note-keyed" }),
+  );
+  return { own, child, keyed };
+}
+"#,
+    )?;
+    let wire = PadWire {
+        sent: Arc::new(AtomicUsize::new(0)),
+    };
+    let mut environment = env(root);
+    environment.insert("PAD_TOKEN".to_owned(), "fixture-pad-token".to_owned());
+    let ran = run_under(
+        LocalOrchestrator::with_effects_and_environment(
+            RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(wire.clone()))?,
+            environment.clone(),
+        ),
+        root,
+        skill_dir,
+        &environment,
+    )?;
+    let output = object(&ran.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let result = serde_json::to_value(output.get("result").ok_or("no result")?)?;
+    for depth in ["own", "child"] {
+        assert!(
+            result[depth]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("a mutation needs an idempotency_key")),
+            "{depth}: {result}"
+        );
+    }
+    assert_eq!(result["keyed"]["code"], "sent", "{result}");
+    assert_eq!(
+        wire.sent.load(Ordering::SeqCst),
+        1,
+        "only the keyed write was sent"
+    );
+    Ok(())
+}
+
+/// A recovered run reads the result it chose (reuse.md; §9, revise): a run
+/// reuses a source's read, then waits on a person. The file the source read
+/// changes while it waits, so a fresh decision would recompute; resumed, the
+/// script replays, and its recorded call returns the reused result it chose,
+/// with that one decision recorded.
+#[test]
+fn a_recovered_run_reads_the_result_it_chose() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::write(root.join("notes.txt"), "kept\n")?;
+    write_file_reader(root, "notes-child", "notes.txt")?;
+    let source = run_managed(root, write_reusing_parent(root, "notes-child")?)?;
+    // For the `confirm-child` it writes beside its script.
+    write_script_skill(root, DIGEST_THEN_CONFIRM, "")?;
+    let skill_dir = root.join("chooser");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: chooser\ndescription: Reuses a read, then has it confirmed.\n---\n# Chooser\n\nRead, then confirm.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  prepare:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: prepare\n        script: {module: prepare.mjs}\n        inputs: {value: $input.value}\n        calls:\n          skills: [../notes-child, ../confirm-child]\n        max_calls: 2\n        outputs:\n          read: {type: string}\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("prepare.mjs"),
+        r#"export default async function (ctx, { value }) {
+  const read = await ctx.skill("../notes-child", { value }, { reuse: { max_age_seconds: 604800 } });
+  await ctx.skill("../confirm-child", { value });
+  return { read: JSON.stringify(read) };
+}
+"#,
+    )?;
+    let started = run(root, skill_dir)?;
+    let run_id = run_id_of(&started)?;
+    let waiting = requests(&started)?;
+    assert_eq!(waiting, ["prepare/1#confirm"], "{:?}", started.output);
+    std::fs::write(root.join("notes.txt"), "revised\n")?;
+
+    let sealed = resume(
+        root,
+        &run_id,
+        serde_json::json!({"approvals": {waiting[0].as_str(): true}}),
+    )?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let read = output
+        .get("result")
+        .and_then(JsonValue::as_object)
+        .and_then(|result| text(result, "read"))
+        .ok_or_else(|| format!("no read: {output:?}"))?;
+    assert!(read.contains("kept") && !read.contains("revised"), "{read}");
+    let decisions = reuse_decisions(root, &run_id)?;
+    assert_eq!(decisions.len(), 1, "{decisions:?}");
+    assert_reused_from(root, &sealed, &source)
 }

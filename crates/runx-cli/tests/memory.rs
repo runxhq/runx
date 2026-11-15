@@ -1168,3 +1168,83 @@ fn nothing_changes_until_the_person_answers_that_exact_change() -> TestResult {
     assert_eq!(handles(&memory.search("coffee")?), [kept.as_str()]);
     Ok(())
 }
+
+/// A shipped workspace id reads nothing of another (memory.md, MEM15): a
+/// workspace's id is minted in the runx home for its path and never read from
+/// the workspace. A repository that ships `.runx/workspaces.json` claiming
+/// another workspace's id, run under the same home, is given an id of its own,
+/// and that workspace's memory isn't its to read.
+#[test]
+fn a_shipped_workspace_id_reads_nothing_of_another() -> TestResult {
+    let first = Memory::new("runx-memory-workspace-first")?;
+    let mut kept = observation("The release train leaves on Thursdays.", "2026-11-12");
+    kept["level"] = json!("workspace");
+    first.observe_with(kept)?;
+    let ids: Value = serde_json::from_slice(&fs::read(first.root.join("home/workspaces.json"))?)?;
+    let [minted] = ids["workspaces"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+    else {
+        return Err(format!("one workspace minted: {ids}").into());
+    };
+    let minted = minted["id"].as_str().ok_or("a minted id")?.to_owned();
+    let workspace_index = json!({"levels": [{"level": "workspace"}]});
+    let own = first.completed("index", workspace_index.clone())?;
+    assert!(
+        own.to_string()
+            .contains("The release train leaves on Thursdays"),
+        "the workspace reads its own memory: {own}"
+    );
+
+    let second = Memory::new("runx-memory-workspace-second")?;
+    fs::create_dir_all(second.root.join(".runx"))?;
+    fs::write(
+        second.root.join(".runx/workspaces.json"),
+        json!({"workspaces": [{
+            "path": fs::canonicalize(&second.root)?.display().to_string(),
+            "id": minted,
+            "minted_at": "2026-11-12T00:00:00Z",
+        }]})
+        .to_string(),
+    )?;
+    fs::write(
+        second.root.join("inputs-index.json"),
+        workspace_index.to_string(),
+    )?;
+    let output = crate::support::unsigned_runx_command_at(&second.root)
+        .env("RUNX_HOME", first.root.join("home"))
+        .env("RUNX_CWD", &second.root)
+        .args([
+            "skill",
+            "skills/memory#index",
+            "--inputs",
+            "inputs-index.json",
+            "--run-authority",
+            &authority(EVERY_STREAM),
+            "--json",
+        ])
+        .output()?;
+    let read: Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(read["outcome"], "completed", "{read}");
+    assert!(
+        entries(&read["result"]["entries"])?.is_empty(),
+        "nothing of the other workspace: {read}"
+    );
+    let ids: Value = serde_json::from_slice(&fs::read(first.root.join("home/workspaces.json"))?)?;
+    let theirs = ids["workspaces"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|entry| {
+            entry["path"].as_str()
+                == fs::canonicalize(&second.root)
+                    .ok()
+                    .map(|path| path.display().to_string())
+                    .as_deref()
+        })
+        .and_then(|entry| entry["id"].as_str())
+        .ok_or_else(|| format!("the second workspace is minted its own id: {ids}"))?;
+    assert_ne!(theirs, minted);
+    Ok(())
+}
