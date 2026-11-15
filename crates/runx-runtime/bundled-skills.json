@@ -1809,6 +1809,10 @@
             "content": "name: observe-keeps-an-observation\nmethod: observe\ninputs:\n  level: personal\n  text: The build runs on Node 26.\n  summary: The build's Node version\n  date: 2026-11-09\n  sources: [package.json]\nsetup:\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read, write]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read, store.append]\n              targets: [\"runx/memory/said:*\", \"runx/memory/observed:*\", \"project:memory/said:*\", \"project:memory/observed:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: sealed\n"
           },
           {
+            "path": "tests/observe-under-a-term-for-the-persons-words-keeps-nothing.yaml",
+            "content": "name: observe-under-a-term-for-the-persons-words-keeps-nothing\nmethod: observe\ninputs:\n  level: personal\n  text: The build runs on Node 26.\n  summary: The build's Node version\n  date: 2026-11-09\n  sources: [package.json]\nsetup:\n  # A term that reads and writes the person's words and reaches no\n  # observation. observe writes only observations, under its own term: its\n  # look for current observations on the stream is refused, and a write that\n  # can't see what it might replace never writes, so nothing is kept.\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read, write]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read, store.append]\n              targets: [\"runx/memory/said:*\", \"project:memory/said:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: failure\n  steps: [entry, likely]\n"
+          },
+          {
             "path": "tests/read-refuses-a-stream-that-isnt-memorys.yaml",
             "content": "name: read-refuses-a-stream-that-isnt-memorys\nmethod: read\ninputs:\n  handle: \"memory:notes:personal#key@1\"\nsetup:\n  # A term that reads memory, so what refuses the handle is the handle: it\n  # names a stream that isn't memory's. A read with no term stops before it\n  # reads, as every private call does.\n  authority:\n    delegations:\n      - connector: private\n        terms:\n          - verbs: [read]\n            bounds:\n              operations: [\"private/*\"]\n              scopes: [store.read]\n              targets: [\"runx/memory/said:*\", \"runx/memory/observed:*\", \"project:memory/said:*\", \"project:memory/observed:*\"]\n              packages: [runx/memory, project:memory]\nexpect:\n  status: failure\n"
           },
@@ -1894,6 +1898,11 @@
               "name": "observe-keeps-an-observation",
               "method": "observe",
               "expected_status": "sealed"
+            },
+            {
+              "name": "observe-under-a-term-for-the-persons-words-keeps-nothing",
+              "method": "observe",
+              "expected_status": "failure"
             },
             {
               "name": "read-refuses-a-stream-that-isnt-memorys",

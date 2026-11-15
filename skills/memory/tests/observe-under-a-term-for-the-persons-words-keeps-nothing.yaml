@@ -1,0 +1,26 @@
+name: observe-under-a-term-for-the-persons-words-keeps-nothing
+method: observe
+inputs:
+  level: personal
+  text: The build runs on Node 26.
+  summary: The build's Node version
+  date: 2026-11-09
+  sources: [package.json]
+setup:
+  # A term that reads and writes the person's words and reaches no
+  # observation. observe writes only observations, under its own term: its
+  # look for current observations on the stream is refused, and a write that
+  # can't see what it might replace never writes, so nothing is kept.
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "project:memory/said:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: failure
+  steps: [entry, likely]

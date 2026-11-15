@@ -4268,3 +4268,46 @@ fn a_failed_check_is_revised_on_and_a_missing_credential_ends_the_loop() -> Test
     );
     Ok(())
 }
+
+/// Changed criteria or a changed package recomputes (§9, revise: "Changing
+/// the criteria, or a connector or package `lead-qualify` reached,
+/// recomputes it"). While the call asks with what its source was asked and
+/// the child's package holds the bytes its source ran, the source is reused.
+/// Asked with other criteria, it finds no source for them; once the child's
+/// manual changes, what its source ran is no longer what would run, so it
+/// recomputes. The connector half is
+/// `provider_read_reuse_compares_the_confirmed_binding_implementation_and_credential`.
+#[test]
+fn changed_criteria_or_a_changed_package_recomputes() -> TestResult {
+    use runx_contracts::RecomputeReason::NoCandidate;
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join("notes.txt"), "kept\n")?;
+    write_file_reader(temp.path(), "notes-child", "notes.txt")?;
+    let skill_dir = write_reusing_parent(temp.path(), "notes-child")?;
+    let source = run_managed(temp.path(), skill_dir.clone())?;
+    let ran = run_managed(temp.path(), skill_dir.clone())?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+
+    let revised = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          skills: [../notes-child]\n        max_calls: 1\n        outputs:\n          done: {type: boolean}\n",
+        "export default async function (ctx, { value }) {\n  await ctx.skill(\"../notes-child\", { value: `${value}, revised` }, { reuse: { max_age_seconds: 604800 } });\n  return { done: true };\n}\n",
+    )?;
+    let ran = run_managed(temp.path(), revised)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NoCandidate));
+
+    let skill_dir = write_reusing_parent(temp.path(), "notes-child")?;
+    let ran = run_managed(temp.path(), skill_dir.clone())?;
+    assert_reused_from(temp.path(), &ran, &source)?;
+    let manual = temp.path().join("notes-child/SKILL.md");
+    std::fs::write(
+        &manual,
+        format!(
+            "{}\nRead it once more.\n",
+            std::fs::read_to_string(&manual)?
+        ),
+    )?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    assert_eq!(first_decision(temp.path(), &ran)?, recomputed(NoCandidate));
+    Ok(())
+}

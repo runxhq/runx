@@ -1162,3 +1162,131 @@ fn an_observation_is_kept_with_a_siblings_provider_read_still_running() -> TestR
     );
     turn_complete(&session)
 }
+
+/// A stopped batch keeps what it settled (§4.8, "Steering a batch"): of
+/// three items, run one at a time, the first settles, the second's read is in
+/// flight and the third hasn't started when the host stops the batch. The
+/// second's read stops and the third never starts, both settling
+/// `cancelled`, since neither did anything, and the batch returns the first's
+/// result with the two it didn't finish. The agent's next call starts the
+/// batch again over the rest, and it completes.
+#[test]
+fn a_stopped_batch_keeps_its_settled_results_and_a_new_call_runs_the_rest() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    crate::support::write_test_skill_package(
+        &root.join("item"),
+        "---\nname: item\ndescription: One item, quick or held.\n---\n# Item\n\nDo it.\n",
+        &format!(
+            "minimum_runx: 0.12.0\nmethods:\n  quick:\n    inputs:\n      name: {{type: string}}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {{value: $input.name, encoding: utf8_text}}\n  held:\n    inputs:\n      name: {{type: string}}\n    steps:\n      - id: read\n        operation: gate/gate.wait\n        inputs: {{started: \"{}\", release: \"{}\"}}\n",
+            on.display(),
+            off.display()
+        ),
+    )?;
+    let batch = root.join("batch");
+    crate::support::write_test_skill_package(
+        &batch,
+        "---\nname: batch\ndescription: Runs each item, one at a time.\n---\n# Batch\n\nRun them.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  run:
+    inputs:
+      items: {type: array}
+    steps:
+      - id: run
+        script: {module: run.mjs}
+        inputs: {items: $input.items}
+        calls:
+          skills: [../item#quick, ../item#held]
+        max_calls: 3
+        outputs:
+          done: {type: array}
+          left: {type: array}
+"#,
+    )?;
+    std::fs::write(
+        batch.join("run.mjs"),
+        r#"export default async function (ctx, { items }) {
+  const settled = await Promise.allSettled(
+    items.map(({ name, held }) => ctx.skill(held ? "../item#held" : "../item#quick", { name })),
+  );
+  const done = [], left = [];
+  settled.forEach((one, at) => {
+    if (one.status === "fulfilled") done.push(items[at].name);
+    else if (one.reason.code === "cancelled") left.push(items[at].name);
+    else throw one.reason;
+  });
+  return { done, left };
+}
+"#,
+    )?;
+    let skill = asker(root, "          skills: [../batch]\n")?;
+    let (run_id, session) = open(root, skill)?;
+    let calling = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let items = input(serde_json::json!({"items": [
+            {"name": "a", "held": false},
+            {"name": "b", "held": true},
+            {"name": "c", "held": true},
+        ]}))?;
+        move || session.call(TURN, "skill__batch", None, items)
+    });
+    // a has settled, b's read is in flight, and c waits its turn.
+    started(&on)?;
+    assert_eq!(session.cancel("answer/0#run/2")?, CallCancel::Cancelled);
+    assert_eq!(
+        session.cancel("answer/0#run/1")?,
+        CallCancel::SettlesAsItEnds
+    );
+    let called = calling.join().map_err(|_| "the batch panicked")??;
+    let TurnCallOutcome::Completed { output, .. } = &called.outcome else {
+        return Err(format!("the stopped batch returned: {called:?}").into());
+    };
+    assert_eq!(
+        serde_json::to_value(output)?,
+        serde_json::json!({"done": ["a"], "left": ["b", "c"]})
+    );
+    // Each call is recorded as it's admitted, all three at once; then a
+    // settles, and b and c settle cancelled, the cancel beside each.
+    let mut recorded = calls(root, &run_id, &format!("{run_id}/answer/0"))?;
+    let mut settled_after = recorded.split_off(4);
+    settled_after.sort_unstable();
+    assert_eq!(
+        recorded,
+        [
+            (0, "child", false),
+            (1, "child", false),
+            (2, "child", false),
+            (0, "completed", false),
+        ]
+    );
+    assert_eq!(
+        settled_after,
+        [(1, "cancelled", true), (2, "cancelled", true)],
+        "only the first item settled as done"
+    );
+
+    let again = session.call(
+        TURN,
+        "skill__batch",
+        None,
+        input(serde_json::json!({"items": [
+            {"name": "b", "held": false},
+            {"name": "c", "held": false},
+        ]}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &again.outcome else {
+        return Err(format!("the batch over the rest completed: {again:?}").into());
+    };
+    assert_eq!(
+        serde_json::to_value(output)?,
+        serde_json::json!({"done": ["b", "c"], "left": []})
+    );
+    turn_complete(&session)
+}
