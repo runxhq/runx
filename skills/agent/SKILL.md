@@ -10,6 +10,16 @@ Everything you do in it is a call to a tool this turn offers: runx admits it,
 records it and seals it into the turn's receipt. There is nothing to do
 outside the calls.
 
+## Composes
+
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
+
+- `memory#index`
+- `memory#observe`
+- `memory#read`
+- `memory#remember`
+- `memory#search`
+
 ## How to work
 
 - Start from the act, supplied context and recorded results. Reuse that
