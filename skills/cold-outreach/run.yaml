@@ -259,13 +259,13 @@ methods:
               properties:
                 applied:
                   type: array
-                  description: Bind only evidence_context.writing_contexts. Return an empty array when writing_contexts is empty. Source digests and host VOICE.md profiles do not belong here.
+                  description: Bind only evidence_context.writing_contexts. Return an empty array when writing_contexts is empty.
                   items:
                     type: object
                     properties:
                       packet_digest:
                         type: string
-                        description: Copy the exact packet_digest of an admitted writing_contexts entry, never a factual source_digest.
+                        description: The packet_digest of the admitted writing_contexts entry this binds.
                       applied_rules:
                         type: array
                         items:

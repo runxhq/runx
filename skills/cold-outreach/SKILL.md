@@ -122,9 +122,7 @@ repeats the evidence context's `objective`, `audience` and `channel` exactly.
 for every material claim. Add a review checklist and distribution notes, and
 list in `context_binding.applied` only packets from
 `evidence_context.writing_contexts`. When that array is empty, return
-`context_binding: {applied: []}`. Factual `source_digests` belong in claims;
-they are never writing-context packet digests. Host writing profiles such as
-`VOICE.md` guide style but are not admitted packets to cite here.
+`context_binding: {applied: []}`.
 For each admitted writing context, copy its exact `packet_digest`, select only
 the `rules` you used, and supply `scope_review: {decision, reason}` with decision
 `applies`, `out_of_scope` or `uncertain`. Never invent a packet or rule to fill

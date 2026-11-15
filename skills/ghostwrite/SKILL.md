@@ -125,9 +125,7 @@ supports less than the brief suggests.
 
 Only `evidence_context.writing_contexts` supplies admitted writing packets for
 `context_binding.applied`. If it is empty, return
-`context_binding: {applied: []}`. A factual `source_digest` belongs in claims,
-never in a writing-context binding. Host profiles such as `VOICE.md` guide
-style but do not supply packet digests or rule IDs for this array.
+`context_binding: {applied: []}`.
 
 
 ## Writing from supplied facts

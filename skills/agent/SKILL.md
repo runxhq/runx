@@ -15,8 +15,7 @@ outside the calls.
 - Start from the act, supplied context and recorded results. Reuse that
   evidence before looking for files or collecting it again. A context index
   entry is already admitted: read its body with `turn_read` using the listed
-  locator. Its summary can name an attached file without making that file a
-  workspace path.
+  locator.
 - Read before you change anything. `fs.read`, `fs.list`, `fs.search` and the
   `git` tools return what is there, with each file's digest. `fs.read` reads
   a file's lines from `start_line`, 2000 at most by default, and says how

@@ -123,11 +123,9 @@ product gap. Do not invent a private workaround.
 
 3. Route to governed lanes.
    - Route the action being proposed now, not the broader subject of the
-     objective. Inspecting source code is a source-inspection task, even when
-     the code belongs to payments or deployment. Use the supplied source owner
-     or an inspected read interface; a payment method is not a file reader.
-     Requirements of a possible later effect do not block a current read that
-     does not need those credentials, approval or provider bindings.
+     objective, to a lane whose method does that action. Requirements of a
+     possible later effect do not block a current read that does not need
+     those credentials, approval or provider bindings.
    - Reuse a retained inspection when it establishes the exact proposed method.
      Otherwise inspect that skill with `registry.inspect` before naming its
      method and inputs; use one targeted `registry.search` only when the owner
