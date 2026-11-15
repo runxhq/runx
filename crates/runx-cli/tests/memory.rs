@@ -1077,9 +1077,12 @@ fn the_bundled_agents_turn_is_given_the_memory_its_run_may_read() -> TestResult 
         );
     }
 
-    // With no term the run starts as before, and its turn is given no
-    // memory.
+    // With no term, or a term whose packages leave memory out, the run starts
+    // as before, and its turn is given no memory.
     assert!(memory_given(&memory.agent_read(None)?)?.is_empty());
+    let mut agent_only: Value = serde_json::from_str(&agents_memory())?;
+    agent_only["delegations"][0]["terms"][0]["bounds"]["packages"] = json!(["runx/agent"]);
+    assert!(memory_given(&memory.agent_read(Some(&agent_only.to_string()))?)?.is_empty());
     Ok(())
 }
 

@@ -1338,35 +1338,31 @@ fn readiness(
                         .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
                         .collect::<Vec<_>>();
                     usage_approval = usage_approval_required(spec, money_limit, &limits);
-                    if let Some(detail) = delegated.uncovered(chain) {
-                        reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail);
-                    } else if is_private(&connector) && !delegated.stated && starting {
-                        // A run whose host states no term reads none of the
-                        // person's data. That isn't a reason not to start:
-                        // each call it makes is refused, and a script decides
-                        // what that means, as memory passes over a stream it
-                        // can't read.
-                        reasons.pass(
-                            AdmissionCheck::Delegation,
-                            format!(
-                                "the run states no term for {}, so each call it makes there is refused",
-                                connector.name
-                            ),
-                        );
-                    } else if is_private(&connector) && !delegated.stated {
-                        reasons.push(
-                            AdmissionCheck::Delegation,
-                            CheckOutcome::Fail,
+                    let refused = delegated.uncovered(chain).or_else(|| {
+                        (is_private(&connector) && !delegated.stated).then(|| {
                             format!(
                                 "every {} call needs a term, and the run's authority states none for this instance: save an authority with a delegation on it with runx authority save <name> <file>, and name it with --authority <name>",
                                 connector.name
-                            ),
-                        );
-                    } else {
-                        reasons.pass(
+                            )
+                        })
+                    });
+                    match refused {
+                        // A run whose host gives these calls no term reads
+                        // none of the person's data from here. That isn't a
+                        // reason not to start: each call is refused, and a
+                        // script decides what that means, as memory passes
+                        // over a stream it can't read.
+                        Some(detail) if is_private(&connector) && starting => reasons.pass(
+                            AdmissionCheck::Delegation,
+                            format!("each call made here is refused, and the script decides what that means: {detail}"),
+                        ),
+                        Some(detail) => {
+                            reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail);
+                        }
+                        None => reasons.pass(
                             AdmissionCheck::Delegation,
                             "applicable delegation terms are valid",
-                        );
+                        ),
                     }
                 }
                 Err(detail) => reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail),
