@@ -13,10 +13,36 @@ pub(crate) fn assert_json_expectation(
             Err(json_mismatch(format!("{field}.exact"), exact, actual))
         }
         TestJsonExpectation::Exact { .. } => Ok(()),
-        TestJsonExpectation::Subset { subset } => {
-            assert_json_subset(subset, actual, &format!("{field}.subset"))
+        TestJsonExpectation::Subset { subset, absent } => {
+            assert_json_subset(subset, actual, &format!("{field}.subset"))?;
+            for pointer in absent {
+                if let Some(found) = at_pointer(actual, pointer) {
+                    return Err(TestReplayError::Mismatch {
+                        field: format!("{field}.absent {pointer}"),
+                        expected: "<absent>".to_owned(),
+                        actual: json_value_text(found),
+                    });
+                }
+            }
+            Ok(())
         }
     }
+}
+
+/// The value at the JSON pointer `pointer` in `value` (RFC 6901), if any.
+fn at_pointer<'a>(value: &'a JsonValue, pointer: &str) -> Option<&'a JsonValue> {
+    let tokens = pointer.strip_prefix('/')?;
+    tokens.split('/').try_fold(value, |at, token| {
+        let token = token.replace("~1", "/").replace("~0", "~");
+        match at {
+            JsonValue::Object(object) => object.get(&token),
+            JsonValue::Array(items) => token
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| items.get(index)),
+            _ => None,
+        }
+    })
 }
 
 fn assert_json_subset(
@@ -98,6 +124,33 @@ mod tests {
         assert!(
             assert_json_expectation(&expected, &JsonValue::Bool(false), "expect.output").is_err()
         );
+    }
+
+    /// A pointer in `absent` passes when nothing is there, and fails on any
+    /// value, `null` included, through objects and arrays alike.
+    #[test]
+    fn absent_fields_are_named_by_pointer_and_null_is_present()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let expectation = TestJsonExpectation::Subset {
+            subset: serde_json::from_value(serde_json::json!({"decision": "hold"}))?,
+            absent: vec!["/eligibility".to_owned(), "/items/1/a~1b".to_owned()],
+        };
+        let passes = serde_json::from_value(serde_json::json!({
+            "decision": "hold",
+            "items": [{"a/b": 1}, {"other": 2}]
+        }))?;
+        assert!(assert_json_expectation(&expectation, &passes, "expect.output").is_ok());
+        for present in [
+            serde_json::json!({"decision": "hold", "eligibility": null}),
+            serde_json::json!({"decision": "hold", "items": [{}, {"a/b": 1}]}),
+        ] {
+            let present = serde_json::from_value(present)?;
+            assert!(
+                assert_json_expectation(&expectation, &present, "expect.output").is_err(),
+                "{present:?}"
+            );
+        }
+        Ok(())
     }
 
     #[test]

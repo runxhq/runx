@@ -16,6 +16,29 @@ fn output_expectations_preserve_explicit_null() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+/// `absent` names fields that must not be there, by JSON pointer, beside
+/// a subset; a pointer that doesn't start at the root is refused.
+#[test]
+fn a_subset_names_absent_fields_by_json_pointer() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = parse_test_fixture(
+        "name: absent\nexpect:\n  output:\n    subset: {decision: hold}\n    absent: [/contact_eligibility]\n",
+    )?;
+    assert_eq!(
+        fixture.expect.output,
+        Some(TestJsonExpectation::Subset {
+            subset: serde_json::from_value(serde_json::json!({"decision": "hold"}))?,
+            absent: vec!["/contact_eligibility".to_owned()],
+        })
+    );
+    for fixture in [
+        "name: bare\nexpect:\n  output:\n    subset: {}\n    absent: [contact_eligibility]\n",
+        "name: step\nexpect:\n  step_outputs:\n    work:\n      subset: {}\n      absent: [contact_eligibility]\n",
+    ] {
+        assert!(parse_test_fixture(fixture).is_err(), "{fixture}");
+    }
+    Ok(())
+}
+
 #[test]
 fn every_json_expectation_requires_exactly_one_mode() {
     for invalid in ["{}", "{exact: 1, subset: 1}"] {

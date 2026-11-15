@@ -33,8 +33,8 @@ expect:
           decision: needs_more_evidence
           fit: unknown
           subject: {id: 'lead:example', kind: person}
-          contact_eligibility: null
           next_action: request_evidence
           blockers: [contact eligibility belongs to a different or unbound subject, not every supplied criterion was assessed]
           external_status: not_executed
+      absent: [/lead_qualification/contact_eligibility]
   receipt: {schema: runx.receipt.v1}

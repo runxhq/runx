@@ -30,5 +30,6 @@ expect:
   step_outputs:
     finalize:
       subset:
-        lead_qualification: {decision: hold, fit: fit, next_action: resolve_contact_policy, contact_eligibility: null, external_status: not_executed}
+        lead_qualification: {decision: hold, fit: fit, next_action: resolve_contact_policy, external_status: not_executed}
+      absent: [/lead_qualification/contact_eligibility]
   receipt: {schema: runx.receipt.v1}

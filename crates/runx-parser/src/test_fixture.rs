@@ -288,8 +288,17 @@ pub struct TestExpectation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum TestJsonExpectation {
-    Exact { exact: JsonValue },
-    Subset { subset: JsonValue },
+    Exact {
+        exact: JsonValue,
+    },
+    /// The fields `subset` names hold those values, and nothing is at each
+    /// JSON pointer `absent` names. A `null` in `subset` is a value the field
+    /// holds, so a field that must not be there at all is named in `absent`.
+    Subset {
+        subset: JsonValue,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        absent: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -397,6 +406,9 @@ pub fn validate_test_host(host: TestHost) -> Result<TestHost, TestFixtureError> 
                     field: format!("host.turns.{id}.calls[{index}].tool"),
                     message: "must name a tool the turn offers".to_owned(),
                 });
+            }
+            if let Some(expect) = &call.expect {
+                check_json_expectation(expect, &format!("host.turns.{id}.calls[{index}].expect"))?;
             }
         }
     }
@@ -807,9 +819,36 @@ fn validate_expectation(
             .transpose()?,
         steps: expectation.steps,
         http_request_counts: expectation.http_request_counts,
-        output: expectation.output,
-        step_outputs: expectation.step_outputs,
+        output: expectation
+            .output
+            .map(|output| check_json_expectation(&output, "expect.output").map(|()| output))
+            .transpose()?,
+        step_outputs: expectation
+            .step_outputs
+            .into_iter()
+            .map(|(step, output)| {
+                check_json_expectation(&output, &format!("expect.step_outputs.{step}"))
+                    .map(|()| (step, output))
+            })
+            .collect::<Result<_, _>>()?,
     })
+}
+
+/// Each pointer an expectation's `absent` names is a JSON pointer into the
+/// value (RFC 6901), so it starts at the root.
+fn check_json_expectation(
+    expectation: &TestJsonExpectation,
+    field: &str,
+) -> Result<(), TestFixtureError> {
+    if let TestJsonExpectation::Subset { absent, .. } = expectation
+        && let Some(pointer) = absent.iter().find(|pointer| !pointer.starts_with('/'))
+    {
+        return Err(TestFixtureError::Invalid {
+            field: format!("{field}.absent"),
+            message: format!("{pointer:?} is not a JSON pointer, which starts with /"),
+        });
+    }
+    Ok(())
 }
 
 fn validate_receipt_expectation(
