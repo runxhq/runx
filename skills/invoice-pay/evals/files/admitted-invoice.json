@@ -1,5 +1,5 @@
 {
-  "about": "Non-live invoice inputs; this JSON does not create an admitted run, grant or approval. The native payment_continuation test starts this invoice, pauses on its real approval, resumes the same run with its exact request digest, checks one payment and resource read, and resumes the sealed result without paying again. Provider replies are isolated fixtures, not live settlement.",
+  "about": "The admitted invoice payment as it was started: the invoice, its payee, the parent payment authority, the request and its idempotency seed. Non-live fixture data: no approval, grant, payment or readback.",
   "invoice_id": "INV-2026-0042",
   "amount_minor": 4200,
   "currency": "USD",

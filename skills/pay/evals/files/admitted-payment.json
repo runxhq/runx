@@ -1,5 +1,5 @@
 {
-  "about": "Non-live payment inputs. The native payment_continuation case creates the actual pending approval and resumes its original run, checking zero pre-approval submissions, one payment/readback pair, exact original request/mandate, and no new payment on sealed resume. This attachment creates no native state, authority, approval, live wallet settlement or verified inner receipt.",
+  "about": "The admitted payment as it was started: its connector, request, parent payment authority and idempotency seed. Non-live fixture data: no approval, wallet settlement or readback.",
   "connector": "wallet/evm",
   "request": {
     "resource": {

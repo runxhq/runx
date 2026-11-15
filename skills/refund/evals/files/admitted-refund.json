@@ -1,5 +1,5 @@
 {
-  "about": "Non-live refund inputs. The native payment_continuation case creates a real pending refund approval, resumes its original run, checks one exact refund and independent read, and proves sealed resume sends nothing again. This attachment creates no native state, merchant grant, approval or live settlement evidence.",
+  "about": "The admitted refund as it was started: its connector, the request naming the original payment, and its idempotency seed. Non-live fixture data: no approval, grant, settlement or readback.",
   "connector": "coinbase/cdp",
   "request": {
     "resource": "https://seller.example/v1/reports/launch",
