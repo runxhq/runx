@@ -191,6 +191,12 @@ workspace checks or the affected crate tests before the required full gate.
 Run heavy Rust gates sequentially; concurrent gates can starve the eval binary
 and cause false timeouts.
 
+A change to the runtime, the parser or the test language changes what every
+skill's tests mean, so before it's pushed, `pnpm test:sweep` runs every skill's
+tests against it, first-party and vendor alike. CI sweeps only the core skills
+the binary bundles, and the registry tests the rest only when a deploy
+publishes them, which is too late to find a skill the change broke.
+
 Validation profiles (`light`, `standard`, `strict`) and their check pipelines are defined in `config.yaml`. Agents select a profile based on `task.acceptance.validation_profile` or derive from `task.risk_level` (low→light, medium→standard, high→strict).
 
 **Per-phase:** Run configured checks after each phase completes.
