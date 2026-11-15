@@ -92,7 +92,7 @@ test("the guard fails on a key the format removes where it's written as one, and
   assert.match(run.stdout, /, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 8 of a key the format removes and 0 paths holding a retired word, in 4 files\n$/);
 });
 
-test("the guard fails on a path whose own name holds a retired word, once per path, and passes a path stay and another word", (t) => {
+test("the guard fails on a path whose own name holds a retired word, once per path, and passes a path stay, a name the repo keeps and another word", (t) => {
   const root = tree(t, {
     "crates/runx-runtime/src/skill_package/runner.rs": "pub mod turn;\n",
     "crates/runx-runtime/src/skill_package/runner/turn.rs": "pub fn turn() {}\n",
@@ -104,6 +104,7 @@ test("the guard fails on a path whose own name holds a retired word, once per pa
     "release/notes/0.10-runner.md": "Old notes.\n",
     "docs/paragraph_runners-guide.txt": "A paragraph.\n",
     "docs/paragraph.md": "A paragraph.\n",
+    "crates/runx-contracts/src/test_runner.rs": "pub fn run() {}\n",
   });
   const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);

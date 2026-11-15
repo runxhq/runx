@@ -56,8 +56,12 @@ function files(root) {
   return tracked(root).filter((file) => !NOT_OURS.test(file) && SOURCE.test(file) && !LOCKFILE.test(path.basename(file)) && !HISTORY.test(file) && !GENERATED.test(file));
 }
 
-/** Each file and folder whose own name holds a retired word, in order, with no path stay. */
-function stalePaths(root) {
+/**
+ * Each file and folder whose own name holds a retired word, in order, with no
+ * path stay, and whose stem isn't a name the repo's rows keep, as the rename
+ * keeps it: a file's stem is its name before its first dot.
+ */
+function stalePaths(root, names) {
   const paths = new Set();
   for (const file of tracked(root)) {
     const parts = file.split("/");
@@ -68,7 +72,8 @@ function stalePaths(root) {
     .filter((one) => !/(^|\/)vendor\/./.test(one))
     .flatMap((one) => {
       const retired = retiredInPath(one);
-      return retired && !pathStayFor(one) ? [{ path: one, ...retired }] : [];
+      const stem = retired?.name.split(".")[0];
+      return retired && !pathStayFor(one) && names.get(stem) !== stem ? [{ path: one, ...retired }] : [];
     });
 }
 
@@ -132,7 +137,7 @@ function main([repo, root, ...rest]) {
       }
     });
   }
-  for (const stale of stalePaths(root)) {
+  for (const stale of stalePaths(root, names)) {
     found.path += 1;
     if (list) process.stdout.write(`${stale.path}\tpath\t${stale.word}\t${stale.name}\n`);
   }
