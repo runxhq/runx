@@ -3216,3 +3216,93 @@ methods:
     assert_eq!(trees.trees[0].receipt_count, budget);
     Ok(())
 }
+
+/// The host's context is the session's (D31, D48): every turn of the root
+/// run's own package is given it, a turn in a child of that same package
+/// included, and a turn of another package is given what a subagent is:
+/// its inputs and the instructions every turn reads, never the session's
+/// context.
+#[test]
+fn the_hosts_context_reaches_its_own_packages_turns_and_never_another_packages() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    crate::support::write_test_skill_package(
+        &root.join("ctx-other"),
+        "---\nname: ctx-other\ndescription: Answers.\n---\n# Other\n\n## Agent task: answer\n\nAnswer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let skill = root.join("ctx-root");
+    crate::support::write_test_skill_package(
+        &skill,
+        "---\nname: ctx-root\ndescription: Answers itself or through another skill.\n---\n# Root\n\n## Agent task: answer\n\nAnswer.\n",
+        r#"minimum_runx: 0.12.0
+default_method: answer
+methods:
+  answer:
+    steps:
+      - id: answer
+        agent: answer
+        outputs:
+          answer: {type: string}
+  own:
+    steps:
+      - id: own
+        skill: .#answer
+  other:
+    steps:
+      - id: other
+        skill: ../ctx-other#answer
+"#,
+    )?;
+    let supplied: runx_contracts::ContextEntry = serde_json::from_value(serde_json::json!({
+        "schema": "runx.context_entry.v1",
+        "type": "host.note",
+        "summary": "What the host knows",
+        "data": {"note": "The person is travelling this week."},
+        "labels": {"purpose": "confirmed_memory", "trust": "person_confirmed", "sharing": "configured_model"},
+        "sources": ["host"],
+        "origin": {
+            "artifact_id": "host:note",
+            "producer": {"skill": "host", "method": "note"},
+            "created_at": "2026-11-15T00:00:00Z",
+            "digest": "sha256:note",
+            "size_bytes": 36,
+        },
+    }))?;
+    // How many entries of the host's context the turn the run waits on was
+    // given.
+    let given = |method: &str| -> TestResult<usize> {
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: vec![supplied.clone()],
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill.clone(),
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            Some(method),
+            None,
+            None,
+        )?;
+        let output = serde_json::to_value(&started.output)?;
+        Ok(
+            output["requests"][0]["invocation"]["envelope"]["current_context"]
+                .as_array()
+                .ok_or_else(|| format!("{method} waits on a turn with its context: {output}"))?
+                .iter()
+                .filter(|entry| entry["summary"] == "What the host knows")
+                .count(),
+        )
+    };
+    assert_eq!(given("answer")?, 1, "the root's own turn");
+    assert_eq!(given("own")?, 1, "a turn in a child of its own package");
+    assert_eq!(given("other")?, 0, "a turn of another package");
+    Ok(())
+}

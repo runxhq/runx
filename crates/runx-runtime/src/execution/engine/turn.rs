@@ -1488,17 +1488,25 @@ where
             .iter()
             .filter_map(|fed| fed.edge.clone())
             .collect::<Vec<_>>();
+        let chain = super::step_handlers::child_chain_at(
+            options,
+            self.scope.workflow_dir,
+            &call.step,
+            skill,
+        )?;
+        // What the child is given, as the child run itself starts with it.
+        let (current_context, _) = super::step_handlers::child_context(
+            options,
+            self.scope.workflow_dir,
+            &chain,
+            &call.context,
+        )?;
         Ok(crate::execution::reuse::Today {
             options,
             local_artifacts: &self.scope.runtime.local_artifacts,
             skill,
             act: call.act.as_ref(),
-            current_context: options
-                .current_context
-                .iter()
-                .chain(&call.context)
-                .cloned()
-                .collect(),
+            current_context,
             run_id: options.run.child_id(&call.step.id),
             authority: crate::RunAuthority::of_child(
                 options.run_authority.clone(),
@@ -1506,12 +1514,7 @@ where
                 &skill.method.workflow,
             ),
             env: super::step_handlers::child_env(options, skill),
-            chain: super::step_handlers::child_chain_at(
-                options,
-                self.scope.workflow_dir,
-                &call.step,
-                skill,
-            )?,
+            chain,
             inherited: crate::execution::workflow::inherited_step_provenance(
                 &skill.method.workflow,
                 &given,

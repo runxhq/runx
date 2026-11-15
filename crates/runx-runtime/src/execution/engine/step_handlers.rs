@@ -487,6 +487,12 @@ where
         Some(source) => reused_workflow_run(request.runtime, skill.method.workflow, source)?,
         None => {
             let chain = child_chain(&request, &skill)?;
+            let (current_context, historical_context) = child_context(
+                &request.runtime.options,
+                request.workflow_dir,
+                &chain,
+                &request.context_entries,
+            )?;
             execute_nested_workflow(
                 request.runtime,
                 request.host,
@@ -501,7 +507,8 @@ where
                     skill_directory: &skill.directory,
                     admitted: skill.admitted.as_ref(),
                     chain,
-                    context: &request.context_entries,
+                    current_context,
+                    historical_context,
                 },
             )?
         }
@@ -630,9 +637,38 @@ struct NestedWorkflow<'a> {
     /// The child run's chain: its parent's, then the package the step
     /// reached.
     chain: Vec<crate::identity::ChainLink>,
-    /// The context the step gives its child: a script's skill call's
-    /// entries, which the child's turns read after its parent's.
-    context: &'a [ContextEntry],
+    /// The context the child run starts with ([`child_context`]).
+    current_context: Vec<ContextEntry>,
+    historical_context: Vec<ContextEntry>,
+}
+
+/// The context a child run starts with (D31, D48): its parent's, when it
+/// runs the same package, incorporated code included, so a host's context
+/// stays within the package it was given to; and what its call passes it,
+/// either way. A child of another package is given what a subagent is: its
+/// inputs, what it's passed, and the instructions every turn reads.
+pub(crate) fn child_context(
+    options: &crate::execution::engine::RuntimeOptions,
+    workflow_dir: &Path,
+    child_chain: &[crate::identity::ChainLink],
+    passed: &[ContextEntry],
+) -> Result<(Vec<ContextEntry>, Vec<ContextEntry>), RuntimeError> {
+    let parent = options.chain_at(workflow_dir)?;
+    let shared = match (parent.last(), child_chain.last()) {
+        (Some(parent), Some(child)) => parent.package == child.package,
+        // A workflow no package runs holds no package to stay within.
+        _ => true,
+    };
+    let (mut current, historical) = if shared {
+        (
+            options.current_context.clone(),
+            options.historical_context.clone(),
+        )
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    current.extend(passed.iter().cloned());
+    Ok((current, historical))
 }
 
 /// The chain of the child run `skill` starts from the step in `request`: the
@@ -733,9 +769,8 @@ where
         child_options.packages = Some(admitted.clone());
     }
     child_options.chain = nested.chain;
-    child_options
-        .current_context
-        .extend(nested.context.iter().cloned());
+    child_options.current_context = nested.current_context;
+    child_options.historical_context = nested.historical_context;
     let child_adapter: Box<dyn SkillAdapter + '_> =
         Box::new(BorrowedSkillAdapter::new(&runtime.configured_adapter));
     let child_runtime = Runtime::with_native_services(
