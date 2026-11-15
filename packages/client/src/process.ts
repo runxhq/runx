@@ -38,7 +38,7 @@ export interface ProcessResult {
 export function invoke(options: ProcessOptions): Promise<ProcessResult> {
   if (options.signal?.aborted) return Promise.reject(new RunxClientError("aborted", "runx invocation aborted."));
   if (Buffer.byteLength(options.input ?? "") > options.maxInputBytes) {
-    return Promise.reject(new RunxClientError("input_limit", `Runx input exceeds ${options.maxInputBytes} bytes.`));
+    return Promise.reject(new RunxClientError("input_limit", `runx input exceeds ${options.maxInputBytes} bytes.`));
   }
   return new Promise((resolve, reject) => {
     const detached = process.platform !== "win32";
@@ -87,17 +87,17 @@ export function invoke(options: ProcessOptions): Promise<ProcessResult> {
     };
     const abort = () => terminate(new RunxClientError("aborted", "runx invocation aborted."));
     options.signal?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(() => terminate(new RunxClientError("timeout", `Runx invocation timed out after ${options.timeoutMs}ms.`)), options.timeoutMs);
+    const timer = setTimeout(() => terminate(new RunxClientError("timeout", `runx invocation timed out after ${options.timeoutMs}ms.`)), options.timeoutMs);
     const capture = (target: Buffer[], chunk: Buffer) => {
       if (failure) return;
       capturedBytes += chunk.byteLength;
       if (capturedBytes > options.maxOutputBytes) {
-        terminate(new RunxClientError("output_limit", `Runx output exceeds the ${options.maxOutputBytes}-byte output limit.`));
+        terminate(new RunxClientError("output_limit", `runx output exceeds the ${options.maxOutputBytes}-byte output limit.`));
       } else target.push(chunk);
     };
     child.stdout.on("data", (chunk: Buffer) => capture(stdout, chunk));
     child.stderr.on("data", (chunk: Buffer) => capture(stderr, chunk));
-    child.on("error", (error) => { failure ??= new RunxClientError("spawn", `Could not start Runx '${options.command}'.`, { cause: error }); });
+    child.on("error", (error) => { failure ??= new RunxClientError("spawn", `Could not start runx '${options.command}'.`, { cause: error }); });
     child.stdin.on("error", (error: NodeJS.ErrnoException) => {
       if (error.code !== "EPIPE") terminate(new RunxClientError("spawn", "Could not write runx input.", { cause: error }));
     });
@@ -113,7 +113,7 @@ export function invoke(options: ProcessOptions): Promise<ProcessResult> {
       if (escalation) clearTimeout(escalation);
       await windowsTermination;
       if (failure) reject(failure);
-      else if (signal) reject(new RunxClientError("signal", `Runx terminated by ${signal}.`));
+      else if (signal) reject(new RunxClientError("signal", `runx terminated by ${signal}.`));
       else resolve({ exitCode, stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8") });
     });
     child.stdin.end(options.input);

@@ -55,7 +55,7 @@ host:
                 - sha256:1111111111111111111111111111111111111111111111111111111111111111
         context_binding:
           applied:
-            - packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
+            - packet_digest: sha256:abd07f80d3c915d54ee1811724301380de4a70aca5675bbf496a2839f183ba6c
               applied_rules:
                 - Lead with governed action and proof.
               scope_review:
@@ -77,7 +77,7 @@ host:
             consequence: public_send
             rationale: Uses the admitted safe claim and voice principle.
         context_bindings:
-          - packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
+          - packet_digest: sha256:abd07f80d3c915d54ee1811724301380de4a70aca5675bbf496a2839f183ba6c
             applied_rules:
               - Lead with governed action and proof.
         gates:
@@ -109,7 +109,7 @@ expect:
           context_binding:
             required:
               - type: brand_voice
-                packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
+                packet_digest: sha256:abd07f80d3c915d54ee1811724301380de4a70aca5675bbf496a2839f183ba6c
           validation:
             status: pass
     social-plan:
@@ -117,7 +117,7 @@ expect:
         twitter_plan:
           decision: ready
           context_bindings:
-            - packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d
+            - packet_digest: sha256:abd07f80d3c915d54ee1811724301380de4a70aca5675bbf496a2839f183ba6c
               applied_rules:
                 - Lead with governed action and proof.
   receipt:

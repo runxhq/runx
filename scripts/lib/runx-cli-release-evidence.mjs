@@ -89,7 +89,7 @@ export function validateRunxCliReleaseNotes({ body, version, previousTag }) {
     throw new Error(`invalid previous CLI tag: ${previousTag}`);
   }
 
-  const title = `# Runx CLI ${version}`;
+  const title = `# runx CLI ${version}`;
   const summary = body
     .slice(title.length)
     .split(/^## /mu, 1)[0]

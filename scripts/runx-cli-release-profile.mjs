@@ -128,7 +128,7 @@ async function publish() {
       throw new Error(`local ${tag} points to ${localCommit}, expected ${commit}`);
     }
     if (!localCommit) run("git", ["tag", "-a", tag, "-m",
-      `Runx CLI ${version}\n\nrelease-candidate: ${selectedCandidate.runId}/${selectedCandidate.attempt}`]);
+      `runx CLI ${version}\n\nrelease-candidate: ${selectedCandidate.runId}/${selectedCandidate.attempt}`]);
     assertCandidateTag();
     run("git", ["push", "origin", `refs/tags/${tag}`]);
   }

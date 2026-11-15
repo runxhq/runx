@@ -98,8 +98,9 @@ export function proseSites(file, text) {
 }
 
 // Signed data verifies as its stored bytes, so a renamed field would break
-// it: a file, or a document's fenced block, that holds a signature.
-export const SIGNED = /"signature"\s*:/;
+// it: a file, or a document's fenced block, that holds a signature, or a
+// digest of its own decision, as an architecture record's check recomputes.
+export const SIGNED = /"(signature|decision_digest)"\s*:/;
 
 /** Each fenced block a Markdown document holds that carries a signature: signed text, left as written. */
 export function signedBlocks(file, text) {
@@ -156,6 +157,52 @@ export function codeProse(text, file) {
   return spans;
 }
 
+// The brand, capitalised as a word of its own: it's runx, lowercase, wherever
+// a person reads it, while a name such as `RunxPaths` is a token of its own.
+export const BRAND = "Runx";
+export const BRAND_READ = "runx";
+
+/**
+ * Where the brand is a word a person reads, which its case is for: in a code
+ * file, in a comment or a string that reads as words (`codeProse`), since
+ * elsewhere a name such as `Runx::new`, or the one-word string that names a
+ * script's `Runx` global, is code; in a Ruby file, its comments, since a
+ * Homebrew formula's class is the formula's name; in Markdown, outside its
+ * code; anywhere in other data. A word joined to a path or a call,
+ * `Identity::Runx`, `Runx.parseData` or `isFrozen(Runx)`, or a class's name,
+ * as a Homebrew formula a script renders has, names code wherever it's
+ * written, and so does a word inside backticks, counted from where its
+ * comment or string starts: a template literal's own backtick opens prose.
+ */
+export function brandSites(file, text) {
+  const lineStart = (at) => text.lastIndexOf("\n", at - 1) + 1;
+  const joined = (at, token) => {
+    const before = text.slice(lineStart(at), at);
+    const after = text.slice(at + token.length, at + token.length + 2);
+    return before.endsWith("::") || before.endsWith("(") || /\bclass $/.test(before) || /^(::|\.[A-Za-z]|\))/.test(after);
+  };
+  const ticked = (from, at) => (text.slice(from, at).match(/`/g) ?? []).length % 2 === 1;
+  const inLine = (at, token) => !joined(at, token) && !ticked(lineStart(at), at);
+  const commentAt = (at, marker) => {
+    const found = text.slice(lineStart(at), at).search(marker);
+    return found < 0 ? undefined : lineStart(at) + found;
+  };
+  if (file.endsWith(".md")) {
+    const code = markdownCode(text);
+    return (at, token) => !code.some(([from, to]) => at >= from && at < to) && inLine(at, token);
+  }
+  if (file.endsWith(".rb")) return (at, token) => commentAt(at, /#/) !== undefined && inLine(at, token);
+  if (!STRINGS.test(file)) return inLine;
+  const prose = codeProse(text, file);
+  const marker = file.endsWith(".py") ? /#/ : /\/\/|^\s*\*|\/\*/;
+  return (at, token) => {
+    if (joined(at, token)) return false;
+    const span = prose.find(([from, to]) => at >= from && at < to);
+    const from = span ? span[0] : commentAt(at, marker);
+    return from !== undefined && !ticked(from, at);
+  };
+}
+
 /**
  * Each string literal in a code file, outside its comments: its text, or a
  * template literal's text pieces between its ${...} expressions.
@@ -199,7 +246,8 @@ export function stringLiterals(text, file) {
       continue;
     }
     if (c === "`" && js) {
-      // A template literal's text, in pieces between its ${...} expressions.
+      // A template literal's text, in pieces between its ${...} expressions,
+      // and each string an expression holds, which is a string of its own.
       let j = i + 1;
       let from = j;
       const pieces = [];
@@ -209,7 +257,11 @@ export function stringLiterals(text, file) {
           pieces.push([from, j]);
           let depth = 1;
           j += 2;
+          const inner = j;
           while (j < text.length && depth > 0) { if (text[j] === "{") depth += 1; else if (text[j] === "}") depth -= 1; j += 1; }
+          for (const literal of stringLiterals(text.slice(inner, j - 1), file)) {
+            literals.push({ ...literal, pieces: literal.pieces.map(([a, b]) => [a + inner, b + inner]) });
+          }
           from = j;
           continue;
         }

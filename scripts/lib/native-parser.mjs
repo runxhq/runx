@@ -21,7 +21,7 @@ export function resolveNativeRunxBinary(env = process.env) {
   const resolved = path.isAbsolute(candidate) ? candidate : path.resolve(workspaceRoot, candidate);
   if (!existsSync(resolved)) {
     throw new Error(
-      `native Runx parser is missing at ${resolved}; build it with cargo build --manifest-path crates/Cargo.toml -p runx-cli --bin runx`,
+      `native runx parser is missing at ${resolved}; build it with cargo build --manifest-path crates/Cargo.toml -p runx-cli --bin runx`,
     );
   }
   return resolved;
@@ -46,7 +46,7 @@ export function listToolPacketDeclarations(env = process.env) {
     if (item?.status !== "ok" || !Array.isArray(item.packets)) return [];
     return item.packets.map((output) => {
       if (typeof output?.packet !== "string" || output.packet.length === 0) {
-        throw new Error(`native Runx tool '${String(item?.name ?? "unknown")}' exposed an invalid packet declaration`);
+        throw new Error(`native runx tool '${String(item?.name ?? "unknown")}' exposed an invalid packet declaration`);
       }
       return {
         packetId: output.packet,

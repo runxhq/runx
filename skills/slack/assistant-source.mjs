@@ -19,7 +19,7 @@ export function decideAssistantRequest(inputs) {
   const root = Array.isArray(messages) ? messages[0] : null;
   const rootAuthor = object(object(root).author);
   const rootText = text(object(root).preview).replace(/\s+/gu, " ").trim();
-  const requestMarker = `Approval needed for a paused Runx action. Request: ${nonce} Digest: ${requestDigest}`;
+  const requestMarker = `Approval needed for a paused runx action. Request: ${nonce} Digest: ${requestDigest}`;
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 15 ||
       object(root).message_locator !== presentationLocator ||
       !(rootAuthor.provider_actor_type === "app_or_bot" ||

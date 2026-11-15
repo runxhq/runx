@@ -490,7 +490,7 @@ function resolveRunxBinary(explicit) {
     ?? path.join(root, "crates", "target", "debug", process.platform === "win32" ? "runx.exe" : "runx");
   const resolved = path.resolve(root, candidate);
   if (!existsSync(resolved)) {
-    throw new Error(`native Runx CLI is required; build runx-cli or set RUNX_RUST_CLI_BIN (${resolved})`);
+    throw new Error(`native runx CLI is required; build runx-cli or set RUNX_RUST_CLI_BIN (${resolved})`);
   }
   return resolved;
 }

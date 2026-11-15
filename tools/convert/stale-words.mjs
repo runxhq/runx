@@ -5,23 +5,23 @@
 // meaning a method's steps, which is `workflow`, "execution closure", which is
 // a package's closure, its one meaning, "agent act", which is a turn, and
 // every key the format contract removes, as removed-keys.mjs reads them, and
-// the brand written `Runx`: it's runx, lowercase, wherever it's written,
-// while a name such as `RunxPaths` is a token of its own. It fails on any use of
-// a retired word outside what may keep it, which the rename reads
-// too: a name identifiers.tsv decides stays, such as `$RUNNER_OS`, and a bare
-// word one of words.mjs's stays keeps. History documents and signed data
-// can't truthfully change (§4.6), so they aren't read, and generated files
-// are as clean as the sources their generators read. A path is read too: each
-// file and folder whose own name holds a retired word fails, but where a path
-// stay in words.mjs keeps it, as history documents keep theirs.
+// the brand written `Runx` where a person reads it (words.mjs's brandSites).
+// It fails on any use of a retired word outside what may keep it, which the
+// rename reads too: a name the repo's rows of identifiers.tsv decide stays,
+// such as `$RUNNER_OS`, and a bare word one of words.mjs's stays keeps.
+// History documents and signed data can't truthfully change (§4.6), so they
+// aren't read, and generated files are as clean as the sources their
+// generators read. A path is read too: each file and folder whose own name
+// holds a retired word fails, but where a path stay in words.mjs keeps it, as
+// history documents keep theirs.
 //
-//   node tools/convert/stale-words.mjs <root> [--list]
+//   node tools/convert/stale-words.mjs <repo> <root> [--list]
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, STRINGS, bareWord, codeProse, fencedBlocks, markdownCode, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
+import { BRAND, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -33,39 +33,6 @@ const RETIRED = {
 };
 // "Execution closure" read as the old shape: a package's closure is its closure.
 const EXECUTION_CLOSURE = /(?<![A-Za-z])execution[ _-]?[Cc]losures?(?![a-z])|Execution[ _-]?[Cc]losures?(?![a-z])|(?<![A-Z])EXECUTION_CLOSURES?(?![A-Z])/g;
-// The brand, capitalised as a word of its own.
-const BRAND = "Runx";
-
-/**
- * Where a word is one a person reads, which the brand's case is for: in a
- * code file, in a comment or a string that reads as words (`codeProse`), since
- * elsewhere a name such as `Runx::new`, or the one-word string that names a
- * script's `Runx` global, is code; in a Ruby file, its comments, since a
- * Homebrew formula's class is the formula's name; in Markdown, outside its
- * code; anywhere in other data. A word joined to a path or a call,
- * `Identity::Runx`, `Runx.parseData` or `isFrozen(Runx)`, a class's name, as
- * a Homebrew formula a script renders has, or a word inside backticks, names
- * code wherever it's written.
- */
-function readSites(file, text) {
-  const named = (at, token) => {
-    const lineStart = text.lastIndexOf("\n", at - 1) + 1;
-    const before = text.slice(lineStart, at);
-    const after = text.slice(at + token.length, at + token.length + 2);
-    return before.endsWith("::") || before.endsWith("(") || /\bclass $/.test(before) || /^(::|\.[A-Za-z]|\))/.test(after) || (before.match(/`/g) ?? []).length % 2 === 1;
-  };
-  const commented = (at, comment) => comment.test(text.slice(text.lastIndexOf("\n", at - 1) + 1, at));
-  if (file.endsWith(".md")) {
-    const code = markdownCode(text);
-    return (at, token) => !code.some(([from, to]) => at >= from && at < to) && !named(at, token);
-  }
-  if (file.endsWith(".rb")) return (at, token) => !named(at, token) && commented(at, /#/);
-  if (!STRINGS.test(file)) return (at, token) => !named(at, token);
-  const prose = codeProse(text, file);
-  const comment = file.endsWith(".py") ? /#/ : /\/\/|^\s*\*|\/\*/;
-  return (at, token) =>
-    !named(at, token) && (prose.some(([from, to]) => at >= from && at < to) || commented(at, comment));
-}
 // An agent's unit of work is its turn; an act is what a call is told to do.
 // A count of acts beside an agent, as a summary prints it, is a count of turns.
 const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])|(?<![A-Za-z])[Aa]gent: (?:\{\}|\d+) act(?:s|\(s\))?(?![a-z])/g;
@@ -105,13 +72,13 @@ function stalePaths(root) {
     });
 }
 
-function main([root, ...rest]) {
-  if (!root) {
-    process.stderr.write("usage: stale-words.mjs <root> [--list]\n");
+function main([repo, root, ...rest]) {
+  if (!repo || !root) {
+    process.stderr.write("usage: stale-words.mjs <repo> <root> [--list]\n");
     return 2;
   }
   const list = rest.includes("--list");
-  const names = decided("oss");
+  const names = decided(repo);
   const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, brand: 0, key: 0, path: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
@@ -122,7 +89,7 @@ function main([root, ...rest]) {
     const unsigned = (at) => !signed.some(([from, to]) => at >= from && at < to);
     // A prose-only word is stale where it's read as code or prose.
     const inProse = proseSites(file, text);
-    const read = readSites(file, text);
+    const read = brandSites(file, text);
     const lines = text.split("\n");
     const lineOf = (at) => text.slice(0, at).split("\n").length;
     const literals = (code) => stringLiterals(code, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);

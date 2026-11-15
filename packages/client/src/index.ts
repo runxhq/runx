@@ -14,10 +14,10 @@ export type { ExecutionPackageBinding, ClosureInspection } from "./inspection.js
 export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   const config = { ...configuration, environment: { ...configuration.environment } };
   for (const name of ["command", "cwd", "projectDir", "home"] as const) {
-    if (!config[name]?.trim()) throw new TypeError(`Runx client requires ${name}.`);
+    if (!config[name]?.trim()) throw new TypeError(`runx client requires ${name}.`);
   }
   for (const name of ["cwd", "projectDir", "home"] as const) {
-    if (!path.isAbsolute(config[name])) throw new TypeError(`Runx ${name} must be absolute.`);
+    if (!path.isAbsolute(config[name])) throw new TypeError(`runx ${name} must be absolute.`);
   }
   const timeoutMs = positive(config.timeoutMs ?? 15 * 60 * 1000, "timeoutMs");
   const terminationGraceMs = positive(config.terminationGraceMs ?? 1000, "terminationGraceMs");
@@ -156,7 +156,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
 }
 
 function positive(value: number, name: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`Runx ${name} must be a positive safe integer.`);
+  if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`runx ${name} must be a positive safe integer.`);
   return value;
 }
 function argument(value: string): string {

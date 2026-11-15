@@ -14,8 +14,10 @@
 // such as TurnInvocation to TurnView and AgentActInvocation to TurnInvocation
 // can't run into itself. The bare words `runner` and `harness` have senses
 // that stay, so they follow words.mjs: renamed everywhere but where its short
-// list of stays keeps them. Prose is renamed with the code it names; history
-// documents and signed data aren't, and generated files are regenerated.
+// list of stays keeps them. The brand is lowercased where a person reads it,
+// as words.mjs's brandSites finds it, and left where it names code. Prose is
+// renamed with the code it names; history documents and signed data aren't,
+// and generated files are regenerated.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
@@ -23,7 +25,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, signedBlocks, stayFor } from "./words.mjs";
+import { BRAND, BRAND_READ, GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, signedBlocks, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -503,6 +505,8 @@ function apply(repo, root, write, list, showStays) {
     const inPin = (at) => pinned.some(([from, to]) => at >= from && at < to);
     // A prose-only word renames where it's read as code or prose: see proseSites.
     const inProse = proseSites(file, original);
+    // The brand is runx where a person reads it, and code where it names code.
+    const brand = brandSites(file, original);
     const held = new Set([...original.matchAll(TOKEN)].filter((m) => !inPin(m.index)).map((m) => m[0]));
     let count = 0;
     const edits = [];
@@ -521,6 +525,11 @@ function apply(repo, root, write, list, showStays) {
             count += 1;
             edits.push({ at, from: token, to });
             return to;
+          }
+          if (token === BRAND && brand(at, token)) {
+            count += 1;
+            edits.push({ at, from: token, to: BRAND_READ });
+            return BRAND_READ;
           }
           const site = `${file}:${number + 1}`;
           const shown = line.trim().slice(0, 140);

@@ -545,12 +545,12 @@ const cloudPin = {
     'export const retired = {\n  "https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." },\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": {},\n};\n',
 };
 
-test("Cloud's spec renames as prose, and its canonical receipts, which OSS's generator writes with no old word, come out as they went in", (t) => {
+test("Cloud's spec renames as prose, its brand lowercased, and its canonical receipts, which OSS's generator writes with no old word, come out as they went in", (t) => {
   const receipt = "```json\n{\n  \"schema\": \"runx.receipt.v1\",\n  \"id\": \"sha256:049049f070900849313f27d86e44f722cf9e27da29bee934902a4ba7488cdbdc\",\n  \"subject\": { \"kind\": \"step\", \"ref\": { \"type\": \"run\", \"uri\": \"runx:run:test-stated#post\" } },\n  \"verification\": [\n    { \"uri\": \"runx:test:provider-readback:sha256:da07e2036fc936095ab8f3a\" }\n  ]\n}\n```\n";
   const root = tree(t, { ...cloudPin, "spec/spec.md": `# Runx spec\n\nThe harness context names a run.\n\n${receipt}` });
   const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "spec/spec.md"), `# Runx spec\n\nThe run context names a run.\n\n${receipt}`);
+  assert.equal(read(root, "spec/spec.md"), `# runx spec\n\nThe run context names a run.\n\n${receipt}`);
 });
 
 test("a signed receipt a document quotes is left as written, its old words among them, while the prose around it renames", (t) => {
@@ -560,7 +560,7 @@ test("a signed receipt a document quotes is left as written, its old words among
     "  \"verification\": [{ \"uri\": \"runx:harness:provider-readback:sha256:da07e2036fc936095ab8f3a\" }],\n" +
     "  \"signature\": { \"alg\": \"Ed25519\", \"value\": \"base64:8ZrBkfUjLrJ53Ka5DK0TwSmIRXtIy4JfNhbLH24sV1u\" }\n}\n```\n";
   const unsigned = "```json\n{ \"runner\": \"default\" }\n```\n";
-  const spec = (prose, quoted) => `# Runx spec\n\n${prose}\n\n${receipt}\n${quoted}`;
+  const spec = (prose, quoted) => `# runx spec\n\n${prose}\n\n${receipt}\n${quoted}`;
   const root = tree(t, { ...cloudPin, "spec/spec.md": spec("The harness context names a run, and an execution closure binds it.", unsigned) });
   for (let pass = 0; pass < 2; pass += 1) {
     const { status, out } = run(RENAME, "apply", "cloud", root, "--write");

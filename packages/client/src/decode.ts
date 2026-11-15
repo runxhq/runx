@@ -12,7 +12,7 @@ export function record(value: unknown): value is Record<string, unknown> {
 export function parseJson(result: ProcessResult, exits: readonly number[]): Record<string, unknown> {
   if (result.exitCode === null || !exits.includes(result.exitCode)) {
     const failure = nativeFailure(result);
-    throw new RunxClientError("exit", `Runx exited with code ${result.exitCode}: ${failure.message}`, { code: failure.code });
+    throw new RunxClientError("exit", `runx exited with code ${result.exitCode}: ${failure.message}`, { code: failure.code });
   }
   try {
     const output: unknown = JSON.parse(result.stdout);
@@ -25,7 +25,7 @@ export function parseJson(result: ProcessResult, exits: readonly number[]): Reco
 export function parseValue(result: ProcessResult): string {
   if (result.exitCode !== 0) {
     const failure = nativeFailure(result);
-    throw new RunxClientError("exit", `Runx exited with code ${result.exitCode}: ${failure.message}`, { code: failure.code });
+    throw new RunxClientError("exit", `runx exited with code ${result.exitCode}: ${failure.message}`, { code: failure.code });
   }
   return result.stdout.endsWith("\n") ? result.stdout.slice(0, -1) : result.stdout;
 }

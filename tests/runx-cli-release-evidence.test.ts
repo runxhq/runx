@@ -211,7 +211,7 @@ describe("runx CLI release evidence", () => {
   it("requires complete version-bound release notes without placeholders", () => {
     const previousTag = "cli-v9.4.0";
     const body = [
-      `# Runx CLI ${version}`,
+      `# runx CLI ${version}`,
       "",
       "A complete release summary.",
       "",

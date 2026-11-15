@@ -154,7 +154,7 @@ writeFileSync(
   `${JSON.stringify({
     name: nativePackage,
     version: manifest.version,
-    description: `${manifest.description ?? "Runx CLI native binary"} (${platform.key})`,
+    description: `${manifest.description ?? "runx CLI native binary"} (${platform.key})`,
     private: false,
     license: manifest.license,
     engines: { node: ">=18" },

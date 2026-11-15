@@ -27,7 +27,7 @@ test("the guard fails on runner as a method and harness as a test, and passes th
     "docs/release/notes/0.10.md": "The harness ran every case.\n",
     "pnpm-lock.yaml": "packages:\n  '@vitest/runner@4.1.12':\n    resolution: {}\n",
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -42,7 +42,7 @@ test("the guard fails on graph as a workflow in prose and in code, and passes an
     "README.md": "Compose skills into a graph.\nThe Rust crate graph is enforced.\nRun `runx list graphs`.\n\n```yaml\ngraph: demo\n```\n",
     "crates/runx-parser/src/workflow.rs": "pub struct Method { pub graph: Graph }\n",
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -55,7 +55,7 @@ test("the guard fails on graph as a workflow in prose and in code, and passes an
 
 test("the guard counts graph in a message a person reads and in a name, and not a wire value", (t) => {
   const root = tree(t, { "crates/runx-runtime/src/error.rs": 'pub const FAILED: &str = "graph step failed";\npub const KIND: &str = "graph";\nfn graph() {}\n' });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -76,7 +76,7 @@ test("the guard fails on a key the format removes where it's written as one, and
     "docs/demo.md": "Declare `context_skills` on a step.\n\n```yaml\nmethods:\n  run:\n    steps:\n      - id: a\n        tool: demo.read\n        artifacts: {wrap_as: result}\n```\n\nA connector's `result_fields` name what it returns.\n",
     "crates/runx-parser/tests/refusals.rs": 'const OLD: &str = "minimum_runx: 0.12.0\\nmethods:\\n  run:\\n    steps:\\n      - id: a\\n        tool: demo.read\\n        scopes: [fs.read]\\n";\nfn operation_name() {}\n',
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   const flagged = run.stdout.split("\n").filter((line) => line.includes("\tkey\t")).map((line) => line.split("\t").slice(0, 3).join(" "));
   assert.deepEqual(flagged, [
@@ -105,7 +105,7 @@ test("the guard fails on a path whose own name holds a retired word, once per pa
     "docs/paragraph_runners-guide.txt": "A paragraph.\n",
     "docs/paragraph.md": "A paragraph.\n",
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -124,7 +124,7 @@ test("the guard fails on execution closure in any form, and passes a closure and
     "crates/runx-runtime/src/inspect.rs": "struct LocalExecutionClosure;\nfn f(expected_execution_closure_digest: &str, closure_digest: &str) {}\n",
     "packages/client/src/inspect.ts": 'const executionClosureDigest = run("--execution-closure-digest");\n',
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -145,7 +145,7 @@ test("the guard fails on agent act, which is a turn, and a count of acts beside 
     "crates/runx-cli/src/summary.rs": 'let line = format!("Managed agent: {} act(s)", turns);\n',
     "docs/summary.md": "The summary reads Managed agent: 2 acts, and a call's act.\n",
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -167,7 +167,7 @@ test("Cargo's harness key in a bench or test table is Cargo's, and stays, as doe
     "scripts/verify-fast.mjs":
       'step("bench targets", "node", ["scripts/check-bench-targets.mjs"]),\n// Benches run only as harness = false targets.\n',
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -181,7 +181,7 @@ test("Cargo's harness key in a bench or test table is Cargo's, and stays, as doe
 test("a signed receipt a document quotes is signed text the guard doesn't read, and the document's other words it does", (t) => {
   const signed = '```json\n{\n  "uri": "runx:harness:provider-readback",\n  "runner": "default",\n  "signature": { "alg": "Ed25519", "value": "base64:8ZrB" }\n}\n```\n';
   const root = tree(t, { "spec/spec.md": `# Spec\n\n${signed}\nThe harness checks it.\n\n\`\`\`json\n{ "runner": "default" }\n\`\`\`\n` });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
@@ -196,13 +196,13 @@ test("the guard fails on Runx where a person reads it, and passes it where it na
     "README.md": "Runx runs skills.\nCall `Runx.parseData`.\n",
     "crates/runx-runtime/src/demo.rs":
       'let runx = Runx::new(); // Runx owns this.\nmatch identity { Identity::Runx => {} }\nregister(js_string!("Runx"));\nlet message = "Runx did not answer";\n',
-    "scripts/formula.ts": "const ruby = `class Runx < Formula\n  desc \"the runx CLI\"\nend`;\n",
+    "scripts/formula.ts": "const ruby = `class Runx < Formula\n  desc \"the runx CLI\"\nend`;\nthrow new Error(`Runx exited with ${code ?? \"no code from Runx\"}`);\n",
   });
-  const run = spawnSync(process.execPath, [GUARD, root, "--list"], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.deepEqual(
     run.stdout.split("\n").filter((line) => line.includes("\tbrand\t")).map((line) => line.split("\t")[0]),
-    ["README.md:1:1", "crates/runx-runtime/src/demo.rs:1:28", "crates/runx-runtime/src/demo.rs:4:16"],
+    ["README.md:1:1", "crates/runx-runtime/src/demo.rs:1:28", "crates/runx-runtime/src/demo.rs:4:16", "scripts/formula.ts:4:18", "scripts/formula.ts:4:59"],
   );
 });
 

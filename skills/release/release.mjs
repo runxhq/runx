@@ -203,7 +203,7 @@ function normalizeCommand(value, phase, identity) {
     throw new Error(`commands.${phase} supports only argv, cwd and timeout_ms; use the native credential boundary for secrets`);
   }
   if (value.argv.some(secretShaped)) {
-    throw new Error(`commands.${phase}.argv must not contain credentials; use Runx credential delivery`);
+    throw new Error(`commands.${phase}.argv must not contain credentials; use runx credential delivery`);
   }
   return {
     command: value.argv[0], args: value.argv.slice(1),
