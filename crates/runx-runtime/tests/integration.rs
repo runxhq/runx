@@ -37,6 +37,7 @@ mod receipt_refs;
 mod receipt_signing;
 mod receipt_store;
 mod receipt_tree;
+mod reflection;
 mod registry_client;
 mod registry_connector_install;
 mod registry_fixture;

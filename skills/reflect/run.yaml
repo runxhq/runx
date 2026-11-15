@@ -1,0 +1,35 @@
+# runx/reflect (reflection.md). Built a method at a time, each green on the
+# bar before the next: survey first. Fixed order in YAML, fan-out in a script
+# step, judgement in agent methods; survey uses no model, so with the same
+# record it repeats exactly. Its mark is a position in its own `marks`
+# stream, one key per reader, which only `keep` moves.
+version: "0.1.0"
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+  category: ops
+  tags: [reflection, memory, verdict]
+methods:
+  survey:
+    description: Read the mark, the record since it, the workspace's standing memory and its revision, and lay out the checks before anything is judged. No model.
+    inputs:
+      reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a schedule. Marks are per reader." }
+      until: { type: string, format: date-time, description: The window's end. }
+    steps:
+      - id: survey
+        script: { module: reflect.mjs, export: survey }
+        inputs: { reader: $input.reader, until: $input.until }
+        calls:
+          operations: [store/key.inspect]
+          tools: [run.list, run.read, verdict.criteria, data.digest, git.log, git.show]
+          skills: [runx/memory#index]
+        max_calls: 400
+        effects: none
+        outputs:
+          criteria: { type: object, packet: runx.criteria.v1, description: "One check per item, and survey's own, that every run was read to its end. The same record gives the same set, by digest." }
+          subject: { type: object, description: "The window judged: its ref and revision, the digest of its runs and the workspace's HEAD." }
+          resistance: { type: array, items: { type: object }, description: "Every refused, declined and failed call, failed step, declined ask with its reason, unmet verdict, and run that sealed other than completed, each with its evidence." }
+          sampled: { type: array, items: { type: object }, description: "The latest success of each skill in the window, for the purpose-only reader." }
+          unheld: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md doesn't hold at HEAD." }
+          mark: { type: object, description: "Where the mark moves once a verdict covers the window, and the runs still open there." }
+          read_to_end: { type: boolean, description: "Every run in the window was read to its last event. False when the calls ran out first." }
