@@ -308,6 +308,46 @@ fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
     Ok(())
 }
 
+/// A hosted operation's `input` is what the run must send it: a call that
+/// sends anything else is refused, so a case can't pass on the result its
+/// fixture gives alone.
+#[test]
+fn a_hosted_operation_sent_another_input_than_its_case_states_is_refused()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let journey = fixture_path("fixtures/journeys/hosted-records");
+    for file in [
+        "connectors/fixture/records/connector.yaml",
+        "skills/records/SKILL.md",
+        "skills/records/run.yaml",
+    ] {
+        let target = workspace.path().join(file);
+        std::fs::create_dir_all(target.parent().ok_or("a file has a directory")?)?;
+        std::fs::copy(journey.join(file), target)?;
+    }
+    let case = std::fs::read_to_string(
+        journey.join("skills/records/tests/lists-records-under-the-case-grant.yaml"),
+    )?
+    .replace(
+        "        access: read\n",
+        "        access: read\n        input:\n          subset: {limit: 5}\n",
+    );
+    let fixture = workspace.path().join("skills/records/tests/limited.yaml");
+    std::fs::create_dir_all(fixture.parent().ok_or("tests has a directory")?)?;
+    std::fs::write(&fixture, case)?;
+
+    let error = run_test_fixture(&fixture, std::env::vars().collect())
+        .err()
+        .ok_or("a list sent no limit can't seal a case that states one")?;
+    assert!(
+        error
+            .to_string()
+            .contains("providers.hosted.operations[0].input.subset.limit"),
+        "{error}"
+    );
+    Ok(())
+}
+
 fn run_fixture(
     relative_path: &str,
 ) -> Result<runx_runtime::TestReplayOutput, runx_runtime::TestReplayError> {

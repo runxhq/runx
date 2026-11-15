@@ -2,7 +2,7 @@ name: pay-hosted-contract
 method: pay
 inputs:
   connector: wallet/evm
-  request:
+  request: &request
     resource:
       url: https://merchant.example/v1/report
       method: POST
@@ -13,7 +13,7 @@ inputs:
       max_response_bytes: 26214400
     amount_minor: 25
     pay_to: "0x0000000000000000000000000000000000000002"
-  parent_payment_authority:
+  parent_payment_authority: &authority
     term_id: authority-test-1
     currency: USD
     max_amount_minor: 25
@@ -35,6 +35,10 @@ providers:
       - operation: payment.x402
         target: https://merchant.example/v1/report
         access: mutate
+        input:
+          subset:
+            payment_signal: *request
+            parent_payment_authority: *authority
         result:
           payment_id: payment_x402_001
           challenge_id: ch_test_001
@@ -52,6 +56,10 @@ providers:
       - operation: payment.x402.read
         target: https://merchant.example/v1/report
         access: read
+        input:
+          subset:
+            payment_id: payment_x402_001
+            resource_url: https://merchant.example/v1/report
         result:
           payment_id: payment_x402_001
           challenge_id: ch_test_001

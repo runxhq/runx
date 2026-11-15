@@ -156,10 +156,11 @@ impl TestTransport {
             || grant.provider.clone(),
             |connector| connector.manifest.name.as_str().to_owned(),
         );
-        let fixture = fixture
+        let (index, fixture) = fixture
             .operations
             .iter()
-            .find(|fixture| {
+            .enumerate()
+            .find(|(_, fixture)| {
                 fixture.operation == operation
                     && fixture.target == target
                     && fixture.access == access
@@ -169,6 +170,14 @@ impl TestTransport {
                     "the test provider fixture has no exact {access:?} operation {operation:?} for target {target:?}"
                 ))
             })?;
+        if let Some(expected) = &fixture.input {
+            super::json_assertions::assert_json_expectation(
+                expected,
+                request.get("input").unwrap_or(&JsonValue::Null),
+                &format!("providers.hosted.operations[{index}].input"),
+            )
+            .map_err(|mismatch| transport_error(mismatch.to_string()))?;
+        }
         let identity = runx_contracts::sha256_prefixed(
             format!("{grant_id}\0{operation}\0{target}").as_bytes(),
         );

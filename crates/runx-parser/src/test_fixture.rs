@@ -128,6 +128,11 @@ pub struct TestProviderOperationFixture {
     pub operation: String,
     pub target: String,
     pub access: TestProviderAccess,
+    /// What the run must send the operation, matched `exact` or as a
+    /// `subset` of its input. A call that sends anything else is refused, as
+    /// one no operation matches is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<TestJsonExpectation>,
     pub result: JsonValue,
 }
 
@@ -544,6 +549,9 @@ fn validate_test_provider_responses(
                 operation_field,
                 "duplicates an earlier operation, target, and access tuple",
             ));
+        }
+        if let Some(input) = &operation.input {
+            check_json_expectation(input, &format!("{operation_field}.input"))?;
         }
     }
     Ok(fixture)

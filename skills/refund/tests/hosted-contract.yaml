@@ -2,7 +2,7 @@ name: refund-hosted-contract
 method: refund
 inputs:
   connector: coinbase/cdp
-  request:
+  request: &request
     resource: https://seller.example/v1/reports/launch
     payment_id: x402pay_test_001
     amount_minor: 125
@@ -25,6 +25,8 @@ providers:
       - operation: payment.x402.merchant.refund
         target: https://seller.example/v1/reports/launch
         access: mutate
+        input:
+          subset: *request
         result:
           refund_id: x402refund_test_001
           payment_id: x402pay_test_001
@@ -40,6 +42,9 @@ providers:
       - operation: payment.x402.merchant.refund.read
         target: https://seller.example/v1/reports/launch
         access: read
+        input:
+          subset:
+            refund_id: x402refund_test_001
         result:
           refund_id: x402refund_test_001
           payment_id: x402pay_test_001

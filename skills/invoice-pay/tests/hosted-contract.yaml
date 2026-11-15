@@ -6,14 +6,14 @@ inputs:
   currency: USD
   payee:
     payment_url: https://payee.example/v1/invoices/pay
-  parent_payment_authority:
+  parent_payment_authority: &authority
     term_id: invoice-authority-1
     currency: USD
     max_amount_minor: 5000
     resource_url: https://payee.example/v1/invoices/pay
   idempotency_seed: invoice-pay-test-0042
   connector: wallet/evm
-  request:
+  request: &request
     resource:
       url: https://payee.example/v1/invoices/pay
       method: POST
@@ -37,6 +37,10 @@ providers:
       - operation: payment.x402
         target: https://payee.example/v1/invoices/pay
         access: mutate
+        input:
+          subset:
+            payment_signal: *request
+            parent_payment_authority: *authority
         result:
           payment_id: payment_x402_inv_001
           challenge_id: ch_inv_001
@@ -54,6 +58,10 @@ providers:
       - operation: payment.x402.read
         target: https://payee.example/v1/invoices/pay
         access: read
+        input:
+          subset:
+            payment_id: payment_x402_inv_001
+            resource_url: https://payee.example/v1/invoices/pay
         result:
           payment_id: payment_x402_inv_001
           challenge_id: ch_inv_001

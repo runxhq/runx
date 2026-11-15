@@ -1537,7 +1537,12 @@ The test does not relax the host's process policy or affect ordinary runs.
 holds the test's grant, renders a hosted operation's declared requests as
 Connect does, with its `purchase_id` as the purchase, and sends them
 to the test's `providers.http`. Without a `purchase_id`, a request that
-sends the purchase fails closed. A test that stops on a request it did not answer names
+sends the purchase fails closed. Each of its `operations` answers one
+`operation`, `target` and `access` with its `result`, and may state what the
+run must send it as `input`, `exact` or a `subset` as a turn call's `expect`
+is, so a payment's test proves the amount and payee it submits, not only the
+result it's given. A call that sends anything else is refused, named by the
+field it differs in. A test that stops on a request it did not answer names
 that request in its status mismatch. No test's `host` or `providers` is
 available to skill inputs, environment configuration, or ordinary live runs.
 

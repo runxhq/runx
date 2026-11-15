@@ -2,7 +2,7 @@ name: charge-hosted-contract
 method: charge
 inputs:
   connector: coinbase/cdp
-  request:
+  request: &request
     resource: https://seller.example/v1/reports/launch
     amount_minor: 125
     currency: USD
@@ -48,6 +48,8 @@ providers:
       - operation: payment.x402.merchant.settle
         target: https://seller.example/v1/reports/launch
         access: mutate
+        input:
+          subset: *request
         result:
           payment_id: x402pay_test_001
           idempotency_key: $request.idempotency_key
@@ -65,6 +67,10 @@ providers:
       - operation: payment.x402.merchant.read
         target: https://seller.example/v1/reports/launch
         access: read
+        input:
+          subset:
+            payment_id: x402pay_test_001
+            resource: https://seller.example/v1/reports/launch
         result:
           payment_id: x402pay_test_001
           idempotency_key: $previous.idempotency_key
