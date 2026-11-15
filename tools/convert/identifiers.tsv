@@ -502,6 +502,7 @@ frantic	runner-driven	1	runner	runner-driven	Frantic's seed playbook runner: sta
 frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/verifier/src/checks/runx-skill.test.ts
 frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
 frantic	why123-harness-fail	1	harness	why123-test-fail	the test sense	packages/db/src/launch-board.ts
+frantic	wrong_claim_and_rail_held	1	hold	wrong_claim_and_rail_held	English, or a skill's own word: stays	scripts/test-support/payout-native-proof.ts
 nitrosend	runner	30	runner	?	a bare word: code or prose, read in place	dogfood/inbound-email/bin/run.mjs dogfood/inbound-email/tests/audit-runner.test.ts
 nitrosend	harness-nitrosend-token	17	harness	test-nitrosend-token	the test sense	skills/nitrosend/nitrosend/graph/provider-operation/tests/inbox-read.yaml skills/nitrosend/nitrosend/tests/apply-draft-refuses-intent.yaml
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
