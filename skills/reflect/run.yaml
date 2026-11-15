@@ -29,7 +29,7 @@ methods:
         inputs: { survey: $steps.survey }
         calls:
           skills: [.#diagnose, .#challenge]
-          tools: [run.read, git.show]
+          tools: [run.read]
         max_calls: 200
         effects: none
         outputs:
@@ -108,7 +108,7 @@ methods:
           subject: { type: object, description: "The window judged, { ref, revision }: its revision the digest of the window's runs and the workspace's HEAD." }
           head: { type: string, description: The workspace's HEAD commit the checks are bound to. }
           resistance: { type: array, items: { type: object }, description: "Every refused, declined and failed call, failed step, declined ask with its reason, unmet verdict, and run that sealed other than completed, each with its evidence." }
-          sampled: { type: array, items: { type: object }, description: "The latest success of each skill in the window, for the purpose-only reader." }
+          sampled: { type: array, items: { type: object }, description: "The latest success of each skill whose manual the repository holds at HEAD, with its purpose, the manual's description, for the purpose-only reader." }
           unheld: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md doesn't hold at HEAD." }
           held: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md holds at HEAD, which keep closes." }
           mark: { type: object, description: "Where the mark moves once a verdict covers the window, and the runs still open there." }

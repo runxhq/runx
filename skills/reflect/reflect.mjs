@@ -82,7 +82,7 @@ export function resisted(summary, records) {
   return items;
 }
 
-/** The latest success of each skill, by skill name, at most SAMPLED_SKILLS: a fixed rule over the record. */
+/** The latest success of each skill, by skill name: a fixed rule over the record. */
 export function sampledOf(successes) {
   const latest = new Map();
   for (const run of successes) {
@@ -91,7 +91,6 @@ export function sampledOf(successes) {
   }
   return [...latest.values()]
     .sort((left, right) => (left.skill < right.skill ? -1 : left.skill > right.skill ? 1 : 0))
-    .slice(0, SAMPLED_SKILLS)
     .map(({ run_id, skill, method, receipt_id }) => ({ run: run_id, skill, method, evidence: receipt_id }));
 }
 
@@ -272,7 +271,20 @@ export async function survey(ctx, { reader, until }) {
   const memory = await ctx.skill("runx/memory#index", { levels: [{ level: "workspace" }] });
   const entries = await ctx.read(memory.entries);
 
-  const sampled = sampledOf(successes);
+  // Only a skill whose manual the repository holds at HEAD is sampled, its
+  // purpose that manual's description: a bundled skill's purpose isn't the
+  // workspace's, and a check no one can answer is no check.
+  const sampled = [];
+  for (const candidate of sampledOf(successes)) {
+    if (sampled.length === SAMPLED_SKILLS || !room(1 + 3)) break;
+    let purpose;
+    try {
+      purpose = purposeOf((await read((await tool("git.show", { revision: "HEAD", path: `skills/${candidate.skill}/SKILL.md` })).git_show)).text);
+    } catch (rejection) {
+      if (rejection?.code !== "failed") throw rejection;
+    }
+    if (purpose) sampled.push({ ...candidate, purpose });
+  }
   const { unheld, held } = rulesOf(entries, instructions);
   const revision = (await tool("data.digest", { value: { head, runs: [...readRuns].sort(), open: [...open].sort() } })).digest_result.digest;
   const subject = { ref: `runx/reflect/window/${reader}`, revision };
@@ -349,17 +361,7 @@ export async function judge(ctx, { survey }) {
   }
   for (const [index, sampled] of survey.sampled.entries()) {
     const criterion = `sampled_${index + 1}`;
-    let purpose;
-    try {
-      const manual = await ctx.read((await ctx.tool("git.show", { revision: "HEAD", path: `skills/${sampled.skill}/SKILL.md` })).git_show);
-      purpose = purposeOf(manual.text);
-    } catch (rejection) {
-      if (rejection?.code !== "failed") throw rejection;
-    }
-    if (typeof purpose !== "string" || purpose.length === 0) {
-      findings.push({ criterion, dropped: `the purpose of ${sampled.skill} can't be read` });
-      continue;
-    }
+    const { purpose } = sampled;
     const records = await recordOf(sampled.run);
     // The run as its record holds it, and the skill's purpose: never its design.
     const run = { run: sampled.run, skill: sampled.skill, method: sampled.method, events: records.map((record) => ({ address: `runx:run:${record.stream}@${record.version}`, ...record.event })) };
@@ -518,14 +520,23 @@ export async function propose(ctx, { survey, findings }) {
       continue;
     }
     const old = await packageFiles(target_dir);
-    const draft = await ctx.skill("runx/skill-build#draft", {
-      objective: `Fix ${item.skill}: ${finding.summary}`,
-      repo_root: ".",
-      target_dir,
-      receipt_id: item.evidence,
-      receipt_summary: `${item.kind} at ${item.stream}${item.step ? `#${item.step}` : ""}${item.reason ? `: ${item.reason}` : ""}`,
-      test_output: finding.cause,
-    });
+    let draft;
+    try {
+      draft = await ctx.skill("runx/skill-build#draft", {
+        objective: `Fix ${item.skill}: ${finding.summary}`,
+        repo_root: ".",
+        target_dir,
+        receipt_id: item.evidence,
+        receipt_summary: `${item.kind} at ${item.stream}${item.step ? `#${item.step}` : ""}${item.reason ? `: ${item.reason}` : ""}`,
+        test_output: finding.cause,
+      });
+    } catch (rejection) {
+      // A draft its plan refuses, or that fails, is this finding's, and the
+      // window goes on: it's kept as an observation, never written.
+      if (rejection?.code !== "failed") throw rejection;
+      proposals.push({ criterion, target_dir, dropped: `the draft failed: ${rejection.message ?? "no reason given"}` });
+      continue;
+    }
     const bundle = await ctx.read(draft.change_bundle);
     if (!bundle || bundle.decision !== "write") {
       proposals.push({ criterion, target_dir, dropped: "the draft changes nothing" });
