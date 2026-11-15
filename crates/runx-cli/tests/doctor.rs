@@ -301,7 +301,7 @@ fn doctor_authority_reports_connect_grant_discovery_without_exposing_token()
     assert!(
         provider["message"]
             .as_str()
-            .is_some_and(|message| message.contains("Runx Connect is configured"))
+            .is_some_and(|message| message.contains("runx Connect is configured"))
     );
     assert!(!serde_json::to_string(&report)?.contains("rxk-secret-token"));
     Ok(())

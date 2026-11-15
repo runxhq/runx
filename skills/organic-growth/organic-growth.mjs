@@ -121,7 +121,7 @@ function admitSearch(packet, siteUrl, findings, caveats, sources, sourceRecords,
     caveats.push(`Search analysis view exposes the first ${MAX_PROVIDER_ROWS} rows; the complete packet remains digest-bound.`);
   }
   if (text(packet.provider_status) === "not_called") {
-    caveats.push("Search evidence was supplied rather than read through the current Runx provider boundary.");
+    caveats.push("Search evidence was supplied rather than read through the current runx provider boundary.");
   }
   evidence.push({
     kind: "search_performance",
@@ -168,7 +168,7 @@ function admitAnalytics(packet, findings, caveats, sources, sourceRecords, evide
     caveats.push(`Analytics analysis view exposes the first ${MAX_PROVIDER_ROWS} rows; the complete packet remains digest-bound.`);
   }
   if (text(packet.provider_status) === "not_called") {
-    caveats.push("Analytics evidence was supplied rather than read through the current Runx provider boundary.");
+    caveats.push("Analytics evidence was supplied rather than read through the current runx provider boundary.");
   }
   evidence.push({
     kind: "analytics_report",

@@ -54,7 +54,7 @@ impl<'de> Deserialize<'de> for JsonValue {
 }
 
 impl JsonValue {
-    /// Deserialize directly from the canonical Runx JSON tree.
+    /// Deserialize directly from the canonical runx JSON tree.
     ///
     /// This avoids constructing a parallel `serde_json::Value` tree at typed
     /// runtime boundaries while preserving serde's normal validation rules.
@@ -66,7 +66,7 @@ impl JsonValue {
         deserializer::from_json_value(self)
     }
 
-    /// Serialize a typed value directly into the canonical Runx JSON tree.
+    /// Serialize a typed value directly into the canonical runx JSON tree.
     pub fn from_serialize<T: Serialize + ?Sized>(value: &T) -> Result<Self, JsonValueError> {
         serializer::to_json_value(value)
     }

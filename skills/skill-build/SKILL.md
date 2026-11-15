@@ -1,11 +1,11 @@
 ---
 name: skill-build
-description: Canonical Runx skill-authoring implementation. Use for designing, creating, updating, improving, or adding test coverage to a Runx skill package; it combines bounded agent judgment with native file writes, inspection, and safe test replay. When a host skill-creator also triggers, use its general guidance but execute Runx work through this skill.
+description: Canonical runx skill-authoring implementation. Use for designing, creating, updating, improving, or adding test coverage to a runx skill package; it combines bounded agent judgment with native file writes, inspection, and safe test replay. When a host skill-creator also triggers, use its general guidance but execute runx work through this skill.
 ---
 
 # Skill Build
 
-Build and improve Runx skills through one authoring surface. Keep judgment in
+Build and improve runx skills through one authoring surface. Keep judgment in
 bounded turns and mechanics in native tools:
 
 ```text
@@ -21,7 +21,7 @@ inspect target files, catalog ownership, and native/shared tools
 ```
 
 Use the generic host `skill-creator` for platform-wide authoring guidance when
-it is available. Do not reproduce Runx package operations from that guidance;
+it is available. Do not reproduce runx package operations from that guidance;
 invoke the appropriate `skill-build` method, as `runx skill runx/skill-build#<method>`,
 so the work is bounded and receipted.
 
@@ -51,7 +51,7 @@ author so exact source references can survive the candidate write.
 
 `build`, `improve`, and `test` write local workspace files. They never
 publish, install, push, or mutate an external provider. Native test replay
-runs with isolated Runx home, receipts, and no operator credentials. Invalid
+runs with isolated runx home, receipts, and no operator credentials. Invalid
 staged packages stop before the target package is touched. Design, inspection,
 validation, and the bounded transactional workspace write do not add a human
 approval gate; the operator authorizes those reversible local writes by
@@ -147,11 +147,11 @@ authoring.
   route is not proof it ran; a sealed plan is not approval; an adapter request
   is not delivery. The public result and operator guide must say what actually
   happened and what still has to happen.
-- A skill declares domain procedure and policy. Runx owns generic input,
+- A skill declares domain procedure and policy. runx owns generic input,
   packet, evidence, approval, request, credential, effect, and receipt mechanics.
 - Place the capability in its real owner before choosing an implementation.
   Reusable skills, end-user and domain-operator commands and UX, local host
-  loops, local queues, and default local-state orchestration belong in Runx OSS
+  loops, local queues, and default local-state orchestration belong in runx OSS
   or the owning product repository. `runx/cloud` is not precedent for those
   concerns: it may provide the hosted control plane, custody provider
   credentials, resolve authoritative grants, and execute a fixed bounded
@@ -201,7 +201,7 @@ authoring.
   permission request. Put exact non-secret environment names and runtime
   metadata on their canonical step and tool fields, never under `runx`, in
   prose, or in a package loader; credentials belong to the connectors the
-  method calls, and a catalog tool's scopes come from the tool. Runx resolves
+  method calls, and a catalog tool's scopes come from the tool. runx resolves
   and records those declarations without inventing a scope vocabulary; the
   native capability or provider that owns a scope enforces it.
 - Make every public method contract recursively complete at the authoring
@@ -238,7 +238,7 @@ authoring.
   required scope or grant withheld. A test must call the same catalog,
   dispatcher, and capability/provider implementation as a real run; never add
   a mock permission evaluator, scope vocabulary, or parallel verification
-  report. This proves enforcement owned by Runx capabilities and providers. It
+  report. This proves enforcement owned by runx capabilities and providers. It
   cannot prove that trusted host code avoided undeclared filesystem, network,
   or syscall access, so report that boundary as trusted rather than confined.
 - A test's tool steps inherit the exact scopes declared by the canonically
@@ -251,7 +251,7 @@ authoring.
   its own JSON Schema, so write a method-owned nested value's properties on the
   field itself. A field is required unless it says `optional: true`; JSON
   Schema's `required` keeps its one meaning, the properties an object must
-  have. When an input takes an artifact of exactly one canonical Runx packet,
+  have. When an input takes an artifact of exactly one canonical runx packet,
   name its `packet: <packet-id>` and let the runtime resolve the catalog-owned
   schema into inspection, validation, exports, registry bundles, and tests.
   Never copy that packet schema into the consumer. If the canonical schema is too weak to make the input usable,
@@ -286,7 +286,7 @@ authoring.
   `inputs`, what answers the run under `host` (agent `answers` by request id,
   `turns` worked call by call, `approvals`), exactly what it reaches under
   `providers` (`http`, `mcp`, `processes`, `hosted`), and its `expect`. Data a
-  test reads lives under `fixtures/`, which Runx stages whole into the isolated
+  test reads lives under `fixtures/`, which runx stages whole into the isolated
   test workspace, with `fixtures/bin/` executable; a test that composes skills
   uses a small fixture package there, named by the test's `package`. Do not
   turn `fixtures/` into a second source tree or include unconsumed helpers.
@@ -306,7 +306,7 @@ authoring.
   or derives a meaningful result, not merely to reshape native contracts.
 - Add executable code only for irreducible deterministic domain computation.
   Explain its domain boundary and why native tools plus a declarative workflow
-  cannot express it. Do not add code merely to transform Runx contracts.
+  cannot express it. Do not add code merely to transform runx contracts.
 - For a genuinely separate CLI or protocol tool, keep one canonical
   `manifest.json`. It owns source, inputs and defaults, artifact projection,
   scopes and retry/idempotency. Effect and approval stay with the capability
@@ -320,7 +320,7 @@ authoring.
   that path, and aggregate package admission must bind every static local
   source dependency before the package can run or publish.
 - Local CLI tools, process MCP servers, and process adapters are trusted host
-  code. Runx controls their exact invocation, delivered environment and
+  code. runx controls their exact invocation, delivered environment and
   credentials, lifecycle, bounded output, and evidence; it does not turn
   declared scopes into portable filesystem, network, or syscall confinement.
   Use this lane only when the operation is genuinely irreducible to native
@@ -329,7 +329,7 @@ authoring.
 - When that computation is JavaScript, use a worker `tool: { module: ... }`
   step. Prefer one cohesive module named for the skill with focused named
   exports of the form `(inputs, context) => JSON`; split it only when the
-  computations have genuinely separate ownership. Runx owns input delivery,
+  computations have genuinely separate ownership. runx owns input delivery,
   output serialization, errors, CPU limits, and isolation. Do not add fake
   operation inputs, Node command declarations, per-method wrapper files, or
   stdout/environment plumbing. Pure JavaScript receives only its validated
@@ -350,7 +350,7 @@ authoring.
   TOML syntax decoding, with package-specific interpretation kept in the domain
   module. Declare `requires: [parseData]` on each worker tool that needs it.
   This author-declared guard makes unsupported runtimes reject the profile
-  before effects; Runx does not infer helper calls or treat requirements as
+  before effects; runx does not infer helper calls or treat requirements as
   permissions. The baseline `parseUrl` helper predates this declaration.
   Never replace unavailable helpers with Node, shell or hand-written parsers.
 - Classify volume before authoring. Small typed control values belong in normal
@@ -363,7 +363,7 @@ authoring.
 - Use a worker tool's deterministic `paged_input` only for irreducible record
   transforms over one admitted JSON-array artifact. Paged input reads under
   `fs.read`, and native admission preserves caller bounds: agent-bound runs refuse secret files and
-  Runx state, including symlink aliases. The runtime owns artifact admission, page
+  runx state, including symlink aliases. The runtime owns artifact admission, page
   framing, snapshot digest, record boundaries, offsets, retries, and the page
   loop; the module owns only
   decoding and domain selection. Treat `runx_page.ref` as an opaque,
@@ -393,7 +393,7 @@ authoring.
   or two independent existing consumers.
 - Never add package-local raw `RUNX_INPUTS_*` parsing, generic packet or
   evidence hashing, packet wrapping, generic status construction, or provider
-  simulation when a shared Runx boundary can own it. Package code may retain a
+  simulation when a shared runx boundary can own it. Package code may retain a
   canonical hash only when that hash is an intrinsic field of an established
   domain or wire protocol, not as a substitute for receipt or effect integrity.
   State that exception at the computation boundary.
@@ -452,7 +452,7 @@ authoring.
   in package code, prose, or a second test script.
 - Keep provider evidence labels exact. Deterministic replay is `test`, not
   `live`. A sealed provider-readback test supplied through host agent answers
-  does not prove provider execution. Tests must not inherit local Runx
+  does not prove provider execution. Tests must not inherit local runx
   grants, tokens, credential delivery, or global configuration; every fake
   binding must be explicit in the test, and live proof must come from a
   separately identified provider run.
@@ -471,7 +471,7 @@ actual proposed result:
    context?
 5. Does one clear owner hold each decision, approval, mutation, and readback?
 6. Would this still be the architecture chosen from scratch against the current
-   Runx catalog?
+   runx catalog?
 7. Can a cold agent actually invoke every public method from inspection alone,
    using local or remote evidence appropriate to the job, without source-diving,
    guessed JSON, or an unnecessary provider dependency?
@@ -548,7 +548,7 @@ For every public package, declare both operator contexts before authoring:
 
 - `direct_use` names realistic natural-language trigger and non-trigger
   requests, the default outcome, routine work the host should do normally, the
-  exact boundary where Runx adds value, the terminal result, one actionable
+  exact boundary where runx adds value, the terminal result, one actionable
   blocker behavior, and the context-preserving native escape path.
 - `chain_use` names accepted typed inputs, the reusable result, prior evidence
   and effects that survive the boundary, and work that must not repeat.
@@ -656,7 +656,7 @@ focused proof for a useful path and a stop, refusal, or regression path, each a
 `fixtures/` data they read. Preserve
 useful behavior and delete superseded implementation in the same draft. Never
 add auxiliary docs, generated state, credentials, placeholder modules,
-duplicated generic Runx mechanics, or an undeclared provider boundary.
+duplicated generic runx mechanics, or an undeclared provider boundary.
 Registry publication code, credentials, and live-state claims are likewise
 outside the authored package; preserve only the canonical package identity
 needed by the later registry operator.

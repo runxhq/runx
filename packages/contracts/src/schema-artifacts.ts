@@ -12950,7 +12950,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/provider/operation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; Runx owns this envelope and its identity fields.",
+    "description": "The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; runx owns this envelope and its identity fields.",
     "properties": {
       "access": {
         "type": "string"
@@ -14160,7 +14160,7 @@ export const runxSchemaArtifacts = {
         "type": "object"
       }
     ],
-    "description": "Strict Runx information advertised under the external `runx.purchase` key.\n\nThis is a declaration only. The authoritative challenge binding remains the `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.",
+    "description": "Strict runx information advertised under the external `runx.purchase` key.\n\nThis is a declaration only. The authoritative challenge binding remains the `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.",
     "title": "RunxX402PurchaseExtensionInfo",
     "x-runx-schema": "runx.x402.purchase_extension.v1"
   } as JsonSchema,

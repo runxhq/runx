@@ -1,4 +1,4 @@
-//! Authority-free deterministic JavaScript engine for Runx.
+//! Authority-free deterministic JavaScript engine for runx.
 
 /// Exact shared host/worker wire contract; this is an alias, not a second
 /// protocol definition.

@@ -7,7 +7,7 @@ inputs:
   source_material:
     - kind: approved
       label: product contract
-      content: Runx receipts bind operator actions to explicit authority evidence.
+      content: runx receipts bind operator actions to explicit authority evidence.
     - kind: rejected
       label: rejected launch copy
       content: Autonomous everything with no review.
@@ -31,7 +31,7 @@ host:
           cadence: [Concise engineering sentences.]
           claim_rules:
             safe:
-              - rule: Runx receipts bind operator actions to authority evidence.
+              - rule: runx receipts bind operator actions to authority evidence.
                 source_ids: [source:1]
             requires_proof: [Hosted production readiness.]
             forbidden: [Autonomous everything with no review.]
@@ -49,12 +49,12 @@ expect:
           brand_voice:
             voice_principles: [Lead with governed action and proof.]
             claim_rules:
-              safe: [Runx receipts bind operator actions to authority evidence.]
+              safe: [runx receipts bind operator actions to authority evidence.]
           evidence:
             bindings:
               - rule: Lead with governed action and proof.
                 source_ids: [source:1]
-              - rule: Runx receipts bind operator actions to authority evidence.
+              - rule: runx receipts bind operator actions to authority evidence.
                 source_ids: [source:1]
           receipt_notes: {authority: context-only, mutation: false}
           validation: {status: pass}

@@ -7,7 +7,7 @@ methods:
       - id: research-brief
         skill: ../..#research-brief
         inputs:
-          objective: Identify the strongest architectural signal in the supplied Runx evidence.
+          objective: Identify the strongest architectural signal in the supplied runx evidence.
           audience: operators
           channel: brief
           domain: agent infrastructure
@@ -16,7 +16,7 @@ methods:
               final_url: https://example.com/receipts
               status: 200
               content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-              extracted: Runx receipts bind operator actions to explicit authority and verification evidence.
+              extracted: runx receipts bind operator actions to explicit authority and verification evidence.
               provenance:
                 fetched_at: "2026-07-17T00:00:00Z"
                 bytes: 82

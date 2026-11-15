@@ -9,7 +9,7 @@
   {"query": "Write tests for the skills that don't have any.", "should_trigger": false},
   {"query": "Graph our CI build times over the last quarter.", "should_trigger": false},
   {"query": "What's in the git log for the last week?", "should_trigger": false},
-  {"query": "Summarize recent Runx outcomes and catalog test coverage for this project.", "should_trigger": true},
+  {"query": "Summarize recent runx outcomes and catalog test coverage for this project.", "should_trigger": true},
   {"query": "How did our runx runs go this week? Failures, blocked runs, anything paused?", "should_trigger": true},
   {"query": "Which skills in our catalog have no fixtures or inline test cases?", "should_trigger": true},
   {"query": "What are our most frequently run skills over the last 30 days, and how often do they fail?", "should_trigger": true},

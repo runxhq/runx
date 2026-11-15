@@ -36,7 +36,7 @@ export interface ProcessResult {
 
 // Private transport. Public callers choose typed native operations, never argv.
 export function invoke(options: ProcessOptions): Promise<ProcessResult> {
-  if (options.signal?.aborted) return Promise.reject(new RunxClientError("aborted", "Runx invocation aborted."));
+  if (options.signal?.aborted) return Promise.reject(new RunxClientError("aborted", "runx invocation aborted."));
   if (Buffer.byteLength(options.input ?? "") > options.maxInputBytes) {
     return Promise.reject(new RunxClientError("input_limit", `Runx input exceeds ${options.maxInputBytes} bytes.`));
   }
@@ -75,7 +75,7 @@ export function invoke(options: ProcessOptions): Promise<ProcessResult> {
         // ESRCH also occurs when a child has already exited. Never throw from
         // a timer or stream handler; close remains the settlement boundary.
         if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
-          failure ??= new RunxClientError("signal", "Could not terminate Runx process group.", { cause: error });
+          failure ??= new RunxClientError("signal", "Could not terminate runx process group.", { cause: error });
         }
       }
     };
@@ -85,7 +85,7 @@ export function invoke(options: ProcessOptions): Promise<ProcessResult> {
       kill("SIGTERM");
       escalation = setTimeout(() => kill("SIGKILL"), options.terminationGraceMs ?? 1000);
     };
-    const abort = () => terminate(new RunxClientError("aborted", "Runx invocation aborted."));
+    const abort = () => terminate(new RunxClientError("aborted", "runx invocation aborted."));
     options.signal?.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => terminate(new RunxClientError("timeout", `Runx invocation timed out after ${options.timeoutMs}ms.`)), options.timeoutMs);
     const capture = (target: Buffer[], chunk: Buffer) => {
@@ -99,7 +99,7 @@ export function invoke(options: ProcessOptions): Promise<ProcessResult> {
     child.stderr.on("data", (chunk: Buffer) => capture(stderr, chunk));
     child.on("error", (error) => { failure ??= new RunxClientError("spawn", `Could not start Runx '${options.command}'.`, { cause: error }); });
     child.stdin.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code !== "EPIPE") terminate(new RunxClientError("spawn", "Could not write Runx input.", { cause: error }));
+      if (error.code !== "EPIPE") terminate(new RunxClientError("spawn", "Could not write runx input.", { cause: error }));
     });
     child.on("close", async (exitCode, signal) => {
       closed = true;

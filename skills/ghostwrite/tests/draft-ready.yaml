@@ -1,13 +1,13 @@
 name: ghostwrite-draft-binds-evidence
 method: draft
 inputs:
-  objective: Explain the strongest Runx architecture signal.
+  objective: Explain the strongest runx architecture signal.
   audience: operators
   channel: brief
   evidence_pack:
     decision: ready
     research_brief:
-      objective: Explain the strongest Runx architecture signal.
+      objective: Explain the strongest runx architecture signal.
       scope: agent infrastructure
       summary: Evidence-bound portable execution is the strongest signal.
       open_questions: []
@@ -32,7 +32,7 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief: {objective: Explain the strongest Runx architecture signal., audience: operators, channel: brief}
+        content_brief: {objective: Explain the strongest runx architecture signal., audience: operators, channel: brief}
         draft:
           title: Evidence-bound execution is the architecture
           body: Receipts bind operator actions to explicit authority evidence.

@@ -2162,7 +2162,7 @@ export type ProviderIdempotencyContract = "none" | "enforced" | "inherent";
 
 export type ProviderNotCalledContract = "not_called";
 
-/** The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; Runx owns this envelope and its identity fields. */
+/** The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; runx owns this envelope and its identity fields. */
 export type ProviderOperationPacketContract = {
   readonly access?: string;
   readonly account_id?: string;
@@ -3038,7 +3038,7 @@ export type RunxProcessContract = {
 };
 
 /**
- * Strict Runx information advertised under the external `runx.purchase` key.
+ * Strict runx information advertised under the external `runx.purchase` key.
  *
  * This is a declaration only. The authoritative challenge binding remains the `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.
  */

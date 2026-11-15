@@ -34,7 +34,7 @@ fn fixture(name: &str) -> Value {
         .clone()
 }
 
-/// A canonical Runx quote whose opaque payload happens to use x402.
+/// A canonical runx quote whose opaque payload happens to use x402.
 fn quote(network: &str, amount: u64) -> Value {
     let payload = json!({
         "x402Version": 2,

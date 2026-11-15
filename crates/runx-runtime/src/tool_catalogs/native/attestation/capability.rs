@@ -25,7 +25,7 @@ impl CapabilityInput for AttestationInput {}
 const FIELDS: &[CapabilityField] = &[
     CapabilityField {
         name: "action",
-        description: "What happened outside Runx.",
+        description: "What happened outside runx.",
     },
     CapabilityField {
         name: "principal",

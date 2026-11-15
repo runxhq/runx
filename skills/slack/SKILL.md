@@ -5,7 +5,7 @@ description: Read bounded Slack search, thread, link and file evidence through a
 
 # Slack
 
-Use Slack as a governed provider boundary without turning Slack—or Runx
+Use Slack as a governed provider boundary without turning Slack—or runx
 Cloud—into the owner of the operator's workflow. This skill owns the reusable
 Slack reading mechanics that an agent should not have to reconstruct: bounded
 message search, bounded thread hydration, permalink resolution and image reads.
@@ -14,7 +14,7 @@ Delivering a post or a reply is `message-send`'s job.
 The operator-selected provider binding has one narrow role in this flow: retain
 credential custody and execute a fixed Slack operation. It may be local,
 self-hosted, third-party, or Runx-hosted. The skill, its procedure, approval
-point, retry identity, and completion rule remain in Runx OSS. Any queue,
+point, retry identity, and completion rule remain in runx OSS. Any queue,
 team-specific routing rule, or durable action state belongs in a higher-level
 operator skill.
 
@@ -91,7 +91,7 @@ queue logic.
 ## Authority and privacy
 
 Reads resolve a compatible Slack binding for `messages.search`, `thread.read`,
-or `file.read` and do not ask for human approval. Runx supplies the idempotency key once, and
+or `file.read` and do not ask for human approval. runx supplies the idempotency key once, and
 the selected transport verifies the registered operation and its read/mutate
 class against the bound provider authority.
 
@@ -122,7 +122,7 @@ permalink. They hydrate only the actionable thread, preserve its canonical
 locator, then pass that normalized observation to a team-specific triage skill. If a reply is needed, `message-send` `plan_reply` binds the proposed text
 to the exact canonical thread. A changed draft fails before approval. An
 approved unchanged reply is posted once, then read back from the exact returned
-message locator before Runx seals the effect.
+message locator before runx seals the effect.
 
 ## Operator conversation handoff
 

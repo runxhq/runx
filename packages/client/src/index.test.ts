@@ -220,7 +220,7 @@ describe("native invocation and decoding", () => {
     const { config } = await setup();
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'registry_error', message: 'SKILL.md.runx is not supported' } })); process.stderr.write('ignored'); process.exitCode = 1;`);
     const client = createRunxClient(config);
-    await expect(client.packages.materialize({ skillPath: "/skills/old" })).rejects.toThrow("Runx exited with code 1: SKILL.md.runx is not supported");
+    await expect(client.packages.materialize({ skillPath: "/skills/old" })).rejects.toThrow("runx exited with code 1: SKILL.md.runx is not supported");
   });
   it("sends inputs on stdin, never in argv or a file", async () => {
     const { root, config, receiptDir } = await setup();

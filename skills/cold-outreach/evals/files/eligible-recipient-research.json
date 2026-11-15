@@ -25,7 +25,7 @@
   "evidence_pack": {
     "decision": "ready",
     "research_brief": {
-      "objective": "Explain the strongest Runx architecture signal.",
+      "objective": "Explain the strongest runx architecture signal.",
       "scope": "agent infrastructure",
       "summary": "The recipient published a guide about receipts binding actions to authority evidence. The sender offers a bounded public documentation review.",
       "open_questions": []

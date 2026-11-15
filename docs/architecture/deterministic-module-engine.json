@@ -226,7 +226,7 @@
         "evidence": "The probe fixed Date at zero, exposed no process/fetch/require globals, stopped an infinite loop, resolved a relative in-memory module, and ran 1,000 fresh contexts."
       },
       "verdict": "selected",
-      "reason": "It is the only candidate that combines a memory-safe engine, no built-in host authority, deterministic clock control, in-memory modules, engine-level termination, and source-level portability across every Runx release target."
+      "reason": "It is the only candidate that combines a memory-safe engine, no built-in host authority, deterministic clock control, in-memory modules, engine-level termination, and source-level portability across every runx release target."
     }
   ],
   "decision": {
@@ -235,7 +235,7 @@
     "worker_design": "A runtime session lazily reuses a bounded pool of up to four supervised runx-js-worker processes. Each process executes one invocation at a time, creates a fresh Boa context per invocation, loads only a validated in-memory relative module bundle, and communicates over a versioned length-delimited JSON protocol.",
     "rationale": [
       "The engine contributes no Node, browser, filesystem, network, process, environment, credential, clock, or randomness host surface.",
-      "Pure Rust source passed checks for all five Runx release targets without introducing a C cross-toolchain into releases.",
+      "Pure Rust source passed checks for all five runx release targets without introducing a C cross-toolchain into releases.",
       "The measured fresh-context cost is 118 microseconds, leaving ample margin versus the current process-per-step lane.",
       "Engine loop limits, fixed clock support, and embedded module loading are available without custom native bindings.",
       "A separate process remains mandatory because an in-process language engine is not the aggregate memory, crash, or wall-time security boundary."

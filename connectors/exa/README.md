@@ -15,7 +15,7 @@ alternate-provider fallback or automatic query expansion.
 Each call is quoted at its documented ceiling of $0.014: Exa bills search at $4
 per 1,000 requests up to 10 results, plus $1 per 1,000 for each result above
 that, and this operation returns at most 20. Calls draw on your own Exa account;
-Runx offers no account of its own, and hosted API-key execution is not available
+runx offers no account of its own, and hosted API-key execution is not available
 yet. The quote is what a money limit reserves, not the amount Exa bills, which
 the response reports. A request whose answer did not arrive may still have been
 charged, so the run holds it rather than sending it again.

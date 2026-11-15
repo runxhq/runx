@@ -68,7 +68,7 @@ function presentationErrorCode(operation: () => unknown): string | undefined {
 }
 
 describe("x402 v2 TypeScript facade", () => {
-  it("binds external readers and the strict Runx extension to generated Rust schemas", () => {
+  it("binds external readers and the strict runx extension to generated Rust schemas", () => {
     const bindings = [
       [x402ResourceInfoV2Schema, "x402-v2-resource-info.schema.json", X402_SCHEMA_IDS.resourceInfo],
       [x402PaymentRequirementsV2Schema, "x402-v2-payment-requirements.schema.json", X402_SCHEMA_IDS.paymentRequirements],
@@ -125,7 +125,7 @@ describe("x402 v2 TypeScript facade", () => {
     }
   });
 
-  it("assembles the reserved Runx binding and rejects changed retry commitments", () => {
+  it("assembles the reserved runx binding and rejects changed retry commitments", () => {
     const officialRequired = validateX402PaymentRequiredContract(
       fixture("official-payment-required.json").payload,
     );
@@ -348,7 +348,7 @@ describe("x402 v2 TypeScript facade", () => {
     });
   });
 
-  it("projects a seller's own resource without inventing Runx purchase identity", () => {
+  it("projects a seller's own resource without inventing runx purchase identity", () => {
     const official = validateX402PaymentRequiredContract(
       fixture("official-payment-required.json").payload,
     );

@@ -244,7 +244,7 @@ pub use tool_catalogs::{
 pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
 /// The runx release this runtime ships in: the CLI version.
 ///
-/// Published Runx binaries are immutable for one CLI version. Every native
+/// Published runx binaries are immutable for one CLI version. Every native
 /// closure binds it, so a queued or resumed run cannot silently
 /// cross a runtime upgrade while retaining the same closure digest, and every
 /// receipt's issuer states it.

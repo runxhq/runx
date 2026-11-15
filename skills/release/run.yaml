@@ -1,4 +1,4 @@
-version: "0.4.14"
+version: "0.4.15"
 minimum_runx: 0.12.0
 default_method: release
 catalog:
@@ -9,7 +9,7 @@ methods:
   prepare:
     description: Run the release profile's preparation command and produce an evidence-bound release brief.
     inputs:
-      project_root: {type: string, description: Existing project directory relative to the Runx workspace.}
+      project_root: {type: string, description: Existing project directory relative to the runx workspace.}
       profile_path: {type: string, description: JSON release profile inside project_root.}
       channel: {type: string, description: Release channel declared by the profile.}
       version: {type: string, description: Exact SemVer release version.}
@@ -163,7 +163,7 @@ methods:
   release:
     description: Approve a release's exact publish plan, run it without a shell, then verify it with a separate command.
     inputs:
-      project_root: {type: string, description: Existing project directory relative to the Runx workspace.}
+      project_root: {type: string, description: Existing project directory relative to the runx workspace.}
       profile_path: {type: string, description: JSON release profile inside project_root.}
       channel: {type: string, description: Release channel declared by the profile.}
       version: {type: string, description: Exact SemVer release version.}

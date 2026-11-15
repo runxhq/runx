@@ -1,4 +1,4 @@
-version: "0.4.12"
+version: "0.4.13"
 minimum_runx: 0.12.0
 default_method: adopt
 catalog:
@@ -6,7 +6,7 @@ catalog:
   category: authoring
 methods:
   adopt:
-    description: Capture local third-party source and apply a complete validated Runx package through the canonical authoring engine.
+    description: Capture local third-party source and apply a complete validated runx package through the canonical authoring engine.
     inputs:
       objective: {}
       repo_root: {}

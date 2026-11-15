@@ -2,10 +2,10 @@
 
 Use a local Link wallet to request a bounded, one-time payment authorization and
 pay a Stripe MPP resource. The official Link CLI owns login, refresh and SPT
-retrieval. Runx never reads its authentication file or exports its tokens.
+retrieval. runx never reads its authentication file or exports its tokens.
 
 Install `@stripe/link-cli@0.29.0`, authenticate for agent payments, then run
-`runx connector use link --session`. Runx pins the stable account id returned by
+`runx connector use link --session`. runx pins the stable account id returned by
 `link-cli user-info retrieve`. A CLI that cannot return a stable id is refused.
 Each operation checks that account again; the payment process also reads the
 original, account-owned spend request immediately before use. A changed login
@@ -17,7 +17,7 @@ person. Pending wallet approval, approved spending authority and settled payment
 are different states. This operation does not pay a merchant.
 
 `payment.mpp` accepts a one-time approved spend request and its exact MPP charge
-challenge, destination and request. Runx owns the payment approval and outgoing
+challenge, destination and request. runx owns the payment approval and outgoing
 budget. The connector checks the terms before the official CLI privately obtains
 the SPT. The CLI pins the challenge and destination and refuses redirects.
 No credential is returned to a workflow or supplied in a workflow input.

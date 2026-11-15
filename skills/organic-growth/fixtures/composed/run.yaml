@@ -7,7 +7,7 @@ methods:
       - id: organic-growth
         skill: ../..#analyze
         inputs:
-          objective: Improve qualified organic acquisition for the Runx guides.
+          objective: Improve qualified organic acquisition for the runx guides.
           site_url: https://example.com/
           search_evidence:
             schema: runx/google-search-console.performance_evidence.v1

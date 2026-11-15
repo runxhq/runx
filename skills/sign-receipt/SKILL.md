@@ -1,13 +1,13 @@
 ---
 name: sign-receipt
-description: Bind an off-runtime action claim to opaque evidence locators in a signed Runx receipt without pretending Runx verified the external action.
+description: Bind an off-runtime action claim to opaque evidence locators in a signed runx receipt without pretending runx verified the external action.
 ---
 
 # Sign Receipt
 
-Record a bounded attestation about something that happened outside Runx so a
+Record a bounded attestation about something that happened outside runx so a
 later governed run can cite exactly what was claimed, by whom, on which evidence,
-and for what reliance scope. The native Runx receipt signature proves the
+and for what reliance scope. The native runx receipt signature proves the
 attestation packet was sealed without later modification. It does **not** prove
 the external action itself happened.
 
@@ -23,7 +23,7 @@ include a manual console change, an externally approved decision, or a provider
 operation completed before a native adapter existed.
 
 Do not use it to launder an unsupported claim, copy raw evidence into a receipt,
-or replace a provider readback surface that Runx can actually call. If the
+or replace a provider readback surface that runx can actually call. If the
 external record is available through a governed reader, prefer that stronger
 evidence path.
 
@@ -36,7 +36,7 @@ evidence path.
    records are not accepted.
 3. Native `receipt.attest` validates completeness, rejects duplicates and
    secret-shaped material, and computes a deterministic attestation digest.
-4. The normal Runx receipt signer seals that packet into the parent run.
+4. The normal runx receipt signer seals that packet into the parent run.
 5. Later consumers can verify the receipt and decide whether its declared
    reliance scope is sufficient for their own action.
 

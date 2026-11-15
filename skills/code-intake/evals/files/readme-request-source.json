@@ -1,7 +1,7 @@
 {
   "about": "A request and the source context an upstream reader already supplied for it: the README install example and the CLI help it should match.",
   "request": "The README install example is stale. It needs to match the current CLI help.",
-  "project_context": "Runx OSS documentation",
+  "project_context": "runx OSS documentation",
   "source_context": {
     "source_locator": "github:runxhq/runx/README.md",
     "readme_excerpt": "Install a skill with: runx skill install web-fetch",

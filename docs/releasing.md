@@ -166,7 +166,7 @@ become valid. Check its status after activation; a saved, pending binding is
 not a completed setup. Valid bindings do not require periodic token renewal.
 Do not publish unchanged packages or bump versions merely to activate a binding.
 
-Runx owns `runxhq/homebrew-tap` and `runxhq/scoop-bucket`. The winget package is
+runx owns `runxhq/homebrew-tap` and `runxhq/scoop-bucket`. The winget package is
 tracked through its upstream PR. Do not configure an AUR key for a package
 owned by an unrelated maintainer.
 

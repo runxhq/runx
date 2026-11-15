@@ -124,7 +124,7 @@ fn freeze(object: &JsObject, context: &mut Context) -> JsResult<()> {
         return Ok(());
     }
     Err(JsNativeError::error()
-        .with_message("failed to freeze the Runx deterministic API")
+        .with_message("failed to freeze the runx deterministic API")
         .into())
 }
 

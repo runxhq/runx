@@ -9,7 +9,7 @@
   {"query": "Draft a privacy policy for our website.", "should_trigger": false},
   {"query": "Check whether this purchase fits our procurement policy.", "should_trigger": false},
   {"query": "Set up CODEOWNERS for the repo.", "should_trigger": false},
-  {"query": "Author a fail-closed Runx issue-flow policy from this governance brief.", "should_trigger": true},
+  {"query": "Author a fail-closed runx issue-flow policy from this governance brief.", "should_trigger": true},
   {"query": "Draft a runx operational policy that lets the triage automation work only on acme/api issues, with owner routing to the platform team.", "should_trigger": true},
   {"query": "Tighten our existing runx policy so the release automation can no longer push to main.", "should_trigger": true},
   {"query": "Lint this runx.operational_policy.v1 draft with the native policy engine and tell me what fails.", "should_trigger": true},

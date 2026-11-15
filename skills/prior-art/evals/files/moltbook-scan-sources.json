@@ -1,5 +1,5 @@
 {
-  "about": "Capture these exact selected current repository sources once through prior-art#capture in the same Runx project. Pass its actual returned artifact descriptor as snapshot to prior-art#analyze with this objective and decomposition. This file supplies selectors, not previously captured bytes or catalog proof. Do not pass capture-only selectors to analyze or fabricate a descriptor.",
+  "about": "Capture these exact selected current repository sources once through prior-art#capture in the same runx project. Pass its actual returned artifact descriptor as snapshot to prior-art#analyze with this objective and decomposition. This file supplies selectors, not previously captured bytes or catalog proof. Do not pass capture-only selectors to analyze or fabricate a descriptor.",
   "objective": "Add a Moltbook opportunity scan to an existing governed pipeline.",
   "decomposition": {
     "objective_summary": "Add a Moltbook opportunity scan step.",

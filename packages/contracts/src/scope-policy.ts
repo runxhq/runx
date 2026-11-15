@@ -1,8 +1,8 @@
 /**
- * The governed matching classes for Runx scope grants.
+ * The governed matching classes for runx scope grants.
  *
- * Scope values remain open strings so Runx does not become a registry of
- * provider permissions. The class controls only whether Runx interprets
+ * Scope values remain open strings so runx does not become a registry of
+ * provider permissions. The class controls only whether runx interprets
  * wildcard syntax in a grant.
  */
 export const RUNX_SCOPE_GRANT_POLICY = {

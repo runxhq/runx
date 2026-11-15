@@ -21,7 +21,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   }
   const timeoutMs = positive(config.timeoutMs ?? 15 * 60 * 1000, "timeoutMs");
   const terminationGraceMs = positive(config.terminationGraceMs ?? 1000, "terminationGraceMs");
-  if (timeoutMs > 2147483647 || terminationGraceMs > 2147483647) throw new TypeError("Runx timer limits exceed the platform timer range.");
+  if (timeoutMs > 2147483647 || terminationGraceMs > 2147483647) throw new TypeError("runx timer limits exceed the platform timer range.");
   const maxOutputBytes = positive(config.maxOutputBytes ?? 64 * 1024 * 1024, "maxOutputBytes");
   const maxInputBytes = positive(config.maxInputBytes ?? 8 * 1024 * 1024, "maxInputBytes");
   const maxArtifactBytes = positive(config.maxArtifactBytes ?? 64 * 1024 * 1024, "maxArtifactBytes");
@@ -35,7 +35,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   // argv, and never in a file another process could read.
   const payload = (value: unknown): string => {
     const text = JSON.stringify(value);
-    if (text === undefined) throw new RunxClientError("input_limit", "Runx input is not JSON.");
+    if (text === undefined) throw new RunxClientError("input_limit", "runx input is not JSON.");
     return text;
   };
   return {
@@ -118,7 +118,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     },
     registry: {
       install: async (options) => {
-        if (!Array.isArray(options.records) || options.records.length === 0) throw new TypeError("Runx registry install takes at least one record.");
+        if (!Array.isArray(options.records) || options.records.length === 0) throw new TypeError("runx registry install takes at least one record.");
         const args = ["registry", "install", "--records", "-", ...(options.registry !== undefined ? ["--registry", registryUrl(options.registry)] : []), "--json"];
         const output = parseJson(await execute(args, options, payload(options.records)), [0]);
         const installs = record(output.registry) ? output.registry.installs : undefined;
@@ -164,7 +164,7 @@ function argument(value: string): string {
   return value;
 }
 function absolute(value: string): string {
-  if (!path.isAbsolute(value)) throw new TypeError("Runx receiptDir must be absolute.");
+  if (!path.isAbsolute(value)) throw new TypeError("runx receiptDir must be absolute.");
   return argument(value);
 }
 function registryUrl(value: string): string {

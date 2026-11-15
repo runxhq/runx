@@ -460,7 +460,7 @@ pub fn read_frame<T: DeserializeOwned>(
             count => read += count,
         }
     }
-    // Runx release targets are 32-bit or wider, so every frame's u32 length
+    // runx release targets are 32-bit or wider, so every frame's u32 length
     // is representable as usize.
     let length = u32::from_be_bytes(length) as usize;
     if length > maximum {

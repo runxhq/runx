@@ -1,6 +1,6 @@
 ---
 name: receipt-audit
-description: Review a sealed Runx receipt against a grant baseline, with exact native evidence, scoped governance findings and explicit observability gaps.
+description: Review a sealed runx receipt against a grant baseline, with exact native evidence, scoped governance findings and explicit observability gaps.
 ---
 
 # Receipt Audit

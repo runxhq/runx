@@ -6,7 +6,7 @@ Use `receipt-query` for exact ids or explicit bounded receipt filters,
 for authority review with actual usage/policy evidence. Inspect native receipt
 verification when signature or tree integrity is the question.
 
-A local receipt proves what this Runx home recorded and signed. It does not
+A local receipt proves what this runx home recorded and signed. It does not
 independently establish provider identity, source truth, settlement or delivery.
 A supplied summary or replay projection is not a fresh verification result.
 Keep absent, failed and unchecked verification distinct.

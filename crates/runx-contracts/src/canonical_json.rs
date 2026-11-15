@@ -1,4 +1,4 @@
-//! Canonical JSON primitives shared by Runx contract boundaries.
+//! Canonical JSON primitives shared by runx contract boundaries.
 
 use serde::Serialize;
 use thiserror::Error;

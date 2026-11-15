@@ -1,7 +1,7 @@
 name: produces-cross-source-priorities-with-bound-evidence
 method: analyze
 inputs:
-  objective: Improve qualified organic acquisition for the Runx guides.
+  objective: Improve qualified organic acquisition for the runx guides.
   site_url: https://example.com/
   search_evidence:
     schema: runx/google-search-console.performance_evidence.v1
@@ -63,7 +63,7 @@ host:
     analyze:
       growth_candidate:
         decision: ready
-        objective: Improve qualified organic acquisition for the Runx guides.
+        objective: Improve qualified organic acquisition for the runx guides.
         site_url: https://example.com/
         executive_summary: The guide already has search visibility and measured organic outcomes; improve decision usefulness before expanding topic coverage.
         observations:
@@ -127,7 +127,7 @@ expect:
       subset:
         organic_growth_packet:
           decision: ready
-          objective: Improve qualified organic acquisition for the Runx guides.
+          objective: Improve qualified organic acquisition for the runx guides.
           site_url: https://example.com/
           external_status: not_executed
           validation: {status: pass}

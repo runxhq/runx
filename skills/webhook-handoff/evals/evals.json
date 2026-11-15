@@ -3,31 +3,31 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Hand this governed Runx payload to the configured n8n workflow.",
+      "prompt": "Hand this governed runx payload to the configured n8n workflow.",
       "expected_output": "Validate context, bind scoped auth and idempotency, and return the exact provider-neutral webhook handoff contract.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "Hand this governed Runx payload to the configured Zapier Catch Hook.",
+      "prompt": "Hand this governed runx payload to the configured Zapier Catch Hook.",
       "expected_output": "Validate context, scoped auth, idempotency, and receipt expectations for the exact webhook handoff.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "Hand this governed Runx payload to the configured n8n workflow.",
+      "prompt": "Hand this governed runx payload to the configured n8n workflow.",
       "expected_output": "Prepare, approve, and deliver one idempotent webhook request with the receiver response captured.",
       "files": []
     },
     {
       "id": 4,
-      "prompt": "Hand this governed Runx payload to the configured Zapier Catch Hook.",
+      "prompt": "Hand this governed runx payload to the configured Zapier Catch Hook.",
       "expected_output": "Prepare, approve, and deliver one idempotent hook request with the receiver response captured.",
       "files": []
     },
     {
       "id": 5,
-      "prompt": "Hand this governed Runx payload to the configured n8n workflow.",
+      "prompt": "Hand this governed runx payload to the configured n8n workflow.",
       "expected_output": "Prepare the exact idempotent handoff, bind it at one approval request, and stop without delivering it.",
       "files": []
     },
@@ -39,39 +39,39 @@
     },
     {
       "id": 7,
-      "prompt": "Continue this completed Runx operation into the selected n8n workflow.",
+      "prompt": "Continue this completed runx operation into the selected n8n workflow.",
       "expected_output": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.",
       "files": [
         "evals/files/n8n-handoff.json"
       ],
       "expectations": [
-        "Do not rerun the upstream Runx operation.",
+        "Do not rerun the upstream runx operation.",
         "Do not deliver the webhook again after its response is receipted."
       ],
       "method": "send"
     },
     {
       "id": 8,
-      "prompt": "Continue this completed Runx operation into the selected Zapier workflow.",
+      "prompt": "Continue this completed runx operation into the selected Zapier workflow.",
       "expected_output": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating hook delivery.",
       "files": [
         "evals/files/zapier-handoff.json"
       ],
       "expectations": [
-        "Do not rerun the upstream Runx operation.",
+        "Do not rerun the upstream runx operation.",
         "Do not deliver the hook again after its response is receipted."
       ],
       "method": "send"
     },
     {
       "id": 9,
-      "prompt": "Continue this completed Runx operation into the selected n8n workflow.",
+      "prompt": "Continue this completed runx operation into the selected n8n workflow.",
       "expected_output": "Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.",
       "files": [
         "evals/files/n8n-handoff.json"
       ],
       "expectations": [
-        "Do not rerun the upstream Runx operation.",
+        "Do not rerun the upstream runx operation.",
         "Do not deliver the webhook again after stable receipt evidence exists."
       ],
       "method": "send"

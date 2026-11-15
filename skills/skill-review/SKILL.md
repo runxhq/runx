@@ -1,6 +1,6 @@
 ---
 name: skill-review
-description: Inspect, safely test, and assess one Runx skill package for capability, trust, and operator readiness. Use when deciding whether to adopt, improve, reject, install, or publish a skill; its evidence-only assess method is available when native test evidence already exists.
+description: Inspect, safely test, and assess one runx skill package for capability, trust, and operator readiness. Use when deciding whether to adopt, improve, reject, install, or publish a skill; its evidence-only assess method is available when native test evidence already exists.
 ---
 
 # Skill Review

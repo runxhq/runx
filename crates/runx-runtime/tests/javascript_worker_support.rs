@@ -171,7 +171,7 @@ pub(super) fn success_json(
 }
 
 pub(super) fn expected_json(value: serde_json::Value) -> JsonValue {
-    serde_json::from_value(value).expect("test JSON must satisfy the Runx JSON contract")
+    serde_json::from_value(value).expect("test JSON must satisfy the runx JSON contract")
 }
 
 fn javascript_worker() -> WorkerTool {

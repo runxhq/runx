@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
-/// A hosted Runx principal identifier accepted by the canonical owner-reference
+/// A hosted runx principal identifier accepted by the canonical owner-reference
 /// constructor.
 ///
 /// This is deliberately narrower than a generic principal reference URI. It

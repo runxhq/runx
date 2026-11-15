@@ -31,7 +31,7 @@ fn repository() -> TestResult<tempfile::TempDir> {
     let root = workspace.path();
     git(root, &["init", "-q", "-b", "main"])?;
     git(root, &["config", "user.email", "runx@example.invalid"])?;
-    git(root, &["config", "user.name", "Runx Test"])?;
+    git(root, &["config", "user.name", "runx Test"])?;
     std::fs::create_dir_all(root.join("src"))?;
     std::fs::write(root.join("src/lib.rs"), "pub fn one() {}\n")?;
     git(root, &["add", "."])?;

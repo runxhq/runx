@@ -7,7 +7,7 @@ use crate::schema::RunxSchema;
 
 /// The provider-neutral packet emitted after a provider operation has been
 /// projected and, for mutations, independently read back. Provider adapters
-/// own the shape of `result`; Runx owns this envelope and its identity fields.
+/// own the shape of `result`; runx owns this envelope and its identity fields.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.provider.operation.v1")]

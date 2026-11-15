@@ -1,6 +1,6 @@
 {
   "about": "Caller-supplied captured source bundle for adoption through from-source. The file digest binds these supplied bytes; it is not independent proof of the upstream publisher identity.",
-  "objective": "Adopt this captured decision-note procedure as a runnable local Runx package.",
+  "objective": "Adopt this captured decision-note procedure as a runnable local runx package.",
   "repo_root": ".",
   "target_dir": ".runx-tmp/skill-build-fixtures/fixture-decision-note",
   "source_snapshot": {

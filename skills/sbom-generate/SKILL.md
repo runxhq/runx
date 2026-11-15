@@ -1,7 +1,7 @@
 ---
 name: sbom-generate
 description: Generate a CycloneDX SBOM from a local npm, pnpm or Cargo lockfile, or reuse a completed dependency inventory; preserve source-byte provenance, unresolved components and missing license evidence.
-compatibility: Requires a Runx runtime that admits the parseData worker API.
+compatibility: Requires a runx runtime that admits the parseData worker API.
 ---
 
 # Generate a dependency SBOM

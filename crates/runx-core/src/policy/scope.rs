@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// - `Delegated` also admits one concrete `namespace:` segment through
 ///   `namespace:*`, but never the universal `*` grant.
 /// - `Trusted` additionally admits `*` and is reserved for first-party
-///   authority propagation and authenticated Runx principals.
+///   authority propagation and authenticated runx principals.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScopeGrantPolicy {

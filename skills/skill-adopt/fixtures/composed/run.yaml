@@ -14,7 +14,7 @@ methods:
       - id: adopt
         skill: ../..#from-source
         inputs:
-          objective: Adopt this captured decision-note procedure as a runnable local Runx package.
+          objective: Adopt this captured decision-note procedure as a runnable local runx package.
           repo_root: .
           target_dir: .runx-tmp/skill-build-fixtures/fixture-decision-note
           source_snapshot: $steps.capture.file_read_bundle

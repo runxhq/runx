@@ -1,7 +1,7 @@
 name: does-not-invent-issue-identity
 inputs:
   request: The README install example is stale. It needs to match the current CLI help.
-  project_context: Runx OSS documentation
+  project_context: runx OSS documentation
 host:
   answers:
     intake:

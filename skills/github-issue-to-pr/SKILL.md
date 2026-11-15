@@ -7,7 +7,7 @@ description: Implement one GitHub issue under the repository's actual developmen
 
 Turn one issue into a checked repository change and, when authorized, a pull
 request carrying that exact commit. The host agent investigates, edits and runs
-the appropriate checks with its normal tools. Runx binds the selected issue,
+the appropriate checks with its normal tools. runx binds the selected issue,
 observes the actual candidate checkout, applies any repository-required
 finalization, and governs publication and readback.
 
@@ -49,7 +49,7 @@ Record `governance.kind: repository` with the concrete reason ordinary repositor
 checks apply, or `scafld` with the repository-required finalize receipt and
 contract digest. This is a host report of the applicable procedure. It cannot
 override repository instructions or waive required review. A test report is also
-host-reported evidence: Runx does not retroactively attest that an external host
+host-reported evidence: runx does not retroactively attest that an external host
 command ran just because its name appears in the report.
 
 After host work, the shared verification path reads native Git status, current

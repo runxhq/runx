@@ -2,7 +2,7 @@
   "$id": "https://schemas.runx.ai/runx/provider/operation/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; Runx owns this envelope and its identity fields.",
+  "description": "The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; runx owns this envelope and its identity fields.",
   "properties": {
     "access": {
       "type": "string"

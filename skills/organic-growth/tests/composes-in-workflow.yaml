@@ -5,7 +5,7 @@ host:
     analyze:
       growth_candidate:
         decision: ready
-        objective: Improve qualified organic acquisition for the Runx guides.
+        objective: Improve qualified organic acquisition for the runx guides.
         site_url: https://example.com/
         executive_summary: The guide already has search visibility and measured organic outcomes; improve decision usefulness before expanding topic coverage.
         observations:

@@ -4,7 +4,7 @@ Voice rules are lexical and grammatical. Grammar is the one that matters.
 Models pass word filters easily. Structural patterns are what give AI writing
 away, and they are what this contract targets.
 
-This is the Runx project's writing profile. Select it explicitly through
+This is the runx project's writing profile. Select it explicitly through
 `RUNX_VOICE_PROFILE_PATH` or a workspace `VOICE.md` when it applies. The runtime
 does not inject a company writing style into portable skill turns. A selected
 profile travels as `voice_profile` with its digest and sharing scope.

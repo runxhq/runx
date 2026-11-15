@@ -801,9 +801,9 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
         },
         title: "Provider permission grant".to_owned(),
         message: if configured {
-            "Runx Connect is configured; a hosted operation runs under the grant its connector instance was confirmed with.".to_owned()
+            "runx Connect is configured; a hosted operation runs under the grant its connector instance was confirmed with.".to_owned()
         } else {
-            "Runx Connect is not configured; a hosted operation needs `runx login`, then a grant confirmed with `runx connector use`.".to_owned()
+            "runx Connect is not configured; a hosted operation needs `runx login`, then a grant confirmed with `runx connector use`.".to_owned()
         },
         target: object([
             ("kind", string_value("authority")),

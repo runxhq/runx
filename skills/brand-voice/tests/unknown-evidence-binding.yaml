@@ -4,7 +4,7 @@ inputs:
   brand: runx
   source_material:
     - kind: approved
-      content: Runx receipts bind operator actions to explicit authority evidence.
+      content: runx receipts bind operator actions to explicit authority evidence.
 host:
   answers:
     synthesize:

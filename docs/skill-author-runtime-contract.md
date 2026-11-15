@@ -2,17 +2,17 @@
 
 This document defines the lower-level author-visible v1 subprocess ABI for
 process tools, `tool: { command: ... }`. Use one only when a capability
-genuinely needs an executable or protocol that cannot use Runx's JavaScript
+genuinely needs an executable or protocol that cannot use runx's JavaScript
 worker boundary. Ordinary package domain logic should declare a worker step,
 `tool: { module: ... }`, export a function from a local module, accept the
 resolved input object plus its frozen execution context, and return a
-JSON-compatible value; Runx then owns every process detail described below.
+JSON-compatible value; runx then owns every process detail described below.
 
 Internal receipt IDs, artifact IDs, execution-boundary metadata internals, and
 temporary paths are not part of this contract unless named here.
 
 For retained execution evidence, use native `receipt.prove` and `receipt.read`,
-not a reader over private Runx files. `receipt.read` selects one exact receipt's
+not a reader over private runx files. `receipt.read` selects one exact receipt's
 declared claim. When that claim must belong to an original composed run, also
 pass `root_receipt_id`: the native owner verifies that complete signed tree and
 admits only its root or a descendant. The response preserves this root binding.
@@ -42,7 +42,7 @@ export function assessRisk(inputs) {
 
 Omit `export` to select the default export. Module paths are portable relative
 `.mjs` or `.js` paths contained by the owning skill. The selected export may be
-sync or async. Runx owns the dedicated no-host worker, input and output framing,
+sync or async. runx owns the dedicated no-host worker, input and output framing,
 CPU time enforcement, and failure semantics. The second export argument is a
 frozen `{ environment }` object containing only names the worker declares:
 
@@ -90,7 +90,7 @@ tool:
 The runtime removes the path and scope inputs before module invocation, admits
 the contained file to an immutable snapshot, and calls the export repeatedly.
 The run's `reach` bounds the read, and native admission preserves the caller's
-bounds: agent-bound runs refuse secret files and Runx state, including symlink
+bounds: agent-bound runs refuse secret files and runx state, including symlink
 aliases.
 Each call receives `runx_page` with the artifact's `ref`, `media_type`,
 `digest` and `size_bytes`, the page index, exact offsets, range digest, `eof`, complete
@@ -159,10 +159,10 @@ runtime's hashing and page loop in package JavaScript.
 An `agent` step's turn may call only what its step's `calls` names: `tools`,
 `operations` as `<connector>/<operation>`, and `skills` with `#method`. Naming a
 call grants nothing, because each call is still admitted under the run's
-`effects` and `reach`. Before the model runs, Runx resolves every tool name
+`effects` and `reach`. Before the model runs, runx resolves every tool name
 through the same native-and-local catalog used for execution. The model receives
 the catalog description and exact input schema, including required fields, typed
-defaults, and `additionalProperties: false`; Runx does not substitute a
+defaults, and `additionalProperties: false`; runx does not substitute a
 permissive guessed schema. An unresolved tool fails before a provider call.
 
 Invocation then returns through that same catalog path, so a tool cannot be
@@ -199,7 +199,7 @@ test-only permission evaluator.
 
 This is positive enforcement evidence for native capabilities and provider
 boundaries. It is not negative syscall evidence for a process tool or a process
-MCP server. Those are trusted host code: Runx can prove
+MCP server. Those are trusted host code: runx can prove
 the exact invocation and authority it delivered, but not that the process
 avoided other host filesystem or network access.
 
@@ -225,7 +225,7 @@ required name stops before spawn and an absent optional name is omitted.
 Credential delivery is a separate channel, and a credential variable may not
 collide with this environment.
 
-Runx clears the inherited environment and reconstructs a documented
+runx clears the inherited environment and reconstructs a documented
 host-interoperability baseline from these names when present. Baseline names
 match case-insensitively on Windows and case-sensitively on Unix:
 
@@ -266,7 +266,7 @@ then closes. Otherwise stdin closes without input.
 ## Working directory
 
 Relative source cwd values resolve from the skill directory; absolute values
-remain absolute. Runx records and supervises that exact directory but does not
+remain absolute. runx records and supervises that exact directory but does not
 claim it confines a trusted host process. Filesystem containment belongs to
 native `fs.*` capabilities, not to a subprocess cwd declaration.
 

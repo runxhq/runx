@@ -1,4 +1,4 @@
-// Domain normalization only. Native Runx owns input schemas and source digests.
+// Domain normalization only. Native runx owns input schemas and source digests.
 export function enrichFacts({
   subject,
   sources,

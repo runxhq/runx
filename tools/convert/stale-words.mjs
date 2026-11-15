@@ -4,7 +4,9 @@
 // a scripted test or a run, which are `test` and `run`, and, in prose, `graph`
 // meaning a method's steps, which is `workflow`, "execution closure", which is
 // a package's closure, its one meaning, "agent act", which is a turn, and
-// every key the format contract removes, as removed-keys.mjs reads them. It fails on any use of
+// every key the format contract removes, as removed-keys.mjs reads them, and
+// the brand written `Runx`: it's runx, lowercase, wherever it's written,
+// while a name such as `RunxPaths` is a token of its own. It fails on any use of
 // a retired word outside what may keep it, which the rename reads
 // too: a name identifiers.tsv decides stays, such as `$RUNNER_OS`, and a bare
 // word one of words.mjs's stays keeps. History documents and signed data
@@ -19,7 +21,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
+import { GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, STRINGS, bareWord, codeProse, fencedBlocks, markdownCode, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -31,6 +33,39 @@ const RETIRED = {
 };
 // "Execution closure" read as the old shape: a package's closure is its closure.
 const EXECUTION_CLOSURE = /(?<![A-Za-z])execution[ _-]?[Cc]losures?(?![a-z])|Execution[ _-]?[Cc]losures?(?![a-z])|(?<![A-Z])EXECUTION_CLOSURES?(?![A-Z])/g;
+// The brand, capitalised as a word of its own.
+const BRAND = "Runx";
+
+/**
+ * Where a word is one a person reads, which the brand's case is for: in a
+ * code file, in a comment or a string that reads as words (`codeProse`), since
+ * elsewhere a name such as `Runx::new`, or the one-word string that names a
+ * script's `Runx` global, is code; in a Ruby file, its comments, since a
+ * Homebrew formula's class is the formula's name; in Markdown, outside its
+ * code; anywhere in other data. A word joined to a path or a call,
+ * `Identity::Runx`, `Runx.parseData` or `isFrozen(Runx)`, a class's name, as
+ * a Homebrew formula a script renders has, or a word inside backticks, names
+ * code wherever it's written.
+ */
+function readSites(file, text) {
+  const named = (at, token) => {
+    const lineStart = text.lastIndexOf("\n", at - 1) + 1;
+    const before = text.slice(lineStart, at);
+    const after = text.slice(at + token.length, at + token.length + 2);
+    return before.endsWith("::") || before.endsWith("(") || /\bclass $/.test(before) || /^(::|\.[A-Za-z]|\))/.test(after) || (before.match(/`/g) ?? []).length % 2 === 1;
+  };
+  const commented = (at, comment) => comment.test(text.slice(text.lastIndexOf("\n", at - 1) + 1, at));
+  if (file.endsWith(".md")) {
+    const code = markdownCode(text);
+    return (at, token) => !code.some(([from, to]) => at >= from && at < to) && !named(at, token);
+  }
+  if (file.endsWith(".rb")) return (at, token) => !named(at, token) && commented(at, /#/);
+  if (!STRINGS.test(file)) return (at, token) => !named(at, token);
+  const prose = codeProse(text, file);
+  const comment = file.endsWith(".py") ? /#/ : /\/\/|^\s*\*|\/\*/;
+  return (at, token) =>
+    !named(at, token) && (prose.some(([from, to]) => at >= from && at < to) || commented(at, comment));
+}
 // An agent's unit of work is its turn; an act is what a call is told to do.
 // A count of acts beside an agent, as a summary prints it, is a count of turns.
 const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])|(?<![A-Za-z])[Aa]gent: (?:\{\}|\d+) act(?:s|\(s\))?(?![a-z])/g;
@@ -77,7 +112,7 @@ function main([root, ...rest]) {
   }
   const list = rest.includes("--list");
   const names = decided("oss");
-  const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, key: 0, path: 0 };
+  const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, brand: 0, key: 0, path: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
@@ -87,6 +122,7 @@ function main([root, ...rest]) {
     const unsigned = (at) => !signed.some(([from, to]) => at >= from && at < to);
     // A prose-only word is stale where it's read as code or prose.
     const inProse = proseSites(file, text);
+    const read = readSites(file, text);
     const lines = text.split("\n");
     const lineOf = (at) => text.slice(0, at).split("\n").length;
     const literals = (code) => stringLiterals(code, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);
@@ -103,6 +139,11 @@ function main([root, ...rest]) {
       for (const match of line.matchAll(TOKEN)) {
         const token = match[0];
         if (!unsigned(start + match.index)) continue;
+        if (token === BRAND && read(start + match.index, token)) {
+          found.brand += 1;
+          byFile.set(file, (byFile.get(file) ?? 0) + 1);
+          if (list) process.stdout.write(`${file}:${index + 1}:${match.index + 1}\tbrand\t${token}\t${line.trim().slice(0, 160)}\n`);
+        }
         for (const [word, pattern] of Object.entries(RETIRED)) {
           if (!pattern.test(token)) continue;
           if (PROSE_ONLY.has(word) && !inProse(start + match.index, token)) continue;
@@ -128,8 +169,8 @@ function main([root, ...rest]) {
     found.path += 1;
     if (list) process.stdout.write(`${stale.path}\tpath\t${stale.word}\t${stale.name}\n`);
   }
-  const total = found.runner + found.harness + found.graph + found.closure + found.turn + found.key + found.path;
-  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.closure} of execution closure, which is closure, ${found.turn} of agent act, which is a turn, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
+  const total = found.runner + found.harness + found.graph + found.closure + found.turn + found.brand + found.key + found.path;
+  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.closure} of execution closure, which is closure, ${found.turn} of agent act, which is a turn, ${found.brand} of Runx, which is runx, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
   return total === 0 ? 0 : 1;
 }
 

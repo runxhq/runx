@@ -4,7 +4,7 @@ This connector reads issues and individual events from Sentry Cloud through
 native HTTP. The instance pins the organization and credential. It offers no
 issue resolution, comment, assignment or project mutation.
 
-Use a token with `event:read`. Bind it through Runx's credential surface; never
+Use a token with `event:read`. Bind it through runx's credential surface; never
 pass it in skill inputs or put it in this package. The runtime injects bearer
 authentication and limits credential delivery to `sentry.io`.
 

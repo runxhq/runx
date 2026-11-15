@@ -1,4 +1,4 @@
-version: "0.2.18"
+version: "0.2.19"
 minimum_runx: 0.12.0
 default_method: search
 catalog:

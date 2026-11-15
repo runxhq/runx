@@ -9,7 +9,7 @@ use crate::services::tool_roots::inferred_tool_roots;
 use thiserror::Error;
 
 const WORKSPACE_ENV_FILE: &str = ".env";
-/// Runx's own variables: where state lives, which Connect and registry it
+/// runx's own variables: where state lives, which Connect and registry it
 /// trusts, how it signs, and what a host admits. They come only from the
 /// process a host or operator starts, never from a workspace's files.
 const RUNX_NAME_PREFIX: &str = "RUNX_";
@@ -35,11 +35,11 @@ pub struct WorkspaceEnv {
 }
 
 impl WorkspaceEnv {
-    /// Capture one immutable local-operator environment for a Runx workspace.
+    /// Capture one immutable local-operator environment for a runx workspace.
     ///
     /// The workspace is resolved from the ambient environment before `.env` is
     /// read. The file is parsed as data and only fills missing keys; a file
-    /// that sets one of Runx's own `RUNX_` variables is refused. This method
+    /// that sets one of runx's own `RUNX_` variables is refused. This method
     /// never mutates the process environment.
     pub fn load_process(cwd: PathBuf) -> Result<Self, WorkspaceEnvError> {
         Self::load(std::env::vars().collect(), cwd)
@@ -71,7 +71,7 @@ impl WorkspaceEnv {
         }
 
         // Freeze workspace identity after discovery. A value inside `.env`
-        // cannot redirect Runx to a different workspace after the file was read.
+        // cannot redirect runx to a different workspace after the file was read.
         env.insert(RUNX_CWD_ENV.to_owned(), cwd.to_string_lossy().into_owned());
         let paths = RunxPaths::resolve(&env, &invoked);
 
@@ -223,7 +223,7 @@ pub enum WorkspaceEnvError {
     #[error("workspace environment file {path} could not be parsed")]
     Parse { path: PathBuf },
     #[error(
-        "workspace environment file {path} sets {name}; Runx's own variables, and the HOME and USERPROFILE that locate its home, come only from the process environment or `runx config`"
+        "workspace environment file {path} sets {name}; runx's own variables, and the HOME and USERPROFILE that locate its home, come only from the process environment or `runx config`"
     )]
     ReservedName { path: PathBuf, name: String },
 }
@@ -463,7 +463,7 @@ mod tests {
         Ok(())
     }
 
-    /// A workspace's file cannot redirect Runx's state, Connect or signing,
+    /// A workspace's file cannot redirect runx's state, Connect or signing,
     /// nor admit authority a host supplies.
     #[test]
     fn workspace_env_never_sets_runx_variables() -> Result<(), Box<dyn std::error::Error>> {

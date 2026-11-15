@@ -1,6 +1,6 @@
 # Skill Quality Standard
 
-Public Runx skills are portable execution contracts. A skill earns its place by
+Public runx skills are portable execution contracts. A skill earns its place by
 making an agent materially better at a recurring job: it may execute a governed
 operation, encode a non-obvious workflow, produce a durable artifact, build or
 improve other skills, or provide reusable bounded context. Deterministic
@@ -81,12 +81,12 @@ A reusable provider operation keeps governance, transport, and proof separate:
    call. The admitted grant is sufficient for a routine bounded write. If the
    action warrants a separate human decision, request it once at the native
    effect boundary, not during harmless planning or inspection. Pass one stable
-   retry identity through the operation step's `idempotency_key`; Runx binds
+   retry identity through the operation step's `idempotency_key`; runx binds
    it to the attempt outside provider-specific payload JSON. A write made once
    per run keys on `$run.id`.
 3. Execute through an `operation` step on a connector the skill lists: its
    declared HTTP requests, MCP tool, or process tool. On the hosted placement
-   Runx resolves the unique active grant and Connect renders only the
+   runx resolves the unique active grant and Connect renders only the
    connector's declared request. Agent prose may choose or author inputs but may
    not stand in for transport.
 4. Bind readback to the expected resource identity. An operation step's
@@ -118,14 +118,14 @@ Agent work is valid for judgment and authorship. It must be isolated from
 deterministic effects and close into a declared artifact packet.
 
 `SKILL.md` is the sole static operating-instruction source for a turn.
-Runx injects the complete owning document into the agent envelope and rejects
+runx injects the complete owning document into the agent envelope and rejects
 method or workflow-step `instructions` fields. The envelope's task, typed inputs,
 outputs, allowed tools, and prepared context identify the current act without a
 second prompt contract. Nested skills run under their own documents; downstream
 steps receive declared outputs and context skills with provenance rather than a
 flattened prompt dump.
 
-The normal Runx path yields `needs_agent` to the caller. In-process managed
+The normal runx path yields `needs_agent` to the caller. In-process managed
 agent execution requires explicit per-run `--drive` consent, displays
 the act count and round budget before execution, and remains bounded. Available
 model credentials are capability, not consent. A review must not spend model
@@ -283,7 +283,7 @@ Skill authoring must decide ownership before it writes files:
   permission request. Opaque scopes, exact non-secret environment names, and
   runtime metadata stay on their canonical typed fields; credentials belong to
   the connectors the method calls. Native capabilities and providers enforce the scopes they own;
-  Runx does not reconstruct authority from prose or `runx` metadata.
+  runx does not reconstruct authority from prose or `runx` metadata.
 - Prove permission-bearing native and provider paths through the package
   test using the production catalog, dispatcher, and enforcement owner. A
   realistic admitted case and an exercisable withheld-scope or withheld-grant
@@ -301,7 +301,7 @@ Skill authoring must decide ownership before it writes files:
   which existing owners and tools were inspected.
 - Express irreducible JavaScript through a worker step, `tool: { module: ... }`: a cohesive
   package module exposes focused functions from resolved inputs and frozen
-  declared non-secret environment to JSON values, while Runx owns process
+  declared non-secret environment to JSON values, while runx owns process
   input, output, errors, CPU limits, and worker isolation. Do not simulate named
   operations with public inputs or create one process wrapper per workflow step.
   The runtime must enforce a read-only, no-network worker with no workspace,
@@ -309,7 +309,7 @@ Skill authoring must decide ownership before it writes files:
   process tool, `tool: { command: ... }`, for a genuine executable or protocol
   boundary.
 - Process tools and process MCP servers are trusted host
-  code. Runx supervises exact invocation and delivered authority but does not
+  code. runx supervises exact invocation and delivered authority but does not
   claim portable filesystem, network, or syscall confinement. Use this lane
   only for irreducible protocol work; never generate sandbox declarations,
   wrappers, or degradation flags.
@@ -367,7 +367,7 @@ files, not a format requirement, and they decide nothing at publish. The native
 closure owns resolved package, method, tool, and edge truth; reviewers compare capability metadata with that closure rather than
 reimplementing effect classification in TypeScript or package code. Provider
 evidence remains graded: deterministic replay is `test`, live-provider
-evidence is `live`, and supplied agent answers never upgrade either. Test execution strips ambient Runx grants,
+evidence is `live`, and supplied agent answers never upgrade either. Test execution strips ambient runx grants,
 tokens, credential deliveries, and global configuration before applying the
 fixture's explicit fake bindings.
 

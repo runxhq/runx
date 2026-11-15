@@ -55,8 +55,8 @@ provider-neutral client contract but not private provider implementation
 details.
 
 Real payment admission, SDK integrations, rail calls, reservations, ledgers,
-refund accounting, recovery, and finality live in Runx Cloud payment packages.
-The OSS public contract and the private hosted operation use the same v1 Runx
+refund accounting, recovery, and finality live in runx Cloud payment packages.
+The OSS public contract and the private hosted operation use the same v1 runx
 operation names; greenfield contracts are changed in place rather than forked
 into internal v2 variants.
 

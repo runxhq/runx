@@ -100,7 +100,7 @@ function validateDraft(value, state) {
     }
   }
   if (planKind === "skill_package" && !steps.some((step) => ["skill-build", "runx/skill-build"].includes(normalizedSkillName(step.skill)))) {
-    findings.push({ code: "skill_package.skill_build_required", path: "orchestration_steps", message: "Runx skill-package authoring must use the canonical skill-build lane." });
+    findings.push({ code: "skill_package.skill_build_required", path: "orchestration_steps", message: "runx skill-package authoring must use the canonical skill-build lane." });
   }
 
   const openQuestions = strings(value.open_questions, "open_questions");

@@ -6,7 +6,7 @@ Decision digest: `sha256:65d48defd9aab3d602d7c31ae105be3e3add6ea448a1a5ca623b114
 
 ## Decision
 
-Runx's deterministic JavaScript lane will use
+runx's deterministic JavaScript lane will use
 [Boa 0.21.1](https://docs.rs/boa_engine/0.21.1/boa_engine/) inside a dedicated
 `runx-js-worker` process. A runtime session owns a lazy pool of at most four
 supervised workers. Each worker executes one invocation at a time, so its wall
@@ -17,7 +17,7 @@ module bundle. There is no Node, shell, CLI-adapter, or permission-flag
 fallback.
 
 This selects an engine and a containment design together. Boa is not loaded
-into the main Runx process and is not treated as the process-security boundary.
+into the main runx process and is not treated as the process-security boundary.
 The worker supervisor must enforce per-worker memory, per-invocation CPU time,
 the aggregate pool cap, queue bounds, environment clearing, a non-workspace
 current directory, protocol framing, and replacement after a fault. Boa
@@ -69,10 +69,10 @@ The numbers are comparison probes, not product throughput claims. The native
 Boa probe also fixed time to zero, exposed no `process`, `fetch`, or `require`,
 stopped an infinite loop through the engine limit, resolved a relative module
 from memory, and created 1,000 fresh contexts. Its Rust source checked for all
-five Runx release targets.
+five runx release targets.
 
 The rquickjs probe was fastest and smallest, but its C engine made target
-toolchains part of Runx's release and security surface. Linux arm64 and Windows
+toolchains part of runx's release and security surface. Linux arm64 and Windows
 x64 cross-checks were blocked at the C compiler layer, and the evaluated
 binding did not yet prove deterministic clock or hostile-module behavior on all
 targets. That is the wrong portability risk for a core lane.

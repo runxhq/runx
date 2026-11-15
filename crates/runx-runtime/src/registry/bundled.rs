@@ -181,7 +181,7 @@ impl BundledSkill {
             package_files: self.package.package_files.clone(),
             bundle_digest,
             source: "bundled:runx".to_owned(),
-            source_label: "Bundled Runx core".to_owned(),
+            source_label: "Bundled runx core".to_owned(),
             // Named by its name and version alone: the home's bundled skills
             // are runx's, so no publisher directory is needed.
             package: format!("{}@{version}", self.package.metadata.name),

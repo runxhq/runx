@@ -9,7 +9,7 @@
     },
     {
       "id": 2,
-      "prompt": "Scan Moltbook for current credible opportunities relevant to Runx builders.",
+      "prompt": "Scan Moltbook for current credible opportunities relevant to runx builders.",
       "expected_output": "Judge the feed at the time it was read, so old posts are stale without the caller stating a time.",
       "files": []
     },
@@ -21,7 +21,7 @@
     },
     {
       "id": 4,
-      "prompt": "Scan Moltbook for current credible opportunities relevant to Runx builders.",
+      "prompt": "Scan Moltbook for current credible opportunities relevant to runx builders.",
       "expected_output": "Read the configured feed once and return a fresh evidence-bound opportunity packet without posting.",
       "files": []
     },

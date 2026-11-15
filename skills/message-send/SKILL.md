@@ -21,7 +21,7 @@ after the provider reads it back.
   into a `runx/message-send.plan.v1` packet, and never delivers.
 - `plan_post`: validates a channel name, channel id, or exact
   `slack://workspace/channel` destination, computes the message digest with
-  Runx's native `data.digest`, and binds that digest, the named principal and
+  runx's native `data.digest`, and binds that digest, the named principal and
   the send intent through `plan`. It does not post and needs no approval.
 - `plan_post_exact`: for an operator that has already selected one exact
   destination, principal and text under its own policy. It reuses the same

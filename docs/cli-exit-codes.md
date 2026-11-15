@@ -1,6 +1,6 @@
 # CLI Exit Codes
 
-Runx uses a small exit-code surface so scripts can branch without parsing
+runx uses a small exit-code surface so scripts can branch without parsing
 human output.
 
 For `runx skill` and `runx resume`, the signed outcome remains available on
@@ -20,7 +20,7 @@ stdout regardless of process status. The complete outcome matrix is:
 ## Exit Code 0: Sealed
 
 The command completed successfully. A sealed skill result exits 0 only when its
-outcome is `completed`; Runx preserves every other terminal result as
+outcome is `completed`; runx preserves every other terminal result as
 a signed receipt while returning the process status shown above.
 
 `runx resume` also exits 0 with the status `accepted` when the run's driver is
@@ -107,17 +107,17 @@ runx test <fixture.yaml>
 
 ## Exit Code 70: Runtime Setup Failed
 
-Runx could not establish a required process-wide runtime control before
+runx could not establish a required process-wide runtime control before
 dispatch. Today this means the terminal interrupt handler could not be
-installed, so Runx refused to execute without a reliable cancellation path.
+installed, so runx refused to execute without a reliable cancellation path.
 
 Retry from a fresh process. If the failure persists, report the platform and
 the complete stderr message.
 
 ## Exit Code 130: Interrupted
 
-The operator interrupted the active Runx context with Ctrl-C (or the terminal's
-configured interrupt shortcut). Runx terminates supervised tool, JavaScript,
+The operator interrupted the active runx context with Ctrl-C (or the terminal's
+configured interrupt shortcut). runx terminates supervised tool, JavaScript,
 adapter, and MCP child process groups, allows at most two seconds for receipt
 and output cleanup, and then exits 130. A second interrupt exits immediately.
 On macOS, Cmd-C is normally copy; Ctrl-C is the interrupt.

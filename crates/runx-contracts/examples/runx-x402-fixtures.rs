@@ -188,7 +188,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
         valid::<RunxX402PurchaseExtensionInfo>(
             "runx-discovery-extension.json",
             "runx_purchase_extension",
-            "Runx RX-01-C projection",
+            "runx RX-01-C projection",
             "runx.x402.purchase_extension.v1",
             discovery_extension(),
             None,
@@ -196,7 +196,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
         valid::<RunxX402PurchaseExtensionInfo>(
             "runx-purchase-extension.json",
             "runx_purchase_extension",
-            "Runx RX-01-C projection",
+            "runx RX-01-C projection",
             "runx.x402.purchase_extension.v1",
             purchase_extension(),
             None,
@@ -257,7 +257,7 @@ fn invalid(
     Vector {
         file,
         kind,
-        provenance: "Runx negative conformance vector",
+        provenance: "runx negative conformance vector",
         schema_id,
         expectation: "invalid",
         payload,

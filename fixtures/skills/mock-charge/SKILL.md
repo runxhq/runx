@@ -1,6 +1,6 @@
 ---
 name: mock-charge
-description: Simulate a provider charge locally for deterministic Runx test tests.
+description: Simulate a provider charge locally for deterministic runx test tests.
 ---
 
 # Mock Charge

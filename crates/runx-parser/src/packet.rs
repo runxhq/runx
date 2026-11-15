@@ -1,4 +1,4 @@
-//! Pure parsing for Runx packet-schema documents.
+//! Pure parsing for runx packet-schema documents.
 //!
 //! Filesystem discovery and catalog policy belong to the runtime. This module
 //! owns the document contract so listing, execution, and publication cannot

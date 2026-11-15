@@ -337,7 +337,7 @@ impl jsonschema::Retrieve for &'static PublishedSchemaRetriever {
 }
 
 impl PacketSchemaCatalog {
-    /// The core packets: the reusable contracts the native Runx contract
+    /// The core packets: the reusable contracts the native runx contract
     /// catalog owns. A core packet's bytes are exactly its published
     /// `schemas/` document, and no package carries a copy. What a value is
     /// validated against is that document with its references to the other

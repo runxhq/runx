@@ -2,7 +2,7 @@
 
 Review payment readiness without treating plans or dashboard labels as settlement.
 Payment skills run through an operator-selected local, self-hosted or hosted
-connector. Runx Hosted is optional; merchant credentials do not confer buyer
+connector. runx Hosted is optional; merchant credentials do not confer buyer
 spending authority.
 
 Choose the actual capability by role:

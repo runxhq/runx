@@ -292,7 +292,7 @@ function renderChocolateyNuspec(m: Manifest): string {
   <metadata>
     <id>runx</id>
     <version>${m.version}</version>
-    <title>Runx</title>
+    <title>runx</title>
     <authors>${publisher.name}</authors>
     <owners>${publisher.name}</owners>
     <projectUrl>${xmlEscape(m.homepage)}</projectUrl>
@@ -324,7 +324,7 @@ $binDir = Join-Path $toolsDir '${archiveStem(m, target)}'
 $runxBin = Join-Path $binDir 'runx.exe'
 $workerBin = Join-Path $binDir 'runx-js-worker.exe'
 if (-not (Test-Path $runxBin) -or -not (Test-Path $workerBin)) {
-  throw 'The verified Runx archive must contain runx.exe and runx-js-worker.exe together.'
+  throw 'The verified runx archive must contain runx.exe and runx-js-worker.exe together.'
 }
 New-Item -ItemType File -Path (Join-Path $binDir 'runx.exe.ignore') -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $binDir 'runx-js-worker.exe.ignore') -Force | Out-Null

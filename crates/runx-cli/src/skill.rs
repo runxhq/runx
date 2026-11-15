@@ -405,7 +405,7 @@ fn prepared_entry_provenance(
         }),
         source_label: resolved.registry_source_digest.clone().unwrap_or_else(|| {
             if resolved.kind == SkillRefKind::Bundled {
-                "Bundled Runx core".to_owned()
+                "Bundled runx core".to_owned()
             } else {
                 resolved.runnable_path.to_string_lossy().into_owned()
             }

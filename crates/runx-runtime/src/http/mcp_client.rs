@@ -1,4 +1,4 @@
-// Module rationale: MCP POST bodies obey Runx's configured response ceiling,
+// Module rationale: MCP POST bodies obey runx's configured response ceiling,
 // which may be smaller than rmcp's fixed transport ceiling. Read each POST
 // through the same bounded reader as other guarded HTTP responses. GET streams
 // and session deletes stay upstream-owned; GET event limits are passed through

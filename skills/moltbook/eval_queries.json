@@ -9,7 +9,7 @@
   {"query": "Schedule ten Moltbook posts for next week to boost our visibility.", "should_trigger": false},
   {"query": "What is Moltbook?", "should_trigger": false},
   {"query": "Write one generic hype post about our launch that we can paste into every community.", "should_trigger": false},
-  {"query": "Scan Moltbook for credible opportunities relevant to Runx builders.", "should_trigger": true},
+  {"query": "Scan Moltbook for credible opportunities relevant to runx builders.", "should_trigger": true},
   {"query": "Check the newest posts in the m/agents submolt and tell me if there's one conversation worth joining.", "should_trigger": true},
   {"query": "Is there anything on Moltbook right now where we could genuinely help? Cite the posts.", "should_trigger": true},
   {"query": "Turn the opportunity from that scan into a post-ready draft for the submolt, within Moltbook's limits.", "should_trigger": true},

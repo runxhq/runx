@@ -15,7 +15,7 @@ const contextInputs = () => ({ ...base, case_evidence: wrap("dispute.read", "str
 const draft = () => ({ posture: "contest", summary: "The selected delivery log records buyer access to this report; respond to the non-receipt allegation with that evidence.", fields: { access_activity_log: source.content }, citations: [{ field: "access_activity_log", evidence_id: source.id, quote: source.content }], open_questions: [] });
 const prepared = () => prepareResponse({ case_context: prepareContext(contextInputs()).case_context, response_draft: draft() }).prepared_response;
 
-test("a real pre-Runx charge can be prepared without a Runx charge receipt", () => {
+test("a real pre-Runx charge can be prepared without a runx charge receipt", () => {
   const result = prepared();
   assert.equal(result.decision, "ready");
   assert.equal(result.request.amount_minor, 150);

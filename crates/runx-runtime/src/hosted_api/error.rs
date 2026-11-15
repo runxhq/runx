@@ -76,7 +76,7 @@ impl fmt::Display for HostedApiError {
             Self::Sealed(error) => write!(formatter, "{error}"),
             Self::RuntimeHttp(error) => write!(formatter, "{error}"),
             Self::InvalidBaseUrl(message) => {
-                write!(formatter, "invalid Runx API base URL: {message}")
+                write!(formatter, "invalid runx API base URL: {message}")
             }
             Self::MissingToken => write!(
                 formatter,

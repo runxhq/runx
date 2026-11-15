@@ -39,7 +39,7 @@ a review assignment that depends on a draft that does not exist yet.
 ## Execution and authority
 
 The result is a delegation proposal, not a child execution. Invoke each exact
-skill and method through Runx under the real host grant. The runtime owns scope
+skill and method through runx under the real host grant. The runtime owns scope
 attenuation, approvals, child-run authority and receipts. Review the child
 receipt and its domain result against the assignment's acceptance checks before
 using the output. A declared scope ceiling is a planning constraint, not a grant

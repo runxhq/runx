@@ -1,6 +1,6 @@
 {
   "about": "The run rows and catalog items a prior projection returned for the workspace.",
-  "objective": "Show how Runx behaved over the supplied window.",
+  "objective": "Show how runx behaved over the supplied window.",
   "scope": "workspace",
   "runs": [
     {

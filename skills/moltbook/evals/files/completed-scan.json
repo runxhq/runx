@@ -10,7 +10,7 @@
       ]
     },
     "post_outline": {
-      "headline": "How to move a Runx skill into a package root",
+      "headline": "How to move a runx skill into a package root",
       "beats": [
         "What changed",
         "How to migrate"
@@ -33,7 +33,7 @@
     }
   },
   "outline": {
-    "headline": "How to move a Runx skill into a package root",
+    "headline": "How to move a runx skill into a package root",
     "beats": [
       "What changed",
       "How to migrate"

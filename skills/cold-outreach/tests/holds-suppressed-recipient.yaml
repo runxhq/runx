@@ -15,7 +15,7 @@ inputs:
   evidence_pack:
     decision: ready
     research_brief:
-      objective: Explain the strongest Runx architecture signal.
+      objective: Explain the strongest runx architecture signal.
       scope: agent infrastructure
       summary: Evidence-bound portable execution is the strongest signal.
       open_questions: []

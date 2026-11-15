@@ -6,7 +6,7 @@ inputs:
     delivery_status: not_posted
     validation: {status: fail, findings: []}
   outline:
-    headline: How to move a Runx skill into a package root
+    headline: How to move a runx skill into a package root
     beats: [What changed]
   submolt: agents
 expect:

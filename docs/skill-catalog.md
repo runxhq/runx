@@ -11,12 +11,12 @@ packages. This page is the maintainer-curated map: it explains how to search,
 which category slugs are canonical, and what evidence a new skill proposal must
 include before it belongs in the runx repo.
 
-## Runx foundation and optional packages
+## runx foundation and optional packages
 
 The maintained foundation is `skill-build`, `skill-review`, `skill-adopt`,
 `diagnose-skill-run`, `run-history`, `receipt-query`, `receipt-audit`,
 `least-privilege`, `policy-draft`, and `sign-receipt`, alongside the root
-`runx` orientation manual. Their complete packages ship inside Runx and work
+`runx` orientation manual. Their complete packages ship inside runx and work
 offline without a registry download or source checkout. Each uses the ordinary
 package, execution, authority, and receipt contracts. Bundling adds no privilege.
 
@@ -112,7 +112,7 @@ verifies.
 A public package has one memorable capability name and two supported invocation
 contexts. Direct use selects the truthful default described by its exact
 `SKILL.md`; a parent workflow selects an exact named method and passes typed prior
-results. Runx binds both the injected manual bytes and executable closure by
+results. runx binds both the injected manual bytes and executable closure by
 digest, so a host cannot silently operate from instructions that disagree with
 the installed package.
 

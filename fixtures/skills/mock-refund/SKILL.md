@@ -1,6 +1,6 @@
 ---
 name: mock-refund
-description: Simulate a refund locally for deterministic Runx test tests.
+description: Simulate a refund locally for deterministic runx test tests.
 ---
 
 # Mock Refund

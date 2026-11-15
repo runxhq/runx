@@ -162,7 +162,7 @@ adapter modules.
 Containment has no extra process or shell hop. Unix uses the existing process
 group primitive. Windows alone links the safe Job Object wrappers needed to
 create a child suspended, assign it before execution, terminate the whole tree,
-and reap it when Runx exits abruptly. The catalog sweep only enforces the outer
+and reap it when runx exits abruptly. The catalog sweep only enforces the outer
 deadline; it does not duplicate runtime ownership with `taskkill`, PowerShell,
 or a JavaScript anchor.
 
@@ -171,7 +171,7 @@ or a JavaScript anchor.
 The 2x gate applies to deterministic workflow planning state-machine overhead. Production context-to-module execution has a no-regression gate;
 receipt canonicalization and store maintenance use a 1.75x throughput gate
 plus a measured growth-shape budget. Session gates track spawn count and peak
-leases. Runx does not emit allocation metrics until the test has a real
+leases. runx does not emit allocation metrics until the test has a real
 production-path allocator observation; an invented zero is not evidence. The
 growth-exponent gate applies only where the test captures explicit small and
 large scale points: receipt-store append/index, artifact continuation, and

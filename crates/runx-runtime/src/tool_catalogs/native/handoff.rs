@@ -304,7 +304,7 @@ fn reject_delivered_credential_text(
     if invocation.credential_delivery.redact_text(text) != text {
         return Err(invalid_input(
             TOOL,
-            "handoff material contains credential data delivered by Runx; use credential-bound provider auth instead",
+            "handoff material contains credential data delivered by runx; use credential-bound provider auth instead",
         ));
     }
     Ok(())

@@ -9,7 +9,7 @@ inputs:
     objective: Announce the release and thank the first reviewer.
     principal: account:@example
     acts:
-      - {act_id: act-post-1, kind: post, params: {text: Runx 0.5 is out.}, consequence: public_send, rationale: Release announcement.}
+      - {act_id: act-post-1, kind: post, params: {text: runx 0.5 is out.}, consequence: public_send, rationale: Release announcement.}
       - {act_id: act-like-1, kind: like, params: {post_id: "5001"}, consequence: live_mutation, rationale: Thank the first reviewer.}
     gates: {human_approval_required: true, approval_id: approval:granted}
   plan_digest: sha256:87a42900aefb308c10af4ce8319a97624cb160444980ce4057d951317b8f6d94
@@ -32,11 +32,11 @@ providers:
         method: POST
         url: https://api.x.com/2/tweets
         body:
-          json: {text: Runx 0.5 is out.}
+          json: {text: runx 0.5 is out.}
       response:
         status: 201
         headers: {content-type: application/json}
-        body: '{"data":{"id":"6001","text":"Runx 0.5 is out.","edit_history_tweet_ids":["6001"]}}'
+        body: '{"data":{"id":"6001","text":"runx 0.5 is out.","edit_history_tweet_ids":["6001"]}}'
     - request:
         method: GET
         url: https://api.x.com/2/tweets/6001
@@ -44,7 +44,7 @@ providers:
       response:
         status: 200
         headers: {content-type: application/json}
-        body: '{"data":{"id":"6001","text":"Runx 0.5 is out.","edit_history_tweet_ids":["6001"]}}'
+        body: '{"data":{"id":"6001","text":"runx 0.5 is out.","edit_history_tweet_ids":["6001"]}}'
 expect:
   http_request_counts: [1, 1, 1]
   status: sealed
@@ -67,7 +67,7 @@ expect:
           finality: confirmed
           operation_id: "6001"
           result:
-            post: {id: "6001", text: Runx 0.5 is out.}
+            post: {id: "6001", text: runx 0.5 is out.}
     apply:
       subset:
         twitter_execution:

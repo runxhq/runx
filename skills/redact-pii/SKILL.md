@@ -56,7 +56,7 @@ successful result.
 
 The released report contains classifications, spans, confidence, digests, scanner
 findings and the selected policy. It never contains the matched quotes. Keep
-source content and detection proposals private: Runx's local run and continuation
+source content and detection proposals private: runx's local run and continuation
 records retain the inputs needed for execution. A private proposal or local
 receipt is not permission to publish it. The caller owns the actual send/export
 and must respect the returned verdict and policy scope.

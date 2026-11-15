@@ -2,7 +2,7 @@
 
 `github-issue-to-pr` implements one bounded GitHub issue with the repository's normal
 development tools. It is useful when invoked directly by an agent and when a
-larger Runx chain already has issue or host-work evidence.
+larger runx chain already has issue or host-work evidence.
 
 The public promise is literal: the default method reads the issue, hands normal
 repository work to the host agent, requires tested change evidence and one
@@ -15,11 +15,11 @@ reads it back.
 1. Resolve `repository` from an explicit `owner/name` or `.` for the current
    checkout's `origin`. Available grants never determine the target.
 2. Use the already-authenticated local `gh` and Git installations by default.
-   A project may bind hosted Runx Connect when provider isolation or hosted
+   A project may bind hosted runx Connect when provider isolation or hosted
    authority is required.
 3. Read the issue once and emit `runx/github-issue-to-pr.issue_evidence.v1`.
 4. Let the host agent investigate, edit, and test with its ordinary repository
-   tools. Runx does not turn editing into a sequence of answer files.
+   tools. runx does not turn editing into a sequence of answer files.
 5. Call `scafld finalize` once after the change and tests are ready. Record its
    receipt reference and contract digest in
    `runx/github-issue-to-pr.host_result.v1`.
@@ -58,9 +58,9 @@ repository grant and does not invent a second human gate merely because it is a
 write. Admission binds provider, repository, operation, payload digest,
 required scopes, principal, and plan digest.
 
-Runx persists provider attempt and readback state under the project `.runx`
+runx persists provider attempt and readback state under the project `.runx`
 store. Resume retains the admitted plan and generated idempotency binding. If a
-local PR creation has an unknown prior outcome, Runx refuses to repeat the
+local PR creation has an unknown prior outcome, runx refuses to repeat the
 non-idempotent mutation and asks the operator to inspect GitHub before
 continuing.
 
@@ -81,7 +81,7 @@ runx skill skills/github-issue-to-pr#resume \
   --inputs .runx/github-issue-to-pr/resume.json
 ```
 
-If Runx pauses for host work, continue the same immutable run:
+If runx pauses for host work, continue the same immutable run:
 
 ```bash
 runx resume <run-id> -

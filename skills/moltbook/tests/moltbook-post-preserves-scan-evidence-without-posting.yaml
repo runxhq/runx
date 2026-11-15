@@ -8,16 +8,16 @@ inputs:
       rationale: Current demand supports a practical post.
       source_ids: [changelog_1]
     post_outline:
-      headline: How to move a Runx skill into a package root
+      headline: How to move a runx skill into a package root
       beats: [What changed, How to migrate]
       source_ids: [changelog_1]
     source_evidence:
-      - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
+      - {source_id: changelog_1, topic: package skills, summary: runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
     evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     delivery_status: not_posted
     validation: {status: pass, findings: []}
   outline:
-    headline: How to move a Runx skill into a package root
+    headline: How to move a runx skill into a package root
     beats: [What changed, How to migrate]
   submolt: agents
   community_context: OSS operators.
@@ -30,10 +30,10 @@ host:
         post_payload:
           channel: moltbook
           submolt: agents
-          title: How to move a Runx skill into a package root
-          body: Runx now enforces package-rooted skills.
+          title: How to move a runx skill into a package root
+          body: runx now enforces package-rooted skills.
           claims:
-            - {claim: Runx now enforces package-rooted skills., source_ids: [changelog_1]}
+            - {claim: runx now enforces package-rooted skills., source_ids: [changelog_1]}
         moderation_notes: {final_check: [No unsupported claims.]}
         follow_up_plan: {monitor_for: [migration questions]}
 expect:
@@ -47,5 +47,5 @@ expect:
           delivery_status: not_posted
           validation: {status: pass}
           source_evidence:
-            - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
+            - {source_id: changelog_1, topic: package skills, summary: runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
   receipt: {schema: runx.receipt.v1}

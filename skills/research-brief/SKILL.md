@@ -84,7 +84,7 @@ is ready, the evidence-bound `content_draft_packet`. It may finish at
 
 ## Example
 
-For “Should this provider become a native Runx tool?”, the source set might
+For “Should this provider become a native runx tool?”, the source set might
 include its official API contract, two existing consumer implementations, and
 runtime measurements. The brief should recommend native ownership, package
 ownership, or no change; show which evidence supports that boundary; and name

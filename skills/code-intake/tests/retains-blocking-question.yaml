@@ -1,7 +1,7 @@
 name: retains-blocking-question
 inputs:
   request: Fix the onboarding flow; I have not chosen whether this means the web UI or CLI.
-  project_context: Runx OSS documentation
+  project_context: runx OSS documentation
 host:
   answers:
     intake:

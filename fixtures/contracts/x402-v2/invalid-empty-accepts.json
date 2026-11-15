@@ -1,1 +1,1 @@
-{"expectation":"invalid","header":null,"kind":"payment-required","payload":{"accepts":[],"resource":{"url":"https://example.com"},"x402Version":2},"provenance":"Runx negative conformance vector","schema_id":"https://schemas.runx.ai/external/x402/v2/payment-required.schema.json"}
+{"expectation":"invalid","header":null,"kind":"payment-required","payload":{"accepts":[],"resource":{"url":"https://example.com"},"x402Version":2},"provenance":"runx negative conformance vector","schema_id":"https://schemas.runx.ai/external/x402/v2/payment-required.schema.json"}

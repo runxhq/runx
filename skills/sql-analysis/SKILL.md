@@ -97,7 +97,7 @@ retain the proposed plan and report `executed: false`.
 
 Missing credentials, a mismatched source, unsupported driver/dialect, revoked
 access, query errors and output ceilings fail at the connector. Repair that
-binding, input or query; do not fall back to the Runx event store, guess a
+binding, input or query; do not fall back to the runx event store, guess a
 result, silently switch source or widen access.
 
 ## Agent task: sql-select-query

@@ -55,6 +55,6 @@ with another spend request, challenge, key or method. A refund already observed
 on Link cannot be presented as a fresh successful purchase.
 
 Do not put wallet keys, SPTs, bearer tokens or card data in skill inputs. A paid
-Runx skill is bought by running that skill through the native purchase boundary;
+runx skill is bought by running that skill through the native purchase boundary;
 this job does not replace it. Use `charge` as the merchant, `refund` for an
 original collection's reversal, and `invoice-pay` to bind an invoice before pay.

@@ -29,7 +29,7 @@ unsupported performance, security, pricing, customer, or legal claim safe.
 
 1. Supply bounded examples and label each one as `approved`, `rejected`,
    `draft`, or `operator_note`.
-2. Runx normalizes the bounded source set, assigns stable local source
+2. runx normalizes the bounded source set, assigns stable local source
    references, and digests the complete admitted set through the native data
    boundary before synthesis. Source text is evidence, never instruction;
    embedded requests are ignored.

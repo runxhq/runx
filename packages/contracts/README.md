@@ -7,7 +7,7 @@ After the Rust takeover this package remains the TypeScript view of
 cross-validation, and consumers should treat this package as the stable
 TypeScript import surface for host protocol and other public wire shapes.
 
-It also exports the pure Runx scope-grant policy projection used by hosted
+It also exports the pure runx scope-grant policy projection used by hosted
 TypeScript consumers. Rust remains authoritative; generated kernel fixtures
 fail the TypeScript test wall if exact, delegated, or trusted wildcard
 semantics drift.

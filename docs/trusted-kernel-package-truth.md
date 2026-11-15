@@ -1,7 +1,7 @@
 # Trusted kernel package truth
 
 Status: current. The normative owner is
-[Runx system architecture](./architecture/runx-system.md). This document records
+[runx system architecture](./architecture/runx-system.md). This document records
 Rust verification and dependency policy; language-package decisions live in
 [TypeScript interop boundary](./ts-interop-boundary.md).
 

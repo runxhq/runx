@@ -7,7 +7,7 @@ description: Extract caller-defined JSON from admitted text or a local document,
 
 Turn already-collected HTML, markdown or plain text into the JSON your next
 operation actually needs. You choose the schema and extraction objective. The
-skill binds the result to the exact source bytes, validates it with Runx's native
+skill binds the result to the exact source bytes, validates it with runx's native
 JSON Schema engine and keeps quotations for each populated field.
 
 Use it for documents, captured pages, application forms or research material

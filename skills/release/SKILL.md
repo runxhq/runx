@@ -6,7 +6,7 @@ description: Prepare, approve, execute, and independently verify a versioned rel
 # Release
 
 A release is a project-owned operation, not a universal shell recipe. This
-skill gives Runx one common governance sequence—prepare, describe, approve,
+skill gives runx one common governance sequence—prepare, describe, approve,
 publish, and independently verify—while leaving the actual build and provider
 commands in a versioned profile owned by the project.
 
@@ -19,7 +19,7 @@ A release profile is the project adapter. It declares exact argv commands that
 the project already owns; this skill validates their release semantics but does
 not recreate the project's release implementation.
 
-Runx core owns bounded profile reads, path and symlink containment, command-plan
+runx core owns bounded profile reads, path and symlink containment, command-plan
 digests, sanitized child environments, process-tree supervision, timeouts,
 credential redaction, and output evidence. Package JavaScript only validates the
 release profile and interprets the three release-specific provider states.
@@ -37,8 +37,8 @@ workflow, not detached publication authority.
 
 ## Project profile
 
-`project_root` is resolved inside the current Runx workspace and must be a
-relative directory (normally `.` when Runx is invoked from the project root).
+`project_root` is resolved inside the current runx workspace and must be a
+relative directory (normally `.` when runx is invoked from the project root).
 `profile_path` must name a JSON file inside that directory:
 
 ```json
@@ -58,13 +58,13 @@ Commands support only `argv`, `cwd` and `timeout_ms`; unsupported command fields
 are refused rather than ignored. Arguments are preserved byte for byte and the
 native command owner enforces their count and size. Empty arguments and empty non-secret environment values stay exact.
 Commands are argv arrays, never shell strings. Paths cannot escape the project.
-These commands are trusted host processes: Runx fixes and digests their argv,
+These commands are trusted host processes: runx fixes and digests their argv,
 working directory, admitted environment, and timeout, but does not claim to
 confine their filesystem, network, or syscalls. Keep profiles project-owned,
 versioned, and narrowly scoped; the publish command still requires the exact
 digest-bound approval before execution.
 Credential-shaped arguments and inline environment values are rejected; commands
-receive credentials only through Runx credential delivery or existing local CLI
+receive credentials only through runx credential delivery or existing local CLI
 profiles. The release profile is context and topology, not authority.
 
 Every command must print one bounded JSON object. Preparation returns
@@ -108,7 +108,7 @@ success claim.
 ## Example
 
 An npm project profile runs a local release check, dispatches a GitHub release
-workflow, and verifies the exact version from the registry. Runx can prepare a
+workflow, and verifies the exact version from the registry. runx can prepare a
 brief and notes, bind approval to the workflow-dispatch argv, execute it, and
 seal only after registry readback names the requested version. If the publish
 command changes between preparation and approval or verification cannot find

@@ -482,7 +482,7 @@ impl RunxSchema for X402SettleResponse {
     }
 }
 
-/// Strict Runx information advertised under the external `runx.purchase` key.
+/// Strict runx information advertised under the external `runx.purchase` key.
 ///
 /// This is a declaration only. The authoritative challenge binding remains the
 /// `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.

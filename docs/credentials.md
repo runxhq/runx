@@ -5,7 +5,7 @@ credential it accepts and the variable that holds it; an operator binds one
 account to the connector as an instance; a skill only names the connector
 operations it calls. The kernel delivers the instance's credential to the
 operation it admits, and no skill, agent prompt, input, or receipt ever holds
-the material. A token never goes on argv, and no Runx call needs custom
+the material. A token never goes on argv, and no runx call needs custom
 dotenv logic.
 
 ## Connector contract
@@ -105,11 +105,11 @@ credentials as headers.
 A connector that takes no credential may only read. An approval alone never
 authorizes a write.
 
-`audience` fixes the hosts a request Runx renders may reach: an HTTP request or
+`audience` fixes the hosts a request runx renders may reach: an HTTP request or
 an MCP server URL outside it is refused before anything is sent. A process tool
 or stdio MCP server is different. It is a trusted program on the operator's
-machine that receives the credential in its environment, and Runx does not
-confine where it connects. Runx redacts the credential, and each of its fields,
+machine that receives the credential in its environment, and runx does not
+confine where it connects. runx redacts the credential, and each of its fields,
 from everything that process prints. Bind a credential to a process connector
 only when you trust that program with the account.
 
@@ -127,14 +127,14 @@ account probe alone does not prevent a later account switch.
 Managed sessions do not make process output safe automatically: their process
 must project public results and suppress raw credential-bearing errors. Link's
 process leaves SPT retrieval inside its official CLI and returns only public
-spend and transaction references. Runx does not claim an OS sandbox around the
+spend and transaction references. runx does not claim an OS sandbox around the
 CLI or manage a second copy of its session.
 
 The program is the one the connector ships: a process implementation's tool
 lives beside the connector's manifest, at `tools/<segment>/.../manifest.json`
 for its dotted name (`git.push` is `tools/git/push/`), and is never looked up
 from the skill that calls the operation. A connector that names a tool it does
-not ship is refused when it loads. Runx runs each tool from a copy in the runx
+not ship is refused when it loads. runx runs each tool from a copy in the runx
 home named by the digest of its files, checked against that digest every time,
 and the operation's implementation digest in the receipt includes it.
 
@@ -248,7 +248,7 @@ A run a host starts carries its instances in the host's run authority instead:
 `grants` names, for each connector, the runx Connect grant its calls run under,
 as in `--run-authority '{"grants":{"acme/notes":"grant_..."}}'`, stated for
 that invocation as `@runxhq/client` states its `runAuthority`; it needs no
-workspace and saves nothing. Runx reads the grant through the host, so it must
+workspace and saves nothing. runx reads the grant through the host, so it must
 bind the connector's exact revision, be active and be held by the run's
 principal; the host names it and never asserts what it covers. A stated grant
 stands only for a hosted placement, and a different instance selected for the
@@ -279,16 +279,16 @@ before any provider call.
 
 ## Workspace environment
 
-Every executing Runx CLI command discovers the workspace root and parses its
+Every executing runx CLI command discovers the workspace root and parses its
 exact `.env` file as data; help and version rendering do not depend on
-workspace state. Runx does not source a shell. Exported process values win;
+workspace state. runx does not source a shell. Exported process values win;
 `.env` fills only missing names. A name `.env` sets to a different value than
 the environment keeps the environment's value, and a connector credential or
 model key read from that name is refused until one of them is unset. One
 immutable snapshot is used for the whole
-command or MCP server session. Runx's own `RUNX_` variables never come from
+command or MCP server session. runx's own `RUNX_` variables never come from
 `.env`, nor do `HOME` and `USERPROFILE`, which locate the runx home: a file
-that sets one is refused, so a workspace cannot redirect Runx's state, Connect
+that sets one is refused, so a workspace cannot redirect runx's state, Connect
 or receipt signing, nor supply authority a host admits.
 
 The snapshot supplies a method's declared `environment.required` and
@@ -334,7 +334,7 @@ you rotate, or in a secrets manager.
 
 ## Storage and threat model
 
-Secrets are recorded under the Runx home (`RUNX_HOME`, else `~/.runx`). Their
+Secrets are recorded under the runx home (`RUNX_HOME`, else `~/.runx`). Their
 names live in `config.json`; a stored value is sealed in a private local key
 file, and the key that seals it is a private file in the same home. A
 referenced value never touches the home.
@@ -348,7 +348,7 @@ and a manager's CLI never sees what a workspace `.env` sets. A program you run
 is another matter. A skill's process tool runs as you, with `HOME` and `PATH`,
 so it can read what you can, the runx home, `~/.aws` and `gh auth token`
 included; only an OS sandbox around process tools would change that. Do not
-commit `.env`, Runx key files, or credential material.
+commit `.env`, runx key files, or credential material.
 
 Secrets never appear in:
 
@@ -444,7 +444,7 @@ steps:
 
 An injected variable is read from the environment `runx mcp` started with, so
 it is not refreshed during the session; a secret is read again on every call.
-Runx runs no OAuth client of its own: refresh belongs to the tool you are
+runx runs no OAuth client of its own: refresh belongs to the tool you are
 signed in to, through `--session`, or to Connect.
 
 ## Hosted provider grants
@@ -495,5 +495,5 @@ names them.
 
 A runx account credential is stored by `runx login`, bound to its principal and
 API; `RUNX_PUBLIC_API_TOKEN` supplies one to a single process. When both are
-present for the same API and differ, runx refuses. No Runx secret-setting
+present for the same API and differ, runx refuses. No runx secret-setting
 command accepts raw material on argv.

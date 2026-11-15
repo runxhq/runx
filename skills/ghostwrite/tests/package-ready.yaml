@@ -4,7 +4,7 @@ inputs:
   channel: blog
   draft:
     decision: ready
-    content_brief: {objective: Explain Runx., audience: operators, channel: blog}
+    content_brief: {objective: Explain runx., audience: operators, channel: blog}
     draft:
       title: Evidence-bound execution
       body: Receipts bind operator actions to evidence.

@@ -25,7 +25,7 @@ The `fixtures/skills/mock-charge`, `mock-pay` and `mock-refund` fixtures provide
 the only local payment simulation and always report `money_moved: false`. Public
 payment packages use hosted provider-response fixtures that prove approval,
 idempotency, mutation, and readback contracts without embedding a rail
-implementation in OSS. Real settlement dogfood belongs to Runx Hosted.
+implementation in OSS. Real settlement dogfood belongs to runx Hosted.
 
 The upstream x402 conformance and interop scripts remain protocol checks only;
 they are not local payment adapters and do not prove a Runx-hosted settlement.

@@ -35,7 +35,7 @@ explicit `post` method performs only the exact accepted comment.
 
 ## Evidence and provider boundary
 
-Every candidate and response is bound through Runx's native data digest to the
+Every candidate and response is bound through runx's native data digest to the
 exact issue snapshot or bounded snapshot set. `provider-respond` obtains that
 snapshot through `github/issue.read` with `repo.read`, and the provider
 operation remains in the sealed run alongside the draft. `post` comments

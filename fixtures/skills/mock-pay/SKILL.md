@@ -1,6 +1,6 @@
 ---
 name: mock-pay
-description: Simulate an outbound payment locally for deterministic Runx test tests.
+description: Simulate an outbound payment locally for deterministic runx test tests.
 ---
 
 # Mock Pay

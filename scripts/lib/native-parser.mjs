@@ -40,7 +40,7 @@ export function evaluateParserRequestResults(inputs, env = process.env) {
 export function listToolPacketDeclarations(env = process.env) {
   const report = invokeNativeJson(["list", "tools", "--json"], undefined, env);
   if (!Array.isArray(report?.items)) {
-    throw new Error("native Runx tool catalog returned an invalid report");
+    throw new Error("native runx tool catalog returned an invalid report");
   }
   return report.items.flatMap((item) => {
     if (item?.status !== "ok" || !Array.isArray(item.packets)) return [];
@@ -64,7 +64,7 @@ function invokeNativeParser(document, expectedLength, env) {
   const envelope = invokeJson(rustExampleBinary("parser_eval", env), [], request, env);
   const values = envelope?.result?.value;
   if (envelope?.status !== "success" || !Array.isArray(values) || values.length !== expectedLength) {
-    throw new Error("native Runx parser returned an invalid batch response");
+    throw new Error("native runx parser returned an invalid batch response");
   }
   cache.set(request, values);
   if (Array.isArray(document.inputs) && document.returnErrors !== true) {
@@ -94,7 +94,7 @@ function invokeJson(command, args, input, env) {
   try {
     return JSON.parse(result.stdout);
   } catch {
-    throw new Error("native Runx command returned invalid JSON");
+    throw new Error("native runx command returned invalid JSON");
   }
 }
 
@@ -158,5 +158,5 @@ function parserFailureMessage(stdout, stderr) {
   } catch {
     // Fall through to the bounded process output.
   }
-  return String(stderr || stdout || "native Runx parser failed").trim();
+  return String(stderr || stdout || "native runx parser failed").trim();
 }

@@ -36,7 +36,7 @@ host:
           channel: brief
         draft:
           title: Keep generic evidence admission native
-          body: Runx should admit and bind evidence once, while skills supply domain judgment.
+          body: runx should admit and bind evidence once, while skills supply domain judgment.
           claims:
             - claim: Generic evidence admission belongs in the native runtime.
               source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]

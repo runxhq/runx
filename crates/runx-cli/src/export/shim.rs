@@ -69,10 +69,10 @@ fn render_shim(
     output.push_str("---\n");
     output.push_str(&format!("# {} - governed by runx\n\n", skill.name));
     output.push_str(
-        "Run the declared method through runx; do not bypass work that the method owns. Runx governs policy, approvals, provider effects, and the signed receipt. Report an external mutation only when the result contains provider evidence.\n\n",
+        "Run the declared method through runx; do not bypass work that the method owns. runx governs policy, approvals, provider effects, and the signed receipt. Report an external mutation only when the result contains provider evidence.\n\n",
     );
     output.push_str(
-        "Runx signs receipts with this home's own local key when no signer is configured. If any `RUNX_RECEIPT_SIGN_*` variable is present, the complete signer tuple must be present or runx fails closed. Never invent, copy, or print signing keys.\n\n",
+        "runx signs receipts with this home's own local key when no signer is configured. If any `RUNX_RECEIPT_SIGN_*` variable is present, the complete signer tuple must be present or runx fails closed. Never invent, copy, or print signing keys.\n\n",
     );
     output.push_str(&format!(
         "The bound package is `{command_target}`. Resolve the manual's package-relative resources there. Use the generated invocation below for this binding; manual examples explain usage and do not supply the user's task.\n\n"
@@ -231,7 +231,7 @@ fn render_default_method(
     if !method.inputs.is_empty() {
         output.push_str("Build `RUNX_INPUTS_JSON` as one JSON object from the user's actual task and admitted evidence, matching the inspected `input_schema`. Preserve nested JSON types and include required fields. Examples illustrate shapes; test fixtures are test data, not user inputs. Never put credentials in inputs.\n\n");
     }
-    output.push_str("Invoke from the user's working project, keeping the same working directory and Runx home throughout this run:\n\n");
+    output.push_str("Invoke from the user's working project, keeping the same working directory and runx home throughout this run:\n\n");
     output.push_str("```bash\n");
     output.push_str(&render_command(
         command_target,

@@ -1,4 +1,4 @@
-version: "0.3.6"
+version: "0.3.7"
 minimum_runx: 0.12.0
 catalog:
   visibility: public
@@ -9,7 +9,7 @@ methods:
     inputs:
       action:
         type: string
-        description: What happened outside Runx.
+        description: What happened outside runx.
       evidence:
         description: Opaque references, sha256 digests, and what each locator proves.
       principal:

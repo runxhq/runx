@@ -154,7 +154,7 @@ runx treats it like every other governed action, with no special-casing:
   runx validated. Signed run receipts
   and hosted verified-run evidence are separate signals recorded when the skill
   is executed.
-- When a contributor-owned package is accepted into the Runx repository,
+- When a contributor-owned package is accepted into the runx repository,
   `catalog.publisher` in `run.yaml` preserves that contributor's namespace for
   later hardened versions. Repository inclusion does not silently
   transfer the registry row to `runx/*`; such a transfer must be explicit.

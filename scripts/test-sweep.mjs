@@ -217,7 +217,7 @@ async function runSelfTests() {
     "--expected-count must catch catalog drift",
   );
   // POSIX process groups are owned directly by this sweep. On Windows, the
-  // spawned Runx binary owns the kernel Job Object and its focused Rust tests
+  // spawned runx binary owns the kernel Job Object and its focused Rust tests
   // exercise descendant containment on a real Windows method.
   if (process.platform !== "win32") {
     // A root that exits while a descendant still holds its pipes: the sweep
@@ -466,7 +466,7 @@ function terminateSpawnedProcess(child) {
     return;
   }
   if (process.platform === "win32") {
-    // Runx owns its descendants with a kernel Job Object. Killing the Runx
+    // runx owns its descendants with a kernel Job Object. Killing the runx
     // root closes the outer job handle and atomically terminates that tree.
     child.kill("SIGKILL");
     return;

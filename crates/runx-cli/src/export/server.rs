@@ -156,7 +156,7 @@ fn codex_config_file(export: &ServerExport<'_>) -> Result<PathBuf, ExportError> 
     Ok(codex_home.join("config.toml"))
 }
 
-/// Set or clear this server's entry. Runx owns its command and args; whatever
+/// Set or clear this server's entry. runx owns its command and args; whatever
 /// else the person set on it, and the rest of the file, stay as written.
 fn write_codex_config(
     path: &Path,

@@ -1,14 +1,14 @@
 name: research-ready-with-bound-citations
 method: research
 inputs:
-  objective: Identify the strongest architectural signal in the supplied Runx evidence.
+  objective: Identify the strongest architectural signal in the supplied runx evidence.
   domain: agent infrastructure
   deliverable: operator brief
   source_packets:
     - final_url: https://example.com/receipts
       status: 200
       content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      extracted: Runx receipts bind operator actions to explicit authority and verification evidence.
+      extracted: runx receipts bind operator actions to explicit authority and verification evidence.
       provenance:
         fetched_at: "2026-07-17T00:00:00Z"
         bytes: 82
@@ -30,7 +30,7 @@ host:
       research_candidate:
         decision: ready
         research_brief:
-          objective: Identify the strongest architectural signal in the supplied Runx evidence.
+          objective: Identify the strongest architectural signal in the supplied runx evidence.
           scope: agent infrastructure
           summary: The strongest signal is evidence-bound execution packaged behind portable skills.
           open_questions: []

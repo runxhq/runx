@@ -7,14 +7,14 @@ methods:
       - id: ghostwrite
         skill: ../..#draft
         inputs:
-          objective: Explain the strongest Runx architecture signal.
+          objective: Explain the strongest runx architecture signal.
           audience: operators
           channel: brief
           evidence_pack:
             decision: ready
             research_brief:
-              objective: Explain the strongest Runx architecture signal.
-              scope: Runx receipt architecture.
+              objective: Explain the strongest runx architecture signal.
+              scope: runx receipt architecture.
               summary: Receipts bind actions to authority evidence.
               open_questions: []
             evidence_log:
@@ -35,7 +35,7 @@ methods:
             validation: {status: pass, findings: []}
           brand_context:
             decision: ready
-            brand: Runx
+            brand: runx
             applicability: {channels: [brief], audience: operators, boundaries: [Do not extend claims beyond admitted evidence.]}
             brand_voice:
               voice_principles: [Lead with governed action and proof.]
@@ -46,7 +46,7 @@ methods:
             evidence:
               evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
               sources:
-                - {source_id: "source:1", kind: approved, label: Approved Runx engineering note.}
+                - {source_id: "source:1", kind: approved, label: Approved runx engineering note.}
               bindings:
                 - {rule: Lead with governed action and proof., source_ids: ["source:1"]}
                 - {rule: receipt, source_ids: ["source:1"]}
@@ -59,7 +59,7 @@ methods:
             validation: {status: pass, findings: []}
           taste_context:
             decision: ready
-            subject: Runx operators
+            subject: runx operators
             applicability: {surfaces: [brief], audience: operators, expires_when: [The evidence set changes materially.]}
             taste_profile:
               principles: [Make the workflow visible.]

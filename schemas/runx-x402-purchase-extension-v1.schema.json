@@ -74,7 +74,7 @@
       "type": "object"
     }
   ],
-  "description": "Strict Runx information advertised under the external `runx.purchase` key.\n\nThis is a declaration only. The authoritative challenge binding remains the `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.",
+  "description": "Strict runx information advertised under the external `runx.purchase` key.\n\nThis is a declaration only. The authoritative challenge binding remains the `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.",
   "title": "RunxX402PurchaseExtensionInfo",
   "x-runx-schema": "runx.x402.purchase_extension.v1"
 }

@@ -30,7 +30,7 @@ instance confirmed, the store is a SQLite file under `.runx/`; moving it to
 Postgres or Redis is a store instance (`runx connector use store --parameter
 url=...`), not a skill rewrite.
 
-Runx Connect has a separate job: OAuth, credential custody, capability grants,
+runx Connect has a separate job: OAuth, credential custody, capability grants,
 and provider execution. A skill may read Slack, GitHub, or another provider
 through Connect while retaining its queue, cursor, decisions, and other
 operator state locally. Do not add a hosted projection merely because the

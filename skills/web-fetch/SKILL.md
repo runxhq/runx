@@ -31,7 +31,7 @@ The built-in operation declares zero provider cost: it makes an unauthenticated
 local GET and never performs payment or metered provider dispatch. Host/network
 failures still need real transport evidence; they are not fetched content.
 
-The request path is native Runx code. Skills do not supply a JavaScript HTTP
+The request path is native runx code. Skills do not supply a JavaScript HTTP
 client: the runtime owns public-network enforcement, redirect admission,
 timeouts, retries, the operator's page ceiling, response digests, and
 receipt-safe evidence.

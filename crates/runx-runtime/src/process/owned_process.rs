@@ -15,7 +15,7 @@ use super::signals::{configure_process_group, signal_process_group_id};
 ///
 /// Unix uses a dedicated process group. Windows uses a race-free Job Object
 /// created before the suspended child is resumed. The Windows host process is
-/// also placed in an outer kill-on-close job so an abrupt Runx exit cannot
+/// also placed in an outer kill-on-close job so an abrupt runx exit cannot
 /// orphan any nested execution jobs.
 pub(super) struct OwnedProcess {
     #[cfg(not(windows))]

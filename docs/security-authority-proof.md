@@ -1,6 +1,6 @@
 # Security Authority Proof
 
-Runx receipts must explain the authority boundary without becoming a secret
+runx receipts must explain the authority boundary without becoming a secret
 side channel. A receipt's `authority` section records the execution terms
 admission derived with their subset proofs, the grants that admitted each
 effect and the execution boundary the runtime observed
@@ -93,7 +93,7 @@ as other hosted operations. Their receipts record the grant that admitted the
 hosted call and the provider evidence returned to the workflow. They do not prove
 the private payment runtime's internal reservation or ledger state.
 
-Runx Hosted owns payment-specific attenuation, aggregate caps, reservations,
+runx Hosted owns payment-specific attenuation, aggregate caps, reservations,
 single-use capabilities, idempotency, recovery, finality, and private ledger
 state. A hosted payment operation must fail closed before calling a rail when
 those checks cannot be proven. OSS never substitutes local effect state or a

@@ -9,7 +9,7 @@
         "act_id": "act-post-1",
         "kind": "post",
         "params": {
-          "text": "Runx 0.5 is out."
+          "text": "runx 0.5 is out."
         },
         "consequence": "public_send",
         "rationale": "Release announcement."

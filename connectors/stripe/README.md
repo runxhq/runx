@@ -64,7 +64,7 @@ This connector does not advertise buyer-wallet capabilities. Link authorization,
 SPT acceptance and MPP charging require their own completed integration and are
 not implied by the Stripe mark or by these direct-payment operations.
 
-Run this package's contract checks after building Runx:
+Run this package's contract checks after building runx:
 
 ```sh
 node --test connectors/stripe/tests/connector.test.mjs

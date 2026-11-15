@@ -10,12 +10,12 @@ response. The default `file-response` reads the selected Stripe dispute and its
 original charge, prepares relevant evidence, and pauses for approval of the exact
 bank submission when the response is ready. Insufficient evidence returns a held
 response with the facts and specific missing material. A payment does not have to
-originate in Runx.
+originate in runx.
 
 The current merchant binding is `stripe`. Account credentials belong to the
 selected connector, local or hosted. When `account_id` is omitted, the skill
 reads that binding's account; an explicit account must match the credential's
-actual merchant. A Runx connection ID is not a merchant account ID.
+actual merchant. A runx connection ID is not a merchant account ID.
 
 ## Choose the execution lane
 

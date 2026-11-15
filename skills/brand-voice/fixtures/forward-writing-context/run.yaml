@@ -11,18 +11,18 @@ methods:
           channel: public_update
           audience: advanced software builders
           source_material:
-            - {kind: approved, label: product contract, content: Runx receipts bind operator actions to explicit authority evidence.}
+            - {kind: approved, label: product contract, content: runx receipts bind operator actions to explicit authority evidence.}
             - {kind: rejected, label: rejected launch copy, content: Autonomous everything with no review.}
       - id: draft
         skill: ../../../ghostwrite#draft
         inputs:
-          objective: Explain the strongest Runx architecture signal.
+          objective: Explain the strongest runx architecture signal.
           audience: advanced software builders
           channel: public_update
           evidence_pack:
             decision: ready
             research_brief:
-              objective: Explain the strongest Runx architecture signal.
+              objective: Explain the strongest runx architecture signal.
               scope: Supplied architecture evidence only.
               summary: Receipts bind actions to authority evidence.
               open_questions: []

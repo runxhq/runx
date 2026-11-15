@@ -2,7 +2,7 @@
 
 Run parameterized database reads through a local SQLAlchemy dialect and driver.
 The same connector can bind SQLite, PostgreSQL, MySQL, SQL Server, Oracle or an
-installed third-party dialect. There is no database-engine list in Runx core.
+installed third-party dialect. There is no database-engine list in runx core.
 An engine needs both an installed SQLAlchemy dialect/DBAPI driver and a SQLGlot
 parser dialect for its declared statements; unsupported configurations fail.
 
@@ -15,13 +15,13 @@ separately authorized database session.
 ## Local setup
 
 Use Python 3.10 or later. Install `tools/sql/read/requirements.txt` in the Python
-environment whose `python3` is on the Runx host's PATH. Install the chosen DBAPI
+environment whose `python3` is on the runx host's PATH. Install the chosen DBAPI
 driver and, for external engines, its SQLAlchemy dialect in that environment.
 PostgreSQL with `postgresql+psycopg` uses `psycopg`; SQLite uses Python's driver.
 Dependencies are optional connector dependencies, never CLI dependencies.
 
 Bind one `connection` credential to the local connector instance. Its value is
-the JSON configuration below. Runx delivers it only to this trusted provider
+the JSON configuration below. runx delivers it only to this trusted provider
 process as `RUNX_SQL_CONNECTION`; never put it in skill inputs or public files.
 The process runs with host privileges under native process supervision. It is
 not the isolated JavaScript skill worker.

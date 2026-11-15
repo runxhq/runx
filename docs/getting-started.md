@@ -5,7 +5,7 @@ checked-in `examples/hello-world` package so the commands stay tied to the repo.
 
 ## Prerequisites
 
-- Git and Node.js 20 or newer. Node supplies both npm for installing Runx and
+- Git and Node.js 20 or newer. Node supplies both npm for installing runx and
   the checked-in `hello-world` method command.
 - Rust 1.97 or newer only when building the CLI from source.
 - pnpm 10 or newer only when running repository checks.
@@ -40,7 +40,7 @@ runx skill ./examples/hello-world \
 The `runx.skill_run.v1` response should report `status: "sealed"` and include a
 `receipt_id`.
 
-Runx signs every receipt. With no signer configured, it signs with this runx
+runx signs every receipt. With no signer configured, it signs with this runx
 home's own Ed25519 key, which it creates at `~/.runx/keys/local-receipt-ed25519.json`
 on the first run, readable only by you, and never replaces. Publishing and
 hosted verification still require a hosted issuer.
@@ -114,11 +114,11 @@ runx verify <receipt-id> --json
 
 - Use `runx skill runx/skill-build#build -i objective="Create a bounded
   documentation decision skill" -i target_dir=skills/docs-demo` to author a
-  skill. Runx inspects the catalog, returns an exact agent/resume handoff
+  skill. runx inspects the catalog, returns an exact agent/resume handoff
   unless `--drive` was explicitly authorized, and writes only the
   validated package. It never generates a placeholder module. The `skill-build`
   it uses is the one this release bundles, materialized into the runx home at
-  `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing Runx
+  `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing runx
   first, use the same command through `npx @runxhq/cli`.
 - Compose the example into a workflow with [Composing Skills](./composing-skills.md).
 - Bind provider accounts once as described in

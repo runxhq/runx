@@ -1,13 +1,13 @@
 ---
 name: policy-draft
-description: Draft or tighten a Runx operational policy from a governance brief, then validate the exact runx.operational_policy.v1 contract with the native policy engine. Use for repository/source/automation/owner policy design, fail-closed policy linting, or authority attenuation; never use this lane to widen an existing policy.
+description: Draft or tighten a runx operational policy from a governance brief, then validate the exact runx.operational_policy.v1 contract with the native policy engine. Use for repository/source/automation/owner policy design, fail-closed policy linting, or authority attenuation; never use this lane to widen an existing policy.
 ---
 
 # Policy Draft
 
 Produce one reviewable operational-policy proposal. Let the agent translate
 intent into policy fields; let the native `policy.lint` tool decide whether the
-exact in-memory result is a valid Runx policy.
+exact in-memory result is a valid runx policy.
 
 ## Workflow
 
@@ -28,7 +28,7 @@ exact in-memory result is a valid Runx policy.
 
 ## Native policy contract
 
-Draft the exact contract consumed by `policy.lint` and the Runx policy parser:
+Draft the exact contract consumed by `policy.lint` and the runx policy parser:
 
 ```yaml
 schema: runx.operational_policy.v1

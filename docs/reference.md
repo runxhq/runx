@@ -39,7 +39,7 @@ Run `runx test fixtures/skills/mock-pay` for deterministic local simulation and
 `runx test skills/pay/tests/hosted-contract.yaml` for the public hosted
 contract. The former always records `money_moved: false`; the latter uses
 fixture provider responses and does not prove live settlement. Real rail
-dogfood, credentials, ledger state, recovery, and finality live in Runx Hosted.
+dogfood, credentials, ledger state, recovery, and finality live in runx Hosted.
 
 ## Requirements
 
@@ -172,7 +172,7 @@ approval takes `approved` and `reason`, a claimed call's retry takes `value:
 {"retry": true}` or `value: {"retry": false}`, and questions take `value: {<question id>: {option?: <label>,
 text?: <string>}}`, each naming one of its question's options or, where it
 allows free text, words of the person's own, every required question answered;
-each entry is checked against the request it answers. Runx records every decision it admits under `approvals` in
+each entry is checked against the request it answers. runx records every decision it admits under `approvals` in
 the run before it takes the run further (`answered` in `runx history <run-id>
 --json`), so a decision admitted before a crash is used by the run's next
 driver, and a resume with no entries continues such a run. The same decision
@@ -228,7 +228,7 @@ there, the host asserts that a human approved the exact pending gate. An agent
 must never author or promote that entry; it returns the pending approval to its
 human or to an integrated host that authenticates the decision. Never place a
 consequential decision under `answers`; that section records agent or
-caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
+caller-supplied work and cannot resolve an approval gate. runx rejects an agent
 response presented to an approval request.
 
 A host ends a run instead with `{"close": {"outcome": "declined"}}`
@@ -321,7 +321,7 @@ A call that waits on a person isn't executing: it's answered, or declined. A com
 output's project artifact reference under `artifacts`, by output name; where a
 tool's or skill's input is of a packet type, a call may pass a reference to any
 packet the project holds in place of the packet, one an earlier call returned
-or one an earlier run left. Runx reads it from the project's artifact store
+or one an earlier run left. runx reads it from the project's artifact store
 (the artifact an earlier call of the turn recorded, when one did), checks its
 digest and the input's packet schema, gives the input its content, and names
 the artifact, labeled with the input, in the call's receipt; a reference whose
@@ -466,11 +466,11 @@ in the same drive, and the turns of calls a script runs at once are worked at
 once, up to the script's and the run's concurrency.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
-`--package-digest` and `--closure-digest`. Runx recomputes both at the
+`--package-digest` and `--closure-digest`. runx recomputes both at the
 native execution boundary, persists them in pause checkpoints, and rejects a
 resume whose supplied bindings disagree with that checkpoint. These flags bind
 execution; they are never skill inputs. The closure digest includes the
-immutable Runx release identity, so a pending continuation cannot silently
+immutable runx release identity, so a pending continuation cannot silently
 cross a runtime upgrade. Runx-generated run ids and durable workflow state bind
 the same package and closure digests, so changing a skill, transitive
 child package, or runtime closure cannot merge incompatible checkpoint history.
@@ -485,9 +485,9 @@ failure message names the ceiling it hit; the receipt seals the failure, not
 the limits.
 
 Credential redaction and untrusted-data admission are also distinct. Exact
-values delivered by Runx enter the run-scoped taint set and are scrubbed at
+values delivered by runx enter the run-scoped taint set and are scrubbed at
 every output boundary. External configuration and provider output can contain
-raw material Runx never delivered, so those narrow boundaries additionally
+raw material runx never delivered, so those narrow boundaries additionally
 reject exact secret-field names before the data can enter receipts. That check
 is not a general text heuristic and never removes URLs or unrelated operator
 diagnostics.
@@ -496,7 +496,7 @@ With `agent.provider`, `agent.model` and a key configured, the CLI can resolve
 managed agent work directly. Deterministic tools, approvals, and required human
 inputs keep their existing local behavior. `anthropic`, `openai` and `gemini`
 are built-in providers, each reading its own key variable when `agent.secret`
-is unset; `openai` speaks OpenAI's Responses API. Runx names no model of its
+is unset; `openai` speaks OpenAI's Responses API. runx names no model of its
 own: every provider sets `agent.model`, and a managed run refuses without one.
 Any other provider sets `agent.dialect` (`chat_completions`,
 `anthropic_messages` or `openai_responses`) and `agent.endpoint_url` too, and
@@ -522,8 +522,8 @@ is set, else the secret asked for or piped on stdin, or `--session` or
 `--hosted`. See [Credentials](credentials.md) for the storage contract.
 
 Ctrl-C (or the terminal's configured interrupt shortcut) interrupts the whole
-active Runx context, including supervised tool, JavaScript, adapter, and MCP
-child process groups. Runx allows a two-second cleanup window, exits with status
+active runx context, including supervised tool, JavaScript, adapter, and MCP
+child process groups. runx allows a two-second cleanup window, exits with status
 130, and treats a second interrupt as an immediate exit. On macOS, Cmd-C is
 normally copy; Ctrl-C is the interrupt.
 
@@ -568,7 +568,7 @@ produced; a failed run's `result` is its failure. Neither is part of the signed
 receipt, whose seal records the typed `outcome` and, when the outcome alone
 does not say why, a `reason` from a closed vocabulary. `trace` deliberately carries
 references rather than step payloads. Intermediate workflow state, child receipts,
-and the full signed receipt are written to the local Runx state and receipt
+and the full signed receipt are written to the local runx state and receipt
 stores; process output identity is committed by the receipt. Inspect proof
 through `runx history` and `runx verify` instead of paying to copy it through
 every agent response. Paused runs keep their exact `requests` and resume
@@ -590,7 +590,7 @@ cat request.json | runx skill ./skills/research#research --inputs - --json
 relative to the invocation workspace and must identify one contained, regular,
 UTF-8 file. File and stdin input are capped at 64 MiB, must decode to exactly
 one JSON object, and then enter the same selected-method defaulting and type
-validation as inline inputs. Runx does not echo a rejected document in its
+validation as inline inputs. runx does not echo a rejected document in its
 diagnostic.
 
 A `null` is a value where an input accepts one: a `json` input, or one whose
@@ -843,19 +843,19 @@ and its call's result still carries its whole bounded output.
 Process tools (`tool: { command: ... }`) are trusted host code.
 Their exact non-secret configuration is declared through
 `environment.required` and `environment.optional`; credentials use the
-separate credential contract. Runx controls exact argv, cwd, delivered
+separate credential contract. runx controls exact argv, cwd, delivered
 environment, stdin, timeouts, bounded output, process groups or Job Objects,
 kill-tree behavior, and cleanup.
 
 Receipts record `trusted_host_process`. That is an honest observation, not a
 filesystem, network, or syscall-confinement claim. Capability and provider
-scopes still govern the native or hosted operations Runx performs on the
+scopes still govern the native or hosted operations runx performs on the
 skill's behalf; a local subprocess cannot turn those strings into OS
 permissions.
 
 Authors declare newly required JavaScript helpers, for example
 `tool: {module: inventory.mjs, requires: [parseData]}`. Unsupported declared
-requirements fail workflow admission before effects. Runx does not infer helper
+requirements fail workflow admission before effects. runx does not infer helper
 calls or use this declaration as a permission; omitting it loses the old-runtime
 guard. The baseline `parseUrl` helper predates this declaration.
 
@@ -879,7 +879,7 @@ compact continuation instead of growing history in CLI input.
 
 ## Capability Packs
 
-Runx is the generic execution engine. Product workflows stay outside the runx
+runx is the generic execution engine. Product workflows stay outside the runx
 CLI and ship as local skills, methods, and tools in the consuming repo.
 
 The intended extension model is:
@@ -918,7 +918,7 @@ runx skill runx/skill-build#build \
 Without `--drive`, the run stops at `needs_agent`, prints an answers
 template and exact `runx resume` command, and leaves the target untouched. Add
 `--drive` only when this run should use the configured in-process model
-loop. To cold-start without installing Runx first, invoke the same command
+loop. To cold-start without installing runx first, invoke the same command
 through `npx @runxhq/cli`.
 
 Community skills should be authored and published as standalone packages
@@ -928,7 +928,7 @@ and runtime code, not the community package catalog.
 Prefer declarative workflows composed from native tools and existing skills. When
 irreducible deterministic domain computation needs JavaScript, declare a worker
 step, `tool: { module: ... }`; the module receives resolved inputs and returns
-JSON while Runx owns the process protocol. A frozen second argument carries
+JSON while runx owns the process protocol. A frozen second argument carries
 exact manifest-declared non-secret environment values when needed. Use a
 process tool, `tool: { command: ... }`, only for a real executable or protocol
 boundary. See
@@ -1096,7 +1096,7 @@ owner.
 
 For generic native `fs.write`, `fs.apply_bundle`, and `command.execute` calls,
 the tool's exact scopes and containment are sufficient by default. Add an explicit `ask` step only when the domain action
-itself requires a human decision, such as publishing a release. Runx does not
+itself requires a human decision, such as publishing a release. runx does not
 infer that requirement from the capability's write-shaped effect.
 
 The host protocol represents every unresolved request with the generic
@@ -1175,7 +1175,7 @@ design and improvement, and the named downstream execution lane for mutation.
 
 ## Tool Authoring
 
-Reusable Runx mechanics and security boundaries belong in the native Rust tool
+Reusable runx mechanics and security boundaries belong in the native Rust tool
 catalog. Skills should compose those native tools instead of shipping request,
 filesystem, Git, hashing, packet, approval, credential, or receipt wrappers.
 Use `runx tool inspect <name> --json` to inspect the contract that both workflows
@@ -1356,7 +1356,7 @@ the command prints the public `/r` link and content hash the notary returns.
 `runx verify --notary <document> --notary-key <key.pem>` checks the counter-seal. Configure the hosted API with `RUNX_PUBLIC_API_BASE_URL` (default
 `https://api.runx.ai`) and authenticate with `RUNX_PUBLIC_API_TOKEN` (or run
 `runx login --for publish`). The stored publish credential is separate
-from the default operator credential used by Connect and provider effects. Runx
+from the default operator credential used by Connect and provider effects. runx
 requires HTTPS for non-loopback API origins so the bearer token cannot be sent
 to a public plaintext endpoint.
 
@@ -1441,7 +1441,7 @@ setup:
     - fixtures/receipt-store/sha256-example.json
 ```
 
-Each path must be a normalized package-relative `.json` path. Runx parses and
+Each path must be a normalized package-relative `.json` path. runx parses and
 verifies every seeded receipt under the test's configured signature policy
 before placing it in that test's isolated store. Seed data is evidence for the
 test, not proof of a provider action; the test must still assert only what
@@ -1621,4 +1621,4 @@ the platform package that matches the machine.
 `observed_at`. It forwards admitted execution metadata; it does not read an
 ambient clock or attest to a provider event time. Deterministic JavaScript keeps
 its fixed clock. Acquisition skills preserve provider times separately and may
-use this native value to label when Runx observed their evidence.
+use this native value to label when runx observed their evidence.

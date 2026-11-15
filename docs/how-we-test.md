@@ -1,6 +1,6 @@
 # How We Test
 
-Runx has two local test lanes: a fast loop for package-adjacent work and a full
+runx has two local test lanes: a fast loop for package-adjacent work and a full
 workspace suite for release confidence.
 
 Rust runtime work has four explicit gates:

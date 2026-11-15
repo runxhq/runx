@@ -1,6 +1,6 @@
 # runx-parser
 
-Canonical pure parser and validation crate for Runx package boundaries. Every
+Canonical pure parser and validation crate for runx package boundaries. Every
 runtime consumer receives its package model from this crate; JavaScript test
 and generator code may call the native parser but does not reimplement it.
 

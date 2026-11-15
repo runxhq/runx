@@ -1,4 +1,4 @@
-//! Shared hosted Runx API environment resolution.
+//! Shared hosted runx API environment resolution.
 //!
 //! This module keeps environment selection, credential binding, authentication,
 //! and public error parsing behind one stable facade. Provider-specific operator

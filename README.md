@@ -15,7 +15,7 @@
   <a href="#skills-working-together">Workflows</a> ·
   <a href="#a-skill-carries-judgment">Write a skill</a> ·
   <a href="#what-a-receipt-proves">Receipts</a> ·
-  <a href="#build-on-runx">Build on Runx</a>
+  <a href="#build-on-runx">Build on runx</a>
 </p>
 
 ---
@@ -32,15 +32,15 @@ that a human can understand and an agent can act from. It carries the method,
 the evidence to look for, the decisions to make, and the tools the work needs.
 Skills can call other skills, passing their results forward into a larger job.
 
-Runx makes that work executable. A research brief can become an outreach draft.
+runx makes that work executable. A research brief can become an outreach draft.
 A product launch can connect release work, documentation, and customer updates.
 Search and product analytics can inform the next change to your site. Across
-those handoffs, Runx admits calls under explicit authority, delivers credentials
+those handoffs, runx admits calls under explicit authority, delivers credentials
 at the tool boundary, supervises execution, and seals a verifiable record.
 
 ![Northstar's team-workspaces launch connects operations-review, audience evidence from lead-enrichment, release preparation, content-package, message-send, and email or Slack delivery. Product-analytics tracks the path from workspace creation to the first teammate invited.](docs/assets/readme/business-ops.svg)
 
-**Your agent supplies the judgment. Runx owns the execution boundary.** Use the
+**Your agent supplies the judgment. runx owns the execution boundary.** Use the
 CLI, MCP, or a language client with the agent or orchestration framework you
 already use. Execution, state, and receipt signing run locally; hosted registry,
 credential custody, and notary services are optional. The runtime is written
@@ -50,7 +50,7 @@ in Rust and licensed under Apache-2.0.
 
 ### With your agent
 
-Give your agent the [Runx operating manual](https://runx.ai/SKILL.md):
+Give your agent the [runx operating manual](https://runx.ai/SKILL.md):
 
 ```text
 Set up Runx: https://runx.ai/SKILL.md
@@ -85,7 +85,7 @@ curl -fsSL https://runx.ai/install | sh
 ```
 
 Run the smallest complete example. This needs Git and Node.js 20 or newer;
-it needs no Runx account, model, or provider key.
+it needs no runx account, model, or provider key.
 
 ```bash
 git clone --depth 1 https://github.com/runxhq/runx.git
@@ -131,7 +131,7 @@ Skills pass useful work forward: matched facts, a source-backed brief, a
 validated draft, an exact action to approve, or a receipt from the last run.
 The next skill can use that result directly.
 
-These are compositions you can give an agent: Runx skills working with your
+These are compositions you can give an agent: runx skills working with your
 repositories, provider skills, and connected accounts. Your agent or a
 project-owned workflow makes the handoffs, carrying the actual outputs into the
 next skill's inputs.
@@ -315,9 +315,9 @@ Its checked-in package also includes the command and test case.
 | `SKILL.md` and references | Expertise, procedure, judgment, recovery, and completion criteria. |
 | `run.yaml` | Executable methods, typed contracts, declared capabilities, authority, and test cases. |
 | Domain modules | Deterministic computation specific to the skill. |
-| Runx | Provider transport, filesystem and process access, credential delivery, execution state, and receipts. |
+| runx | Provider transport, filesystem and process access, credential delivery, execution state, and receipts. |
 
-Runx binds the manual and closure by digest. An acting agent receives
+runx binds the manual and closure by digest. An acting agent receives
 the invoked skill's full manual; declared adjacent skills contribute bounded
 summaries until invoked. A workflow can also supply a skill as explicit
 `context.skills` on an agent step—for example, a writing rubric. Context informs
@@ -363,11 +363,11 @@ packaging and handoff methods. Inspect its
 Use an agent turn for work that needs judgment. Use a workflow when phases,
 branches, guards, or approval boundaries must be part of the execution
 contract. Required side effects belong in explicit execution steps, where
-Runx can record the attempt and result. An agent's completion text cannot
+runx can record the attempt and result. An agent's completion text cannot
 substitute for a provider operation.
 
 Workflows and agent turns can both call skills. A host can pass an existing packet
-artifact into a later call; Runx checks its content digest and input schema.
+artifact into a later call; runx checks its content digest and input schema.
 This is how a useful result becomes an input to more work without flattening
 its provenance into prose.
 
@@ -376,7 +376,7 @@ its provenance into prose.
 
 ## Work can outlive an agent turn
 
-By default, an agent step yields work to the calling agent. Runx returns the
+By default, an agent step yields work to the calling agent. runx returns the
 manual, typed request, and allowed calls. Your host can work the turn through
 MCP, provide its result, and continue the same run. The optional
 `--drive` mode delegates those turns to a configured model provider.
@@ -474,11 +474,11 @@ The execution lanes have deliberate boundaries:
   checks, including file access, processes, artifacts, and data operations.
 - **Connector operations** execute declared HTTP, MCP, or Connect calls under
   typed authority and effect contracts.
-- **Process tools** are trusted local executables. Runx controls their argv,
+- **Process tools** are trusted local executables. runx controls their argv,
   working directory, delivered environment, credentials, and supervision.
   They execute with the host's OS permissions; this is not portable OS isolation.
 
-These guarantees cover work executed through Runx. The surrounding agent or
+These guarantees cover work executed through runx. The surrounding agent or
 application owns its other tools, authentication of human decisions, and host
 isolation.
 
@@ -498,7 +498,7 @@ A receipt answers the questions that matter after the agent has moved on:
 | How did the work connect? | Linked child receipts and artifact provenance. |
 | Can I check it later? | A content-addressed ID, canonical digest, and signature. |
 
-Runx signs receipts with Ed25519. On first use, an unconfigured Runx home
+runx signs receipts with Ed25519. On first use, an unconfigured runx home
 creates its own local signing key. `runx history` inspects the record;
 `runx verify` checks its signature and linked receipt tree.
 
@@ -553,7 +553,7 @@ path too.
 [Skill quality standard](docs/skill-quality-standard.md) ·
 [Publishing](docs/publishing.md)
 
-## Build on Runx
+## Build on runx
 
 The CLI, MCP server, and language clients use the same Rust execution path.
 An application can start a skill, expose its open turns to a model, route
@@ -568,7 +568,7 @@ human decisions, resume the run, and inspect its receipts.
 | Contracts | [Schemas](schemas/) and the [public specification](https://runx.ai/spec). |
 
 MCP exposes a turn's allowed calls as typed tools. The host owns the model
-conversation; Runx admits and records the calls. You can integrate a single
+conversation; runx admits and records the calls. You can integrate a single
 skill or build a product around long-lived runs without introducing another
 execution implementation.
 
@@ -594,7 +594,7 @@ consume the same contracts.
 
 ## Contribute
 
-Runx is in active development. Start with a concrete workflow, a reproducible
+runx is in active development. Start with a concrete workflow, a reproducible
 execution problem, a connector contract, or a skill with useful test cases.
 The [contributor guide](CONTRIBUTING.md) covers setup, focused checks, and
 sign-off requirements.

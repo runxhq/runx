@@ -28,7 +28,7 @@ host:
             - Concise engineering sentences.
           claim_rules:
             safe:
-              - rule: Runx receipts bind operator actions to authority evidence.
+              - rule: runx receipts bind operator actions to authority evidence.
                 source_ids: [source:1]
             requires_proof:
               - Hosted production readiness.
@@ -43,12 +43,12 @@ host:
       content_draft:
         decision: ready
         content_brief:
-          objective: Explain the strongest Runx architecture signal.
+          objective: Explain the strongest runx architecture signal.
           audience: advanced software builders
           channel: public_update
         draft:
           title: Governed action stays visible
-          body: Runx receipts bind operator actions to authority evidence.
+          body: runx receipts bind operator actions to authority evidence.
           claims:
             - claim: Receipts bind actions to authority evidence.
               source_digests:
@@ -73,7 +73,7 @@ host:
           - act_id: act-001
             kind: post
             params:
-              text: Runx receipts bind operator actions to authority evidence.
+              text: runx receipts bind operator actions to authority evidence.
             consequence: public_send
             rationale: Uses the admitted safe claim and voice principle.
         context_bindings:

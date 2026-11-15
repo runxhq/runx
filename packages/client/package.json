@@ -1,7 +1,7 @@
 {
   "name": "@runxhq/client",
   "version": "0.1.5",
-  "description": "Typed Node client for the native Runx runtime",
+  "description": "Typed Node client for the native runx runtime",
   "homepage": "https://runx.ai",
   "license": "Apache-2.0",
   "type": "module",

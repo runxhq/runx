@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Build a Runx homepage voice packet from these approved and rejected examples.",
+      "prompt": "Build a runx homepage voice packet from these approved and rejected examples.",
       "expected_output": "Return a scoped voice packet with evidence-bound rules, safe claims, and explicit anti-patterns.",
       "files": []
     },

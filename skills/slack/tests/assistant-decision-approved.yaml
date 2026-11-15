@@ -24,7 +24,7 @@ providers:
             - message_locator: slack://T123ABC/C123ABC/1791095930.000001
               author: {external_id: U123ABC, provider_actor_type: user_account}
               occurred_at: "2026-10-05T00:00:00Z"
-              preview: "Approval needed for a paused Runx action. Request: 0123456789abcdef Digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              preview: "Approval needed for a paused runx action. Request: 0123456789abcdef Digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
               attachments: []
             - message_locator: slack://T123ABC/C123ABC/1791095931.000001
               author: {external_id: U123ABC, provider_actor_type: user_account}

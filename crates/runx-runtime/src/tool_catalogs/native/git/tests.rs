@@ -19,7 +19,7 @@ fn reads_named_and_detached_head() -> Result<(), Box<dyn std::error::Error>> {
         workspace.path(),
         &["config", "user.email", "runx@example.invalid"],
     )?;
-    git(workspace.path(), &["config", "user.name", "Runx Test"])?;
+    git(workspace.path(), &["config", "user.name", "runx Test"])?;
     std::fs::write(workspace.path().join("README.md"), "# Fixture\n")?;
     git(workspace.path(), &["add", "README.md"])?;
     git(workspace.path(), &["commit", "-m", "fixture"])?;
@@ -53,7 +53,7 @@ fn reports_status_and_changed_files_without_local_wrappers()
         workspace.path(),
         &["config", "user.email", "runx@example.invalid"],
     )?;
-    git(workspace.path(), &["config", "user.name", "Runx Test"])?;
+    git(workspace.path(), &["config", "user.name", "runx Test"])?;
     std::fs::write(workspace.path().join("README.md"), "original\n")?;
     git(workspace.path(), &["add", "README.md"])?;
     git(workspace.path(), &["commit", "-m", "fixture"])?;

@@ -1,6 +1,6 @@
 //! Exact, non-secret requirements declared by one executable skill act.
 //!
-//! These values are transport contracts. Runx validates their shape and
+//! These values are transport contracts. runx validates their shape and
 //! preserves their values; provider adapters and workers decide
 //! how an admitted requirement is fulfilled.
 

@@ -1,6 +1,6 @@
 //! Native exact-command execution for project-owned operator profiles.
 //!
-//! Skills retain their domain-specific profile and result semantics. Runx owns
+//! Skills retain their domain-specific profile and result semantics. runx owns
 //! argv execution, workspace anchoring, environment admission, process-tree
 //! supervision, output bounds, credential redaction, and evidence digests.
 

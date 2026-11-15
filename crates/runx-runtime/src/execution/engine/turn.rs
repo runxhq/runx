@@ -2818,7 +2818,7 @@ where
             tool.as_str(),
             inspected
                 .description
-                .unwrap_or_else(|| format!("Runx tool {tool}.")),
+                .unwrap_or_else(|| format!("runx tool {tool}.")),
             runx_contracts::call_input_schema(&inspected.inputs).map_err(|error| {
                 RuntimeError::effect_state("describing a tool", error.to_string())
             })?,

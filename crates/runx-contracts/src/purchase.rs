@@ -215,7 +215,7 @@ impl PrincipalReference {
     }
 
     /// Construct the canonical principal reference for an already-validated
-    /// hosted Runx principal identifier.
+    /// hosted runx principal identifier.
     pub fn from_runx_principal_id(value: RunxPrincipalId) -> Self {
         Self(Reference::runx(ReferenceType::Principal, value.as_str()))
     }

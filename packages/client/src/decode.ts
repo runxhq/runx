@@ -18,7 +18,7 @@ export function parseJson(result: ProcessResult, exits: readonly number[]): Reco
     const output: unknown = JSON.parse(result.stdout);
     if (!record(output)) throw new Error("Expected a JSON object.");
     return output;
-  } catch (error) { throw new RunxClientError("contract", "Runx did not return a JSON object.", { cause: error }); }
+  } catch (error) { throw new RunxClientError("contract", "runx did not return a JSON object.", { cause: error }); }
 }
 
 /** The one value a command that prints only a value printed: its stdout, without the newline it ends with. */

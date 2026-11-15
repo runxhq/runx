@@ -9,7 +9,7 @@
   {"query": "Deliver this JSON to our internal API at https://api.acme.dev/ingest.", "should_trigger": false},
   {"query": "What's the difference between n8n and Zapier?", "should_trigger": false},
   {"query": "Debug why my Zapier zap isn't firing.", "should_trigger": false},
-  {"query": "Hand this governed Runx payload to the configured n8n workflow.", "should_trigger": true},
+  {"query": "Hand this governed runx payload to the configured n8n workflow.", "should_trigger": true},
   {"query": "Send this run's result to our Zapier Catch Hook once I approve it.", "should_trigger": true},
   {"query": "Deliver the approved payload to https://acme.app.n8n.cloud/webhook/lead-intake and record the acknowledgement.", "should_trigger": true},
   {"query": "Check the handoff context for this run without sending anything.", "should_trigger": true},

@@ -16,13 +16,13 @@ methods:
       - id: draft
         skill: ../../../ghostwrite#draft
         inputs:
-          objective: Explain the strongest Runx architecture signal.
+          objective: Explain the strongest runx architecture signal.
           audience: advanced software builders
           channel: public product writing
           evidence_pack:
             decision: ready
             research_brief:
-              objective: Explain the strongest Runx architecture signal.
+              objective: Explain the strongest runx architecture signal.
               scope: Supplied architecture evidence only.
               summary: Receipts bind actions to authority evidence.
               open_questions: []

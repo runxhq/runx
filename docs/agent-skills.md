@@ -50,7 +50,7 @@ A full export must run from a skill workspace containing a root `SKILL.md` or
 `skills/`. It synchronizes that workspace's managed catalog and removes only
 stale generated shims sourced from the same workspace; exports owned by other
 repositories remain intact. An unrelated directory fails closed without
-changing existing shims. Supplying one or more skill refs is additive: Runx
+changing existing shims. Supplying one or more skill refs is additive: runx
 updates those shims without removing any other managed skills.
 
 ## What A Claude Shim Looks Like
@@ -99,7 +99,7 @@ to copy. Authored method examples remain available through inspection.
 For Claude, the `allowed-tools` line limits the shim to the runx binary. Codex
 uses the generated rules block. Run and resume commands carry both exact
 digests, so edited package bytes or a changed closure fail before
-execution. Runx remains the authority boundary on both surfaces.
+execution. runx remains the authority boundary on both surfaces.
 
 ## Continuing a workflow
 
@@ -139,7 +139,7 @@ unless you allow it in `config.toml`.
 
 A host that opens its own connections, such as an app that hands an agent one
 paused run, uses `runx mcp --run <run-id>` instead. Keep the same working project
-and Runx home throughout a run, and use one driver at a time.
+and runx home throughout a run, and use one driver at a time.
 
 ## Requirements
 
@@ -151,7 +151,7 @@ and Runx home throughout a run, and use one driver at a time.
   [Getting Started](./getting-started.md#production-receipt-signing).
 - **Provider accounts.** Bind them once as connector instances with
   `runx connector use`. Exported shims do not add
-  credential wrappers; the invoked Runx skill performs the canonical readiness
+  credential wrappers; the invoked runx skill performs the canonical readiness
   check. See [Credentials](./credentials.md).
 
 ## Regenerating
@@ -178,7 +178,7 @@ in the [catalog](https://runx.ai/x), run them, and read the receipts without
 wrapping the runtime in itself.
 
 Generated shims bind the complete source package. Calling an exported shim
-directly resolves its source through the current Runx workspace and refuses a
+directly resolves its source through the current runx workspace and refuses a
 stale package digest; regenerate the export after changing source bytes. Global
 exports use an absolute local source path; project exports use a path relative
 to the project when the source is inside it. Exporting a local cache does not

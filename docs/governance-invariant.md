@@ -1,12 +1,12 @@
 # The uniform-governance invariant
 
-Every governed execution in Runx passes through one ordered chain:
+Every governed execution in runx passes through one ordered chain:
 
 ```text
 admit -> resolve grant -> deliver -> execute -> seal
 ```
 
-This is the contract that makes Runx a permissions broker. A front cannot run
+This is the contract that makes runx a permissions broker. A front cannot run
 an act without admission, reconstruct authority from its manifest, receive
 ambient secrets, or finish without a receipt that records the granted authority
 and the boundary the runtime actually observed.
@@ -44,7 +44,7 @@ Execution truth is lane-specific:
 - managed agent work records a remote-provider boundary;
 - CLI tools, local MCP servers, and process protocols are trusted host code.
 
-For host processes Runx controls exact argv, cwd, delivered environment,
+For host processes runx controls exact argv, cwd, delivered environment,
 credentials, stdin, timeout, bounded output, interruption, process groups or
 Job Objects, kill-tree behavior, and cleanup. It does not claim portable
 filesystem, network, or syscall confinement.
@@ -69,7 +69,7 @@ approval system, or receipt projection.
 
 The front must identify the boundary it can actually observe. A declaration is
 not evidence. A host process remains `trusted_host_process` even when the skill
-requests narrow scopes; those scopes govern Runx capabilities and provider
+requests narrow scopes; those scopes govern runx capabilities and provider
 calls, not the process's operating-system syscalls.
 
 ## Conformance

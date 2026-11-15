@@ -1,6 +1,6 @@
 name: code-plan-skill-package-requires-skill-build
 inputs:
-  objective: Add a new Runx operator skill.
+  objective: Add a new runx operator skill.
   repo_root: fixtures/workspace
 host:
   answers:
@@ -11,7 +11,7 @@ host:
         change_set:
           change_set_id: change_set_new_skill
           thread_locator: objective://new-skill
-          summary: Add a new Runx operator skill.
+          summary: Add a new runx operator skill.
           category: feature_request
           severity: medium
           recommended_lane: code-plan
@@ -23,16 +23,16 @@ host:
               mutating: true
               rationale: A skill package must be authored.
           shared_invariants:
-            - Use the canonical Runx authoring lane.
+            - Use the canonical runx authoring lane.
           success_criteria:
             - The skill has focused test proof.
-        objective_summary: Add a new Runx operator skill.
+        objective_summary: Add a new runx operator skill.
         workspace_change_plan:
           plan_id: plan_new_skill
           change_set_id: change_set_new_skill
-          objective_summary: Add a new Runx operator skill.
+          objective_summary: Add a new runx operator skill.
           shared_invariants:
-            - Use the canonical Runx authoring lane.
+            - Use the canonical runx authoring lane.
           success_criteria:
             - The skill has focused test proof.
           phases:

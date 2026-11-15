@@ -81,5 +81,5 @@ with `runx connector use n8n --credential webhook`, which must be on
 `runx connector use zapier --credential catch_hook`. Either URL goes on stdin
 and never enters the run's inputs, records or receipts.
 
-`event_id` is also the Runx mutation idempotency key and the value delivered as
+`event_id` is also the runx mutation idempotency key and the value delivered as
 `idempotency_key`; there is no second retry identity that can drift from it.

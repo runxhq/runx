@@ -1,6 +1,6 @@
 ---
 name: google-search-console
-description: Read and normalize Google Search Console performance, indexing, site, and sitemap evidence through any compatible Runx connector; plan and govern sitemap submission without coupling the skill to credential custody or one connector implementation.
+description: Read and normalize Google Search Console performance, indexing, site, and sitemap evidence through any compatible runx connector; plan and govern sitemap submission without coupling the skill to credential custody or one connector implementation.
 ---
 
 # Google Search Console
@@ -15,7 +15,7 @@ OAuth, credential storage, tenant configuration, or connector routing. A local,
 self-hosted, third-party, or Runx-hosted connector is equally valid when it
 implements the declared provider operations and scopes. Connector identifiers,
 credential handles, provider-config keys, service URLs, and tenant ids belong in
-the operator's Runx grant and connector configuration, never in this package or
+the operator's runx grant and connector configuration, never in this package or
 its packets.
 
 ## Operating model
@@ -102,7 +102,7 @@ stable operations and scopes:
   returning the exact property and sitemap identity for readback.
 
 The connector may acquire and refresh credentials however its operator chooses.
-It must enforce the Runx grant, project only declared result fields, keep secrets
+It must enforce the runx grant, project only declared result fields, keep secrets
 out of results and receipts, and preserve provider errors rather than converting
 them into empty success.
 
@@ -120,7 +120,7 @@ falls outside the property, provider authority is absent, or provider readback c
 the exact resource.
 
 The deterministic module exists only for Search Console domain work that generic
-Runx tools cannot express: mapping ordered row keys to named dimensions,
+runx tools cannot express: mapping ordered row keys to named dimensions,
 preserving incomplete-data semantics, validating property coverage, and
-classifying restricted indexing requests. Runx owns digesting, authority,
+classifying restricted indexing requests. runx owns digesting, authority,
 provider execution, idempotency, and receipts.

@@ -1,14 +1,14 @@
 name: ghostwrite-draft-rejects-out-of-scope-context
 method: draft
 inputs:
-  objective: Explain the strongest Runx architecture signal.
+  objective: Explain the strongest runx architecture signal.
   audience: buyers
   channel: email
   evidence_pack:
     decision: ready
     research_brief:
-      objective: Explain the strongest Runx architecture signal.
-      scope: Runx receipt architecture.
+      objective: Explain the strongest runx architecture signal.
+      scope: runx receipt architecture.
       summary: Receipts bind actions to authority evidence.
       open_questions: []
     evidence_log:
@@ -32,7 +32,7 @@ inputs:
       findings: []
   brand_context:
     decision: ready
-    brand: Runx
+    brand: runx
     applicability:
       channels:
         - reddit
@@ -60,7 +60,7 @@ inputs:
       sources:
         - source_id: source:1
           kind: approved
-          label: Approved Runx engineering note.
+          label: Approved runx engineering note.
       bindings:
         - rule: Lead with governed action and proof.
           source_ids:
@@ -87,7 +87,7 @@ inputs:
       findings: []
   taste_context:
     decision: ready
-    subject: Runx operators
+    subject: runx operators
     applicability:
       surfaces:
         - email
@@ -142,7 +142,7 @@ host:
       content_draft:
         decision: needs_more_evidence
         content_brief:
-          objective: Explain the strongest Runx architecture signal.
+          objective: Explain the strongest runx architecture signal.
           audience: buyers
           channel: email
         draft:

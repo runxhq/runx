@@ -4,7 +4,7 @@
   "source_packets": [
     {
       "path": "fixtures/local-architecture-evidence.txt",
-      "contents": "Runx keeps generic evidence admission in the native runtime.\nSkills contribute domain judgment without inventing transport or hashing layers.\n",
+      "contents": "runx keeps generic evidence admission in the native runtime.\nSkills contribute domain judgment without inventing transport or hashing layers.\n",
       "content_digest": "sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45",
       "bytes": 142,
       "truncated": false

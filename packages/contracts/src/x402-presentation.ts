@@ -183,9 +183,9 @@ function rebaseEmbeddedJsonSchema(
 }
 
 /**
- * Assemble a standard external x402 response without asserting any Runx
+ * Assemble a standard external x402 response without asserting any runx
  * purchase semantics. Product owners supply only their public resource and
- * already-authorized payment requirements; Runx remains the protocol
+ * already-authorized payment requirements; runx remains the protocol
  * validator and header encoder.
  */
 export function assembleExternalX402PaymentRequired(input: Readonly<{
@@ -241,7 +241,7 @@ export function assembleX402PaymentRequired(input: Readonly<{
   });
 }
 
-/** Effect-free discovery for a seller's own resource that is not a Runx purchase. */
+/** Effect-free discovery for a seller's own resource that is not a runx purchase. */
 export function x402ExternalDiscoveryHttpProjection(
   descriptor: X402ExternalDiscoveryDescriptor,
 ): X402DiscoveryHttpProjection {

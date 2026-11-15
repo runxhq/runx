@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Turn this bounded issue intake into a dependency-safe Runx work plan.",
+      "prompt": "Turn this bounded issue intake into a dependency-safe runx work plan.",
       "expected_output": "Return a validated execution plan with evidence preservation, mutation boundaries, and explicit owners.",
       "files": []
     },

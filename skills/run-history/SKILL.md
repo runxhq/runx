@@ -10,7 +10,7 @@ installed catalog through `runx.skill.inspect`. The method computes the report
 itself; it does not ask an agent to invent commands, launch subprocesses, or
 transcribe counts.
 
-Use it for operational questions about recent Runx activity, failed or blocked
+Use it for operational questions about recent runx activity, failed or blocked
 runs, paused runs, frequently run skills, and skill entries without fixtures or
 inline test cases. Use `receipt-audit` or `diagnose-skill-run` to
 inspect one suspicious run, and `least-privilege` when receipt-backed authority
@@ -19,7 +19,7 @@ evidence is available for grant review; actual usage and policy semantics are st
 ## Evidence boundary
 
 - Live execution reads only the native run list and catalog projections. These
-  services read the same run records and catalog parser as the Runx CLI
+  services read the same run records and catalog parser as the runx CLI
   without routing back through the CLI as a subprocess.
 - Run reads are bounded to 1,000 matching runs. Reaching that bound is explicit;
   the reported rates never claim whole-ledger coverage. An explicit `as_of` is

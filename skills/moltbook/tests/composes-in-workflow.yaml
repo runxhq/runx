@@ -10,7 +10,7 @@ host:
           rationale: Current product change and operator demand support a practical migration post.
           source_ids: [changelog_1, feedback_1]
         post_outline:
-          headline: How to move a Runx skill into a package root
+          headline: How to move a runx skill into a package root
           beats: [What changed, How to migrate, How to verify]
           source_ids: [changelog_1, feedback_1]
         moderation_notes: {sensitivity: low, tone: direct and useful}

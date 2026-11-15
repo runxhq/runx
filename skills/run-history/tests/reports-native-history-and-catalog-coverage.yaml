@@ -1,6 +1,6 @@
 name: reports-native-history-and-catalog-coverage
 inputs:
-  objective: Show how Runx behaved over the supplied window.
+  objective: Show how runx behaved over the supplied window.
   scope: workspace
   runs:
     - run_id: run_release_1

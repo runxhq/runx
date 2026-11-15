@@ -117,7 +117,7 @@ pub(super) fn resolve_worker_path(explicit: Option<&str>) -> Result<PathBuf, Run
         }
     }
     Err(worker_error(format!(
-        "runx-js-worker is not installed beside the Runx binary; {WORKER_PATH_ENV} may name an absolute operator-controlled worker path"
+        "runx-js-worker is not installed beside the runx binary; {WORKER_PATH_ENV} may name an absolute operator-controlled worker path"
     )))
 }
 

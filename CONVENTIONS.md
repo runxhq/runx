@@ -1,4 +1,4 @@
-# Runx OSS Conventions
+# runx OSS Conventions
 
 ## Scope
 
@@ -91,10 +91,10 @@ internals. Products own persistence, agent loops and scheduling.
 
 ## Connector and Tenant Neutrality
 
-Portable Runx behavior targets provider capabilities, not connector vendors or
+Portable runx behavior targets provider capabilities, not connector vendors or
 Runx-company tenancy. Skills and public contracts must not contain a credential
 backend's connection ids, provider-config keys, hosted tenant ids, connector
-endpoints, or assumptions that credentials are held by Runx Cloud. The operator
+endpoints, or assumptions that credentials are held by runx Cloud. The operator
 binds an eligible local, self-hosted, third-party, or Runx-hosted connector at
 runtime.
 
@@ -192,7 +192,7 @@ the skill's public method. Composite-skill tests own the business scenario
 matrix: routing decisions, authority attenuation, approval and refusal stops,
 downstream handoffs, provider-evidence requirements, receipt lineage, durable
 readback, and replay or recovery. Use fixture agents and local or fake adapters;
-live-provider smoke tests are separate and opt-in. CLI journeys prove that Runx
+live-provider smoke tests are separate and opt-in. CLI journeys prove that runx
 can drive a representative composite flow, but must not duplicate the skill's
 full scenario matrix.
 

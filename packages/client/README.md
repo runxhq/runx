@@ -1,6 +1,6 @@
 # @runxhq/client
 
-The Node client for the native Runx runtime. Hosts choose a binary and explicit
+The Node client for the native runx runtime. Hosts choose a binary and explicit
 workspace paths; Rust owns preparation, execution, continuation and receipts.
 This package has no agent loop, persistence adapter, scheduler or hosted gateway.
 
@@ -72,7 +72,7 @@ child skill is worked on the same connection. `turn_status` returns a
 `TurnStatusContract`: the turn's act and the calls it may make, each a
 `TurnToolContract` with a name, target and input schema that a host can
 present to its model as a typed tool. Each call returns a `TurnCallResultContract`.
-All three come from `@runxhq/contracts`. Runx admits, executes and records
+All three come from `@runxhq/contracts`. runx admits, executes and records
 every call under the run's authority. A write names its `idempotency_key`. A
 pending call lists what it waits on. The host answers an approval through
 `runs.resume` under `approvals`, by its address. `turn_complete` ends a turn

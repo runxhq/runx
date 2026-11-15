@@ -15,7 +15,7 @@ const version = "9.5.0";
 const tag = `cli-v${version}`;
 const commit = "a".repeat(40);
 
-describe("Runx CLI release evidence", () => {
+describe("runx CLI release evidence", () => {
   it("recognizes every GitHub Actions skip directive that suppresses tag pushes", () => {
     expect(githubActionsSkipDirective("docs: update [skip ci]")).toBe("[skip ci]");
     expect(githubActionsSkipDirective("docs: update [CI SKIP]")).toBe("[ci skip]");

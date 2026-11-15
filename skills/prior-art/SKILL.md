@@ -1,6 +1,6 @@
 ---
 name: prior-art
-description: Inspect bounded local repository and Runx catalog evidence before a design, draft, or operator decision, then produce citation-bound findings and a reuse, amendment, new-work, or stop recommendation. Use when existing tools, skills, standards, or project patterns must constrain downstream work; use research or web-fetch first for external sources.
+description: Inspect bounded local repository and runx catalog evidence before a design, draft, or operator decision, then produce citation-bound findings and a reuse, amendment, new-work, or stop recommendation. Use when existing tools, skills, standards, or project patterns must constrain downstream work; use research or web-fetch first for external sources.
 ---
 
 # Prior Art
@@ -17,7 +17,7 @@ turn bounded discovery into a repository-wide grep.
    `source_paths` are already supplied, reuse them.
 2. Otherwise, make one targeted discovery pass for the smallest likely owning
    set: repository instructions and conventions, the named product or package,
-   exact active plans or specs implicated by the objective, and adjacent Runx
+   exact active plans or specs implicated by the objective, and adjacent runx
    skill manifests. Select at most sixteen files. Listing filenames is
    discovery, not the prior-art result; continue through inspection.
 3. Invoke the default method with the objective, chosen paths, and any existing
@@ -30,10 +30,10 @@ turn bounded discovery into a repository-wide grep.
    search repeatedly or cycle through unrelated skills.
 
 Routine local discovery and reads use the host's normal authenticated tools and
-need no approval. Runx adds the catalog projection, digest-bound source bundle,
-citation validation, reusable packet, and receipt. If Runx is unavailable,
+need no approval. runx adds the catalog projection, digest-bound source bundle,
+citation validation, reusable packet, and receipt. If runx is unavailable,
 preserve the selected paths and findings in the documented output shape so the
-operator can continue locally without repeating discovery; do not claim a Runx
+operator can continue locally without repeating discovery; do not claim a runx
 receipt.
 
 ## Composed use
@@ -42,7 +42,7 @@ A parent that has only selected paths calls `capture` once with those paths,
 the repository root and any decomposition. Pass its returned `artifact`
 descriptor as `snapshot` to `analyze`, together with the objective and optional
 decision context. Reuse the same descriptor for further analysis in the same
-Runx project. `analyze` opens the retained artifact; it does not inspect the
+runx project. `analyze` opens the retained artifact; it does not inspect the
 catalog, reopen source paths, or repeat discovery. Changed workspace files do
 not replace captured bytes. Paths and caller-authored source summaries are not
 a capture.
@@ -56,7 +56,7 @@ does not independently prove the truth of its contents or grant authority.
 
 1. Supply a bounded `objective`, optional code-plan `decomposition`, and the
    repo-relative `source_paths` selected by direct discovery or a parent chain.
-2. In `capture`, native `runx.skill.inspect` indexes the local Runx catalog and
+2. In `capture`, native `runx.skill.inspect` indexes the local runx catalog and
    `fs.read_bundle` reads and hashes at most sixteen requested files under the
    workspace boundary. Missing files are recorded; escaping, duplicate, or
    oversized paths fail closed. `artifact.store` retains both complete native

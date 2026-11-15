@@ -16,7 +16,7 @@ host:
             - moltbook
           rationale: The selected fixture exposes a scan entry; production opportunity scanning is outside this fixture.
         quality_bar:
-          audience: Runx skill maintainers
+          audience: runx skill maintainers
           artifact: A source-bound reuse decision.
           evidence: Cite the inspected manifest.
           stop_conditions:

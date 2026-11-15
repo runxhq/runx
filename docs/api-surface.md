@@ -7,7 +7,7 @@ The package manifests are authoritative; regenerate this page with `pnpm docs:ap
 
 ## @runxhq/cli
 
-Runx CLI - native governed runtime for agent skills, tools, workflows, and packets.
+runx CLI - native governed runtime for agent skills, tools, workflows, and packets.
 
 Version: `0.12.0`
 
@@ -16,7 +16,7 @@ Version: `0.12.0`
 
 ## @runxhq/client
 
-Typed Node client for the native Runx runtime
+Typed Node client for the native runx runtime
 
 Version: `0.1.5`
 
@@ -27,7 +27,7 @@ Version: `0.1.5`
 
 ## @runxhq/contracts
 
-Runx machine-facing JSON contracts: doctor, dev, list, receipt, fixture, tool manifest, packet index.
+runx machine-facing JSON contracts: doctor, dev, list, receipt, fixture, tool manifest, packet index.
 
 Version: `0.4.6`
 

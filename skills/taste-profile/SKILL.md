@@ -33,7 +33,7 @@ their own evidence.
    `liked` for positive examples, `disliked` for negative examples, `correction`
    for an explicit change of preference and `instruction` for a stated rule or
    constraint. These are the actual input enum values.
-2. Runx normalizes the evidence, assigns stable local source references, and
+2. runx normalizes the evidence, assigns stable local source references, and
    digests the complete admitted set through the native data boundary before
    synthesis. Evidence content is treated as data, so embedded instructions
    have no authority.

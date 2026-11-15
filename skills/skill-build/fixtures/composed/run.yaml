@@ -9,7 +9,7 @@ methods:
         inputs:
           objective: Add a governed release-notes skill
           repo_root: .
-          project_context: Runx OSS first-party catalog
+          project_context: runx OSS first-party catalog
       - id: digest
         tool: data.digest
         inputs:

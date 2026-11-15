@@ -80,7 +80,7 @@ view. The complete source packet remains bound by digest; the model must not
 pretend a bounded view is exhaustive.
 
 Every material claim and recommended action must cite one or more admitted source
-digests. Runx's native evidence verifier rejects invented references, changed
+digests. runx's native evidence verifier rejects invented references, changed
 objective/site identity, empty claims, missing decision fields, and unsupported
 external-effect claims. A failure becomes `needs_more_evidence`, not a polished
 guess.
@@ -162,7 +162,7 @@ publication.
 
 The deterministic module only admits and bounds organic-growth domain evidence.
 It does not hash evidence, call providers, or implement generic verification.
-Runx owns native digest provenance, evidence verification, agent receipts, and
+runx owns native digest provenance, evidence verification, agent receipts, and
 all downstream effect gates.
 
 ## Agent task: organic-growth-analyze

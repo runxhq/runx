@@ -1,7 +1,7 @@
 name: preserves-adapter-context
 inputs:
   request: The README install example is stale. It needs to match the current CLI help.
-  project_context: Runx OSS documentation
+  project_context: runx OSS documentation
   source_context:
     thread_locator: github://example/project/issues/101
     issue_locator: https://github.com/example/project/issues/101

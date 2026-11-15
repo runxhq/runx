@@ -9,7 +9,7 @@
   {"query": "Verify the signature on this PDF.", "should_trigger": false},
   {"query": "Tighten our operational policy so nothing can push to main without approval.", "should_trigger": false},
   {"query": "Explain how runx receipts are signed.", "should_trigger": false},
-  {"query": "Audit this sealed Runx receipt for authority over-reach and approval inconsistency.", "should_trigger": true},
+  {"query": "Audit this sealed runx receipt for authority over-reach and approval inconsistency.", "should_trigger": true},
   {"query": "Check receipt rx_7Hq2 against this grant baseline and tell me whether it used anything outside it.", "should_trigger": true},
   {"query": "Did this run record an approval where the skill declared one was required? Audit its receipt.", "should_trigger": true},
   {"query": "Look at this receipt and flag any exposed secret material in what was recorded.", "should_trigger": true},

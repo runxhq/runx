@@ -89,14 +89,14 @@ function proveQuickstart() {
     "--run-id",
     "first-run",
     "-i",
-    "message=Hello, Runx.",
+    "message=Hello, runx.",
     "--receipt-dir",
     receipts,
     "--json",
   ]);
   if (
     output.status !== "sealed"
-    || output.result?.message !== "Hello, Runx."
+    || output.result?.message !== "Hello, runx."
     || output.outcome !== "completed"
   ) {
     throw new Error(`the README quickstart did not seal its greeting: ${JSON.stringify(output)}`);

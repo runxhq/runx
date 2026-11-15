@@ -6,7 +6,7 @@ description: Retrieve bounded receipt evidence by exact ids or explicit filters,
 # Receipt Query
 
 Collect the exact signed run evidence a reviewer needs, using explicit receipt
-ids or bounded filters. Native Runx owns receipt lookup and verification; this
+ids or bounded filters. Native runx owns receipt lookup and verification; this
 skill normalizes the query and returns a reusable evidence packet. It is
 read-only.
 
@@ -35,11 +35,11 @@ available. Detail retains `issuer_type`, `seal_criteria` and, for a failed step,
 `seal_failure`: its code, its reason, whether a retry is offered and its own
 fields, such as each field a provider's answer contradicts. A failed output
 contract is still visible when a step has no act. A verified `local` issuer
-means the Runx home signed the receipt; it does not establish an independent
+means the runx home signed the receipt; it does not establish an independent
 operator or provider attestation. Missing replay fields stay unknown.
 
 The default `read` method invokes the native `receipt.query` service directly.
-The service resolves the same receipt store and signature policy as Runx's CLI,
+The service resolves the same receipt store and signature policy as runx's CLI,
 projects bounded history rows, resolves exact ids through the redacted detail
 reader, and optionally verifies each matched receipt tree. There is no child
 process, command-string construction, or package-local receipt parser. It is

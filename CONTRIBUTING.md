@@ -132,7 +132,7 @@ Re-run `pnpm build` after source changes that affect compiled package output.
 
 ## Skill authoring paths
 
-Run the `skill-build` skill when you already have the Runx CLI available
+Run the `skill-build` skill when you already have the runx CLI available
 locally and want a standalone skill package. It leaves the target untouched
 until the exact package validates:
 
@@ -150,7 +150,7 @@ The first runnable example is documented in [docs/getting-started.md](docs/getti
 
 The CLI ships from a reviewed `cli-vX.Y.Z` candidate to GitHub Releases, npm,
 GHCR, Homebrew, and Scoop, plus the `runx.ai/install` one-liner. Winget is an
-asynchronous submission and AUR is published only when Runx controls the
+asynchronous submission and AUR is published only when runx controls the
 package. CLI versions are committed to the candidate manifests and verified
 again from the tag; CLI tags never publish internal Cargo crates. Full pipeline,
 versioning, channel, and release instructions are in

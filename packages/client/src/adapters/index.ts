@@ -1,7 +1,7 @@
 import type { SkillOutputContract } from "@runxhq/contracts";
 
 export function summarizeSkillOutput(result: SkillOutputContract): string {
-  const name = typeof result.skill_name === "string" ? result.skill_name : "Runx skill";
+  const name = typeof result.skill_name === "string" ? result.skill_name : "runx skill";
   if (result.status === "needs_agent" || result.status === "needs_approval") {
     return `${name} needs ${result.status === "needs_approval" ? "approval" : "agent input"} at ${result.run_id ?? "unknown run"}.`;
   }

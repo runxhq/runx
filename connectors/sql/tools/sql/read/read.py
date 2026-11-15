@@ -1,4 +1,4 @@
-"""Trusted SQL provider process. Runx owns admission, secrets and supervision.
+"""Trusted SQL provider process. runx owns admission, secrets and supervision.
 
 Only operator-declared statements are executable; callers supply bound values,
 never SQL or connection settings. Database permissions remain authoritative:

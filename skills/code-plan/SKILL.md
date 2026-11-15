@@ -1,6 +1,6 @@
 ---
 name: code-plan
-description: Compile a bounded objective or code-intake change set into a dependency-safe Runx execution plan, with deterministic checks for evidence preservation, mutation boundaries, catalog references, and skill-package ownership. Use before multi-step or cross-surface work; this skill plans but does not execute.
+description: Compile a bounded objective or code-intake change set into a dependency-safe runx execution plan, with deterministic checks for evidence preservation, mutation boundaries, catalog references, and skill-package ownership. Use before multi-step or cross-surface work; this skill plans but does not execute.
 ---
 
 # Code Plan
@@ -60,6 +60,6 @@ id, ordered dependencies, and an explicit mutation flag. A ready plan has no blo
 questions. Use only the supplied native catalog_skills for required_skills and
 orchestration routes; a skill absent from that catalog cannot be claimed available.
 Route ordinary application edits to an available repository implementation lane,
-such as github-issue-to-pr. Reserve skill-build for Runx skill-package authoring.
-Use plan_kind skill_package for Runx skill authoring and route that work through
+such as github-issue-to-pr. Reserve skill-build for runx skill-package authoring.
+Use plan_kind skill_package for runx skill authoring and route that work through
 skill-build. This method plans only and never claims downstream execution.

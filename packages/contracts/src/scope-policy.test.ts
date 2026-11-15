@@ -17,7 +17,7 @@ interface ScopeGrantFixture {
 
 const policyFixtureRoot = new URL("../../../fixtures/kernel/policy/", import.meta.url);
 
-describe("Runx scope grant policy", () => {
+describe("runx scope grant policy", () => {
   it("matches the Rust-owned kernel fixtures", async () => {
     const fixtureNames = (await readdir(policyFixtureRoot))
       .filter((name) => name.startsWith("scope-grant-") && name.endsWith(".json"))

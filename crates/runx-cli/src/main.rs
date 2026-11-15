@@ -75,7 +75,7 @@ fn dispatch(action: RouterAction, workspace: Option<&runx_runtime::WorkspaceEnv>
         command => {
             let Some(workspace) = workspace else {
                 return write_json_failure(
-                    "command execution requires a resolved Runx workspace",
+                    "command execution requires a resolved runx workspace",
                     "workspace_required",
                     1,
                 );

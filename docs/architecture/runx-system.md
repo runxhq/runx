@@ -1,17 +1,17 @@
-# Runx system architecture
+# runx system architecture
 
 Status: normative. This document defines the ownership and execution boundaries
-for Runx OSS. Historical migration notes may explain how the repository arrived
+for runx OSS. Historical migration notes may explain how the repository arrived
 here, but they do not override this contract.
 
 ## Product model
 
-Runx is an operator runtime. A skill is the durable operating manual and bounded
+runx is an operator runtime. A skill is the durable operating manual and bounded
 program that teaches a human and an acting agent how to perform one operation.
 The runtime supplies reusable execution capabilities, authority, deterministic
 worker isolation, process supervision, receipts, replay, and provider
 boundaries. Product-owned skills retain domain
-judgment. Runx Cloud is a hosted control plane and provider-execution service;
+judgment. runx Cloud is a hosted control plane and provider-execution service;
 it is not the owner of local operator workflows.
 
 The dependency direction is one way:
@@ -84,7 +84,7 @@ approvals, test cases, and skill references. It must not repeat the manual.
 Package JavaScript exists only for deterministic domain computation the workflow
 and native capability plane cannot express cleanly. It never exists merely to
 perform HTTP, filesystem, subprocess, credential, packet, or receipt mechanics
-that Runx already owns.
+that runx already owns.
 
 The current skill's complete manual is digest-bound into the acting context and
 resume envelope. Declared `context.skills` contribute bounded catalog summaries
@@ -122,7 +122,7 @@ Each target has one meaning and one authority boundary:
   worker protocol.
 - **Process tool (`tool: { command: ... }`):** intentional trusted host code
   with explicit command, arguments,
-  declared environment, timeout, and output policy. Runx supervises the
+  declared environment, timeout, and output policy. runx supervises the
   process and records the boundary but does not claim filesystem, network, or
   syscall confinement. Bundled tool manifests and their local
   source closure are parser-owned skill-package truth, not a second runtime or
@@ -191,7 +191,7 @@ The worker exposes its fixed helper surface regardless of this declaration.
 Omitting a requirement loses the old-runtime guard and can fail at the helper
 call, so package authors must declare newly required APIs explicitly.
 
-The fixed global surface is installed with native engine builders. Runx does
+The fixed global surface is installed with native engine builders. runx does
 not parse a bootstrap script for every invocation; package source is the only
 JavaScript parsed on the execution hot path.
 
@@ -323,7 +323,7 @@ a failure or a blocked workflow. The host protocol keeps the generic
 `needs_agent` resolution envelope, while CLI JSON and operator output present an
 approval-only request set as `needs_approval`. The caller or an integrated host
 records the human decision under `approvals` and continues the same execution
-through `runx resume`. Runx never opens a blocking terminal prompt, and there
+through `runx resume`. runx never opens a blocking terminal prompt, and there
 is no interactive/non-interactive mode split. Exact paid-job authority may
 satisfy the same approval slot when its principal, operation, plan, and
 continuation bindings match; it is preauthorization, not a global auto-approval
@@ -367,7 +367,7 @@ the runtime, fork the executor, or acquire a second authoring framework.
 
 All public skills, end-user and domain-operator commands and UX, local host
 loops, queues, schedules, default local state, and operator orchestration live
-in Runx OSS or the owning product repository. Using a hosted connector does not
+in runx OSS or the owning product repository. Using a hosted connector does not
 move ownership into Cloud. Cloud may resolve an opaque grant and perform a
 bounded provider call; the local runtime retains the workflow, decision state,
 and receipt chain unless the user explicitly chooses a hosted operator service.
@@ -409,7 +409,7 @@ not a silent budget increase.
 
 ## Replacement rule
 
-A replacement and deletion land in the same governed phase. Runx does not keep
+A replacement and deletion land in the same governed phase. runx does not keep
 compatibility parsers, unsafe JavaScript fallbacks, duplicate authoring SDKs,
 alias exports, dual effect drivers, or Cloud-owned local operator paths. When a
 cutover cannot preserve the contract, it stops rather than shipping a weaker

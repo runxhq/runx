@@ -1,4 +1,4 @@
-version: "0.1.9"
+version: "0.1.10"
 minimum_runx: 0.12.0
 default_method: generate
 catalog:

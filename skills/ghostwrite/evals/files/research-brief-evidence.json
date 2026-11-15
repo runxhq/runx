@@ -1,12 +1,12 @@
 {
-  "about": "A research brief a prior run completed, with its evidence log and source evidence, on the strongest Runx architecture signal.",
-  "objective": "Explain the strongest Runx architecture signal.",
+  "about": "A research brief a prior run completed, with its evidence log and source evidence, on the strongest runx architecture signal.",
+  "objective": "Explain the strongest runx architecture signal.",
   "audience": "operators",
   "channel": "brief",
   "evidence_pack": {
     "decision": "ready",
     "research_brief": {
-      "objective": "Explain the strongest Runx architecture signal.",
+      "objective": "Explain the strongest runx architecture signal.",
       "scope": "agent infrastructure",
       "summary": "Evidence-bound portable execution is the strongest signal.",
       "open_questions": []

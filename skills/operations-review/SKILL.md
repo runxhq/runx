@@ -54,7 +54,7 @@ lives in SQLite, Postgres or Redis.
   actions, and post-action verification.
 - A product-specific operator skill needs a generic cockpit spine instead of
   inventing its own action model.
-- Runx needs to dogfood its own release, registry, hosted, receipt, or provider
+- runx needs to dogfood its own release, registry, hosted, receipt, or provider
   operations through the same governed lanes it exposes to users.
 
 ## When not to use this skill
@@ -297,7 +297,7 @@ state, secret leakage, or hidden private workarounds.
 This is one bounded review. The calling product supplies its current work and
 state, or selects the explicit read adapter. Fieldwork and other host products
 own continuing objectives, assignments, schedules and recovery. A proposal is
-not an approval, and a caller-supplied approval record cannot authorize a Runx
+not an approval, and a caller-supplied approval record cannot authorize a runx
 act. The named execution owner checks actual grants, policy and approval and
 returns its own receipt. Pass that evidence into a later review without
 repeating the effect. For roster-based assignment preparation use

@@ -81,7 +81,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      directly, such as a weather provider's skill or a hosted communication lane.
 
 3. **Install or reference the skill**
-   - The Runx foundation ships with the runtime. Run it directly, for example `runx skill runx/receipt-query`; it needs no download.
+   - The runx foundation ships with the runtime. Run it directly, for example `runx skill runx/receipt-query`; it needs no download.
    - Run an exact registry ref with `runx skill <publisher>/<skill>@<version>`; it fetches the skill into the project. `runx registry install <publisher>/<skill>@<version>` adds it without running it.
    - Run local skills from the checked-out package path when developing.
    - Treat local files as the user's workspace context, but do not publish or
@@ -104,7 +104,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
    - `needs_agent` is a pause. Read and verify its request artifact, follow its
      output contract, and continue with the full request id and request digest.
      `runx resume --help` gives the exact answer envelope. Keep one driver, the
-     same working project and Runx home across continuations.
+     same working project and runx home across continuations.
    - A skill whose agent makes governed calls runs on an MCP connection, because
      each call must be admitted and recorded. `runx mcp <skill-ref...>` serves it
      as a tool, and its open turns are worked on that connection with `turn_list`,

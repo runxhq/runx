@@ -1,11 +1,11 @@
 ---
 name: skill-adopt
-description: Adapt a captured third-party skill into a useful, validated local Runx package through the canonical authoring engine, preserving source context and required resources. Use skill-build for first-party authoring and skill-review for assessment alone.
+description: Adapt a captured third-party skill into a useful, validated local runx package through the canonical authoring engine, preserving source context and required resources. Use skill-build for first-party authoring and skill-review for assessment alone.
 ---
 
 # Skill Adopt
 
-Turn an upstream skill you want to use into a real local Runx package. Supply
+Turn an upstream skill you want to use into a real local runx package. Supply
 its captured manual and supporting files, a destination in your repository,
 and the operator job it must perform. Adoption carries that source context
 into Skill Build, which designs the execution contract, writes the complete

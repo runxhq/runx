@@ -108,7 +108,7 @@ never a fallback.
 A native invocation and a multi-batch plan have different identities. If the
 invocation pauses, continue **that run id** through `runx resume`; do not start
 another run to escape an approval. If a call is interrupted or its outcome is
-unknown, read native history and reconcile that same invocation first. Runx
+unknown, read native history and reconcile that same invocation first. runx
 owns in-flight custody and whether an effect may be retried. Only after a batch
 is sealed and its result understood should another `execute` start the next
 batch. A saved plan, status, receipt or supplied approval reference is context,

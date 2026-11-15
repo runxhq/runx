@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fixed, account-bound Brave operations for the Reddit connector.
 
-Native Runx owns approval and effect custody. This tool accepts data, never
+Native runx owns approval and effect custody. This tool accepts data, never
 caller-supplied JavaScript, and never activates the browser.
 """
 
@@ -348,7 +348,7 @@ def main(data):
             result = publishing.readback(sys.modules[__name__], binding, data, data["acknowledgement"])
             print(json.dumps(result, ensure_ascii=False))
         return
-    parser = argparse.ArgumentParser(description="Bound read-only Brave operator for the Runx Reddit skill")
+    parser = argparse.ArgumentParser(description="Bound read-only Brave operator for the runx Reddit skill")
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("tabs")
     bind = sub.add_parser("bind")

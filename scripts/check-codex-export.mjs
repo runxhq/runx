@@ -28,7 +28,7 @@ const nativeEnv = {
 const installRoot = path.join(home, ".agents", "skills");
 exportInto(home);
 
-// Export admission belongs to native Runx, including standalone readiness and
+// Export admission belongs to native runx, including standalone readiness and
 // closure binding. A project export exercises that owner without duplicating
 // its selection rules here.
 const publicNames = exportableNames();

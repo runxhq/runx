@@ -107,8 +107,8 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `skill-build/` | Design, build, improve, and add validated test coverage to Runx skills. |
-| `skill-adopt/` | Adopt a pinned third-party SKILL.md as a governed native Runx binding bundle. |
+| `skill-build/` | Design, build, improve, and add validated test coverage to runx skills. |
+| `skill-adopt/` | Adopt a pinned third-party SKILL.md as a governed native runx binding bundle. |
 | `moltbook/` | Scan for posting opportunities and prepare governed Moltbook entries. |
 
 ## SQL & Structured Data
@@ -139,4 +139,4 @@ Refer to the ["Add A Project Operator Skill Only When"](./operator-skills.md) se
 The fixtures `fixtures/skills/mock-charge`, `mock-pay` and `mock-refund` are
 deterministic local test fixtures. They never move money and remain excluded
 from ordinary operator discovery. Public payment skills are thin contracts that
-require Runx Hosted for real execution; no private rail package remains in OSS.
+require runx Hosted for real execution; no private rail package remains in OSS.

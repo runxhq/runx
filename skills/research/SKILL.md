@@ -43,7 +43,7 @@ their own authority, approval, and readback boundary.
 
 1. State a bounded objective and the decision the research should inform.
 2. Reuse the supplied readback packets, or acquire only the evidence missing
-   for the objective through actual declared reader calls. Runx indexes their
+   for the objective through actual declared reader calls. runx indexes their
    provenance, observation times, source digests, and content digests before
    synthesis.
 3. Synthesis separates verified facts from inference, explains relevance,

@@ -1,6 +1,6 @@
 ---
 name: google-analytics
-description: Read and normalize GA4 properties, metadata, standard reports, and realtime reports through any compatible Runx connector, preserving the measurement caveats an operator needs before turning analytics into action.
+description: Read and normalize GA4 properties, metadata, standard reports, and realtime reports through any compatible runx connector, preserving the measurement caveats an operator needs before turning analytics into action.
 ---
 
 # Google Analytics
@@ -15,7 +15,7 @@ Operators may bring a local, self-hosted, third-party, or Runx-hosted connector.
 Any of those is compatible when it implements the operations and scopes below.
 Never place a connection id, credential handle, provider-config key, service URL,
 or tenant id in a skill input, fixture, or evidence packet; those bindings belong
-in the operator's Runx grant and connector configuration.
+in the operator's runx grant and connector configuration.
 
 ## Read the right thing
 
@@ -28,7 +28,7 @@ analysis and `realtime` only for a current operational pulse.
 import or connector test. It performs the same semantic checks, but its output
 says `provider_status: not_called` and `source_status: supplied_result`. A
 supplied packet is useful evidence with external provenance; it is never proof
-that Runx reached Google.
+that runx reached Google.
 
 Use an explicit empty `dimensions` list for a metric-only total. Its response
 must have empty dimension headers and row dimension values; metric headers and
@@ -114,7 +114,7 @@ metadata undermines the comparison, timezone or currency is unknown where it
 matters, the supplied result lacks provenance, or the configured connector lacks
 the exact capability.
 
-The deterministic module exists for GA4 domain semantics that generic Runx tools
+The deterministic module exists for GA4 domain semantics that generic runx tools
 cannot infer: binding ordered headers to values, validating report identity,
-parsing numeric metrics, and carrying privacy and completeness caveats. Runx
+parsing numeric metrics, and carrying privacy and completeness caveats. runx
 owns provider execution, grants, digesting, projection, and receipts.

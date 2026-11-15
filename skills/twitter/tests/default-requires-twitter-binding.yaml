@@ -15,7 +15,7 @@ providers:
       response:
         status: 200
         headers: {content-type: application/json}
-        body: '{"data":{"id":"42","username":"runx","name":"Runx","created_at":"2026-01-01T00:00:00Z","description":"Governed runtime for agent skills","public_metrics":{"followers_count":100,"following_count":20,"tweet_count":50,"listed_count":3}}}'
+        body: '{"data":{"id":"42","username":"runx","name":"runx","created_at":"2026-01-01T00:00:00Z","description":"Governed runtime for agent skills","public_metrics":{"followers_count":100,"following_count":20,"tweet_count":50,"listed_count":3}}}'
 expect:
   status: sealed
   steps: [prepare, request, normalize, digest, finalize]
@@ -25,7 +25,7 @@ expect:
         twitter_evidence:
           decision: ok
           source: live
-          account: {id: "42", username: runx, name: Runx, description: Governed runtime for agent skills, metrics: {followers: 100, following: 20, posts: 50}}
+          account: {id: "42", username: runx, name: runx, description: Governed runtime for agent skills, metrics: {followers: 100, following: 20, posts: 50}}
           items: []
           item_count: 0
           truncated: false

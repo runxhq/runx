@@ -1,7 +1,7 @@
 name: research-brief-packages-bound-brief-without-publishing
 method: research-brief
 inputs:
-  objective: Identify the strongest architectural signal in the supplied Runx evidence.
+  objective: Identify the strongest architectural signal in the supplied runx evidence.
   audience: operators
   channel: brief
   domain: agent infrastructure
@@ -10,7 +10,7 @@ inputs:
       final_url: https://example.com/receipts
       status: 200
       content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      extracted: Runx receipts bind operator actions to explicit authority and verification evidence.
+      extracted: runx receipts bind operator actions to explicit authority and verification evidence.
       provenance:
         fetched_at: "2026-07-17T00:00:00Z"
         bytes: 82
@@ -32,7 +32,7 @@ host:
       research_candidate:
         decision: ready
         research_brief:
-          objective: Identify the strongest architectural signal in the supplied Runx evidence.
+          objective: Identify the strongest architectural signal in the supplied runx evidence.
           scope: agent infrastructure
           summary: The strongest signal is evidence-bound execution packaged behind portable skills.
           open_questions: []
@@ -58,12 +58,12 @@ host:
       content_draft:
         decision: ready
         content_brief:
-          objective: Identify the strongest architectural signal in the supplied Runx evidence.
+          objective: Identify the strongest architectural signal in the supplied runx evidence.
           audience: operators
           channel: brief
         draft:
           title: Evidence-bound execution is the architecture
-          body: Runx binds operator actions to authority evidence and packages deterministic operations behind portable skills.
+          body: runx binds operator actions to authority evidence and packages deterministic operations behind portable skills.
           claims:
             - claim: Receipts bind operator actions to authority evidence.
               source_digests:

@@ -1,6 +1,6 @@
 {
   "about": "A research packet a prior run completed, with its decision support and evidence log, for content on where a domain operator keeps its loop and state.",
-  "objective": "Should a domain operator move its skill loop and state into Runx Cloud when it uses hosted connectors? Explain the ownership and integration consequences from the supplied conventions.",
+  "objective": "Should a domain operator move its skill loop and state into runx Cloud when it uses hosted connectors? Explain the ownership and integration consequences from the supplied conventions.",
   "research_packet": {
     "decision": "ready",
     "decision_support": [
@@ -24,7 +24,7 @@
         "claim": "Hosted adapters are optional implementations of provider-operation contracts and cannot become a prerequisite for otherwise portable skills.",
         "confidence": "verified",
         "content_digest": "sha256:ca0e40760e18ba1f1187fe9d86ae0e9af7209ee58254594fb621247b3fe328db",
-        "relevance": "Selecting a hosted credential/transport implementation does not require moving the operator into Runx Cloud.",
+        "relevance": "Selecting a hosted credential/transport implementation does not require moving the operator into runx Cloud.",
         "source_digest": "sha256:ca0e40760e18ba1f1187fe9d86ae0e9af7209ee58254594fb621247b3fe328db"
       },
       {
@@ -37,7 +37,7 @@
     ],
     "index_digest": "sha256:4a3cd4d6c5116ca170c5f9d365d346b7d0811434ea591c0e9447dcefb08a1160",
     "research_brief": {
-      "objective": "Should a domain operator move its skill loop and state into Runx Cloud when it uses hosted connectors? Explain the ownership and integration consequences from the supplied conventions.",
+      "objective": "Should a domain operator move its skill loop and state into runx Cloud when it uses hosted connectors? Explain the ownership and integration consequences from the supplied conventions.",
       "open_questions": [
         "The supplied conventions do not specify the exact Cloud API routes or service limits; inspect those contracts before wiring a hosted binding."
       ],

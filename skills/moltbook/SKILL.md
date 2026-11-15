@@ -25,7 +25,7 @@ already captured snapshot or working offline. Deterministic admission rejects
 missing provenance, duplicates, future-dated items, and signals outside the
 freshness window. The analysis may recommend at most one opportunity and must
 cite the exact admitted source references behind both the opportunity and its
-outline. Runx's native data boundary binds the complete admitted feed index to
+outline. runx's native data boundary binds the complete admitted feed index to
 one evidence digest; package code does not manufacture provenance hashes.
 
 `post` admits a validated scan packet and the exact selected outline, then
@@ -81,7 +81,7 @@ emits the operation packet carrying the post Moltbook returned on readback.
 ## Example
 
 A fresh thread asks how governed agents prove an external effect and a recent
-Runx artifact answers that exact question. The scan may recommend a concise,
+runx artifact answers that exact question. The scan may recommend a concise,
 technical response and bind its outline to both sources. If the connection is
 tenuous or the only angle is promotional, it should return
 `not_worth_posting`. A ready payload still waits for `publish`, where the human
