@@ -57,7 +57,7 @@ methods:
           authoring_required: {type: boolean}
         inputs:
           mode: design
-          base_digest: $steps.inspect.authoring_context.base_digest
+          authoring_context: $steps.inspect.authoring_context
           architecture: $steps.architect.architecture_decision
   build:
     description: Create or update a skill package, writing it only once its exact staged bundle passes parsing, inspection and safe replay of its tests.
@@ -117,7 +117,7 @@ methods:
           authoring_required: {type: boolean}
         inputs:
           mode: build
-          base_digest: $steps.inspect.authoring_context.base_digest
+          authoring_context: $steps.inspect.authoring_context
           architecture: $steps.architect.architecture_decision
       - id: author
         when: {value: $steps.plan.authoring_required, equals: true}
@@ -304,7 +304,7 @@ methods:
           authoring_required: {type: boolean}
         inputs:
           mode: improve
-          base_digest: $steps.inspect.authoring_context.base_digest
+          authoring_context: $steps.inspect.authoring_context
           architecture: $steps.architect.architecture_decision
       - id: author
         when: {value: $steps.plan.authoring_required, equals: true}
@@ -395,7 +395,7 @@ methods:
           authoring_required: {type: boolean}
         inputs:
           mode: test
-          base_digest: $steps.inspect.authoring_context.base_digest
+          authoring_context: $steps.inspect.authoring_context
           architecture: $steps.architect.architecture_decision
       - id: author
         when: {value: $steps.plan.authoring_required, equals: true}

@@ -539,11 +539,13 @@ present in context. Once the evidence is sufficient, return the declared
 architecture decision instead of spending the remaining round budget on
 optional discovery.
 
-For every `build` or `extend_existing` decision, make the identity decision
-explicit. Record the current and proposed name, choose `keep`, `rename`,
-`create`, or `internalize`, state whether the package is public or internal,
-and explain why that name is the operation a cold agent will reach for. A
-rename or internalization is a clean cutover: identify every consumer and do
+For a `build` decision, make the identity decision explicit: the proposed
+name, `create`, whether the package is public or internal, and why that name
+is the operation a cold agent will reach for. An `extend_existing` decision
+that keeps the package's name and visibility leaves identity out, and native
+plan keeps the package's own; state it only to `rename` or `internalize`,
+with the current and proposed name. A rename or internalization is a clean
+cutover: identify every consumer and do
 not plan aliases or duplicate discovery rows. Internal packages have no public
 direct-use contract.
 
@@ -572,8 +574,13 @@ routes, resource ceilings, preservation obligations, exact intended deletions,
 and a proof plan. For every skill route, state the domain result being handed
 off, the canonical capability or authority owner, whether a connector is
 required or operator-selected, the context that must survive the boundary, and
-the truthful effect state before and after that route. Cover every material
-outcome independently. Reject an unnecessary provider pin even when it appears
+the truthful effect state before and after that route. A turn that should follow
+the person's standing words and corrections reads them through a route to
+`runx/memory#index`, a step before the turn whose `entries` the turn takes as
+`context.entries`, at the personal and workspace levels as the bundled agent
+does. Plan it for a job the person repeats and corrects; a run reads their
+memory under the standing authority they save for the workspace. Cover every
+material outcome independently. Reject an unnecessary provider pin even when it appears
 in prior work or the request's implementation sketch. Apply the cold-operator
 trial to the proposed public result and chain before making the architecture choice.
 Classify every potentially large value as control input,
@@ -637,8 +644,9 @@ may add `when`, `guard`, `inputs`, `outputs`, `result_as`, `effects` and
 `reach`. An `agent` step names its task, and `SKILL.md` must hold that task's
 `## Agent task: <name>` section with its instructions; its `calls` lists what
 the turn may call (`tools`, `operations` as `<connector>/<operation>`, `skills`
-as `<ref>#<method>`, `load`, `ask: true`) and its `context.skills` the
-skills it reads first. A `skill` step names its target as `<ref>#<method>`,
+as `<ref>#<method>`, `load`, `ask: true`), its `context.skills` the
+skills it reads first, and its `context.entries` the entries an earlier step
+gives it, such as `[$steps.recall.entries]`. A `skill` step names its target as `<ref>#<method>`,
 where `.#<method>` is this package's own method. Steps read `$input`,
 `$steps.<id>`, and `$run.act` inside an `act`.
 

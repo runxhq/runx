@@ -12,7 +12,7 @@ use serde_json::json;
 
 use super::{
     CandidateStage, apply_skill_change, assert_allowed_package_delete_path,
-    assert_allowed_package_write_path, bind_skill_change, inspect_skill_workspace,
+    assert_allowed_package_write_path, bind_skill_change, inspect_skill_workspace, kept_identity,
     package_snapshot, plan_skill_architecture,
 };
 use crate::RuntimeEffectRegistry;
@@ -433,6 +433,55 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
         !staging.exists() || fs::read_dir(staging)?.next().is_none(),
         "failed validation must not leave a staged candidate"
     );
+    Ok(())
+}
+
+/// An extension that keeps its package's identity leaves it out, and the
+/// plan keeps the package's own, public for a package a person wrote with no
+/// catalog, as runx lists it; one that states it keeps what it states.
+#[test]
+fn an_extension_plans_with_its_packages_own_identity_unstated()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempfile::tempdir()?;
+    let skill = temp.path().join("skills/demo");
+    fs::create_dir_all(&skill)?;
+    fs::write(skill.join("SKILL.md"), VALID_MANUAL)?;
+    fs::write(
+        skill.join("run.yaml"),
+        VALID_MANIFEST.replace("catalog:\n  visibility: public\n\n", ""),
+    )?;
+    let context = inspect_skill_workspace(
+        temp.path(),
+        Some("skills/demo"),
+        &RuntimeEffectRegistry::default(),
+    )?;
+    let stated = architecture(SkillArchitectureChoice::ExtendExisting, &[]);
+    let mut unstated = stated.clone();
+    unstated.identity = None;
+    let plan = plan_skill_architecture(
+        context.base_digest.as_str(),
+        SkillAuthoringMode::Improve,
+        kept_identity(&context, unstated),
+    )?;
+    let kept = plan
+        .architecture
+        .identity
+        .expect("the package's own identity");
+    assert_eq!(
+        (
+            kept.current_name.as_ref().map(|name| name.as_str()),
+            kept.proposed_name.as_ref().map(|name| name.as_str()),
+            kept.action,
+            kept.visibility
+        ),
+        (
+            Some("demo"),
+            Some("demo"),
+            runx_contracts::SkillIdentityAction::Keep,
+            SkillPackageVisibility::Public
+        )
+    );
+    assert_eq!(kept_identity(&context, stated.clone()), stated);
     Ok(())
 }
 

@@ -5,8 +5,9 @@ use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     Digest, JsonValue, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
     SkillArchitectureChoice, SkillArchitectureDecision, SkillArchitecturePlan,
-    SkillArchitecturePlanSchema, SkillAuthoringMode, SkillChangeBundle, SkillChangeBundleSchema,
-    SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema, SkillValidationResult,
+    SkillArchitecturePlanSchema, SkillAuthoringContext, SkillAuthoringMode, SkillChangeBundle,
+    SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
+    SkillIdentityAction, SkillIdentityDecision, SkillPackageVisibility, SkillValidationResult,
     sha256_prefixed,
 };
 
@@ -59,6 +60,52 @@ pub(crate) fn architecture_digest(
     let canonical = runx_contracts::canonical_stable_json(&value)
         .map_err(|error| invalid_skill_change(format!("canonicalizing architecture: {error}")))?;
     Ok(sha256_prefixed(canonical.as_bytes()))
+}
+
+/// An extension that states no identity keeps its package's own: the name
+/// its SKILL.md gives and the visibility its catalog states, public when it
+/// states none, as runx lists and exports it, read from the target `context`
+/// names, so a turn never restates what the package says.
+/// One that renames or internalizes states it, and a target that doesn't
+/// load keeps nothing, so the plan refuses the missing identity.
+pub(crate) fn kept_identity(
+    context: &SkillAuthoringContext,
+    mut architecture: SkillArchitectureDecision,
+) -> SkillArchitectureDecision {
+    if architecture.choice != SkillArchitectureChoice::ExtendExisting
+        || architecture.identity.is_some()
+        || !context.target_exists
+    {
+        return architecture;
+    }
+    let Some(target) = context
+        .target_dir
+        .as_ref()
+        .and_then(|target| normalize_child_path(target.as_str()).ok())
+    else {
+        return architecture;
+    };
+    let Ok(loaded) =
+        crate::load_validated_skill_package(&Path::new(context.repo_root.as_str()).join(target))
+    else {
+        return architecture;
+    };
+    let visibility = loaded
+        .manifest()
+        .and_then(|manifest| manifest.catalog.as_ref())
+        .map(|catalog| catalog.visibility);
+    let name = NonEmptyString::from(loaded.package.skill.name.as_str());
+    architecture.identity = Some(SkillIdentityDecision {
+        current_name: Some(name.clone()),
+        proposed_name: Some(name),
+        action: SkillIdentityAction::Keep,
+        visibility: match visibility {
+            Some(runx_parser::CatalogVisibility::Internal) => SkillPackageVisibility::Internal,
+            Some(runx_parser::CatalogVisibility::Public) | None => SkillPackageVisibility::Public,
+        },
+        rationale: NonEmptyString::from("The package keeps its own name and visibility."),
+    });
+    architecture
 }
 
 pub(crate) fn plan_skill_architecture(

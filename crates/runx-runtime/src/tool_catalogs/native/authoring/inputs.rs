@@ -1,6 +1,6 @@
 use runx_contracts::{
-    JsonObject, JsonValue, SkillArchitectureDecision, SkillArchitecturePlan, SkillAuthoringMode,
-    SkillChangeBundle, SkillChangeDraft,
+    JsonObject, JsonValue, SkillArchitectureDecision, SkillArchitecturePlan, SkillAuthoringContext,
+    SkillAuthoringMode, SkillChangeBundle, SkillChangeDraft,
 };
 use serde::{Deserialize, Serialize};
 
@@ -40,7 +40,7 @@ impl CapabilityInput for ApplyInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct PlanInput {
-    pub(super) base_digest: String,
+    pub(super) authoring_context: SkillAuthoringContext,
     pub(super) mode: SkillAuthoringMode,
     pub(super) architecture: SkillArchitectureDecision,
 }
@@ -100,8 +100,8 @@ pub(super) const PLAN_FIELDS: &[CapabilityField] = &[
         "Exact authoring mode, bound into the plan digest and checked before authoring.",
     ),
     field(
-        "base_digest",
-        "Package digest returned by the matching runx.skill.inspect call.",
+        "authoring_context",
+        "What the matching runx.skill.inspect call returned: the plan binds its base digest, and an extension that states no identity keeps its target package's own.",
     ),
     field(
         "architecture",

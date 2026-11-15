@@ -107,10 +107,11 @@ fn requested_skill_path<'a>(
 pub(super) fn plan_skill(
     invocation: &NativeInvocation<'_, PlanInput>,
 ) -> Result<PlanOutput, RuntimeError> {
+    let context = &invocation.inputs.authoring_context;
     let plan = crate::services::plan_skill_architecture(
-        &invocation.inputs.base_digest,
+        context.base_digest.as_str(),
         invocation.inputs.mode,
-        invocation.inputs.architecture.clone(),
+        crate::services::kept_identity(context, invocation.inputs.architecture.clone()),
     )?;
     Ok(PlanOutput {
         authoring_required: matches!(
