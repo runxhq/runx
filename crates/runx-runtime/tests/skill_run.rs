@@ -1787,7 +1787,7 @@ fn an_agent_step_is_given_an_earlier_steps_context_entries_with_their_own_labels
 }
 
 #[test]
-fn a_remote_turn_is_refused_instead_of_dropping_a_local_only_context_entry()
+fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let entry = |summary: &str, sharing: &str| {
@@ -1824,18 +1824,21 @@ fn a_remote_turn_is_refused_instead_of_dropping_a_local_only_context_entry()
     // anywhere.
     let result = run_context_entries_skill(temp.path(), skill_dir)?;
 
-    refused_before_the_turn(&result)?;
-    // The failed run retains both entries locally for diagnosis, but asks no
-    // model to answer a partial request.
-    let output = serde_json::to_value(&result.output)?;
-    let entries = &output["context"]["step_outputs"]["recall"]["entries"];
-    assert_eq!(entries.as_array().map(Vec::len), Some(2), "{output}");
-    assert_eq!(entries[1]["data"]["text"], "Kept on this machine");
+    let output = object(&result.output, "context entries result")?;
+    assert_eq!(string_field(output, "status"), Some("needs_agent"));
+    let rendered = serde_json::to_string(&output["requests"])?;
+    assert!(
+        rendered.contains("Shared with the configured model"),
+        "{rendered}"
+    );
+    // Neither the entry nor any of its text reaches the host.
+    assert!(!rendered.contains("Kept on this machine"), "{rendered}");
+    assert!(!rendered.contains("memory:local_only"), "{rendered}");
     Ok(())
 }
 
 #[test]
-fn a_remote_child_turn_preserves_the_callers_context_or_refuses_it()
+fn a_remote_child_turn_is_given_the_callers_shareable_context_and_none_kept_local()
 -> Result<(), Box<dyn std::error::Error>> {
     for historical in [false, true] {
         for sharing in ["configured_model", "local_only"] {
@@ -1885,8 +1888,10 @@ fn a_remote_child_turn_preserves_the_callers_context_or_refuses_it()
             });
             let result = run_skill(request.clone())?;
             if sharing == "local_only" {
-                refused_before_the_turn(&result)?;
-                let rendered = serde_json::to_string(&result.output)?;
+                // The child's turn goes ahead without the entry kept local.
+                let output = serde_json::to_value(&result.output)?;
+                assert_eq!(output["status"], "needs_agent", "{output}");
+                let rendered = serde_json::to_string(&output["requests"])?;
                 assert!(!rendered.contains("Exact caller context"), "{rendered}");
                 assert!(!rendered.contains("Retain every byte"), "{rendered}");
             } else {
