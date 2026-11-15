@@ -384,6 +384,8 @@ export const STAYS = [
   { word: "harness", why: "Cargo's key as written, harness = false, which the bench targets check reads", file: /^scripts\/check-bench-targets(\.test)?\.mjs$/, after: /^\s*=\s*false\b/ },
   // harness: the retired command a test names to prove native help dropped it.
   { word: "harness", why: "the retired command native help must not advertise", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\b(runx|advertise) $/ },
+  // The same retired command, first in the list a test proves unknown.
+  { word: "harness", why: "the retired command a test proves is unknown", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /\bretired in \["$/ },
   // graph: JSON-LD's @graph keyword, and Microsoft Graph, a product's name.
   { word: "graph", why: "JSON-LD's @graph keyword", before: /@$/ },
   { word: "graph", why: "Microsoft Graph, a product's name", token: "Graph", before: /\b(Microsoft|through) $/ },
