@@ -122,7 +122,7 @@ test("the real generated platform matrix satisfies the build and smoke workflow"
     assert.equal(job.if, "github.event_name == 'workflow_dispatch'", "a tag never enters a native build or smoke");
   }
   const recorder = workflow.jobs.build.steps.find(step => step.name === "Record deterministic module platform evidence");
-  assert.match(recorder.run, /--host "\$\{\{ matrix\.runner \}\}"/u);
+  assert.match(recorder.run, /--host "\$\{\{ matrix\.host \}\}"/u);
   const directory = mkdtempSync(path.join(os.tmpdir(), "runx-platform-contract-"));
   try {
     for (const platform of include) {
@@ -132,8 +132,8 @@ test("the real generated platform matrix satisfies the build and smoke workflow"
       execFileSync(process.execPath, [path.join(root, "scripts/record-deterministic-module-platform-evidence.mjs"),
         "--decision", "docs/architecture/deterministic-module-engine.json",
         "--platform", platform.platform, "--target", platform.target,
-        "--host", platform.runner, "--worker", worker, "--out", output], { stdio: "pipe" });
-      assert.equal(JSON.parse(readFileSync(output, "utf8")).host, platform.runner);
+        "--host", platform.host, "--worker", worker, "--out", output], { stdio: "pipe" });
+      assert.equal(JSON.parse(readFileSync(output, "utf8")).host, platform.host);
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }
   for (const name of ["publish-npm", "package-managers"]) {

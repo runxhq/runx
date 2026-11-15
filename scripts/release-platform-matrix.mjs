@@ -7,7 +7,7 @@ const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url))
 const include = loadRustCliPlatforms(workspaceRoot).map((platform) => {
   return {
     platform: platform.key,
-    runner: platform.host,
+    host: platform.host,
     target: platform.rustTarget,
     ext: platform.archiveExtension,
     binary: platform.binaryName,

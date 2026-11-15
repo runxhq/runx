@@ -219,7 +219,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix: ${{ fromJSON(needs.prepare.outputs.platform_matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.host }}
     permissions:
       contents: read
     steps:
@@ -264,7 +264,7 @@ jobs:
             --decision "docs/architecture/deterministic-module-engine.json" \
             --platform "${{ matrix.platform }}" \
             --target "${{ matrix.target }}" \
-            --host "${{ matrix.runner }}" \
+            --host "${{ matrix.host }}" \
             --worker "crates/target/${{ matrix.target }}/release/${{ matrix.worker }}" \
             --out "dist/archives/deterministic-module-${{ matrix.platform }}.json"
       - name: Stage signature manifest (npm)
@@ -384,7 +384,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix: ${{ fromJSON(needs.prepare.outputs.platform_matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -966,7 +966,7 @@ jobs:
       fail-fast: true
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v7
       - name: Smoke the published image on the native runner
